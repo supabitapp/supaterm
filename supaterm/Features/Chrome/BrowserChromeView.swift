@@ -281,7 +281,7 @@ private struct QuitConfirmationOverlay: View {
             .keyboardShortcut(.defaultAction)
           }
         }
-        .frame(width: 400, height: 220)
+        .frame(width: 360, height: 220)
         .padding(12)
         .background(palette.dialogInnerBackground, in: .rect(cornerRadius: 11))
         .overlay {
