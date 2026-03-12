@@ -420,7 +420,7 @@ private struct SidebarResizeHandle: View {
   let minFraction: CGFloat
   let maxFraction: CGFloat
   var onHide: (() -> Void)?
-  @State private var dragStartFraction: CGFloat?
+  @State private var previousPosition: CGFloat?
 
   var body: some View {
     Rectangle()
@@ -435,32 +435,30 @@ private struct SidebarResizeHandle: View {
         }
       }
       .gesture(
-        DragGesture()
+        DragGesture(coordinateSpace: .global)
           .onChanged { value in
-            if dragStartFraction == nil {
-              dragStartFraction = sidebarFraction
-            }
-
-            let baseFraction = dragStartFraction ?? sidebarFraction
-            let baseWidth = totalWidth * baseFraction
-            let proposedWidth = max(0, min(baseWidth + value.translation.width, totalWidth))
-            let rawFraction = proposedWidth / max(totalWidth, 1)
-
-            sidebarFraction = min(max(rawFraction, minFraction), maxFraction)
-          }
-          .onEnded { value in
-            let baseFraction = dragStartFraction ?? sidebarFraction
-            let baseWidth = totalWidth * baseFraction
-            let proposedWidth = max(0, min(baseWidth + value.translation.width, totalWidth))
-            let rawFraction = proposedWidth / max(totalWidth, 1)
-
-            if let onHide, rawFraction < minFraction {
-              onHide()
-            } else {
+            let position = value.location.x
+            if let previous = previousPosition {
+              let delta = position - previous
+              let currentWidth = totalWidth * sidebarFraction
+              let rawFraction = (currentWidth + delta) / max(totalWidth, 1)
               sidebarFraction = min(max(rawFraction, minFraction), maxFraction)
             }
-
-            dragStartFraction = nil
+            previousPosition = position
+          }
+          .onEnded { value in
+            let position = value.location.x
+            if let previous = previousPosition {
+              let delta = position - previous
+              let currentWidth = totalWidth * sidebarFraction
+              let rawFraction = (currentWidth + delta) / max(totalWidth, 1)
+              if let onHide, rawFraction < minFraction {
+                onHide()
+              } else {
+                sidebarFraction = min(max(rawFraction, minFraction), maxFraction)
+              }
+            }
+            previousPosition = nil
           }
       )
   }
