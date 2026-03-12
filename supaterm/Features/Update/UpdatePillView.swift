@@ -10,32 +10,42 @@ struct UpdatePillView: View {
 
   var body: some View {
     if !store.phase.isIdle {
-      Button {
-        store.send(.pillButtonTapped)
-      } label: {
-        HStack(spacing: 6) {
-          badgeView
-            .frame(width: 14, height: 14)
-
-          Text(store.phase.text)
-            .font(Font(textFont))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(width: textWidth)
+      if store.phase.allowsPopover {
+        Button {
+          store.send(.pillButtonTapped)
+        } label: {
+          label
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(backgroundColor))
-        .foregroundStyle(.white)
-        .contentShape(Capsule())
-      }
-      .buttonStyle(.plain)
-      .help(store.phase.text)
-      .accessibilityLabel(store.phase.text)
-      .popover(isPresented: popoverBinding, arrowEdge: .bottom) {
-        UpdatePopoverView(store: store)
+        .buttonStyle(.plain)
+        .help(store.phase.text)
+        .accessibilityLabel(store.phase.text)
+        .popover(isPresented: popoverBinding, arrowEdge: .bottom) {
+          UpdatePopoverView(store: store)
+        }
+      } else {
+        label
+          .help(store.phase.text)
+          .accessibilityLabel(store.phase.text)
       }
     }
+  }
+
+  private var label: some View {
+    HStack(spacing: 6) {
+      badgeView
+        .frame(width: 14, height: 14)
+
+      Text(store.phase.text)
+        .font(Font(textFont))
+        .lineLimit(1)
+        .truncationMode(.tail)
+        .frame(width: textWidth)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 4)
+    .background(Capsule().fill(backgroundColor))
+    .foregroundStyle(.white)
+    .contentShape(Capsule())
   }
 
   @ViewBuilder

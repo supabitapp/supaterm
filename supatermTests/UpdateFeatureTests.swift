@@ -129,6 +129,28 @@ struct UpdateFeatureTests {
 
     #expect(await recorder.intents() == [.dismiss])
   }
+
+  @Test
+  func downloadingSnapshotClosesPopover() async {
+    var initialState = UpdateFeature.State()
+    initialState.isPopoverPresented = true
+    initialState.phase = .checking
+
+    let snapshot = UpdateClient.Snapshot(
+      canCheckForUpdates: true,
+      phase: .downloading(.init(expectedLength: 1_000, receivedLength: 500))
+    )
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    }
+
+    await store.send(.updateClientSnapshotReceived(snapshot)) {
+      $0.canCheckForUpdates = true
+      $0.isPopoverPresented = false
+      $0.phase = .downloading(.init(expectedLength: 1_000, receivedLength: 500))
+    }
+  }
 }
 
 private actor CheckRecorder {

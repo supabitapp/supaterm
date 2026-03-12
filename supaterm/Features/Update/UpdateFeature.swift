@@ -85,6 +85,7 @@ struct UpdateFeature {
 
       case .pillButtonTapped:
         guard !state.phase.isIdle else { return .none }
+        guard state.phase.allowsPopover else { return .none }
         if case .notFound = state.phase {
           state.isPopoverPresented = false
           state.phase = .idle
@@ -99,7 +100,7 @@ struct UpdateFeature {
         return .none
 
       case .popoverPresentedChanged(let isPresented):
-        state.isPopoverPresented = !state.phase.isIdle && isPresented
+        state.isPopoverPresented = state.phase.allowsPopover && isPresented
         return .none
 
       case .presentationContextChanged(let presentationContext):
@@ -142,7 +143,7 @@ struct UpdateFeature {
       case .updateClientSnapshotReceived(let snapshot):
         state.canCheckForUpdates = snapshot.canCheckForUpdates
         state.phase = snapshot.phase
-        if snapshot.phase.isIdle {
+        if !snapshot.phase.allowsPopover {
           state.isPopoverPresented = false
         }
         guard case .notFound = snapshot.phase else {

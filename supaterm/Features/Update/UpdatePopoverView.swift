@@ -20,8 +20,8 @@ struct UpdatePopoverView: View {
       case .updateAvailable(let info):
         updateAvailableView(info)
 
-      case .downloading(let progress):
-        downloadingView(progress)
+      case .downloading:
+        EmptyView()
 
       case .extracting(let progress):
         extractingView(progress)
@@ -46,37 +46,6 @@ struct UpdatePopoverView: View {
           .controlSize(.small)
         Text(store.phase.text)
           .font(.system(size: 13))
-      }
-
-      HStack {
-        Spacer()
-        Button("Cancel") {
-          store.send(.cancelButtonTapped)
-        }
-        .keyboardShortcut(.cancelAction)
-        .controlSize(.small)
-      }
-    }
-    .padding(16)
-  }
-
-  private func downloadingView(_ progress: UpdateDownloadProgress) -> some View {
-    VStack(alignment: .leading, spacing: 16) {
-      VStack(alignment: .leading, spacing: 8) {
-        Text(store.phase.title)
-          .font(.system(size: 13, weight: .semibold))
-
-        if let fractionCompleted = progress.fractionCompleted {
-          VStack(alignment: .leading, spacing: 6) {
-            ProgressView(value: fractionCompleted)
-            Text(String(format: "%.0f%%", fractionCompleted * 100))
-              .font(.system(size: 11))
-              .foregroundStyle(.secondary)
-          }
-        } else {
-          ProgressView()
-            .controlSize(.small)
-        }
       }
 
       HStack {

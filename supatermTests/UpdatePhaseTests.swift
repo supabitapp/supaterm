@@ -34,4 +34,10 @@ struct UpdatePhaseTests {
     #expect(UpdatePhase.error("Network error").pillTone == .warning)
     #expect(UpdatePhase.error("Network error").text == "Network error")
   }
+
+  @Test
+  func downloadingPhaseDisablesPopover() {
+    #expect(UpdatePhase.downloading(.init(expectedLength: 1_000, receivedLength: 500)).allowsPopover == false)
+    #expect(UpdatePhase.checking.allowsPopover)
+  }
 }

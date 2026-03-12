@@ -69,15 +69,6 @@ private struct UpdatePreviewScenario: Identifiable {
       )
     ),
     .init(
-      id: "Downloading",
-      phase: .downloading(
-        .init(
-          expectedLength: 146_800_640,
-          receivedLength: 88_080_384
-        )
-      )
-    ),
-    .init(
       id: "Preparing",
       phase: .extracting(0.84)
     ),
