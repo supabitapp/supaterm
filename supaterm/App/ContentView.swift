@@ -6,5 +6,8 @@ struct ContentView: View {
 
   var body: some View {
     BrowserChromeView(store: store)
+      .task {
+        store.send(.update(.task))
+      }
   }
 }
