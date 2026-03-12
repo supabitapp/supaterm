@@ -19,6 +19,31 @@ jobs:
       TUIST_GENERATE_CACHE_PROFILE: none
     steps:
       - uses: actions/checkout@v6
+      - name: Capture toolchain fingerprint
+        id: toolchain
+        shell: bash
+        run: |
+          xcode_version="$(xcodebuild -version | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
+          swift_version="$(swift --version | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
+          toolchain_hash="$(printf '%s\n%s\n' "$xcode_version" "$swift_version" | shasum -a 256 | awk '{print $1}')"
+
+          echo "xcode_version=$xcode_version" >> "$GITHUB_OUTPUT"
+          echo "swift_version=$swift_version" >> "$GITHUB_OUTPUT"
+          echo "toolchain_hash=$toolchain_hash" >> "$GITHUB_OUTPUT"
+      - name: Cache Tuist repositories
+        uses: actions/cache@v4
+        with:
+          path: Tuist/.build/repositories
+          key: ${{ runner.os }}-${{ runner.arch }}-tuist-repositories-${{ hashFiles('Tuist/Package.resolved', 'Tuist/Package.swift', 'mise.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-tuist-repositories-
+      - name: Cache Tuist prebuilts
+        uses: actions/cache@v4
+        with:
+          path: Tuist/.build/prebuilts
+          key: ${{ runner.os }}-${{ runner.arch }}-tuist-prebuilts-${{ steps.toolchain.outputs.toolchain_hash }}-${{ hashFiles('Tuist/Package.resolved', 'Tuist/Package.swift', 'mise.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-tuist-prebuilts-${{ steps.toolchain.outputs.toolchain_hash }}-
       - run: brew install mise
       - run: mise install
       - run: make lint
