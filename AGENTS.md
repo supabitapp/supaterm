@@ -1,7 +1,7 @@
 ## Build Commands
 
 ```bash
-make format # run both format and lint
+make check # run both format and lint
 make build-app # build the app
 ```
 
