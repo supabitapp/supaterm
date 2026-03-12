@@ -110,6 +110,15 @@ enum UpdatePhase: Equatable, Sendable {
     return false
   }
 
+  var allowsPopover: Bool {
+    switch self {
+    case .idle, .downloading:
+      return false
+    default:
+      return true
+    }
+  }
+
   var maxText: String {
     switch self {
     case .downloading:
