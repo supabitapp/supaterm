@@ -28,6 +28,11 @@ let project = Project(
       infoPlist: .extendingDefault(with: [
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+        "LSApplicationCategoryType": "public.app-category.developer-tools",
+        "SUFeedURL": "https://github.com/supabitapp/supaterm/releases/download/tip/appcast.xml",
+        "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
+        "SUEnableAutomaticChecks": true,
+        "SUAutomaticallyUpdate": true,
       ]),
       resources: [
         "supaterm/Assets.xcassets",
@@ -38,10 +43,13 @@ let project = Project(
       ],
       dependencies: [
         .external(name: "ComposableArchitecture"),
+        .external(name: "Sparkle"),
       ],
       settings: .settings(
         base: [
           "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+          "ENABLE_HARDENED_RUNTIME": "YES",
+          "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
         ],
         defaultSettings: .essential
       )

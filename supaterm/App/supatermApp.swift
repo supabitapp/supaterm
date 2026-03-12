@@ -9,6 +9,7 @@ struct SupatermApp: App {
   private let store: StoreOf<AppFeature> = Store(initialState: AppFeature.State()) {
     AppFeature()
   }
+  private let updater = AppUpdater()
 
   var body: some Scene {
     Window("Supaterm", id: "main") {
@@ -18,7 +19,10 @@ struct SupatermApp: App {
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      BrowserCommands()
+      BrowserCommands(
+        canCheckForUpdates: updater.isAvailable,
+        checkForUpdates: { updater.checkForUpdates() }
+      )
     }
   }
 }
