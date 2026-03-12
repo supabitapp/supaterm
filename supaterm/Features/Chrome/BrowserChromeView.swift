@@ -257,8 +257,6 @@ private struct QuitConfirmationOverlay: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
 
-          Spacer()
-
           HStack {
             DialogActionButton(
               palette: palette,
@@ -280,8 +278,9 @@ private struct QuitConfirmationOverlay: View {
             )
             .keyboardShortcut(.defaultAction)
           }
+          .padding(.top, 28)
         }
-        .frame(width: 360, height: 220)
+        .frame(width: 360)
         .padding(12)
         .background(palette.dialogInnerBackground, in: .rect(cornerRadius: 11))
         .overlay {
