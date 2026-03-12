@@ -23,8 +23,8 @@ struct UpdatePopoverView: View {
       case .downloading:
         EmptyView()
 
-      case .extracting(let progress):
-        extractingView(progress)
+      case .extracting:
+        EmptyView()
 
       case .installing(let installing):
         installingView(installing)
@@ -90,21 +90,6 @@ struct UpdatePopoverView: View {
         }
         .keyboardShortcut(.defaultAction)
         .controlSize(.small)
-      }
-    }
-    .padding(16)
-  }
-
-  private func extractingView(_ progress: Double) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(store.phase.title)
-        .font(.system(size: 13, weight: .semibold))
-
-      VStack(alignment: .leading, spacing: 6) {
-        ProgressView(value: min(1, max(0, progress)))
-        Text(String(format: "%.0f%%", min(1, max(0, progress)) * 100))
-          .font(.system(size: 11))
-          .foregroundStyle(.secondary)
       }
     }
     .padding(16)

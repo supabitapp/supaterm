@@ -69,10 +69,6 @@ private struct UpdatePreviewScenario: Identifiable {
       )
     ),
     .init(
-      id: "Preparing",
-      phase: .extracting(0.84)
-    ),
-    .init(
       id: "Restart",
       phase: .installing(.init(canInstallNow: true))
     ),
