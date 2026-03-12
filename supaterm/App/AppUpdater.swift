@@ -8,11 +8,17 @@ final class AppUpdater {
     #if DEBUG
       controller = nil
     #else
-      controller = SPUStandardUpdaterController(
+      let controller = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
       )
+      let updater = controller.updater
+      updater.updateCheckInterval = 900
+      if updater.automaticallyChecksForUpdates {
+        updater.checkForUpdatesInBackground()
+      }
+      self.controller = controller
     #endif
   }
 
