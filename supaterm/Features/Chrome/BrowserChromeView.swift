@@ -19,25 +19,17 @@ struct BrowserChromeView: View {
   var body: some View {
     GeometryReader { geometry in
       ZStack(alignment: .leading) {
-        if isSidebarCollapsed {
-          BrowserDetailView(
-            palette: palette,
-            isSidebarCollapsed: true,
-            onToggleSidebar: toggleSidebar,
-          )
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-          BrowserChromeSplitView(
-            palette: palette,
-            totalWidth: geometry.size.width,
-            sidebarFraction: $sidebarFraction,
-            minFraction: minSidebarFraction,
-            maxFraction: maxSidebarFraction,
-            onToggleSidebar: toggleSidebar,
-            onHide: collapseSidebar,
-          )
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        BrowserChromeSplitView(
+          palette: palette,
+          totalWidth: geometry.size.width,
+          isSidebarCollapsed: isSidebarCollapsed,
+          sidebarFraction: $sidebarFraction,
+          minFraction: minSidebarFraction,
+          maxFraction: maxSidebarFraction,
+          onToggleSidebar: toggleSidebar,
+          onHide: collapseSidebar,
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         if isSidebarCollapsed {
           FloatingSidebarOverlay(
@@ -148,6 +140,7 @@ private enum BrowserChromeCoordinateSpace {
 private struct BrowserChromeSplitView: View {
   let palette: BrowserChromePalette
   let totalWidth: CGFloat
+  let isSidebarCollapsed: Bool
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
@@ -165,31 +158,38 @@ private struct BrowserChromeSplitView: View {
       for: totalWidth,
       fraction: effectiveFraction,
     )
+    let visibleSidebarWidth = isSidebarCollapsed ? 0 : currentSidebarWidth
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
         BrowserSidebarView(palette: palette)
           .frame(width: currentSidebarWidth)
           .frame(maxHeight: .infinity)
+          .offset(x: isSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
+          .frame(width: visibleSidebarWidth, alignment: .leading)
+          .clipped()
+          .allowsHitTesting(!isSidebarCollapsed)
 
         BrowserDetailView(
           palette: palette,
-          isSidebarCollapsed: false,
+          isSidebarCollapsed: isSidebarCollapsed,
           onToggleSidebar: onToggleSidebar,
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
 
-      SidebarResizeHandle(
-        coordinateSpaceName: BrowserChromeCoordinateSpace.split,
-        totalWidth: totalWidth,
-        sidebarFraction: $sidebarFraction,
-        dragFraction: $dragFraction,
-        minFraction: minFraction,
-        maxFraction: maxFraction,
-        onHide: onHide,
-      )
-      .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: currentSidebarWidth))
+      if !isSidebarCollapsed {
+        SidebarResizeHandle(
+          coordinateSpaceName: BrowserChromeCoordinateSpace.split,
+          totalWidth: totalWidth,
+          sidebarFraction: $sidebarFraction,
+          dragFraction: $dragFraction,
+          minFraction: minFraction,
+          maxFraction: maxFraction,
+          onHide: onHide,
+        )
+        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: currentSidebarWidth))
+      }
     }
     .coordinateSpace(name: BrowserChromeCoordinateSpace.split)
   }
