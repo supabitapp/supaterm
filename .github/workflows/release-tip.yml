@@ -152,7 +152,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/supaterm.app.zip
       - name: Download Sparkle tools
         run: |
-          SPARKLE_VERSION=$(sed -n 's|.*sparkle-project/Sparkle", exact: "\\([^"]*\\)".*|\\1|p' Tuist/Package.swift)
+          SPARKLE_VERSION=$(awk -F'"' '/sparkle-project\/Sparkle/ { print $4; exit }' Tuist/Package.swift)
           if [ -z "$SPARKLE_VERSION" ]; then
             echo "::error::Unable to determine Sparkle version"
             exit 1
