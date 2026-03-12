@@ -35,14 +35,14 @@ jobs:
           echo "swift_version=$swift_version" >> "$GITHUB_OUTPUT"
           echo "toolchain_hash=$toolchain_hash" >> "$GITHUB_OUTPUT"
       - name: Cache Tuist repositories
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: Tuist/.build/repositories
           key: ${{ runner.os }}-${{ runner.arch }}-tuist-repositories-${{ hashFiles('Tuist/Package.resolved', 'Tuist/Package.swift', 'mise.toml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-tuist-repositories-
       - name: Cache Tuist prebuilts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: Tuist/.build/prebuilts
           key: ${{ runner.os }}-${{ runner.arch }}-tuist-prebuilts-${{ steps.toolchain.outputs.toolchain_hash }}-${{ hashFiles('Tuist/Package.resolved', 'Tuist/Package.swift', 'mise.toml') }}
