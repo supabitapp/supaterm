@@ -25,6 +25,30 @@ struct BrowserChromeSplitMetricsTests {
   }
 
   @Test
+  func previewCollapseAndHandleTrackingUseRawDragFraction() {
+    #expect(
+      BrowserChromeSplitMetrics.isCollapsePreviewActive(dragFraction: 0.12, minFraction: 0.16)
+    )
+    #expect(
+      !BrowserChromeSplitMetrics.isCollapsePreviewActive(dragFraction: 0.20, minFraction: 0.16)
+    )
+    #expect(
+      BrowserChromeSplitMetrics.handleFraction(
+        dragFraction: 0.08,
+        committedFraction: 0.20,
+        maxFraction: 0.30
+      ) == 0.08
+    )
+    #expect(
+      BrowserChromeSplitMetrics.handleFraction(
+        dragFraction: 0.50,
+        committedFraction: 0.20,
+        maxFraction: 0.30
+      ) == 0.30
+    )
+  }
+
+  @Test
   func sidebarWidthAndHandleOffsetTrackFraction() {
     let width = BrowserChromeSplitMetrics.sidebarWidth(for: 1_200, fraction: 0.25)
 
