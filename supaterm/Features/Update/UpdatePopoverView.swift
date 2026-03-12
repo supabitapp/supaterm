@@ -44,6 +44,7 @@ struct UpdatePopoverView: View {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 8) {
           Image(systemName: "exclamationmark.triangle.fill")
+            .accessibilityHidden(true)
             .foregroundStyle(.orange)
           Text(store.phase.title)
             .font(.system(size: 13, weight: .semibold))
@@ -221,11 +222,13 @@ struct UpdatePopoverView: View {
         Link(destination: releaseNotesURL) {
           HStack {
             Image(systemName: "doc.text")
+              .accessibilityHidden(true)
               .font(.system(size: 11))
             Text("View Release Notes")
               .font(.system(size: 11, weight: .medium))
             Spacer()
             Image(systemName: "arrow.up.right")
+              .accessibilityHidden(true)
               .font(.system(size: 10))
           }
           .foregroundStyle(.primary)
