@@ -112,7 +112,7 @@ enum UpdatePhase: Equatable, Sendable {
 
   var allowsPopover: Bool {
     switch self {
-    case .idle, .downloading:
+    case .idle, .downloading, .extracting:
       return false
     default:
       return true

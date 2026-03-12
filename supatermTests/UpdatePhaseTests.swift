@@ -36,8 +36,9 @@ struct UpdatePhaseTests {
   }
 
   @Test
-  func downloadingPhaseDisablesPopover() {
+  func progressPhasesDisablePopover() {
     #expect(UpdatePhase.downloading(.init(expectedLength: 1_000, receivedLength: 500)).allowsPopover == false)
+    #expect(UpdatePhase.extracting(0.5).allowsPopover == false)
     #expect(UpdatePhase.checking.allowsPopover)
   }
 }
