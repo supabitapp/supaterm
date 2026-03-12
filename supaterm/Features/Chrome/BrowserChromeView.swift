@@ -18,6 +18,17 @@ struct BrowserChromeView: View {
     BrowserChromePalette(colorScheme: colorScheme)
   }
 
+  private var updatePresentationContext: UpdatePresentationContext {
+    UpdatePresentationContext(
+      isFloatingSidebarVisible: isFloatingSidebarVisible,
+      isSidebarCollapsed: isSidebarCollapsed
+    )
+  }
+
+  private var updateStore: StoreOf<UpdateFeature> {
+    store.scope(state: \.update, action: \.update)
+  }
+
   private var selectedTabID: BrowserTabID {
     store.selectedTabID
   }
@@ -36,6 +47,7 @@ struct BrowserChromeView: View {
           onSelectTab: selectTab,
           onToggleSidebar: toggleSidebar,
           onHide: collapseSidebar,
+          updateStore: updateStore,
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -49,6 +61,7 @@ struct BrowserChromeView: View {
             minFraction: minSidebarFraction,
             maxFraction: maxSidebarFraction,
             onSelectTab: selectTab,
+            updateStore: updateStore,
           )
         }
       }
@@ -65,6 +78,9 @@ struct BrowserChromeView: View {
     }
     .background(WindowReader(window: $window))
     .ignoresSafeArea()
+    .task(id: updatePresentationContext) {
+      updateStore.send(.presentationContextChanged(updatePresentationContext))
+    }
     .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
       toggleSidebar()
     }
@@ -176,6 +192,7 @@ private struct BrowserChromeSplitView: View {
   let onSelectTab: (BrowserTabID) -> Void
   let onToggleSidebar: () -> Void
   let onHide: () -> Void
+  let updateStore: StoreOf<UpdateFeature>
   @State private var dragFraction: CGFloat?
 
   var body: some View {
@@ -210,6 +227,7 @@ private struct BrowserChromeSplitView: View {
           palette: palette,
           selectedTabID: selectedTabID,
           onSelectTab: onSelectTab,
+          updateStore: updateStore,
         )
         .frame(width: currentSidebarWidth)
         .frame(maxHeight: .infinity)
@@ -421,10 +439,11 @@ private struct BrowserSidebarView: View {
   let palette: BrowserChromePalette
   let selectedTabID: BrowserTabID
   let onSelectTab: (BrowserTabID) -> Void
+  let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarHeaderView(palette: palette)
+      SidebarHeaderView(palette: palette, updateStore: updateStore)
       SidebarContainerView(
         palette: palette,
         selectedTabID: selectedTabID,
@@ -492,6 +511,7 @@ private struct FloatingSidebarOverlay: View {
   let minFraction: CGFloat
   let maxFraction: CGFloat
   let onSelectTab: (BrowserTabID) -> Void
+  let updateStore: StoreOf<UpdateFeature>
   @State private var dragFraction: CGFloat?
 
   var body: some View {
@@ -512,6 +532,7 @@ private struct FloatingSidebarOverlay: View {
           selectedTabID: selectedTabID,
           width: floatingWidth,
           onSelectTab: onSelectTab,
+          updateStore: updateStore,
         )
         .frame(width: floatingWidth)
         .transition(.move(edge: .leading))
@@ -607,12 +628,14 @@ private struct FloatingSidebarView: View {
   let selectedTabID: BrowserTabID
   let width: CGFloat
   let onSelectTab: (BrowserTabID) -> Void
+  let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     BrowserSidebarView(
       palette: palette,
       selectedTabID: selectedTabID,
       onSelectTab: onSelectTab,
+      updateStore: updateStore,
     )
     .frame(width: width)
     .background(palette.windowBackgroundTint)
@@ -631,10 +654,12 @@ private struct FloatingSidebarView: View {
 
 private struct SidebarHeaderView: View {
   let palette: BrowserChromePalette
+  let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     HStack(spacing: 12) {
       WindowTrafficLights()
+      UpdatePillView(store: updateStore)
 
       Spacer(minLength: 0)
 

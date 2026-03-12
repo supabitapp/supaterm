@@ -1,9 +1,9 @@
 import AppKit
+import ComposableArchitecture
 import SwiftUI
 
 struct BrowserCommands: Commands {
-  let canCheckForUpdates: Bool
-  let checkForUpdates: () -> Void
+  let store: StoreOf<UpdateFeature>
 
   var body: some Commands {
     CommandGroup(replacing: .sidebar) {
@@ -15,9 +15,9 @@ struct BrowserCommands: Commands {
 
     CommandGroup(after: .appInfo) {
       Button("Check for Updates...") {
-        checkForUpdates()
+        store.send(.checkForUpdatesButtonTapped)
       }
-      .disabled(!canCheckForUpdates)
+      .disabled(!store.canCheckForUpdates)
     }
   }
 }
