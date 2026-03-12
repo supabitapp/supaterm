@@ -99,6 +99,28 @@ struct UpdateFeatureTests {
   }
 
   @Test
+  func checkingSnapshotClosesPopover() async {
+    var initialState = UpdateFeature.State()
+    initialState.isPopoverPresented = true
+    initialState.phase = .error("Something went wrong")
+
+    let snapshot = UpdateClient.Snapshot(
+      canCheckForUpdates: true,
+      phase: .checking
+    )
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    }
+
+    await store.send(.updateClientSnapshotReceived(snapshot)) {
+      $0.canCheckForUpdates = true
+      $0.isPopoverPresented = false
+      $0.phase = .checking
+    }
+  }
+
+  @Test
   func updateNotFoundAutoDismissesAfterFiveSeconds() async {
     let clock = TestClock()
     let recorder = IntentRecorder()

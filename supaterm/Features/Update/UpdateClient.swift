@@ -112,7 +112,7 @@ enum UpdatePhase: Equatable, Sendable {
 
   var allowsPopover: Bool {
     switch self {
-    case .idle, .downloading, .extracting:
+    case .idle, .checking, .downloading, .extracting:
       return false
     default:
       return true
@@ -204,7 +204,6 @@ struct UpdateClient: Sendable {
 
   enum UserIntent: Equatable, Sendable {
     case allowAutomaticUpdates
-    case cancel
     case declineAutomaticUpdates
     case dismiss
     case install
@@ -336,12 +335,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
       pendingResponse = nil
       setPhase(.idle)
       reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
-
-    case .cancel:
-      guard case .cancellation(let cancellation) = pendingResponse else { return }
-      pendingResponse = nil
-      setPhase(.idle)
-      cancellation()
 
     case .declineAutomaticUpdates:
       guard case .permission(let reply) = pendingResponse else { return }

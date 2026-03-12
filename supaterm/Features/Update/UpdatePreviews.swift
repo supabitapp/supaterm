@@ -54,10 +54,6 @@ private struct UpdatePreviewScenario: Identifiable {
       phase: .permissionRequest
     ),
     .init(
-      id: "Checking",
-      phase: .checking
-    ),
-    .init(
       id: "Available",
       phase: .updateAvailable(
         .init(
