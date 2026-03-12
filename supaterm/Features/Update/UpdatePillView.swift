@@ -53,6 +53,7 @@ struct UpdatePillView: View {
     switch store.phase.badge {
     case .icon(let name, let spins):
       Image(systemName: name)
+        .accessibilityHidden(true)
         .rotationEffect(.degrees(rotationAngle))
         .onAppear {
           guard spins else { return }
@@ -74,6 +75,7 @@ struct UpdatePillView: View {
           .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
           .rotationEffect(.degrees(-90))
       }
+      .accessibilityHidden(true)
 
     case nil:
       EmptyView()
