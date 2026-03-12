@@ -122,6 +122,20 @@ enum BrowserChromeSplitMetrics {
     Swift.min(Swift.max(fraction, minFraction), maxFraction)
   }
 
+  static func handleFraction(
+    dragFraction: CGFloat?,
+    committedFraction: CGFloat,
+    maxFraction: CGFloat
+  ) -> CGFloat {
+    guard let dragFraction else { return committedFraction }
+    return Swift.max(0, Swift.min(dragFraction, maxFraction))
+  }
+
+  static func isCollapsePreviewActive(dragFraction: CGFloat?, minFraction: CGFloat) -> Bool {
+    guard let dragFraction else { return false }
+    return dragFraction < minFraction
+  }
+
   static func sidebarWidth(for totalWidth: CGFloat, fraction: CGFloat) -> CGFloat {
     let boundedWidth = Swift.max(totalWidth, 0)
     return Swift.max(0, Swift.min(boundedWidth * fraction, boundedWidth))
@@ -154,25 +168,39 @@ private struct BrowserChromeSplitView: View {
       minFraction: minFraction,
       maxFraction: maxFraction,
     )
+    let isCollapsePreviewActive = BrowserChromeSplitMetrics.isCollapsePreviewActive(
+      dragFraction: dragFraction,
+      minFraction: minFraction,
+    )
+    let handleFraction = BrowserChromeSplitMetrics.handleFraction(
+      dragFraction: dragFraction,
+      committedFraction: effectiveFraction,
+      maxFraction: maxFraction,
+    )
     let currentSidebarWidth = BrowserChromeSplitMetrics.sidebarWidth(
       for: totalWidth,
       fraction: effectiveFraction,
     )
-    let visibleSidebarWidth = isSidebarCollapsed ? 0 : currentSidebarWidth
+    let handleWidth = BrowserChromeSplitMetrics.sidebarWidth(
+      for: totalWidth,
+      fraction: handleFraction,
+    )
+    let visualSidebarCollapsed = isSidebarCollapsed || isCollapsePreviewActive
+    let visibleSidebarWidth = visualSidebarCollapsed ? 0 : currentSidebarWidth
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
         BrowserSidebarView(palette: palette)
           .frame(width: currentSidebarWidth)
           .frame(maxHeight: .infinity)
-          .offset(x: isSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
+          .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
           .frame(width: visibleSidebarWidth, alignment: .leading)
           .clipped()
-          .allowsHitTesting(!isSidebarCollapsed)
+          .allowsHitTesting(!visualSidebarCollapsed)
 
         BrowserDetailView(
           palette: palette,
-          isSidebarCollapsed: isSidebarCollapsed,
+          isSidebarCollapsed: visualSidebarCollapsed,
           onToggleSidebar: onToggleSidebar,
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -188,7 +216,7 @@ private struct BrowserChromeSplitView: View {
           maxFraction: maxFraction,
           onHide: onHide,
         )
-        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: currentSidebarWidth))
+        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: handleWidth))
       }
     }
     .coordinateSpace(name: BrowserChromeCoordinateSpace.split)
@@ -503,14 +531,9 @@ private struct SidebarResizeHandle: View {
       .gesture(
         DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
           .onChanged { value in
-            let rawFraction = BrowserChromeSplitMetrics.rawFraction(
+            dragFraction = BrowserChromeSplitMetrics.rawFraction(
               for: value.location.x,
               totalWidth: totalWidth,
-            )
-            dragFraction = BrowserChromeSplitMetrics.clampedFraction(
-              rawFraction,
-              minFraction: minFraction,
-              maxFraction: maxFraction,
             )
           }
           .onEnded { value in
