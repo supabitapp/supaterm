@@ -18,33 +18,26 @@ struct BrowserChromeView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let currentSidebarWidth = sidebarWidth(for: geometry.size.width)
-
       ZStack(alignment: .leading) {
-        BrowserDetailView(
-          palette: palette,
-          isSidebarCollapsed: isSidebarCollapsed,
-          onToggleSidebar: toggleSidebar,
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.leading, isSidebarCollapsed ? 0 : currentSidebarWidth)
-
-        BrowserSidebarView(palette: palette)
-          .frame(width: currentSidebarWidth)
-          .frame(maxHeight: .infinity)
-          .offset(x: isSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
-          .overlay(alignment: .trailing) {
-            if !isSidebarCollapsed {
-              SidebarResizeHandle(
-                totalWidth: geometry.size.width,
-                sidebarFraction: $sidebarFraction,
-                minFraction: minSidebarFraction,
-                maxFraction: maxSidebarFraction,
-                onHide: collapseSidebar,
-              )
-            }
-          }
-          .allowsHitTesting(!isSidebarCollapsed)
+        if isSidebarCollapsed {
+          BrowserDetailView(
+            palette: palette,
+            isSidebarCollapsed: true,
+            onToggleSidebar: toggleSidebar,
+          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          BrowserChromeSplitView(
+            palette: palette,
+            totalWidth: geometry.size.width,
+            sidebarFraction: $sidebarFraction,
+            minFraction: minSidebarFraction,
+            maxFraction: maxSidebarFraction,
+            onToggleSidebar: toggleSidebar,
+            onHide: collapseSidebar,
+          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
 
         if isSidebarCollapsed {
           FloatingSidebarOverlay(
@@ -119,13 +112,86 @@ struct BrowserChromeView: View {
     isShowingQuitConfirmation = false
     NSApp.reply(toApplicationShouldTerminate: false)
   }
+}
 
-  private func sidebarWidth(for totalWidth: CGFloat) -> CGFloat {
-    max(0, min(totalWidth * clampedSidebarFraction(sidebarFraction), totalWidth))
+enum BrowserChromeSplitMetrics {
+  static let resizeHandleWidth: CGFloat = 14
+
+  static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
+    guard totalWidth > 0 else { return 0 }
+    return Swift.max(0, Swift.min(locationX / totalWidth, 1))
   }
 
-  private func clampedSidebarFraction(_ fraction: CGFloat) -> CGFloat {
-    min(max(fraction, minSidebarFraction), maxSidebarFraction)
+  static func clampedFraction(
+    _ fraction: CGFloat,
+    minFraction: CGFloat,
+    maxFraction: CGFloat
+  ) -> CGFloat {
+    Swift.min(Swift.max(fraction, minFraction), maxFraction)
+  }
+
+  static func sidebarWidth(for totalWidth: CGFloat, fraction: CGFloat) -> CGFloat {
+    let boundedWidth = Swift.max(totalWidth, 0)
+    return Swift.max(0, Swift.min(boundedWidth * fraction, boundedWidth))
+  }
+
+  static func resizeHandleOffset(for sidebarWidth: CGFloat) -> CGFloat {
+    Swift.max(0, sidebarWidth - (resizeHandleWidth / 2))
+  }
+}
+
+private enum BrowserChromeCoordinateSpace {
+  static let split = "BrowserChromeSplit"
+  static let floatingSidebar = "BrowserChromeFloatingSidebar"
+}
+
+private struct BrowserChromeSplitView: View {
+  let palette: BrowserChromePalette
+  let totalWidth: CGFloat
+  @Binding var sidebarFraction: CGFloat
+  let minFraction: CGFloat
+  let maxFraction: CGFloat
+  let onToggleSidebar: () -> Void
+  let onHide: () -> Void
+  @State private var dragFraction: CGFloat?
+
+  var body: some View {
+    let effectiveFraction = BrowserChromeSplitMetrics.clampedFraction(
+      dragFraction ?? sidebarFraction,
+      minFraction: minFraction,
+      maxFraction: maxFraction,
+    )
+    let currentSidebarWidth = BrowserChromeSplitMetrics.sidebarWidth(
+      for: totalWidth,
+      fraction: effectiveFraction,
+    )
+
+    ZStack(alignment: .leading) {
+      HStack(spacing: 0) {
+        BrowserSidebarView(palette: palette)
+          .frame(width: currentSidebarWidth)
+          .frame(maxHeight: .infinity)
+
+        BrowserDetailView(
+          palette: palette,
+          isSidebarCollapsed: false,
+          onToggleSidebar: onToggleSidebar,
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+
+      SidebarResizeHandle(
+        coordinateSpaceName: BrowserChromeCoordinateSpace.split,
+        totalWidth: totalWidth,
+        sidebarFraction: $sidebarFraction,
+        dragFraction: $dragFraction,
+        minFraction: minFraction,
+        maxFraction: maxFraction,
+        onHide: onHide,
+      )
+      .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: currentSidebarWidth))
+    }
+    .coordinateSpace(name: BrowserChromeCoordinateSpace.split)
   }
 }
 
@@ -346,20 +412,7 @@ private struct SidebarContainerView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .gesture(SidebarWindowDragGesture())
-  }
-}
-
-private struct SidebarWindowDragGesture: Gesture {
-  struct Value: Equatable {}
-
-  var body: some Gesture<Value> {
-    DragGesture()
-      .onChanged { _ in
-        guard let window = NSApp.keyWindow, let event = NSApp.currentEvent else { return }
-        window.performDrag(with: event)
-      }
-      .map { _ in Value() }
+    .gesture(WindowDragGesture())
   }
 }
 
@@ -370,34 +423,46 @@ private struct FloatingSidebarOverlay: View {
   @Binding var isVisible: Bool
   let minFraction: CGFloat
   let maxFraction: CGFloat
+  @State private var dragFraction: CGFloat?
 
   var body: some View {
-    let floatingWidth = max(0, min(totalWidth * clampedFraction, totalWidth))
+    let effectiveFraction = BrowserChromeSplitMetrics.clampedFraction(
+      dragFraction ?? sidebarFraction,
+      minFraction: minFraction,
+      maxFraction: maxFraction,
+    )
+    let floatingWidth = BrowserChromeSplitMetrics.sidebarWidth(
+      for: totalWidth,
+      fraction: effectiveFraction,
+    )
 
     ZStack(alignment: .leading) {
       if isVisible {
         FloatingSidebarView(palette: palette, width: floatingWidth)
           .frame(width: floatingWidth)
           .transition(.move(edge: .leading))
-          .overlay(alignment: .trailing) {
-            SidebarResizeHandle(
-              totalWidth: totalWidth,
-              sidebarFraction: $sidebarFraction,
-              minFraction: minFraction,
-              maxFraction: maxFraction,
-            )
-          }
+          .zIndex(1)
       }
 
       HStack(spacing: 0) {
         hoverStrip(width: isVisible ? floatingWidth : 10)
         Spacer(minLength: 0)
       }
-    }
-  }
 
-  private var clampedFraction: CGFloat {
-    min(max(sidebarFraction, minFraction), maxFraction)
+      if isVisible {
+        SidebarResizeHandle(
+          coordinateSpaceName: BrowserChromeCoordinateSpace.floatingSidebar,
+          totalWidth: totalWidth,
+          sidebarFraction: $sidebarFraction,
+          dragFraction: $dragFraction,
+          minFraction: minFraction,
+          maxFraction: maxFraction,
+        )
+        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: floatingWidth))
+        .zIndex(2)
+      }
+    }
+    .coordinateSpace(name: BrowserChromeCoordinateSpace.floatingSidebar)
   }
 
   private func hoverStrip(width: CGFloat) -> some View {
@@ -415,17 +480,18 @@ private struct FloatingSidebarOverlay: View {
 }
 
 private struct SidebarResizeHandle: View {
+  let coordinateSpaceName: String
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
+  @Binding var dragFraction: CGFloat?
   let minFraction: CGFloat
   let maxFraction: CGFloat
   var onHide: (() -> Void)?
-  @State private var previousPosition: CGFloat?
 
   var body: some View {
     Rectangle()
       .fill(Color.clear)
-      .frame(width: 14)
+      .frame(width: BrowserChromeSplitMetrics.resizeHandleWidth)
       .contentShape(Rectangle())
       .onHover { hovering in
         if hovering {
@@ -435,30 +501,33 @@ private struct SidebarResizeHandle: View {
         }
       }
       .gesture(
-        DragGesture(coordinateSpace: .global)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
           .onChanged { value in
-            let position = value.location.x
-            if let previous = previousPosition {
-              let delta = position - previous
-              let currentWidth = totalWidth * sidebarFraction
-              let rawFraction = (currentWidth + delta) / max(totalWidth, 1)
-              sidebarFraction = min(max(rawFraction, minFraction), maxFraction)
-            }
-            previousPosition = position
+            let rawFraction = BrowserChromeSplitMetrics.rawFraction(
+              for: value.location.x,
+              totalWidth: totalWidth,
+            )
+            dragFraction = BrowserChromeSplitMetrics.clampedFraction(
+              rawFraction,
+              minFraction: minFraction,
+              maxFraction: maxFraction,
+            )
           }
           .onEnded { value in
-            let position = value.location.x
-            if let previous = previousPosition {
-              let delta = position - previous
-              let currentWidth = totalWidth * sidebarFraction
-              let rawFraction = (currentWidth + delta) / max(totalWidth, 1)
-              if let onHide, rawFraction < minFraction {
-                onHide()
-              } else {
-                sidebarFraction = min(max(rawFraction, minFraction), maxFraction)
-              }
+            let rawFraction = BrowserChromeSplitMetrics.rawFraction(
+              for: value.location.x,
+              totalWidth: totalWidth,
+            )
+            if let onHide, rawFraction < minFraction {
+              onHide()
+            } else {
+              sidebarFraction = BrowserChromeSplitMetrics.clampedFraction(
+                rawFraction,
+                minFraction: minFraction,
+                maxFraction: maxFraction,
+              )
             }
-            previousPosition = nil
+            dragFraction = nil
           }
       )
   }
