@@ -1,7 +1,9 @@
 import AppKit
+import ComposableArchitecture
 import SwiftUI
 
 struct BrowserChromeView: View {
+  let store: StoreOf<AppFeature>
   @Environment(\.colorScheme) private var colorScheme
   @State private var isSidebarCollapsed = false
   @State private var isFloatingSidebarVisible = false
@@ -16,16 +18,22 @@ struct BrowserChromeView: View {
     BrowserChromePalette(colorScheme: colorScheme)
   }
 
+  private var selectedTabID: BrowserTabID {
+    store.selectedTabID
+  }
+
   var body: some View {
     GeometryReader { geometry in
       ZStack(alignment: .leading) {
         BrowserChromeSplitView(
           palette: palette,
+          selectedTabID: selectedTabID,
           totalWidth: geometry.size.width,
           isSidebarCollapsed: isSidebarCollapsed,
           sidebarFraction: $sidebarFraction,
           minFraction: minSidebarFraction,
           maxFraction: maxSidebarFraction,
+          onSelectTab: selectTab,
           onToggleSidebar: toggleSidebar,
           onHide: collapseSidebar,
         )
@@ -34,11 +42,13 @@ struct BrowserChromeView: View {
         if isSidebarCollapsed {
           FloatingSidebarOverlay(
             palette: palette,
+            selectedTabID: selectedTabID,
             totalWidth: geometry.size.width,
             sidebarFraction: $sidebarFraction,
             isVisible: $isFloatingSidebarVisible,
             minFraction: minSidebarFraction,
             maxFraction: maxSidebarFraction,
+            onSelectTab: selectTab,
           )
         }
       }
@@ -86,6 +96,10 @@ struct BrowserChromeView: View {
     withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
       isSidebarCollapsed.toggle()
     }
+  }
+
+  private func selectTab(_ tabID: BrowserTabID) {
+    store.send(.tabSelected(tabID))
   }
 
   private func collapseSidebar() {
@@ -153,11 +167,13 @@ private enum BrowserChromeCoordinateSpace {
 
 private struct BrowserChromeSplitView: View {
   let palette: BrowserChromePalette
+  let selectedTabID: BrowserTabID
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
+  let onSelectTab: (BrowserTabID) -> Void
   let onToggleSidebar: () -> Void
   let onHide: () -> Void
   @State private var dragFraction: CGFloat?
@@ -190,16 +206,21 @@ private struct BrowserChromeSplitView: View {
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
-        BrowserSidebarView(palette: palette)
-          .frame(width: currentSidebarWidth)
-          .frame(maxHeight: .infinity)
-          .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
-          .frame(width: visibleSidebarWidth, alignment: .leading)
-          .clipped()
-          .allowsHitTesting(!visualSidebarCollapsed)
+        BrowserSidebarView(
+          palette: palette,
+          selectedTabID: selectedTabID,
+          onSelectTab: onSelectTab,
+        )
+        .frame(width: currentSidebarWidth)
+        .frame(maxHeight: .infinity)
+        .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
+        .frame(width: visibleSidebarWidth, alignment: .leading)
+        .clipped()
+        .allowsHitTesting(!visualSidebarCollapsed)
 
         BrowserDetailView(
           palette: palette,
+          selectedTab: BrowserTabCatalog.tab(id: selectedTabID),
           isSidebarCollapsed: visualSidebarCollapsed,
           onToggleSidebar: onToggleSidebar,
         )
@@ -398,11 +419,17 @@ private struct DialogActionButton: View {
 
 private struct BrowserSidebarView: View {
   let palette: BrowserChromePalette
+  let selectedTabID: BrowserTabID
+  let onSelectTab: (BrowserTabID) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       SidebarHeaderView(palette: palette)
-      SidebarContainerView(palette: palette)
+      SidebarContainerView(
+        palette: palette,
+        selectedTabID: selectedTabID,
+        onSelectTab: onSelectTab,
+      )
       SidebarFooterView(palette: palette)
     }
     .padding(.horizontal, 10)
@@ -414,29 +441,42 @@ private struct BrowserSidebarView: View {
 
 private struct SidebarContainerView: View {
   let palette: BrowserChromePalette
+  let selectedTabID: BrowserTabID
+  let onSelectTab: (BrowserTabID) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       SidebarAddressView(palette: palette)
       FavoriteGridView(palette: palette)
 
-      ScrollView(.vertical, showsIndicators: false) {
+      ScrollView(.vertical) {
         VStack(alignment: .leading, spacing: 16) {
           SidebarSectionView(title: "Pinned", palette: palette) {
-            ForEach(BrowserChromeSample.pinnedTabs) { tab in
-              SidebarTabRow(tab: tab, palette: palette)
+            ForEach(BrowserTabCatalog.pinnedTabs) { tab in
+              SidebarTabRow(
+                tab: tab,
+                isSelected: selectedTabID == tab.id,
+                palette: palette,
+                action: { onSelectTab(tab.id) },
+              )
             }
           }
 
           SidebarSectionView(title: "Tabs", palette: palette) {
             NewTabButton(palette: palette)
 
-            ForEach(BrowserChromeSample.tabs) { tab in
-              SidebarTabRow(tab: tab, palette: palette)
+            ForEach(BrowserTabCatalog.regularTabs) { tab in
+              SidebarTabRow(
+                tab: tab,
+                isSelected: selectedTabID == tab.id,
+                palette: palette,
+                action: { onSelectTab(tab.id) },
+              )
             }
           }
         }
       }
+      .scrollIndicators(.hidden)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .gesture(WindowDragGesture())
@@ -445,11 +485,13 @@ private struct SidebarContainerView: View {
 
 private struct FloatingSidebarOverlay: View {
   let palette: BrowserChromePalette
+  let selectedTabID: BrowserTabID
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var isVisible: Bool
   let minFraction: CGFloat
   let maxFraction: CGFloat
+  let onSelectTab: (BrowserTabID) -> Void
   @State private var dragFraction: CGFloat?
 
   var body: some View {
@@ -465,10 +507,15 @@ private struct FloatingSidebarOverlay: View {
 
     ZStack(alignment: .leading) {
       if isVisible {
-        FloatingSidebarView(palette: palette, width: floatingWidth)
-          .frame(width: floatingWidth)
-          .transition(.move(edge: .leading))
-          .zIndex(1)
+        FloatingSidebarView(
+          palette: palette,
+          selectedTabID: selectedTabID,
+          width: floatingWidth,
+          onSelectTab: onSelectTab,
+        )
+        .frame(width: floatingWidth)
+        .transition(.move(edge: .leading))
+        .zIndex(1)
       }
 
       HStack(spacing: 0) {
@@ -557,22 +604,28 @@ private struct SidebarResizeHandle: View {
 
 private struct FloatingSidebarView: View {
   let palette: BrowserChromePalette
+  let selectedTabID: BrowserTabID
   let width: CGFloat
+  let onSelectTab: (BrowserTabID) -> Void
 
   var body: some View {
-    BrowserSidebarView(palette: palette)
-      .frame(width: width)
-      .background(palette.windowBackgroundTint)
-      .background {
-        BlurEffectView(material: .popover, blendingMode: .withinWindow)
-      }
-      .clipShape(.rect(cornerRadius: 16))
-      .overlay {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-          .stroke(palette.detailStroke, lineWidth: 1)
-      }
-      .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
-      .padding(6)
+    BrowserSidebarView(
+      palette: palette,
+      selectedTabID: selectedTabID,
+      onSelectTab: onSelectTab,
+    )
+    .frame(width: width)
+    .background(palette.windowBackgroundTint)
+    .background {
+      BlurEffectView(material: .popover, blendingMode: .withinWindow)
+    }
+    .clipShape(.rect(cornerRadius: 16))
+    .overlay {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(palette.detailStroke, lineWidth: 1)
+    }
+    .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
+    .padding(6)
   }
 }
 
@@ -703,12 +756,14 @@ private struct NewTabButton: View {
 }
 
 private struct SidebarTabRow: View {
-  let tab: SidebarTab
+  let tab: BrowserTabItem
+  let isSelected: Bool
   let palette: BrowserChromePalette
+  let action: () -> Void
 
   var body: some View {
     Button(
-      action: {},
+      action: action,
       label: {
         HStack(spacing: 10) {
           RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -717,13 +772,13 @@ private struct SidebarTabRow: View {
             .overlay {
               Image(systemName: tab.symbol)
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(tab.isSelected ? palette.selectedIcon : palette.primaryText.opacity(0.9))
+                .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText.opacity(0.9))
                 .accessibilityHidden(true)
             }
 
           Text(tab.title)
-            .font(.system(size: 13, weight: tab.isSelected ? .semibold : .regular))
-            .foregroundStyle(tab.isSelected ? palette.selectedText : palette.primaryText)
+            .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
 
           Spacer(minLength: 0)
@@ -731,7 +786,7 @@ private struct SidebarTabRow: View {
           if tab.showsClose {
             Image(systemName: "xmark")
               .font(.system(size: 10, weight: .bold))
-              .foregroundStyle(tab.isSelected ? palette.selectedText.opacity(0.9) : palette.secondaryText)
+              .foregroundStyle(isSelected ? palette.selectedText.opacity(0.9) : palette.secondaryText)
               .accessibilityHidden(true)
           }
         }
@@ -747,11 +802,11 @@ private struct SidebarTabRow: View {
   }
 
   private var background: Color {
-    tab.isSelected ? palette.selectedFill : palette.clearFill
+    isSelected ? palette.selectedFill : palette.clearFill
   }
 
   private var stroke: Color {
-    tab.isSelected ? palette.selectionStroke : .clear
+    isSelected ? palette.selectionStroke : .clear
   }
 }
 
@@ -821,6 +876,7 @@ private struct FooterCircleButton: View {
 
 private struct BrowserDetailView: View {
   let palette: BrowserChromePalette
+  let selectedTab: BrowserTabItem
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -828,24 +884,13 @@ private struct BrowserDetailView: View {
     VStack(spacing: 0) {
       DetailToolbarView(
         palette: palette,
+        selectedTab: selectedTab,
         isSidebarCollapsed: isSidebarCollapsed,
         onToggleSidebar: onToggleSidebar,
       )
 
-      ScrollView(.vertical, showsIndicators: false) {
-        VStack(spacing: 18) {
-          DetailHeroCard(panel: BrowserChromeSample.detailPanels[0], palette: palette)
-
-          HStack(spacing: 18) {
-            ForEach(BrowserChromeSample.detailPanels.dropFirst().prefix(2)) { panel in
-              DetailPanelCard(panel: panel, palette: palette)
-            }
-          }
-
-          DetailShelfView(palette: palette)
-        }
+      BrowserDetailSurface(selectedTab: selectedTab, palette: palette)
         .padding(24)
-      }
     }
     .background(palette.detailBackground, in: .rect(cornerRadius: 20))
     .overlay {
@@ -862,6 +907,7 @@ private struct BrowserDetailView: View {
 
 private struct DetailToolbarView: View {
   let palette: BrowserChromePalette
+  let selectedTab: BrowserTabItem
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -878,12 +924,12 @@ private struct DetailToolbarView: View {
       }
 
       HStack(spacing: 8) {
-        Image(systemName: "globe")
+        Image(systemName: selectedTab.symbol)
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(palette.secondaryText)
           .accessibilityHidden(true)
 
-        Text("Workspace shell preview")
+        Text(selectedTab.title)
           .font(.system(size: 13, weight: .medium))
           .foregroundStyle(palette.primaryText)
 
@@ -910,115 +956,40 @@ private struct DetailToolbarView: View {
   }
 }
 
-private struct DetailHeroCard: View {
-  let panel: DetailPanel
+private struct BrowserDetailSurface: View {
+  let selectedTab: BrowserTabItem
   let palette: BrowserChromePalette
 
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
-      HStack {
-        Text(panel.eyebrow)
-          .font(.system(size: 11, weight: .bold, design: .rounded))
-          .kerning(0.8)
-          .foregroundStyle(Color.white.opacity(0.85))
+      Text(selectedTab.section == .pinned ? "PINNED TAB" : "TAB")
+        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.8))
+
+      HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text(selectedTab.title)
+            .font(.system(size: 32, weight: .semibold, design: .rounded))
+            .foregroundStyle(palette.detailForeground(for: selectedTab.tone))
+
+          Text("Selected from the browser sidebar.")
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.82))
+        }
 
         Spacer(minLength: 0)
 
-        Circle()
-          .fill(Color.white.opacity(0.28))
-          .frame(width: 10, height: 10)
+        Image(systemName: selectedTab.symbol)
+          .font(.system(size: 56, weight: .medium))
+          .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.92))
+          .accessibilityHidden(true)
       }
 
       Spacer(minLength: 0)
-
-      Text(panel.title)
-        .font(.system(size: 28, weight: .semibold, design: .rounded))
-        .foregroundStyle(Color.white)
-
-      Text(panel.subtitle)
-        .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(Color.white.opacity(0.82))
-
-      HStack(spacing: 8) {
-        ForEach(0..<3, id: \.self) { index in
-          RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Color.white.opacity(0.14 + Double(index) * 0.08))
-            .frame(height: 56)
-        }
-      }
     }
-    .padding(24)
-    .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
-    .background(panel.gradient, in: .rect(cornerRadius: 24))
-  }
-}
-
-private struct DetailPanelCard: View {
-  let panel: DetailPanel
-  let palette: BrowserChromePalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      HStack {
-        Text(panel.eyebrow)
-          .font(.system(size: 10, weight: .bold, design: .rounded))
-          .foregroundStyle(Color.white.opacity(0.8))
-
-        Spacer(minLength: 0)
-
-        RoundedRectangle(cornerRadius: 999, style: .continuous)
-          .fill(Color.white.opacity(0.18))
-          .frame(width: 44, height: 8)
-      }
-
-      Spacer(minLength: 0)
-
-      Text(panel.title)
-        .font(.system(size: 18, weight: .semibold, design: .rounded))
-        .foregroundStyle(Color.white)
-
-      Text(panel.subtitle)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(Color.white.opacity(0.82))
-        .lineLimit(2)
-    }
-    .padding(20)
-    .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
-    .background(panel.gradient, in: .rect(cornerRadius: 20))
-  }
-}
-
-private struct DetailShelfView: View {
-  let palette: BrowserChromePalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("More Views")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
-
-      HStack(spacing: 12) {
-        ForEach(BrowserChromeSample.shelfPanels) { panel in
-          VStack(alignment: .leading, spacing: 10) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-              .fill(panel.gradient)
-              .frame(height: 88)
-
-            Text(panel.title)
-              .font(.system(size: 13, weight: .semibold))
-              .foregroundStyle(palette.primaryText)
-
-            Text(panel.subtitle)
-              .font(.system(size: 12))
-              .foregroundStyle(palette.secondaryText)
-              .lineLimit(2)
-          }
-          .padding(14)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(palette.panelFill, in: .rect(cornerRadius: 18))
-        }
-      }
-    }
+    .padding(28)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(palette.detailFill(for: selectedTab.tone), in: .rect(cornerRadius: 24))
   }
 }
 
@@ -1215,7 +1186,6 @@ private struct BrowserChromePalette {
   let dialogDestructiveFill: Color
   let dialogDestructiveHoverFill: Color
   let dialogPrimaryText: Color
-  let panelFill: Color
   let pillFill: Color
   let rowFill: Color
   let clearFill: Color
@@ -1247,7 +1217,6 @@ private struct BrowserChromePalette {
       dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
       dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
       dialogPrimaryText = .white
-      panelFill = Color.white.opacity(0.05)
       pillFill = Color.white.opacity(0.08)
       rowFill = Color.white.opacity(0.06)
       clearFill = Color.white.opacity(0.03)
@@ -1271,7 +1240,6 @@ private struct BrowserChromePalette {
       dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
       dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
       dialogPrimaryText = .black
-      panelFill = Color.black.opacity(0.03)
       pillFill = Color.black.opacity(0.07)
       rowFill = Color.black.opacity(0.05)
       clearFill = Color.black.opacity(0.02)
@@ -1294,19 +1262,44 @@ private struct BrowserChromePalette {
   }
 
   func fill(for tone: ChromeTone) -> Color {
+    color(for: tone).opacity(0.85)
+  }
+
+  func detailFill(for tone: ChromeTone) -> Color {
+    color(for: tone)
+  }
+
+  func detailForeground(for tone: ChromeTone) -> Color {
     switch tone {
     case .amber:
-      amber.opacity(0.85)
+      Color.black.opacity(0.78)
     case .mint:
-      mint.opacity(0.85)
+      Color.black.opacity(0.8)
     case .sky:
-      sky.opacity(0.85)
+      Color.white.opacity(0.94)
     case .coral:
-      coral.opacity(0.85)
+      Color.white.opacity(0.94)
     case .violet:
-      violet.opacity(0.85)
+      Color.white.opacity(0.94)
     case .slate:
-      slate.opacity(0.85)
+      Color.white.opacity(0.94)
+    }
+  }
+
+  private func color(for tone: ChromeTone) -> Color {
+    switch tone {
+    case .amber:
+      amber
+    case .mint:
+      mint
+    case .sky:
+      sky
+    case .coral:
+      coral
+    case .violet:
+      violet
+    case .slate:
+      slate
     }
   }
 }
@@ -1321,107 +1314,10 @@ private enum BrowserChromeSample {
     FavoriteTile(label: "Calendar", symbol: "calendar", tone: .sky, isSelected: false),
   ]
 
-  static let pinnedTabs = [
-    SidebarTab(title: "Command Deck", symbol: "command", tone: .coral, isSelected: true, showsClose: true),
-    SidebarTab(title: "Sessions", symbol: "terminal", tone: .slate, isSelected: false, showsClose: true),
-    SidebarTab(title: "Bookmarks", symbol: "book", tone: .amber, isSelected: false, showsClose: true),
-  ]
-
-  static let tabs = [
-    SidebarTab(title: "Workspace Notes", symbol: "note.text", tone: .sky, isSelected: false, showsClose: true),
-    SidebarTab(title: "Build Output", symbol: "bolt", tone: .mint, isSelected: false, showsClose: true),
-    SidebarTab(title: "Window Styling", symbol: "macwindow", tone: .violet, isSelected: false, showsClose: true),
-    SidebarTab(title: "Search Results", symbol: "magnifyingglass", tone: .amber, isSelected: false, showsClose: false),
-  ]
-
   static let spaces = [
     WorkspaceChip(label: "A", isSelected: false),
     WorkspaceChip(label: "B", isSelected: true),
     WorkspaceChip(label: "C", isSelected: false),
-  ]
-
-  static let detailPanels = [
-    DetailPanel(
-      eyebrow: "PRIMARY VIEW",
-      title: "Warm window chrome with a static shell.",
-      subtitle: "The content side stays inert. Only the visual structure is mirrored.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.98, green: 0.56, blue: 0.4),
-          Color(red: 0.77, green: 0.34, blue: 0.35),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
-    DetailPanel(
-      eyebrow: "DETAIL A",
-      title: "Sidebar First",
-      subtitle: "Favorites, pinned rows, tabs, and footer switcher.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.29, green: 0.66, blue: 0.98),
-          Color(red: 0.24, green: 0.42, blue: 0.83),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
-    DetailPanel(
-      eyebrow: "DETAIL B",
-      title: "Rounded Content Card",
-      subtitle: "Inset main surface floating over the warm shell.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.38, green: 0.79, blue: 0.65),
-          Color(red: 0.23, green: 0.58, blue: 0.48),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
-  ]
-
-  static let shelfPanels = [
-    DetailPanel(
-      eyebrow: "SHELF",
-      title: "Overview",
-      subtitle: "Warm accents and inset surfaces.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.99, green: 0.72, blue: 0.42),
-          Color(red: 0.89, green: 0.55, blue: 0.28),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
-    DetailPanel(
-      eyebrow: "SHELF",
-      title: "Records",
-      subtitle: "Static color blocks for placeholder panes.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.58, green: 0.5, blue: 0.96),
-          Color(red: 0.44, green: 0.33, blue: 0.82),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
-    DetailPanel(
-      eyebrow: "SHELF",
-      title: "Activity",
-      subtitle: "No navigation logic or state wiring yet.",
-      gradient: LinearGradient(
-        colors: [
-          Color(red: 0.99, green: 0.52, blue: 0.48),
-          Color(red: 0.83, green: 0.34, blue: 0.4),
-        ],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing,
-      ),
-    ),
   ]
 }
 
@@ -1436,18 +1332,6 @@ private struct FavoriteTile: Identifiable {
   }
 }
 
-private struct SidebarTab: Identifiable {
-  let title: String
-  let symbol: String
-  let tone: ChromeTone
-  let isSelected: Bool
-  let showsClose: Bool
-
-  var id: String {
-    title
-  }
-}
-
 private struct WorkspaceChip: Identifiable {
   let label: String
   let isSelected: Bool
@@ -1455,24 +1339,4 @@ private struct WorkspaceChip: Identifiable {
   var id: String {
     label
   }
-}
-
-private struct DetailPanel: Identifiable {
-  let eyebrow: String
-  let title: String
-  let subtitle: String
-  let gradient: LinearGradient
-
-  var id: String {
-    title
-  }
-}
-
-private enum ChromeTone {
-  case amber
-  case mint
-  case sky
-  case coral
-  case violet
-  case slate
 }
