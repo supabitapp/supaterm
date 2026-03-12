@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "debug-generated-project": {
+      "source": "tuist/agent-skills",
+      "sourceType": "github",
+      "computedHash": "a794be2fba4b4d1c55ab734cac3d04f95985934c3929cf87414814254c5c1dee"
+    },
+    "fix-flaky-tests": {
+      "source": "tuist/agent-skills",
+      "sourceType": "github",
+      "computedHash": "af47a2a6450bad638d573f326aa4a8f4d5e9caaf9584b79d01203713df1e58d3"
+    },
+    "migrating-to-tuist-generated-projects": {
+      "source": "tuist/agent-skills",
+      "sourceType": "github",
+      "computedHash": "458f8047ce1b93820c9d27d2267750904cd0384fd5a0e7f5b0f1079dbe9d19a9"
+    },
+    "swift-concurrency": {
+      "source": "avdlee/swift-concurrency-agent-skill",
+      "sourceType": "github",
+      "computedHash": "fb91a851df4a0aabcb8eb8f9b3af98aa2fda5775c0f2ebc9aa61e8206e37d6ef"
+    },
+    "swiftui-expert-skill": {
+      "source": "avdlee/swiftui-agent-skill",
+      "sourceType": "github",
+      "computedHash": "f8f1a9994e0c22bd01e37369f192651819fce9a80ee21b4faff43b6710191943"
+    },
+    "using-tuist-generated-projects": {
+      "source": "tuist/agent-skills",
+      "sourceType": "github",
+      "computedHash": "21a9a953d38f1e4ee12cba585f7f6e993d40bfe77052393dadfbad87cd8d4765"
+    }
+  }
+}

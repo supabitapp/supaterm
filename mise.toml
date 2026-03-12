@@ -1,0 +1,4 @@
+[tools]
+tuist = "4.155.4"
+swiftlint = "latest"
+"github:ldomaradzki/xcsift" = "latest"

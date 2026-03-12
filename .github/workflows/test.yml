@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    env:
+      MISE_HTTP_TIMEOUT: 120
+      MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TUIST_GENERATE_CACHE_PROFILE: none
+    steps:
+      - uses: actions/checkout@v6
+      - run: brew install mise
+      - run: mise install
+      - run: make lint
+      - run: make build-app
+      - run: make test

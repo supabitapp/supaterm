@@ -1,0 +1,42 @@
+strict: true
+
+included:
+  - supaterm
+  - supatermTests
+
+disabled_rules:
+  - file_length
+  - closure_parameter_position
+  - type_body_length
+
+opt_in_rules:
+  - accessibility_label_for_image
+  - accessibility_trait_for_button
+  - async_without_await
+
+opening_brace:
+  ignore_multiline_function_signatures: true
+  ignore_multiline_statement_conditions: true
+  ignore_multiline_type_headers: true
+
+trailing_comma:
+  mandatory_comma: true
+
+cyclomatic_complexity:
+  warning: 15
+  error: 20
+
+function_body_length:
+  warning: 100
+  error: 150
+
+redundant_discardable_let:
+  ignore_swiftui_view_bodies: true
+
+custom_rules:
+  store_state_mutation_in_views:
+    name: "Store State Mutation In Views"
+    regex: "\\bstore\\.[A-Za-z0-9_]+\\s*(?:\\+=|-=|\\*=|/=|=(?!=))"
+    message: "Do not mutate store state directly in views. Send actions instead."
+    severity: error
+    included: "supaterm/.*/Views/.*\\.swift"
