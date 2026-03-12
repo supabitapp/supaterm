@@ -17,7 +17,6 @@ struct UpdateFeature {
 
   enum Action {
     case allowAutomaticUpdatesButtonTapped
-    case cancelButtonTapped
     case checkForUpdatesButtonTapped
     case dismissButtonTapped
     case installAndRelaunchButtonTapped
@@ -44,13 +43,6 @@ struct UpdateFeature {
         state.phase = .idle
         return .run { [updateClient] _ in
           await updateClient.sendIntent(.allowAutomaticUpdates)
-        }
-
-      case .cancelButtonTapped:
-        state.isPopoverPresented = false
-        state.phase = .idle
-        return .run { [updateClient] _ in
-          await updateClient.sendIntent(.cancel)
         }
 
       case .checkForUpdatesButtonTapped:

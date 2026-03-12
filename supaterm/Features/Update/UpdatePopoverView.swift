@@ -15,7 +15,7 @@ struct UpdatePopoverView: View {
         permissionRequestView
 
       case .checking:
-        checkingView
+        EmptyView()
 
       case .updateAvailable(let info):
         updateAvailableView(info)
@@ -37,27 +37,6 @@ struct UpdatePopoverView: View {
       }
     }
     .frame(width: 300)
-  }
-
-  private var checkingView: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack(spacing: 10) {
-        ProgressView()
-          .controlSize(.small)
-        Text(store.phase.text)
-          .font(.system(size: 13))
-      }
-
-      HStack {
-        Spacer()
-        Button("Cancel") {
-          store.send(.cancelButtonTapped)
-        }
-        .keyboardShortcut(.cancelAction)
-        .controlSize(.small)
-      }
-    }
-    .padding(16)
   }
 
   private func errorView(_ message: String) -> some View {
