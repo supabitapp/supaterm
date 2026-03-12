@@ -27,6 +27,10 @@ jobs:
           swift_version="$(swift --version | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//')"
           toolchain_hash="$(printf '%s\n%s\n' "$xcode_version" "$swift_version" | shasum -a 256 | awk '{print $1}')"
 
+          printf 'Xcode version: %s\n' "$xcode_version"
+          printf 'Swift version: %s\n' "$swift_version"
+          printf 'Toolchain hash: %s\n' "$toolchain_hash"
+
           echo "xcode_version=$xcode_version" >> "$GITHUB_OUTPUT"
           echo "swift_version=$swift_version" >> "$GITHUB_OUTPUT"
           echo "toolchain_hash=$toolchain_hash" >> "$GITHUB_OUTPUT"
