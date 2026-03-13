@@ -14,6 +14,11 @@ struct BrowserCommands: Commands {
     }
 
     CommandGroup(after: .appInfo) {
+      if AppBuild.isDevelopment {
+        Button("This is a development build") {}
+          .disabled(true)
+      }
+
       Button("Check for Updates...") {
         store.send(.checkForUpdatesButtonTapped)
       }

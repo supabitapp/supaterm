@@ -82,7 +82,7 @@ jobs:
           fi
           echo "DEVELOPER_ID_IDENTITY_SHA=$DEVELOPER_ID_IDENTITY_SHA" >> "$GITHUB_ENV"
       - run: make generate-project
-      - run: make archive XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
+      - run: make archive XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }} SUPATERM_DEVELOPMENT_BUILD=YES'
       - name: Write export options
         run: |
           mkdir -p build
