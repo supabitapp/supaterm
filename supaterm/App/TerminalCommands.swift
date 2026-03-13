@@ -17,7 +17,7 @@ struct TerminalCommands: Commands {
         case let boolValue as Bool:
           return boolValue
         case let stringValue as String:
-          ["1", "true", "yes"].contains(stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+          return ["1", "true", "yes"].contains(stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
         default:
           return false
         }
