@@ -1,4 +1,5 @@
 [tools]
+zig = "0.15.2"
 tuist = "4.155.4"
 swiftlint = "latest"
 xcbeautify = "3.1.4"

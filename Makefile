@@ -11,6 +11,12 @@ CURRENT_MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CURRENT_MAKEFILE_DIR := $(patsubst %/,%,$(dir $(CURRENT_MAKEFILE_PATH)))
 PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
+GHOSTTY_SUBMODULE_DIR := $(CURRENT_MAKEFILE_DIR)/ThirdParty/ghostty
+GHOSTTY_XCFRAMEWORK_PATH := $(CURRENT_MAKEFILE_DIR)/Frameworks/GhosttyKit.xcframework
+GHOSTTY_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.ghostty-stamps
+GHOSTTY_SUBMODULE_HEAD := $(shell if git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse --verify HEAD >/dev/null 2>&1; then git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse HEAD; else printf missing; fi)
+GHOSTTY_SUBMODULE_HEAD_STAMP := $(GHOSTTY_STAMP_DIR)/head-$(GHOSTTY_SUBMODULE_HEAD)
+GHOSTTY_BUILD_INPUTS := Makefile mise.toml .gitmodules
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_XCODE_CACHE_SETUP_STAMP := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-xcode-cache-setup
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
@@ -20,7 +26,7 @@ TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/P
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-app run-app archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
+.PHONY: build-ghostty-xcframework build-app run-app archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
 
 ifeq ($(CI),)
 TUIST_INSTALL_FLAGS :=
@@ -39,12 +45,29 @@ generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages an
 
 setup-xcode-cache: $(TUIST_XCODE_CACHE_SETUP_STAMP) # Install Tuist Xcode cache service for this machine
 
+build-ghostty-xcframework: $(GHOSTTY_XCFRAMEWORK_PATH)
+
 $(TUIST_XCODE_CACHE_SETUP_STAMP): $(TUIST_XCODE_CACHE_SETUP_INPUTS)
 	mkdir -p "$(dir $@)"
 	mise exec -- tuist setup cache
 	touch "$@"
 
-$(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS)
+$(GHOSTTY_SUBMODULE_HEAD_STAMP): $(GHOSTTY_BUILD_INPUTS)
+	mkdir -p "$(GHOSTTY_STAMP_DIR)"
+	if [ "$(GHOSTTY_SUBMODULE_HEAD)" = "missing" ]; then \
+		echo "error: Missing $(GHOSTTY_SUBMODULE_DIR). Run: git submodule update --init --recursive ThirdParty/ghostty" >&2; \
+		exit 1; \
+	fi
+	rm -f "$(GHOSTTY_STAMP_DIR)"/head-*
+	touch "$@"
+
+$(GHOSTTY_XCFRAMEWORK_PATH): $(GHOSTTY_BUILD_INPUTS) $(GHOSTTY_SUBMODULE_HEAD_STAMP)
+	mkdir -p "$(dir $@)"
+	cd "$(GHOSTTY_SUBMODULE_DIR)" && mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false
+	rm -rf "$@"
+	rsync -a "$(GHOSTTY_SUBMODULE_DIR)/macos/GhosttyKit.xcframework" "$(dir $@)"
+
+$(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_XCFRAMEWORK_PATH) $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
@@ -77,11 +100,11 @@ format: # Format code with swift-format (local only)
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
 
-inspect-dependencies: # Check for implicit Tuist dependencies
+inspect-dependencies: $(GHOSTTY_XCFRAMEWORK_PATH) # Check for implicit Tuist dependencies
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist inspect dependencies --only implicit
 
-warm-cache: # Warm Tuist module cache for external dependencies
+warm-cache: $(GHOSTTY_XCFRAMEWORK_PATH) # Warm Tuist module cache for external dependencies
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist cache warm --external-only --configuration Debug
 

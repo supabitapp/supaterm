@@ -44,6 +44,7 @@ let project = Project(
         "supaterm/Features",
       ],
       dependencies: [
+        .xcframework(path: "Frameworks/GhosttyKit.xcframework"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sparkle"),
       ],
