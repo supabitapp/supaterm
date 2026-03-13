@@ -44,4 +44,11 @@ struct UpdatePhaseTests {
       UpdatePhase.updateAvailable(.init(contentLength: nil, publishedAt: nil, releaseNotesURL: nil, version: "1.0"))
         .allowsPopover)
   }
+
+  @Test
+  func onlyInstallingPhaseBypassesQuitConfirmation() {
+    #expect(UpdatePhase.idle.bypassesQuitConfirmation == false)
+    #expect(UpdatePhase.checking.bypassesQuitConfirmation == false)
+    #expect(UpdatePhase.installing(.init(canInstallNow: true)).bypassesQuitConfirmation)
+  }
 }
