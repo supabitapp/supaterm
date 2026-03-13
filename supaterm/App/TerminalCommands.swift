@@ -35,7 +35,7 @@ struct TerminalCommands: Commands {
       Button("New Tab") {
         store.send(.tabs(.newTabButtonTapped))
       }
-    .keyboardShortcut("t", modifiers: .command)
+      .keyboardShortcut("t", modifiers: .command)
 
       Button("Close Tab") {
         store.send(.tabs(.closeButtonTapped(store.tabs.selectedTabID)))
