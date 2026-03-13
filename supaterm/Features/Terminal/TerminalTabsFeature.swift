@@ -101,6 +101,17 @@ struct TerminalTabsFeature {
       selectedTabID = tab.id
     }
 
+    mutating func selectTab(moving delta: Int) {
+      let visibleTabs = visibleTabs
+      guard
+        !visibleTabs.isEmpty,
+        let currentIndex = visibleTabs.firstIndex(where: { $0.id == selectedTabID })
+      else { return }
+
+      let nextIndex = (currentIndex + delta + visibleTabs.count) % visibleTabs.count
+      selectedTabID = visibleTabs[nextIndex].id
+    }
+
     mutating func closeSelectedOrCreateReplacement(
       for tabID: Tab.ID,
       makeReplacement: () -> Tab,
@@ -148,7 +159,10 @@ struct TerminalTabsFeature {
     case dragMovedToRegularSection(Tab.ID)
     case dragStarted(Tab.ID)
     case newTabButtonTapped
+    case nextTabRequested
     case pinToggled(Tab.ID)
+    case pinSelectedTabToggled
+    case previousTabRequested
     case tabSelected(Tab.ID)
     case tabShortcutPressed(Int)
   }
@@ -187,9 +201,22 @@ struct TerminalTabsFeature {
         state.appendNewRegularTab(newTab)
         return .none
 
+      case .nextTabRequested:
+        state.selectTab(moving: 1)
+        return .none
+
       case .pinToggled(let tabID):
         guard let tab = state.tabs[id: tabID] else { return .none }
         state.moveTab(tabID, toSection: !tab.isPinned)
+        return .none
+
+      case .pinSelectedTabToggled:
+        guard let tab = state.tabs[id: state.selectedTabID] else { return .none }
+        state.moveTab(tab.id, toSection: !tab.isPinned)
+        return .none
+
+      case .previousTabRequested:
+        state.selectTab(moving: -1)
         return .none
 
       case .tabSelected(let tabID):

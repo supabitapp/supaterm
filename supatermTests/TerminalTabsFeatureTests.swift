@@ -138,12 +138,31 @@ struct TerminalTabsFeatureTests {
 
     await store.send(.pinToggled(movedID)) {
       var tab = $0.tabs[id: movedID]!
-      var pinned = $0.pinnedTabs
+      let pinned = $0.pinnedTabs
       var regular = $0.regularTabs
       regular.removeAll { $0.id == movedID }
       tab.isPinned = true
-      pinned.append(tab)
-      $0.tabs = IdentifiedArray(uniqueElements: pinned + regular)
+      $0.tabs = IdentifiedArray(uniqueElements: pinned + [tab] + regular)
+    }
+  }
+
+  @Test
+  func pinSelectedTabToggleMovesSelectionIntoPinnedSection() async {
+    let initialState = TerminalTabsFeature.State(
+      selectedTabID: TerminalTabsFeature.State().regularTabs[0].id
+    )
+    let store = TestStore(initialState: initialState) {
+      TerminalTabsFeature()
+    }
+    let movedID = store.state.selectedTabID
+
+    await store.send(.pinSelectedTabToggled) {
+      var tab = $0.tabs[id: movedID]!
+      let pinned = $0.pinnedTabs
+      var regular = $0.regularTabs
+      regular.removeAll { $0.id == movedID }
+      tab.isPinned = true
+      $0.tabs = IdentifiedArray(uniqueElements: pinned + [tab] + regular)
     }
   }
 
@@ -200,6 +219,34 @@ struct TerminalTabsFeatureTests {
     let expectedID = store.state.visibleTabs[9].id
 
     await store.send(.tabShortcutPressed(10)) {
+      $0.selectedTabID = expectedID
+    }
+  }
+
+  @Test
+  func nextTabRequestedWrapsToNextVisibleTab() async {
+    var state = TerminalTabsFeature.State()
+    state.selectedTabID = state.visibleTabs.last!.id
+
+    let store = TestStore(initialState: state) {
+      TerminalTabsFeature()
+    }
+    let expectedID = store.state.visibleTabs.first!.id
+
+    await store.send(.nextTabRequested) {
+      $0.selectedTabID = expectedID
+    }
+  }
+
+  @Test
+  func previousTabRequestedWrapsToPreviousVisibleTab() async {
+    let state = TerminalTabsFeature.State()
+    let store = TestStore(initialState: state) {
+      TerminalTabsFeature()
+    }
+    let expectedID = store.state.visibleTabs.last!.id
+
+    await store.send(.previousTabRequested) {
       $0.selectedTabID = expectedID
     }
   }
