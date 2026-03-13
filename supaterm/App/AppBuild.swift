@@ -9,6 +9,10 @@ enum AppBuild {
     #endif
   }
 
+  static var allowsBackgroundUpdateCheckOnLaunch: Bool {
+    allowsBackgroundUpdateCheckOnLaunch(isDevelopment: isDevelopment)
+  }
+
   static func isDevelopmentFlag(_ rawValue: Any?) -> Bool {
     switch rawValue {
     case let value as Bool:
@@ -18,5 +22,9 @@ enum AppBuild {
     default:
       false
     }
+  }
+
+  static func allowsBackgroundUpdateCheckOnLaunch(isDevelopment: Bool) -> Bool {
+    !isDevelopment
   }
 }

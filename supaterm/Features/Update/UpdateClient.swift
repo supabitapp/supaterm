@@ -409,7 +409,7 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     }
     do {
       try updater.start()
-      if updater.automaticallyChecksForUpdates {
+      if updater.automaticallyChecksForUpdates && AppBuild.allowsBackgroundUpdateCheckOnLaunch {
         updater.checkForUpdatesInBackground()
       }
       publish()
