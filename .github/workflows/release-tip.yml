@@ -163,29 +163,16 @@ jobs:
           curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip" -o build/sparkle-tools/sparkle.zip
           unzip -q build/sparkle-tools/sparkle.zip -d build/sparkle-tools
       - name: Generate tip appcast
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          MAX_DELTAS=10
           STAGING=$(mktemp -d)
           cp build/supaterm.app.zip "$STAGING/"
-          ASSETS=$(gh release view tip -R "${{ github.repository }}" --json assets --jq '.assets[].name' 2>/dev/null || true)
-          for asset in $ASSETS; do
-            case "$asset" in
-              supaterm-history-*.app.zip)
-                gh release download tip -p "$asset" -O "$STAGING/$asset" -R "${{ github.repository }}" 2>/dev/null || true
-                ;;
-            esac
-          done
           printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | build/sparkle-tools/bin/generate_appcast \
             --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/tip/" \
-            --maximum-versions $((MAX_DELTAS + 1)) \
-            --maximum-deltas $MAX_DELTAS \
-            --delta-compression lzma \
+            --maximum-versions 1 \
+            --maximum-deltas 0 \
             --ed-key-file - "$STAGING"
           cp "$STAGING/appcast.xml" build/appcast.xml
-          find "$STAGING" -name '*.delta' -exec cp {} build/ \; 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
@@ -194,7 +181,6 @@ jobs:
             build/supaterm.dmg
             build/supaterm.app.zip
             build/appcast.xml
-            build/*.delta
 
   tag:
     runs-on: ubuntu-latest
@@ -239,13 +225,8 @@ jobs:
           for delta in $STALE_DELTAS; do
             gh release delete-asset tip "$delta" -R "${{ github.repository }}" -y 2>/dev/null || true
           done
-          DELTA_FILES=$(find build -name '*.delta' -type f 2>/dev/null | tr '\n' ' ' || true)
-          gh release upload tip build/supaterm.dmg build/supaterm.app.zip build/appcast.xml $DELTA_FILES --clobber -R "${{ github.repository }}"
-          MAX_DELTAS=10
-          cp build/supaterm.app.zip "build/supaterm-history-${{ github.run_number }}.app.zip"
-          gh release upload tip "build/supaterm-history-${{ github.run_number }}.app.zip" --clobber -R "${{ github.repository }}"
-          HISTORY=$(gh release view tip -R "${{ github.repository }}" --json assets --jq '[.assets[].name | select(startswith("supaterm-history-"))] | sort | reverse' 2>/dev/null || echo "[]")
-          PRUNE=$(echo "$HISTORY" | jq -r ".[$MAX_DELTAS:][]" 2>/dev/null || true)
-          for old in $PRUNE; do
-            gh release delete-asset tip "$old" -R "${{ github.repository }}" -y 2>/dev/null || true
+          STALE_HISTORY=$(gh release view tip -R "${{ github.repository }}" --json assets --jq '.assets[].name | select(startswith("supaterm-history-"))' 2>/dev/null || true)
+          for history in $STALE_HISTORY; do
+            gh release delete-asset tip "$history" -R "${{ github.repository }}" -y 2>/dev/null || true
           done
+          gh release upload tip build/supaterm.dmg build/supaterm.app.zip build/appcast.xml --clobber -R "${{ github.repository }}"

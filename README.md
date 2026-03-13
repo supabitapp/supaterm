@@ -16,12 +16,9 @@ Minimal macOS starter app for the next version of Supaterm.
 
 ```bash
 git submodule update --init --recursive
-make build-ghostty-xcframework
 make build-app
 make run-app
 ```
-
-GhosttyKit and project generation happen automatically on the supported `make` targets. If you cloned without submodules, initialize them once first.
 
 If you want Tuist remote cache, authenticate once with 
 
