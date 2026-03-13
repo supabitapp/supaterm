@@ -280,7 +280,7 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
   private var presentationContext = UpdatePresentationContext()
   private var started = false
   private let standardUserDriver: SPUStandardUserDriver?
-  private let updater: SPUUpdater?
+  private var updater: SPUUpdater?
 
   private override init() {
     #if DEBUG
@@ -290,6 +290,7 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     #else
       let hostBundle = Bundle.main
       standardUserDriver = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
+      updater = nil
       super.init()
       updater = SPUUpdater(
         hostBundle: hostBundle,
