@@ -1,6 +1,20 @@
 import ProjectDescription
 
 let tuist = Tuist(
-  compatibleXcodeVersions: .upToNextMajor("26.0"),
-  swiftVersion: "6.2"
+  fullHandle: "supabitapp/supaterm",
+  project: .tuist(
+    compatibleXcodeVersions: .upToNextMajor("26.0"),
+    swiftVersion: "6.2",
+    generationOptions: .options(
+      optionalAuthentication: true
+    ),
+    cacheOptions: .options(
+      profiles: .profiles(
+        [
+          "development": .profile(.onlyExternal),
+        ],
+        default: .custom("development")
+      )
+    )
+  )
 )
