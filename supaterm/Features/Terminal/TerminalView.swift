@@ -471,17 +471,19 @@ private struct SidebarContainerView: View {
       ScrollView(.vertical, showsIndicators: false) {
         VStack(alignment: .leading, spacing: 10) {
           SidebarSectionView(title: "Pinned", palette: palette) {
-            ForEach(store.pinnedTabs) { tab in
-              SidebarTabRow(
-                store: store,
-                tab: tab,
-                palette: palette,
-              )
-              .transition(
-                .asymmetric(
-                  insertion: .opacity.combined(with: .move(edge: .top)),
-                  removal: .opacity.combined(with: .move(edge: .top))
-                ))
+            VStack(spacing: 4) {
+              ForEach(store.pinnedTabs) { tab in
+                SidebarTabRow(
+                  store: store,
+                  tab: tab,
+                  palette: palette,
+                )
+                .transition(
+                  .asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                  ))
+              }
             }
           }
           .onDrop(
@@ -509,27 +511,29 @@ private struct SidebarContainerView: View {
           )
 
           SidebarSectionView(title: "Tabs", palette: palette) {
-            ForEach(store.regularTabs) { tab in
-              SidebarTabRow(
-                store: store,
-                tab: tab,
-                palette: palette,
-              )
-              .transition(
-                .asymmetric(
-                  insertion: .opacity.combined(with: .move(edge: .bottom)),
-                  removal: .opacity.combined(with: .move(edge: .top))
-                ))
-            }
-
-            NewTabButton(
-              palette: palette,
-              action: {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.newTabButtonTapped)
-                }
+            VStack(spacing: 4) {
+              ForEach(store.regularTabs) { tab in
+                SidebarTabRow(
+                  store: store,
+                  tab: tab,
+                  palette: palette,
+                )
+                .transition(
+                  .asymmetric(
+                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                    removal: .opacity.combined(with: .move(edge: .top))
+                  ))
               }
-            )
+
+              NewTabButton(
+                palette: palette,
+                action: {
+                  withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                    _ = store.send(.newTabButtonTapped)
+                  }
+                }
+              )
+            }
           }
           .onDrop(
             of: [.text],
