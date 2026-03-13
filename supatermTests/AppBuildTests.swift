@@ -20,8 +20,8 @@ struct AppBuildTests {
   }
 
   @Test
-  func backgroundUpdateCheckOnLaunchIsDisabledForDevelopmentBuilds() {
-    #expect(!AppBuild.allowsBackgroundUpdateCheckOnLaunch(isDevelopment: true))
+  func backgroundUpdateCheckOnLaunchIsEnabledForAllBuilds() {
+    #expect(AppBuild.allowsBackgroundUpdateCheckOnLaunch(isDevelopment: true))
     #expect(AppBuild.allowsBackgroundUpdateCheckOnLaunch(isDevelopment: false))
   }
 }

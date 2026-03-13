@@ -25,6 +25,6 @@ enum AppBuild {
   }
 
   static func allowsBackgroundUpdateCheckOnLaunch(isDevelopment: Bool) -> Bool {
-    !isDevelopment
+    true
   }
 }
