@@ -16,7 +16,7 @@ xcodebuild test -workspace supaterm.xcworkspace -scheme supaterm -destination "p
 ## Tooling
 
 - **Tuist** manages project generation (`Project.swift`, `Tuist.swift`, `Tuist/Package.swift`)
-- **mise** manages tool versions (`mise.toml`): tuist, swiftlint, xcsift
+- **mise** manages tool versions (`mise.toml`): tuist, swiftlint, xcbeautify
 - **swift-format** for formatting, **swiftlint** for linting
 
 ## Code Guidelines
