@@ -15,11 +15,17 @@ Minimal macOS starter app for the next version of Supaterm.
 ## Building
 
 ```bash
+
 make build-app
 make run-app
 ```
 
-Project generation happens automatically. If you want Tuist module-cache hits locally, authenticate once with `mise exec -- tuist auth login`. If you are not authenticated, builds still work and fall back to source dependencies.
+Project generation happens automatically. If you want Tuist remote cache, authenticate once with 
+
+```
+mise exec -- tuist auth login
+```
+If you are not authenticated, builds still work and fall back to source dependencies.
 
 ## Development
 
