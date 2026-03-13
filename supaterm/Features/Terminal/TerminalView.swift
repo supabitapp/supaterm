@@ -889,7 +889,13 @@ private struct SidebarTabRow: View {
   }
 
   private var background: Color {
-    isSelected ? palette.selectedFill : palette.clearFill
+    if isSelected {
+      return palette.selectedFill
+    }
+    if isHovering {
+      return palette.rowFill
+    }
+    return .clear
   }
 
   private var stroke: Color {
