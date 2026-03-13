@@ -469,9 +469,6 @@ private struct SidebarContainerView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarWorkingDirectoryView(palette: palette)
-      FavoriteGridView(palette: palette)
-
       ScrollView(.vertical) {
         VStack(alignment: .leading, spacing: 16) {
           SidebarSectionView(title: "Pinned", palette: palette) {
@@ -674,69 +671,6 @@ private struct SidebarHeaderView: View {
       }
     }
     .frame(height: 30)
-  }
-}
-
-private struct SidebarWorkingDirectoryView: View {
-  let palette: TerminalPalette
-
-  var body: some View {
-    HStack(spacing: 8) {
-      Image(systemName: "chevron.left.forwardslash.chevron.right")
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(palette.secondaryText)
-        .frame(width: 16, height: 16)
-        .accessibilityHidden(true)
-
-      Text("~/Developer/supaterm")
-        .font(.system(size: 13))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 10)
-    .background(palette.pillFill, in: .rect(cornerRadius: 10))
-  }
-}
-
-private struct FavoriteGridView: View {
-  let palette: TerminalPalette
-
-  private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
-
-  var body: some View {
-    LazyVGrid(columns: columns, spacing: 10) {
-      ForEach(TerminalSample.favorites) { favorite in
-        FavoriteTileView(favorite: favorite, palette: palette)
-      }
-    }
-  }
-}
-
-private struct FavoriteTileView: View {
-  let favorite: FavoriteTile
-  let palette: TerminalPalette
-
-  var body: some View {
-    RoundedRectangle(cornerRadius: 10, style: .continuous)
-      .fill(palette.fill(for: favorite.tone))
-      .frame(height: 48)
-      .overlay {
-        Image(systemName: favorite.symbol)
-          .font(.system(size: 16, weight: .semibold))
-          .foregroundStyle(favorite.isSelected ? palette.selectedIcon : palette.primaryText)
-          .accessibilityHidden(true)
-      }
-      .overlay {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .stroke(
-            favorite.isSelected ? palette.selectionStroke : palette.tileStroke,
-            lineWidth: 1,
-          )
-      }
-      .accessibilityLabel(favorite.label)
   }
 }
 
@@ -1201,7 +1135,6 @@ private struct TerminalPalette {
   let clearFill: Color
   let selectedFill: Color
   let selectionStroke: Color
-  let tileStroke: Color
   let primaryText: Color
   let secondaryText: Color
   let selectedText: Color
@@ -1232,7 +1165,6 @@ private struct TerminalPalette {
       clearFill = Color.white.opacity(0.03)
       selectedFill = Color.white.opacity(0.16)
       selectionStroke = Color.white.opacity(0.08)
-      tileStroke = Color.white.opacity(0.04)
       primaryText = Color.white.opacity(0.94)
       secondaryText = Color.white.opacity(0.58)
       selectedText = .white
@@ -1255,7 +1187,6 @@ private struct TerminalPalette {
       clearFill = Color.black.opacity(0.02)
       selectedFill = Color(red: 0.12, green: 0.12, blue: 0.12)
       selectionStroke = Color.black.opacity(0.08)
-      tileStroke = Color.black.opacity(0.05)
       primaryText = Color.black.opacity(0.86)
       secondaryText = Color.black.opacity(0.48)
       selectedText = .white
@@ -1315,31 +1246,11 @@ private struct TerminalPalette {
 }
 
 private enum TerminalSample {
-  static let favorites = [
-    FavoriteTile(label: "Launchpad", symbol: "sparkles", tone: .coral, isSelected: true),
-    FavoriteTile(label: "Notes", symbol: "doc.text", tone: .amber, isSelected: false),
-    FavoriteTile(label: "Files", symbol: "folder", tone: .slate, isSelected: false),
-    FavoriteTile(label: "Mail", symbol: "mail", tone: .mint, isSelected: false),
-    FavoriteTile(label: "Media", symbol: "play.rectangle", tone: .violet, isSelected: false),
-    FavoriteTile(label: "Calendar", symbol: "calendar", tone: .sky, isSelected: false),
-  ]
-
   static let spaces = [
     WorkspaceChip(label: "A", isSelected: false),
     WorkspaceChip(label: "B", isSelected: true),
     WorkspaceChip(label: "C", isSelected: false),
   ]
-}
-
-private struct FavoriteTile: Identifiable {
-  let label: String
-  let symbol: String
-  let tone: TerminalTone
-  let isSelected: Bool
-
-  var id: String {
-    symbol
-  }
 }
 
 private struct WorkspaceChip: Identifiable {
