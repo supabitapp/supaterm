@@ -2,7 +2,7 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
-struct BrowserChromeView: View {
+struct TerminalView: View {
   let store: StoreOf<AppFeature>
   @Environment(\.colorScheme) private var colorScheme
   @State private var isSidebarCollapsed = false
@@ -14,8 +14,8 @@ struct BrowserChromeView: View {
   private let minSidebarFraction: CGFloat = 0.16
   private let maxSidebarFraction: CGFloat = 0.30
 
-  private var palette: BrowserChromePalette {
-    BrowserChromePalette(colorScheme: colorScheme)
+  private var palette: TerminalPalette {
+    TerminalPalette(colorScheme: colorScheme)
   }
 
   private var updatePresentationContext: UpdatePresentationContext {
@@ -29,14 +29,14 @@ struct BrowserChromeView: View {
     store.scope(state: \.update, action: \.update)
   }
 
-  private var selectedTabID: BrowserTabID {
+  private var selectedTabID: TerminalTabID {
     store.selectedTabID
   }
 
   var body: some View {
     GeometryReader { geometry in
       ZStack(alignment: .leading) {
-        BrowserChromeSplitView(
+        TerminalSplitView(
           palette: palette,
           selectedTabID: selectedTabID,
           totalWidth: geometry.size.width,
@@ -118,7 +118,7 @@ struct BrowserChromeView: View {
     }
   }
 
-  private func selectTab(_ tabID: BrowserTabID) {
+  private func selectTab(_ tabID: TerminalTabID) {
     store.send(.tabSelected(tabID))
   }
 
@@ -140,7 +140,7 @@ struct BrowserChromeView: View {
   }
 }
 
-enum BrowserChromeSplitMetrics {
+enum TerminalSplitMetrics {
   static let resizeHandleWidth: CGFloat = 14
 
   static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
@@ -180,45 +180,45 @@ enum BrowserChromeSplitMetrics {
   }
 }
 
-private enum BrowserChromeCoordinateSpace {
-  static let split = "BrowserChromeSplit"
-  static let floatingSidebar = "BrowserChromeFloatingSidebar"
+private enum TerminalCoordinateSpace {
+  static let split = "TerminalSplit"
+  static let floatingSidebar = "TerminalFloatingSidebar"
 }
 
-private struct BrowserChromeSplitView: View {
-  let palette: BrowserChromePalette
-  let selectedTabID: BrowserTabID
+private struct TerminalSplitView: View {
+  let palette: TerminalPalette
+  let selectedTabID: TerminalTabID
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let onSelectTab: (BrowserTabID) -> Void
+  let onSelectTab: (TerminalTabID) -> Void
   let onToggleSidebar: () -> Void
   let onHide: () -> Void
   let updateStore: StoreOf<UpdateFeature>
   @State private var dragFraction: CGFloat?
 
   var body: some View {
-    let effectiveFraction = BrowserChromeSplitMetrics.clampedFraction(
+    let effectiveFraction = TerminalSplitMetrics.clampedFraction(
       dragFraction ?? sidebarFraction,
       minFraction: minFraction,
       maxFraction: maxFraction,
     )
-    let isCollapsePreviewActive = BrowserChromeSplitMetrics.isCollapsePreviewActive(
+    let isCollapsePreviewActive = TerminalSplitMetrics.isCollapsePreviewActive(
       dragFraction: dragFraction,
       minFraction: minFraction,
     )
-    let handleFraction = BrowserChromeSplitMetrics.handleFraction(
+    let handleFraction = TerminalSplitMetrics.handleFraction(
       dragFraction: dragFraction,
       committedFraction: effectiveFraction,
       maxFraction: maxFraction,
     )
-    let currentSidebarWidth = BrowserChromeSplitMetrics.sidebarWidth(
+    let currentSidebarWidth = TerminalSplitMetrics.sidebarWidth(
       for: totalWidth,
       fraction: effectiveFraction,
     )
-    let handleWidth = BrowserChromeSplitMetrics.sidebarWidth(
+    let handleWidth = TerminalSplitMetrics.sidebarWidth(
       for: totalWidth,
       fraction: handleFraction,
     )
@@ -227,7 +227,7 @@ private struct BrowserChromeSplitView: View {
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
-        BrowserSidebarView(
+        TerminalSidebarView(
           palette: palette,
           selectedTabID: selectedTabID,
           onSelectTab: onSelectTab,
@@ -240,9 +240,9 @@ private struct BrowserChromeSplitView: View {
         .clipped()
         .allowsHitTesting(!visualSidebarCollapsed)
 
-        BrowserDetailView(
+        TerminalDetailView(
           palette: palette,
-          selectedTab: BrowserTabCatalog.tab(id: selectedTabID),
+          selectedTab: TerminalTabCatalog.tab(id: selectedTabID),
           isSidebarCollapsed: visualSidebarCollapsed,
           onToggleSidebar: onToggleSidebar,
         )
@@ -251,7 +251,7 @@ private struct BrowserChromeSplitView: View {
 
       if !isSidebarCollapsed {
         SidebarResizeHandle(
-          coordinateSpaceName: BrowserChromeCoordinateSpace.split,
+          coordinateSpaceName: TerminalCoordinateSpace.split,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
@@ -259,15 +259,15 @@ private struct BrowserChromeSplitView: View {
           maxFraction: maxFraction,
           onHide: onHide,
         )
-        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: handleWidth))
+        .offset(x: TerminalSplitMetrics.resizeHandleOffset(for: handleWidth))
       }
     }
-    .coordinateSpace(name: BrowserChromeCoordinateSpace.split)
+    .coordinateSpace(name: TerminalCoordinateSpace.split)
   }
 }
 
 private struct QuitConfirmationOverlay: View {
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   let onConfirm: () -> Void
   let onCancel: () -> Void
 
@@ -363,7 +363,7 @@ private struct DialogActionButton: View {
     case text(String)
   }
 
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   let title: String
   let style: Style
   let shortcut: Shortcut
@@ -439,10 +439,10 @@ private struct DialogActionButton: View {
   }
 }
 
-private struct BrowserSidebarView: View {
-  let palette: BrowserChromePalette
-  let selectedTabID: BrowserTabID
-  let onSelectTab: (BrowserTabID) -> Void
+private struct TerminalSidebarView: View {
+  let palette: TerminalPalette
+  let selectedTabID: TerminalTabID
+  let onSelectTab: (TerminalTabID) -> Void
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
@@ -463,19 +463,19 @@ private struct BrowserSidebarView: View {
 }
 
 private struct SidebarContainerView: View {
-  let palette: BrowserChromePalette
-  let selectedTabID: BrowserTabID
-  let onSelectTab: (BrowserTabID) -> Void
+  let palette: TerminalPalette
+  let selectedTabID: TerminalTabID
+  let onSelectTab: (TerminalTabID) -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarAddressView(palette: palette)
+      SidebarWorkingDirectoryView(palette: palette)
       FavoriteGridView(palette: palette)
 
       ScrollView(.vertical) {
         VStack(alignment: .leading, spacing: 16) {
           SidebarSectionView(title: "Pinned", palette: palette) {
-            ForEach(BrowserTabCatalog.pinnedTabs) { tab in
+            ForEach(TerminalTabCatalog.pinnedTabs) { tab in
               SidebarTabRow(
                 tab: tab,
                 isSelected: selectedTabID == tab.id,
@@ -488,7 +488,7 @@ private struct SidebarContainerView: View {
           SidebarSectionView(title: "Tabs", palette: palette) {
             NewTabButton(palette: palette)
 
-            ForEach(BrowserTabCatalog.regularTabs) { tab in
+            ForEach(TerminalTabCatalog.regularTabs) { tab in
               SidebarTabRow(
                 tab: tab,
                 isSelected: selectedTabID == tab.id,
@@ -507,24 +507,24 @@ private struct SidebarContainerView: View {
 }
 
 private struct FloatingSidebarOverlay: View {
-  let palette: BrowserChromePalette
-  let selectedTabID: BrowserTabID
+  let palette: TerminalPalette
+  let selectedTabID: TerminalTabID
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var isVisible: Bool
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let onSelectTab: (BrowserTabID) -> Void
+  let onSelectTab: (TerminalTabID) -> Void
   let updateStore: StoreOf<UpdateFeature>
   @State private var dragFraction: CGFloat?
 
   var body: some View {
-    let effectiveFraction = BrowserChromeSplitMetrics.clampedFraction(
+    let effectiveFraction = TerminalSplitMetrics.clampedFraction(
       dragFraction ?? sidebarFraction,
       minFraction: minFraction,
       maxFraction: maxFraction,
     )
-    let floatingWidth = BrowserChromeSplitMetrics.sidebarWidth(
+    let floatingWidth = TerminalSplitMetrics.sidebarWidth(
       for: totalWidth,
       fraction: effectiveFraction,
     )
@@ -550,18 +550,18 @@ private struct FloatingSidebarOverlay: View {
 
       if isVisible {
         SidebarResizeHandle(
-          coordinateSpaceName: BrowserChromeCoordinateSpace.floatingSidebar,
+          coordinateSpaceName: TerminalCoordinateSpace.floatingSidebar,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
           minFraction: minFraction,
           maxFraction: maxFraction,
         )
-        .offset(x: BrowserChromeSplitMetrics.resizeHandleOffset(for: floatingWidth))
+        .offset(x: TerminalSplitMetrics.resizeHandleOffset(for: floatingWidth))
         .zIndex(2)
       }
     }
-    .coordinateSpace(name: BrowserChromeCoordinateSpace.floatingSidebar)
+    .coordinateSpace(name: TerminalCoordinateSpace.floatingSidebar)
   }
 
   private func hoverStrip(width: CGFloat) -> some View {
@@ -590,7 +590,7 @@ private struct SidebarResizeHandle: View {
   var body: some View {
     Rectangle()
       .fill(Color.clear)
-      .frame(width: BrowserChromeSplitMetrics.resizeHandleWidth)
+      .frame(width: TerminalSplitMetrics.resizeHandleWidth)
       .contentShape(Rectangle())
       .onHover { hovering in
         if hovering {
@@ -602,20 +602,20 @@ private struct SidebarResizeHandle: View {
       .gesture(
         DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
           .onChanged { value in
-            dragFraction = BrowserChromeSplitMetrics.rawFraction(
+            dragFraction = TerminalSplitMetrics.rawFraction(
               for: value.location.x,
               totalWidth: totalWidth,
             )
           }
           .onEnded { value in
-            let rawFraction = BrowserChromeSplitMetrics.rawFraction(
+            let rawFraction = TerminalSplitMetrics.rawFraction(
               for: value.location.x,
               totalWidth: totalWidth,
             )
             if let onHide, rawFraction < minFraction {
               onHide()
             } else {
-              sidebarFraction = BrowserChromeSplitMetrics.clampedFraction(
+              sidebarFraction = TerminalSplitMetrics.clampedFraction(
                 rawFraction,
                 minFraction: minFraction,
                 maxFraction: maxFraction,
@@ -628,14 +628,14 @@ private struct SidebarResizeHandle: View {
 }
 
 private struct FloatingSidebarView: View {
-  let palette: BrowserChromePalette
-  let selectedTabID: BrowserTabID
+  let palette: TerminalPalette
+  let selectedTabID: TerminalTabID
   let width: CGFloat
-  let onSelectTab: (BrowserTabID) -> Void
+  let onSelectTab: (TerminalTabID) -> Void
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    BrowserSidebarView(
+    TerminalSidebarView(
       palette: palette,
       selectedTabID: selectedTabID,
       onSelectTab: onSelectTab,
@@ -657,7 +657,7 @@ private struct FloatingSidebarView: View {
 }
 
 private struct SidebarHeaderView: View {
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
@@ -668,27 +668,27 @@ private struct SidebarHeaderView: View {
       Spacer(minLength: 0)
 
       HStack(spacing: 4) {
-        ChromeIconButton(symbol: "chevron.left", palette: palette)
-        ChromeIconButton(symbol: "chevron.right", palette: palette)
-        ChromeIconButton(symbol: "arrow.clockwise", palette: palette)
+        ToolbarIconButton(symbol: "plus", palette: palette, accessibilityLabel: "New tab")
+        ToolbarIconButton(symbol: "square.split.2x1", palette: palette, accessibilityLabel: "Split pane")
+        ToolbarIconButton(symbol: "arrow.clockwise", palette: palette, accessibilityLabel: "Rerun command")
       }
     }
     .frame(height: 30)
   }
 }
 
-private struct SidebarAddressView: View {
-  let palette: BrowserChromePalette
+private struct SidebarWorkingDirectoryView: View {
+  let palette: TerminalPalette
 
   var body: some View {
     HStack(spacing: 8) {
-      Image(systemName: "lock.fill")
+      Image(systemName: "chevron.left.forwardslash.chevron.right")
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(palette.secondaryText)
         .frame(width: 16, height: 16)
         .accessibilityHidden(true)
 
-      Text("supaterm.app/workspaces/browser-shell")
+      Text("~/Developer/supaterm")
         .font(.system(size: 13))
         .foregroundStyle(palette.primaryText)
         .lineLimit(1)
@@ -702,13 +702,13 @@ private struct SidebarAddressView: View {
 }
 
 private struct FavoriteGridView: View {
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
 
   var body: some View {
     LazyVGrid(columns: columns, spacing: 10) {
-      ForEach(BrowserChromeSample.favorites) { favorite in
+      ForEach(TerminalSample.favorites) { favorite in
         FavoriteTileView(favorite: favorite, palette: palette)
       }
     }
@@ -717,7 +717,7 @@ private struct FavoriteGridView: View {
 
 private struct FavoriteTileView: View {
   let favorite: FavoriteTile
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   var body: some View {
     RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -742,7 +742,7 @@ private struct FavoriteTileView: View {
 
 private struct SidebarSectionView<Content: View>: View {
   let title: String
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   @ViewBuilder let content: Content
 
   var body: some View {
@@ -757,7 +757,7 @@ private struct SidebarSectionView<Content: View>: View {
 }
 
 private struct NewTabButton: View {
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   var body: some View {
     Button(
@@ -785,9 +785,9 @@ private struct NewTabButton: View {
 }
 
 private struct SidebarTabRow: View {
-  let tab: BrowserTabItem
+  let tab: TerminalTabItem
   let isSelected: Bool
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   let action: () -> Void
 
   var body: some View {
@@ -840,7 +840,7 @@ private struct SidebarTabRow: View {
 }
 
 private struct SidebarFooterView: View {
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   var body: some View {
     HStack {
@@ -849,7 +849,7 @@ private struct SidebarFooterView: View {
       Spacer(minLength: 16)
 
       HStack(spacing: 4) {
-        ForEach(BrowserChromeSample.spaces) { space in
+        ForEach(TerminalSample.spaces) { space in
           SpaceButton(space: space, palette: palette)
         }
       }
@@ -864,7 +864,7 @@ private struct SidebarFooterView: View {
 
 private struct SpaceButton: View {
   let space: WorkspaceChip
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   var body: some View {
     Button(
@@ -884,7 +884,7 @@ private struct SpaceButton: View {
 
 private struct FooterCircleButton: View {
   let symbol: String
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
 
   var body: some View {
     Button(
@@ -899,13 +899,13 @@ private struct FooterCircleButton: View {
       }
     )
     .buttonStyle(.plain)
-    .accessibilityLabel(symbol == "plus" ? "Add workspace" : "Downloads")
+    .accessibilityLabel(symbol == "plus" ? "Add workspace" : "Open activity")
   }
 }
 
-private struct BrowserDetailView: View {
-  let palette: BrowserChromePalette
-  let selectedTab: BrowserTabItem
+private struct TerminalDetailView: View {
+  let palette: TerminalPalette
+  let selectedTab: TerminalTabItem
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -918,7 +918,7 @@ private struct BrowserDetailView: View {
         onToggleSidebar: onToggleSidebar,
       )
 
-      BrowserDetailSurface(selectedTab: selectedTab, palette: palette)
+      TerminalDetailSurface(selectedTab: selectedTab, palette: palette)
         .padding(24)
     }
     .background(palette.detailBackground, in: .rect(cornerRadius: 20))
@@ -935,21 +935,25 @@ private struct BrowserDetailView: View {
 }
 
 private struct DetailToolbarView: View {
-  let palette: BrowserChromePalette
-  let selectedTab: BrowserTabItem
+  let palette: TerminalPalette
+  let selectedTab: TerminalTabItem
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
   var body: some View {
     HStack(spacing: 4) {
       HStack(spacing: 4) {
-        ChromeIconButton(
+        ToolbarIconButton(
           symbol: "sidebar.left",
           palette: palette,
           accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
           action: onToggleSidebar,
         )
-        ChromeIconButton(symbol: "arrow.trianglehead.2.clockwise.rotate.90", palette: palette)
+        ToolbarIconButton(
+          symbol: "arrow.trianglehead.2.clockwise.rotate.90",
+          palette: palette,
+          accessibilityLabel: "Rotate layout",
+        )
       }
 
       HStack(spacing: 8) {
@@ -977,17 +981,17 @@ private struct DetailToolbarView: View {
       )
 
       HStack(spacing: 4) {
-        ChromeIconButton(symbol: "person.crop.circle", palette: palette)
-        ChromeIconButton(symbol: "ellipsis", palette: palette)
+        ToolbarIconButton(symbol: "person.crop.circle", palette: palette, accessibilityLabel: "Profile")
+        ToolbarIconButton(symbol: "ellipsis", palette: palette, accessibilityLabel: "More actions")
       }
     }
     .padding(4)
   }
 }
 
-private struct BrowserDetailSurface: View {
-  let selectedTab: BrowserTabItem
-  let palette: BrowserChromePalette
+private struct TerminalDetailSurface: View {
+  let selectedTab: TerminalTabItem
+  let palette: TerminalPalette
 
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
@@ -1001,7 +1005,7 @@ private struct BrowserDetailSurface: View {
             .font(.system(size: 32, weight: .semibold, design: .rounded))
             .foregroundStyle(palette.detailForeground(for: selectedTab.tone))
 
-          Text("Selected from the browser sidebar.")
+          Text("Selected from the terminal sidebar.")
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.82))
         }
@@ -1022,16 +1026,16 @@ private struct BrowserDetailSurface: View {
   }
 }
 
-private struct ChromeIconButton: View {
+private struct ToolbarIconButton: View {
   let symbol: String
-  let palette: BrowserChromePalette
+  let palette: TerminalPalette
   let accessibilityLabel: String?
   let action: () -> Void
   @State private var isHovering = false
 
   init(
     symbol: String,
-    palette: BrowserChromePalette,
+    palette: TerminalPalette,
     accessibilityLabel: String? = nil,
     action: @escaping () -> Void = {},
   ) {
@@ -1054,31 +1058,8 @@ private struct ChromeIconButton: View {
       }
     )
     .buttonStyle(.plain)
-    .accessibilityLabel(accessibilityLabel ?? defaultAccessibilityLabel)
+    .accessibilityLabel(accessibilityLabel ?? "Action")
     .onHover { isHovering = $0 }
-  }
-
-  private var defaultAccessibilityLabel: String {
-    switch symbol {
-    case "chevron.left":
-      "Back"
-    case "chevron.right":
-      "Forward"
-    case "arrow.clockwise":
-      "Reload"
-    case "sidebar.left":
-      "Toggle sidebar"
-    case "sidebar.right":
-      "Toggle sidebar"
-    case "arrow.trianglehead.2.clockwise.rotate.90":
-      "Rotate layout"
-    case "person.crop.circle":
-      "Profile"
-    case "ellipsis":
-      "More actions"
-    default:
-      "Action"
-    }
   }
 }
 
@@ -1203,7 +1184,7 @@ private struct WindowChromeConfigurator: NSViewRepresentable {
   }
 }
 
-private struct BrowserChromePalette {
+private struct TerminalPalette {
   let windowBackgroundTint: Color
   let detailBackground: Color
   let detailStroke: Color
@@ -1290,15 +1271,15 @@ private struct BrowserChromePalette {
     slate = Color(red: 0.38, green: 0.44, blue: 0.56)
   }
 
-  func fill(for tone: ChromeTone) -> Color {
+  func fill(for tone: TerminalTone) -> Color {
     color(for: tone).opacity(0.85)
   }
 
-  func detailFill(for tone: ChromeTone) -> Color {
+  func detailFill(for tone: TerminalTone) -> Color {
     color(for: tone)
   }
 
-  func detailForeground(for tone: ChromeTone) -> Color {
+  func detailForeground(for tone: TerminalTone) -> Color {
     switch tone {
     case .amber:
       Color.black.opacity(0.78)
@@ -1315,7 +1296,7 @@ private struct BrowserChromePalette {
     }
   }
 
-  private func color(for tone: ChromeTone) -> Color {
+  private func color(for tone: TerminalTone) -> Color {
     switch tone {
     case .amber:
       amber
@@ -1333,7 +1314,7 @@ private struct BrowserChromePalette {
   }
 }
 
-private enum BrowserChromeSample {
+private enum TerminalSample {
   static let favorites = [
     FavoriteTile(label: "Launchpad", symbol: "sparkles", tone: .coral, isSelected: true),
     FavoriteTile(label: "Notes", symbol: "doc.text", tone: .amber, isSelected: false),
@@ -1353,7 +1334,7 @@ private enum BrowserChromeSample {
 private struct FavoriteTile: Identifiable {
   let label: String
   let symbol: String
-  let tone: ChromeTone
+  let tone: TerminalTone
   let isSelected: Bool
 
   var id: String {

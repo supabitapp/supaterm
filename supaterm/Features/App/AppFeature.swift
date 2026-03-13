@@ -4,12 +4,12 @@ import ComposableArchitecture
 struct AppFeature {
   @ObservableState
   struct State: Equatable {
-    var selectedTabID = BrowserTabCatalog.defaultSelectedTabID
+    var selectedTabID = TerminalTabCatalog.defaultSelectedTabID
     var update = UpdateFeature.State()
   }
 
   enum Action {
-    case tabSelected(BrowserTabID)
+    case tabSelected(TerminalTabID)
     case update(UpdateFeature.Action)
   }
 

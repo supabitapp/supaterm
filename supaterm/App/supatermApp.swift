@@ -18,7 +18,7 @@ struct SupatermApp: App {
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      BrowserCommands(store: store.scope(state: \.update, action: \.update))
+      TerminalCommands(store: store.scope(state: \.update, action: \.update))
     }
   }
 }

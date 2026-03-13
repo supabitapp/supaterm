@@ -29,9 +29,9 @@ xcodebuild test -workspace supaterm.xcworkspace -scheme supaterm -destination "p
 
 The app uses **The Composable Architecture (TCA)** with a feature-based folder structure under `supaterm/`:
 
-- `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `BrowserCommands`
-- `Features/App/` — Root `AppFeature` reducer: composes child features, manages tab selection
-- `Features/Chrome/` — Browser chrome UI: sidebar, detail pane, split view, tab catalog, resize handles
+- `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `TerminalCommands`
+- `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection
+- `Features/Terminal/` — Terminal shell UI: sidebar, detail pane, split view, tab catalog, resize handles
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates
 
 **Dependency pattern**: External services are modeled as TCA `DependencyKey` structs with closure-based interfaces (see `UpdateClient`). Live implementations wrap platform SDKs; test implementations return inert defaults.

@@ -1,30 +1,30 @@
-enum BrowserTabSection: Equatable {
+enum TerminalTabSection: Equatable {
   case pinned
   case regular
 }
 
-enum BrowserTabID: String, Equatable {
-  case bookmarks
+enum TerminalTabID: String, Equatable {
   case buildOutput
   case commandDeck
+  case profiles
   case searchResults
   case sessions
   case windowStyling
   case workspaceNotes
 }
 
-struct BrowserTabItem: Equatable, Identifiable {
-  let id: BrowserTabID
+struct TerminalTabItem: Equatable, Identifiable {
+  let id: TerminalTabID
   let title: String
   let symbol: String
-  let tone: ChromeTone
-  let section: BrowserTabSection
+  let tone: TerminalTone
+  let section: TerminalTabSection
   let showsClose: Bool
 }
 
-enum BrowserTabCatalog {
+enum TerminalTabCatalog {
   static let allTabs = [
-    BrowserTabItem(
+    TerminalTabItem(
       id: .commandDeck,
       title: "Command Deck",
       symbol: "command",
@@ -32,7 +32,7 @@ enum BrowserTabCatalog {
       section: .pinned,
       showsClose: true,
     ),
-    BrowserTabItem(
+    TerminalTabItem(
       id: .sessions,
       title: "Sessions",
       symbol: "terminal",
@@ -40,15 +40,15 @@ enum BrowserTabCatalog {
       section: .pinned,
       showsClose: true,
     ),
-    BrowserTabItem(
-      id: .bookmarks,
-      title: "Bookmarks",
-      symbol: "book",
+    TerminalTabItem(
+      id: .profiles,
+      title: "Profiles",
+      symbol: "slider.horizontal.3",
       tone: .amber,
       section: .pinned,
       showsClose: true,
     ),
-    BrowserTabItem(
+    TerminalTabItem(
       id: .workspaceNotes,
       title: "Workspace Notes",
       symbol: "note.text",
@@ -56,7 +56,7 @@ enum BrowserTabCatalog {
       section: .regular,
       showsClose: true,
     ),
-    BrowserTabItem(
+    TerminalTabItem(
       id: .buildOutput,
       title: "Build Output",
       symbol: "bolt",
@@ -64,7 +64,7 @@ enum BrowserTabCatalog {
       section: .regular,
       showsClose: true,
     ),
-    BrowserTabItem(
+    TerminalTabItem(
       id: .windowStyling,
       title: "Window Styling",
       symbol: "macwindow",
@@ -72,7 +72,7 @@ enum BrowserTabCatalog {
       section: .regular,
       showsClose: true,
     ),
-    BrowserTabItem(
+    TerminalTabItem(
       id: .searchResults,
       title: "Search Results",
       symbol: "magnifyingglass",
@@ -84,20 +84,20 @@ enum BrowserTabCatalog {
 
   static let defaultSelectedTabID = allTabs[0].id
 
-  static var pinnedTabs: [BrowserTabItem] {
+  static var pinnedTabs: [TerminalTabItem] {
     allTabs.filter { $0.section == .pinned }
   }
 
-  static var regularTabs: [BrowserTabItem] {
+  static var regularTabs: [TerminalTabItem] {
     allTabs.filter { $0.section == .regular }
   }
 
-  static func tab(id: BrowserTabID) -> BrowserTabItem {
+  static func tab(id: TerminalTabID) -> TerminalTabItem {
     allTabs.first(where: { $0.id == id }) ?? allTabs[0]
   }
 }
 
-enum ChromeTone: Equatable {
+enum TerminalTone: Equatable {
   case amber
   case coral
   case mint
