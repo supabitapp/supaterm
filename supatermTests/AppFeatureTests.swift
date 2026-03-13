@@ -6,36 +6,25 @@ import Testing
 @MainActor
 struct AppFeatureTests {
   @Test
-  func reducerStartsWithDefaultSelectedTab() {
+  func reducerStartsWithInitialSelectedTab() {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     }
 
-    #expect(store.state.selectedTabID == TerminalTabCatalog.defaultSelectedTabID)
+    #expect(store.state.tabs.selectedTab.title == "Command Deck")
   }
 
   @Test
-  func tabSelectionUpdatesSelectedTabID() async {
+  func tabActionsRouteToChildFeature() async {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     }
 
-    await store.send(.tabSelected(.windowStyling)) {
-      $0.selectedTabID = .windowStyling
+    let targetID = store.state.tabs.regularTabs[2].id
+
+    await store.send(.tabs(.tabSelected(targetID))) {
+      $0.tabs.selectedTabID = targetID
     }
-  }
-
-  @Test
-  func selectingCurrentTabIsStable() async {
-    var initialState = AppFeature.State()
-    initialState.selectedTabID = .sessions
-
-    let store = TestStore(initialState: initialState) {
-      AppFeature()
-    }
-
-    await store.send(.tabSelected(.sessions))
-    #expect(store.state.selectedTabID == .sessions)
   }
 
   @Test

@@ -3,7 +3,7 @@ import ComposableArchitecture
 import SwiftUI
 
 struct TerminalCommands: Commands {
-  let store: StoreOf<UpdateFeature>
+  let store: StoreOf<AppFeature>
 
   var body: some Commands {
     let isDevelopmentBuild: Bool = {
@@ -31,6 +31,27 @@ struct TerminalCommands: Commands {
       .keyboardShortcut("s", modifiers: .command)
     }
 
+    CommandMenu("Tabs") {
+      Button("New Tab") {
+        store.send(.tabs(.newTabButtonTapped))
+      }
+      .keyboardShortcut("t", modifiers: .command)
+
+      Button("Close Tab") {
+        store.send(.tabs(.closeButtonTapped(store.tabs.selectedTabID)))
+      }
+      .keyboardShortcut("w", modifiers: .command)
+
+      Divider()
+
+      ForEach(1...10, id: \.self) { slot in
+        Button("Tab \(slot)") {
+          store.send(.tabs(.tabShortcutPressed(slot)))
+        }
+        .keyboardShortcut(KeyEquivalent(slot == 10 ? "0" : Character("\(slot)")), modifiers: .command)
+      }
+    }
+
     CommandGroup(after: .appInfo) {
       if isDevelopmentBuild {
         Button("This is a development build") {}
@@ -38,9 +59,9 @@ struct TerminalCommands: Commands {
       }
 
       Button("Check for Updates...") {
-        store.send(.checkForUpdatesButtonTapped)
+        store.send(.update(.checkForUpdatesButtonTapped))
       }
-      .disabled(!store.canCheckForUpdates)
+      .disabled(!store.update.canCheckForUpdates)
     }
   }
 }
