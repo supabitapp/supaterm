@@ -2,4 +2,5 @@
 tuist = "4.155.4"
 swiftlint = "latest"
 "github:ldomaradzki/xcsift" = "latest"
+xcbeautify = "3.1.4"
 "npm:create-dmg" = "latest"
