@@ -505,15 +505,6 @@ private struct SidebarContainerView: View {
           )
 
           SidebarSectionView(title: "Tabs", palette: palette) {
-            NewTabButton(
-              palette: palette,
-              action: {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.newTabButtonTapped)
-                }
-              }
-            )
-
             ForEach(store.regularTabs) { tab in
               SidebarTabRow(
                 store: store,
@@ -526,6 +517,15 @@ private struct SidebarContainerView: View {
                   removal: .opacity.combined(with: .move(edge: .top))
                 ))
             }
+
+            NewTabButton(
+              palette: palette,
+              action: {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.newTabButtonTapped)
+                }
+              }
+            )
           }
           .onDrop(
             of: [.text],
