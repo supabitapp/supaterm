@@ -2,7 +2,7 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
-struct BrowserCommands: Commands {
+struct TerminalCommands: Commands {
   let store: StoreOf<UpdateFeature>
 
   var body: some Commands {

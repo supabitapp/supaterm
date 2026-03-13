@@ -11,7 +11,7 @@ struct AppFeatureTests {
       AppFeature()
     }
 
-    #expect(store.state.selectedTabID == BrowserTabCatalog.defaultSelectedTabID)
+    #expect(store.state.selectedTabID == TerminalTabCatalog.defaultSelectedTabID)
   }
 
   @Test
