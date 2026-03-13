@@ -52,7 +52,7 @@ $(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS)
 	touch "$@"
 
 build-app: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
-	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcsift -qw --format toon'
+	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcsift -w --format toon'
 
 run-app: build-app # Build then launch (Debug) with log streaming
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
@@ -69,7 +69,7 @@ export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcsift -qw --format toon'
 
 test: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
-	bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcsift -qw --format toon'
+	bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcsift -w --format toon'
 
 format: # Format code with swift-format (local only)
 	swift-format -p --in-place --recursive --configuration ./.swift-format.json supaterm supatermTests
