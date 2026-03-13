@@ -33,6 +33,54 @@ struct TerminalTabsFeatureTests {
   }
 
   @Test
+  func newTabAlwaysAppearsAtEndOfRegularList() async {
+    let pinnedA = TerminalTabsFeature.Tab(
+      id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
+      title: "Pinned A",
+      symbol: "pin",
+      isPinned: true,
+    )
+    let regularA = TerminalTabsFeature.Tab(
+      id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
+      title: "Regular A",
+      symbol: "terminal",
+      isPinned: false,
+    )
+    let pinnedB = TerminalTabsFeature.Tab(
+      id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
+      title: "Pinned B",
+      symbol: "pin",
+      isPinned: true,
+    )
+    let regularB = TerminalTabsFeature.Tab(
+      id: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!,
+      title: "Regular B",
+      symbol: "terminal",
+      isPinned: false,
+    )
+
+    let initialState = TerminalTabsFeature.State(
+      tabs: [pinnedA, regularA, pinnedB, regularB],
+      selectedTabID: regularA.id
+    )
+    let store = TestStore(initialState: initialState) {
+      TerminalTabsFeature()
+    } withDependencies: {
+      $0.uuid = .incrementing
+    }
+
+    await store.send(.newTabButtonTapped) {
+      let newTab = TerminalTabsFeature.Tab.makeNewTab(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+      )
+      $0.tabs = IdentifiedArray(
+        uniqueElements: [pinnedA, pinnedB, regularA, regularB, newTab]
+      )
+      $0.selectedTabID = newTab.id
+    }
+  }
+
+  @Test
   func closingSelectedTabSelectsNextVisibleNeighbor() async {
     let initialState = TerminalTabsFeature.State(
       selectedTabID: TerminalTabsFeature.State().regularTabs[1].id
