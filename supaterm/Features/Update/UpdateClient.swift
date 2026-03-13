@@ -281,6 +281,7 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     case updateChoice((SPUUserUpdateChoice) -> Void)
   }
 
+  private var canCheckForUpdatesObservation: NSKeyValueObservation?
   private var continuations: [UUID: AsyncStream<UpdateClient.Snapshot>.Continuation] = [:]
   private var pendingResponse: PendingResponse?
   private var phase: UpdatePhase = .idle
@@ -306,6 +307,13 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
         delegate: self
       )
       updater?.updateCheckInterval = 900
+      canCheckForUpdatesObservation = updater?.observe(
+        \.canCheckForUpdates, options: [.new]
+      ) { [weak self] _, _ in
+        MainActor.assumeIsolated {
+          self?.publish()
+        }
+      }
     #endif
   }
 
