@@ -35,12 +35,29 @@ struct TerminalCommands: Commands {
       Button("New Tab") {
         store.send(.tabs(.newTabButtonTapped))
       }
-      .keyboardShortcut("t", modifiers: .command)
+      .keyboardShortcut("n", modifiers: .command)
 
       Button("Close Tab") {
         store.send(.tabs(.closeButtonTapped(store.tabs.selectedTabID)))
       }
       .keyboardShortcut("w", modifiers: .command)
+
+      Button("Pin Tab") {
+        store.send(.tabs(.pinSelectedTabToggled))
+      }
+      .keyboardShortcut("d", modifiers: .command)
+
+      Divider()
+
+      Button("Next Tab") {
+        store.send(.tabs(.nextTabRequested))
+      }
+      .keyboardShortcut("]", modifiers: [.command, .shift])
+
+      Button("Previous Tab") {
+        store.send(.tabs(.previousTabRequested))
+      }
+      .keyboardShortcut("[", modifiers: [.command, .shift])
 
       Divider()
 

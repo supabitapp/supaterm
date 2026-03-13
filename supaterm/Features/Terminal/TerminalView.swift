@@ -462,10 +462,14 @@ private struct SidebarContainerView: View {
   let palette: TerminalPalette
   let store: StoreOf<TerminalTabsFeature>
 
+  private var isDraggingTab: Bool {
+    store.draggedTabID != nil
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       ScrollView(.vertical, showsIndicators: false) {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
           SidebarSectionView(title: "Pinned", palette: palette) {
             ForEach(store.pinnedTabs) { tab in
               SidebarTabRow(
@@ -554,7 +558,7 @@ private struct SidebarContainerView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .gesture(WindowDragGesture())
+    .modifier(SidebarWindowDragGesture(isEnabled: !isDraggingTab))
   }
 }
 
@@ -751,9 +755,22 @@ private struct SidebarSectionView<Content: View>: View {
   }
 }
 
+private struct SidebarWindowDragGesture: ViewModifier {
+  let isEnabled: Bool
+
+  func body(content: Content) -> some View {
+    if isEnabled {
+      content.gesture(WindowDragGesture())
+    } else {
+      content
+    }
+  }
+}
+
 private struct NewTabButton: View {
   let palette: TerminalPalette
   let action: () -> Void
+  @State private var isHovering = false
 
   var body: some View {
     Button(
@@ -773,10 +790,11 @@ private struct NewTabButton: View {
           Spacer(minLength: 0)
         }
         .padding(10)
-        .background(palette.rowFill, in: .rect(cornerRadius: 10))
+        .background(isHovering ? palette.rowFill : .clear, in: .rect(cornerRadius: 10))
       }
     )
     .buttonStyle(.plain)
+    .onHover { isHovering = $0 }
   }
 }
 
@@ -788,6 +806,10 @@ private struct SidebarTabRow: View {
 
   private var isSelected: Bool {
     store.selectedTabID == tab.id
+  }
+
+  private var isDragging: Bool {
+    store.draggedTabID == tab.id
   }
 
   var body: some View {
@@ -828,10 +850,13 @@ private struct SidebarTabRow: View {
       }
     }
     .padding(10)
+    .opacity(isDragging ? 0 : 1)
     .background(background, in: .rect(cornerRadius: 10))
     .overlay {
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .stroke(stroke, lineWidth: 1)
+      if isDragging {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+          .stroke(palette.selectionStroke.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+      }
     }
     .contentShape(.rect(cornerRadius: 10))
     .accessibilityAddTraits(.isButton)
@@ -896,10 +921,6 @@ private struct SidebarTabRow: View {
       return palette.rowFill
     }
     return .clear
-  }
-
-  private var stroke: Color {
-    isSelected ? palette.selectionStroke : .clear
   }
 }
 
