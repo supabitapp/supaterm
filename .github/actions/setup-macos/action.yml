@@ -1,40 +1,12 @@
 name: Setup macOS build deps
-description: Install and cache mise tools and GhosttyKit build outputs
+description: Install macOS build deps and build GhosttyKit
 
 runs:
   using: composite
   steps:
-    - name: Mise cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.local/share/mise
-          ~/.cache/mise
-        key: ${{ runner.os }}-${{ runner.arch }}-mise-v0-${{ hashFiles('**/mise.toml', '**/.mise.toml', '**/.tool-versions', '**/.config/mise.toml', '**/mise/config.toml', '**/mise.lock', '**/.mise.lock', '**/mise/config.lock', '**/.config/mise.lock', '**/mise.*.toml', '**/.mise.*.toml', '**/.config/mise.*.toml', '**/mise.*.lock', '**/.mise.*.lock', '**/.config/mise.*.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-mise-v0-
     - run: brew install mise
       shell: bash
     - run: mise install
       shell: bash
-    - name: Ghostty cache key
+    - run: make build-ghostty-xcframework
       shell: bash
-      run: |
-        set -euo pipefail
-        GHOSTTY_SHA="$(git -C ThirdParty/ghostty rev-parse HEAD)"
-        printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
-    - name: Ghostty cache
-      id: ghostty_cache
-      uses: actions/cache@v4
-      with:
-        path: Frameworks/GhosttyKit.xcframework
-        key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'mise.toml', '.gitmodules') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-
-          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-
-    - name: Build ghostty
-      if: steps.ghostty_cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        set -euo pipefail
-        make build-ghostty-xcframework
