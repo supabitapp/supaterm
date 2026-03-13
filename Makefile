@@ -26,7 +26,7 @@ TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/P
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-ghostty-xcframework build-app run-app archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
+.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
 
 ifeq ($(CI),)
 TUIST_INSTALL_FLAGS :=
@@ -83,6 +83,17 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	product="$$(echo "$$settings" | jq -r '.[0].buildSettings.FULL_PRODUCT_NAME')"; \
 	exec_name="$$(echo "$$settings" | jq -r '.[0].buildSettings.EXECUTABLE_NAME')"; \
 	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
+
+install-tip:
+	tmpdir="$$(mktemp -d)"; \
+	mount_dir=""; \
+	trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
+	pkill -x supaterm 2>/dev/null || true; \
+	curl -fL "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg" -o "$$tmpdir/supaterm.dmg"; \
+	mount_dir="$$(hdiutil attach "$$tmpdir/supaterm.dmg" -nobrowse | awk -F '\t' '/\/Volumes\// { print $$NF; exit }')"; \
+	test -n "$$mount_dir"; \
+	rm -rf "/Applications/supaterm.app"; \
+	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"
 
 archive: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distribution
 	mkdir -p build
