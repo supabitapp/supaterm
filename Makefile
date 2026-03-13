@@ -84,7 +84,7 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	exec_name="$$(echo "$$settings" | jq -r '.[0].buildSettings.EXECUTABLE_NAME')"; \
 	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
-install-tip:
+install-tip: # Install tip build from github
 	tmpdir="$$(mktemp -d)"; \
 	mount_dir=""; \
 	trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
