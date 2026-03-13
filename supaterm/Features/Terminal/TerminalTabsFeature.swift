@@ -96,6 +96,11 @@ struct TerminalTabsFeature {
       setVisibleTabs(pinnedTabs + regularTabs)
     }
 
+    mutating func appendNewRegularTab(_ tab: Tab) {
+      setVisibleTabs(pinnedTabs + regularTabs + [tab])
+      selectedTabID = tab.id
+    }
+
     mutating func closeSelectedOrCreateReplacement(
       for tabID: Tab.ID,
       makeReplacement: () -> Tab,
@@ -179,8 +184,7 @@ struct TerminalTabsFeature {
 
       case .newTabButtonTapped:
         let newTab = Tab.makeNewTab(id: uuid())
-        state.tabs.append(newTab)
-        state.selectedTabID = newTab.id
+        state.appendNewRegularTab(newTab)
         return .none
 
       case .pinToggled(let tabID):
