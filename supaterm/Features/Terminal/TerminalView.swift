@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TerminalView: View {
   let store: StoreOf<AppFeature>
@@ -29,8 +30,12 @@ struct TerminalView: View {
     store.scope(state: \.update, action: \.update)
   }
 
-  private var selectedTabID: TerminalTabID {
-    store.selectedTabID
+  private var tabsStore: StoreOf<TerminalTabsFeature> {
+    store.scope(state: \.tabs, action: \.tabs)
+  }
+
+  private var visibleTabIDs: [UUID] {
+    store.tabs.visibleTabs.map(\.id)
   }
 
   var body: some View {
@@ -38,13 +43,12 @@ struct TerminalView: View {
       ZStack(alignment: .leading) {
         TerminalSplitView(
           palette: palette,
-          selectedTabID: selectedTabID,
+          store: tabsStore,
           totalWidth: geometry.size.width,
           isSidebarCollapsed: isSidebarCollapsed,
           sidebarFraction: $sidebarFraction,
           minFraction: minSidebarFraction,
           maxFraction: maxSidebarFraction,
-          onSelectTab: selectTab,
           onToggleSidebar: toggleSidebar,
           onHide: collapseSidebar,
           updateStore: updateStore,
@@ -54,13 +58,12 @@ struct TerminalView: View {
         if isSidebarCollapsed {
           FloatingSidebarOverlay(
             palette: palette,
-            selectedTabID: selectedTabID,
+            store: tabsStore,
             totalWidth: geometry.size.width,
             sidebarFraction: $sidebarFraction,
             isVisible: $isFloatingSidebarVisible,
             minFraction: minSidebarFraction,
             maxFraction: maxSidebarFraction,
-            onSelectTab: selectTab,
             updateStore: updateStore,
           )
         }
@@ -109,6 +112,7 @@ struct TerminalView: View {
     .animation(.spring(response: 0.2, dampingFraction: 1.0), value: isSidebarCollapsed)
     .animation(.easeOut(duration: 0.1), value: isFloatingSidebarVisible)
     .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isShowingQuitConfirmation)
+    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: visibleTabIDs)
   }
 
   private func toggleSidebar() {
@@ -116,10 +120,6 @@ struct TerminalView: View {
     withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
       isSidebarCollapsed.toggle()
     }
-  }
-
-  private func selectTab(_ tabID: TerminalTabID) {
-    store.send(.tabSelected(tabID))
   }
 
   private func collapseSidebar() {
@@ -187,13 +187,12 @@ private enum TerminalCoordinateSpace {
 
 private struct TerminalSplitView: View {
   let palette: TerminalPalette
-  let selectedTabID: TerminalTabID
+  let store: StoreOf<TerminalTabsFeature>
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let onSelectTab: (TerminalTabID) -> Void
   let onToggleSidebar: () -> Void
   let onHide: () -> Void
   let updateStore: StoreOf<UpdateFeature>
@@ -229,8 +228,7 @@ private struct TerminalSplitView: View {
       HStack(spacing: 0) {
         TerminalSidebarView(
           palette: palette,
-          selectedTabID: selectedTabID,
-          onSelectTab: onSelectTab,
+          store: store,
           updateStore: updateStore,
         )
         .frame(width: currentSidebarWidth)
@@ -242,7 +240,7 @@ private struct TerminalSplitView: View {
 
         TerminalDetailView(
           palette: palette,
-          selectedTab: TerminalTabCatalog.tab(id: selectedTabID),
+          selectedTab: store.selectedTab,
           isSidebarCollapsed: visualSidebarCollapsed,
           onToggleSidebar: onToggleSidebar,
         )
@@ -441,17 +439,15 @@ private struct DialogActionButton: View {
 
 private struct TerminalSidebarView: View {
   let palette: TerminalPalette
-  let selectedTabID: TerminalTabID
-  let onSelectTab: (TerminalTabID) -> Void
+  let store: StoreOf<TerminalTabsFeature>
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarHeaderView(palette: palette, updateStore: updateStore)
+      SidebarHeaderView(palette: palette, store: store, updateStore: updateStore)
       SidebarContainerView(
         palette: palette,
-        selectedTabID: selectedTabID,
-        onSelectTab: onSelectTab,
+        store: store,
       )
       SidebarFooterView(palette: palette)
     }
@@ -464,39 +460,98 @@ private struct TerminalSidebarView: View {
 
 private struct SidebarContainerView: View {
   let palette: TerminalPalette
-  let selectedTabID: TerminalTabID
-  let onSelectTab: (TerminalTabID) -> Void
+  let store: StoreOf<TerminalTabsFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      ScrollView(.vertical) {
+      ScrollView(.vertical, showsIndicators: false) {
         VStack(alignment: .leading, spacing: 16) {
           SidebarSectionView(title: "Pinned", palette: palette) {
-            ForEach(TerminalTabCatalog.pinnedTabs) { tab in
+            ForEach(store.pinnedTabs) { tab in
               SidebarTabRow(
+                store: store,
                 tab: tab,
-                isSelected: selectedTabID == tab.id,
                 palette: palette,
-                action: { onSelectTab(tab.id) },
               )
+              .transition(
+                .asymmetric(
+                  insertion: .opacity.combined(with: .move(edge: .top)),
+                  removal: .opacity.combined(with: .move(edge: .top))
+                ))
             }
           }
+          .onDrop(
+            of: [.text],
+            delegate: TerminalTabDropDelegate(
+              targetTabID: nil,
+              targetSectionIsPinned: true,
+              draggedTabID: Binding(
+                get: { store.draggedTabID },
+                set: { _ in }
+              ),
+              onMoveBefore: { draggedID, targetID in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+                }
+              },
+              onMoveToSection: { draggedID, isPinned in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(
+                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+                }
+              },
+              onDropEnded: { store.send(.dragEnded) }
+            )
+          )
 
           SidebarSectionView(title: "Tabs", palette: palette) {
-            NewTabButton(palette: palette)
+            NewTabButton(
+              palette: palette,
+              action: {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.newTabButtonTapped)
+                }
+              }
+            )
 
-            ForEach(TerminalTabCatalog.regularTabs) { tab in
+            ForEach(store.regularTabs) { tab in
               SidebarTabRow(
+                store: store,
                 tab: tab,
-                isSelected: selectedTabID == tab.id,
                 palette: palette,
-                action: { onSelectTab(tab.id) },
               )
+              .transition(
+                .asymmetric(
+                  insertion: .opacity.combined(with: .move(edge: .bottom)),
+                  removal: .opacity.combined(with: .move(edge: .top))
+                ))
             }
           }
+          .onDrop(
+            of: [.text],
+            delegate: TerminalTabDropDelegate(
+              targetTabID: nil,
+              targetSectionIsPinned: false,
+              draggedTabID: Binding(
+                get: { store.draggedTabID },
+                set: { _ in }
+              ),
+              onMoveBefore: { draggedID, targetID in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+                }
+              },
+              onMoveToSection: { draggedID, isPinned in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(
+                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+                }
+              },
+              onDropEnded: { store.send(.dragEnded) }
+            )
+          )
         }
       }
-      .scrollIndicators(.hidden)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .gesture(WindowDragGesture())
@@ -505,13 +560,12 @@ private struct SidebarContainerView: View {
 
 private struct FloatingSidebarOverlay: View {
   let palette: TerminalPalette
-  let selectedTabID: TerminalTabID
+  let store: StoreOf<TerminalTabsFeature>
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var isVisible: Bool
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let onSelectTab: (TerminalTabID) -> Void
   let updateStore: StoreOf<UpdateFeature>
   @State private var dragFraction: CGFloat?
 
@@ -530,9 +584,8 @@ private struct FloatingSidebarOverlay: View {
       if isVisible {
         FloatingSidebarView(
           palette: palette,
-          selectedTabID: selectedTabID,
+          store: store,
           width: floatingWidth,
-          onSelectTab: onSelectTab,
           updateStore: updateStore,
         )
         .frame(width: floatingWidth)
@@ -626,16 +679,14 @@ private struct SidebarResizeHandle: View {
 
 private struct FloatingSidebarView: View {
   let palette: TerminalPalette
-  let selectedTabID: TerminalTabID
+  let store: StoreOf<TerminalTabsFeature>
   let width: CGFloat
-  let onSelectTab: (TerminalTabID) -> Void
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     TerminalSidebarView(
       palette: palette,
-      selectedTabID: selectedTabID,
-      onSelectTab: onSelectTab,
+      store: store,
       updateStore: updateStore,
     )
     .frame(width: width)
@@ -655,6 +706,7 @@ private struct FloatingSidebarView: View {
 
 private struct SidebarHeaderView: View {
   let palette: TerminalPalette
+  let store: StoreOf<TerminalTabsFeature>
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
@@ -665,7 +717,16 @@ private struct SidebarHeaderView: View {
       Spacer(minLength: 0)
 
       HStack(spacing: 4) {
-        ToolbarIconButton(symbol: "plus", palette: palette, accessibilityLabel: "New tab")
+        ToolbarIconButton(
+          symbol: "plus",
+          palette: palette,
+          accessibilityLabel: "New tab",
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = store.send(.newTabButtonTapped)
+            }
+          }
+        )
         ToolbarIconButton(symbol: "square.split.2x1", palette: palette, accessibilityLabel: "Split pane")
         ToolbarIconButton(symbol: "arrow.clockwise", palette: palette, accessibilityLabel: "Rerun command")
       }
@@ -692,10 +753,11 @@ private struct SidebarSectionView<Content: View>: View {
 
 private struct NewTabButton: View {
   let palette: TerminalPalette
+  let action: () -> Void
 
   var body: some View {
     Button(
-      action: {},
+      action: action,
       label: {
         HStack(spacing: 10) {
           Image(systemName: "plus")
@@ -719,49 +781,111 @@ private struct NewTabButton: View {
 }
 
 private struct SidebarTabRow: View {
-  let tab: TerminalTabItem
-  let isSelected: Bool
+  let store: StoreOf<TerminalTabsFeature>
+  let tab: TerminalTabsFeature.Tab
   let palette: TerminalPalette
-  let action: () -> Void
+  @State private var isHovering = false
+
+  private var isSelected: Bool {
+    store.selectedTabID == tab.id
+  }
 
   var body: some View {
-    Button(
-      action: action,
-      label: {
-        HStack(spacing: 10) {
-          RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(palette.fill(for: tab.tone))
-            .frame(width: 16, height: 16)
-            .overlay {
-              Image(systemName: tab.symbol)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText.opacity(0.9))
-                .accessibilityHidden(true)
+    HStack(spacing: 10) {
+      RoundedRectangle(cornerRadius: 5, style: .continuous)
+        .fill(palette.fill(for: tab.tone))
+        .frame(width: 16, height: 16)
+        .overlay {
+          Image(systemName: tab.symbol)
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText.opacity(0.9))
+            .accessibilityHidden(true)
+        }
+
+      Text(tab.title)
+        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+        .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+        .lineLimit(1)
+
+      Spacer(minLength: 0)
+
+      if isHovering {
+        Button(
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = store.send(.closeButtonTapped(tab.id))
             }
-
-          Text(tab.title)
-            .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-            .lineLimit(1)
-
-          Spacer(minLength: 0)
-
-          if tab.showsClose {
+          },
+          label: {
             Image(systemName: "xmark")
               .font(.system(size: 10, weight: .bold))
               .foregroundStyle(isSelected ? palette.selectedText.opacity(0.9) : palette.secondaryText)
+              .frame(width: 16, height: 16)
               .accessibilityHidden(true)
           }
-        }
-        .padding(10)
-        .background(background, in: .rect(cornerRadius: 10))
-        .overlay {
-          RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .stroke(stroke, lineWidth: 1)
+        )
+        .buttonStyle(.plain)
+      }
+    }
+    .padding(10)
+    .background(background, in: .rect(cornerRadius: 10))
+    .overlay {
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .stroke(stroke, lineWidth: 1)
+    }
+    .contentShape(.rect(cornerRadius: 10))
+    .accessibilityAddTraits(.isButton)
+    .onTapGesture {
+      store.send(.tabSelected(tab.id))
+    }
+    .onHover { hovering in
+      isHovering = hovering
+    }
+    .contextMenu {
+      Button("New Tab") {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          _ = store.send(.newTabButtonTapped)
         }
       }
+
+      Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          _ = store.send(.pinToggled(tab.id))
+        }
+      }
+
+      Button("Close Tab", role: .destructive) {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          _ = store.send(.closeButtonTapped(tab.id))
+        }
+      }
+    }
+    .onDrag {
+      store.send(.dragStarted(tab.id))
+      return NSItemProvider(object: NSString(string: tab.id.uuidString))
+    }
+    .onDrop(
+      of: [.text],
+      delegate: TerminalTabDropDelegate(
+        targetTabID: tab.id,
+        targetSectionIsPinned: nil,
+        draggedTabID: Binding(
+          get: { store.draggedTabID },
+          set: { _ in }
+        ),
+        onMoveBefore: { draggedID, targetID in
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+          }
+        },
+        onMoveToSection: { draggedID, isPinned in
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+          }
+        },
+        onDropEnded: { store.send(.dragEnded) }
+      )
     )
-    .buttonStyle(.plain)
   }
 
   private var background: Color {
@@ -839,7 +963,7 @@ private struct FooterCircleButton: View {
 
 private struct TerminalDetailView: View {
   let palette: TerminalPalette
-  let selectedTab: TerminalTabItem
+  let selectedTab: TerminalTabsFeature.Tab
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -870,7 +994,7 @@ private struct TerminalDetailView: View {
 
 private struct DetailToolbarView: View {
   let palette: TerminalPalette
-  let selectedTab: TerminalTabItem
+  let selectedTab: TerminalTabsFeature.Tab
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -924,12 +1048,12 @@ private struct DetailToolbarView: View {
 }
 
 private struct TerminalDetailSurface: View {
-  let selectedTab: TerminalTabItem
+  let selectedTab: TerminalTabsFeature.Tab
   let palette: TerminalPalette
 
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
-      Text(selectedTab.section == .pinned ? "PINNED TAB" : "TAB")
+      Text(selectedTab.isPinned ? "PINNED TAB" : "TAB")
         .font(.system(size: 11, weight: .bold, design: .rounded))
         .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.8))
 

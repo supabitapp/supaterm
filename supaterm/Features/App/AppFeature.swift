@@ -4,28 +4,27 @@ import ComposableArchitecture
 struct AppFeature {
   @ObservableState
   struct State: Equatable {
-    var selectedTabID = TerminalTabCatalog.defaultSelectedTabID
+    var tabs = TerminalTabsFeature.State()
     var update = UpdateFeature.State()
   }
 
   enum Action {
-    case tabSelected(TerminalTabID)
+    case tabs(TerminalTabsFeature.Action)
     case update(UpdateFeature.Action)
   }
 
   var body: some Reducer<State, Action> {
+    Scope(state: \.tabs, action: \.tabs) {
+      TerminalTabsFeature()
+    }
+
     Scope(state: \.update, action: \.update) {
       UpdateFeature()
     }
 
-    Reduce { state, action in
+    Reduce { _, action in
       switch action {
-      case .tabSelected(let tabID):
-        guard state.selectedTabID != tabID else { return .none }
-        state.selectedTabID = tabID
-        return .none
-
-      case .update:
+      case .tabs, .update:
         return .none
       }
     }
