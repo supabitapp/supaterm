@@ -91,6 +91,10 @@ struct BrowserChromeView: View {
         NSApp.reply(toApplicationShouldTerminate: true)
         return
       }
+      if updateStore.phase.bypassesQuitConfirmation {
+        NSApp.reply(toApplicationShouldTerminate: true)
+        return
+      }
       isShowingQuitConfirmation = true
     }
     .overlay {

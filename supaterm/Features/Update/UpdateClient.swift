@@ -119,6 +119,13 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
+  var bypassesQuitConfirmation: Bool {
+    if case .installing = self {
+      return true
+    }
+    return false
+  }
+
   var maxText: String {
     switch self {
     case .downloading:
@@ -280,11 +287,9 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
   private var presentationContext = UpdatePresentationContext()
   private var started = false
   private let standardUserDriver: SPUStandardUserDriver?
-  private let updateRelaunchCoordinator: UpdateRelaunchCoordinator
   private var updater: SPUUpdater?
 
   private override init() {
-    updateRelaunchCoordinator = .shared
     #if DEBUG
       standardUserDriver = nil
       updater = nil
@@ -362,7 +367,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     case .restartNow:
       guard case .installNow(let installNow) = pendingResponse else { return }
       pendingResponse = nil
-      updateRelaunchCoordinator.prepareForRelaunch()
       installNow()
 
     case .retry:
@@ -411,7 +415,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
       publish()
     } catch {
       pendingResponse = nil
-      updateRelaunchCoordinator.reset()
       setPhase(.error(error.localizedDescription))
     }
   }
@@ -441,7 +444,7 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     case .cancellation(let cancellation):
       cancellation()
     case .installNow:
-      updateRelaunchCoordinator.reset()
+      break
     case .permission(let reply):
       reply(SUUpdatePermissionResponse(automaticUpdateChecks: false, sendSystemProfile: false))
     case .updateChoice(let reply):
@@ -517,7 +520,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
   }
 
   func showUpdaterError(_ error: Error, acknowledgement: @escaping () -> Void) {
-    updateRelaunchCoordinator.reset()
     guard allowsInlinePresentation else {
       standardUserDriver?.showUpdaterError(error, acknowledgement: acknowledgement)
       return
@@ -601,7 +603,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
   }
 
   func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
-    updateRelaunchCoordinator.reset()
     if !allowsInlinePresentation {
       standardUserDriver?.showUpdateInstalledAndRelaunched(relaunched, acknowledgement: acknowledgement)
       return
@@ -617,7 +618,6 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
   }
 
   func dismissUpdateInstallation() {
-    updateRelaunchCoordinator.reset()
     pendingResponse = nil
     setPhase(.idle)
     standardUserDriver?.dismissUpdateInstallation()
@@ -633,7 +633,5 @@ final class UpdateRuntime: NSObject, SPUUpdaterDelegate, SPUUserDriver, @uncheck
     return true
   }
 
-  func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
-    updateRelaunchCoordinator.prepareForRelaunch()
-  }
+  func updaterWillRelaunchApplication(_ updater: SPUUpdater) {}
 }
