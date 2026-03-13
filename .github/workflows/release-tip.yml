@@ -53,6 +53,8 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - run: brew install mise
       - run: mise install
       - name: Compute tip build number

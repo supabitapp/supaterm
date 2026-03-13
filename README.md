@@ -10,17 +10,20 @@ Minimal macOS starter app for the next version of Supaterm.
 ## Requirements
 
 - macOS 15.0+
-- [mise](https://mise.jdx.dev/) (for pinned toolchain dependencies, including Tuist)
+- [mise](https://mise.jdx.dev/) (for pinned toolchain dependencies, including Tuist and Zig)
 
 ## Building
 
 ```bash
-
+git submodule update --init --recursive
+make build-ghostty-xcframework
 make build-app
 make run-app
 ```
 
-Project generation happens automatically. If you want Tuist remote cache, authenticate once with 
+GhosttyKit and project generation happen automatically on the supported `make` targets. If you cloned without submodules, initialize them once first.
+
+If you want Tuist remote cache, authenticate once with 
 
 ```
 mise exec -- tuist auth login

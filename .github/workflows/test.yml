@@ -19,6 +19,8 @@ jobs:
       TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - run: brew install mise
       - run: mise install
       - run: make inspect-dependencies
@@ -39,6 +41,8 @@ jobs:
       TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - run: brew install mise
       - run: mise install
       - name: Ensure Tuist token is configured
