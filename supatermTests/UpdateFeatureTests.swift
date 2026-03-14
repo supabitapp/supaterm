@@ -26,6 +26,36 @@ struct UpdateFeatureTests {
   }
 
   @Test
+  func checkForUpdatesButtonTappedUsesStubFlowInDebugBuilds() async {
+    let clock = TestClock()
+    let recorder = CheckRecorder()
+    var initialState = UpdateFeature.State()
+    initialState.canCheckForUpdates = true
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.appBuildClient.usesStubUpdateChecks = { true }
+      $0.updateClient.checkForUpdates = {
+        await recorder.markChecked()
+      }
+    }
+
+    await store.send(.checkForUpdatesButtonTapped) {
+      $0.phase = .checking
+    }
+
+    #expect(!(await recorder.wasChecked()))
+
+    await clock.advance(by: .seconds(1))
+
+    await store.receive(\.debugStubCheckFinished) {
+      $0.phase = .idle
+    }
+  }
+
+  @Test
   func taskLoadsDevelopmentBuildFlagIntoState() async {
     let (stream, continuation) = makeStream()
 
@@ -40,6 +70,30 @@ struct UpdateFeatureTests {
     await store.send(.task) {
       $0.isDevelopmentBuild = true
     }
+
+    continuation.finish()
+    await store.finish()
+  }
+
+  @Test
+  func taskKeepsCheckForUpdatesEnabledWhenUsingStubFlow() async {
+    let (stream, continuation) = makeStream()
+
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.appBuildClient.usesStubUpdateChecks = { true }
+      $0.updateClient.observe = { stream }
+      $0.updateClient.start = {}
+    }
+
+    await store.send(.task) {
+      $0.canCheckForUpdates = true
+    }
+
+    continuation.yield(.init(canCheckForUpdates: false, phase: .idle))
+
+    await store.receive(\.updateClientSnapshotReceived)
 
     continuation.finish()
     await store.finish()

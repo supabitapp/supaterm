@@ -8,6 +8,14 @@ enum AppBuild {
     true
   }
 
+  nonisolated static var usesStubUpdateChecks: Bool {
+    #if DEBUG
+      true
+    #else
+      false
+    #endif
+  }
+
   nonisolated static var isDevelopmentBuild: Bool {
     #if DEBUG
       true
@@ -32,17 +40,24 @@ enum AppBuild {
 
 struct AppBuildClient: Sendable {
   var isDevelopmentBuild: @Sendable () -> Bool
+  var usesStubUpdateChecks: @Sendable () -> Bool
 }
 
 extension AppBuildClient: DependencyKey {
   static let liveValue = Self(
     isDevelopmentBuild: {
       AppBuild.isDevelopmentBuild
+    },
+    usesStubUpdateChecks: {
+      AppBuild.usesStubUpdateChecks
     }
   )
 
   static let testValue = Self(
     isDevelopmentBuild: {
+      false
+    },
+    usesStubUpdateChecks: {
       false
     }
   )
