@@ -1311,3 +1311,52 @@ private struct WorkspaceChip: Identifiable {
     label
   }
 }
+
+#Preview("Sidebar List") {
+  SidebarListPreview(
+    selectedTabID: UUID(uuidString: "8E4D39F7-64F7-44BA-A30F-5B6F20A49507")!
+  )
+  .preferredColorScheme(.dark)
+}
+
+#Preview("Sidebar List Pinned") {
+  SidebarListPreview(
+    selectedTabID: UUID(uuidString: "8E4D39F7-64F7-44BA-A30F-5B6F20A49502")!
+  )
+  .preferredColorScheme(.dark)
+}
+
+private struct SidebarListPreview: View {
+  let selectedTabID: UUID
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    SidebarContainerView(
+      palette: TerminalPalette(colorScheme: colorScheme),
+      store: previewStore
+    )
+    .padding(.horizontal, 10)
+    .padding(.top, 8)
+    .padding(.bottom, 10)
+    .frame(width: 320, height: 460)
+    .background(previewBackground)
+  }
+
+  private var previewStore: StoreOf<TerminalTabsFeature> {
+    Store(
+      initialState: .init(selectedTabID: selectedTabID)
+    ) {
+      TerminalTabsFeature()
+    } withDependencies: {
+      $0.uuid = .incrementing
+    }
+  }
+
+  private var previewBackground: Color {
+    if colorScheme == .dark {
+      Color(red: 0.15, green: 0.15, blue: 0.16)
+    } else {
+      Color(red: 0.96, green: 0.96, blue: 0.97)
+    }
+  }
+}
