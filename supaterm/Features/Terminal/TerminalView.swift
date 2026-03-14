@@ -5,18 +5,19 @@ import SwiftUI
 struct TerminalView: View {
   let store: StoreOf<AppFeature>
   @Bindable var terminal: TerminalHostState
+  @Environment(\.colorScheme) private var colorScheme
 
   @State private var isSidebarCollapsed = false
   @State private var isFloatingSidebarVisible = false
-  @State private var sidebarFraction: CGFloat = 0.22
+  @State private var sidebarFraction: CGFloat = 0.2
   @State private var isShowingQuitConfirmation = false
   @State private var window: NSWindow?
 
   private let minSidebarFraction: CGFloat = 0.16
-  private let maxSidebarFraction: CGFloat = 0.32
+  private let maxSidebarFraction: CGFloat = 0.30
 
-  private var updateStore: StoreOf<UpdateFeature> {
-    store.scope(state: \.update, action: \.update)
+  private var palette: TerminalPalette {
+    TerminalPalette(colorScheme: colorScheme)
   }
 
   private var updatePresentationContext: UpdatePresentationContext {
@@ -26,10 +27,15 @@ struct TerminalView: View {
     )
   }
 
+  private var updateStore: StoreOf<UpdateFeature> {
+    store.scope(state: \.update, action: \.update)
+  }
+
   var body: some View {
     GeometryReader { geometry in
       ZStack(alignment: .leading) {
-        TerminalMainSplitView(
+        TerminalSplitView(
+          palette: palette,
           terminal: terminal,
           totalWidth: geometry.size.width,
           isSidebarCollapsed: isSidebarCollapsed,
@@ -37,12 +43,14 @@ struct TerminalView: View {
           minFraction: minSidebarFraction,
           maxFraction: maxSidebarFraction,
           onToggleSidebar: toggleSidebar,
-          onHideSidebar: collapseSidebar,
+          onHide: collapseSidebar,
           updateStore: updateStore
         )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         if isSidebarCollapsed {
           FloatingSidebarOverlay(
+            palette: palette,
             terminal: terminal,
             totalWidth: geometry.size.width,
             sidebarFraction: $sidebarFraction,
@@ -55,10 +63,14 @@ struct TerminalView: View {
       }
     }
     .frame(minWidth: 1_080, minHeight: 720)
-    .background(Color(nsColor: .windowBackgroundColor))
+    .background(palette.windowBackgroundTint)
     .background {
       BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
         .ignoresSafeArea()
+    }
+    .overlay {
+      WindowChromeConfigurator()
+        .frame(width: 0, height: 0)
     }
     .background(WindowReader(window: $window))
     .background(
@@ -83,21 +95,24 @@ struct TerminalView: View {
     .onReceive(NotificationCenter.default.publisher(for: .quitRequested)) { notification in
       guard let targetWindow = notification.object as? NSWindow else { return }
       guard targetWindow === (window ?? NSApp.keyWindow) else { return }
+      guard window != nil else {
+        NSApp.reply(toApplicationShouldTerminate: true)
+        return
+      }
       if updateStore.phase.bypassesQuitConfirmation {
         NSApp.reply(toApplicationShouldTerminate: true)
         return
       }
       isShowingQuitConfirmation = true
     }
-    .alert("Quit Supaterm?", isPresented: $isShowingQuitConfirmation) {
-      Button("Cancel", role: .cancel) {
-        NSApp.reply(toApplicationShouldTerminate: false)
+    .overlay {
+      if isShowingQuitConfirmation {
+        QuitConfirmationOverlay(
+          palette: palette,
+          onConfirm: confirmQuit,
+          onCancel: cancelQuit
+        )
       }
-      Button("Quit", role: .destructive) {
-        NSApp.reply(toApplicationShouldTerminate: true)
-      }
-    } message: {
-      Text("Are you sure you want to quit?")
     }
     .alert(
       terminal.pendingCloseRequest?.title ?? "Close?",
@@ -116,8 +131,9 @@ struct TerminalView: View {
       Text(terminal.pendingCloseRequest?.message ?? "")
     }
     .animation(.spring(response: 0.2, dampingFraction: 1.0), value: isSidebarCollapsed)
-    .animation(.easeOut(duration: 0.12), value: isFloatingSidebarVisible)
-    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.tabs.map(\.id))
+    .animation(.easeOut(duration: 0.1), value: isFloatingSidebarVisible)
+    .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isShowingQuitConfirmation)
+    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
   }
 
   private var resolvedWindowActivity: WindowActivityState {
@@ -142,6 +158,16 @@ struct TerminalView: View {
     withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
       isSidebarCollapsed = true
     }
+  }
+
+  private func confirmQuit() {
+    isShowingQuitConfirmation = false
+    NSApp.reply(toApplicationShouldTerminate: true)
+  }
+
+  private func cancelQuit() {
+    isShowingQuitConfirmation = false
+    NSApp.reply(toApplicationShouldTerminate: false)
   }
 }
 
@@ -186,11 +212,12 @@ enum TerminalSplitMetrics {
 }
 
 private enum TerminalCoordinateSpace {
-  static let split = "SupatermSplit"
-  static let floatingSidebar = "SupatermFloatingSidebar"
+  static let split = "TerminalSplit"
+  static let floatingSidebar = "TerminalFloatingSidebar"
 }
 
-private struct TerminalMainSplitView: View {
+private struct TerminalSplitView: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
@@ -198,7 +225,7 @@ private struct TerminalMainSplitView: View {
   let minFraction: CGFloat
   let maxFraction: CGFloat
   let onToggleSidebar: () -> Void
-  let onHideSidebar: () -> Void
+  let onHide: () -> Void
   let updateStore: StoreOf<UpdateFeature>
 
   @State private var dragFraction: CGFloat?
@@ -231,20 +258,31 @@ private struct TerminalMainSplitView: View {
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
-        TerminalSidebarView(terminal: terminal, updateStore: updateStore)
-          .frame(width: currentSidebarWidth)
-          .frame(maxHeight: .infinity)
-          .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
-          .frame(width: visibleSidebarWidth, alignment: .leading)
-          .clipped()
-          .allowsHitTesting(!visualSidebarCollapsed)
-
-        TerminalDetailView(
+        TerminalSidebarView(
+          palette: palette,
           terminal: terminal,
-          isSidebarCollapsed: visualSidebarCollapsed,
-          onToggleSidebar: onToggleSidebar
+          updateStore: updateStore
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: currentSidebarWidth)
+        .frame(maxHeight: .infinity)
+        .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
+        .frame(width: visibleSidebarWidth, alignment: .leading)
+        .clipped()
+        .allowsHitTesting(!visualSidebarCollapsed)
+
+        if let selectedTabID = terminal.selectedTabID {
+          TerminalDetailView(
+            palette: palette,
+            terminal: terminal,
+            selectedTabID: selectedTabID,
+            isSidebarCollapsed: visualSidebarCollapsed,
+            onToggleSidebar: onToggleSidebar
+          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
       }
 
       if !isSidebarCollapsed {
@@ -255,7 +293,7 @@ private struct TerminalMainSplitView: View {
           dragFraction: $dragFraction,
           minFraction: minFraction,
           maxFraction: maxFraction,
-          onHide: onHideSidebar
+          onHide: onHide
         )
         .offset(x: TerminalSplitMetrics.resizeHandleOffset(for: handleWidth))
       }
@@ -264,7 +302,271 @@ private struct TerminalMainSplitView: View {
   }
 }
 
+private struct QuitConfirmationOverlay: View {
+  let palette: TerminalPalette
+  let onConfirm: () -> Void
+  let onCancel: () -> Void
+
+  private static let transition: AnyTransition = .asymmetric(
+    insertion: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity),
+    removal: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity)
+  )
+
+  var body: some View {
+    ZStack {
+      Button(action: onCancel) {
+        Color.black.opacity(0.4)
+          .ignoresSafeArea()
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Cancel quit confirmation")
+
+      VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+          QuitConfirmationIcon()
+            .padding(.bottom, 16)
+
+          Text("Quit Supaterm?")
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundStyle(palette.primaryText)
+
+          Text("Are you sure you want to quit?")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 4)
+
+          HStack {
+            DialogActionButton(
+              palette: palette,
+              title: "Cancel",
+              style: .secondary,
+              shortcut: .text("esc"),
+              action: onCancel
+            )
+            .keyboardShortcut(.cancelAction)
+
+            Spacer()
+
+            DialogActionButton(
+              palette: palette,
+              title: "Quit",
+              style: .destructive,
+              shortcut: .symbol("return"),
+              action: onConfirm
+            )
+            .keyboardShortcut(.defaultAction)
+          }
+          .padding(.top, 28)
+        }
+        .frame(width: 360)
+        .padding(12)
+        .background(palette.dialogInnerBackground, in: .rect(cornerRadius: 11))
+        .overlay {
+          RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .stroke(palette.dialogBorder, lineWidth: 0.5)
+        }
+      }
+      .padding(3)
+      .background(palette.dialogOuterBackground, in: .rect(cornerRadius: 14))
+      .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
+      .transition(Self.transition)
+    }
+  }
+}
+
+private struct QuitConfirmationIcon: View {
+  var body: some View {
+    Image(nsImage: NSApp.applicationIconImage)
+      .resizable()
+      .interpolation(.high)
+      .antialiased(true)
+      .scaledToFit()
+      .frame(width: 46, height: 46)
+      .clipShape(.rect(cornerRadius: 12))
+      .accessibilityHidden(true)
+  }
+}
+
+private struct DialogActionButton: View {
+  enum Style {
+    case secondary
+    case destructive
+  }
+
+  enum Shortcut {
+    case symbol(String)
+    case text(String)
+  }
+
+  let palette: TerminalPalette
+  let title: String
+  let style: Style
+  let shortcut: Shortcut
+  let action: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 6) {
+        Text(title)
+          .font(.system(size: 13, weight: .medium))
+
+        Spacer()
+          .frame(width: 3)
+
+        Group {
+          switch shortcut {
+          case .symbol(let name):
+            Image(systemName: name)
+              .accessibilityHidden(true)
+          case .text(let value):
+            Text(value.lowercased()).opacity(0.5)
+          }
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .frame(minWidth: 18, minHeight: 18)
+        .padding(.horizontal, shortcutPadding)
+        .background(foreground.opacity(shortcutOpacity), in: .rect(cornerRadius: 4))
+      }
+      .foregroundStyle(foreground)
+      .padding(.horizontal, 14)
+      .padding(.vertical, 8)
+      .background(background, in: .rect(cornerRadius: 10))
+    }
+    .buttonStyle(.plain)
+    .onHover { isHovering = $0 }
+  }
+
+  private var background: Color {
+    switch style {
+    case .secondary:
+      isHovering ? palette.dialogSecondaryHoverFill : palette.dialogSecondaryFill
+    case .destructive:
+      isHovering ? palette.dialogDestructiveHoverFill : palette.dialogDestructiveFill
+    }
+  }
+
+  private var foreground: Color {
+    switch style {
+    case .secondary:
+      palette.dialogPrimaryText
+    case .destructive:
+      .white
+    }
+  }
+
+  private var shortcutOpacity: Double {
+    switch style {
+    case .secondary:
+      0.07
+    case .destructive:
+      0.15
+    }
+  }
+
+  private var shortcutPadding: CGFloat {
+    switch shortcut {
+    case .symbol:
+      0
+    case .text(let value):
+      value.count == 1 ? 0 : 4
+    }
+  }
+}
+
+private struct TerminalSidebarView: View {
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+  let updateStore: StoreOf<UpdateFeature>
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      SidebarHeaderView(palette: palette, terminal: terminal, updateStore: updateStore)
+      SidebarContainerView(palette: palette, terminal: terminal)
+      SidebarFooterView(palette: palette)
+    }
+    .padding(.horizontal, 10)
+    .padding(.top, 8)
+    .padding(.bottom, 10)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SidebarContainerView: View {
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+
+  var body: some View {
+    List(
+      selection: Binding(
+        get: { terminal.selectedTabID },
+        set: {
+          guard let tabID = $0 else { return }
+          terminal.selectTab(tabID)
+        }
+      )
+    ) {
+      Section {
+        ForEach(pinnedTabs, editActions: .move) { tab in
+          SidebarTabRow(
+            terminal: terminal,
+            tab: tab.wrappedValue,
+            palette: palette
+          )
+        }
+      } header: {
+        Text("Pinned")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
+      }
+
+      Section {
+        ForEach(regularTabs, editActions: .move) { tab in
+          SidebarTabRow(
+            terminal: terminal,
+            tab: tab.wrappedValue,
+            palette: palette
+          )
+        }
+
+        NewTabButton(
+          palette: palette,
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+            }
+          }
+        )
+      } header: {
+        Text("Tabs")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
+      }
+    }
+    .listStyle(.sidebar)
+    .scrollContentBackground(.hidden)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var pinnedTabs: Binding<[TerminalTabItem]> {
+    Binding(
+      get: { terminal.pinnedTabs },
+      set: { terminal.setPinnedTabOrder($0.map(\.id)) }
+    )
+  }
+
+  private var regularTabs: Binding<[TerminalTabItem]> {
+    Binding(
+      get: { terminal.regularTabs },
+      set: { terminal.setRegularTabOrder($0.map(\.id)) }
+    )
+  }
+}
+
 private struct FloatingSidebarOverlay: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
@@ -289,6 +591,7 @@ private struct FloatingSidebarOverlay: View {
     ZStack(alignment: .leading) {
       if isVisible {
         FloatingSidebarView(
+          palette: palette,
           terminal: terminal,
           width: floatingWidth,
           updateStore: updateStore
@@ -383,125 +686,133 @@ private struct SidebarResizeHandle: View {
 }
 
 private struct FloatingSidebarView: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    TerminalSidebarView(terminal: terminal, updateStore: updateStore)
-      .frame(width: width)
-      .background(.regularMaterial)
-      .clipShape(.rect(cornerRadius: 16))
-      .overlay {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-          .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
-      .padding(6)
-  }
-}
-
-private struct TerminalSidebarView: View {
-  let terminal: TerminalHostState
-  let updateStore: StoreOf<UpdateFeature>
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      SidebarHeaderView(terminal: terminal, updateStore: updateStore)
-
-      ScrollView {
-        LazyVStack(spacing: 6) {
-          ForEach(terminal.tabs) { tab in
-            SidebarTabRow(terminal: terminal, tab: tab)
-          }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-      }
-
-      NewTabButton {
-        _ = terminal.createTab()
-      }
-      .padding(.horizontal, 8)
-      .padding(.bottom, 8)
+    TerminalSidebarView(
+      palette: palette,
+      terminal: terminal,
+      updateStore: updateStore
+    )
+    .frame(width: width)
+    .background(palette.windowBackgroundTint)
+    .background {
+      BlurEffectView(material: .popover, blendingMode: .withinWindow)
     }
-    .padding(.horizontal, 10)
-    .padding(.top, 8)
-    .padding(.bottom, 10)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .clipShape(.rect(cornerRadius: 16))
+    .overlay {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(palette.detailStroke, lineWidth: 1)
+    }
+    .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
+    .padding(6)
   }
 }
 
 private struct SidebarHeaderView: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 0) {
-        WindowTrafficLights()
-        Spacer(minLength: 0)
-        HStack(spacing: 4) {
-          ToolbarIconButton(
-            symbol: "plus",
-            accessibilityLabel: "New tab",
-            action: { _ = terminal.createTab() }
-          )
-          ToolbarIconButton(
-            symbol: "rectangle.split.2x1",
-            accessibilityLabel: "Split below",
-            action: { _ = terminal.performBindingActionOnFocusedSurface("new_split:down") }
-          )
-          .disabled(terminal.selectedTabID == nil)
-          ToolbarIconButton(
-            symbol: "rectangle.split.1x2",
-            accessibilityLabel: "Split right",
-            action: { _ = terminal.performBindingActionOnFocusedSurface("new_split:right") }
-          )
-          .disabled(terminal.selectedTabID == nil)
-        }
-      }
+    HStack(spacing: 0) {
+      WindowTrafficLights()
 
-      HStack(spacing: 8) {
-        Text("Terminals")
-          .font(.system(size: 13, weight: .semibold))
-        Spacer(minLength: 0)
-        UpdatePillView(store: updateStore)
+      Spacer(minLength: 0)
+
+      HStack(spacing: 4) {
+        ToolbarIconButton(
+          symbol: "plus",
+          palette: palette,
+          accessibilityLabel: "New tab",
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+            }
+          }
+        )
+        ToolbarIconButton(symbol: "square.split.2x1", palette: palette, accessibilityLabel: "Split pane")
+        ToolbarIconButton(symbol: "arrow.clockwise", palette: palette, accessibilityLabel: "Rerun command")
       }
-      .padding(.horizontal, 8)
     }
-    .frame(height: 58)
+    .overlay(alignment: .leading) {
+      UpdatePillView(store: updateStore)
+        .padding(.leading, WindowTrafficLightMetrics.pillLeadingPadding)
+    }
+    .frame(height: 30)
   }
 }
 
+private enum WindowTrafficLightMetrics {
+  static var buttonSize: CGFloat {
+    if #available(macOS 26.0, *) {
+      14
+    } else {
+      12
+    }
+  }
+
+  static let buttonSpacing: CGFloat = 9
+  static let leadingPadding: CGFloat = 8
+  static let symbolSize: CGFloat = 8
+
+  static var pillLeadingPadding: CGFloat {
+    leadingPadding + (buttonSize * 3) + (buttonSpacing * 3)
+  }
+}
+
+private let sidebarRowHorizontalPadding: CGFloat = 8
+
 private struct NewTabButton: View {
+  let palette: TerminalPalette
   let action: () -> Void
+
+  @State private var isHovering = false
 
   var body: some View {
     Button(action: action) {
       HStack(spacing: 10) {
         Image(systemName: "plus")
           .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.secondaryText)
           .frame(width: 16, height: 16)
           .accessibilityHidden(true)
 
-        Text("New Terminal")
+        Text("New Tab")
           .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(palette.primaryText)
 
         Spacer(minLength: 0)
       }
-      .padding(.vertical, 10)
-      .padding(.horizontal, 10)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(Color.primary.opacity(0.06), in: .rect(cornerRadius: 10))
+      .padding(.vertical, 10)
+      .padding(.horizontal, sidebarRowHorizontalPadding)
     }
     .buttonStyle(.plain)
+    .onHover { isHovering = $0 }
+    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+    .listRowSeparator(.hidden)
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
+  }
+
+  @ViewBuilder
+  private var rowBackground: some View {
+    if isHovering {
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(palette.rowFill)
+    } else {
+      Color.clear
+    }
   }
 }
 
 private struct SidebarTabRow: View {
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let palette: TerminalPalette
 
   @State private var isHovering = false
 
@@ -510,188 +821,175 @@ private struct SidebarTabRow: View {
   }
 
   var body: some View {
-    Button {
-      terminal.selectTab(tab.id)
-    } label: {
-      HStack(spacing: 10) {
-        Image(systemName: tab.icon ?? "terminal")
-          .font(.system(size: 12, weight: .semibold))
-          .frame(width: 16, height: 16)
-          .foregroundStyle(isSelected ? Color.white : .secondary)
-          .accessibilityHidden(true)
-
-        VStack(alignment: .leading, spacing: 2) {
-          Text(tab.title)
-            .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-            .lineLimit(1)
-
-          if let state = terminal.focusedSurfaceState(for: tab.id) {
-            TerminalTabSubtitle(state: state)
-          }
+    HStack(spacing: 10) {
+      RoundedRectangle(cornerRadius: 5, style: .continuous)
+        .fill(palette.fill(for: tab.tone))
+        .frame(width: 16, height: 16)
+        .overlay {
+          Image(systemName: tab.symbol)
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText.opacity(0.9))
+            .accessibilityHidden(true)
         }
 
-        Spacer(minLength: 0)
+      Text(tab.title)
+        .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+        .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+        .lineLimit(1)
 
-        let indicators = terminal.indicators(for: tab.id)
-        if let state = terminal.focusedSurfaceState(for: tab.id) {
-          TerminalTabBadges(state: state, indicators: indicators)
-        } else if indicators.isRunning {
-          TerminalRunningDot()
-        }
+      Spacer(minLength: 0)
 
-        if isHovering {
-          Button {
-            terminal.requestCloseTab(tab.id)
-          } label: {
+      if isHovering {
+        Button(
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              terminal.requestCloseTab(tab.id)
+            }
+          },
+          label: {
             Image(systemName: "xmark")
               .font(.system(size: 10, weight: .bold))
+              .foregroundStyle(isSelected ? palette.selectedText.opacity(0.9) : palette.secondaryText)
               .frame(width: 16, height: 16)
+              .accessibilityHidden(true)
           }
-          .buttonStyle(.plain)
-          .accessibilityLabel("Close tab")
-        }
-      }
-      .padding(.vertical, 10)
-      .padding(.horizontal, 10)
-      .foregroundStyle(isSelected ? Color.white : Color.primary)
-      .background(rowBackground, in: .rect(cornerRadius: 10))
-      .overlay(alignment: .leading) {
-        if isSelected {
-          RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(Color.white.opacity(0.95))
-            .frame(width: 3, height: 20)
-            .padding(.leading, 4)
-        }
+        )
+        .buttonStyle(.plain)
       }
     }
-    .buttonStyle(.plain)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 10)
+    .padding(.horizontal, sidebarRowHorizontalPadding)
+    .tag(tab.id)
+    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+    .listRowSeparator(.hidden)
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
     .onHover { isHovering = $0 }
     .contextMenu {
       Button("New Tab") {
-        _ = terminal.createTab()
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+        }
       }
+
+      Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          terminal.togglePinned(tab.id)
+        }
+      }
+
       Button("Close Tab", role: .destructive) {
-        terminal.requestCloseTab(tab.id)
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          terminal.requestCloseTab(tab.id)
+        }
       }
     }
   }
 
-  private var rowBackground: some ShapeStyle {
-    if isSelected {
-      return AnyShapeStyle(.tint)
-    }
-    if isHovering {
-      return AnyShapeStyle(Color.primary.opacity(0.08))
-    }
-    return AnyShapeStyle(Color.clear)
-  }
-}
-
-private struct TerminalRunningDot: View {
-  var body: some View {
-    Circle()
-      .fill(Color.accentColor)
-      .frame(width: 8, height: 8)
-      .accessibilityHidden(true)
-  }
-}
-
-private struct TerminalTabSubtitle: View {
-  @Bindable var state: GhosttySurfaceState
-
-  init(state: GhosttySurfaceState) {
-    self._state = Bindable(state)
-  }
-
-  var body: some View {
-    if let pwd = trimmed(state.pwd), !pwd.isEmpty {
-      Text(pwd)
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-    }
-  }
-
-  private func trimmed(_ value: String?) -> String? {
-    value?.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
-private struct TerminalTabBadges: View {
-  @Bindable var state: GhosttySurfaceState
-  let indicators: TerminalHostState.TabIndicators
-
-  init(state: GhosttySurfaceState, indicators: TerminalHostState.TabIndicators) {
-    self._state = Bindable(state)
-    self.indicators = indicators
-  }
-
-  var body: some View {
-    HStack(spacing: 4) {
-      if indicators.isRunning {
-        TerminalRunningDot()
-      }
-      if indicators.hasBell {
-        StatusBadge(label: "Bell")
-      }
-      if indicators.isReadOnly {
-        StatusBadge(label: "RO")
-      }
-      if indicators.hasSecureInput {
-        StatusBadge(label: "Key")
-      }
+  @ViewBuilder
+  private var rowBackground: some View {
+    if isHovering && !isSelected {
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(palette.rowFill)
+    } else {
+      Color.clear
     }
   }
 }
 
-private struct StatusBadge: View {
-  let label: String
+private struct SidebarFooterView: View {
+  let palette: TerminalPalette
 
   var body: some View {
-    Text(label)
-      .font(.system(size: 9, weight: .bold, design: .rounded))
-      .padding(.horizontal, 5)
-      .padding(.vertical, 2)
-      .background(Color.primary.opacity(0.08), in: Capsule())
+    HStack {
+      FooterCircleButton(symbol: "arrow.down", palette: palette)
+
+      Spacer(minLength: 16)
+
+      HStack(spacing: 4) {
+        ForEach(TerminalSample.spaces) { space in
+          SpaceButton(space: space, palette: palette)
+        }
+      }
+
+      Spacer(minLength: 16)
+
+      FooterCircleButton(symbol: "plus", palette: palette)
+    }
+    .frame(height: 30)
+  }
+}
+
+private struct SpaceButton: View {
+  let space: WorkspaceChip
+  let palette: TerminalPalette
+
+  var body: some View {
+    Button(
+      action: {},
+      label: {
+        Text(space.label)
+          .font(.system(size: 11, weight: .semibold, design: .rounded))
+          .foregroundStyle(space.isSelected ? palette.selectedText : palette.secondaryText)
+          .frame(width: 28, height: 28)
+          .background(space.isSelected ? palette.selectedFill : palette.clearFill, in: .rect(cornerRadius: 8))
+      }
+    )
+    .buttonStyle(.plain)
+    .accessibilityLabel("Workspace \(space.label)")
+  }
+}
+
+private struct FooterCircleButton: View {
+  let symbol: String
+  let palette: TerminalPalette
+
+  var body: some View {
+    Button(
+      action: {},
+      label: {
+        Image(systemName: symbol)
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.secondaryText)
+          .frame(width: 28, height: 28)
+          .background(palette.rowFill, in: Circle())
+          .accessibilityHidden(true)
+      }
+    )
+    .buttonStyle(.plain)
+    .accessibilityLabel(symbol == "plus" ? "Add workspace" : "Open activity")
   }
 }
 
 private struct TerminalDetailView: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
+  let selectedTabID: TerminalTabID
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
   var body: some View {
     VStack(spacing: 0) {
       DetailToolbarView(
+        palette: palette,
         terminal: terminal,
         isSidebarCollapsed: isSidebarCollapsed,
         onToggleSidebar: onToggleSidebar
       )
 
-      ZStack {
-        if let selectedTabID = terminal.selectedTabID,
-          terminal.tabs.contains(where: { $0.id == selectedTabID })
-        {
-          TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
-            TerminalSplitTreeAXContainer(tree: terminal.splitTree(for: tabID)) { operation in
-              terminal.performSplitOperation(operation, in: tabID)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-          }
-        } else {
-          EmptyTerminalPaneView()
-        }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .padding(8)
+      TerminalDetailSurface(
+        terminal: terminal,
+        selectedTabID: selectedTabID,
+        palette: palette
+      )
+      .padding(24)
     }
-    .background(.ultraThinMaterial, in: .rect(cornerRadius: 20))
+    .background(palette.detailBackground, in: .rect(cornerRadius: 20))
     .overlay {
       RoundedRectangle(cornerRadius: 20, style: .continuous)
-        .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        .stroke(palette.detailStroke, lineWidth: 1)
     }
-    .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 6)
+    .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
     .padding(.top, 6)
     .padding(.leading, isSidebarCollapsed ? 6 : 0)
     .padding(.trailing, 6)
@@ -700,164 +998,130 @@ private struct TerminalDetailView: View {
 }
 
 private struct DetailToolbarView: View {
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
   private var selectedTab: TerminalTabItem? {
-    guard let selectedTabID = terminal.selectedTabID else { return nil }
-    return terminal.tabs.first(where: { $0.id == selectedTabID })
-  }
-
-  private var selectedState: GhosttySurfaceState? {
-    guard let selectedTabID = terminal.selectedTabID else { return nil }
-    return terminal.focusedSurfaceState(for: selectedTabID)
+    terminal.selectedTab
   }
 
   var body: some View {
-    HStack(spacing: 8) {
-      ToolbarIconButton(
-        symbol: "sidebar.left",
-        accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
-        action: onToggleSidebar
-      )
+    HStack(spacing: 4) {
+      HStack(spacing: 4) {
+        ToolbarIconButton(
+          symbol: "sidebar.left",
+          palette: palette,
+          accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
+          action: onToggleSidebar
+        )
+        ToolbarIconButton(
+          symbol: "arrow.trianglehead.2.clockwise.rotate.90",
+          palette: palette,
+          accessibilityLabel: "Rotate layout"
+        )
+      }
 
-      if let selectedTab {
-        HStack(spacing: 8) {
-          Image(systemName: selectedTab.icon ?? "terminal")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .accessibilityHidden(true)
+      HStack(spacing: 8) {
+        Image(systemName: selectedTab?.symbol ?? "terminal")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.secondaryText)
+          .accessibilityHidden(true)
 
-          VStack(alignment: .leading, spacing: 2) {
-            Text(selectedTab.title)
-              .font(.system(size: 13, weight: .semibold))
+        Text(selectedTab?.title ?? "Terminal")
+          .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(palette.primaryText)
 
-            if let state = selectedState {
-              TerminalToolbarSubtitle(state: state)
-            }
-          }
-
-          Spacer(minLength: 0)
-
-          if let state = selectedState {
-            TerminalToolbarBadges(
-              state: state,
-              indicators: terminal.indicators(for: selectedTab.id)
-            )
-          }
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 34)
-        .background(Color.primary.opacity(0.06), in: .rect(cornerRadius: 10))
-      } else {
         Spacer(minLength: 0)
+
+        Image(systemName: "wave.3.right")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(palette.secondaryText)
+          .accessibilityHidden(true)
       }
-
-      ToolbarIconButton(
-        symbol: "rectangle.split.2x1",
-        accessibilityLabel: "Split below",
-        action: { _ = terminal.performBindingActionOnFocusedSurface("new_split:down") }
+      .frame(height: 30)
+      .padding(.horizontal, 8)
+      .background(
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(palette.pillFill)
       )
-      .disabled(terminal.selectedTabID == nil)
 
-      ToolbarIconButton(
-        symbol: "rectangle.split.1x2",
-        accessibilityLabel: "Split right",
-        action: { _ = terminal.performBindingActionOnFocusedSurface("new_split:right") }
-      )
-      .disabled(terminal.selectedTabID == nil)
-
-      ToolbarIconButton(
-        symbol: "magnifyingglass",
-        accessibilityLabel: "Search",
-        action: {
-          _ = terminal.startSearch()
-        }
-      )
-      .disabled(terminal.selectedTabID == nil)
+      HStack(spacing: 4) {
+        ToolbarIconButton(symbol: "person.crop.circle", palette: palette, accessibilityLabel: "Profile")
+        ToolbarIconButton(symbol: "ellipsis", palette: palette, accessibilityLabel: "More actions")
+      }
     }
-    .padding(8)
+    .padding(4)
   }
 }
 
-private struct TerminalToolbarSubtitle: View {
-  @Bindable var state: GhosttySurfaceState
-
-  init(state: GhosttySurfaceState) {
-    self._state = Bindable(state)
-  }
+private struct TerminalDetailSurface: View {
+  let terminal: TerminalHostState
+  let selectedTabID: TerminalTabID
+  let palette: TerminalPalette
 
   var body: some View {
-    if let pwd = trimmed(state.pwd), !pwd.isEmpty {
-      Text(pwd)
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-    }
-  }
-
-  private func trimmed(_ value: String?) -> String? {
-    value?.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-}
-
-private struct TerminalToolbarBadges: View {
-  @Bindable var state: GhosttySurfaceState
-  let indicators: TerminalHostState.TabIndicators
-
-  init(state: GhosttySurfaceState, indicators: TerminalHostState.TabIndicators) {
-    self._state = Bindable(state)
-    self.indicators = indicators
-  }
-
-  var body: some View {
-    HStack(spacing: 6) {
-      if indicators.isRunning {
-        StatusBadge(label: "Running")
-      }
-      if indicators.isReadOnly {
-        StatusBadge(label: "Read Only")
-      }
-      if indicators.hasSecureInput {
-        StatusBadge(label: "Secure Input")
-      }
-      if indicators.hasBell {
-        StatusBadge(label: "Bell")
-      }
+    TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
+      TerminalSurfacePaneView(
+        palette: palette,
+        terminal: terminal,
+        tabID: tabID
+      )
     }
   }
 }
 
-private struct EmptyTerminalPaneView: View {
+private struct TerminalSurfacePaneView: View {
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+  let tabID: TerminalTabID
+
+  private var tone: TerminalTone {
+    terminal.tabs.first(where: { $0.id == tabID })?.tone ?? .slate
+  }
+
   var body: some View {
-    ContentUnavailableView(
-      "No Terminal",
-      systemImage: "terminal",
-      description: Text("Create a new terminal tab to begin.")
-    )
+    TerminalSplitTreeAXContainer(tree: terminal.splitTree(for: tabID)) { operation in
+      terminal.performSplitOperation(operation, in: tabID)
+    }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding(4)
+    .background(palette.detailFill(for: tone), in: .rect(cornerRadius: 24))
   }
 }
 
 private struct ToolbarIconButton: View {
   let symbol: String
-  let accessibilityLabel: String
+  let palette: TerminalPalette
+  let accessibilityLabel: String?
   let action: () -> Void
 
   @State private var isHovering = false
+
+  init(
+    symbol: String,
+    palette: TerminalPalette,
+    accessibilityLabel: String? = nil,
+    action: @escaping () -> Void = {}
+  ) {
+    self.symbol = symbol
+    self.palette = palette
+    self.accessibilityLabel = accessibilityLabel
+    self.action = action
+  }
 
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
         .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(.secondary)
+        .foregroundStyle(isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText)
         .frame(width: 30, height: 30)
-        .background(isHovering ? Color.primary.opacity(0.08) : .clear, in: .rect(cornerRadius: 8))
+        .background(isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6))
         .accessibilityHidden(true)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(accessibilityLabel)
+    .accessibilityLabel(accessibilityLabel ?? "Action")
     .onHover { isHovering = $0 }
   }
 }
@@ -866,28 +1130,37 @@ private struct WindowTrafficLights: View {
   @State private var isHovering = false
 
   var body: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       ForEach(TrafficLight.allCases, id: \.self) { light in
-        Button {
-          light.perform()
-        } label: {
-          Circle()
-            .fill(light.color)
-            .frame(width: 12, height: 12)
-            .overlay {
-              if isHovering {
-                Image(systemName: light.symbol)
-                  .font(.system(size: 7, weight: .black))
-                  .foregroundStyle(Color.black.opacity(0.6))
-                  .accessibilityHidden(true)
+        Button(
+          action: { light.perform() },
+          label: {
+            Circle()
+              .fill(light.color)
+              .frame(
+                width: WindowTrafficLightMetrics.buttonSize,
+                height: WindowTrafficLightMetrics.buttonSize
+              )
+              .overlay {
+                if isHovering {
+                  Image(systemName: light.symbol)
+                    .font(.system(size: WindowTrafficLightMetrics.symbolSize, weight: .black))
+                    .foregroundStyle(.black.opacity(0.55))
+                    .accessibilityHidden(true)
+                }
               }
-            }
-        }
+          }
+        )
         .buttonStyle(.plain)
+        .accessibilityLabel(light.accessibilityLabel)
       }
     }
-    .padding(.leading, 8)
-    .onHover { isHovering = $0 }
+    .padding(.leading, WindowTrafficLightMetrics.leadingPadding)
+    .onHover { hovering in
+      withAnimation(.easeInOut(duration: 0.1)) {
+        isHovering = hovering
+      }
+    }
   }
 }
 
@@ -899,11 +1172,11 @@ private enum TrafficLight: CaseIterable {
   var color: Color {
     switch self {
     case .close:
-      Color(red: 1, green: 0.37, blue: 0.32)
+      Color(red: 1, green: 0.37, blue: 0.34)
     case .minimize:
       Color(red: 1, green: 0.74, blue: 0.18)
     case .zoom:
-      Color(red: 0.17, green: 0.8, blue: 0.31)
+      Color(red: 0.16, green: 0.8, blue: 0.33)
     }
   }
 
@@ -918,15 +1191,181 @@ private enum TrafficLight: CaseIterable {
     }
   }
 
+  var accessibilityLabel: String {
+    switch self {
+    case .close:
+      "Close window"
+    case .minimize:
+      "Minimize window"
+    case .zoom:
+      "Enter full screen"
+    }
+  }
+
   func perform() {
     guard let window = NSApp.keyWindow else { return }
+
     switch self {
     case .close:
       window.performClose(nil)
     case .minimize:
       window.performMiniaturize(nil)
     case .zoom:
-      window.performZoom(nil)
+      window.toggleFullScreen(nil)
     }
+  }
+}
+
+private struct WindowChromeConfigurator: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    NSView()
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    DispatchQueue.main.async {
+      guard let window = nsView.window else { return }
+
+      window.titleVisibility = .hidden
+      window.titlebarAppearsTransparent = true
+      window.standardWindowButton(.closeButton)?.isHidden = true
+      window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+      window.standardWindowButton(.zoomButton)?.isHidden = true
+    }
+  }
+}
+
+private struct TerminalPalette {
+  let windowBackgroundTint: Color
+  let detailBackground: Color
+  let detailStroke: Color
+  let dialogOuterBackground: Color
+  let dialogInnerBackground: Color
+  let dialogBorder: Color
+  let dialogSecondaryFill: Color
+  let dialogSecondaryHoverFill: Color
+  let dialogDestructiveFill: Color
+  let dialogDestructiveHoverFill: Color
+  let dialogPrimaryText: Color
+  let pillFill: Color
+  let rowFill: Color
+  let clearFill: Color
+  let selectedFill: Color
+  let selectionStroke: Color
+  let primaryText: Color
+  let secondaryText: Color
+  let selectedText: Color
+  let selectedIcon: Color
+  let shadow: Color
+  let amber: Color
+  let mint: Color
+  let sky: Color
+  let coral: Color
+  let violet: Color
+  let slate: Color
+
+  init(colorScheme: ColorScheme) {
+    if colorScheme == .dark {
+      windowBackgroundTint = Color(red: 0.078, green: 0.078, blue: 0.078, opacity: 0.3)
+      detailBackground = Color(red: 0.15, green: 0.14, blue: 0.14)
+      detailStroke = Color.white.opacity(0.08)
+      dialogOuterBackground = Color(red: 0.1412, green: 0.1412, blue: 0.1412)
+      dialogInnerBackground = Color(red: 0.1137, green: 0.1137, blue: 0.1137)
+      dialogBorder = Color(nsColor: .separatorColor)
+      dialogSecondaryFill = Color.white.opacity(0.136)
+      dialogSecondaryHoverFill = Color.white.opacity(0.085)
+      dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
+      dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
+      dialogPrimaryText = .white
+      pillFill = Color.white.opacity(0.08)
+      rowFill = Color.white.opacity(0.06)
+      clearFill = Color.white.opacity(0.03)
+      selectedFill = Color.white.opacity(0.16)
+      selectionStroke = Color.white.opacity(0.08)
+      primaryText = Color.white.opacity(0.94)
+      secondaryText = Color.white.opacity(0.58)
+      selectedText = .white
+      selectedIcon = .white
+      shadow = .black.opacity(0.28)
+    } else {
+      windowBackgroundTint = Color(red: 0.953, green: 0.898, blue: 0.839, opacity: 0.3)
+      detailBackground = Color(red: 0.985, green: 0.975, blue: 0.96)
+      detailStroke = Color.black.opacity(0.06)
+      dialogOuterBackground = .white
+      dialogInnerBackground = Color.black.opacity(0.1)
+      dialogBorder = Color(nsColor: .separatorColor)
+      dialogSecondaryFill = Color.black.opacity(0.08)
+      dialogSecondaryHoverFill = Color.black.opacity(0.05)
+      dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
+      dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
+      dialogPrimaryText = .black
+      pillFill = Color.black.opacity(0.07)
+      rowFill = Color.black.opacity(0.05)
+      clearFill = Color.black.opacity(0.02)
+      selectedFill = Color(red: 0.12, green: 0.12, blue: 0.12)
+      selectionStroke = Color.black.opacity(0.08)
+      primaryText = Color.black.opacity(0.86)
+      secondaryText = Color.black.opacity(0.48)
+      selectedText = .white
+      selectedIcon = .white
+      shadow = .black.opacity(0.08)
+    }
+
+    amber = Color(red: 0.89, green: 0.64, blue: 0.28)
+    mint = Color(red: 0.3, green: 0.72, blue: 0.58)
+    sky = Color(red: 0.31, green: 0.59, blue: 0.94)
+    coral = Color(red: 0.9, green: 0.43, blue: 0.38)
+    violet = Color(red: 0.57, green: 0.45, blue: 0.86)
+    slate = Color(red: 0.38, green: 0.44, blue: 0.56)
+  }
+
+  func fill(for tone: TerminalTone) -> Color {
+    color(for: tone).opacity(0.85)
+  }
+
+  func detailFill(for tone: TerminalTone) -> Color {
+    color(for: tone)
+  }
+
+  func detailForeground(for tone: TerminalTone) -> Color {
+    switch tone {
+    case .amber, .mint:
+      Color.black.opacity(0.8)
+    case .sky, .coral, .violet, .slate:
+      Color.white.opacity(0.94)
+    }
+  }
+
+  private func color(for tone: TerminalTone) -> Color {
+    switch tone {
+    case .amber:
+      amber
+    case .coral:
+      coral
+    case .mint:
+      mint
+    case .sky:
+      sky
+    case .slate:
+      slate
+    case .violet:
+      violet
+    }
+  }
+}
+
+private enum TerminalSample {
+  static let spaces = [
+    WorkspaceChip(label: "A", isSelected: false),
+    WorkspaceChip(label: "B", isSelected: true),
+    WorkspaceChip(label: "C", isSelected: false),
+  ]
+}
+
+private struct WorkspaceChip: Identifiable {
+  let label: String
+  let isSelected: Bool
+
+  var id: String {
+    label
   }
 }
