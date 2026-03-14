@@ -8,5 +8,31 @@ runs:
       shell: bash
     - run: mise install
       shell: bash
-    - run: make build-ghostty-xcframework
+    - name: Ghostty cache key
       shell: bash
+      run: |
+        set -euo pipefail
+        GHOSTTY_SHA="$(git -C ThirdParty/ghostty rev-parse HEAD)"
+        printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
+    - name: Ghostty cache
+      id: ghostty_cache
+      uses: actions/cache@v4
+      with:
+        path: Frameworks/GhosttyKit.xcframework
+        key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'mise.toml', '.gitmodules') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-
+          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-
+    - name: Sync Ghostty build stamp
+      if: steps.ghostty_cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p .build/.ghostty-stamps
+        rm -f .build/.ghostty-stamps/head-*
+        touch ".build/.ghostty-stamps/head-${GHOSTTY_SHA}"
+        touch Frameworks/GhosttyKit.xcframework
+    - name: Build ghostty
+      if: steps.ghostty_cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: make build-ghostty-xcframework
