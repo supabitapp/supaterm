@@ -462,7 +462,12 @@ private struct SidebarContainerView: View {
   let store: StoreOf<TerminalTabsFeature>
 
   var body: some View {
-    List {
+    List(
+      selection: Binding(
+        get: { store.selectedTabID },
+        set: { store.send(.tabSelected($0)) }
+      )
+    ) {
       Section {
         ForEach(pinnedTabs, editActions: .move) { tab in
           SidebarTabRow(
@@ -780,11 +785,6 @@ private struct SidebarTabRow: View {
     }
     .padding(10)
     .background(background, in: .rect(cornerRadius: 10))
-    .contentShape(.rect(cornerRadius: 10))
-    .accessibilityAddTraits(.isButton)
-    .onTapGesture {
-      store.send(.tabSelected(tab.id))
-    }
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
