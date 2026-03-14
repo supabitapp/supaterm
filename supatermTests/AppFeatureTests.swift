@@ -6,25 +6,11 @@ import Testing
 @MainActor
 struct AppFeatureTests {
   @Test
-  func reducerStartsWithInitialSelectedTab() {
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
-    }
+  func initialStateStartsIdle() {
+    let state = AppFeature.State()
 
-    #expect(store.state.tabs.selectedTab.title == "Command Deck")
-  }
-
-  @Test
-  func tabActionsRouteToChildFeature() async {
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
-    }
-
-    let targetID = store.state.tabs.regularTabs[2].id
-
-    await store.send(.tabs(.tabSelected(targetID))) {
-      $0.tabs.selectedTabID = targetID
-    }
+    #expect(state.update.canCheckForUpdates == false)
+    #expect(state.update.phase == .idle)
   }
 
   @Test

@@ -6,19 +6,26 @@ import SwiftUI
 struct SupatermApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-  private let store: StoreOf<AppFeature> = Store(initialState: AppFeature.State()) {
-    AppFeature()
+  @State private var terminal: TerminalHostState
+  @State private var store: StoreOf<AppFeature>
+
+  @MainActor init() {
+    GhosttyBootstrap.initialize()
+    _terminal = State(initialValue: TerminalHostState())
+    _store = State(initialValue: Store(initialState: AppFeature.State()) { AppFeature() })
   }
 
   var body: some Scene {
     Window("Supaterm", id: "main") {
-      ContentView(store: store)
+      GhosttyColorSchemeSyncView(applyColorScheme: terminal.setColorScheme(_:)) {
+        ContentView(store: store, terminal: terminal)
+      }
     }
     .defaultSize(width: 1_440, height: 900)
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      TerminalCommands(store: store)
+      TerminalCommands(store: store, terminal: terminal)
     }
   }
 }
