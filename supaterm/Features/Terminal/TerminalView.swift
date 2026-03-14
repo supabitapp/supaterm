@@ -677,9 +677,8 @@ private struct SidebarHeaderView: View {
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
+    HStack(spacing: 0) {
       WindowTrafficLights()
-      UpdatePillView(store: updateStore)
 
       Spacer(minLength: 0)
 
@@ -698,13 +697,30 @@ private struct SidebarHeaderView: View {
         ToolbarIconButton(symbol: "arrow.clockwise", palette: palette, accessibilityLabel: "Rerun command")
       }
     }
+    .overlay(alignment: .leading) {
+      UpdatePillView(store: updateStore)
+        .padding(.leading, WindowTrafficLightMetrics.pillLeadingPadding)
+    }
     .frame(height: 30)
   }
 }
 
 private enum WindowTrafficLightMetrics {
+  static var buttonSize: CGFloat {
+    if #available(macOS 26.0, *) {
+      14
+    } else {
+      12
+    }
+  }
+
   static let buttonSpacing: CGFloat = 9
   static let leadingPadding: CGFloat = 8
+  static let symbolSize: CGFloat = 8
+
+  static var pillLeadingPadding: CGFloat {
+    leadingPadding + (buttonSize * 3) + (buttonSpacing * 3)
+  }
 }
 
 private let sidebarRowHorizontalPadding: CGFloat = 8
@@ -1070,22 +1086,6 @@ private struct ToolbarIconButton: View {
 private struct WindowTrafficLights: View {
   @State private var isHovering = false
 
-  private var buttonSize: CGFloat {
-    if #available(macOS 26.0, *) {
-      14
-    } else {
-      12
-    }
-  }
-
-  private var symbolSize: CGFloat {
-    if #available(macOS 26.0, *) {
-      8
-    } else {
-      7
-    }
-  }
-
   var body: some View {
     HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       ForEach(TrafficLight.allCases, id: \.self) { light in
@@ -1094,11 +1094,14 @@ private struct WindowTrafficLights: View {
           label: {
             Circle()
               .fill(light.color)
-              .frame(width: buttonSize, height: buttonSize)
+              .frame(
+                width: WindowTrafficLightMetrics.buttonSize,
+                height: WindowTrafficLightMetrics.buttonSize
+              )
               .overlay {
                 if isHovering {
                   Image(systemName: light.symbol)
-                    .font(.system(size: symbolSize, weight: .black))
+                    .font(.system(size: WindowTrafficLightMetrics.symbolSize, weight: .black))
                     .foregroundStyle(.black.opacity(0.55))
                     .accessibilityHidden(true)
                 }
