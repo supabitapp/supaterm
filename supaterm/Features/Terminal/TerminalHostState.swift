@@ -541,6 +541,10 @@ final class TerminalHostState {
     guard let tabID = tabID(containing: surfaceID), let tree = trees[tabID] else { return }
     guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else { return }
 
+    let nextSurface =
+      focusedSurfaceIDByTab[tabID] == surfaceID
+      ? tree.focusTargetAfterClosing(node)
+      : nil
     let newTree = tree.removing(node)
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
@@ -562,7 +566,7 @@ final class TerminalHostState {
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
     if focusedSurfaceIDByTab[tabID] == surfaceID {
-      if let nextSurface = newTree.root?.leftmostLeaf() {
+      if let nextSurface {
         focusSurface(nextSurface, in: tabID)
       } else {
         focusedSurfaceIDByTab.removeValue(forKey: tabID)

@@ -164,6 +164,18 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     }
   }
 
+  func focusTargetAfterClosing(_ node: Node) -> ViewType? {
+    guard let root else { return nil }
+
+    // Match Ghostty's macOS controller: closing the leftmost leaf moves to the next
+    // surface, otherwise we move to the previous one.
+    if root.leftmostLeaf() === node.leftmostLeaf() {
+      return focusTarget(for: .next, from: node)
+    } else {
+      return focusTarget(for: .previous, from: node)
+    }
+  }
+
   func equalized() -> Self {
     guard let root else { return self }
     let newRoot = root.equalize()
