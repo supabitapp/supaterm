@@ -6,12 +6,15 @@ import SwiftUI
 struct SupatermApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+  @State private var ghosttyShortcuts: GhosttyShortcutManager
   @State private var terminal: TerminalHostState
   @State private var store: StoreOf<AppFeature>
 
   @MainActor init() {
     GhosttyBootstrap.initialize()
-    _terminal = State(initialValue: TerminalHostState())
+    let runtime = GhosttyRuntime()
+    _ghosttyShortcuts = State(initialValue: GhosttyShortcutManager(runtime: runtime))
+    _terminal = State(initialValue: TerminalHostState(runtime: runtime))
     _store = State(initialValue: Store(initialState: AppFeature.State()) { AppFeature() })
   }
 
@@ -25,7 +28,7 @@ struct SupatermApp: App {
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      TerminalCommands(store: store, terminal: terminal)
+      TerminalCommands(store: store, ghosttyShortcuts: ghosttyShortcuts)
     }
   }
 }
