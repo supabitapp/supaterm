@@ -82,6 +82,7 @@ struct UpdatePillView: View {
     }
   }
 
+  @ViewBuilder
   private func label(for pill: UpdatePillContent) -> some View {
     if pill.badge == nil && pill.text.isEmpty {
       Circle()
