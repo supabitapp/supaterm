@@ -57,7 +57,7 @@ struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
   @State private var rotationAngle = 0.0
 
-  private let compactPillWidth: CGFloat = 28
+  private let compactPillDiameter: CGFloat = 22
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
@@ -83,28 +83,28 @@ struct UpdatePillView: View {
   }
 
   private func label(for pill: UpdatePillContent) -> some View {
-    Group {
-      if pill.badge == nil && pill.text.isEmpty {
-        Color.clear
-          .frame(width: compactPillWidth, height: 14)
-      } else {
-        HStack(spacing: 6) {
-          badgeView(for: pill.badge)
-            .frame(width: 14, height: 14)
+    if pill.badge == nil && pill.text.isEmpty {
+      Circle()
+        .fill(backgroundColor(for: pill.tone))
+        .frame(width: compactPillDiameter, height: compactPillDiameter)
+        .contentShape(Circle())
+    } else {
+      HStack(spacing: 6) {
+        badgeView(for: pill.badge)
+          .frame(width: 14, height: 14)
 
-          Text(pill.text)
-            .font(Font(textFont))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(width: textWidth(for: pill))
-        }
+        Text(pill.text)
+          .font(Font(textFont))
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .frame(width: textWidth(for: pill))
       }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 4)
+      .background(Capsule().fill(backgroundColor(for: pill.tone)))
+      .foregroundStyle(.white)
+      .contentShape(Capsule())
     }
-    .padding(.horizontal, pill.badge == nil && pill.text.isEmpty ? 0 : 8)
-    .padding(.vertical, 4)
-    .background(Capsule().fill(backgroundColor(for: pill.tone)))
-    .foregroundStyle(.white)
-    .contentShape(Capsule())
   }
 
   @ViewBuilder
