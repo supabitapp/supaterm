@@ -1,6 +1,7 @@
 import ComposableArchitecture
 
 private enum UpdateFeatureCancelID {
+  static let debugStubCheck = "UpdateFeature.debugStubCheck"
   static let observation = "UpdateFeature.observation"
 }
 
@@ -27,6 +28,7 @@ struct UpdateFeature {
   enum Action {
     case allowAutomaticUpdatesButtonTapped
     case checkForUpdatesButtonTapped
+    case debugStubCheckFinished
     case developmentBuildHoverChanged(Bool)
     case dismissButtonTapped
     case installAndRelaunchButtonTapped
@@ -41,6 +43,7 @@ struct UpdateFeature {
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
   }
 
+  @Dependency(\.continuousClock) var clock
   @Dependency(AppBuildClient.self) var appBuildClient
   @Dependency(UpdateClient.self) var updateClient
 
@@ -60,9 +63,21 @@ struct UpdateFeature {
         state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .checking
+        if appBuildClient.usesStubUpdateChecks() {
+          return .run { [clock] send in
+            try? await clock.sleep(for: .seconds(1))
+            await send(.debugStubCheckFinished)
+          }
+          .cancellable(id: UpdateFeatureCancelID.debugStubCheck, cancelInFlight: true)
+        }
         return .run { [updateClient] _ in
           await updateClient.checkForUpdates()
         }
+
+      case .debugStubCheckFinished:
+        guard case .checking = state.phase else { return .none }
+        state.phase = .idle
+        return .none
 
       case .developmentBuildHoverChanged(let isHovering):
         guard state.isDevelopmentBuild else { return .none }
@@ -136,6 +151,7 @@ struct UpdateFeature {
 
       case .task:
         state.isDevelopmentBuild = appBuildClient.isDevelopmentBuild()
+        state.canCheckForUpdates = appBuildClient.usesStubUpdateChecks()
         if !state.isDevelopmentBuild {
           state.isDevelopmentIndicatorHovering = false
         }
@@ -149,7 +165,7 @@ struct UpdateFeature {
         .cancellable(id: UpdateFeatureCancelID.observation, cancelInFlight: true)
 
       case .updateClientSnapshotReceived(let snapshot):
-        state.canCheckForUpdates = snapshot.canCheckForUpdates
+        state.canCheckForUpdates = snapshot.canCheckForUpdates || appBuildClient.usesStubUpdateChecks()
         if case .notFound = snapshot.phase {
           state.isDevelopmentIndicatorHovering = false
           state.isPopoverPresented = false

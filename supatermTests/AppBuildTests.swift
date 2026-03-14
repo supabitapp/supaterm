@@ -10,6 +10,15 @@ struct AppBuildTests {
   }
 
   @Test
+  func stubUpdateChecksMatchBuildConfiguration() {
+    #if DEBUG
+      #expect(AppBuild.usesStubUpdateChecks)
+    #else
+      #expect(!AppBuild.usesStubUpdateChecks)
+    #endif
+  }
+
+  @Test
   func developmentFlagParsesTrueValues() {
     #expect(AppBuild.isDevelopmentFlag(true))
     #expect(AppBuild.isDevelopmentFlag("YES"))
