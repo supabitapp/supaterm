@@ -54,6 +54,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let initialInputCString: UnsafeMutablePointer<CChar>?
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
+  private let managesWindowAppearance: Bool
   private var trackingArea: NSTrackingArea?
   private var lastBackingSize: CGSize = .zero
   private var lastPerformKeyEvent: TimeInterval?
@@ -155,12 +156,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
     workingDirectory: URL?,
     initialInput: String? = nil,
     fontSize: Float32? = nil,
-    context: ghostty_surface_context_e
+    context: ghostty_surface_context_e,
+    managesWindowAppearance: Bool = false
   ) {
     self.runtime = runtime
     self.bridge = GhosttySurfaceBridge()
     self.fontSize = fontSize ?? 0
     self.context = context
+    self.managesWindowAppearance = managesWindowAppearance
     if let workingDirectory {
       let path = Self.normalizedWorkingDirectoryPath(
         workingDirectory.path(percentEncoded: false)
@@ -354,6 +357,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func applyWindowBackgroundAppearance() {
+    guard managesWindowAppearance else { return }
     guard let window, window.isVisible else { return }
     let opacity = runtime.backgroundOpacity()
     if !window.styleMask.contains(.fullScreen), opacity < 1 {
