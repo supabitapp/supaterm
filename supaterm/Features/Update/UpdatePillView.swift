@@ -2,6 +2,57 @@ import AppKit
 import ComposableArchitecture
 import SwiftUI
 
+struct UpdatePillContent: Equatable {
+  let allowsPopover: Bool
+  let badge: UpdateBadge?
+  let helpText: String
+  let maxText: String
+  let text: String
+  let tone: UpdatePillTone
+
+  init?(phase: UpdatePhase, isDevelopmentBuild: Bool) {
+    if phase.isIdle {
+      guard isDevelopmentBuild else { return nil }
+      self = .developmentBuild
+      return
+    }
+
+    self.init(
+      allowsPopover: phase.allowsPopover,
+      badge: phase.badge,
+      helpText: phase.text,
+      maxText: phase.maxText,
+      text: phase.text,
+      tone: phase.pillTone,
+    )
+  }
+
+  private init(
+    allowsPopover: Bool,
+    badge: UpdateBadge?,
+    helpText: String,
+    maxText: String,
+    text: String,
+    tone: UpdatePillTone
+  ) {
+    self.allowsPopover = allowsPopover
+    self.badge = badge
+    self.helpText = helpText
+    self.maxText = maxText
+    self.text = text
+    self.tone = tone
+  }
+
+  private static let developmentBuild = Self(
+    allowsPopover: false,
+    badge: .icon(name: "hammer", spins: false),
+    helpText: AppBuild.developmentBuildMessage,
+    maxText: AppBuild.developmentPillText,
+    text: AppBuild.developmentPillText,
+    tone: .accent,
+  )
+}
+
 struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
   @State private var rotationAngle = 0.0
@@ -9,48 +60,48 @@ struct UpdatePillView: View {
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
-    if !store.phase.isIdle {
-      if store.phase.allowsPopover {
+    if let pill = UpdatePillContent(phase: store.phase, isDevelopmentBuild: AppBuild.isDevelopmentBuild) {
+      if pill.allowsPopover {
         Button {
           store.send(.pillButtonTapped)
         } label: {
-          label
+          label(for: pill)
         }
         .buttonStyle(.plain)
-        .help(store.phase.text)
-        .accessibilityLabel(store.phase.text)
+        .help(pill.helpText)
+        .accessibilityLabel(pill.helpText)
         .popover(isPresented: popoverBinding, arrowEdge: .bottom) {
           UpdatePopoverView(store: store)
         }
       } else {
-        label
-          .help(store.phase.text)
-          .accessibilityLabel(store.phase.text)
+        label(for: pill)
+          .help(pill.helpText)
+          .accessibilityLabel(pill.helpText)
       }
     }
   }
 
-  private var label: some View {
+  private func label(for pill: UpdatePillContent) -> some View {
     HStack(spacing: 6) {
-      badgeView
+      badgeView(for: pill.badge)
         .frame(width: 14, height: 14)
 
-      Text(store.phase.text)
+      Text(pill.text)
         .font(Font(textFont))
         .lineLimit(1)
         .truncationMode(.tail)
-        .frame(width: textWidth)
+        .frame(width: textWidth(for: pill))
     }
     .padding(.horizontal, 8)
     .padding(.vertical, 4)
-    .background(Capsule().fill(backgroundColor))
+    .background(Capsule().fill(backgroundColor(for: pill.tone)))
     .foregroundStyle(.white)
     .contentShape(Capsule())
   }
 
   @ViewBuilder
-  private var badgeView: some View {
-    switch store.phase.badge {
+  private func badgeView(for badge: UpdateBadge?) -> some View {
+    switch badge {
     case .icon(let name, let spins):
       Image(systemName: name)
         .accessibilityHidden(true)
@@ -82,8 +133,8 @@ struct UpdatePillView: View {
     }
   }
 
-  private var backgroundColor: Color {
-    switch store.phase.pillTone {
+  private func backgroundColor(for tone: UpdatePillTone) -> Color {
+    switch tone {
     case .accent:
       Color(red: 0.16, green: 0.47, blue: 0.93)
     case .warning:
@@ -98,9 +149,9 @@ struct UpdatePillView: View {
     )
   }
 
-  private var textWidth: CGFloat? {
+  private func textWidth(for pill: UpdatePillContent) -> CGFloat? {
     let attributes: [NSAttributedString.Key: Any] = [.font: textFont]
-    let size = (store.phase.maxText as NSString).size(withAttributes: attributes)
+    let size = (pill.maxText as NSString).size(withAttributes: attributes)
     return size.width
   }
 }
