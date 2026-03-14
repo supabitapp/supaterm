@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct UpdateFeatureTests {
   @Test
-  func checkForUpdatesButtonTappedUsesClient() async {
+  func checkForUpdatesButtonTappedUsesClientAndEntersCheckingState() async {
     let recorder = CheckRecorder()
     var initialState = UpdateFeature.State()
     initialState.canCheckForUpdates = true
@@ -19,14 +19,55 @@ struct UpdateFeatureTests {
       }
     }
 
-    await store.send(.checkForUpdatesButtonTapped)
+    await store.send(.checkForUpdatesButtonTapped) {
+      $0.phase = .checking
+    }
     #expect(await recorder.wasChecked())
+  }
+
+  @Test
+  func taskLoadsDevelopmentBuildFlagIntoState() async {
+    let (stream, continuation) = makeStream()
+
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.appBuildClient.isDevelopmentBuild = { true }
+      $0.updateClient.observe = { stream }
+      $0.updateClient.start = {}
+    }
+
+    await store.send(.task) {
+      $0.isDevelopmentBuild = true
+    }
+
+    continuation.finish()
+    await store.finish()
+  }
+
+  @Test
+  func developmentBuildHoverChangedUpdatesStateWhenIdle() async {
+    var initialState = UpdateFeature.State()
+    initialState.isDevelopmentBuild = true
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    }
+
+    await store.send(.developmentBuildHoverChanged(true)) {
+      $0.isDevelopmentIndicatorHovering = true
+    }
+
+    await store.send(.developmentBuildHoverChanged(false)) {
+      $0.isDevelopmentIndicatorHovering = false
+    }
   }
 
   @Test
   func laterButtonTappedClosesPopoverAndSendsIntent() async {
     let recorder = IntentRecorder()
     var initialState = UpdateFeature.State()
+    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .updateAvailable(
       .init(contentLength: nil, publishedAt: nil, releaseNotesURL: nil, version: "1.2.3")
@@ -41,6 +82,7 @@ struct UpdateFeatureTests {
     }
 
     await store.send(.laterButtonTapped) {
+      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .idle
     }
@@ -101,6 +143,8 @@ struct UpdateFeatureTests {
   @Test
   func checkingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
+    initialState.isDevelopmentBuild = true
+    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .error("Something went wrong")
 
@@ -115,6 +159,7 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
+      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .checking
     }
@@ -146,6 +191,7 @@ struct UpdateFeatureTests {
     await clock.advance(by: .seconds(5))
 
     await store.receive(\.updateNotFoundDismissTimerFinished) {
+      $0.isDevelopmentIndicatorHovering = false
       $0.phase = .idle
     }
 
@@ -155,6 +201,8 @@ struct UpdateFeatureTests {
   @Test
   func downloadingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
+    initialState.isDevelopmentBuild = true
+    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .checking
 
@@ -169,6 +217,7 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
+      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .downloading(.init(expectedLength: 1_000, receivedLength: 500))
     }
@@ -177,6 +226,8 @@ struct UpdateFeatureTests {
   @Test
   func extractingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
+    initialState.isDevelopmentBuild = true
+    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .checking
 
@@ -191,6 +242,7 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
+      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .extracting(0.5)
     }
