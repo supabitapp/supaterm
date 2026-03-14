@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TerminalCommands: Commands {
   let store: StoreOf<AppFeature>
+  let terminal: TerminalHostState
 
   var body: some Commands {
     CommandGroup(replacing: .sidebar) {
@@ -15,40 +16,95 @@ struct TerminalCommands: Commands {
 
     CommandMenu("Tabs") {
       Button("New Tab") {
-        store.send(.tabs(.newTabButtonTapped))
+        _ = terminal.createTab()
       }
-      .keyboardShortcut("t", modifiers: .command)
+      .keyboardShortcut(AppShortcuts.newTab.keyEquivalent, modifiers: AppShortcuts.newTab.modifiers)
 
       Button("Close Tab") {
-        store.send(.tabs(.closeButtonTapped(store.tabs.selectedTabID)))
+        _ = terminal.requestCloseSelectedTab()
       }
-      .keyboardShortcut("w", modifiers: .command)
-
-      Button("Pin Tab") {
-        store.send(.tabs(.pinSelectedTabToggled))
-      }
-      .keyboardShortcut("d", modifiers: .command)
+      .keyboardShortcut(
+        AppShortcuts.closeTab.keyEquivalent,
+        modifiers: AppShortcuts.closeTab.modifiers
+      )
 
       Divider()
 
       Button("Next Tab") {
-        store.send(.tabs(.nextTabRequested))
+        terminal.nextTab()
       }
-      .keyboardShortcut("]", modifiers: [.command, .shift])
+      .keyboardShortcut(AppShortcuts.nextTab.keyEquivalent, modifiers: AppShortcuts.nextTab.modifiers)
 
       Button("Previous Tab") {
-        store.send(.tabs(.previousTabRequested))
+        terminal.previousTab()
       }
-      .keyboardShortcut("[", modifiers: [.command, .shift])
+      .keyboardShortcut(
+        AppShortcuts.previousTab.keyEquivalent,
+        modifiers: AppShortcuts.previousTab.modifiers
+      )
 
       Divider()
 
       ForEach(1...10, id: \.self) { slot in
         Button("Tab \(slot)") {
-          store.send(.tabs(.tabShortcutPressed(slot)))
+          terminal.selectTab(slot: slot)
         }
-        .keyboardShortcut(KeyEquivalent(slot == 10 ? "0" : Character("\(slot)")), modifiers: .command)
+        .keyboardShortcut(
+          KeyEquivalent(slot == 10 ? "0" : Character("\(slot)")),
+          modifiers: .command
+        )
       }
+    }
+
+    CommandMenu("Pane") {
+      Button("Split Below") {
+        _ = terminal.performBindingActionOnFocusedSurface("new_split:down")
+      }
+
+      Button("Split Right") {
+        _ = terminal.performBindingActionOnFocusedSurface("new_split:right")
+      }
+
+      Divider()
+
+      Button("Equalize Panes") {
+        _ = terminal.performBindingActionOnFocusedSurface("equalize_splits")
+      }
+
+      Button("Toggle Pane Zoom") {
+        _ = terminal.performBindingActionOnFocusedSurface("toggle_split_zoom")
+      }
+    }
+
+    CommandGroup(after: .textEditing) {
+      Button("Find...") {
+        _ = terminal.startSearch()
+      }
+      .keyboardShortcut("f", modifiers: .command)
+
+      Button("Find Next") {
+        _ = terminal.navigateSearchNext()
+      }
+      .keyboardShortcut("g", modifiers: .command)
+
+      Button("Find Previous") {
+        _ = terminal.navigateSearchPrevious()
+      }
+      .keyboardShortcut("g", modifiers: [.command, .shift])
+
+      Divider()
+
+      Button("Hide Find Bar") {
+        _ = terminal.endSearch()
+      }
+      .keyboardShortcut(.escape, modifiers: [])
+
+      Divider()
+
+      Button("Use Selection for Find") {
+        _ = terminal.searchSelection()
+      }
+      .keyboardShortcut("e", modifiers: .command)
     }
 
     CommandGroup(after: .appInfo) {
