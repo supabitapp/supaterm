@@ -6,15 +6,16 @@ tracker:
   active_states: ["Todo", "In Progress"]
   terminal_states: ["Closed", "Cancelled", "Canceled", "Duplicate", "Done"]
 polling:
-  interval_ms: 30000
+  interval_ms: 5000
 workspace:
-  root: ./.build/symphony_workspaces
+  root: ./.build/sonata_workspaces
 hooks:
   after_create: |
+    git clone --depth=1 --recursive git@github.com:supabitapp/supaterm.git .
     mise trust
-    git clone --recursive git@github.com:supabitapp/supaterm.git .
+    mise install
   before_run: |
-    git submodule update --init --recursive
+    git submodule update --init --recursive --depth=1
   timeout_ms: 300000
 agent:
   max_concurrent_agents: 2
