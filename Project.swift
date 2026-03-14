@@ -55,6 +55,7 @@ let project = Project(
           "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
           "ENABLE_HARDENED_RUNTIME": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
+          "OTHER_LDFLAGS": "$(inherited) -lc++",
         ],
         defaultSettings: .essential
       )
