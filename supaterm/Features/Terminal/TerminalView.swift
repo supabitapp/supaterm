@@ -814,9 +814,6 @@ private struct SidebarTabRow: View {
   }
 
   private var background: Color {
-    if isSelected {
-      return palette.selectedFill
-    }
     if isHovering {
       return palette.rowFill
     }
