@@ -724,6 +724,7 @@ private struct NewTabButton: View {
 
           Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
         .padding(.horizontal, 8)
         .background(isHovering ? palette.rowFill : .clear, in: .rect(cornerRadius: 10))
@@ -784,6 +785,7 @@ private struct SidebarTabRow: View {
         .buttonStyle(.plain)
       }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 10)
     .padding(.horizontal, 8)
     .background(background, in: .rect(cornerRadius: 10))
@@ -816,7 +818,7 @@ private struct SidebarTabRow: View {
   }
 
   private var background: Color {
-    if isHovering {
+    if isHovering && !isSelected {
       return palette.rowFill
     }
     return .clear
