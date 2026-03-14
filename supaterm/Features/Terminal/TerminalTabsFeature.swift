@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import SwiftUI
 
 @Reducer
 struct TerminalTabsFeature {
@@ -10,13 +9,16 @@ struct TerminalTabsFeature {
   struct State: Equatable {
     var tabs: IdentifiedArrayOf<Tab>
     var selectedTabID: Tab.ID
+    var draggedTabID: Tab.ID?
 
     init(
       tabs: IdentifiedArrayOf<Tab> = .initialTabs,
       selectedTabID: Tab.ID? = nil,
+      draggedTabID: Tab.ID? = nil,
     ) {
       self.tabs = tabs
       self.selectedTabID = selectedTabID ?? tabs[0].id
+      self.draggedTabID = draggedTabID
     }
 
     var pinnedTabs: [Tab] {
@@ -42,16 +44,34 @@ struct TerminalTabsFeature {
       }
     }
 
-    mutating func movePinnedTab(from source: IndexSet, to destination: Int) {
-      var pinned = pinnedTabs
-      pinned.move(fromOffsets: source, toOffset: destination)
-      setVisibleTabs(pinned + regularTabs)
-    }
+    mutating func moveTab(_ tabID: Tab.ID, before targetID: Tab.ID) {
+      guard tabID != targetID else { return }
+      var pinnedTabs = pinnedTabs
+      var regularTabs = regularTabs
 
-    mutating func moveRegularTab(from source: IndexSet, to destination: Int) {
-      var regular = regularTabs
-      regular.move(fromOffsets: source, toOffset: destination)
-      setVisibleTabs(pinnedTabs + regular)
+      guard
+        let draggedTab = tabs[id: tabID],
+        let targetTab = tabs[id: targetID]
+      else { return }
+
+      if draggedTab.isPinned {
+        pinnedTabs.removeAll { $0.id == draggedTab.id }
+      } else {
+        regularTabs.removeAll { $0.id == draggedTab.id }
+      }
+
+      var updatedTab = draggedTab
+      updatedTab.isPinned = targetTab.isPinned
+
+      if targetTab.isPinned {
+        guard let targetIndex = pinnedTabs.firstIndex(where: { $0.id == targetID }) else { return }
+        pinnedTabs.insert(updatedTab, at: targetIndex)
+      } else {
+        guard let targetIndex = regularTabs.firstIndex(where: { $0.id == targetID }) else { return }
+        regularTabs.insert(updatedTab, at: targetIndex)
+      }
+
+      setVisibleTabs(pinnedTabs + regularTabs)
     }
 
     mutating func moveTab(_ tabID: Tab.ID, toSection isPinned: Bool) {
@@ -105,6 +125,7 @@ struct TerminalTabsFeature {
         let newTab = makeReplacement()
         tabs.append(newTab)
         selectedTabID = newTab.id
+        draggedTabID = nil
         return
       }
 
@@ -132,13 +153,16 @@ struct TerminalTabsFeature {
 
   enum Action: Equatable {
     case closeButtonTapped(Tab.ID)
+    case dragEnded
+    case dragMovedBeforeTab(draggedID: Tab.ID, targetID: Tab.ID)
+    case dragMovedToPinnedSection(Tab.ID)
+    case dragMovedToRegularSection(Tab.ID)
+    case dragStarted(Tab.ID)
     case newTabButtonTapped
     case nextTabRequested
-    case pinnedTabMoved(IndexSet, Int)
     case pinToggled(Tab.ID)
     case pinSelectedTabToggled
     case previousTabRequested
-    case regularTabMoved(IndexSet, Int)
     case tabSelected(Tab.ID)
     case tabShortcutPressed(Int)
   }
@@ -152,6 +176,26 @@ struct TerminalTabsFeature {
         }
         return .none
 
+      case .dragEnded:
+        state.draggedTabID = nil
+        return .none
+
+      case .dragMovedBeforeTab(let draggedID, let targetID):
+        state.moveTab(draggedID, before: targetID)
+        return .none
+
+      case .dragMovedToPinnedSection(let tabID):
+        state.moveTab(tabID, toSection: true)
+        return .none
+
+      case .dragMovedToRegularSection(let tabID):
+        state.moveTab(tabID, toSection: false)
+        return .none
+
+      case .dragStarted(let tabID):
+        state.draggedTabID = tabID
+        return .none
+
       case .newTabButtonTapped:
         let newTab = Tab.makeNewTab(id: uuid())
         state.appendNewRegularTab(newTab)
@@ -159,10 +203,6 @@ struct TerminalTabsFeature {
 
       case .nextTabRequested:
         state.selectTab(moving: 1)
-        return .none
-
-      case .pinnedTabMoved(let source, let destination):
-        state.movePinnedTab(from: source, to: destination)
         return .none
 
       case .pinToggled(let tabID):
@@ -177,10 +217,6 @@ struct TerminalTabsFeature {
 
       case .previousTabRequested:
         state.selectTab(moving: -1)
-        return .none
-
-      case .regularTabMoved(let source, let destination):
-        state.moveRegularTab(from: source, to: destination)
         return .none
 
       case .tabSelected(let tabID):

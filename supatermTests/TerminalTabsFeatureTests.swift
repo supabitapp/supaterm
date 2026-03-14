@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -123,6 +122,7 @@ struct TerminalTabsFeatureTests {
       )
       $0.tabs.append(replacement)
       $0.selectedTabID = replacement.id
+      $0.draggedTabID = nil
     }
   }
 
@@ -167,28 +167,39 @@ struct TerminalTabsFeatureTests {
   }
 
   @Test
-  func reorderWithinRegularSectionPreservesSetAndChangesOrder() async {
+  func reorderWithinSectionPreservesSetAndChangesOrder() async {
     let store = TestStore(initialState: TerminalTabsFeature.State()) {
       TerminalTabsFeature()
     }
+    let draggedID = store.state.regularTabs[2].id
+    let targetID = store.state.regularTabs[0].id
 
-    await store.send(.regularTabMoved(IndexSet(integer: 2), 0)) {
+    await store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID)) {
+      let dragged = $0.tabs[id: draggedID]!
+      var pinned = $0.pinnedTabs
       var regular = $0.regularTabs
-      regular.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
-      $0.tabs = IdentifiedArray(uniqueElements: $0.pinnedTabs + regular)
+      regular.removeAll { $0.id == draggedID }
+      regular.insert(dragged, at: 0)
+      $0.tabs = IdentifiedArray(uniqueElements: pinned + regular)
     }
   }
 
   @Test
-  func reorderWithinPinnedSectionPreservesSetAndChangesOrder() async {
+  func movingBetweenSectionsUpdatesMembershipAndPosition() async {
     let store = TestStore(initialState: TerminalTabsFeature.State()) {
       TerminalTabsFeature()
     }
+    let draggedID = store.state.regularTabs[1].id
+    let targetID = store.state.pinnedTabs[1].id
 
-    await store.send(.pinnedTabMoved(IndexSet(integer: 2), 0)) {
+    await store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID)) {
+      var dragged = $0.tabs[id: draggedID]!
       var pinned = $0.pinnedTabs
-      pinned.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
-      $0.tabs = IdentifiedArray(uniqueElements: pinned + $0.regularTabs)
+      var regular = $0.regularTabs
+      regular.removeAll { $0.id == draggedID }
+      dragged.isPinned = true
+      pinned.insert(dragged, at: 1)
+      $0.tabs = IdentifiedArray(uniqueElements: pinned + regular)
     }
   }
 
