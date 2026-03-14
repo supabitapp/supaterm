@@ -460,7 +460,6 @@ private struct TerminalSidebarView: View {
 private struct SidebarContainerView: View {
   let palette: TerminalPalette
   let store: StoreOf<TerminalTabsFeature>
-  var allowsReordering = true
 
   var body: some View {
     List(
@@ -470,7 +469,13 @@ private struct SidebarContainerView: View {
       )
     ) {
       Section {
-        pinnedSectionContent
+        ForEach(pinnedTabs, editActions: .move) { tab in
+          SidebarTabRow(
+            store: store,
+            tab: tab.wrappedValue,
+            palette: palette,
+          )
+        }
       } header: {
         Text("Pinned")
           .font(.system(size: 12, weight: .medium))
@@ -478,7 +483,13 @@ private struct SidebarContainerView: View {
       }
 
       Section {
-        regularSectionContent
+        ForEach(regularTabs, editActions: .move) { tab in
+          SidebarTabRow(
+            store: store,
+            tab: tab.wrappedValue,
+            palette: palette,
+          )
+        }
 
         NewTabButton(
           palette: palette,
@@ -497,48 +508,6 @@ private struct SidebarContainerView: View {
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-
-  @ViewBuilder
-  private var pinnedSectionContent: some View {
-    if allowsReordering {
-      ForEach(pinnedTabs, editActions: .move) { tab in
-        SidebarTabRow(
-          store: store,
-          tab: tab.wrappedValue,
-          palette: palette,
-        )
-      }
-    } else {
-      ForEach(store.pinnedTabs) { tab in
-        SidebarTabRow(
-          store: store,
-          tab: tab,
-          palette: palette,
-        )
-      }
-    }
-  }
-
-  @ViewBuilder
-  private var regularSectionContent: some View {
-    if allowsReordering {
-      ForEach(regularTabs, editActions: .move) { tab in
-        SidebarTabRow(
-          store: store,
-          tab: tab.wrappedValue,
-          palette: palette,
-        )
-      }
-    } else {
-      ForEach(store.regularTabs) { tab in
-        SidebarTabRow(
-          store: store,
-          tab: tab,
-          palette: palette,
-        )
-      }
-    }
   }
 
   private var pinnedTabs: Binding<[TerminalTabsFeature.Tab]> {
@@ -1377,8 +1346,7 @@ private struct SidebarListPreview: View {
   var body: some View {
     SidebarContainerView(
       palette: TerminalPalette(colorScheme: colorScheme),
-      store: previewStore,
-      allowsReordering: false
+      store: previewStore
     )
     .padding(.horizontal, 10)
     .padding(.top, 8)
