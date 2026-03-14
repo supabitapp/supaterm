@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "af47a2a6450bad638d573f326aa4a8f4d5e9caaf9584b79d01203713df1e58d3"
     },
+    "linear-cli": {
+      "source": "schpet/linear-cli",
+      "sourceType": "github",
+      "computedHash": "ffd956d04130f1bb873f5a5938240863348e4ea770c83bedb1e9b746b826cf21"
+    },
     "migrating-to-tuist-generated-projects": {
       "source": "tuist/agent-skills",
       "sourceType": "github",
