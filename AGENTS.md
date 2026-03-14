@@ -22,7 +22,7 @@ xcodebuild test -workspace supaterm.xcworkspace -scheme supaterm -destination "p
 ## Code Guidelines
 
 - Swift 6.2 with `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` and `SWIFT_APPROACHABLE_CONCURRENCY=YES`
-- macOS 15.0+ deployment target, macOS-only app
+- macOS 26.0+ deployment target, macOS-only app
 - When a new logic changes in the Reducer, always add tests
 
 ## Architecture

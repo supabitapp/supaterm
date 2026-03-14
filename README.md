@@ -9,7 +9,7 @@ Minimal macOS starter app for the next version of Supaterm.
 
 ## Requirements
 
-- macOS 15.0+
+- macOS 26.0+
 - [mise](https://mise.jdx.dev/) (for pinned toolchain dependencies, including Tuist and Zig)
 
 ## Building
