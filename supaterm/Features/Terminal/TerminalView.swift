@@ -1,7 +1,6 @@
 import AppKit
 import ComposableArchitecture
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct TerminalView: View {
   let store: StoreOf<AppFeature>
@@ -462,107 +461,48 @@ private struct SidebarContainerView: View {
   let palette: TerminalPalette
   let store: StoreOf<TerminalTabsFeature>
 
-  private var isDraggingTab: Bool {
-    store.draggedTabID != nil
-  }
-
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      ScrollView(.vertical, showsIndicators: false) {
-        VStack(alignment: .leading, spacing: 10) {
-          SidebarSectionView(title: "Pinned", palette: palette) {
-            VStack(spacing: 4) {
-              ForEach(store.pinnedTabs) { tab in
-                SidebarTabRow(
-                  store: store,
-                  tab: tab,
-                  palette: palette,
-                )
-                .transition(
-                  .asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .move(edge: .top))
-                  ))
-              }
-            }
-          }
-          .onDrop(
-            of: [.text],
-            delegate: TerminalTabDropDelegate(
-              targetTabID: nil,
-              targetSectionIsPinned: true,
-              draggedTabID: Binding(
-                get: { store.draggedTabID },
-                set: { _ in }
-              ),
-              onMoveBefore: { draggedID, targetID in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-                }
-              },
-              onMoveToSection: { draggedID, isPinned in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(
-                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-                }
-              },
-              onDropEnded: { store.send(.dragEnded) }
-            )
-          )
-
-          SidebarSectionView(title: "Tabs", palette: palette) {
-            VStack(spacing: 4) {
-              ForEach(store.regularTabs) { tab in
-                SidebarTabRow(
-                  store: store,
-                  tab: tab,
-                  palette: palette,
-                )
-                .transition(
-                  .asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .bottom)),
-                    removal: .opacity.combined(with: .move(edge: .top))
-                  ))
-              }
-
-              NewTabButton(
-                palette: palette,
-                action: {
-                  withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                    _ = store.send(.newTabButtonTapped)
-                  }
-                }
-              )
-            }
-          }
-          .onDrop(
-            of: [.text],
-            delegate: TerminalTabDropDelegate(
-              targetTabID: nil,
-              targetSectionIsPinned: false,
-              draggedTabID: Binding(
-                get: { store.draggedTabID },
-                set: { _ in }
-              ),
-              onMoveBefore: { draggedID, targetID in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-                }
-              },
-              onMoveToSection: { draggedID, isPinned in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(
-                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-                }
-              },
-              onDropEnded: { store.send(.dragEnded) }
-            )
+    List(
+      selection: Binding(
+        get: { store.selectedTabID },
+        set: { id in store.send(.tabSelected(id)) }
+      )
+    ) {
+      Section("Pinned") {
+        ForEach(store.pinnedTabs) { tab in
+          SidebarTabRow(
+            store: store,
+            tab: tab,
+            palette: palette,
           )
         }
+        .onMove { store.send(.pinnedTabMoved($0, $1)) }
+      }
+
+      Section("Tabs") {
+        ForEach(store.regularTabs) { tab in
+          SidebarTabRow(
+            store: store,
+            tab: tab,
+            palette: palette,
+          )
+        }
+        .onMove { store.send(.regularTabMoved($0, $1)) }
+
+        NewTabButton(
+          palette: palette,
+          action: {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = store.send(.newTabButtonTapped)
+            }
+          }
+        )
       }
     }
+    .listStyle(.sidebar)
+    .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .modifier(SidebarWindowDragGesture(isEnabled: !isDraggingTab))
+    .gesture(WindowDragGesture())
   }
 }
 
@@ -743,34 +683,6 @@ private struct SidebarHeaderView: View {
   }
 }
 
-private struct SidebarSectionView<Content: View>: View {
-  let title: String
-  let palette: TerminalPalette
-  @ViewBuilder let content: Content
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
-
-      content
-    }
-  }
-}
-
-private struct SidebarWindowDragGesture: ViewModifier {
-  let isEnabled: Bool
-
-  func body(content: Content) -> some View {
-    if isEnabled {
-      content.gesture(WindowDragGesture())
-    } else {
-      content
-    }
-  }
-}
-
 private struct NewTabButton: View {
   let palette: TerminalPalette
   let action: () -> Void
@@ -812,10 +724,6 @@ private struct SidebarTabRow: View {
     store.selectedTabID == tab.id
   }
 
-  private var isDragging: Bool {
-    store.draggedTabID == tab.id
-  }
-
   var body: some View {
     HStack(spacing: 10) {
       RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -853,20 +761,7 @@ private struct SidebarTabRow: View {
         .buttonStyle(.plain)
       }
     }
-    .padding(10)
-    .opacity(isDragging ? 0 : 1)
-    .background(background, in: .rect(cornerRadius: 10))
-    .overlay {
-      if isDragging {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .stroke(palette.selectionStroke.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
-      }
-    }
-    .contentShape(.rect(cornerRadius: 10))
-    .accessibilityAddTraits(.isButton)
-    .onTapGesture {
-      store.send(.tabSelected(tab.id))
-    }
+    .tag(tab.id)
     .onHover { hovering in
       isHovering = hovering
     }
@@ -889,42 +784,6 @@ private struct SidebarTabRow: View {
         }
       }
     }
-    .onDrag {
-      store.send(.dragStarted(tab.id))
-      return NSItemProvider(object: NSString(string: tab.id.uuidString))
-    }
-    .onDrop(
-      of: [.text],
-      delegate: TerminalTabDropDelegate(
-        targetTabID: tab.id,
-        targetSectionIsPinned: nil,
-        draggedTabID: Binding(
-          get: { store.draggedTabID },
-          set: { _ in }
-        ),
-        onMoveBefore: { draggedID, targetID in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-          }
-        },
-        onMoveToSection: { draggedID, isPinned in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-          }
-        },
-        onDropEnded: { store.send(.dragEnded) }
-      )
-    )
-  }
-
-  private var background: Color {
-    if isSelected {
-      return palette.selectedFill
-    }
-    if isHovering {
-      return palette.rowFill
-    }
-    return .clear
   }
 }
 
