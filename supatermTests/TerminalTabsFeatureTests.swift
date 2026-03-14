@@ -166,6 +166,48 @@ struct TerminalTabsFeatureTests {
   }
 
   @Test
+  func childTabActionsOnlyMutateTargetedTab() async {
+    let initialState = TerminalTabsFeature.State()
+    let store = TestStore(initialState: initialState) {
+      TerminalTabsFeature()
+    }
+    let targetID = store.state.regularTabs[1].id
+    let untouchedID = store.state.pinnedTabs[0].id
+
+    await store.send(.tabs(.element(id: targetID, action: .incrementButtonTapped))) {
+      $0.tabs[id: targetID]?.count = 1
+    }
+
+    #expect(store.state.tabs[id: targetID]?.count == 1)
+    #expect(store.state.tabs[id: untouchedID]?.count == 0)
+  }
+
+  @Test
+  func counterStatePersistsWhenSelectionChanges() async {
+    let initialState = TerminalTabsFeature.State()
+    let store = TestStore(initialState: initialState) {
+      TerminalTabsFeature()
+    }
+    let firstTabID = store.state.selectedTabID
+    let secondTabID = store.state.visibleTabs[1].id
+
+    await store.send(.tabs(.element(id: firstTabID, action: .incrementButtonTapped))) {
+      $0.tabs[id: firstTabID]?.count = 1
+    }
+
+    await store.send(.tabSelected(secondTabID)) {
+      $0.selectedTabID = secondTabID
+    }
+
+    await store.send(.tabSelected(firstTabID)) {
+      $0.selectedTabID = firstTabID
+    }
+
+    #expect(store.state.selectedTabID == firstTabID)
+    #expect(store.state.selectedTab.count == 1)
+  }
+
+  @Test
   func reorderWithinRegularSectionPreservesSetAndChangesOrder() async {
     let store = TestStore(initialState: TerminalTabsFeature.State()) {
       TerminalTabsFeature()
