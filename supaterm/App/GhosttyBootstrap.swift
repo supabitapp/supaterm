@@ -2,11 +2,13 @@ import Foundation
 import GhosttyKit
 
 enum GhosttyBootstrap {
+  static let extraCLIArguments: [String] = []
+
   private static let argv: [UnsafeMutablePointer<CChar>?] = {
     var args: [UnsafeMutablePointer<CChar>?] = []
     let executable = CommandLine.arguments.first ?? "supaterm"
     args.append(strdup(executable))
-    for argument in AppShortcuts.ghosttyCLIKeybindArguments {
+    for argument in extraCLIArguments {
       args.append(strdup(argument))
     }
     args.append(nil)

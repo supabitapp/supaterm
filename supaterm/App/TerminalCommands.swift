@@ -1,10 +1,25 @@
-import AppKit
 import ComposableArchitecture
 import SwiftUI
 
 struct TerminalCommands: Commands {
   let store: StoreOf<AppFeature>
-  let terminal: TerminalHostState
+  let ghosttyShortcuts: GhosttyShortcutManager
+  @FocusedValue(\.newTerminalAction) private var newTerminalAction
+  @FocusedValue(\.closeSurfaceAction) private var closeSurfaceAction
+  @FocusedValue(\.closeTabAction) private var closeTabAction
+  @FocusedValue(\.nextTabAction) private var nextTabAction
+  @FocusedValue(\.previousTabAction) private var previousTabAction
+  @FocusedValue(\.selectTabAction) private var selectTabAction
+  @FocusedValue(\.selectLastTabAction) private var selectLastTabAction
+  @FocusedValue(\.startSearchAction) private var startSearchAction
+  @FocusedValue(\.searchSelectionAction) private var searchSelectionAction
+  @FocusedValue(\.navigateSearchNextAction) private var navigateSearchNextAction
+  @FocusedValue(\.navigateSearchPreviousAction) private var navigateSearchPreviousAction
+  @FocusedValue(\.endSearchAction) private var endSearchAction
+  @FocusedValue(\.splitBelowAction) private var splitBelowAction
+  @FocusedValue(\.splitRightAction) private var splitRightAction
+  @FocusedValue(\.equalizePanesAction) private var equalizePanesAction
+  @FocusedValue(\.togglePaneZoomAction) private var togglePaneZoomAction
 
   var body: some Commands {
     CommandGroup(replacing: .sidebar) {
@@ -14,97 +29,144 @@ struct TerminalCommands: Commands {
       .keyboardShortcut("s", modifiers: .command)
     }
 
-    CommandMenu("Tabs") {
+    CommandGroup(after: .newItem) {
       Button("New Tab") {
-        _ = terminal.createTab()
+        newTerminalAction?()
       }
-      .keyboardShortcut(AppShortcuts.newTab.keyEquivalent, modifiers: AppShortcuts.newTab.modifiers)
+      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_tab")))
+      .disabled(newTerminalAction == nil)
+
+      Button("Close") {
+        closeSurfaceAction?()
+      }
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "close_surface"))
+      )
+      .disabled(closeSurfaceAction == nil)
 
       Button("Close Tab") {
-        _ = terminal.requestCloseSelectedTab()
+        closeTabAction?()
       }
-      .keyboardShortcut(
-        AppShortcuts.closeTab.keyEquivalent,
-        modifiers: AppShortcuts.closeTab.modifiers
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "close_tab"))
       )
+      .disabled(closeTabAction == nil)
+    }
 
-      Divider()
-
+    CommandMenu("Tabs") {
       Button("Next Tab") {
-        terminal.nextTab()
+        nextTabAction?()
       }
-      .keyboardShortcut(AppShortcuts.nextTab.keyEquivalent, modifiers: AppShortcuts.nextTab.modifiers)
+      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "next_tab")))
+      .disabled(nextTabAction == nil)
 
       Button("Previous Tab") {
-        terminal.previousTab()
+        previousTabAction?()
       }
-      .keyboardShortcut(
-        AppShortcuts.previousTab.keyEquivalent,
-        modifiers: AppShortcuts.previousTab.modifiers
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "previous_tab"))
       )
+      .disabled(previousTabAction == nil)
 
       Divider()
 
-      ForEach(1...10, id: \.self) { slot in
+      ForEach(1...8, id: \.self) { slot in
         Button("Tab \(slot)") {
-          terminal.selectTab(slot: slot)
+          selectTabAction?(slot)
         }
-        .keyboardShortcut(
-          KeyEquivalent(slot == 10 ? "0" : Character("\(slot)")),
-          modifiers: .command
+        .modifier(
+          KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "goto_tab:\(slot)"))
         )
+        .disabled(selectTabAction == nil)
       }
+
+      Button("Last Tab") {
+        selectLastTabAction?()
+      }
+      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "last_tab")))
+      .disabled(selectLastTabAction == nil)
     }
 
     CommandMenu("Pane") {
       Button("Split Below") {
-        _ = terminal.performBindingActionOnFocusedSurface("new_split:down")
+        splitBelowAction?()
       }
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_split:down"))
+      )
+      .disabled(splitBelowAction == nil)
 
       Button("Split Right") {
-        _ = terminal.performBindingActionOnFocusedSurface("new_split:right")
+        splitRightAction?()
       }
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_split:right"))
+      )
+      .disabled(splitRightAction == nil)
 
       Divider()
 
       Button("Equalize Panes") {
-        _ = terminal.performBindingActionOnFocusedSurface("equalize_splits")
+        equalizePanesAction?()
       }
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "equalize_splits"))
+      )
+      .disabled(equalizePanesAction == nil)
 
       Button("Toggle Pane Zoom") {
-        _ = terminal.performBindingActionOnFocusedSurface("toggle_split_zoom")
+        togglePaneZoomAction?()
       }
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "toggle_split_zoom"))
+      )
+      .disabled(togglePaneZoomAction == nil)
     }
 
     CommandGroup(after: .textEditing) {
       Button("Find...") {
-        _ = terminal.startSearch()
+        startSearchAction?()
       }
-      .keyboardShortcut("f", modifiers: .command)
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "start_search"))
+      )
+      .disabled(startSearchAction == nil)
 
       Button("Find Next") {
-        _ = terminal.navigateSearchNext()
+        navigateSearchNextAction?()
       }
-      .keyboardShortcut("g", modifiers: .command)
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search:next"))
+      )
+      .disabled(navigateSearchNextAction == nil)
 
       Button("Find Previous") {
-        _ = terminal.navigateSearchPrevious()
+        navigateSearchPreviousAction?()
       }
-      .keyboardShortcut("g", modifiers: [.command, .shift])
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search:previous"))
+      )
+      .disabled(navigateSearchPreviousAction == nil)
 
       Divider()
 
       Button("Hide Find Bar") {
-        _ = terminal.endSearch()
+        endSearchAction?()
       }
-      .keyboardShortcut(.escape, modifiers: [])
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "end_search"))
+      )
+      .disabled(endSearchAction == nil)
 
       Divider()
 
       Button("Use Selection for Find") {
-        _ = terminal.searchSelection()
+        searchSelectionAction?()
       }
-      .keyboardShortcut("e", modifiers: .command)
+      .modifier(
+        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search_selection"))
+      )
+      .disabled(searchSelectionAction == nil)
     }
 
     CommandGroup(after: .appInfo) {
@@ -112,6 +174,194 @@ struct TerminalCommands: Commands {
         store.send(.update(.checkForUpdatesButtonTapped))
       }
       .disabled(!store.update.canCheckForUpdates)
+    }
+  }
+}
+
+private struct NewTerminalActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var newTerminalAction: (() -> Void)? {
+    get { self[NewTerminalActionKey.self] }
+    set { self[NewTerminalActionKey.self] = newValue }
+  }
+}
+
+private struct CloseSurfaceActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var closeSurfaceAction: (() -> Void)? {
+    get { self[CloseSurfaceActionKey.self] }
+    set { self[CloseSurfaceActionKey.self] = newValue }
+  }
+}
+
+private struct CloseTabActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var closeTabAction: (() -> Void)? {
+    get { self[CloseTabActionKey.self] }
+    set { self[CloseTabActionKey.self] = newValue }
+  }
+}
+
+private struct NextTabActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var nextTabAction: (() -> Void)? {
+    get { self[NextTabActionKey.self] }
+    set { self[NextTabActionKey.self] = newValue }
+  }
+}
+
+private struct PreviousTabActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var previousTabAction: (() -> Void)? {
+    get { self[PreviousTabActionKey.self] }
+    set { self[PreviousTabActionKey.self] = newValue }
+  }
+}
+
+private struct SelectTabActionKey: FocusedValueKey {
+  typealias Value = (Int) -> Void
+}
+
+extension FocusedValues {
+  var selectTabAction: ((Int) -> Void)? {
+    get { self[SelectTabActionKey.self] }
+    set { self[SelectTabActionKey.self] = newValue }
+  }
+}
+
+private struct SelectLastTabActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var selectLastTabAction: (() -> Void)? {
+    get { self[SelectLastTabActionKey.self] }
+    set { self[SelectLastTabActionKey.self] = newValue }
+  }
+}
+
+private struct StartSearchActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var startSearchAction: (() -> Void)? {
+    get { self[StartSearchActionKey.self] }
+    set { self[StartSearchActionKey.self] = newValue }
+  }
+}
+
+private struct SearchSelectionActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var searchSelectionAction: (() -> Void)? {
+    get { self[SearchSelectionActionKey.self] }
+    set { self[SearchSelectionActionKey.self] = newValue }
+  }
+}
+
+private struct NavigateSearchNextActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var navigateSearchNextAction: (() -> Void)? {
+    get { self[NavigateSearchNextActionKey.self] }
+    set { self[NavigateSearchNextActionKey.self] = newValue }
+  }
+}
+
+private struct NavigateSearchPreviousActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var navigateSearchPreviousAction: (() -> Void)? {
+    get { self[NavigateSearchPreviousActionKey.self] }
+    set { self[NavigateSearchPreviousActionKey.self] = newValue }
+  }
+}
+
+private struct EndSearchActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var endSearchAction: (() -> Void)? {
+    get { self[EndSearchActionKey.self] }
+    set { self[EndSearchActionKey.self] = newValue }
+  }
+}
+
+private struct SplitBelowActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var splitBelowAction: (() -> Void)? {
+    get { self[SplitBelowActionKey.self] }
+    set { self[SplitBelowActionKey.self] = newValue }
+  }
+}
+
+private struct SplitRightActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var splitRightAction: (() -> Void)? {
+    get { self[SplitRightActionKey.self] }
+    set { self[SplitRightActionKey.self] = newValue }
+  }
+}
+
+private struct EqualizePanesActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var equalizePanesAction: (() -> Void)? {
+    get { self[EqualizePanesActionKey.self] }
+    set { self[EqualizePanesActionKey.self] = newValue }
+  }
+}
+
+private struct TogglePaneZoomActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var togglePaneZoomAction: (() -> Void)? {
+    get { self[TogglePaneZoomActionKey.self] }
+    set { self[TogglePaneZoomActionKey.self] = newValue }
+  }
+}
+
+private struct KeyboardShortcutModifier: ViewModifier {
+  let shortcut: KeyboardShortcut?
+
+  func body(content: Content) -> some View {
+    if let shortcut {
+      content.keyboardShortcut(shortcut)
+    } else {
+      content
     }
   }
 }

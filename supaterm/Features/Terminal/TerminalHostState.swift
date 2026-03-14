@@ -51,8 +51,8 @@ final class TerminalHostState {
   var pendingCloseRequest: PendingCloseRequest?
   var windowActivity = WindowActivityState.inactive
 
-  init() {
-    runtime = GhosttyRuntime()
+  init(runtime: GhosttyRuntime = GhosttyRuntime()) {
+    self.runtime = runtime
   }
 
   var tabs: [TerminalTabItem] {
@@ -172,6 +172,11 @@ final class TerminalHostState {
     selectTab(tabs[previousIndex].id)
   }
 
+  func selectLastTab() {
+    guard let lastTabID = visibleTabs.last?.id else { return }
+    selectTab(lastTabID)
+  }
+
   @discardableResult
   func requestCloseSelectedTab() -> Bool {
     guard let selectedTabID else { return false }
@@ -216,6 +221,31 @@ final class TerminalHostState {
 
   func togglePinned(_ tabID: TerminalTabID) {
     tabManager.togglePinned(tabID)
+  }
+
+  @discardableResult
+  func closeFocusedSurface() -> Bool {
+    performBindingActionOnFocusedSurface("close_surface")
+  }
+
+  @discardableResult
+  func splitBelow() -> Bool {
+    performBindingActionOnFocusedSurface("new_split:down")
+  }
+
+  @discardableResult
+  func splitRight() -> Bool {
+    performBindingActionOnFocusedSurface("new_split:right")
+  }
+
+  @discardableResult
+  func equalizePanes() -> Bool {
+    performBindingActionOnFocusedSurface("equalize_splits")
+  }
+
+  @discardableResult
+  func togglePaneZoom() -> Bool {
+    performBindingActionOnFocusedSurface("toggle_split_zoom")
   }
 
   @discardableResult
