@@ -39,10 +39,6 @@ private struct UpdatePreviewScenario: Identifiable {
       phase: .installing(.init(canInstallNow: true))
     ),
     .init(
-      id: "No Update",
-      phase: .notFound
-    ),
-    .init(
       id: "Error",
       phase: .error("The update feed could not be loaded.")
     ),
@@ -67,10 +63,6 @@ private struct UpdatePreviewScenario: Identifiable {
     .init(
       id: "Restart",
       phase: .installing(.init(canInstallNow: true))
-    ),
-    .init(
-      id: "No Update",
-      phase: .notFound
     ),
     .init(
       id: "Error",

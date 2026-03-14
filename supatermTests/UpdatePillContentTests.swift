@@ -53,7 +53,18 @@ struct UpdatePillContentTests {
 
     #expect(pill?.allowsPopover == false)
     #expect(pill?.badge == .icon(name: "arrow.triangle.2.circlepath", spins: true))
-    #expect(pill?.style == .capsule)
-    #expect(pill?.text == "Checking for Updates…")
+    #expect(pill?.style == .circle)
+    #expect(pill?.text == "")
+  }
+
+  @Test
+  func noUpdatesAvailableDoesNotShowAPill() {
+    #expect(
+      UpdatePillContent(
+        phase: .notFound,
+        isDevelopmentBuild: true,
+        isDevelopmentIndicatorHovering: false
+      ) == nil
+    )
   }
 }
