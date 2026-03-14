@@ -724,7 +724,8 @@ private struct NewTabButton: View {
 
           Spacer(minLength: 0)
         }
-        .padding(10)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 8)
         .background(isHovering ? palette.rowFill : .clear, in: .rect(cornerRadius: 10))
       }
     )
@@ -783,7 +784,8 @@ private struct SidebarTabRow: View {
         .buttonStyle(.plain)
       }
     }
-    .padding(10)
+    .padding(.vertical, 10)
+    .padding(.horizontal, 8)
     .background(background, in: .rect(cornerRadius: 10))
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
