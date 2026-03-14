@@ -62,10 +62,18 @@ struct UpdatePillView: View {
       .contentShape(Capsule())
 
     case .circle:
-      Circle()
-        .fill(backgroundColor(for: pill.tone))
-        .frame(width: compactPillDiameter, height: compactPillDiameter)
-        .contentShape(Circle())
+      ZStack {
+        Circle()
+          .fill(backgroundColor(for: pill.tone))
+
+        if let badge = pill.badge {
+          badgeView(for: badge)
+            .frame(width: badgeSize, height: badgeSize)
+        }
+      }
+      .frame(width: compactPillDiameter, height: compactPillDiameter)
+      .foregroundStyle(.white)
+      .contentShape(Circle())
     }
   }
 

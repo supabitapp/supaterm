@@ -23,6 +23,15 @@ struct UpdatePillContent: Equatable, Sendable {
       return
     }
 
+    if case .checking = phase {
+      self = .compactStatus(phase: phase)
+      return
+    }
+
+    if case .notFound = phase {
+      return nil
+    }
+
     self.init(
       allowsPopover: phase.allowsPopover,
       badge: phase.badge,
@@ -61,6 +70,18 @@ struct UpdatePillContent: Equatable, Sendable {
       style: isHovered ? .capsule : .circle,
       text: isHovered ? AppBuild.developmentBuildMessage : "",
       tone: .accent
+    )
+  }
+
+  private static func compactStatus(phase: UpdatePhase) -> Self {
+    Self(
+      allowsPopover: false,
+      badge: phase.badge,
+      helpText: phase.text,
+      maxText: "",
+      style: .circle,
+      text: "",
+      tone: phase.pillTone
     )
   }
 }

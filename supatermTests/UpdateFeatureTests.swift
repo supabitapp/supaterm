@@ -166,8 +166,7 @@ struct UpdateFeatureTests {
   }
 
   @Test
-  func updateNotFoundAutoDismissesAfterFiveSeconds() async {
-    let clock = TestClock()
+  func updateNotFoundDismissesImmediately() async {
     let recorder = IntentRecorder()
     let snapshot = UpdateClient.Snapshot(
       canCheckForUpdates: true,
@@ -177,7 +176,6 @@ struct UpdateFeatureTests {
     let store = TestStore(initialState: UpdateFeature.State()) {
       UpdateFeature()
     } withDependencies: {
-      $0.continuousClock = clock
       $0.updateClient.sendIntent = { intent in
         await recorder.record(intent)
       }
@@ -185,14 +183,9 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
-      $0.phase = .notFound
-    }
-
-    await clock.advance(by: .seconds(5))
-
-    await store.receive(\.updateNotFoundDismissTimerFinished) {
       $0.isDevelopmentIndicatorHovering = false
       $0.phase = .idle
+      $0.isPopoverPresented = false
     }
 
     #expect(await recorder.intents() == [.dismiss])
