@@ -57,7 +57,7 @@ struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
   @State private var rotationAngle = 0.0
 
-  private let compactPillDiameter: CGFloat = 22
+  private let compactPillDiameter: CGFloat = 14
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
