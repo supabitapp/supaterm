@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TerminalView: View {
   let store: StoreOf<AppFeature>
@@ -485,16 +486,26 @@ private struct SidebarContainerView: View {
               }
             }
           }
-          .dropDestination(for: String.self) { _, _ in
-            store.send(.dragEnded)
-            return true
-          } isTargeted: { targeted in
-            if targeted, let draggedID = store.draggedTabID {
-              withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                _ = store.send(.dragMovedToPinnedSection(draggedID))
-              }
-            }
-          }
+          .onDrop(
+            of: [.text],
+            delegate: TerminalTabDropDelegate(
+              targetTabID: nil,
+              targetSectionIsPinned: true,
+              draggedTabID: store.draggedTabID,
+              onMoveBefore: { draggedID, targetID in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+                }
+              },
+              onMoveToSection: { draggedID, isPinned in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(
+                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+                }
+              },
+              onDropEnded: { store.send(.dragEnded) }
+            )
+          )
 
           SidebarSectionView(title: "Tabs", palette: palette) {
             VStack(spacing: 4) {
@@ -521,16 +532,26 @@ private struct SidebarContainerView: View {
               )
             }
           }
-          .dropDestination(for: String.self) { _, _ in
-            store.send(.dragEnded)
-            return true
-          } isTargeted: { targeted in
-            if targeted, let draggedID = store.draggedTabID {
-              withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                _ = store.send(.dragMovedToRegularSection(draggedID))
-              }
-            }
-          }
+          .onDrop(
+            of: [.text],
+            delegate: TerminalTabDropDelegate(
+              targetTabID: nil,
+              targetSectionIsPinned: false,
+              draggedTabID: store.draggedTabID,
+              onMoveBefore: { draggedID, targetID in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+                }
+              },
+              onMoveToSection: { draggedID, isPinned in
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                  _ = store.send(
+                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+                }
+              },
+              onDropEnded: { store.send(.dragEnded) }
+            )
+          )
         }
       }
     }
@@ -866,16 +887,25 @@ private struct SidebarTabRow: View {
       store.send(.dragStarted(tab.id))
       return NSItemProvider(object: NSString(string: tab.id.uuidString))
     }
-    .dropDestination(for: String.self) { _, _ in
-      store.send(.dragEnded)
-      return true
-    } isTargeted: { targeted in
-      if targeted, let draggedID = store.draggedTabID, draggedID != tab.id {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: tab.id))
-        }
-      }
-    }
+    .onDrop(
+      of: [.text],
+      delegate: TerminalTabDropDelegate(
+        targetTabID: tab.id,
+        targetSectionIsPinned: nil,
+        draggedTabID: store.draggedTabID,
+        onMoveBefore: { draggedID, targetID in
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+          }
+        },
+        onMoveToSection: { draggedID, isPinned in
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+          }
+        },
+        onDropEnded: { store.send(.dragEnded) }
+      )
+    )
   }
 
   private var background: Color {
