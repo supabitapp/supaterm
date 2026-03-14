@@ -237,13 +237,21 @@ private struct TerminalSplitView: View {
         .clipped()
         .allowsHitTesting(!visualSidebarCollapsed)
 
-        TerminalDetailView(
-          palette: palette,
-          selectedTab: store.selectedTab,
-          isSidebarCollapsed: visualSidebarCollapsed,
-          onToggleSidebar: onToggleSidebar,
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if let selectedTabStore = store.scope(
+          state: \.tabs[id: store.selectedTabID],
+          action: \.tabs[id: store.selectedTabID]
+        ) {
+          TerminalDetailView(
+            palette: palette,
+            store: selectedTabStore,
+            isSidebarCollapsed: visualSidebarCollapsed,
+            onToggleSidebar: onToggleSidebar,
+          )
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+          Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
       }
 
       if !isSidebarCollapsed {
@@ -925,7 +933,7 @@ private struct FooterCircleButton: View {
 
 private struct TerminalDetailView: View {
   let palette: TerminalPalette
-  let selectedTab: TerminalTabsFeature.Tab
+  let store: StoreOf<TerminalTabFeature>
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -933,12 +941,12 @@ private struct TerminalDetailView: View {
     VStack(spacing: 0) {
       DetailToolbarView(
         palette: palette,
-        selectedTab: selectedTab,
+        store: store,
         isSidebarCollapsed: isSidebarCollapsed,
         onToggleSidebar: onToggleSidebar,
       )
 
-      TerminalDetailSurface(selectedTab: selectedTab, palette: palette)
+      TerminalDetailSurface(store: store, palette: palette)
         .padding(24)
     }
     .background(palette.detailBackground, in: .rect(cornerRadius: 20))
@@ -956,7 +964,7 @@ private struct TerminalDetailView: View {
 
 private struct DetailToolbarView: View {
   let palette: TerminalPalette
-  let selectedTab: TerminalTabsFeature.Tab
+  let store: StoreOf<TerminalTabFeature>
   let isSidebarCollapsed: Bool
   let onToggleSidebar: () -> Void
 
@@ -977,12 +985,12 @@ private struct DetailToolbarView: View {
       }
 
       HStack(spacing: 8) {
-        Image(systemName: selectedTab.symbol)
+        Image(systemName: store.symbol)
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(palette.secondaryText)
           .accessibilityHidden(true)
 
-        Text(selectedTab.title)
+        Text(store.title)
           .font(.system(size: 13, weight: .medium))
           .foregroundStyle(palette.primaryText)
 
@@ -1010,39 +1018,94 @@ private struct DetailToolbarView: View {
 }
 
 private struct TerminalDetailSurface: View {
-  let selectedTab: TerminalTabsFeature.Tab
+  let store: StoreOf<TerminalTabFeature>
   let palette: TerminalPalette
 
   var body: some View {
+    let tone = store.tone
+    let foreground = palette.detailForeground(for: tone)
+
     VStack(alignment: .leading, spacing: 18) {
-      Text(selectedTab.isPinned ? "PINNED TAB" : "TAB")
+      Text(store.isPinned ? "PINNED TAB" : "TAB")
         .font(.system(size: 11, weight: .bold, design: .rounded))
-        .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.8))
+        .foregroundStyle(foreground.opacity(0.8))
 
       HStack(alignment: .top) {
         VStack(alignment: .leading, spacing: 10) {
-          Text(selectedTab.title)
+          Text(store.title)
             .font(.system(size: 32, weight: .semibold, design: .rounded))
-            .foregroundStyle(palette.detailForeground(for: selectedTab.tone))
+            .foregroundStyle(foreground)
 
-          Text("Selected from the terminal sidebar.")
+          Text("Selected from the terminal sidebar. Each tab keeps its own counter state.")
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.82))
+            .foregroundStyle(foreground.opacity(0.82))
         }
 
         Spacer(minLength: 0)
 
-        Image(systemName: selectedTab.symbol)
+        Image(systemName: store.symbol)
           .font(.system(size: 56, weight: .medium))
-          .foregroundStyle(palette.detailForeground(for: selectedTab.tone).opacity(0.92))
+          .foregroundStyle(foreground.opacity(0.92))
           .accessibilityHidden(true)
       }
+
+      HStack(spacing: 16) {
+        CounterStepButton(
+          symbol: "minus",
+          foreground: foreground,
+          accessibilityLabel: "Decrement counter",
+          action: { store.send(.decrementButtonTapped) }
+        )
+
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Counter")
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundStyle(foreground.opacity(0.72))
+
+          Text("\(store.count)")
+            .font(.system(size: 34, weight: .semibold, design: .rounded))
+            .foregroundStyle(foreground)
+        }
+
+        CounterStepButton(
+          symbol: "plus",
+          foreground: foreground,
+          accessibilityLabel: "Increment counter",
+          action: { store.send(.incrementButtonTapped) }
+        )
+
+        Spacer(minLength: 0)
+      }
+      .padding(18)
+      .background(foreground.opacity(0.1), in: .rect(cornerRadius: 18))
 
       Spacer(minLength: 0)
     }
     .padding(28)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(palette.detailFill(for: selectedTab.tone), in: .rect(cornerRadius: 24))
+    .background(palette.detailFill(for: tone), in: .rect(cornerRadius: 24))
+  }
+}
+
+private struct CounterStepButton: View {
+  let symbol: String
+  let foreground: Color
+  let accessibilityLabel: String
+  let action: () -> Void
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.system(size: 15, weight: .bold))
+        .foregroundStyle(foreground)
+        .frame(width: 38, height: 38)
+        .background(isHovering ? foreground.opacity(0.18) : foreground.opacity(0.12), in: Circle())
+        .accessibilityHidden(true)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(accessibilityLabel)
+    .onHover { isHovering = $0 }
   }
 }
 

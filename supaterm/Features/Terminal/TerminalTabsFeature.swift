@@ -4,6 +4,8 @@ import SwiftUI
 
 @Reducer
 struct TerminalTabsFeature {
+  typealias Tab = TerminalTabFeature.State
+
   @Dependency(\.uuid) var uuid
 
   @ObservableState
@@ -116,23 +118,7 @@ struct TerminalTabsFeature {
     }
   }
 
-  @ObservableState
-  struct Tab: Equatable, Identifiable {
-    let id: UUID
-    var title: String
-    var symbol: String
-    var isPinned: Bool
-
-    var tone: TerminalTone {
-      TerminalTone.allCases[abs(id.uuidString.hashValue) % TerminalTone.allCases.count]
-    }
-
-    static func makeNewTab(id: UUID) -> Self {
-      Self(id: id, title: "New Tab", symbol: "terminal", isPinned: false)
-    }
-  }
-
-  enum Action: Equatable {
+  enum Action {
     case closeButtonTapped(Tab.ID)
     case newTabButtonTapped
     case nextTabRequested
@@ -143,6 +129,7 @@ struct TerminalTabsFeature {
     case regularTabOrderChanged([Tab.ID])
     case tabSelected(Tab.ID)
     case tabShortcutPressed(Int)
+    case tabs(IdentifiedActionOf<TerminalTabFeature>)
   }
 
   var body: some Reducer<State, Action> {
@@ -195,7 +182,13 @@ struct TerminalTabsFeature {
         guard state.visibleTabs.indices.contains(index) else { return .none }
         state.selectedTabID = state.visibleTabs[index].id
         return .none
+
+      case .tabs:
+        return .none
       }
+    }
+    .forEach(\.tabs, action: \.tabs) {
+      TerminalTabFeature()
     }
   }
 }
