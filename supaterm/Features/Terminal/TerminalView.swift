@@ -462,13 +462,8 @@ private struct SidebarContainerView: View {
   let store: StoreOf<TerminalTabsFeature>
 
   var body: some View {
-    List(
-      selection: Binding(
-        get: { store.selectedTabID },
-        set: { id in store.send(.tabSelected(id)) }
-      )
-    ) {
-      Section("Pinned") {
+    List {
+      Section {
         ForEach(store.pinnedTabs) { tab in
           SidebarTabRow(
             store: store,
@@ -477,9 +472,13 @@ private struct SidebarContainerView: View {
           )
         }
         .onMove { store.send(.pinnedTabMoved($0, $1)) }
+      } header: {
+        Text("Pinned")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
       }
 
-      Section("Tabs") {
+      Section {
         ForEach(store.regularTabs) { tab in
           SidebarTabRow(
             store: store,
@@ -497,6 +496,10 @@ private struct SidebarContainerView: View {
             }
           }
         )
+      } header: {
+        Text("Tabs")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
       }
     }
     .listStyle(.sidebar)
@@ -761,7 +764,17 @@ private struct SidebarTabRow: View {
         .buttonStyle(.plain)
       }
     }
+    .padding(10)
+    .background(background, in: .rect(cornerRadius: 10))
+    .contentShape(.rect(cornerRadius: 10))
+    .accessibilityAddTraits(.isButton)
+    .onTapGesture {
+      store.send(.tabSelected(tab.id))
+    }
     .tag(tab.id)
+    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+    .listRowSeparator(.hidden)
+    .listRowBackground(Color.clear)
     .onHover { hovering in
       isHovering = hovering
     }
@@ -784,6 +797,16 @@ private struct SidebarTabRow: View {
         }
       }
     }
+  }
+
+  private var background: Color {
+    if isSelected {
+      return palette.selectedFill
+    }
+    if isHovering {
+      return palette.rowFill
+    }
+    return .clear
   }
 }
 
