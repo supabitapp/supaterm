@@ -16,7 +16,7 @@ runs:
         printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
     - name: Ghostty cache
       id: ghostty_cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: Frameworks/GhosttyKit.xcframework
         key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'mise.toml', '.gitmodules') }}
