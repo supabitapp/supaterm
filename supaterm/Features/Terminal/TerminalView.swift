@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import CoreTransferable
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -183,6 +184,26 @@ enum TerminalSplitMetrics {
 private enum TerminalCoordinateSpace {
   static let split = "TerminalSplit"
   static let floatingSidebar = "TerminalFloatingSidebar"
+}
+
+private struct SidebarTabDragPayload: Codable, Identifiable, Transferable {
+  let id: UUID
+
+  static var transferRepresentation: some TransferRepresentation {
+    CodableRepresentation(contentType: UTType(exportedAs: "app.supabit.supaterm.sidebar-tab"))
+  }
+}
+
+extension DragSession {
+  fileprivate var sidebarDraggedTabID: UUID? {
+    draggedItemIDs(for: UUID.self).first
+  }
+}
+
+extension DropSession {
+  fileprivate var sidebarDraggedTabID: UUID? {
+    localSession?.draggedItemIDs(for: UUID.self).first
+  }
 }
 
 private struct TerminalSplitView: View {
@@ -461,6 +482,7 @@ private struct TerminalSidebarView: View {
 private struct SidebarContainerView: View {
   let palette: TerminalPalette
   let store: StoreOf<TerminalTabsFeature>
+  @Namespace private var dragNamespace
 
   private var isDraggingTab: Bool {
     store.draggedTabID != nil
@@ -477,6 +499,7 @@ private struct SidebarContainerView: View {
                   store: store,
                   tab: tab,
                   palette: palette,
+                  dragNamespace: dragNamespace,
                 )
                 .transition(
                   .asymmetric(
@@ -486,26 +509,13 @@ private struct SidebarContainerView: View {
               }
             }
           }
-          .onDrop(
-            of: [.text],
-            delegate: TerminalTabDropDelegate(
-              targetTabID: nil,
-              targetSectionIsPinned: true,
-              draggedTabID: store.draggedTabID,
-              onMoveBefore: { draggedID, targetID in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-                }
-              },
-              onMoveToSection: { draggedID, isPinned in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(
-                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-                }
-              },
-              onDropEnded: { store.send(.dragEnded) }
-            )
-          )
+          .onDropSessionUpdated { session in
+            handleSectionDropSession(session, isPinned: true)
+          }
+          .dropConfiguration(dropConfiguration)
+          .dropDestination(for: SidebarTabDragPayload.self) { _, _ in
+            endDragIfNeeded()
+          }
 
           SidebarSectionView(title: "Tabs", palette: palette) {
             VStack(spacing: 4) {
@@ -514,6 +524,7 @@ private struct SidebarContainerView: View {
                   store: store,
                   tab: tab,
                   palette: palette,
+                  dragNamespace: dragNamespace,
                 )
                 .transition(
                   .asymmetric(
@@ -532,31 +543,68 @@ private struct SidebarContainerView: View {
               )
             }
           }
-          .onDrop(
-            of: [.text],
-            delegate: TerminalTabDropDelegate(
-              targetTabID: nil,
-              targetSectionIsPinned: false,
-              draggedTabID: store.draggedTabID,
-              onMoveBefore: { draggedID, targetID in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-                }
-              },
-              onMoveToSection: { draggedID, isPinned in
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                  _ = store.send(
-                    isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-                }
-              },
-              onDropEnded: { store.send(.dragEnded) }
-            )
-          )
+          .onDropSessionUpdated { session in
+            handleSectionDropSession(session, isPinned: false)
+          }
+          .dropConfiguration(dropConfiguration)
+          .dropDestination(for: SidebarTabDragPayload.self) { _, _ in
+            endDragIfNeeded()
+          }
         }
+        .dragContainer(for: SidebarTabDragPayload.self, itemID: \.id, in: dragNamespace) { draggedIDs in
+          draggedIDs.map(SidebarTabDragPayload.init(id:))
+        }
+        .dragConfiguration(.init(allowMove: true))
+        .dragPreviewsFormation(.none)
+        .dropPreviewsFormation(.none)
+        .onDragSessionUpdated(handleDragSession)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .modifier(SidebarWindowDragGesture(isEnabled: !isDraggingTab))
+  }
+
+  private func handleDragSession(_ session: DragSession) {
+    switch session.phase {
+    case .initial, .active:
+      guard let draggedTabID = session.sidebarDraggedTabID else { return }
+      startDragIfNeeded(draggedTabID)
+
+    case .ended, .dataTransferCompleted:
+      endDragIfNeeded()
+
+    @unknown default:
+      endDragIfNeeded()
+    }
+  }
+
+  private func handleSectionDropSession(_ session: DropSession, isPinned: Bool) {
+    guard case .entering = session.phase else { return }
+    guard let draggedTabID = session.sidebarDraggedTabID else { return }
+    startDragIfNeeded(draggedTabID)
+    moveTab(draggedTabID, toPinnedSection: isPinned)
+  }
+
+  private func dropConfiguration(_ session: DropSession) -> DropConfiguration {
+    var configuration = DropConfiguration(operation: .move)
+    configuration.acceptedItemCount = session.sidebarDraggedTabID == nil ? 0 : 1
+    return configuration
+  }
+
+  private func startDragIfNeeded(_ draggedTabID: UUID) {
+    guard store.draggedTabID != draggedTabID else { return }
+    store.send(.dragStarted(draggedTabID))
+  }
+
+  private func moveTab(_ draggedID: UUID, toPinnedSection isPinned: Bool) {
+    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+      _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+    }
+  }
+
+  private func endDragIfNeeded() {
+    guard store.draggedTabID != nil else { return }
+    store.send(.dragEnded)
   }
 }
 
@@ -800,6 +848,7 @@ private struct SidebarTabRow: View {
   let store: StoreOf<TerminalTabsFeature>
   let tab: TerminalTabsFeature.Tab
   let palette: TerminalPalette
+  let dragNamespace: Namespace.ID
   @State private var isHovering = false
 
   private var isSelected: Bool {
@@ -883,29 +932,14 @@ private struct SidebarTabRow: View {
         }
       }
     }
-    .onDrag {
-      store.send(.dragStarted(tab.id))
-      return NSItemProvider(object: NSString(string: tab.id.uuidString))
+    .draggable(containerItemID: tab.id, containerNamespace: dragNamespace)
+    .onDropSessionUpdated { session in
+      handleDropSession(session)
     }
-    .onDrop(
-      of: [.text],
-      delegate: TerminalTabDropDelegate(
-        targetTabID: tab.id,
-        targetSectionIsPinned: nil,
-        draggedTabID: store.draggedTabID,
-        onMoveBefore: { draggedID, targetID in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-          }
-        },
-        onMoveToSection: { draggedID, isPinned in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-          }
-        },
-        onDropEnded: { store.send(.dragEnded) }
-      )
-    )
+    .dropConfiguration(dropConfiguration)
+    .dropDestination(for: SidebarTabDragPayload.self) { _, _ in
+      endDragIfNeeded()
+    }
   }
 
   private var background: Color {
@@ -916,6 +950,31 @@ private struct SidebarTabRow: View {
       return palette.rowFill
     }
     return .clear
+  }
+
+  private func handleDropSession(_ session: DropSession) {
+    guard case .entering = session.phase else { return }
+    guard let draggedTabID = session.sidebarDraggedTabID, draggedTabID != tab.id else { return }
+    startDragIfNeeded(draggedTabID)
+    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+      _ = store.send(.dragMovedBeforeTab(draggedID: draggedTabID, targetID: tab.id))
+    }
+  }
+
+  private func dropConfiguration(_ session: DropSession) -> DropConfiguration {
+    var configuration = DropConfiguration(operation: .move)
+    configuration.acceptedItemCount = session.sidebarDraggedTabID == nil ? 0 : 1
+    return configuration
+  }
+
+  private func startDragIfNeeded(_ draggedTabID: UUID) {
+    guard store.draggedTabID != draggedTabID else { return }
+    store.send(.dragStarted(draggedTabID))
+  }
+
+  private func endDragIfNeeded() {
+    guard store.draggedTabID != nil else { return }
+    store.send(.dragEnded)
   }
 }
 
