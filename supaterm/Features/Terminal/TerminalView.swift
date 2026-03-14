@@ -461,6 +461,7 @@ private struct TerminalSidebarView: View {
 private struct SidebarContainerView: View {
   let palette: TerminalPalette
   let store: StoreOf<TerminalTabsFeature>
+  @State private var dragEndMonitor: Any?
 
   private var isDraggingTab: Bool {
     store.draggedTabID != nil
@@ -557,6 +558,16 @@ private struct SidebarContainerView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .modifier(SidebarWindowDragGesture(isEnabled: !isDraggingTab))
+    .onChange(of: isDraggingTab, initial: true) { _, isDragging in
+      if isDragging {
+        startDragEndMonitorIfNeeded()
+      } else {
+        stopDragEndMonitor()
+      }
+    }
+    .onDisappear {
+      stopDragEndMonitor()
+    }
     .onDragSessionUpdated(handleDragSession)
   }
 
@@ -576,6 +587,26 @@ private struct SidebarContainerView: View {
   private func endDragIfNeeded() {
     guard store.draggedTabID != nil else { return }
     store.send(.dragEnded)
+  }
+
+  private func startDragEndMonitorIfNeeded() {
+    guard dragEndMonitor == nil else { return }
+
+    dragEndMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseUp, .keyDown]) { event in
+      if event.type == .keyDown, event.keyCode != 53 {
+        return event
+      }
+
+      endDragIfNeeded()
+      return event
+    }
+  }
+
+  private func stopDragEndMonitor() {
+    if let dragEndMonitor {
+      NSEvent.removeMonitor(dragEndMonitor)
+    }
+    self.dragEndMonitor = nil
   }
 }
 
