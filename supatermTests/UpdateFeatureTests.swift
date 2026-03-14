@@ -26,7 +26,7 @@ struct UpdateFeatureTests {
   }
 
   @Test
-  func checkForUpdatesButtonTappedUsesStubFlowInDebugBuilds() async {
+  func checkForUpdatesButtonTappedUsesStubDemoFlowInDebugBuilds() async {
     let clock = TestClock()
     let recorder = CheckRecorder()
     var initialState = UpdateFeature.State()
@@ -50,8 +50,79 @@ struct UpdateFeatureTests {
 
     await clock.advance(by: .seconds(1))
 
-    await store.receive(\.debugStubCheckFinished) {
-      $0.phase = .idle
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .updateAvailable(demoUpdateInfo)
+    }
+
+    await clock.advance(by: .seconds(1))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.canCheckForUpdates = true
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.18))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.42))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.67))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.86))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 1))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .extracting(0.2)
+    }
+
+    await clock.advance(by: .milliseconds(300))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .extracting(0.5)
+    }
+
+    await clock.advance(by: .milliseconds(300))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .extracting(0.8)
+    }
+
+    await clock.advance(by: .milliseconds(300))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .extracting(1)
+    }
+
+    await clock.advance(by: .milliseconds(300))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .installing(.init(canInstallNow: true))
     }
   }
 
@@ -142,6 +213,45 @@ struct UpdateFeatureTests {
     }
 
     #expect(await recorder.intents() == [.later])
+  }
+
+  @Test
+  func installAndRelaunchButtonTappedStartsStubInstallSequence() async {
+    let clock = TestClock()
+    var initialState = UpdateFeature.State()
+    initialState.isPopoverPresented = true
+    initialState.phase = .updateAvailable(demoUpdateInfo)
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.appBuildClient.usesStubUpdateChecks = { true }
+    }
+
+    await store.send(.installAndRelaunchButtonTapped) {
+      $0.isPopoverPresented = false
+      $0.phase = .downloading(.init(expectedLength: nil, receivedLength: 0))
+    }
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.canCheckForUpdates = true
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.18))
+      )
+    }
+
+    await clock.advance(by: .milliseconds(350))
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.phase = .downloading(
+        .init(expectedLength: demoExpectedLength, receivedLength: demoReceivedLength(for: 0.42))
+      )
+    }
+
+    await store.send(.dismissButtonTapped) {
+      $0.phase = .idle
+    }
   }
 
   @Test
@@ -294,6 +404,37 @@ struct UpdateFeatureTests {
       $0.phase = .extracting(0.5)
     }
   }
+
+  @Test
+  func restartNowButtonTappedResetsStubFlowToIdle() async {
+    var initialState = UpdateFeature.State()
+    initialState.isPopoverPresented = true
+    initialState.phase = .installing(.init(canInstallNow: true))
+
+    let store = TestStore(initialState: initialState) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.appBuildClient.usesStubUpdateChecks = { true }
+    }
+
+    await store.send(.restartNowButtonTapped) {
+      $0.isPopoverPresented = false
+      $0.phase = .idle
+    }
+  }
+}
+
+private let demoExpectedLength: UInt64 = 146_800_640
+
+private let demoUpdateInfo = UpdateInfo(
+  contentLength: demoExpectedLength,
+  publishedAt: nil,
+  releaseNotesURL: nil,
+  version: "0.4.0"
+)
+
+private func demoReceivedLength(for fraction: Double) -> UInt64 {
+  UInt64(Double(demoExpectedLength) * fraction)
 }
 
 private actor CheckRecorder {
