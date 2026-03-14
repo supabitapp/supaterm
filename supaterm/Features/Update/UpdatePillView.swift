@@ -58,7 +58,10 @@ struct UpdatePillView: View {
   @State private var isDevelopmentIndicatorHovering = false
   @State private var rotationAngle = 0.0
 
+  private let badgeSize: CGFloat = 14
   private let compactPillDiameter: CGFloat = 14
+  private let pillHorizontalPadding: CGFloat = 8
+  private let pillVerticalPadding: CGFloat = 4
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
@@ -100,10 +103,11 @@ struct UpdatePillView: View {
           .opacity(isDevelopmentIndicatorHovering ? 1 : 0)
           .frame(width: isDevelopmentIndicatorHovering ? developmentBuildTextWidth : 0, alignment: .leading)
       }
-      .padding(.horizontal, isDevelopmentIndicatorHovering ? 8 : 0)
+      .padding(.horizontal, isDevelopmentIndicatorHovering ? pillHorizontalPadding : 0)
+      .padding(.vertical, isDevelopmentIndicatorHovering ? pillVerticalPadding : 0)
       .frame(
         width: isDevelopmentIndicatorHovering ? developmentBuildExpandedWidth : compactPillDiameter,
-        height: compactPillDiameter
+        height: isDevelopmentIndicatorHovering ? expandedPillHeight : compactPillDiameter
       )
       .background(Capsule().fill(backgroundColor(for: pill.tone)))
       .foregroundStyle(.white)
@@ -111,7 +115,7 @@ struct UpdatePillView: View {
     } else {
       HStack(spacing: 6) {
         badgeView(for: pill.badge)
-          .frame(width: 14, height: 14)
+          .frame(width: badgeSize, height: badgeSize)
 
         Text(pill.text)
           .font(Font(textFont))
@@ -119,8 +123,8 @@ struct UpdatePillView: View {
           .truncationMode(.tail)
           .frame(width: textWidth(for: pill))
       }
-      .padding(.horizontal, 8)
-      .padding(.vertical, 4)
+      .padding(.horizontal, pillHorizontalPadding)
+      .padding(.vertical, pillVerticalPadding)
       .background(Capsule().fill(backgroundColor(for: pill.tone)))
       .foregroundStyle(.white)
       .contentShape(Capsule())
@@ -188,7 +192,11 @@ struct UpdatePillView: View {
   }
 
   private var developmentBuildExpandedWidth: CGFloat {
-    developmentBuildTextWidth + 16
+    developmentBuildTextWidth + (pillHorizontalPadding * 2)
+  }
+
+  private var expandedPillHeight: CGFloat {
+    badgeSize + (pillVerticalPadding * 2)
   }
 
   private var developmentBuildTextWidth: CGFloat {
