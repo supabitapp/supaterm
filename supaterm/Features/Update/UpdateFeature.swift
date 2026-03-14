@@ -10,14 +10,25 @@ struct UpdateFeature {
   @ObservableState
   struct State: Equatable {
     var canCheckForUpdates = false
+    var isDevelopmentBuild = false
+    var isDevelopmentIndicatorHovering = false
     var isPopoverPresented = false
     var phase: UpdatePhase = .idle
     var presentationContext = UpdatePresentationContext()
+
+    var pillContent: UpdatePillContent? {
+      UpdatePillContent(
+        phase: phase,
+        isDevelopmentBuild: isDevelopmentBuild,
+        isDevelopmentIndicatorHovering: isDevelopmentIndicatorHovering
+      )
+    }
   }
 
   enum Action {
     case allowAutomaticUpdatesButtonTapped
     case checkForUpdatesButtonTapped
+    case developmentBuildHoverChanged(Bool)
     case dismissButtonTapped
     case installAndRelaunchButtonTapped
     case laterButtonTapped
@@ -33,12 +44,14 @@ struct UpdateFeature {
   }
 
   @Dependency(\.continuousClock) var clock
+  @Dependency(AppBuildClient.self) var appBuildClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .allowAutomaticUpdatesButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .idle
         return .run { [updateClient] _ in
@@ -47,12 +60,22 @@ struct UpdateFeature {
 
       case .checkForUpdatesButtonTapped:
         guard state.canCheckForUpdates else { return .none }
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
+        state.phase = .checking
         return .run { [updateClient] _ in
           await updateClient.checkForUpdates()
         }
 
+      case .developmentBuildHoverChanged(let isHovering):
+        guard state.isDevelopmentBuild else { return .none }
+        guard state.phase.isIdle else { return .none }
+        guard state.isDevelopmentIndicatorHovering != isHovering else { return .none }
+        state.isDevelopmentIndicatorHovering = isHovering
+        return .none
+
       case .dismissButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .idle
         return .merge(
@@ -63,12 +86,14 @@ struct UpdateFeature {
         )
 
       case .installAndRelaunchButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         return .run { [updateClient] _ in
           await updateClient.sendIntent(.install)
         }
 
       case .laterButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .idle
         return .run { [updateClient] _ in
@@ -79,6 +104,7 @@ struct UpdateFeature {
         guard !state.phase.isIdle else { return .none }
         guard state.phase.allowsPopover else { return .none }
         if case .notFound = state.phase {
+          state.isDevelopmentIndicatorHovering = false
           state.isPopoverPresented = false
           state.phase = .idle
           return .merge(
@@ -103,12 +129,14 @@ struct UpdateFeature {
         }
 
       case .restartNowButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         return .run { [updateClient] _ in
           await updateClient.sendIntent(.restartNow)
         }
 
       case .retryButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .idle
         return .run { [updateClient] _ in
@@ -116,6 +144,7 @@ struct UpdateFeature {
         }
 
       case .skipButtonTapped:
+        state.isDevelopmentIndicatorHovering = false
         state.isPopoverPresented = false
         state.phase = .idle
         return .run { [updateClient] _ in
@@ -123,6 +152,10 @@ struct UpdateFeature {
         }
 
       case .task:
+        state.isDevelopmentBuild = appBuildClient.isDevelopmentBuild()
+        if !state.isDevelopmentBuild {
+          state.isDevelopmentIndicatorHovering = false
+        }
         return .run { [updateClient] send in
           await updateClient.start()
           let stream = await updateClient.observe()
@@ -135,6 +168,9 @@ struct UpdateFeature {
       case .updateClientSnapshotReceived(let snapshot):
         state.canCheckForUpdates = snapshot.canCheckForUpdates
         state.phase = snapshot.phase
+        if !state.isDevelopmentBuild || !snapshot.phase.isIdle {
+          state.isDevelopmentIndicatorHovering = false
+        }
         if !snapshot.phase.allowsPopover {
           state.isPopoverPresented = false
         }
@@ -150,6 +186,7 @@ struct UpdateFeature {
 
       case .updateNotFoundDismissTimerFinished:
         guard case .notFound = state.phase else { return .none }
+        state.isDevelopmentIndicatorHovering = false
         state.phase = .idle
         state.isPopoverPresented = false
         return .run { [updateClient] _ in

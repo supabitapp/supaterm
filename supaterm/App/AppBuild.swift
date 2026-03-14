@@ -1,13 +1,14 @@
+import ComposableArchitecture
 import Foundation
 
 enum AppBuild {
-  static let developmentBuildMessage = "This is a development build"
+  nonisolated static let developmentBuildMessage = "This is a development build"
 
-  static var allowsBackgroundUpdateCheckOnLaunch: Bool {
+  nonisolated static var allowsBackgroundUpdateCheckOnLaunch: Bool {
     true
   }
 
-  static var isDevelopmentBuild: Bool {
+  nonisolated static var isDevelopmentBuild: Bool {
     #if DEBUG
       true
     #else
@@ -15,7 +16,7 @@ enum AppBuild {
     #endif
   }
 
-  static func isDevelopmentFlag(_ value: Any?) -> Bool {
+  nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
     switch value {
     case let boolValue as Bool:
       return boolValue
@@ -26,5 +27,30 @@ enum AppBuild {
     default:
       return false
     }
+  }
+}
+
+struct AppBuildClient: Sendable {
+  var isDevelopmentBuild: @Sendable () -> Bool
+}
+
+extension AppBuildClient: DependencyKey {
+  static let liveValue = Self(
+    isDevelopmentBuild: {
+      AppBuild.isDevelopmentBuild
+    }
+  )
+
+  static let testValue = Self(
+    isDevelopmentBuild: {
+      false
+    }
+  )
+}
+
+extension DependencyValues {
+  var appBuildClient: AppBuildClient {
+    get { self[AppBuildClient.self] }
+    set { self[AppBuildClient.self] = newValue }
   }
 }
