@@ -42,16 +42,18 @@ struct TerminalTabsFeature {
       }
     }
 
-    mutating func movePinnedTab(from source: IndexSet, to destination: Int) {
-      var pinned = pinnedTabs
-      pinned.move(fromOffsets: source, toOffset: destination)
-      setVisibleTabs(pinned + regularTabs)
+    mutating func setPinnedTabOrder(_ orderedIDs: [Tab.ID]) {
+      let pinnedByID = Dictionary(uniqueKeysWithValues: pinnedTabs.map { ($0.id, $0) })
+      let orderedPinnedTabs = orderedIDs.compactMap { pinnedByID[$0] }
+      guard orderedPinnedTabs.count == pinnedTabs.count else { return }
+      setVisibleTabs(orderedPinnedTabs + regularTabs)
     }
 
-    mutating func moveRegularTab(from source: IndexSet, to destination: Int) {
-      var regular = regularTabs
-      regular.move(fromOffsets: source, toOffset: destination)
-      setVisibleTabs(pinnedTabs + regular)
+    mutating func setRegularTabOrder(_ orderedIDs: [Tab.ID]) {
+      let regularByID = Dictionary(uniqueKeysWithValues: regularTabs.map { ($0.id, $0) })
+      let orderedRegularTabs = orderedIDs.compactMap { regularByID[$0] }
+      guard orderedRegularTabs.count == regularTabs.count else { return }
+      setVisibleTabs(pinnedTabs + orderedRegularTabs)
     }
 
     mutating func moveTab(_ tabID: Tab.ID, toSection isPinned: Bool) {
@@ -134,11 +136,11 @@ struct TerminalTabsFeature {
     case closeButtonTapped(Tab.ID)
     case newTabButtonTapped
     case nextTabRequested
-    case pinnedTabMoved(IndexSet, Int)
+    case pinnedTabOrderChanged([Tab.ID])
     case pinToggled(Tab.ID)
     case pinSelectedTabToggled
     case previousTabRequested
-    case regularTabMoved(IndexSet, Int)
+    case regularTabOrderChanged([Tab.ID])
     case tabSelected(Tab.ID)
     case tabShortcutPressed(Int)
   }
@@ -161,8 +163,8 @@ struct TerminalTabsFeature {
         state.selectTab(moving: 1)
         return .none
 
-      case .pinnedTabMoved(let source, let destination):
-        state.movePinnedTab(from: source, to: destination)
+      case .pinnedTabOrderChanged(let orderedIDs):
+        state.setPinnedTabOrder(orderedIDs)
         return .none
 
       case .pinToggled(let tabID):
@@ -179,8 +181,8 @@ struct TerminalTabsFeature {
         state.selectTab(moving: -1)
         return .none
 
-      case .regularTabMoved(let source, let destination):
-        state.moveRegularTab(from: source, to: destination)
+      case .regularTabOrderChanged(let orderedIDs):
+        state.setRegularTabOrder(orderedIDs)
         return .none
 
       case .tabSelected(let tabID):

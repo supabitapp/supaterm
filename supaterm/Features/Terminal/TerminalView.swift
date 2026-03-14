@@ -464,14 +464,13 @@ private struct SidebarContainerView: View {
   var body: some View {
     List {
       Section {
-        ForEach(store.pinnedTabs) { tab in
+        ForEach(pinnedTabs, editActions: .move) { tab in
           SidebarTabRow(
             store: store,
-            tab: tab,
+            tab: tab.wrappedValue,
             palette: palette,
           )
         }
-        .onMove { store.send(.pinnedTabMoved($0, $1)) }
       } header: {
         Text("Pinned")
           .font(.system(size: 12, weight: .medium))
@@ -479,14 +478,13 @@ private struct SidebarContainerView: View {
       }
 
       Section {
-        ForEach(store.regularTabs) { tab in
+        ForEach(regularTabs, editActions: .move) { tab in
           SidebarTabRow(
             store: store,
-            tab: tab,
+            tab: tab.wrappedValue,
             palette: palette,
           )
         }
-        .onMove { store.send(.regularTabMoved($0, $1)) }
 
         NewTabButton(
           palette: palette,
@@ -505,6 +503,20 @@ private struct SidebarContainerView: View {
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  private var pinnedTabs: Binding<[TerminalTabsFeature.Tab]> {
+    Binding(
+      get: { store.pinnedTabs },
+      set: { store.send(.pinnedTabOrderChanged($0.map(\.id))) }
+    )
+  }
+
+  private var regularTabs: Binding<[TerminalTabsFeature.Tab]> {
+    Binding(
+      get: { store.regularTabs },
+      set: { store.send(.regularTabOrderChanged($0.map(\.id))) }
+    )
   }
 }
 

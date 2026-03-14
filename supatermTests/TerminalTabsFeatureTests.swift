@@ -1,6 +1,5 @@
 import ComposableArchitecture
 import Foundation
-import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -171,10 +170,16 @@ struct TerminalTabsFeatureTests {
     let store = TestStore(initialState: TerminalTabsFeature.State()) {
       TerminalTabsFeature()
     }
+    let orderedIDs = [
+      store.state.regularTabs[2].id,
+      store.state.regularTabs[0].id,
+      store.state.regularTabs[1].id,
+      store.state.regularTabs[3].id,
+    ]
 
-    await store.send(.regularTabMoved(IndexSet(integer: 2), 0)) {
-      var regular = $0.regularTabs
-      regular.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+    await store.send(.regularTabOrderChanged(orderedIDs)) {
+      let regularByID = Dictionary(uniqueKeysWithValues: $0.regularTabs.map { ($0.id, $0) })
+      let regular = orderedIDs.compactMap { regularByID[$0] }
       $0.tabs = IdentifiedArray(uniqueElements: $0.pinnedTabs + regular)
     }
   }
@@ -184,10 +189,15 @@ struct TerminalTabsFeatureTests {
     let store = TestStore(initialState: TerminalTabsFeature.State()) {
       TerminalTabsFeature()
     }
+    let orderedIDs = [
+      store.state.pinnedTabs[2].id,
+      store.state.pinnedTabs[0].id,
+      store.state.pinnedTabs[1].id,
+    ]
 
-    await store.send(.pinnedTabMoved(IndexSet(integer: 2), 0)) {
-      var pinned = $0.pinnedTabs
-      pinned.move(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+    await store.send(.pinnedTabOrderChanged(orderedIDs)) {
+      let pinnedByID = Dictionary(uniqueKeysWithValues: $0.pinnedTabs.map { ($0.id, $0) })
+      let pinned = orderedIDs.compactMap { pinnedByID[$0] }
       $0.tabs = IdentifiedArray(uniqueElements: pinned + $0.regularTabs)
     }
   }
