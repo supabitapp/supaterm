@@ -59,6 +59,18 @@ final class TerminalHostState {
     tabManager.tabs
   }
 
+  var pinnedTabs: [TerminalTabItem] {
+    tabManager.pinnedTabs
+  }
+
+  var regularTabs: [TerminalTabItem] {
+    tabManager.regularTabs
+  }
+
+  var visibleTabs: [TerminalTabItem] {
+    tabManager.visibleTabs
+  }
+
   var selectedTabID: TerminalTabID? {
     tabManager.selectedTabId
   }
@@ -132,8 +144,8 @@ final class TerminalHostState {
 
   func selectTab(slot: Int) {
     let index = slot - 1
-    guard tabs.indices.contains(index) else { return }
-    selectTab(tabs[index].id)
+    guard visibleTabs.indices.contains(index) else { return }
+    selectTab(visibleTabs[index].id)
   }
 
   func nextTab() {
@@ -192,6 +204,18 @@ final class TerminalHostState {
 
   func cancelPendingClose() {
     pendingCloseRequest = nil
+  }
+
+  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
+    tabManager.setPinnedTabOrder(orderedIDs)
+  }
+
+  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
+    tabManager.setRegularTabOrder(orderedIDs)
+  }
+
+  func togglePinned(_ tabID: TerminalTabID) {
+    tabManager.togglePinned(tabID)
   }
 
   @discardableResult

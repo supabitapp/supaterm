@@ -5,17 +5,17 @@ import Testing
 @MainActor
 struct TerminalTabManagerTests {
   @Test
-  func createTabInsertsAfterSelectedTabAndSelectsIt() {
+  func createTabAppendsRegularTabsAfterPinnedSectionAndSelectsIt() {
     let manager = TerminalTabManager()
 
+    let pinned = manager.createTab(title: "Pinned", icon: "terminal", isPinned: true)
     let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+
+    manager.selectTab(pinned)
     let second = manager.createTab(title: "Terminal 2", icon: "terminal")
 
-    manager.selectTab(first)
-    let third = manager.createTab(title: "Terminal 3", icon: "terminal")
-
-    #expect(manager.tabs.map(\.id) == [first, third, second])
-    #expect(manager.selectedTabId == third)
+    #expect(manager.tabs.map(\.id) == [pinned, first, second])
+    #expect(manager.selectedTabId == second)
   }
 
   @Test
@@ -54,5 +54,38 @@ struct TerminalTabManagerTests {
     manager.closeTab(third)
     #expect(manager.selectedTabId == nil)
     #expect(manager.tabs.isEmpty)
+  }
+
+  @Test
+  func togglePinnedMovesTabsAcrossSections() {
+    let manager = TerminalTabManager()
+
+    let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let second = manager.createTab(title: "Terminal 2", icon: "terminal")
+
+    manager.togglePinned(second)
+    #expect(manager.pinnedTabs.map(\.id) == [second])
+    #expect(manager.regularTabs.map(\.id) == [first])
+    #expect(manager.tabs.map(\.id) == [second, first])
+
+    manager.togglePinned(second)
+    #expect(manager.pinnedTabs.isEmpty)
+    #expect(manager.tabs.map(\.id) == [first, second])
+  }
+
+  @Test
+  func sectionReorderingOnlyAffectsThatSection() {
+    let manager = TerminalTabManager()
+
+    let pinnedA = manager.createTab(title: "Pinned A", icon: "terminal", isPinned: true)
+    let pinnedB = manager.createTab(title: "Pinned B", icon: "terminal", isPinned: true)
+    let regularA = manager.createTab(title: "Regular A", icon: "terminal")
+    let regularB = manager.createTab(title: "Regular B", icon: "terminal")
+
+    manager.setPinnedTabOrder([pinnedB, pinnedA])
+    #expect(manager.tabs.map(\.id) == [pinnedB, pinnedA, regularA, regularB])
+
+    manager.setRegularTabOrder([regularB, regularA])
+    #expect(manager.tabs.map(\.id) == [pinnedB, pinnedA, regularB, regularA])
   }
 }
