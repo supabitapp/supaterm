@@ -45,10 +45,10 @@ struct UpdatePillContent: Equatable {
 
   private static let developmentBuild = Self(
     allowsPopover: false,
-    badge: .icon(name: "hammer", spins: false),
+    badge: nil,
     helpText: AppBuild.developmentBuildMessage,
-    maxText: AppBuild.developmentPillText,
-    text: AppBuild.developmentPillText,
+    maxText: "",
+    text: "",
     tone: .accent,
   )
 }
@@ -57,6 +57,7 @@ struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
   @State private var rotationAngle = 0.0
 
+  private let compactPillWidth: CGFloat = 28
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
@@ -82,17 +83,24 @@ struct UpdatePillView: View {
   }
 
   private func label(for pill: UpdatePillContent) -> some View {
-    HStack(spacing: 6) {
-      badgeView(for: pill.badge)
-        .frame(width: 14, height: 14)
+    Group {
+      if pill.badge == nil && pill.text.isEmpty {
+        Color.clear
+          .frame(width: compactPillWidth, height: 14)
+      } else {
+        HStack(spacing: 6) {
+          badgeView(for: pill.badge)
+            .frame(width: 14, height: 14)
 
-      Text(pill.text)
-        .font(Font(textFont))
-        .lineLimit(1)
-        .truncationMode(.tail)
-        .frame(width: textWidth(for: pill))
+          Text(pill.text)
+            .font(Font(textFont))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: textWidth(for: pill))
+        }
+      }
     }
-    .padding(.horizontal, 8)
+    .padding(.horizontal, pill.badge == nil && pill.text.isEmpty ? 0 : 8)
     .padding(.vertical, 4)
     .background(Capsule().fill(backgroundColor(for: pill.tone)))
     .foregroundStyle(.white)

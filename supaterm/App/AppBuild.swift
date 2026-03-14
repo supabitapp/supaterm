@@ -2,7 +2,6 @@ import Foundation
 
 enum AppBuild {
   static let developmentBuildMessage = "This is a development build"
-  static let developmentPillText = "Development Build"
 
   static var allowsBackgroundUpdateCheckOnLaunch: Bool {
     true
