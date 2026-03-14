@@ -677,7 +677,7 @@ private struct SidebarHeaderView: View {
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       WindowTrafficLights()
       UpdatePillView(store: updateStore)
 
@@ -700,6 +700,11 @@ private struct SidebarHeaderView: View {
     }
     .frame(height: 30)
   }
+}
+
+private enum WindowTrafficLightMetrics {
+  static let buttonSpacing: CGFloat = 9
+  static let leadingPadding: CGFloat = 8
 }
 
 private let sidebarRowHorizontalPadding: CGFloat = 8
@@ -1082,7 +1087,7 @@ private struct WindowTrafficLights: View {
   }
 
   var body: some View {
-    HStack(spacing: 9) {
+    HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       ForEach(TrafficLight.allCases, id: \.self) { light in
         Button(
           action: { light.perform() },
@@ -1104,7 +1109,7 @@ private struct WindowTrafficLights: View {
         .accessibilityLabel(light.accessibilityLabel)
       }
     }
-    .padding(.horizontal, 8)
+    .padding(.leading, WindowTrafficLightMetrics.leadingPadding)
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.1)) {
         isHovering = hovering
