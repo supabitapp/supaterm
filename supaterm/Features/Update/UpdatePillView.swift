@@ -8,6 +8,7 @@ struct UpdatePillView: View {
 
   private let badgeSize: CGFloat = 14
   private let compactPillDiameter: CGFloat = 14
+  private let compactBadgeSize: CGFloat = 9
   private let pillHorizontalPadding: CGFloat = 8
   private let pillVerticalPadding: CGFloat = 4
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
@@ -45,7 +46,7 @@ struct UpdatePillView: View {
     case .capsule:
       HStack(spacing: 6) {
         if let badge = pill.badge {
-          badgeView(for: badge)
+          badgeView(for: badge, size: badgeSize)
             .frame(width: badgeSize, height: badgeSize)
         }
 
@@ -67,8 +68,8 @@ struct UpdatePillView: View {
           .fill(backgroundColor(for: pill.tone))
 
         if let badge = pill.badge {
-          badgeView(for: badge)
-            .frame(width: badgeSize, height: badgeSize)
+          badgeView(for: badge, size: compactBadgeSize)
+            .frame(width: compactBadgeSize, height: compactBadgeSize)
         }
       }
       .frame(width: compactPillDiameter, height: compactPillDiameter)
@@ -78,10 +79,11 @@ struct UpdatePillView: View {
   }
 
   @ViewBuilder
-  private func badgeView(for badge: UpdateBadge) -> some View {
+  private func badgeView(for badge: UpdateBadge, size: CGFloat) -> some View {
     switch badge {
     case .icon(let name, let spins):
       Image(systemName: name)
+        .font(.system(size: size, weight: .semibold))
         .accessibilityHidden(true)
         .rotationEffect(.degrees(rotationAngle))
         .onAppear {
@@ -97,11 +99,14 @@ struct UpdatePillView: View {
     case .progress(let progress):
       ZStack {
         Circle()
-          .stroke(.white.opacity(0.25), lineWidth: 2)
+          .stroke(.white.opacity(0.25), lineWidth: max(1.5, size / 7))
 
         Circle()
           .trim(from: 0, to: progress)
-          .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+          .stroke(
+            .white,
+            style: StrokeStyle(lineWidth: max(1.5, size / 7), lineCap: .round)
+          )
           .rotationEffect(.degrees(-90))
       }
       .accessibilityHidden(true)
