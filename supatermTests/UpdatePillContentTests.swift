@@ -8,9 +8,9 @@ struct UpdatePillContentTests {
     let pill = UpdatePillContent(phase: .idle, isDevelopmentBuild: true)
 
     #expect(pill?.allowsPopover == false)
-    #expect(pill?.badge == .icon(name: "hammer", spins: false))
+    #expect(pill?.badge == nil)
     #expect(pill?.helpText == AppBuild.developmentBuildMessage)
-    #expect(pill?.text == AppBuild.developmentPillText)
+    #expect(pill?.text == "")
     #expect(pill?.tone == .accent)
   }
 
