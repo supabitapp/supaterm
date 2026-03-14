@@ -25,7 +25,7 @@ let project = Project(
       destinations: .macOS,
       product: .app,
       bundleId: "app.supabit.supaterm",
-      deploymentTargets: .macOS("15.0"),
+      deploymentTargets: .macOS("26.0"),
       infoPlist: .extendingDefault(with: [
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
@@ -62,7 +62,7 @@ let project = Project(
       destinations: .macOS,
       product: .unitTests,
       bundleId: "app.supabit.supatermTests",
-      deploymentTargets: .macOS("15.0"),
+      deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       buildableFolders: [
         "supatermTests",
