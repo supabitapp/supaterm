@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "fb91a851df4a0aabcb8eb8f9b3af98aa2fda5775c0f2ebc9aa61e8206e37d6ef"
     },
+    "swiftui-animation": {
+      "source": "jamesrochabrun/skills",
+      "sourceType": "github",
+      "computedHash": "39bffed75485bdf27dfa3dd704d6e98998e998d0134152d80853ff2713d89dac"
+    },
     "swiftui-expert-skill": {
       "source": "avdlee/swiftui-agent-skill",
       "sourceType": "github",
