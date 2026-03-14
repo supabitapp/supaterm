@@ -702,6 +702,8 @@ private struct SidebarHeaderView: View {
   }
 }
 
+private let sidebarRowHorizontalPadding: CGFloat = 8
+
 private struct NewTabButton: View {
   let palette: TerminalPalette
   let action: () -> Void
@@ -726,15 +728,24 @@ private struct NewTabButton: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
-        .padding(.horizontal, 8)
-        .background(isHovering ? palette.rowFill : .clear, in: .rect(cornerRadius: 10))
+        .padding(.horizontal, sidebarRowHorizontalPadding)
       }
     )
     .buttonStyle(.plain)
     .onHover { isHovering = $0 }
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(Color.clear)
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
+  }
+
+  @ViewBuilder
+  private var rowBackground: some View {
+    if isHovering {
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(palette.rowFill)
+    } else {
+      Color.clear
+    }
   }
 }
 
@@ -787,12 +798,11 @@ private struct SidebarTabRow: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 10)
-    .padding(.horizontal, 8)
-    .background(background, in: .rect(cornerRadius: 10))
+    .padding(.horizontal, sidebarRowHorizontalPadding)
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(Color.clear)
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
     .onHover { hovering in
       isHovering = hovering
     }
@@ -817,11 +827,14 @@ private struct SidebarTabRow: View {
     }
   }
 
-  private var background: Color {
+  @ViewBuilder
+  private var rowBackground: some View {
     if isHovering && !isSelected {
-      return palette.rowFill
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(palette.rowFill)
+    } else {
+      Color.clear
     }
-    return .clear
   }
 }
 
