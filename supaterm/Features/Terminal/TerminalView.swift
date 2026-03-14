@@ -505,7 +505,6 @@ private struct SidebarContainerView: View {
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .gesture(WindowDragGesture())
   }
 }
 
