@@ -830,6 +830,75 @@ private struct SidebarTabRow: View {
   }
 
   var body: some View {
+    rowContent(showsCloseButton: isHovering)
+      .padding(10)
+      .opacity(isDragging ? 0 : 1)
+      .background(background, in: .rect(cornerRadius: 10))
+      .overlay {
+        if isDragging {
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(palette.selectionStroke.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+        }
+      }
+      .contentShape(.rect(cornerRadius: 10))
+      .accessibilityAddTraits(.isButton)
+      .onTapGesture {
+        store.send(.tabSelected(tab.id))
+      }
+      .onHover { hovering in
+        isHovering = hovering
+      }
+      .contextMenu {
+        Button("New Tab") {
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(.newTabButtonTapped)
+          }
+        }
+
+        Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(.pinToggled(tab.id))
+          }
+        }
+
+        Button("Close Tab", role: .destructive) {
+          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+            _ = store.send(.closeButtonTapped(tab.id))
+          }
+        }
+      }
+      .onDrag {
+        if store.draggedTabID != nil {
+          store.send(.dragEnded)
+        }
+        store.send(.dragStarted(tab.id))
+        return NSItemProvider(object: NSString(string: tab.id.uuidString))
+      } preview: {
+        dragPreview
+      }
+      .onDrop(
+        of: [.text],
+        delegate: TerminalTabDropDelegate(
+          targetTabID: tab.id,
+          targetSectionIsPinned: nil,
+          draggedTabID: store.draggedTabID,
+          onMoveBefore: { draggedID, targetID in
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
+            }
+          },
+          onMoveToSection: { draggedID, isPinned in
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+              _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
+            }
+          },
+          onDropEnded: { store.send(.dragEnded) }
+        )
+      )
+  }
+
+  @ViewBuilder
+  private func rowContent(showsCloseButton: Bool) -> some View {
     HStack(spacing: 10) {
       RoundedRectangle(cornerRadius: 5, style: .continuous)
         .fill(palette.fill(for: tab.tone))
@@ -848,7 +917,7 @@ private struct SidebarTabRow: View {
 
       Spacer(minLength: 0)
 
-      if isHovering {
+      if showsCloseButton {
         Button(
           action: {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
@@ -866,68 +935,12 @@ private struct SidebarTabRow: View {
         .buttonStyle(.plain)
       }
     }
-    .padding(10)
-    .opacity(isDragging ? 0 : 1)
-    .background(background, in: .rect(cornerRadius: 10))
-    .overlay {
-      if isDragging {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-          .stroke(palette.selectionStroke.opacity(0.9), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
-      }
-    }
-    .contentShape(.rect(cornerRadius: 10))
-    .accessibilityAddTraits(.isButton)
-    .onTapGesture {
-      store.send(.tabSelected(tab.id))
-    }
-    .onHover { hovering in
-      isHovering = hovering
-    }
-    .contextMenu {
-      Button("New Tab") {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          _ = store.send(.newTabButtonTapped)
-        }
-      }
+  }
 
-      Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          _ = store.send(.pinToggled(tab.id))
-        }
-      }
-
-      Button("Close Tab", role: .destructive) {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          _ = store.send(.closeButtonTapped(tab.id))
-        }
-      }
-    }
-    .onDrag {
-      if store.draggedTabID != nil {
-        store.send(.dragEnded)
-      }
-      store.send(.dragStarted(tab.id))
-      return NSItemProvider(object: NSString(string: tab.id.uuidString))
-    }
-    .onDrop(
-      of: [.text],
-      delegate: TerminalTabDropDelegate(
-        targetTabID: tab.id,
-        targetSectionIsPinned: nil,
-        draggedTabID: store.draggedTabID,
-        onMoveBefore: { draggedID, targetID in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(.dragMovedBeforeTab(draggedID: draggedID, targetID: targetID))
-          }
-        },
-        onMoveToSection: { draggedID, isPinned in
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-            _ = store.send(isPinned ? .dragMovedToPinnedSection(draggedID) : .dragMovedToRegularSection(draggedID))
-          }
-        },
-        onDropEnded: { store.send(.dragEnded) }
-      )
-    )
+  private var dragPreview: some View {
+    rowContent(showsCloseButton: false)
+      .padding(10)
+      .background(background, in: .rect(cornerRadius: 10))
   }
 
   private var background: Color {
