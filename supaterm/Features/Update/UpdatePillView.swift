@@ -55,6 +55,7 @@ struct UpdatePillContent: Equatable {
 
 struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
+  @State private var isDevelopmentIndicatorHovering = false
   @State private var rotationAngle = 0.0
 
   private let compactPillDiameter: CGFloat = 14
@@ -78,17 +79,35 @@ struct UpdatePillView: View {
         label(for: pill)
           .help(pill.helpText)
           .accessibilityLabel(pill.helpText)
+          .onHover { isHovering in
+            guard isCompactDevelopmentIndicator(pill) else { return }
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+              isDevelopmentIndicatorHovering = isHovering
+            }
+          }
       }
     }
   }
 
   @ViewBuilder
   private func label(for pill: UpdatePillContent) -> some View {
-    if pill.badge == nil && pill.text.isEmpty {
-      Circle()
-        .fill(backgroundColor(for: pill.tone))
-        .frame(width: compactPillDiameter, height: compactPillDiameter)
-        .contentShape(Circle())
+    if isCompactDevelopmentIndicator(pill) {
+      HStack(spacing: 0) {
+        Text(AppBuild.developmentBuildMessage)
+          .font(Font(textFont))
+          .lineLimit(1)
+          .fixedSize()
+          .opacity(isDevelopmentIndicatorHovering ? 1 : 0)
+          .frame(width: isDevelopmentIndicatorHovering ? developmentBuildTextWidth : 0, alignment: .leading)
+      }
+      .padding(.horizontal, isDevelopmentIndicatorHovering ? 8 : 0)
+      .frame(
+        width: isDevelopmentIndicatorHovering ? developmentBuildExpandedWidth : compactPillDiameter,
+        height: compactPillDiameter
+      )
+      .background(Capsule().fill(backgroundColor(for: pill.tone)))
+      .foregroundStyle(.white)
+      .contentShape(Capsule())
     } else {
       HStack(spacing: 6) {
         badgeView(for: pill.badge)
@@ -161,6 +180,20 @@ struct UpdatePillView: View {
   private func textWidth(for pill: UpdatePillContent) -> CGFloat? {
     let attributes: [NSAttributedString.Key: Any] = [.font: textFont]
     let size = (pill.maxText as NSString).size(withAttributes: attributes)
+    return size.width
+  }
+
+  private func isCompactDevelopmentIndicator(_ pill: UpdatePillContent) -> Bool {
+    pill.badge == nil && pill.text.isEmpty
+  }
+
+  private var developmentBuildExpandedWidth: CGFloat {
+    developmentBuildTextWidth + 16
+  }
+
+  private var developmentBuildTextWidth: CGFloat {
+    let attributes: [NSAttributedString.Key: Any] = [.font: textFont]
+    let size = (AppBuild.developmentBuildMessage as NSString).size(withAttributes: attributes)
     return size.width
   }
 }
