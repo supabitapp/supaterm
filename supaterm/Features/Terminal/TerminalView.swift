@@ -553,11 +553,11 @@ private struct SidebarContainerView: View {
             )
           )
         }
-        .onDragSessionUpdated(handleDragSession)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .modifier(SidebarWindowDragGesture(isEnabled: !isDraggingTab))
+    .onDragSessionUpdated(handleDragSession)
   }
 
   private func handleDragSession(_ session: DragSession) {
@@ -903,11 +903,11 @@ private struct SidebarTabRow: View {
       }
     }
     .onDrag {
+      if store.draggedTabID != nil {
+        store.send(.dragEnded)
+      }
       store.send(.dragStarted(tab.id))
       return NSItemProvider(object: NSString(string: tab.id.uuidString))
-    } preview: {
-      Color.clear
-        .frame(width: 1, height: 1)
     }
     .onDrop(
       of: [.text],
