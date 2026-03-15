@@ -131,7 +131,6 @@ struct TerminalView: View {
         sidebarFraction: sidebarFractionBinding,
         minFraction: minSidebarFraction,
         maxFraction: maxSidebarFraction,
-        onToggleSidebar: toggleSidebar,
         onHide: collapseSidebar,
         updateStore: updateStore
       )
@@ -150,12 +149,6 @@ struct TerminalView: View {
           updateStore: updateStore
         )
       }
-    }
-  }
-
-  private func toggleSidebar() {
-    withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
-      _ = store.send(.toggleSidebarButtonTapped)
     }
   }
 
@@ -220,7 +213,6 @@ private struct TerminalSplitView: View {
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let onToggleSidebar: () -> Void
   let onHide: () -> Void
   let updateStore: StoreOf<UpdateFeature>
 
@@ -270,11 +262,8 @@ private struct TerminalSplitView: View {
         if let selectedTabID = terminal.selectedTabID {
           TerminalDetailView(
             store: store,
-            palette: palette,
             terminal: terminal,
-            selectedTabID: selectedTabID,
-            isSidebarCollapsed: visualSidebarCollapsed,
-            onToggleSidebar: onToggleSidebar
+            selectedTabID: selectedTabID
           )
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -977,98 +966,15 @@ private struct FooterCircleButton: View {
 
 private struct TerminalDetailView: View {
   let store: StoreOf<TerminalSceneFeature>
-  let palette: TerminalPalette
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
-  let isSidebarCollapsed: Bool
-  let onToggleSidebar: () -> Void
 
   var body: some View {
-    VStack(spacing: 0) {
-      DetailToolbarView(
-        palette: palette,
-        terminal: terminal,
-        isSidebarCollapsed: isSidebarCollapsed,
-        onToggleSidebar: onToggleSidebar
-      )
-
-      TerminalDetailSurface(
-        store: store,
-        terminal: terminal,
-        selectedTabID: selectedTabID,
-        palette: palette
-      )
-      .padding(24)
-    }
-    .background(palette.detailBackground, in: .rect(cornerRadius: 20))
-    .overlay {
-      RoundedRectangle(cornerRadius: 20, style: .continuous)
-        .stroke(palette.detailStroke, lineWidth: 1)
-    }
-    .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
-    .padding(.top, 6)
-    .padding(.leading, isSidebarCollapsed ? 6 : 0)
-    .padding(.trailing, 6)
-    .padding(.bottom, 6)
-  }
-}
-
-private struct DetailToolbarView: View {
-  let palette: TerminalPalette
-  let terminal: TerminalHostState
-  let isSidebarCollapsed: Bool
-  let onToggleSidebar: () -> Void
-
-  private var selectedTab: TerminalTabItem? {
-    terminal.selectedTab
-  }
-
-  var body: some View {
-    HStack(spacing: 4) {
-      HStack(spacing: 4) {
-        ToolbarIconButton(
-          symbol: "sidebar.left",
-          palette: palette,
-          accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
-          action: onToggleSidebar
-        )
-        ToolbarIconButton(
-          symbol: "arrow.trianglehead.2.clockwise.rotate.90",
-          palette: palette,
-          accessibilityLabel: "Rotate layout"
-        )
-      }
-
-      HStack(spacing: 8) {
-        Image(systemName: selectedTab?.symbol ?? "terminal")
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.secondaryText)
-          .accessibilityHidden(true)
-
-        Text(selectedTab?.title ?? "Terminal")
-          .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-
-        Spacer(minLength: 0)
-
-        Image(systemName: "wave.3.right")
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.secondaryText)
-          .accessibilityHidden(true)
-      }
-      .frame(height: 30)
-      .padding(.horizontal, 8)
-      .background(
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(palette.pillFill)
-      )
-
-      HStack(spacing: 4) {
-        ToolbarIconButton(symbol: "person.crop.circle", palette: palette, accessibilityLabel: "Profile")
-        ToolbarIconButton(symbol: "ellipsis", palette: palette, accessibilityLabel: "More actions")
-      }
-    }
-    .padding(4)
+    TerminalDetailSurface(
+      store: store,
+      terminal: terminal,
+      selectedTabID: selectedTabID
+    )
   }
 }
 
@@ -1076,37 +982,29 @@ private struct TerminalDetailSurface: View {
   let store: StoreOf<TerminalSceneFeature>
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
-  let palette: TerminalPalette
 
   var body: some View {
     TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
       TerminalSurfacePaneView(
-        palette: palette,
         store: store,
         terminal: terminal,
         tabID: tabID
       )
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 
 private struct TerminalSurfacePaneView: View {
-  let palette: TerminalPalette
   let store: StoreOf<TerminalSceneFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
-
-  private var tone: TerminalTone {
-    terminal.tabs.first(where: { $0.id == tabID })?.tone ?? .slate
-  }
 
   var body: some View {
     TerminalSplitTreeAXContainer(tree: terminal.splitTree(for: tabID)) { operation in
       _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(4)
-    .background(palette.detailFill(for: tone), in: .rect(cornerRadius: 24))
   }
 }
 
@@ -1339,19 +1237,6 @@ private struct TerminalPalette {
 
   func fill(for tone: TerminalTone) -> Color {
     color(for: tone).opacity(0.85)
-  }
-
-  func detailFill(for tone: TerminalTone) -> Color {
-    color(for: tone)
-  }
-
-  func detailForeground(for tone: TerminalTone) -> Color {
-    switch tone {
-    case .amber, .mint:
-      Color.black.opacity(0.8)
-    case .sky, .coral, .violet, .slate:
-      Color.white.opacity(0.94)
-    }
   }
 
   private func color(for tone: TerminalTone) -> Color {
