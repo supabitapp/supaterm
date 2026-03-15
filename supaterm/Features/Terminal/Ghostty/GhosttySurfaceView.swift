@@ -765,9 +765,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return event
   }
 
-  func updateSurfaceSize() {
+  func updateSurfaceSize(contentSize: CGSize? = nil) {
     guard let surface else { return }
-    let backingSize = convertToBacking(bounds.size)
+    let backingSize = convertToBacking(contentSize ?? bounds.size)
     if backingSize == lastBackingSize {
       return
     }
@@ -1694,11 +1694,11 @@ final class GhosttySurfaceScrollView: NSView {
     documentView.frame.size.width = scrollView.bounds.width
     synchronizeScrollView()
     synchronizeSurfaceView()
-    surfaceView.updateSurfaceSize()
+    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
   }
 
   func updateSurfaceSize() {
-    surfaceView.updateSurfaceSize()
+    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
     needsLayout = true
   }
 
@@ -1720,7 +1720,7 @@ final class GhosttySurfaceScrollView: NSView {
 
   private func handleScrollerStyleChange() {
     refreshAppearance()
-    surfaceView.updateSurfaceSize()
+    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
   }
 
   @available(macOS, introduced: 26.0, obsoleted: 26.1)
