@@ -150,6 +150,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override var acceptsFirstResponder: Bool { true }
+  override var mouseDownCanMoveWindow: Bool { false }
 
   init(
     runtime: GhosttyRuntime,
@@ -1663,6 +1664,8 @@ final class GhosttySurfaceScrollView: NSView {
   isolated deinit {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
   }
+
+  override var mouseDownCanMoveWindow: Bool { false }
 
   override func layout() {
     super.layout()
