@@ -150,7 +150,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override var acceptsFirstResponder: Bool { true }
-  override var mouseDownCanMoveWindow: Bool { false }
 
   init(
     runtime: GhosttyRuntime,
@@ -765,9 +764,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return event
   }
 
-  func updateSurfaceSize(contentSize: CGSize? = nil) {
+  func updateSurfaceSize() {
     guard let surface else { return }
-    let backingSize = convertToBacking(contentSize ?? bounds.size)
+    let backingSize = convertToBacking(bounds.size)
     if backingSize == lastBackingSize {
       return
     }
@@ -1575,9 +1574,6 @@ final class GhosttySurfaceScrollView: NSView {
   init(surfaceView: GhosttySurfaceView) {
     self.surfaceView = surfaceView
     scrollView = NSScrollView()
-    // The app owns the window chrome, so the embedded terminal must not reserve
-    // extra inset for the title bar area.
-    scrollView.automaticallyAdjustsContentInsets = false
     scrollView.hasHorizontalScroller = false
     scrollView.autohidesScrollers = false
     scrollView.usesPredominantAxisScrolling = true
@@ -1658,21 +1654,6 @@ final class GhosttySurfaceScrollView: NSView {
           self?.refreshAppearance()
         }
       })
-
-    if #unavailable(macOS 26.1) {
-      if #available(macOS 26.0, *) {
-        observers.append(
-          NotificationCenter.default.addObserver(
-            forName: NSView.frameDidChangeNotification,
-            object: nil,
-            queue: nil
-          ) { [weak self] _ in
-            MainActor.assumeIsolated {
-              self?.collapseScrollPocketOverlaysIfNeeded()
-            }
-          })
-      }
-    }
   }
 
   required init?(coder: NSCoder) {
@@ -1683,10 +1664,6 @@ final class GhosttySurfaceScrollView: NSView {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
   }
 
-  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
-
-  override var mouseDownCanMoveWindow: Bool { false }
-
   override func layout() {
     super.layout()
     scrollView.frame = bounds
@@ -1694,11 +1671,11 @@ final class GhosttySurfaceScrollView: NSView {
     documentView.frame.size.width = scrollView.bounds.width
     synchronizeScrollView()
     synchronizeSurfaceView()
-    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
+    surfaceView.updateSurfaceSize()
   }
 
   func updateSurfaceSize() {
-    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
+    surfaceView.updateSurfaceSize()
     needsLayout = true
   }
 
@@ -1720,20 +1697,7 @@ final class GhosttySurfaceScrollView: NSView {
 
   private func handleScrollerStyleChange() {
     refreshAppearance()
-    surfaceView.updateSurfaceSize(contentSize: scrollView.contentSize)
-  }
-
-  @available(macOS, introduced: 26.0, obsoleted: 26.1)
-  private func collapseScrollPocketOverlaysIfNeeded() {
-    guard let window else { return }
-    guard window.titlebarAppearsTransparent else { return }
-    guard !window.styleMask.contains(.fullScreen) else { return }
-
-    for view in scrollView.subviews where view.className.contains("NSScrollPocket") {
-      view.postsFrameChangedNotifications = false
-      view.frame = .zero
-      view.postsFrameChangedNotifications = true
-    }
+    surfaceView.updateSurfaceSize()
   }
 
   private func synchronizeSurfaceView() {
