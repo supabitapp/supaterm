@@ -723,6 +723,16 @@ private struct SidebarHeaderView: View {
 
       HStack(spacing: 4) {
         ToolbarIconButton(
+          symbol: "sidebar.left",
+          palette: palette,
+          accessibilityLabel: "Hide sidebar",
+          action: {
+            withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+              _ = store.send(.toggleSidebarButtonTapped)
+            }
+          }
+        )
+        ToolbarIconButton(
           symbol: "plus",
           palette: palette,
           accessibilityLabel: "New tab",
