@@ -1146,6 +1146,7 @@ private struct WindowChromeConfigurator: NSViewRepresentable {
     DispatchQueue.main.async {
       guard let window = nsView.window else { return }
 
+      window.styleMask.insert(.fullSizeContentView)
       window.titleVisibility = .hidden
       window.titlebarAppearsTransparent = true
       window.titlebarSeparatorStyle = .none
@@ -1154,28 +1155,7 @@ private struct WindowChromeConfigurator: NSViewRepresentable {
       window.standardWindowButton(.closeButton)?.isHidden = true
       window.standardWindowButton(.miniaturizeButton)?.isHidden = true
       window.standardWindowButton(.zoomButton)?.isHidden = true
-
-      if let themeFrame = window.contentView?.superview,
-        let titlebarContainer = firstDescendant(
-          named: "NSTitlebarContainerView",
-          in: themeFrame
-        )
-      {
-        titlebarContainer.isHidden = true
-      }
     }
-  }
-
-  private func firstDescendant(named className: String, in view: NSView) -> NSView? {
-    for subview in view.subviews {
-      if String(describing: type(of: subview)) == className {
-        return subview
-      }
-      if let descendant = firstDescendant(named: className, in: subview) {
-        return descendant
-      }
-    }
-    return nil
   }
 }
 
