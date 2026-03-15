@@ -1658,6 +1658,21 @@ final class GhosttySurfaceScrollView: NSView {
           self?.refreshAppearance()
         }
       })
+
+    if #unavailable(macOS 26.1) {
+      if #available(macOS 26.0, *) {
+        observers.append(
+          NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: nil,
+            queue: nil
+          ) { [weak self] _ in
+            MainActor.assumeIsolated {
+              self?.collapseScrollPocketOverlaysIfNeeded()
+            }
+          })
+      }
+    }
   }
 
   required init?(coder: NSCoder) {
@@ -1667,6 +1682,8 @@ final class GhosttySurfaceScrollView: NSView {
   isolated deinit {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
   }
+
+  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
   override var mouseDownCanMoveWindow: Bool { false }
 
@@ -1704,6 +1721,19 @@ final class GhosttySurfaceScrollView: NSView {
   private func handleScrollerStyleChange() {
     refreshAppearance()
     surfaceView.updateSurfaceSize()
+  }
+
+  @available(macOS, introduced: 26.0, obsoleted: 26.1)
+  private func collapseScrollPocketOverlaysIfNeeded() {
+    guard let window else { return }
+    guard window.titlebarAppearsTransparent else { return }
+    guard !window.styleMask.contains(.fullScreen) else { return }
+
+    for view in scrollView.subviews where view.className.contains("NSScrollPocket") {
+      view.postsFrameChangedNotifications = false
+      view.frame = .zero
+      view.postsFrameChangedNotifications = true
+    }
   }
 
   private func synchronizeSurfaceView() {
