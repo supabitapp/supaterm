@@ -1575,6 +1575,9 @@ final class GhosttySurfaceScrollView: NSView {
   init(surfaceView: GhosttySurfaceView) {
     self.surfaceView = surfaceView
     scrollView = NSScrollView()
+    // The app owns the window chrome, so the embedded terminal must not reserve
+    // extra inset for the title bar area.
+    scrollView.automaticallyAdjustsContentInsets = false
     scrollView.hasHorizontalScroller = false
     scrollView.autohidesScrollers = false
     scrollView.usesPredominantAxisScrolling = true
