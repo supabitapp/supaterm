@@ -6,6 +6,7 @@ import SwiftUI
 struct SupatermApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+  @State private var ghostty: GhosttyRuntime
   @State private var ghosttyShortcuts: GhosttyShortcutManager
   @State private var terminal: TerminalHostState
   @State private var store: StoreOf<AppFeature>
@@ -22,6 +23,7 @@ struct SupatermApp: App {
     QuitRequestBridge.shared.onQuitRequested = { windowID in
       store.send(.quitRequested(windowID))
     }
+    _ghostty = State(initialValue: runtime)
     _ghosttyShortcuts = State(initialValue: GhosttyShortcutManager(runtime: runtime))
     _terminal = State(initialValue: terminal)
     _store = State(initialValue: store)
@@ -29,7 +31,7 @@ struct SupatermApp: App {
 
   var body: some Scene {
     Window("Supaterm", id: "main") {
-      GhosttyColorSchemeSyncView(applyColorScheme: terminal.setColorScheme(_:)) {
+      GhosttyColorSchemeSyncView(ghostty: ghostty) {
         ContentView(store: store, terminal: terminal)
       }
     }

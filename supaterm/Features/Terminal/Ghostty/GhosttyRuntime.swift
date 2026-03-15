@@ -175,6 +175,7 @@ final class GhosttyRuntime {
   private func applyColorSchemeToSurfaces(_ scheme: ghostty_color_scheme_e) {
     for ref in surfaceRefs where ref.isValid {
       ghostty_surface_set_color_scheme(ref.surface, scheme)
+      ghostty_surface_refresh(ref.surface)
     }
   }
 
