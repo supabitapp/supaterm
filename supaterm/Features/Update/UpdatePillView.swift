@@ -4,6 +4,7 @@ import SwiftUI
 
 struct UpdatePillView: View {
   let store: StoreOf<UpdateFeature>
+  @State private var isHovering = false
 
   private let badgeSize: CGFloat = 14
   private let compactPillDiameter: CGFloat = 14
@@ -14,7 +15,7 @@ struct UpdatePillView: View {
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
-    if let pill = store.pillContent {
+    if let pill = pillContent {
       Button {
         guard pill.allowsPopover else { return }
         store.send(.pillButtonTapped)
@@ -32,10 +33,21 @@ struct UpdatePillView: View {
       .animation(pillTransitionAnimation, value: pill.tone)
       .onHover { isHovering in
         withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
-          _ = store.send(.developmentBuildHoverChanged(isHovering))
+          self.isHovering = isHovering
         }
       }
+      .onDisappear {
+        isHovering = false
+      }
     }
+  }
+
+  private var pillContent: UpdatePillContent? {
+    UpdatePillContent(
+      phase: store.phase,
+      isDevelopmentBuild: store.isDevelopmentBuild,
+      isHovering: isHovering
+    )
   }
 
   private func morphingLabel(for pill: UpdatePillContent) -> some View {

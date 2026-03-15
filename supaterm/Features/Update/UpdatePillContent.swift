@@ -15,11 +15,11 @@ struct UpdatePillContent: Equatable, Sendable {
   init?(
     phase: UpdatePhase,
     isDevelopmentBuild: Bool,
-    isDevelopmentIndicatorHovering: Bool
+    isHovering: Bool
   ) {
     if phase.isIdle {
       guard isDevelopmentBuild else { return nil }
-      self = .developmentBuild(isHovered: isDevelopmentIndicatorHovering)
+      self = .developmentBuild(isHovered: isHovering)
       return
     }
 
@@ -30,6 +30,11 @@ struct UpdatePillContent: Equatable, Sendable {
 
     if case .notFound = phase {
       return nil
+    }
+
+    if case .installing = phase {
+      self = .installingStatus(phase: phase, isHovered: isHovering)
+      return
     }
 
     self.init(
@@ -79,6 +84,30 @@ struct UpdatePillContent: Equatable, Sendable {
       badge: phase.badge,
       helpText: phase.text,
       maxText: "",
+      style: .circle,
+      text: "",
+      tone: phase.pillTone
+    )
+  }
+
+  private static func installingStatus(phase: UpdatePhase, isHovered: Bool) -> Self {
+    guard !isHovered else {
+      return Self(
+        allowsPopover: phase.allowsPopover,
+        badge: phase.badge,
+        helpText: phase.text,
+        maxText: phase.maxText,
+        style: .capsule,
+        text: phase.text,
+        tone: phase.pillTone
+      )
+    }
+
+    return Self(
+      allowsPopover: phase.allowsPopover,
+      badge: phase.badge,
+      helpText: phase.text,
+      maxText: phase.maxText,
       style: .circle,
       text: "",
       tone: phase.pillTone

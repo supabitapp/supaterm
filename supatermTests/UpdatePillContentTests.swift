@@ -8,7 +8,7 @@ struct UpdatePillContentTests {
     let pill = UpdatePillContent(
       phase: .idle,
       isDevelopmentBuild: true,
-      isDevelopmentIndicatorHovering: false
+      isHovering: false
     )
 
     #expect(pill?.allowsPopover == false)
@@ -26,7 +26,7 @@ struct UpdatePillContentTests {
       UpdatePillContent(
         phase: .idle,
         isDevelopmentBuild: false,
-        isDevelopmentIndicatorHovering: false
+        isHovering: false
       ) == nil
     )
   }
@@ -36,7 +36,7 @@ struct UpdatePillContentTests {
     let pill = UpdatePillContent(
       phase: .idle,
       isDevelopmentBuild: true,
-      isDevelopmentIndicatorHovering: true
+      isHovering: true
     )
 
     #expect(pill?.style == .capsule)
@@ -48,7 +48,7 @@ struct UpdatePillContentTests {
     let pill = UpdatePillContent(
       phase: .checking,
       isDevelopmentBuild: true,
-      isDevelopmentIndicatorHovering: true
+      isHovering: true
     )
 
     #expect(pill?.allowsPopover == false)
@@ -63,8 +63,35 @@ struct UpdatePillContentTests {
       UpdatePillContent(
         phase: .notFound,
         isDevelopmentBuild: true,
-        isDevelopmentIndicatorHovering: false
+        isHovering: false
       ) == nil
     )
+  }
+
+  @Test
+  func installingPhaseShowsCompactCircleUntilHovered() {
+    let pill = UpdatePillContent(
+      phase: .installing(.init(canInstallNow: true)),
+      isDevelopmentBuild: false,
+      isHovering: false
+    )
+
+    #expect(pill?.allowsPopover == true)
+    #expect(pill?.badge == .icon(name: "power.circle", spins: false))
+    #expect(pill?.style == .circle)
+    #expect(pill?.text == "")
+    #expect(pill?.tone == .accent)
+  }
+
+  @Test
+  func installingPhaseExpandsOnHover() {
+    let pill = UpdatePillContent(
+      phase: .installing(.init(canInstallNow: true)),
+      isDevelopmentBuild: false,
+      isHovering: true
+    )
+
+    #expect(pill?.style == .capsule)
+    #expect(pill?.text == "Restart to Complete Update")
   }
 }

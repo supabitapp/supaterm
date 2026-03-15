@@ -100,28 +100,9 @@ struct UpdateFeatureTests {
   }
 
   @Test
-  func developmentBuildHoverChangedUpdatesStateWhenIdle() async {
-    var initialState = UpdateFeature.State()
-    initialState.isDevelopmentBuild = true
-
-    let store = TestStore(initialState: initialState) {
-      UpdateFeature()
-    }
-
-    await store.send(.developmentBuildHoverChanged(true)) {
-      $0.isDevelopmentIndicatorHovering = true
-    }
-
-    await store.send(.developmentBuildHoverChanged(false)) {
-      $0.isDevelopmentIndicatorHovering = false
-    }
-  }
-
-  @Test
   func laterButtonTappedClosesPopoverAndSendsIntent() async {
     let recorder = IntentRecorder()
     var initialState = UpdateFeature.State()
-    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .updateAvailable(
       .init(contentLength: nil, publishedAt: nil, releaseNotesURL: nil, version: "1.2.3")
@@ -136,7 +117,6 @@ struct UpdateFeatureTests {
     }
 
     await store.send(.laterButtonTapped) {
-      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .idle
     }
@@ -198,7 +178,6 @@ struct UpdateFeatureTests {
   func checkingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
     initialState.isDevelopmentBuild = true
-    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .error("Something went wrong")
 
@@ -213,7 +192,6 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
-      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .checking
     }
@@ -237,7 +215,6 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
-      $0.isDevelopmentIndicatorHovering = false
       $0.phase = .idle
       $0.isPopoverPresented = false
     }
@@ -249,7 +226,6 @@ struct UpdateFeatureTests {
   func downloadingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
     initialState.isDevelopmentBuild = true
-    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .checking
 
@@ -264,7 +240,6 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
-      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .downloading(.init(expectedLength: 1_000, receivedLength: 500))
     }
@@ -274,7 +249,6 @@ struct UpdateFeatureTests {
   func extractingSnapshotClosesPopover() async {
     var initialState = UpdateFeature.State()
     initialState.isDevelopmentBuild = true
-    initialState.isDevelopmentIndicatorHovering = true
     initialState.isPopoverPresented = true
     initialState.phase = .checking
 
@@ -289,7 +263,6 @@ struct UpdateFeatureTests {
 
     await store.send(.updateClientSnapshotReceived(snapshot)) {
       $0.canCheckForUpdates = true
-      $0.isDevelopmentIndicatorHovering = false
       $0.isPopoverPresented = false
       $0.phase = .extracting(0.5)
     }
