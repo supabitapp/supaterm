@@ -300,17 +300,26 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
 }
 
 @MainActor
+private final class TerminalSplitHostingView: NSHostingView<AnyView> {
+  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
+  override var mouseDownCanMoveWindow: Bool { false }
+}
+
+@MainActor
 final class TerminalSplitAXContainerView: NSView {
-  private var hostingView: NSHostingView<AnyView>?
+  private var hostingView: TerminalSplitHostingView?
   private var panes: [GhosttySurfaceView] = []
   private var panesLabel: String = "Terminal split: 0 panes"
   private var lastPaneIDs: [UUID] = []
+
+  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
   func update(rootView: AnyView, panes: [GhosttySurfaceView]) {
     if let hostingView {
       hostingView.rootView = rootView
     } else {
-      let hostingView = NSHostingView(rootView: rootView)
+      let hostingView = TerminalSplitHostingView(rootView: rootView)
       hostingView.translatesAutoresizingMaskIntoConstraints = false
       addSubview(hostingView)
       NSLayoutConstraint.activate([
