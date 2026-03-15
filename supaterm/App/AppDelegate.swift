@@ -9,8 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard let targetWindow = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else {
       return .terminateNow
     }
-
-    NotificationCenter.default.post(name: .quitRequested, object: targetWindow)
+    QuitRequestBridge.shared.requestQuit(for: targetWindow)
     return .terminateLater
   }
 }

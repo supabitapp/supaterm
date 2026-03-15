@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct WindowActivityState: Equatable {
+struct WindowActivityState: Equatable, Sendable {
   let isKeyWindow: Bool
   let isVisible: Bool
 

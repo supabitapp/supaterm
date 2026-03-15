@@ -5,12 +5,21 @@ struct ContentView: View {
   let store: StoreOf<AppFeature>
   @Bindable var terminal: TerminalHostState
 
+  private var terminalStore: StoreOf<TerminalSceneFeature> {
+    store.scope(state: \.terminal, action: \.terminal)
+  }
+
   var body: some View {
     applyFocusedActions(
-      content: TerminalView(store: store, terminal: terminal)
-        .task {
-          store.send(.update(.task))
-        },
+      content: TerminalView(
+        store: terminalStore,
+        terminal: terminal,
+        updateStore: store.scope(state: \.update, action: \.update)
+      )
+      .task {
+        store.send(.update(.task))
+        terminalStore.send(.task)
+      },
       actions: makeFocusedActions()
     )
   }
@@ -27,6 +36,7 @@ struct ContentView: View {
       .focusedSceneValue(\.previousTabAction, actions.previousTab)
       .focusedSceneValue(\.selectTabAction, actions.selectTab)
       .focusedSceneValue(\.selectLastTabAction, actions.selectLastTab)
+      .focusedSceneValue(\.toggleSidebarAction, actions.toggleSidebar)
       .focusedSceneValue(\.startSearchAction, actions.startSearch)
       .focusedSceneValue(\.searchSelectionAction, actions.searchSelection)
       .focusedSceneValue(\.navigateSearchNextAction, actions.navigateSearchNext)
@@ -44,22 +54,73 @@ struct ContentView: View {
     let hasVisibleTabs = !terminal.visibleTabs.isEmpty
 
     return FocusedActions(
-      newTerminal: { _ = terminal.createTab() },
-      closeSurface: hasSurface ? { _ = terminal.closeFocusedSurface() } : nil,
-      closeTab: hasTab ? { _ = terminal.requestCloseSelectedTab() } : nil,
-      nextTab: hasTab ? { terminal.nextTab() } : nil,
-      previousTab: hasTab ? { terminal.previousTab() } : nil,
-      selectTab: hasVisibleTabs ? { terminal.selectTab(slot: $0) } : nil,
-      selectLastTab: hasVisibleTabs ? { terminal.selectLastTab() } : nil,
-      startSearch: hasSurface ? { _ = terminal.startSearch() } : nil,
-      searchSelection: hasSurface ? { _ = terminal.searchSelection() } : nil,
-      navigateSearchNext: hasSurface ? { _ = terminal.navigateSearchNext() } : nil,
-      navigateSearchPrevious: hasSurface ? { _ = terminal.navigateSearchPrevious() } : nil,
-      endSearch: hasSurface ? { _ = terminal.endSearch() } : nil,
-      splitBelow: hasSurface ? { _ = terminal.splitBelow() } : nil,
-      splitRight: hasSurface ? { _ = terminal.splitRight() } : nil,
-      equalizePanes: hasSurface ? { _ = terminal.equalizePanes() } : nil,
-      togglePaneZoom: hasSurface ? { _ = terminal.togglePaneZoom() } : nil
+      newTerminal: {
+        terminalStore.send(.newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id))
+      },
+      closeSurface: hasSurface
+        ? {
+          terminalStore.send(.closeSurfaceMenuItemSelected)
+        } : nil,
+      closeTab: hasTab
+        ? {
+          guard let selectedTabID = terminal.selectedTabID else { return }
+          terminalStore.send(.closeTabRequested(selectedTabID))
+        } : nil,
+      nextTab: hasTab
+        ? {
+          terminalStore.send(.nextTabMenuItemSelected)
+        } : nil,
+      previousTab: hasTab
+        ? {
+          terminalStore.send(.previousTabMenuItemSelected)
+        } : nil,
+      selectTab: hasVisibleTabs
+        ? {
+          terminalStore.send(.selectTabMenuItemSelected($0))
+        } : nil,
+      selectLastTab: hasVisibleTabs
+        ? {
+          terminalStore.send(.selectLastTabMenuItemSelected)
+        } : nil,
+      toggleSidebar: {
+        terminalStore.send(.toggleSidebarButtonTapped)
+      },
+      startSearch: hasSurface
+        ? {
+          terminalStore.send(.startSearchMenuItemSelected)
+        } : nil,
+      searchSelection: hasSurface
+        ? {
+          terminalStore.send(.searchSelectionMenuItemSelected)
+        } : nil,
+      navigateSearchNext: hasSurface
+        ? {
+          terminalStore.send(.navigateSearchNextMenuItemSelected)
+        } : nil,
+      navigateSearchPrevious: hasSurface
+        ? {
+          terminalStore.send(.navigateSearchPreviousMenuItemSelected)
+        } : nil,
+      endSearch: hasSurface
+        ? {
+          terminalStore.send(.endSearchMenuItemSelected)
+        } : nil,
+      splitBelow: hasSurface
+        ? {
+          terminalStore.send(.splitBelowMenuItemSelected)
+        } : nil,
+      splitRight: hasSurface
+        ? {
+          terminalStore.send(.splitRightMenuItemSelected)
+        } : nil,
+      equalizePanes: hasSurface
+        ? {
+          terminalStore.send(.equalizePanesMenuItemSelected)
+        } : nil,
+      togglePaneZoom: hasSurface
+        ? {
+          terminalStore.send(.togglePaneZoomMenuItemSelected)
+        } : nil
     )
   }
 
@@ -71,6 +132,7 @@ struct ContentView: View {
     let previousTab: (() -> Void)?
     let selectTab: ((Int) -> Void)?
     let selectLastTab: (() -> Void)?
+    let toggleSidebar: (() -> Void)?
     let startSearch: (() -> Void)?
     let searchSelection: (() -> Void)?
     let navigateSearchNext: (() -> Void)?

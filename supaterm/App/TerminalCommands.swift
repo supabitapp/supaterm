@@ -11,6 +11,7 @@ struct TerminalCommands: Commands {
   @FocusedValue(\.previousTabAction) private var previousTabAction
   @FocusedValue(\.selectTabAction) private var selectTabAction
   @FocusedValue(\.selectLastTabAction) private var selectLastTabAction
+  @FocusedValue(\.toggleSidebarAction) private var toggleSidebarAction
   @FocusedValue(\.startSearchAction) private var startSearchAction
   @FocusedValue(\.searchSelectionAction) private var searchSelectionAction
   @FocusedValue(\.navigateSearchNextAction) private var navigateSearchNextAction
@@ -24,9 +25,10 @@ struct TerminalCommands: Commands {
   var body: some Commands {
     CommandGroup(replacing: .sidebar) {
       Button("Toggle Sidebar") {
-        NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+        toggleSidebarAction?()
       }
       .keyboardShortcut("s", modifiers: .command)
+      .disabled(toggleSidebarAction == nil)
     }
 
     CommandGroup(after: .newItem) {
@@ -252,6 +254,17 @@ extension FocusedValues {
   var selectLastTabAction: (() -> Void)? {
     get { self[SelectLastTabActionKey.self] }
     set { self[SelectLastTabActionKey.self] = newValue }
+  }
+}
+
+private struct ToggleSidebarActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var toggleSidebarAction: (() -> Void)? {
+    get { self[ToggleSidebarActionKey.self] }
+    set { self[ToggleSidebarActionKey.self] = newValue }
   }
 }
 
