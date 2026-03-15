@@ -472,7 +472,7 @@ private struct TerminalSidebarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarHeaderView(store: store, palette: palette, terminal: terminal, updateStore: updateStore)
+      SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
       SidebarFooterView(palette: palette)
     }
@@ -713,7 +713,6 @@ private struct FloatingSidebarView: View {
 private struct SidebarHeaderView: View {
   let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
-  let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
@@ -733,20 +732,6 @@ private struct SidebarHeaderView: View {
             }
           }
         )
-        ToolbarIconButton(
-          symbol: "plus",
-          palette: palette,
-          accessibilityLabel: "New tab",
-          action: {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-              _ = store.send(
-                .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
-              )
-            }
-          }
-        )
-        ToolbarIconButton(symbol: "square.split.2x1", palette: palette, accessibilityLabel: "Split pane")
-        ToolbarIconButton(symbol: "arrow.clockwise", palette: palette, accessibilityLabel: "Rerun command")
       }
     }
     .overlay(alignment: .leading) {
