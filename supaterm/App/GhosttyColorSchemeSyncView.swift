@@ -2,14 +2,11 @@ import SwiftUI
 
 struct GhosttyColorSchemeSyncView<Content: View>: View {
   @Environment(\.colorScheme) private var colorScheme
-  let applyColorScheme: (ColorScheme) -> Void
+  let ghostty: GhosttyRuntime
   let content: Content
 
-  init(
-    applyColorScheme: @escaping (ColorScheme) -> Void,
-    @ViewBuilder content: () -> Content
-  ) {
-    self.applyColorScheme = applyColorScheme
+  init(ghostty: GhosttyRuntime, @ViewBuilder content: () -> Content) {
+    self.ghostty = ghostty
     self.content = content()
   }
 
@@ -24,6 +21,6 @@ struct GhosttyColorSchemeSyncView<Content: View>: View {
   }
 
   private func apply(_ scheme: ColorScheme) {
-    applyColorScheme(scheme)
+    ghostty.setColorScheme(scheme)
   }
 }
