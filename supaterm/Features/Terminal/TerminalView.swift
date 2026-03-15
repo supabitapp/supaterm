@@ -3,14 +3,11 @@ import ComposableArchitecture
 import SwiftUI
 
 struct TerminalView: View {
-  let store: StoreOf<AppFeature>
+  let store: StoreOf<TerminalSceneFeature>
   @Bindable var terminal: TerminalHostState
+  let updateStore: StoreOf<UpdateFeature>
   @Environment(\.colorScheme) private var colorScheme
 
-  @State private var isSidebarCollapsed = false
-  @State private var isFloatingSidebarVisible = false
-  @State private var sidebarFraction: CGFloat = 0.2
-  @State private var isShowingQuitConfirmation = false
   @State private var window: NSWindow?
 
   private let minSidebarFraction: CGFloat = 0.16
@@ -22,152 +19,150 @@ struct TerminalView: View {
 
   private var updatePresentationContext: UpdatePresentationContext {
     UpdatePresentationContext(
-      isFloatingSidebarVisible: isFloatingSidebarVisible,
-      isSidebarCollapsed: isSidebarCollapsed
+      isFloatingSidebarVisible: store.isFloatingSidebarVisible,
+      isSidebarCollapsed: store.isSidebarCollapsed
     )
   }
 
-  private var updateStore: StoreOf<UpdateFeature> {
-    store.scope(state: \.update, action: \.update)
+  private var pendingCloseBinding: Binding<Bool> {
+    Binding(
+      get: { store.pendingCloseRequest != nil },
+      set: {
+        if !$0 {
+          _ = store.send(.closeConfirmationCancelButtonTapped)
+        }
+      }
+    )
+  }
+
+  private var sidebarFractionBinding: Binding<CGFloat> {
+    Binding(
+      get: { store.sidebarFraction },
+      set: { _ = store.send(.sidebarFractionChanged($0)) }
+    )
+  }
+
+  private var floatingSidebarVisibilityBinding: Binding<Bool> {
+    Binding(
+      get: { store.isFloatingSidebarVisible },
+      set: { _ = store.send(.floatingSidebarVisibilityChanged($0)) }
+    )
   }
 
   var body: some View {
-    GeometryReader { geometry in
-      ZStack(alignment: .leading) {
-        TerminalSplitView(
-          palette: palette,
-          terminal: terminal,
-          totalWidth: geometry.size.width,
-          isSidebarCollapsed: isSidebarCollapsed,
-          sidebarFraction: $sidebarFraction,
-          minFraction: minSidebarFraction,
-          maxFraction: maxSidebarFraction,
-          onToggleSidebar: toggleSidebar,
-          onHide: collapseSidebar,
-          updateStore: updateStore
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-        if isSidebarCollapsed {
-          FloatingSidebarOverlay(
+    GeometryReader(content: terminalLayout)
+      .frame(minWidth: 1_080, minHeight: 720)
+      .background(palette.windowBackgroundTint)
+      .background {
+        BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+          .ignoresSafeArea()
+      }
+      .overlay {
+        WindowChromeConfigurator()
+          .frame(width: 0, height: 0)
+      }
+      .background(WindowReader(window: $window))
+      .onChange(of: window) { _, window in
+        _ = store.send(.windowChanged(window.map(ObjectIdentifier.init)))
+      }
+      .background(
+        WindowFocusObserverView { activity in
+          _ = store.send(.windowActivityChanged(activity))
+        }
+      )
+      .ignoresSafeArea()
+      .task(id: updatePresentationContext) {
+        _ = updateStore.send(.presentationContextChanged(updatePresentationContext))
+      }
+      .task {
+        _ = store.send(.windowActivityChanged(resolvedWindowActivity))
+      }
+      .overlay {
+        if store.isQuitConfirmationPresented {
+          QuitConfirmationOverlay(
             palette: palette,
-            terminal: terminal,
-            totalWidth: geometry.size.width,
-            sidebarFraction: $sidebarFraction,
-            isVisible: $isFloatingSidebarVisible,
-            minFraction: minSidebarFraction,
-            maxFraction: maxSidebarFraction,
-            updateStore: updateStore
+            onConfirm: {
+              _ = store.send(.quitConfirmationConfirmButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.quitConfirmationCancelButtonTapped)
+            }
           )
         }
       }
-    }
-    .frame(minWidth: 1_080, minHeight: 720)
-    .background(palette.windowBackgroundTint)
-    .background {
-      BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-        .ignoresSafeArea()
-    }
-    .overlay {
-      WindowChromeConfigurator()
-        .frame(width: 0, height: 0)
-    }
-    .background(WindowReader(window: $window))
-    .background(
-      WindowFocusObserverView { activity in
-        terminal.updateWindowActivity(activity)
+      .alert(
+        store.pendingCloseRequest?.title ?? "Close?",
+        isPresented: pendingCloseBinding
+      ) {
+        Button("Cancel", role: .cancel) {
+          _ = store.send(.closeConfirmationCancelButtonTapped)
+        }
+        Button("Close", role: .destructive) {
+          _ = store.send(.closeConfirmationConfirmButtonTapped)
+        }
+      } message: {
+        Text(store.pendingCloseRequest?.message ?? "")
       }
-    )
-    .ignoresSafeArea()
-    .task(id: updatePresentationContext) {
-      updateStore.send(.presentationContextChanged(updatePresentationContext))
-    }
-    .task {
-      terminal.ensureInitialTab(focusing: false)
-      terminal.updateWindowActivity(resolvedWindowActivity)
-    }
-    .onChange(of: terminal.selectedTabID) { _, _ in
-      terminal.updateWindowActivity(resolvedWindowActivity)
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
-      toggleSidebar()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .quitRequested)) { notification in
-      guard let targetWindow = notification.object as? NSWindow else { return }
-      guard targetWindow === (window ?? NSApp.keyWindow) else { return }
-      guard window != nil else {
-        NSApp.reply(toApplicationShouldTerminate: true)
-        return
-      }
-      if updateStore.phase.bypassesQuitConfirmation {
-        NSApp.reply(toApplicationShouldTerminate: true)
-        return
-      }
-      isShowingQuitConfirmation = true
-    }
-    .overlay {
-      if isShowingQuitConfirmation {
-        QuitConfirmationOverlay(
-          palette: palette,
-          onConfirm: confirmQuit,
-          onCancel: cancelQuit
-        )
-      }
-    }
-    .alert(
-      terminal.pendingCloseRequest?.title ?? "Close?",
-      isPresented: Binding(
-        get: { terminal.pendingCloseRequest != nil },
-        set: { if !$0 { terminal.cancelPendingClose() } }
-      )
-    ) {
-      Button("Cancel", role: .cancel) {
-        terminal.cancelPendingClose()
-      }
-      Button("Close", role: .destructive) {
-        terminal.confirmPendingClose()
-      }
-    } message: {
-      Text(terminal.pendingCloseRequest?.message ?? "")
-    }
-    .animation(.spring(response: 0.2, dampingFraction: 1.0), value: isSidebarCollapsed)
-    .animation(.easeOut(duration: 0.1), value: isFloatingSidebarVisible)
-    .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isShowingQuitConfirmation)
-    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
+      .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
+      .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
+      .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.isQuitConfirmationPresented)
+      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
   }
 
   private var resolvedWindowActivity: WindowActivityState {
-    if let keyWindow = NSApp.keyWindow {
+    if let window {
       return WindowActivityState(
-        isKeyWindow: keyWindow.isKeyWindow,
-        isVisible: keyWindow.occlusionState.contains(.visible)
+        isKeyWindow: window.isKeyWindow,
+        isVisible: window.occlusionState.contains(.visible)
       )
     }
     return .inactive
   }
 
+  @ViewBuilder
+  private func terminalLayout(geometry: GeometryProxy) -> some View {
+    ZStack(alignment: .leading) {
+      TerminalSplitView(
+        store: store,
+        palette: palette,
+        terminal: terminal,
+        totalWidth: geometry.size.width,
+        isSidebarCollapsed: store.isSidebarCollapsed,
+        sidebarFraction: sidebarFractionBinding,
+        minFraction: minSidebarFraction,
+        maxFraction: maxSidebarFraction,
+        onToggleSidebar: toggleSidebar,
+        onHide: collapseSidebar,
+        updateStore: updateStore
+      )
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+      if store.isSidebarCollapsed {
+        FloatingSidebarOverlay(
+          store: store,
+          palette: palette,
+          terminal: terminal,
+          totalWidth: geometry.size.width,
+          sidebarFraction: sidebarFractionBinding,
+          isVisible: floatingSidebarVisibilityBinding,
+          minFraction: minSidebarFraction,
+          maxFraction: maxSidebarFraction,
+          updateStore: updateStore
+        )
+      }
+    }
+  }
+
   private func toggleSidebar() {
-    isFloatingSidebarVisible = false
     withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
-      isSidebarCollapsed.toggle()
+      _ = store.send(.toggleSidebarButtonTapped)
     }
   }
 
   private func collapseSidebar() {
-    isFloatingSidebarVisible = false
     withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
-      isSidebarCollapsed = true
+      _ = store.send(.collapseSidebarButtonTapped)
     }
-  }
-
-  private func confirmQuit() {
-    isShowingQuitConfirmation = false
-    NSApp.reply(toApplicationShouldTerminate: true)
-  }
-
-  private func cancelQuit() {
-    isShowingQuitConfirmation = false
-    NSApp.reply(toApplicationShouldTerminate: false)
   }
 }
 
@@ -217,6 +212,7 @@ private enum TerminalCoordinateSpace {
 }
 
 private struct TerminalSplitView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -259,6 +255,7 @@ private struct TerminalSplitView: View {
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
         TerminalSidebarView(
+          store: store,
           palette: palette,
           terminal: terminal,
           updateStore: updateStore
@@ -272,6 +269,7 @@ private struct TerminalSplitView: View {
 
         if let selectedTabID = terminal.selectedTabID {
           TerminalDetailView(
+            store: store,
             palette: palette,
             terminal: terminal,
             selectedTabID: selectedTabID,
@@ -477,14 +475,15 @@ private struct DialogActionButton: View {
 }
 
 private struct TerminalSidebarView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      SidebarHeaderView(palette: palette, terminal: terminal, updateStore: updateStore)
-      SidebarContainerView(palette: palette, terminal: terminal)
+      SidebarHeaderView(store: store, palette: palette, terminal: terminal, updateStore: updateStore)
+      SidebarContainerView(store: store, palette: palette, terminal: terminal)
       SidebarFooterView(palette: palette)
     }
     .padding(.horizontal, 10)
@@ -495,6 +494,7 @@ private struct TerminalSidebarView: View {
 }
 
 private struct SidebarContainerView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
@@ -504,13 +504,14 @@ private struct SidebarContainerView: View {
         get: { terminal.selectedTabID },
         set: {
           guard let tabID = $0 else { return }
-          terminal.selectTab(tabID)
+          _ = store.send(.tabSelected(tabID))
         }
       )
     ) {
       Section {
         ForEach(pinnedTabs, editActions: .move) { tab in
           SidebarTabRow(
+            store: store,
             terminal: terminal,
             tab: tab.wrappedValue,
             palette: palette
@@ -525,6 +526,7 @@ private struct SidebarContainerView: View {
       Section {
         ForEach(regularTabs, editActions: .move) { tab in
           SidebarTabRow(
+            store: store,
             terminal: terminal,
             tab: tab.wrappedValue,
             palette: palette
@@ -535,7 +537,9 @@ private struct SidebarContainerView: View {
           palette: palette,
           action: {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-              _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+              _ = store.send(
+                .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+              )
             }
           }
         )
@@ -553,19 +557,20 @@ private struct SidebarContainerView: View {
   private var pinnedTabs: Binding<[TerminalTabItem]> {
     Binding(
       get: { terminal.pinnedTabs },
-      set: { terminal.setPinnedTabOrder($0.map(\.id)) }
+      set: { _ = store.send(.pinnedTabOrderChanged($0.map(\.id))) }
     )
   }
 
   private var regularTabs: Binding<[TerminalTabItem]> {
     Binding(
       get: { terminal.regularTabs },
-      set: { terminal.setRegularTabOrder($0.map(\.id)) }
+      set: { _ = store.send(.regularTabOrderChanged($0.map(\.id))) }
     )
   }
 }
 
 private struct FloatingSidebarOverlay: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -591,6 +596,7 @@ private struct FloatingSidebarOverlay: View {
     ZStack(alignment: .leading) {
       if isVisible {
         FloatingSidebarView(
+          store: store,
           palette: palette,
           terminal: terminal,
           width: floatingWidth,
@@ -686,6 +692,7 @@ private struct SidebarResizeHandle: View {
 }
 
 private struct FloatingSidebarView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
@@ -693,6 +700,7 @@ private struct FloatingSidebarView: View {
 
   var body: some View {
     TerminalSidebarView(
+      store: store,
       palette: palette,
       terminal: terminal,
       updateStore: updateStore
@@ -713,6 +721,7 @@ private struct FloatingSidebarView: View {
 }
 
 private struct SidebarHeaderView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
@@ -730,7 +739,9 @@ private struct SidebarHeaderView: View {
           accessibilityLabel: "New tab",
           action: {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-              _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+              _ = store.send(
+                .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+              )
             }
           }
         )
@@ -810,6 +821,7 @@ private struct NewTabButton: View {
 }
 
 private struct SidebarTabRow: View {
+  let store: StoreOf<TerminalSceneFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
   let palette: TerminalPalette
@@ -843,7 +855,7 @@ private struct SidebarTabRow: View {
         Button(
           action: {
             withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-              terminal.requestCloseTab(tab.id)
+              _ = store.send(.closeTabRequested(tab.id))
             }
           },
           label: {
@@ -868,19 +880,21 @@ private struct SidebarTabRow: View {
     .contextMenu {
       Button("New Tab") {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          _ = terminal.createTab(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+          _ = store.send(
+            .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+          )
         }
       }
 
       Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          terminal.togglePinned(tab.id)
+          _ = store.send(.togglePinned(tab.id))
         }
       }
 
       Button("Close Tab", role: .destructive) {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-          terminal.requestCloseTab(tab.id)
+          _ = store.send(.closeTabRequested(tab.id))
         }
       }
     }
@@ -962,6 +976,7 @@ private struct FooterCircleButton: View {
 }
 
 private struct TerminalDetailView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
@@ -978,6 +993,7 @@ private struct TerminalDetailView: View {
       )
 
       TerminalDetailSurface(
+        store: store,
         terminal: terminal,
         selectedTabID: selectedTabID,
         palette: palette
@@ -1057,6 +1073,7 @@ private struct DetailToolbarView: View {
 }
 
 private struct TerminalDetailSurface: View {
+  let store: StoreOf<TerminalSceneFeature>
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
   let palette: TerminalPalette
@@ -1065,6 +1082,7 @@ private struct TerminalDetailSurface: View {
     TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
       TerminalSurfacePaneView(
         palette: palette,
+        store: store,
         terminal: terminal,
         tabID: tabID
       )
@@ -1074,6 +1092,7 @@ private struct TerminalDetailSurface: View {
 
 private struct TerminalSurfacePaneView: View {
   let palette: TerminalPalette
+  let store: StoreOf<TerminalSceneFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
 
@@ -1083,7 +1102,7 @@ private struct TerminalSurfacePaneView: View {
 
   var body: some View {
     TerminalSplitTreeAXContainer(tree: terminal.splitTree(for: tabID)) { operation in
-      terminal.performSplitOperation(operation, in: tabID)
+      _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .padding(4)

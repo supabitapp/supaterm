@@ -27,7 +27,7 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  enum Operation {
+  enum Operation: Equatable {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
     case drop(payloadId: UUID, destinationId: UUID, zone: DropZone)
     case equalize
@@ -274,6 +274,8 @@ struct TerminalSplitTreeView: View {
     }
   }
 }
+
+extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 
 // MARK: - Accessibility Container
 

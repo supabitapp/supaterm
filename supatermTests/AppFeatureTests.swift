@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import Testing
 
 @testable import supaterm
@@ -28,5 +29,34 @@ struct AppFeatureTests {
       $0.update.canCheckForUpdates = true
       $0.update.phase = .checking
     }
+  }
+
+  @Test
+  func quitRequestedRoutesToTerminalSceneWhenUpdateDoesNotBypassConfirmation() async {
+    let window = NSObject()
+    let windowID = ObjectIdentifier(window)
+
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+
+    await store.send(.quitRequested(windowID))
+    await store.receive(\.terminal) {
+      $0.terminal.isQuitConfirmationPresented = true
+    }
+  }
+
+  @Test
+  func quitRequestedBypassesTerminalSceneWhenUpdateIsInstalling() async {
+    let windowID = ObjectIdentifier(NSObject())
+    var initialState = AppFeature.State()
+    initialState.update.phase = .installing(.init(canInstallNow: true))
+
+    let store = TestStore(initialState: initialState) {
+      AppFeature()
+    }
+
+    await store.send(.quitRequested(windowID))
+    await store.finish()
   }
 }

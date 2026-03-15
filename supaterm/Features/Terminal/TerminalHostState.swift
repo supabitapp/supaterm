@@ -7,26 +7,6 @@ import SwiftUI
 @MainActor
 @Observable
 final class TerminalHostState {
-  enum PendingCloseTarget: Equatable {
-    case pane(UUID)
-    case tab(TerminalTabID)
-  }
-
-  struct PendingCloseRequest: Equatable, Identifiable {
-    let target: PendingCloseTarget
-    let title: String
-    let message: String
-
-    var id: String {
-      switch target {
-      case .pane(let surfaceID):
-        return "pane:\(surfaceID.uuidString)"
-      case .tab(let tabID):
-        return "tab:\(tabID.rawValue.uuidString)"
-      }
-    }
-  }
-
   struct TabIndicators: Equatable {
     var isRunning = false
     var hasBell = false
@@ -41,18 +21,86 @@ final class TerminalHostState {
 
   @ObservationIgnored
   private let runtime: GhosttyRuntime
+  @ObservationIgnored
+  private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   let tabManager = TerminalTabManager()
 
+  private var pendingEvents: [TerminalClient.Event] = []
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
 
-  var pendingCloseRequest: PendingCloseRequest?
   var windowActivity = WindowActivityState.inactive
 
   init(runtime: GhosttyRuntime = GhosttyRuntime()) {
     self.runtime = runtime
+  }
+
+  func eventStream() -> AsyncStream<TerminalClient.Event> {
+    eventContinuation?.finish()
+    let (stream, continuation) = AsyncStream.makeStream(of: TerminalClient.Event.self)
+    eventContinuation = continuation
+    if !pendingEvents.isEmpty {
+      let bufferedEvents = pendingEvents
+      pendingEvents.removeAll()
+      for event in bufferedEvents {
+        continuation.yield(event)
+      }
+    }
+    return stream
+  }
+
+  func handleCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .closeSurface(let surfaceID):
+      closeSurface(surfaceID)
+    case .closeTab(let tabID):
+      closeTab(tabID)
+    case .createTab(let inheritingFromSurfaceID):
+      _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    case .ensureInitialTab(let focusing):
+      ensureInitialTab(focusing: focusing)
+    case .navigateSearch(let direction):
+      _ = navigateSearchOnFocusedSurface(direction)
+    case .nextTab:
+      nextTab()
+    case .performBindingActionOnFocusedSurface(let action):
+      _ = performBindingActionOnFocusedSurface(action)
+    case .performSplitOperation(let tabID, let operation):
+      performSplitOperation(operation, in: tabID)
+    case .previousTab:
+      previousTab()
+    case .selectLastTab,
+      .selectTab,
+      .selectTabSlot,
+      .setPinnedTabOrder,
+      .setRegularTabOrder,
+      .togglePinned,
+      .updateWindowActivity:
+      handleSelectionCommand(command)
+    }
+  }
+
+  private func handleSelectionCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .selectLastTab:
+      selectLastTab()
+    case .selectTab(let tabID):
+      selectTab(tabID)
+    case .selectTabSlot(let slot):
+      selectTab(slot: slot)
+    case .setPinnedTabOrder(let orderedIDs):
+      setPinnedTabOrder(orderedIDs)
+    case .setRegularTabOrder(let orderedIDs):
+      setRegularTabOrder(orderedIDs)
+    case .togglePinned(let tabID):
+      togglePinned(tabID)
+    case .updateWindowActivity(let activity):
+      updateWindowActivity(activity)
+    default:
+      return
+    }
   }
 
   var tabs: [TerminalTabItem] {
@@ -133,6 +181,7 @@ final class TerminalHostState {
     if focusing, let surface = tree.root?.leftmostLeaf() {
       focusSurface(surface, in: tabID)
     }
+    syncFocus(windowActivity)
     return tabID
   }
 
@@ -177,40 +226,6 @@ final class TerminalHostState {
     selectTab(lastTabID)
   }
 
-  @discardableResult
-  func requestCloseSelectedTab() -> Bool {
-    guard let selectedTabID else { return false }
-    requestCloseTab(selectedTabID)
-    return true
-  }
-
-  func requestCloseTab(_ tabID: TerminalTabID) {
-    if tabNeedsCloseConfirmation(tabID) {
-      pendingCloseRequest = PendingCloseRequest(
-        target: .tab(tabID),
-        title: "Close Tab?",
-        message: "A process is still running in this tab. Close it anyway?"
-      )
-      return
-    }
-    performCloseTab(tabID)
-  }
-
-  func confirmPendingClose() {
-    guard let pendingCloseRequest else { return }
-    self.pendingCloseRequest = nil
-    switch pendingCloseRequest.target {
-    case .pane(let surfaceID):
-      performCloseSurface(surfaceID)
-    case .tab(let tabID):
-      performCloseTab(tabID)
-    }
-  }
-
-  func cancelPendingClose() {
-    pendingCloseRequest = nil
-  }
-
   func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     tabManager.setPinnedTabOrder(orderedIDs)
   }
@@ -221,6 +236,14 @@ final class TerminalHostState {
 
   func togglePinned(_ tabID: TerminalTabID) {
     tabManager.togglePinned(tabID)
+  }
+
+  func closeSurface(_ surfaceID: UUID) {
+    performCloseSurface(surfaceID)
+  }
+
+  func closeTab(_ tabID: TerminalTabID) {
+    performCloseTab(tabID)
   }
 
   @discardableResult
@@ -483,18 +506,6 @@ final class TerminalHostState {
     return SurfaceActivity(isVisible: isVisible, isFocused: isFocused)
   }
 
-  private func requestCloseSurface(_ surfaceID: UUID, processAlive: Bool) {
-    if processAlive {
-      pendingCloseRequest = PendingCloseRequest(
-        target: .pane(surfaceID),
-        title: "Close Pane?",
-        message: "A process is still running in this pane. Close it anyway?"
-      )
-      return
-    }
-    performCloseSurface(surfaceID)
-  }
-
   func indicators(for tabID: TerminalTabID) -> TabIndicators {
     guard
       let focusedSurfaceID = focusedSurfaceIDByTab[tabID],
@@ -604,16 +615,19 @@ final class TerminalHostState {
     }
     view.bridge.onNewTab = { [weak self, weak view] in
       guard let self else { return false }
-      return self.createTab(inheritingFromSurfaceID: view?.id) != nil
+      self.emit(.newTabRequested(inheritingFromSurfaceID: view?.id))
+      return true
     }
     view.bridge.onCloseTab = { [weak self] _ in
       guard let self else { return false }
-      self.requestCloseTab(tabID)
+      self.emit(.closeTabRequested(tabID))
       return true
     }
     view.bridge.onGotoTab = { [weak self] target in
       guard let self else { return false }
-      return self.handleGotoTabRequest(target)
+      guard let mappedTarget = self.mapGotoTabTarget(target) else { return false }
+      self.emit(.gotoTabRequested(mappedTarget))
+      return true
     }
     view.bridge.onProgressReport = { [weak self] _ in
       guard let self else { return }
@@ -621,7 +635,7 @@ final class TerminalHostState {
     }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
-      self.requestCloseSurface(view.id, processAlive: processAlive)
+      self.emit(.closeSurfaceRequested(surfaceID: view.id, processAlive: processAlive))
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
@@ -724,7 +738,7 @@ final class TerminalHostState {
     tabManager.updateDirty(tabID, isDirty: isRunning)
   }
 
-  private func tabNeedsCloseConfirmation(_ tabID: TerminalTabID) -> Bool {
+  func tabNeedsCloseConfirmation(_ tabID: TerminalTabID) -> Bool {
     guard let tree = trees[tabID] else { return false }
     return tree.leaves().contains(where: \.needsCloseConfirmation)
   }
@@ -741,35 +755,29 @@ final class TerminalHostState {
     lastEmittedFocusSurfaceID = surfaceID
   }
 
-  private func handleGotoTabRequest(_ target: ghostty_action_goto_tab_e) -> Bool {
-    let tabs = tabManager.tabs
-    guard !tabs.isEmpty else { return false }
-
-    let raw = Int(target.rawValue)
-    let selectedIndex = tabManager.selectedTabId.flatMap { selectedTabID in
-      tabs.firstIndex(where: { $0.id == selectedTabID })
+  private func emit(_ event: TerminalClient.Event) {
+    guard let eventContinuation else {
+      pendingEvents.append(event)
+      return
     }
+    eventContinuation.yield(event)
+  }
 
-    let targetIndex: Int
+  private func mapGotoTabTarget(_ target: ghostty_action_goto_tab_e) -> TerminalGotoTabTarget? {
+    let raw = Int(target.rawValue)
     if raw <= 0 {
       switch raw {
       case Int(GHOSTTY_GOTO_TAB_PREVIOUS.rawValue):
-        let current = selectedIndex ?? 0
-        targetIndex = (current - 1 + tabs.count) % tabs.count
+        return .previous
       case Int(GHOSTTY_GOTO_TAB_NEXT.rawValue):
-        let current = selectedIndex ?? 0
-        targetIndex = (current + 1) % tabs.count
+        return .next
       case Int(GHOSTTY_GOTO_TAB_LAST.rawValue):
-        targetIndex = tabs.count - 1
+        return .last
       default:
-        return false
+        return nil
       }
-    } else {
-      targetIndex = min(raw - 1, tabs.count - 1)
     }
-
-    selectTab(tabs[targetIndex].id)
-    return true
+    return .index(raw)
   }
 
   private func nextTabIndex() -> Int {
