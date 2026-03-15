@@ -262,6 +262,7 @@ private struct TerminalSplitView: View {
         if let selectedTabID = terminal.selectedTabID {
           TerminalDetailView(
             store: store,
+            palette: palette,
             terminal: terminal,
             selectedTabID: selectedTabID
           )
@@ -976,6 +977,7 @@ private struct FooterCircleButton: View {
 
 private struct TerminalDetailView: View {
   let store: StoreOf<TerminalSceneFeature>
+  let palette: TerminalPalette
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
@@ -985,6 +987,13 @@ private struct TerminalDetailView: View {
       terminal: terminal,
       selectedTabID: selectedTabID
     )
+    .compositingGroup()
+    .clipShape(.rect(cornerRadius: 18))
+    .overlay {
+      RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .stroke(palette.detailStroke, lineWidth: 1)
+    }
+    .padding(6)
   }
 }
 
