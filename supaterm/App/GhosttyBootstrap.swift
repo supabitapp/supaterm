@@ -43,7 +43,8 @@ enum GhosttyBootstrap {
 
   static func initialize() {
     guard let resourceDirectories = resourceDirectories(resourcesURL: Bundle.main.resourceURL) else {
-      preconditionFailure("Missing bundled Ghostty resources")
+      assertionFailure("Missing bundled Ghostty resources")
+      return
     }
     setenv("GHOSTTY_RESOURCES_DIR", resourceDirectories.ghostty.path, 1)
     setenv("TERMINFO_DIRS", resourceDirectories.terminfo.path, 1)
