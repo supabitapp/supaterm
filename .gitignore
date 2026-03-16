@@ -37,6 +37,8 @@ supaterm.xcodeproj/
 supaterm.xcworkspace/
 Tuist/Dependencies/
 Frameworks/GhosttyKit.xcframework/
+Resources/ghostty/
+Resources/terminfo/
 
 # CocoaPods
 #

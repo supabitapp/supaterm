@@ -1,5 +1,5 @@
 name: Setup macOS build deps
-description: Install macOS build deps and build GhosttyKit
+description: Install macOS build deps and build GhosttyKit plus bundled resources
 
 runs:
   using: composite
@@ -18,7 +18,10 @@ runs:
       id: ghostty_cache
       uses: actions/cache@v5
       with:
-        path: Frameworks/GhosttyKit.xcframework
+        path: |
+          Frameworks/GhosttyKit.xcframework
+          Resources/ghostty
+          Resources/terminfo
         key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'mise.toml', '.gitmodules') }}
         restore-keys: |
           ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-
@@ -30,7 +33,11 @@ runs:
         set -euo pipefail
         mkdir -p .build/.ghostty-stamps
         rm -f .build/.ghostty-stamps/head-*
+        test -d Frameworks/GhosttyKit.xcframework
+        test -d Resources/ghostty
+        test -d Resources/terminfo
         touch ".build/.ghostty-stamps/head-${GHOSTTY_SHA}"
+        touch ".build/.ghostty-stamps/outputs-${GHOSTTY_SHA}"
         touch Frameworks/GhosttyKit.xcframework
     - name: Build ghostty
       if: steps.ghostty_cache.outputs.cache-hit != 'true'
