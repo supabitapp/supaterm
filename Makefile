@@ -85,15 +85,20 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 install-tip: # Install tip build from github
-	tmpdir="$$(mktemp -d)"; \
-	mount_dir=""; \
-	trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
-	pkill -x supaterm 2>/dev/null || true; \
-	curl -fL "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg" -o "$$tmpdir/supaterm.dmg"; \
-	mount_dir="$$(hdiutil attach "$$tmpdir/supaterm.dmg" -nobrowse | awk -F '\t' '/\/Volumes\// { print $$NF; exit }')"; \
-	test -n "$$mount_dir"; \
-	rm -rf "/Applications/supaterm.app"; \
-	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"
+	@tmpdir="$$(mktemp -d)"; \
+	@mount_dir=""; \
+	@trap 'if [ -n "$$mount_dir" ]; then hdiutil detach "$$mount_dir" -quiet >/dev/null 2>&1 || true; fi; rm -rf "$$tmpdir"' EXIT; \
+	@echo "Closing running SupaTerm..."; \
+	@pkill -x supaterm 2>/dev/null || true; \
+	@echo "Downloading tip release..."; \
+	@curl -fsSL --show-error "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg" -o "$$tmpdir/supaterm.dmg"; \
+	@echo "Mounting disk image..."; \
+	@mount_dir="$$(hdiutil attach "$$tmpdir/supaterm.dmg" -nobrowse -quiet | awk -F '\t' '/\/Volumes\// { print $$NF; exit }')"; \
+	@if [ -z "$$mount_dir" ]; then echo "Could not mount disk image"; exit 1; fi; \
+	@echo "Installing application..."; \
+	@rm -rf "/Applications/supaterm.app"; \
+	@ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
+	@echo "Installed /Applications/supaterm.app"
 
 archive: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distribution
 	mkdir -p build
