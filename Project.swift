@@ -38,8 +38,8 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
-        "ThirdParty/ghostty/zig-out/share/ghostty/**",
-        "ThirdParty/ghostty/zig-out/share/terminfo/**",
+        .folderReference(path: "ThirdParty/ghostty/zig-out/share/ghostty"),
+        .folderReference(path: "ThirdParty/ghostty/zig-out/share/terminfo"),
       ],
       buildableFolders: [
         "supaterm/App",

@@ -15,13 +15,39 @@ enum GhosttyBootstrap {
     return args
   }()
 
+  static func resourceDirectories(
+    resourcesURL: URL?,
+    fileManager: FileManager = .default
+  ) -> (ghostty: URL, terminfo: URL)? {
+    guard let resourcesURL else { return nil }
+
+    let ghosttyURL = resourcesURL.appendingPathComponent("ghostty", isDirectory: true)
+    let terminfoURL = resourcesURL.appendingPathComponent("terminfo", isDirectory: true)
+
+    var isDirectory = ObjCBool(false)
+    guard fileManager.fileExists(atPath: ghosttyURL.path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
+      return nil
+    }
+
+    isDirectory = ObjCBool(false)
+    guard fileManager.fileExists(atPath: terminfoURL.path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
+      return nil
+    }
+
+    return (ghosttyURL, terminfoURL)
+  }
+
   static func initialize() {
-    if let resourcesURL = Bundle.main.resourceURL?.appendingPathComponent("ghostty") {
-      setenv("GHOSTTY_RESOURCES_DIR", resourcesURL.path, 1)
+    guard let resourceDirectories = resourceDirectories(resourcesURL: Bundle.main.resourceURL) else {
+      preconditionFailure("Missing bundled Ghostty resources")
     }
-    if let terminfoURL = Bundle.main.resourceURL?.appendingPathComponent("terminfo") {
-      setenv("TERMINFO_DIRS", terminfoURL.path, 1)
-    }
+    setenv("GHOSTTY_RESOURCES_DIR", resourceDirectories.ghostty.path, 1)
+    setenv("TERMINFO_DIRS", resourceDirectories.terminfo.path, 1)
+
     argv.withUnsafeBufferPointer { buffer in
       let argc = UInt(max(0, buffer.count - 1))
       let argv = UnsafeMutablePointer(mutating: buffer.baseAddress)
