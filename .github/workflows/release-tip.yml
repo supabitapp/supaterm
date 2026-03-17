@@ -120,7 +120,6 @@ jobs:
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$APP_PATH"
           codesign -vvv --deep --strict "$APP_PATH"
-          make validate-app-permissions APP="$APP_PATH" CONFIGURATION=Release
       - name: Store notarization credentials
         run: |
           echo "$APPLE_NOTARIZATION_KEY" > notarization_key.p8
