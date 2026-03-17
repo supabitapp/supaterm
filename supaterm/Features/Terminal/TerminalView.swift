@@ -809,6 +809,7 @@ private struct NewTabButton: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, 10)
       .padding(.horizontal, sidebarRowHorizontalPadding)
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .onHover { isHovering = $0 }
