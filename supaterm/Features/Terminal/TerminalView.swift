@@ -488,6 +488,8 @@ private struct SidebarContainerView: View {
   let terminal: TerminalHostState
 
   var body: some View {
+    let showsSectionHeaders = !terminal.pinnedTabs.isEmpty
+
     List(
       selection: Binding(
         get: { terminal.selectedTabID },
@@ -497,26 +499,32 @@ private struct SidebarContainerView: View {
         }
       )
     ) {
-      if terminal.pinnedTabs.isEmpty {
-        regularTabContent
-      } else {
+      if showsSectionHeaders {
         Section {
           pinnedTabContent
         } header: {
           sectionHeader("Pinned")
         }
+        .transition(Self.sidebarSectionTransition)
+      }
 
-        Section {
-          regularTabContent
-        } header: {
+      Section {
+        regularTabContent
+      } header: {
+        if showsSectionHeaders {
           sectionHeader("Tabs")
+            .transition(Self.sidebarSectionTransition)
         }
       }
     }
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .animation(.spring(response: 0.28, dampingFraction: 0.82), value: showsSectionHeaders)
   }
+
+  private static let sidebarSectionTransition = AnyTransition.opacity
+    .combined(with: .offset(y: -6))
 
   @ViewBuilder
   private var pinnedTabContent: some View {
