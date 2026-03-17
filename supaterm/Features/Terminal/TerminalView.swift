@@ -474,7 +474,6 @@ private struct TerminalSidebarView: View {
     VStack(alignment: .leading, spacing: 16) {
       SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
-      SidebarFooterView(palette: palette)
     }
     .padding(.horizontal, 10)
     .padding(.top, 8)
@@ -896,70 +895,6 @@ private struct SidebarTabRow: View {
   }
 }
 
-private struct SidebarFooterView: View {
-  let palette: TerminalPalette
-
-  var body: some View {
-    HStack {
-      FooterCircleButton(symbol: "arrow.down", palette: palette)
-
-      Spacer(minLength: 16)
-
-      HStack(spacing: 4) {
-        ForEach(TerminalSample.spaces) { space in
-          SpaceButton(space: space, palette: palette)
-        }
-      }
-
-      Spacer(minLength: 16)
-
-      FooterCircleButton(symbol: "plus", palette: palette)
-    }
-    .frame(height: 30)
-  }
-}
-
-private struct SpaceButton: View {
-  let space: WorkspaceChip
-  let palette: TerminalPalette
-
-  var body: some View {
-    Button(
-      action: {},
-      label: {
-        Text(space.label)
-          .font(.system(size: 11, weight: .semibold, design: .rounded))
-          .foregroundStyle(space.isSelected ? palette.selectedText : palette.secondaryText)
-          .frame(width: 28, height: 28)
-          .background(space.isSelected ? palette.selectedFill : palette.clearFill, in: .rect(cornerRadius: 8))
-      }
-    )
-    .buttonStyle(.plain)
-    .accessibilityLabel("Workspace \(space.label)")
-  }
-}
-
-private struct FooterCircleButton: View {
-  let symbol: String
-  let palette: TerminalPalette
-
-  var body: some View {
-    Button(
-      action: {},
-      label: {
-        Image(systemName: symbol)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.secondaryText)
-          .frame(width: 28, height: 28)
-          .background(palette.rowFill, in: Circle())
-          .accessibilityHidden(true)
-      }
-    )
-    .buttonStyle(.plain)
-    .accessibilityLabel(symbol == "plus" ? "Add workspace" : "Open activity")
-  }
-}
-
 private struct TerminalDetailView: View {
   let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
@@ -1282,22 +1217,5 @@ private struct TerminalPalette {
     case .violet:
       violet
     }
-  }
-}
-
-private enum TerminalSample {
-  static let spaces = [
-    WorkspaceChip(label: "A", isSelected: false),
-    WorkspaceChip(label: "B", isSelected: true),
-    WorkspaceChip(label: "C", isSelected: false),
-  ]
-}
-
-private struct WorkspaceChip: Identifiable {
-  let label: String
-  let isSelected: Bool
-
-  var id: String {
-    label
   }
 }
