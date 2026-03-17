@@ -77,7 +77,7 @@ struct UpdatePillContentTests {
     )
 
     #expect(pill?.allowsPopover == true)
-    #expect(pill?.badge == .icon(name: "power.circle", spins: false))
+    #expect(pill?.badge == nil)
     #expect(pill?.style == .circle)
     #expect(pill?.text == "")
     #expect(pill?.tone == .accent)
