@@ -105,7 +105,7 @@ struct UpdatePillContent: Equatable, Sendable {
 
     return Self(
       allowsPopover: phase.allowsPopover,
-      badge: phase.badge,
+      badge: nil,
       helpText: phase.text,
       maxText: phase.maxText,
       style: .circle,
