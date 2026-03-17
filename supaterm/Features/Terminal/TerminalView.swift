@@ -497,50 +497,66 @@ private struct SidebarContainerView: View {
         }
       )
     ) {
-      Section {
-        ForEach(pinnedTabs, editActions: .move) { tab in
-          SidebarTabRow(
-            store: store,
-            terminal: terminal,
-            tab: tab.wrappedValue,
-            palette: palette
-          )
-        }
-      } header: {
-        Text("Pinned")
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.secondaryText)
-      }
-
-      Section {
-        ForEach(regularTabs, editActions: .move) { tab in
-          SidebarTabRow(
-            store: store,
-            terminal: terminal,
-            tab: tab.wrappedValue,
-            palette: palette
-          )
+      if terminal.pinnedTabs.isEmpty {
+        regularTabContent
+      } else {
+        Section {
+          pinnedTabContent
+        } header: {
+          sectionHeader("Pinned")
         }
 
-        NewTabButton(
-          palette: palette,
-          action: {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-              _ = store.send(
-                .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
-              )
-            }
-          }
-        )
-      } header: {
-        Text("Tabs")
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.secondaryText)
+        Section {
+          regularTabContent
+        } header: {
+          sectionHeader("Tabs")
+        }
       }
     }
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+
+  @ViewBuilder
+  private var pinnedTabContent: some View {
+    ForEach(pinnedTabs, editActions: .move) { tab in
+      SidebarTabRow(
+        store: store,
+        terminal: terminal,
+        tab: tab.wrappedValue,
+        palette: palette
+      )
+    }
+  }
+
+  @ViewBuilder
+  private var regularTabContent: some View {
+    ForEach(regularTabs, editActions: .move) { tab in
+      SidebarTabRow(
+        store: store,
+        terminal: terminal,
+        tab: tab.wrappedValue,
+        palette: palette
+      )
+    }
+
+    NewTabButton(
+      palette: palette,
+      action: {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+          _ = store.send(
+            .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+          )
+        }
+      }
+    )
+  }
+
+  private func sectionHeader(_ title: String) -> some View {
+    Text(title)
+      .font(.system(size: 12, weight: .medium))
+      .foregroundStyle(palette.secondaryText)
   }
 
   private var pinnedTabs: Binding<[TerminalTabItem]> {
