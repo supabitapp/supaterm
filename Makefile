@@ -29,8 +29,10 @@ TUIST_XCODE_CACHE_SETUP_INPUTS := Tuist.swift mise.toml
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
+APP ?=
+CONFIGURATION ?= Release
 .DEFAULT_GOAL := help
-.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
+.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive validate-app-permissions format lint check test inspect-dependencies warm-cache setup-xcode-cache
 
 ifeq ($(CI),)
 TUIST_INSTALL_FLAGS :=
@@ -115,6 +117,13 @@ archive: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_SOURCE_GENERATION_STAMP) # Arc
 
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
+
+validate-app-permissions: # Validate app entitlements and NSUsageDescription values
+	@if [ -z "$(APP)" ]; then \
+		echo "error: APP=/path/to/supaterm.app is required" >&2; \
+		exit 1; \
+	fi
+	bash "$(CURRENT_MAKEFILE_DIR)/bins/validate-app-permissions.sh" "$(APP)" "$(CONFIGURATION)"
 
 test: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
 	bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'

@@ -30,6 +30,19 @@ let project = Project(
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",
+        "NSAppleEventsUsageDescription": "A program running within Supaterm would like to use AppleScript.",
+        "NSBluetoothAlwaysUsageDescription": "A program running within Supaterm would like to use Bluetooth.",
+        "NSCalendarsUsageDescription": "A program running within Supaterm would like to access your Calendar.",
+        "NSCameraUsageDescription": "A program running within Supaterm would like to use the camera.",
+        "NSContactsUsageDescription": "A program running within Supaterm would like to access your Contacts.",
+        "NSLocalNetworkUsageDescription": "A program running within Supaterm would like to access the local network.",
+        "NSLocationUsageDescription": "A program running within Supaterm would like to access your location information.",
+        "NSMicrophoneUsageDescription": "A program running within Supaterm would like to use your microphone.",
+        "NSMotionUsageDescription": "A program running within Supaterm would like to access motion data.",
+        "NSPhotoLibraryUsageDescription": "A program running within Supaterm would like to access your Photo Library.",
+        "NSRemindersUsageDescription": "A program running within Supaterm would like to access your reminders.",
+        "NSSpeechRecognitionUsageDescription": "A program running within Supaterm would like to use speech recognition.",
+        "NSSystemAdministrationUsageDescription": "A program running within Supaterm requires elevated privileges.",
         "SupatermDevelopmentBuild": "$(SUPATERM_DEVELOPMENT_BUILD)",
         "SUFeedURL": "https://github.com/supabitapp/supaterm/releases/download/tip/appcast.xml",
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
@@ -56,6 +69,12 @@ let project = Project(
           "ENABLE_HARDENED_RUNTIME": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
           "OTHER_LDFLAGS": "$(inherited) -lc++",
+        ],
+        debug: [
+          "CODE_SIGN_ENTITLEMENTS": "supatermDebug.entitlements",
+        ],
+        release: [
+          "CODE_SIGN_ENTITLEMENTS": "supaterm.entitlements",
         ],
         defaultSettings: .essential
       )
