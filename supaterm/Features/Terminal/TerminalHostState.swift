@@ -598,7 +598,8 @@ final class TerminalHostState {
       workingDirectory: inherited.workingDirectory,
       initialInput: initialInput,
       fontSize: inherited.fontSize,
-      context: context
+      context: context,
+      managesWindowAppearance: false
     )
     view.bridge.onTitleChange = { [weak self] _ in
       guard let self else { return }
