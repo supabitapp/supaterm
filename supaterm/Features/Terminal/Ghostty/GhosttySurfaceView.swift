@@ -3,6 +3,7 @@ import Carbon
 import CoreText
 import GhosttyKit
 import QuartzCore
+import SupatermCLIShared
 
 final class GhosttySurfaceView: NSView, Identifiable {
   private struct ScrollbarState {
@@ -46,12 +47,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private let runtime: GhosttyRuntime
-  let id = UUID()
+  let id: UUID
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
   private let initialInputCString: UnsafeMutablePointer<CChar>?
+  private let environmentVariables: [SupatermCLIEnvironmentVariable]
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
   private let managesWindowAppearance: Bool
@@ -153,14 +155,21 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   init(
     runtime: GhosttyRuntime,
+    tabID: UUID,
     workingDirectory: URL?,
     initialInput: String? = nil,
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false
   ) {
+    let surfaceID = UUID()
     self.runtime = runtime
+    self.id = surfaceID
     self.bridge = GhosttySurfaceBridge()
+    self.environmentVariables = SupatermCLIContext(
+      surfaceID: surfaceID,
+      tabID: tabID
+    ).environmentVariables
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
@@ -845,11 +854,45 @@ final class GhosttySurfaceView: NSView, Identifiable {
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
     config.initial_input = initialInputCString.map { UnsafePointer($0) }
     config.context = context
-    surface = ghostty_surface_new(app, &config)
+    Self.withEnvironmentVariables(environmentVariables) { envVars, count in
+      config.env_vars = envVars
+      config.env_var_count = count
+      surface = ghostty_surface_new(app, &config)
+    }
     bridge.surface = surface
     lastOcclusion = nil
     lastSurfaceFocus = nil
     updateSurfaceSize()
+  }
+
+  private static func withEnvironmentVariables<Result>(
+    _ environmentVariables: [SupatermCLIEnvironmentVariable],
+    _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> Result
+  ) -> Result {
+    guard !environmentVariables.isEmpty else {
+      return body(nil, 0)
+    }
+
+    var envVars = environmentVariables.map { variable in
+      ghostty_env_var_s(
+        key: strdup(variable.key),
+        value: strdup(variable.value)
+      )
+    }
+    defer {
+      for envVar in envVars {
+        if let key = envVar.key {
+          free(UnsafeMutableRawPointer(mutating: key))
+        }
+        if let value = envVar.value {
+          free(UnsafeMutableRawPointer(mutating: value))
+        }
+      }
+    }
+
+    return envVars.withUnsafeMutableBufferPointer { buffer in
+      body(buffer.baseAddress, buffer.count)
+    }
   }
 
   private func updateContentScale() {
