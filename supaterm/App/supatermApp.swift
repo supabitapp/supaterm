@@ -17,6 +17,7 @@ struct SupatermApp: App {
     let terminal = TerminalHostState(runtime: runtime)
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
+        ._printChanges(.actionLabels)
     } withDependencies: {
       $0.terminalClient = .live(host: terminal)
     }
