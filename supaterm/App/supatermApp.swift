@@ -27,6 +27,9 @@ struct SupatermApp: App {
     _ghosttyShortcuts = State(initialValue: GhosttyShortcutManager(runtime: runtime))
     _terminal = State(initialValue: terminal)
     _store = State(initialValue: store)
+    Task { @MainActor [store] in
+      store.send(.socket(.task))
+    }
   }
 
   var body: some Scene {
