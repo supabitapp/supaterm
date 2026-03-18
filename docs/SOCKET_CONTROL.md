@@ -1,6 +1,6 @@
 # Socket Control
 
-This document is a short map of the socket path. The source is authoritative.
+This document is a short map of how the socket work. The source is authoritative.
 
 ## Overview
 
