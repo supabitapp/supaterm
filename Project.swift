@@ -21,6 +21,46 @@ let project = Project(
   ),
   targets: [
     .target(
+      name: "SupatermCLIShared",
+      destinations: .macOS,
+      product: .staticLibrary,
+      bundleId: "app.supabit.supaterm.cli-shared",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      sources: [
+        "SupatermCLIShared/**",
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "sp",
+      destinations: .macOS,
+      product: .commandLineTool,
+      bundleId: "app.supabit.sp",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      sources: [
+        "sp/**",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .external(name: "ArgumentParser"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "supaterm",
       destinations: .macOS,
       product: .app,
@@ -58,7 +98,33 @@ let project = Project(
         "supaterm/App",
         "supaterm/Features",
       ],
+      scripts: [
+        .post(
+          script: """
+            set -eu
+
+            source_path="${BUILT_PRODUCTS_DIR}/sp"
+            destination_path="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/sp"
+
+            if [ ! -x "${source_path}" ]; then
+              echo "error: missing built sp executable at ${source_path}" >&2
+              exit 1
+            fi
+
+            /bin/cp -f "${source_path}" "${destination_path}"
+            """,
+          name: "Embed sp CLI",
+          inputPaths: [
+            "$(BUILT_PRODUCTS_DIR)/sp",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/sp",
+          ]
+        ),
+      ],
       dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "sp"),
         .xcframework(path: "Frameworks/GhosttyKit.xcframework"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sparkle"),
@@ -91,6 +157,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "supaterm"),
+        .target(name: "SupatermCLIShared"),
         .external(name: "ComposableArchitecture"),
       ],
       settings: .settings(
