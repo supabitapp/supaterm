@@ -43,7 +43,7 @@ struct SupatermCLIContextTests {
 
     #expect(
       SupatermCLIContext(environment: [
-        SupatermCLIEnvironment.surfaceIDKey: validID,
+        SupatermCLIEnvironment.surfaceIDKey: validID
       ]) == nil
     )
     #expect(
