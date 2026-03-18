@@ -52,13 +52,13 @@ struct SupatermSocketProtocolTests {
       id: "request-1",
       method: SupatermSocketMethod.systemPing,
       params: [
-        "nested": .object(["pong": .bool(true)]),
-        "null": .null,
+        "nested": ["pong": true],
+        "null": nil,
       ]
     )
     let response = SupatermSocketResponse.ok(
       id: "request-1",
-      result: ["pong": .bool(true)]
+      result: ["pong": true]
     )
 
     #expect(
@@ -73,5 +73,58 @@ struct SupatermSocketProtocolTests {
         from: encoder.encode(response)
       ) == response
     )
+  }
+
+  @Test
+  func treeRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
+    let tab = SupatermTreeSnapshot.Tab(
+      index: 1,
+      title: "zsh",
+      isSelected: true,
+      panes: [
+        .init(index: 1, isFocused: true),
+        .init(index: 2, isFocused: false),
+      ]
+    )
+    let window = SupatermTreeSnapshot.Window(
+      index: 1,
+      isKey: true,
+      tabs: [tab]
+    )
+    let snapshot = SupatermTreeSnapshot(
+      windows: [window]
+    )
+
+    let request = SupatermSocketRequest.tree(id: "tree-1")
+    let response = try SupatermSocketResponse.ok(id: "tree-1", encodableResult: snapshot)
+
+    #expect(request.method == SupatermSocketMethod.appTree)
+    #expect(try response.decodeResult(SupatermTreeSnapshot.self) == snapshot)
+  }
+
+  @Test
+  func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
+    let requestPayload = SupatermNewPaneRequest(
+      command: "pwd",
+      direction: .down,
+      focus: false,
+      targetPaneIndex: 2,
+      targetTabIndex: 1,
+      targetWindowIndex: 1
+    )
+    let result = SupatermNewPaneResult(
+      direction: .down,
+      focused: false,
+      paneIndex: 3,
+      tabIndex: 1,
+      windowIndex: 1
+    )
+
+    let request = try SupatermSocketRequest.newPane(requestPayload, id: "new-pane-1")
+    let response = try SupatermSocketResponse.ok(id: "new-pane-1", encodableResult: result)
+
+    #expect(request.method == SupatermSocketMethod.terminalNewPane)
+    #expect(try request.decodeParams(SupatermNewPaneRequest.self) == requestPayload)
+    #expect(try response.decodeResult(SupatermNewPaneResult.self) == result)
   }
 }

@@ -17,7 +17,8 @@ public enum SupatermSocketPath {
       return nil
     }
 
-    return resolvedAppSupportDirectory
+    return
+      resolvedAppSupportDirectory
       .appendingPathComponent(directoryName, isDirectory: true)
       .appendingPathComponent(fileName, isDirectory: false)
   }
