@@ -72,4 +72,3 @@ fastlane/test_output
 
 *.profraw
 .env
-.env.local
