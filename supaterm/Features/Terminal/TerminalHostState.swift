@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import GhosttyKit
 import Observation
+import SupatermCLIShared
 import SwiftUI
 
 @MainActor
@@ -347,6 +348,81 @@ final class TerminalHostState {
     syncFocus(.init(isKeyWindow: windowIsKey, isVisible: windowIsVisible))
   }
 
+  func treeSnapshot() -> SupatermTreeSnapshot {
+    let tabs = tabManager.tabs.enumerated().map { tabOffset, tab in
+      let focusedSurfaceID = focusedSurfaceIDByTab[tab.id]
+      let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+        SupatermTreeSnapshot.Pane(
+          index: paneOffset + 1,
+          isFocused: pane.id == focusedSurfaceID
+        )
+      }
+
+      return SupatermTreeSnapshot.Tab(
+        index: tabOffset + 1,
+        title: tab.title,
+        isSelected: tab.id == tabManager.selectedTabId,
+        panes: panes
+      )
+    }
+
+    let window = SupatermTreeSnapshot.Window(
+      index: 1,
+      isKey: windowActivity.isKeyWindow,
+      tabs: tabs
+    )
+    return SupatermTreeSnapshot(windows: [window])
+  }
+
+  func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
+    let resolvedTarget = try resolveCreatePaneTarget(request.target)
+    let newSurface = createSurface(
+      tabID: resolvedTarget.tabID,
+      initialInput: request.command.map { "\($0)\n" },
+      inheritingFromSurfaceID: resolvedTarget.anchorSurface.id,
+      context: GHOSTTY_SURFACE_CONTEXT_SPLIT
+    )
+
+    do {
+      let newTree = try resolvedTarget.tree.inserting(
+        view: newSurface,
+        at: resolvedTarget.anchorSurface,
+        direction: mapPaneDirection(request.direction)
+      )
+      trees[resolvedTarget.tabID] = newTree
+      updateRunningState(for: resolvedTarget.tabID)
+
+      if request.focus {
+        focusSurface(newSurface, in: resolvedTarget.tabID)
+      }
+
+      syncFocus(windowActivity)
+
+      guard
+        let tabIndex = tabManager.tabs.firstIndex(where: { $0.id == resolvedTarget.tabID }),
+        let paneIndex = newTree.leaves().firstIndex(where: { $0.id == newSurface.id })
+      else {
+        throw TerminalCreatePaneError.creationFailed
+      }
+
+      return SupatermNewPaneResult(
+        direction: request.direction,
+        focused: request.focus,
+        paneIndex: paneIndex + 1,
+        tabIndex: tabIndex + 1,
+        windowIndex: 1
+      )
+    } catch let error as TerminalCreatePaneError {
+      newSurface.closeSurface()
+      surfaces.removeValue(forKey: newSurface.id)
+      throw error
+    } catch {
+      newSurface.closeSurface()
+      surfaces.removeValue(forKey: newSurface.id)
+      throw TerminalCreatePaneError.creationFailed
+    }
+  }
+
   func splitTree(
     for tabID: TerminalTabID,
     inheritingFromSurfaceID: UUID? = nil,
@@ -681,6 +757,90 @@ final class TerminalHostState {
     return focusedSurfaceIDByTab[selectedTabID]
   }
 
+  private struct ResolvedCreatePaneTarget {
+    let anchorSurface: GhosttySurfaceView
+    let tabID: TerminalTabID
+    let tree: SplitTree<GhosttySurfaceView>
+  }
+
+  private func resolveCreatePaneTarget(
+    _ target: TerminalCreatePaneRequest.Target
+  ) throws -> ResolvedCreatePaneTarget {
+    switch target {
+    case .contextPane(let paneID):
+      guard
+        let tabID = tabID(containing: paneID),
+        let tree = trees[tabID],
+        let anchorSurface = surfaces[paneID]
+      else {
+        throw TerminalCreatePaneError.contextPaneNotFound
+      }
+
+      return ResolvedCreatePaneTarget(
+        anchorSurface: anchorSurface,
+        tabID: tabID,
+        tree: tree
+      )
+
+    case .pane(let windowIndex, let tabIndex, let paneIndex):
+      let resolvedTab = try resolveTab(windowIndex: windowIndex, tabIndex: tabIndex)
+      let panes = resolvedTab.tree.leaves()
+      let paneOffset = paneIndex - 1
+      guard panes.indices.contains(paneOffset) else {
+        throw TerminalCreatePaneError.paneNotFound(
+          windowIndex: windowIndex,
+          tabIndex: tabIndex,
+          paneIndex: paneIndex
+        )
+      }
+
+      return ResolvedCreatePaneTarget(
+        anchorSurface: panes[paneOffset],
+        tabID: resolvedTab.tabID,
+        tree: resolvedTab.tree
+      )
+
+    case .tab(let windowIndex, let tabIndex):
+      let resolvedTab = try resolveTab(windowIndex: windowIndex, tabIndex: tabIndex)
+      let anchorSurface =
+        focusedSurfaceIDByTab[resolvedTab.tabID].flatMap { surfaces[$0] }
+        ?? resolvedTab.tree.root?.leftmostLeaf()
+      guard let anchorSurface else {
+        throw TerminalCreatePaneError.creationFailed
+      }
+
+      return ResolvedCreatePaneTarget(
+        anchorSurface: anchorSurface,
+        tabID: resolvedTab.tabID,
+        tree: resolvedTab.tree
+      )
+    }
+  }
+
+  private func resolveTab(
+    windowIndex: Int,
+    tabIndex: Int
+  ) throws -> (tabID: TerminalTabID, tree: SplitTree<GhosttySurfaceView>) {
+    guard windowIndex == 1 else {
+      throw TerminalCreatePaneError.windowNotFound(windowIndex)
+    }
+
+    let tabOffset = tabIndex - 1
+    guard tabManager.tabs.indices.contains(tabOffset) else {
+      throw TerminalCreatePaneError.tabNotFound(
+        windowIndex: windowIndex,
+        tabIndex: tabIndex
+      )
+    }
+
+    let tabID = tabManager.tabs[tabOffset].id
+    guard let tree = trees[tabID] else {
+      throw TerminalCreatePaneError.creationFailed
+    }
+
+    return (tabID, tree)
+  }
+
   private func updateTabTitle(for tabID: TerminalTabID) {
     guard
       let focusedSurfaceID = focusedSurfaceIDByTab[tabID],
@@ -808,6 +968,21 @@ final class TerminalHostState {
       return .top
     case .down:
       return .down
+    }
+  }
+
+  private func mapPaneDirection(_ direction: SupatermPaneDirection)
+    -> SplitTree<GhosttySurfaceView>.NewDirection
+  {
+    switch direction {
+    case .down:
+      return .down
+    case .left:
+      return .left
+    case .right:
+      return .right
+    case .up:
+      return .top
     }
   }
 
