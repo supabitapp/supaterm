@@ -911,7 +911,14 @@ private struct SidebarTabRow: View {
 
   @ViewBuilder
   private var rowBackground: some View {
-    if isHovering && !isSelected {
+    if isSelected {
+      RoundedRectangle(cornerRadius: 10, style: .continuous)
+        .fill(palette.selectedFill)
+        .overlay {
+          RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(palette.selectionStroke, lineWidth: 1)
+        }
+    } else if isHovering {
       RoundedRectangle(cornerRadius: 10, style: .continuous)
         .fill(palette.rowFill)
     } else {
@@ -1184,12 +1191,12 @@ private struct TerminalPalette {
       pillFill = Color.white.opacity(0.08)
       rowFill = Color.white.opacity(0.06)
       clearFill = Color.white.opacity(0.03)
-      selectedFill = Color.white.opacity(0.16)
-      selectionStroke = Color.white.opacity(0.08)
+      selectedFill = Color(red: 0.93, green: 0.93, blue: 0.95)
+      selectionStroke = Color.black.opacity(0.14)
       primaryText = Color.white.opacity(0.94)
       secondaryText = Color.white.opacity(0.58)
-      selectedText = .white
-      selectedIcon = .white
+      selectedText = Color.black.opacity(0.82)
+      selectedIcon = Color.black.opacity(0.82)
       shadow = .black.opacity(0.28)
     } else {
       windowBackgroundTint = Color(red: 0.953, green: 0.898, blue: 0.839, opacity: 0.3)
@@ -1207,7 +1214,7 @@ private struct TerminalPalette {
       rowFill = Color.black.opacity(0.05)
       clearFill = Color.black.opacity(0.02)
       selectedFill = Color(red: 0.12, green: 0.12, blue: 0.12)
-      selectionStroke = Color.black.opacity(0.08)
+      selectionStroke = Color.white.opacity(0.08)
       primaryText = Color.black.opacity(0.86)
       secondaryText = Color.black.opacity(0.48)
       selectedText = .white
