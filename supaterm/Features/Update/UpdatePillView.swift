@@ -9,7 +9,8 @@ struct UpdatePillView: View {
   private let badgeSize: CGFloat = 14
   private let compactPillDiameter: CGFloat = 14
   private let compactBadgeSize: CGFloat = 9
-  private let pillHorizontalPadding: CGFloat = 8
+  private let pillLeadingPadding: CGFloat = 4
+  private let pillTrailingPadding: CGFloat = 8
   private let pillVerticalPadding: CGFloat = 4
   private let pillTransitionAnimation = Animation.spring(response: 0.34, dampingFraction: 0.8)
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
@@ -70,7 +71,8 @@ struct UpdatePillView: View {
           .blur(radius: pill.style == .capsule ? 0 : 4)
           .offset(x: pill.style == .capsule ? 0 : -6)
       }
-      .padding(.horizontal, horizontalPadding(for: pill))
+      .padding(.leading, leadingPadding(for: pill))
+      .padding(.trailing, trailingPadding(for: pill))
       .padding(.vertical, verticalPadding(for: pill))
     }
     .frame(width: pillWidth(for: pill), height: pillHeight(for: pill))
@@ -111,13 +113,26 @@ struct UpdatePillView: View {
     }
   }
 
-  private func horizontalPadding(for pill: UpdatePillContent) -> CGFloat {
+  private func compactHorizontalInset(for pill: UpdatePillContent) -> CGFloat {
+    guard pill.badge != nil else { return 0 }
+    return max(0, (compactPillDiameter - badgeSize(for: pill)) / 2)
+  }
+
+  private func leadingPadding(for pill: UpdatePillContent) -> CGFloat {
     switch pill.style {
     case .capsule:
-      return pillHorizontalPadding
+      return pillLeadingPadding
     case .circle:
-      guard pill.badge != nil else { return 0 }
-      return max(0, (compactPillDiameter - badgeSize(for: pill)) / 2)
+      return compactHorizontalInset(for: pill)
+    }
+  }
+
+  private func trailingPadding(for pill: UpdatePillContent) -> CGFloat {
+    switch pill.style {
+    case .capsule:
+      return pillTrailingPadding
+    case .circle:
+      return compactHorizontalInset(for: pill)
     }
   }
 
@@ -139,7 +154,7 @@ struct UpdatePillView: View {
       let badgeWidth = pill.badge == nil ? 0 : badgeSize(for: pill)
       let spacing = spacing(for: pill)
       let textWidth = textSlotWidth(for: pill)
-      return badgeWidth + spacing + textWidth + (horizontalPadding(for: pill) * 2)
+      return badgeWidth + spacing + textWidth + leadingPadding(for: pill) + trailingPadding(for: pill)
     case .circle:
       return compactPillDiameter
     }
