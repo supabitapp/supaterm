@@ -166,10 +166,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.runtime = runtime
     self.id = surfaceID
     self.bridge = GhosttySurfaceBridge()
-    self.environmentVariables = SupatermCLIContext(
+    var environmentVariables = SupatermCLIContext(
       surfaceID: surfaceID,
       tabID: tabID
     ).environmentVariables
+    if let socketPath = SupatermSocketPath.resolve() {
+      environmentVariables.append(
+        .init(
+          key: SupatermCLIEnvironment.socketPathKey,
+          value: socketPath
+        )
+      )
+    }
+    self.environmentVariables = environmentVariables
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
