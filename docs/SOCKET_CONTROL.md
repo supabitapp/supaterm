@@ -14,36 +14,39 @@ This document is a short map of the socket path. The source is authoritative.
 ## Flow
 
 ```text
-SupatermApp
-  |
-  v
-AppFeature
-  |
-  v
-SocketControlFeature
-  |
-  v
-SocketControlClient
-  |
-  v
-SocketControlRuntime
-  ^
-  |
-SPSocketClient
-  ^
-  |
-sp ping
+App side
 
-GhosttySurfaceView
-  |
-  v
-SupatermCLIContext + SUPATERM_SOCKET_PATH
-  |
-  v
-terminal pane
-  |
-  v
-sp
++------------------+      +------------------------+      +----------------------+
+| SupatermApp      | ---> | AppFeature             | ---> | SocketControlFeature |
++------------------+      +------------------------+      +-----------+----------+
+                                                                     |
+                                                                     v
+                                                          +----------------------+
+                                                          | SocketControlClient  |
+                                                          +-----------+----------+
+                                                                      |
+                                                                      v
+                                                          +----------------------+
+                                                          | SocketControlRuntime |
+                                                          +----------------------+
+                                                                      ^
+                                                                      |
+CLI side                                                              |
+
++------------------+      +------------------+                        |
+| sp ping          | ---> | SPSocketClient   +------------------------+
++------------------+      +------------------+
+
+Pane path
+
++------------------------+      +-----------------------------------+      +------------------+
+| GhosttySurfaceView     | ---> | SupatermCLIShared                 | ---> | terminal pane    |
++------------------------+      | - SupatermCLIContext              |      +---------+--------+
+                                | - SupatermSocketPath              |                |
+                                | - SupatermSocketProtocol          |                v
+                                +-----------------------------------+             +------+
+                                                                                  |  sp  |
+                                                                                  +------+
 ```
 
 ## Code Map
