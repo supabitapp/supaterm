@@ -15,6 +15,7 @@ let packageSettings = PackageSettings(
 let package = Package(
   name: "supaterm",
   dependencies: [
+    .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.6.2"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", exact: "1.23.1"),
     .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.0"),
   ]

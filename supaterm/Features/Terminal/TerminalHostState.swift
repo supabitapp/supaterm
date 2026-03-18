@@ -595,6 +595,7 @@ final class TerminalHostState {
     let inherited = inheritedSurfaceConfig(fromSurfaceID: inheritingFromSurfaceID, context: context)
     let view = GhosttySurfaceView(
       runtime: runtime,
+      tabID: tabID.rawValue,
       workingDirectory: inherited.workingDirectory,
       initialInput: initialInput,
       fontSize: inherited.fontSize,
