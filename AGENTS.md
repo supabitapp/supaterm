@@ -31,9 +31,12 @@ The app uses **The Composable Architecture (TCA)** with a feature-based folder s
 
 - `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `TerminalCommands`
 - `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection
+- `Features/Socket/` — App-global socket control runtime, dependency client, and reducer-driven request handling
 - `Features/Terminal/` — Terminal shell UI: sidebar, detail pane, split view, tab catalog, resize handles
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates
 
 **Dependency pattern**: External services are modeled as TCA `DependencyKey` structs with closure-based interfaces (see `UpdateClient`). Live implementations wrap platform SDKs; test implementations return inert defaults.
+
+**Socket control**: Read `docs/SOCKET_CONTROL.md` before changing the bundled `sp` CLI, socket protocol, or socket runtime.
 
 **Tests** (`supatermTests/`) use Swift Testing (`@Test`, `@Suite`) with TCA's `TestStore`. Tests cover reducer logic; UI views are not snapshot-tested.
