@@ -11,6 +11,14 @@ This document is a short map of the socket path. The source is authoritative.
 - `sp ping` resolves the socket path, sends a request through `SPSocketClient`, and prints the reducer's response. See `sp/main.swift` and `sp/SPSocketClient.swift`.
 - Terminal panes receive the socket path and pane context through the environment. See `supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`.
 
+## Environment
+
+- `SUPATERM_SOCKET_PATH`: socket path override and pane-provided socket location
+- `SUPATERM_SURFACE_ID`: pane surface identifier
+- `SUPATERM_TAB_ID`: pane tab identifier
+
+Definitions live in `SupatermCLIShared/SupatermCLIContext.swift`.
+
 ## Flow
 
 ```text
