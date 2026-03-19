@@ -108,13 +108,11 @@ jobs:
           </plist>
           EOF
       - run: make export-archive
-      - name: Re-sign Sparkle framework
+      - name: Re-sign Sparkle helpers
         run: |
           set -euo pipefail
           APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          SP_CLI_PATH="$APP_PATH/Contents/MacOS/sp"
           SPARKLE_DIR=$(find "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions" -mindepth 1 -maxdepth 1 -type d ! -name Current -print -quit)
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SP_CLI_PATH"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/XPCServices/Installer.xpc"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements -v "$SPARKLE_DIR/XPCServices/Downloader.xpc"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Updater.app"
@@ -122,7 +120,6 @@ jobs:
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Sparkle"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$APP_PATH"
-          codesign -vvv --strict "$SP_CLI_PATH"
           codesign -vvv --deep --strict "$APP_PATH"
       - name: Store notarization credentials
         run: |

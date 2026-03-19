@@ -54,6 +54,7 @@ let project = Project(
       ],
       settings: .settings(
         base: [
+          "ENABLE_HARDENED_RUNTIME": "YES",
           "SKIP_INSTALL": "YES",
           "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
           "SWIFT_STRICT_CONCURRENCY": "complete",
