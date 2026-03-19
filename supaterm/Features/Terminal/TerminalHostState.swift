@@ -8,6 +8,11 @@ import SwiftUI
 @MainActor
 @Observable
 final class TerminalHostState {
+  struct NewPaneSelectionState: Equatable {
+    let isFocused: Bool
+    let isSelectedTab: Bool
+  }
+
   struct TabIndicators: Equatable {
     var isRunning = false
     var hasBell = false
@@ -392,6 +397,15 @@ final class TerminalHostState {
       trees[resolvedTarget.tabID] = newTree
       updateRunningState(for: resolvedTarget.tabID)
 
+      let nextSelectedTabID = Self.selectedTabID(
+        afterCreatingPaneIn: resolvedTarget.tabID,
+        focusRequested: request.focus,
+        currentSelectedTabID: tabManager.selectedTabId
+      )
+      if let nextSelectedTabID, nextSelectedTabID != tabManager.selectedTabId {
+        tabManager.selectTab(nextSelectedTabID)
+      }
+
       if request.focus {
         focusSurface(newSurface, in: resolvedTarget.tabID)
       }
@@ -404,10 +418,18 @@ final class TerminalHostState {
       else {
         throw TerminalCreatePaneError.creationFailed
       }
+      let selectionState = Self.newPaneSelectionState(
+        selectedTabID: tabManager.selectedTabId,
+        targetTabID: resolvedTarget.tabID,
+        windowActivity: windowActivity,
+        focusedSurfaceID: focusedSurfaceIDByTab[resolvedTarget.tabID],
+        surfaceID: newSurface.id
+      )
 
       return SupatermNewPaneResult(
         direction: request.direction,
-        focused: request.focus,
+        isFocused: selectionState.isFocused,
+        isSelectedTab: selectionState.isSelectedTab,
         paneIndex: paneIndex + 1,
         tabIndex: tabIndex + 1,
         windowIndex: 1
@@ -872,6 +894,33 @@ final class TerminalHostState {
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
     emitFocusChangedIfNeeded(surface.id)
+  }
+
+  static func selectedTabID(
+    afterCreatingPaneIn targetTabID: TerminalTabID,
+    focusRequested: Bool,
+    currentSelectedTabID: TerminalTabID?
+  ) -> TerminalTabID? {
+    guard focusRequested else { return currentSelectedTabID }
+    return targetTabID
+  }
+
+  static func newPaneSelectionState(
+    selectedTabID: TerminalTabID?,
+    targetTabID: TerminalTabID,
+    windowActivity: WindowActivityState,
+    focusedSurfaceID: UUID?,
+    surfaceID: UUID
+  ) -> NewPaneSelectionState {
+    let isSelectedTab = targetTabID == selectedTabID
+    let activity = surfaceActivity(
+      isSelectedTab: isSelectedTab,
+      windowIsVisible: windowActivity.isVisible,
+      windowIsKey: windowActivity.isKeyWindow,
+      focusedSurfaceID: focusedSurfaceID,
+      surfaceID: surfaceID
+    )
+    return NewPaneSelectionState(isFocused: activity.isFocused, isSelectedTab: isSelectedTab)
   }
 
   private func removeTree(for tabID: TerminalTabID) {
