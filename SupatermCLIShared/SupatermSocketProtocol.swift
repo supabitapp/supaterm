@@ -128,11 +128,30 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
-    public let tabs: [Tab]
+    public let workspaces: [Workspace]
 
-    public init(index: Int, isKey: Bool, tabs: [Tab]) {
+    public init(index: Int, isKey: Bool, workspaces: [Workspace]) {
       self.index = index
       self.isKey = isKey
+      self.workspaces = workspaces
+    }
+  }
+
+  public struct Workspace: Equatable, Sendable, Codable {
+    public let index: Int
+    public let name: String
+    public let isSelected: Bool
+    public let tabs: [Tab]
+
+    public init(
+      index: Int,
+      name: String,
+      isSelected: Bool,
+      tabs: [Tab]
+    ) {
+      self.index = index
+      self.name = name
+      self.isSelected = isSelected
       self.tabs = tabs
     }
   }

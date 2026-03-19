@@ -86,10 +86,16 @@ struct SupatermSocketProtocolTests {
         .init(index: 2, isFocused: false),
       ]
     )
+    let workspace = SupatermTreeSnapshot.Workspace(
+      index: 1,
+      name: "A",
+      isSelected: true,
+      tabs: [tab]
+    )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
-      tabs: [tab]
+      workspaces: [workspace]
     )
     let snapshot = SupatermTreeSnapshot(
       windows: [window]

@@ -33,16 +33,20 @@ struct TerminalClient: Sendable {
   enum Command: Equatable, @unchecked Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
+    case createWorkspace
     case createTab(inheritingFromSurfaceID: UUID?)
+    case deleteWorkspace(TerminalWorkspaceID)
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
     case nextTab
     case performBindingActionOnFocusedSurface(String)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case previousTab
+    case renameWorkspace(TerminalWorkspaceID, String)
     case selectLastTab
     case selectTab(TerminalTabID)
     case selectTabSlot(Int)
+    case selectWorkspace(TerminalWorkspaceID)
     case setPinnedTabOrder([TerminalTabID])
     case setRegularTabOrder([TerminalTabID])
     case togglePinned(TerminalTabID)

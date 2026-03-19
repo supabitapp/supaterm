@@ -68,10 +68,16 @@ struct SocketControlFeatureTests {
       isSelected: true,
       panes: [.init(index: 1, isFocused: true)]
     )
+    let workspace = SupatermTreeSnapshot.Workspace(
+      index: 1,
+      name: "A",
+      isSelected: true,
+      tabs: [tab]
+    )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
-      tabs: [tab]
+      workspaces: [workspace]
     )
     let snapshot = SupatermTreeSnapshot(
       windows: [window]
