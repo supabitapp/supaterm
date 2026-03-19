@@ -22,6 +22,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+      - run: make setup-xcode-cache
       - run: make inspect-dependencies
       - run: make lint
       - run: make build-app
@@ -41,6 +42,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
+      - run: make setup-xcode-cache
       - name: Ensure Tuist token is configured
         shell: bash
         run: |
