@@ -161,24 +161,8 @@ jobs:
               submit_exit=$?
             fi
             cat "$NOTARY_RESULT_PATH" || true
-            NOTARY_STATUS=$(/usr/bin/python3 - <<'PY' "$NOTARY_RESULT_PATH"
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        print(json.load(f).get("status", ""))
-except Exception:
-    print("")
-PY
-)
-            NOTARY_ID=$(/usr/bin/python3 - <<'PY' "$NOTARY_RESULT_PATH"
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        print(json.load(f).get("id", ""))
-except Exception:
-    print("")
-PY
-)
+            NOTARY_STATUS=$(/usr/bin/python3 -c 'import json, pathlib, sys; p = pathlib.Path(sys.argv[1]); data = json.load(p.open()) if p.exists() else {}; print(data.get("status", ""))' "$NOTARY_RESULT_PATH" 2>/dev/null || true)
+            NOTARY_ID=$(/usr/bin/python3 -c 'import json, pathlib, sys; p = pathlib.Path(sys.argv[1]); data = json.load(p.open()) if p.exists() else {}; print(data.get("id", ""))' "$NOTARY_RESULT_PATH" 2>/dev/null || true)
             if [ "$submit_exit" -eq 0 ] && [ "$NOTARY_STATUS" = "Accepted" ]; then
               break
             fi
