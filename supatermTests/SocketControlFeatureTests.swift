@@ -116,7 +116,8 @@ struct SocketControlFeatureTests {
     )
     let expectedResult = SupatermNewPaneResult(
       direction: .down,
-      focused: false,
+      isFocused: false,
+      isSelectedTab: true,
       paneIndex: 3,
       tabIndex: 1,
       windowIndex: 1

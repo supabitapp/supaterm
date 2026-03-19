@@ -205,20 +205,23 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
 
 public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let direction: SupatermPaneDirection
-  public let focused: Bool
+  public let isFocused: Bool
+  public let isSelectedTab: Bool
   public let paneIndex: Int
   public let tabIndex: Int
   public let windowIndex: Int
 
   public init(
     direction: SupatermPaneDirection,
-    focused: Bool,
+    isFocused: Bool,
+    isSelectedTab: Bool,
     paneIndex: Int,
     tabIndex: Int,
     windowIndex: Int
   ) {
     self.direction = direction
-    self.focused = focused
+    self.isFocused = isFocused
+    self.isSelectedTab = isSelectedTab
     self.paneIndex = paneIndex
     self.tabIndex = tabIndex
     self.windowIndex = windowIndex
