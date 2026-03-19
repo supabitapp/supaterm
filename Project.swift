@@ -104,11 +104,22 @@ let project = Project(
           script: """
             set -eu
 
-            source_path="${BUILT_PRODUCTS_DIR}/sp"
             destination_path="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/sp"
+            source_candidates=(
+              "${BUILT_PRODUCTS_DIR}/sp"
+              "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
+            )
 
-            if [ ! -x "${source_path}" ]; then
-              echo "error: missing built sp executable at ${source_path}" >&2
+            source_path=""
+            for candidate in "${source_candidates[@]}"; do
+              if [ -x "${candidate}" ]; then
+                source_path="${candidate}"
+                break
+              fi
+            done
+
+            if [ -z "${source_path}" ]; then
+              echo "error: missing built sp executable" >&2
               exit 1
             fi
 
@@ -117,6 +128,7 @@ let project = Project(
           name: "Embed sp CLI",
           inputPaths: [
             "$(BUILT_PRODUCTS_DIR)/sp",
+            "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/sp",
