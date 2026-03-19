@@ -28,8 +28,10 @@ final class TerminalHostState {
   @ObservationIgnored
   private let runtime: GhosttyRuntime
   @ObservationIgnored
+  private let workspaceStore: TerminalWorkspaceStore
+  @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
-  let tabManager = TerminalTabManager()
+  let workspaceManager = TerminalWorkspaceManager()
 
   private var pendingEvents: [TerminalClient.Event] = []
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
@@ -39,8 +41,13 @@ final class TerminalHostState {
 
   var windowActivity = WindowActivityState.inactive
 
-  init(runtime: GhosttyRuntime = GhosttyRuntime()) {
+  init(
+    runtime: GhosttyRuntime = GhosttyRuntime(),
+    workspaceStore: TerminalWorkspaceStore = .live
+  ) {
     self.runtime = runtime
+    self.workspaceStore = workspaceStore
+    workspaceManager.restore(from: workspaceStore.load())
   }
 
   func eventStream() -> AsyncStream<TerminalClient.Event> {
@@ -67,6 +74,8 @@ final class TerminalHostState {
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
     case .ensureInitialTab(let focusing):
       ensureInitialTab(focusing: focusing)
+    case .createWorkspace:
+      createWorkspace()
     case .navigateSearch(let direction):
       _ = navigateSearchOnFocusedSurface(direction)
     case .nextTab:
@@ -77,13 +86,17 @@ final class TerminalHostState {
       performSplitOperation(operation, in: tabID)
     case .previousTab:
       previousTab()
+    case .renameWorkspace(let workspaceID, let name):
+      renameWorkspace(workspaceID, to: name)
     case .selectLastTab,
       .selectTab,
       .selectTabSlot,
+      .selectWorkspace,
       .setPinnedTabOrder,
       .setRegularTabOrder,
       .togglePinned,
-      .updateWindowActivity:
+      .updateWindowActivity,
+      .deleteWorkspace:
       handleSelectionCommand(command)
     }
   }
@@ -96,12 +109,16 @@ final class TerminalHostState {
       selectTab(tabID)
     case .selectTabSlot(let slot):
       selectTab(slot: slot)
+    case .selectWorkspace(let workspaceID):
+      selectWorkspace(workspaceID)
     case .setPinnedTabOrder(let orderedIDs):
       setPinnedTabOrder(orderedIDs)
     case .setRegularTabOrder(let orderedIDs):
       setRegularTabOrder(orderedIDs)
     case .togglePinned(let tabID):
       togglePinned(tabID)
+    case .deleteWorkspace(let workspaceID):
+      deleteWorkspace(workspaceID)
     case .updateWindowActivity(let activity):
       updateWindowActivity(activity)
     default:
@@ -109,29 +126,37 @@ final class TerminalHostState {
     }
   }
 
+  var workspaces: [TerminalWorkspaceItem] {
+    workspaceManager.workspaces
+  }
+
+  var selectedWorkspaceID: TerminalWorkspaceID? {
+    workspaceManager.selectedWorkspaceID
+  }
+
   var tabs: [TerminalTabItem] {
-    tabManager.tabs
+    workspaceManager.tabs
   }
 
   var pinnedTabs: [TerminalTabItem] {
-    tabManager.pinnedTabs
+    workspaceManager.pinnedTabs
   }
 
   var regularTabs: [TerminalTabItem] {
-    tabManager.regularTabs
+    workspaceManager.regularTabs
   }
 
   var visibleTabs: [TerminalTabItem] {
-    tabManager.visibleTabs
+    workspaceManager.visibleTabs
   }
 
   var selectedTabID: TerminalTabID? {
-    tabManager.selectedTabId
+    workspaceManager.selectedTabID
   }
 
   var selectedTab: TerminalTabItem? {
     guard let selectedTabID else { return nil }
-    return tabManager.tabs.first(where: { $0.id == selectedTabID })
+    return workspaceManager.tab(for: selectedTabID)
   }
 
   var selectedTree: SplitTree<GhosttySurfaceView>? {
@@ -154,7 +179,7 @@ final class TerminalHostState {
   }
 
   func ensureInitialTab(focusing: Bool) {
-    guard tabManager.tabs.isEmpty else { return }
+    guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)
   }
 
@@ -168,11 +193,12 @@ final class TerminalHostState {
     initialInput: String? = nil,
     inheritingFromSurfaceID: UUID? = nil
   ) -> TerminalTabID? {
+    guard let activeTabManager = workspaceManager.activeTabManager else { return nil }
     let context: ghostty_surface_context_e =
-      tabManager.tabs.isEmpty
+      activeTabManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
-    let tabID = tabManager.createTab(
+    let tabID = activeTabManager.createTab(
       title: "Terminal \(nextTabIndex())",
       icon: "terminal"
     )
@@ -192,7 +218,9 @@ final class TerminalHostState {
   }
 
   func selectTab(_ tabID: TerminalTabID) {
-    tabManager.selectTab(tabID)
+    guard let workspace = workspaceManager.workspace(for: tabID) else { return }
+    guard workspaceManager.selectWorkspace(workspace.id) else { return }
+    workspaceManager.tabManager(for: workspace.id)?.selectTab(tabID)
     focusSurface(in: tabID)
     syncFocus(windowActivity)
   }
@@ -233,15 +261,64 @@ final class TerminalHostState {
   }
 
   func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
-    tabManager.setPinnedTabOrder(orderedIDs)
+    workspaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
   }
 
   func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
-    tabManager.setRegularTabOrder(orderedIDs)
+    workspaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
-    tabManager.togglePinned(tabID)
+    workspaceManager.workspace(for: tabID).flatMap { workspaceManager.tabManager(for: $0.id) }?.togglePinned(tabID)
+  }
+
+  func createWorkspace() {
+    _ = workspaceManager.createWorkspace()
+    persistWorkspaceSnapshot()
+    ensureInitialTab(focusing: false)
+    if let selectedTabID {
+      focusSurface(in: selectedTabID)
+    }
+    syncFocus(windowActivity)
+  }
+
+  func selectWorkspace(_ workspaceID: TerminalWorkspaceID) {
+    guard workspaceManager.selectWorkspace(workspaceID) else { return }
+    persistWorkspaceSnapshot()
+    ensureInitialTab(focusing: false)
+    if let selectedTabID {
+      focusSurface(in: selectedTabID)
+    } else {
+      lastEmittedFocusSurfaceID = nil
+    }
+    syncFocus(windowActivity)
+  }
+
+  func renameWorkspace(_ workspaceID: TerminalWorkspaceID, to name: String) {
+    guard workspaceManager.renameWorkspace(workspaceID, to: name) else { return }
+    persistWorkspaceSnapshot()
+  }
+
+  func deleteWorkspace(_ workspaceID: TerminalWorkspaceID) {
+    guard let deletedWorkspace = workspaceManager.deleteWorkspace(workspaceID) else { return }
+    for tabID in deletedWorkspace.removedTabIDs {
+      removeTree(for: tabID)
+    }
+    persistWorkspaceSnapshot()
+    ensureInitialTab(focusing: false)
+    if let selectedTabID {
+      focusSurface(in: selectedTabID)
+    } else {
+      lastEmittedFocusSurfaceID = nil
+    }
+    syncFocus(windowActivity)
+  }
+
+  func isWorkspaceNameAvailable(
+    _ proposedName: String,
+    excluding excludedWorkspaceID: TerminalWorkspaceID? = nil
+  ) -> Bool {
+    workspaceManager.isNameAvailable(proposedName, excluding: excludedWorkspaceID)
   }
 
   func closeSurface(_ surfaceID: UUID) {
@@ -322,7 +399,7 @@ final class TerminalHostState {
   }
 
   func syncFocus(_ activity: WindowActivityState) {
-    let selectedTabID = tabManager.selectedTabId
+    let selectedTabID = workspaceManager.selectedTabID
     var surfaceToFocus: GhosttySurfaceView?
 
     for (tabID, tree) in trees {
@@ -354,27 +431,34 @@ final class TerminalHostState {
   }
 
   func treeSnapshot() -> SupatermTreeSnapshot {
-    let tabs = tabManager.tabs.enumerated().map { tabOffset, tab in
-      let focusedSurfaceID = focusedSurfaceIDByTab[tab.id]
-      let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-        SupatermTreeSnapshot.Pane(
-          index: paneOffset + 1,
-          isFocused: pane.id == focusedSurfaceID
-        )
-      }
-
-      return SupatermTreeSnapshot.Tab(
-        index: tabOffset + 1,
-        title: tab.title,
-        isSelected: tab.id == tabManager.selectedTabId,
-        panes: panes
-      )
-    }
-
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: windowActivity.isKeyWindow,
-      tabs: tabs
+      workspaces: workspaces.enumerated().map { workspaceOffset, workspace in
+        let tabs = workspaceManager.tabs(in: workspace.id).enumerated().map { tabOffset, tab in
+          let focusedSurfaceID = focusedSurfaceIDByTab[tab.id]
+          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+            SupatermTreeSnapshot.Pane(
+              index: paneOffset + 1,
+              isFocused: pane.id == focusedSurfaceID
+            )
+          }
+
+          return SupatermTreeSnapshot.Tab(
+            index: tabOffset + 1,
+            title: tab.title,
+            isSelected: tab.id == workspaceManager.selectedTabID(in: workspace.id),
+            panes: panes
+          )
+        }
+
+        return SupatermTreeSnapshot.Workspace(
+          index: workspaceOffset + 1,
+          name: workspace.name,
+          isSelected: workspace.id == selectedWorkspaceID,
+          tabs: tabs
+        )
+      }
     )
     return SupatermTreeSnapshot(windows: [window])
   }
@@ -400,10 +484,13 @@ final class TerminalHostState {
       let nextSelectedTabID = Self.selectedTabID(
         afterCreatingPaneIn: resolvedTarget.tabID,
         focusRequested: request.focus,
-        currentSelectedTabID: tabManager.selectedTabId
+        currentSelectedTabID: workspaceManager.selectedTabID
       )
-      if let nextSelectedTabID, nextSelectedTabID != tabManager.selectedTabId {
-        tabManager.selectTab(nextSelectedTabID)
+      if let nextSelectedTabID, nextSelectedTabID != workspaceManager.selectedTabID {
+        if let workspace = workspaceManager.workspace(for: nextSelectedTabID) {
+          _ = workspaceManager.selectWorkspace(workspace.id)
+          workspaceManager.tabManager(for: workspace.id)?.selectTab(nextSelectedTabID)
+        }
       }
 
       if request.focus {
@@ -413,13 +500,14 @@ final class TerminalHostState {
       syncFocus(windowActivity)
 
       guard
-        let tabIndex = tabManager.tabs.firstIndex(where: { $0.id == resolvedTarget.tabID }),
+        let workspace = workspaceManager.workspace(for: resolvedTarget.tabID),
+        let tabIndex = workspaceManager.tabs(in: workspace.id).firstIndex(where: { $0.id == resolvedTarget.tabID }),
         let paneIndex = newTree.leaves().firstIndex(where: { $0.id == newSurface.id })
       else {
         throw TerminalCreatePaneError.creationFailed
       }
       let selectionState = Self.newPaneSelectionState(
-        selectedTabID: tabManager.selectedTabId,
+        selectedTabID: workspaceManager.selectedTabID,
         targetTabID: resolvedTarget.tabID,
         windowActivity: windowActivity,
         focusedSurfaceID: focusedSurfaceIDByTab[resolvedTarget.tabID],
@@ -589,7 +677,9 @@ final class TerminalHostState {
     surfaces.removeAll()
     trees.removeAll()
     focusedSurfaceIDByTab.removeAll()
-    tabManager.closeAll()
+    for workspace in workspaces {
+      workspaceManager.tabManager(for: workspace.id)?.closeAll()
+    }
   }
 
   static func surfaceActivity(
@@ -610,12 +700,12 @@ final class TerminalHostState {
       let surface = surfaces[focusedSurfaceID]
     else {
       return TabIndicators(
-        isRunning: tabManager.tabs.first(where: { $0.id == tabID })?.isDirty ?? false
+        isRunning: workspaceManager.tab(for: tabID)?.isDirty ?? false
       )
     }
 
     return TabIndicators(
-      isRunning: tabManager.tabs.first(where: { $0.id == tabID })?.isDirty ?? false,
+      isRunning: workspaceManager.tab(for: tabID)?.isDirty ?? false,
       hasBell: surface.bridge.state.bellCount > 0,
       isReadOnly: surface.bridge.state.readOnly == GHOSTTY_READONLY_ON,
       hasSecureInput: surface.bridge.state.secureInput == GHOSTTY_SECURE_INPUT_ON
@@ -623,11 +713,13 @@ final class TerminalHostState {
   }
 
   private func performCloseTab(_ tabID: TerminalTabID) {
-    guard tabManager.tabs.contains(where: { $0.id == tabID }) else { return }
+    guard let workspace = workspaceManager.workspace(for: tabID) else { return }
+    guard let tabManager = workspaceManager.tabManager(for: workspace.id) else { return }
 
     let shouldCreateReplacement = tabManager.tabs.count == 1
     let inheritedSurfaceID = focusedSurfaceIDByTab[tabID]
     if shouldCreateReplacement {
+      _ = workspaceManager.selectWorkspace(workspace.id)
       _ = createTab(
         focusing: false,
         inheritingFromSurfaceID: inheritedSurfaceID
@@ -661,10 +753,12 @@ final class TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
-      tabManager.closeTab(tabID)
-      if tabManager.tabs.isEmpty {
+      workspaceManager.workspace(for: tabID)
+        .flatMap { workspaceManager.tabManager(for: $0.id) }?
+        .closeTab(tabID)
+      if tabs.isEmpty {
         _ = createTab(focusing: false)
-      } else if let selectedTabID = tabManager.selectedTabId {
+      } else if let selectedTabID = selectedTabID {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
@@ -775,7 +869,7 @@ final class TerminalHostState {
   }
 
   private func currentFocusedSurfaceID() -> UUID? {
-    guard let selectedTabID = tabManager.selectedTabId else { return nil }
+    guard let selectedTabID = workspaceManager.selectedTabID else { return nil }
     return focusedSurfaceIDByTab[selectedTabID]
   }
 
@@ -848,14 +942,14 @@ final class TerminalHostState {
     }
 
     let tabOffset = tabIndex - 1
-    guard tabManager.tabs.indices.contains(tabOffset) else {
+    guard tabs.indices.contains(tabOffset) else {
       throw TerminalCreatePaneError.tabNotFound(
         windowIndex: windowIndex,
         tabIndex: tabIndex
       )
     }
 
-    let tabID = tabManager.tabs[tabOffset].id
+    let tabID = tabs[tabOffset].id
     guard let tree = trees[tabID] else {
       throw TerminalCreatePaneError.creationFailed
     }
@@ -872,7 +966,9 @@ final class TerminalHostState {
     }
 
     let resolvedTitle = surface.resolvedDisplayTitle(defaultValue: fallbackTitle(for: tabID))
-    tabManager.updateTitle(tabID, title: resolvedTitle)
+    workspaceManager.workspace(for: tabID)
+      .flatMap { workspaceManager.tabManager(for: $0.id) }?
+      .updateTitle(tabID, title: resolvedTitle)
   }
 
   private func focusSurface(in tabID: TerminalTabID) {
@@ -890,7 +986,7 @@ final class TerminalHostState {
     let previousSurface = focusedSurfaceIDByTab[tabID].flatMap { surfaces[$0] }
     focusedSurfaceIDByTab[tabID] = surface.id
     updateTabTitle(for: tabID)
-    guard tabID == tabManager.selectedTabId else { return }
+    guard tabID == workspaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
     emitFocusChangedIfNeeded(surface.id)
@@ -945,7 +1041,9 @@ final class TerminalHostState {
         return false
       }
     }
-    tabManager.updateDirty(tabID, isDirty: isRunning)
+    workspaceManager.workspace(for: tabID)
+      .flatMap { workspaceManager.tabManager(for: $0.id) }?
+      .updateDirty(tabID, isDirty: isRunning)
   }
 
   func tabNeedsCloseConfirmation(_ tabID: TerminalTabID) -> Bool {
@@ -992,7 +1090,7 @@ final class TerminalHostState {
 
   private func nextTabIndex() -> Int {
     var maxIndex = 0
-    for tab in tabManager.tabs {
+    for tab in tabs {
       guard tab.title.hasPrefix("Terminal ") else { continue }
       let suffix = tab.title.dropFirst("Terminal ".count)
       guard let value = Int(suffix) else { continue }
@@ -1002,7 +1100,11 @@ final class TerminalHostState {
   }
 
   private func fallbackTitle(for tabID: TerminalTabID) -> String {
-    tabManager.tabs.first(where: { $0.id == tabID })?.title ?? "Terminal"
+    workspaceManager.tab(for: tabID)?.title ?? "Terminal"
+  }
+
+  private func persistWorkspaceSnapshot() {
+    workspaceStore.save(workspaceManager.snapshot())
   }
 
   private func mapSplitDirection(_ direction: GhosttySplitAction.NewDirection)

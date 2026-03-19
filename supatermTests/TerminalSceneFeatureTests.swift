@@ -127,6 +127,72 @@ struct TerminalSceneFeatureTests {
       $0.isSidebarCollapsed = true
     }
   }
+
+  @Test
+  func workspaceCreateButtonTappedSendsCreateWorkspaceCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalSceneFeature.State()) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.workspaceCreateButtonTapped)
+
+    #expect(recorder.commands == [.createWorkspace])
+  }
+
+  @Test
+  func workspaceRenameFlowStoresDraftAndSendsRenameCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let workspace = TerminalWorkspaceItem(
+      id: TerminalWorkspaceID(rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!),
+      name: "A"
+    )
+
+    let store = TestStore(initialState: TerminalSceneFeature.State()) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.workspaceRenameRequested(workspace)) {
+      $0.workspaceRename = .init(workspace: workspace, draftName: "A")
+    }
+    await store.send(.workspaceRenameTextChanged("Shell")) {
+      $0.workspaceRename?.draftName = "Shell"
+    }
+    await store.send(.workspaceRenameSaveButtonTapped) {
+      $0.workspaceRename = nil
+    }
+
+    #expect(recorder.commands == [.renameWorkspace(workspace.id, "Shell")])
+  }
+
+  @Test
+  func workspaceDeleteFlowStoresRequestAndSendsDeleteCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let workspace = TerminalWorkspaceItem(
+      id: TerminalWorkspaceID(rawValue: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!),
+      name: "B"
+    )
+
+    let store = TestStore(initialState: TerminalSceneFeature.State()) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.workspaceDeleteRequested(workspace)) {
+      $0.pendingWorkspaceDeleteRequest = .init(workspace: workspace)
+    }
+    await store.send(.workspaceDeleteConfirmButtonTapped) {
+      $0.pendingWorkspaceDeleteRequest = nil
+    }
+
+    #expect(recorder.commands == [.deleteWorkspace(workspace.id)])
+  }
 }
 
 @MainActor

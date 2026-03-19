@@ -35,6 +35,32 @@ struct TerminalView: View {
     )
   }
 
+  private var pendingWorkspaceDeleteBinding: Binding<Bool> {
+    Binding(
+      get: { store.pendingWorkspaceDeleteRequest != nil },
+      set: {
+        if !$0 {
+          _ = store.send(.workspaceDeleteCancelButtonTapped)
+        }
+      }
+    )
+  }
+
+  private var workspaceRenameTextBinding: Binding<String> {
+    Binding(
+      get: { store.workspaceRename?.draftName ?? "" },
+      set: { _ = store.send(.workspaceRenameTextChanged($0)) }
+    )
+  }
+
+  private var workspaceRenameIsValid: Bool {
+    guard let workspaceRename = store.workspaceRename else { return false }
+    return terminal.isWorkspaceNameAvailable(
+      workspaceRename.draftName,
+      excluding: workspaceRename.workspace.id
+    )
+  }
+
   private var sidebarFractionBinding: Binding<CGFloat> {
     Binding(
       get: { store.sidebarFraction },
@@ -90,6 +116,23 @@ struct TerminalView: View {
           )
         }
       }
+      .overlay {
+        if store.workspaceRename != nil {
+          WorkspaceRenameOverlay(
+            palette: palette,
+            title: "Rename Workspace",
+            name: workspaceRenameTextBinding,
+            isSaveEnabled: workspaceRenameIsValid,
+            onSave: {
+              guard workspaceRenameIsValid else { return }
+              _ = store.send(.workspaceRenameSaveButtonTapped)
+            },
+            onCancel: {
+              _ = store.send(.workspaceRenameCancelButtonTapped)
+            }
+          )
+        }
+      }
       .alert(
         store.pendingCloseRequest?.title ?? "Close?",
         isPresented: pendingCloseBinding
@@ -103,10 +146,35 @@ struct TerminalView: View {
       } message: {
         Text(store.pendingCloseRequest?.message ?? "")
       }
+      .alert(
+        workspaceDeleteTitle,
+        isPresented: pendingWorkspaceDeleteBinding
+      ) {
+        Button("Cancel", role: .cancel) {
+          _ = store.send(.workspaceDeleteCancelButtonTapped)
+        }
+        Button("Delete", role: .destructive) {
+          _ = store.send(.workspaceDeleteConfirmButtonTapped)
+        }
+      } message: {
+        Text(workspaceDeleteMessage)
+      }
       .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
       .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
       .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.isQuitConfirmationPresented)
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
+      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.workspaces.map(\.id))
+  }
+
+  private var workspaceDeleteTitle: String {
+    guard let request = store.pendingWorkspaceDeleteRequest else {
+      return "Delete Workspace?"
+    }
+    return "Delete Workspace \"\(request.workspace.name)\"?"
+  }
+
+  private var workspaceDeleteMessage: String {
+    "All tabs in this workspace will be closed."
   }
 
   private var resolvedWindowActivity: WindowActivityState {
@@ -464,6 +532,85 @@ private struct DialogActionButton: View {
   }
 }
 
+private struct WorkspaceRenameOverlay: View {
+  let palette: TerminalPalette
+  let title: String
+  @Binding var name: String
+  let isSaveEnabled: Bool
+  let onSave: () -> Void
+  let onCancel: () -> Void
+
+  @FocusState private var isNameFieldFocused: Bool
+
+  var body: some View {
+    ZStack {
+      Button(action: onCancel) {
+        Color.black.opacity(0.4)
+          .ignoresSafeArea()
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Cancel workspace rename")
+
+      VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(title)
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundStyle(palette.primaryText)
+
+          TextField("Workspace name", text: $name)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(palette.dialogSecondaryFill, in: .rect(cornerRadius: 10))
+            .focused($isNameFieldFocused)
+            .onSubmit {
+              guard isSaveEnabled else { return }
+              onSave()
+            }
+
+          HStack {
+            DialogActionButton(
+              palette: palette,
+              title: "Cancel",
+              style: .secondary,
+              shortcut: .text("esc"),
+              action: onCancel
+            )
+            .keyboardShortcut(.cancelAction)
+
+            Spacer()
+
+            DialogActionButton(
+              palette: palette,
+              title: "Save",
+              style: .secondary,
+              shortcut: .symbol("return"),
+              action: onSave
+            )
+            .keyboardShortcut(.defaultAction)
+            .opacity(isSaveEnabled ? 1 : 0.5)
+            .disabled(!isSaveEnabled)
+          }
+        }
+        .frame(width: 360)
+        .padding(12)
+        .background(palette.dialogInnerBackground, in: .rect(cornerRadius: 11))
+        .overlay {
+          RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .stroke(palette.dialogBorder, lineWidth: 0.5)
+        }
+      }
+      .padding(3)
+      .background(palette.dialogOuterBackground, in: .rect(cornerRadius: 14))
+      .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
+    }
+    .task {
+      isNameFieldFocused = true
+    }
+  }
+}
+
 private struct TerminalSidebarView: View {
   let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
@@ -474,7 +621,7 @@ private struct TerminalSidebarView: View {
     VStack(alignment: .leading, spacing: 16) {
       SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
-      SidebarFooterView(palette: palette)
+      SidebarFooterView(store: store, palette: palette, terminal: terminal)
     }
     .padding(.horizontal, 10)
     .padding(.top, 8)
@@ -929,58 +1076,92 @@ private struct SidebarTabRow: View {
 }
 
 private struct SidebarFooterView: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
+  let terminal: TerminalHostState
 
   var body: some View {
     HStack {
-      FooterCircleButton(symbol: "arrow.down", palette: palette)
-
-      Spacer(minLength: 16)
+      Spacer(minLength: 0)
 
       HStack(spacing: 4) {
-        ForEach(TerminalSample.spaces) { space in
-          SpaceButton(space: space, palette: palette)
+        ForEach(terminal.workspaces) { workspace in
+          WorkspaceChipButton(
+            store: store,
+            palette: palette,
+            terminal: terminal,
+            workspace: workspace
+          )
         }
       }
 
       Spacer(minLength: 16)
 
-      FooterCircleButton(symbol: "plus", palette: palette)
+      FooterCircleButton(
+        symbol: "plus",
+        palette: palette,
+        accessibilityLabel: "Add workspace",
+        action: {
+          _ = store.send(.workspaceCreateButtonTapped)
+        }
+      )
     }
     .frame(height: 30)
   }
 }
 
-private struct SpaceButton: View {
-  let space: WorkspaceChip
+private struct WorkspaceChipButton: View {
+  let store: StoreOf<TerminalSceneFeature>
   let palette: TerminalPalette
+  let terminal: TerminalHostState
+  let workspace: TerminalWorkspaceItem
+
+  private var isSelected: Bool {
+    terminal.selectedWorkspaceID == workspace.id
+  }
 
   var body: some View {
     Button(
-      action: {},
+      action: {
+        _ = store.send(.selectWorkspaceButtonTapped(workspace.id))
+      },
       label: {
-        Text(space.label)
+        Text(workspace.name)
           .font(.system(size: 11, weight: .semibold, design: .rounded))
-          .foregroundStyle(space.isSelected ? palette.selectedText : palette.secondaryText)
-          .frame(width: 28, height: 28)
+          .foregroundStyle(isSelected ? palette.selectedText : palette.secondaryText)
+          .lineLimit(1)
+          .padding(.horizontal, 10)
+          .frame(minWidth: 28, minHeight: 28)
           .background(
-            space.isSelected ? palette.selectedFill : palette.clearFill,
+            isSelected ? palette.selectedFill : palette.clearFill,
             in: .rect(cornerRadius: 8)
           )
       }
     )
     .buttonStyle(.plain)
-    .accessibilityLabel("Workspace \(space.label)")
+    .contextMenu {
+      Button("Rename Workspace") {
+        _ = store.send(.workspaceRenameRequested(workspace))
+      }
+
+      Button("Delete Workspace", role: .destructive) {
+        _ = store.send(.workspaceDeleteRequested(workspace))
+      }
+      .disabled(terminal.workspaces.count <= 1)
+    }
+    .accessibilityLabel("Workspace \(workspace.name)")
   }
 }
 
 private struct FooterCircleButton: View {
   let symbol: String
   let palette: TerminalPalette
+  let accessibilityLabel: String
+  let action: () -> Void
 
   var body: some View {
     Button(
-      action: {},
+      action: action,
       label: {
         Image(systemName: symbol)
           .font(.system(size: 12, weight: .semibold))
@@ -991,7 +1172,7 @@ private struct FooterCircleButton: View {
       }
     )
     .buttonStyle(.plain)
-    .accessibilityLabel(symbol == "plus" ? "Add workspace" : "Open activity")
+    .accessibilityLabel(accessibilityLabel)
   }
 }
 
@@ -1317,22 +1498,5 @@ private struct TerminalPalette {
     case .violet:
       violet
     }
-  }
-}
-
-private enum TerminalSample {
-  static let spaces = [
-    WorkspaceChip(label: "A", isSelected: false),
-    WorkspaceChip(label: "B", isSelected: true),
-    WorkspaceChip(label: "C", isSelected: false),
-  ]
-}
-
-private struct WorkspaceChip: Identifiable {
-  let label: String
-  let isSelected: Bool
-
-  var id: String {
-    label
   }
 }

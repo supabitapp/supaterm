@@ -6,6 +6,19 @@ private enum TerminalSceneCancelID {
   static let events = "TerminalSceneFeature.events"
 }
 
+struct TerminalWorkspaceDeleteRequest: Equatable, Identifiable {
+  let workspace: TerminalWorkspaceItem
+
+  var id: TerminalWorkspaceID { workspace.id }
+}
+
+struct TerminalWorkspaceRenameState: Equatable, Identifiable {
+  let workspace: TerminalWorkspaceItem
+  var draftName: String
+
+  var id: TerminalWorkspaceID { workspace.id }
+}
+
 @Reducer
 struct TerminalSceneFeature {
   @ObservableState
@@ -14,8 +27,10 @@ struct TerminalSceneFeature {
     var isQuitConfirmationPresented = false
     var isSidebarCollapsed = false
     var pendingCloseRequest: PendingCloseRequest?
+    var pendingWorkspaceDeleteRequest: TerminalWorkspaceDeleteRequest?
     var sidebarFraction: CGFloat = 0.2
     var windowID: ObjectIdentifier?
+    var workspaceRename: TerminalWorkspaceRenameState?
   }
 
   struct PendingCloseRequest: Equatable, Identifiable {
@@ -61,6 +76,7 @@ struct TerminalSceneFeature {
     case searchSelectionMenuItemSelected
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
+    case selectWorkspaceButtonTapped(TerminalWorkspaceID)
     case sidebarFractionChanged(CGFloat)
     case splitBelowMenuItemSelected
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
@@ -68,6 +84,14 @@ struct TerminalSceneFeature {
     case startSearchMenuItemSelected
     case tabSelected(TerminalTabID)
     case task
+    case workspaceCreateButtonTapped
+    case workspaceDeleteCancelButtonTapped
+    case workspaceDeleteConfirmButtonTapped
+    case workspaceDeleteRequested(TerminalWorkspaceItem)
+    case workspaceRenameCancelButtonTapped
+    case workspaceRenameRequested(TerminalWorkspaceItem)
+    case workspaceRenameSaveButtonTapped
+    case workspaceRenameTextChanged(String)
     case togglePaneZoomMenuItemSelected
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
@@ -125,6 +149,15 @@ struct TerminalSceneFeature {
         case .tab(let tabID):
           return sendCommand(.closeTab(tabID))
         }
+
+      case .workspaceDeleteCancelButtonTapped:
+        state.pendingWorkspaceDeleteRequest = nil
+        return .none
+
+      case .workspaceDeleteConfirmButtonTapped:
+        guard let request = state.pendingWorkspaceDeleteRequest else { return .none }
+        state.pendingWorkspaceDeleteRequest = nil
+        return sendCommand(.deleteWorkspace(request.workspace.id))
 
       case .closeSurfaceMenuItemSelected:
         return sendCommand(.performBindingActionOnFocusedSurface("close_surface"))
@@ -208,6 +241,9 @@ struct TerminalSceneFeature {
       case .selectTabMenuItemSelected(let slot):
         return sendCommand(.selectTabSlot(slot))
 
+      case .selectWorkspaceButtonTapped(let workspaceID):
+        return sendCommand(.selectWorkspace(workspaceID))
+
       case .sidebarFractionChanged(let fraction):
         state.sidebarFraction = fraction
         return .none
@@ -238,6 +274,30 @@ struct TerminalSceneFeature {
           }
           .cancellable(id: TerminalSceneCancelID.events, cancelInFlight: true)
         )
+
+      case .workspaceCreateButtonTapped:
+        return sendCommand(.createWorkspace)
+
+      case .workspaceDeleteRequested(let workspace):
+        state.pendingWorkspaceDeleteRequest = .init(workspace: workspace)
+        return .none
+
+      case .workspaceRenameCancelButtonTapped:
+        state.workspaceRename = nil
+        return .none
+
+      case .workspaceRenameRequested(let workspace):
+        state.workspaceRename = .init(workspace: workspace, draftName: workspace.name)
+        return .none
+
+      case .workspaceRenameSaveButtonTapped:
+        guard let workspaceRename = state.workspaceRename else { return .none }
+        state.workspaceRename = nil
+        return sendCommand(.renameWorkspace(workspaceRename.workspace.id, workspaceRename.draftName))
+
+      case .workspaceRenameTextChanged(let text):
+        state.workspaceRename?.draftName = text
+        return .none
 
       case .togglePaneZoomMenuItemSelected:
         return sendCommand(.performBindingActionOnFocusedSurface("toggle_split_zoom"))
