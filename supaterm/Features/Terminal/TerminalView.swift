@@ -1082,20 +1082,24 @@ private struct SidebarFooterView: View {
 
   var body: some View {
     HStack {
-      Spacer(minLength: 0)
+      if terminal.workspaces.count > 1 {
+        Spacer(minLength: 0)
 
-      HStack(spacing: 4) {
-        ForEach(terminal.workspaces) { workspace in
-          WorkspaceChipButton(
-            store: store,
-            palette: palette,
-            terminal: terminal,
-            workspace: workspace
-          )
+        HStack(spacing: 4) {
+          ForEach(terminal.workspaces) { workspace in
+            WorkspaceChipButton(
+              store: store,
+              palette: palette,
+              terminal: terminal,
+              workspace: workspace
+            )
+          }
         }
-      }
 
-      Spacer(minLength: 16)
+        Spacer(minLength: 16)
+      } else {
+        Spacer()
+      }
 
       FooterCircleButton(
         symbol: "plus",
