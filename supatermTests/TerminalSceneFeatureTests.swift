@@ -193,6 +193,21 @@ struct TerminalSceneFeatureTests {
 
     #expect(recorder.commands == [.deleteWorkspace(workspace.id)])
   }
+
+  @Test
+  func selectWorkspaceMenuItemSelectedSendsSelectWorkspaceSlotCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalSceneFeature.State()) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.selectWorkspaceMenuItemSelected(4))
+
+    #expect(recorder.commands == [.selectWorkspaceSlot(4)])
+  }
 }
 
 @MainActor

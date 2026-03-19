@@ -77,6 +77,7 @@ struct TerminalSceneFeature {
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
     case selectWorkspaceButtonTapped(TerminalWorkspaceID)
+    case selectWorkspaceMenuItemSelected(Int)
     case sidebarFractionChanged(CGFloat)
     case splitBelowMenuItemSelected
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
@@ -243,6 +244,9 @@ struct TerminalSceneFeature {
 
       case .selectWorkspaceButtonTapped(let workspaceID):
         return sendCommand(.selectWorkspace(workspaceID))
+
+      case .selectWorkspaceMenuItemSelected(let slot):
+        return sendCommand(.selectWorkspaceSlot(slot))
 
       case .sidebarFractionChanged(let fraction):
         state.sidebarFraction = fraction

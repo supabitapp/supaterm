@@ -11,6 +11,7 @@ struct TerminalCommands: Commands {
   @FocusedValue(\.previousTabAction) private var previousTabAction
   @FocusedValue(\.selectTabAction) private var selectTabAction
   @FocusedValue(\.selectLastTabAction) private var selectLastTabAction
+  @FocusedValue(\.selectWorkspaceAction) private var selectWorkspaceAction
   @FocusedValue(\.toggleSidebarAction) private var toggleSidebarAction
   @FocusedValue(\.startSearchAction) private var startSearchAction
   @FocusedValue(\.searchSelectionAction) private var searchSelectionAction
@@ -87,6 +88,22 @@ struct TerminalCommands: Commands {
       }
       .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "last_tab")))
       .disabled(selectLastTabAction == nil)
+    }
+
+    CommandMenu("Spaces") {
+      ForEach(1...9, id: \.self) { slot in
+        Button("Space \(slot)") {
+          selectWorkspaceAction?(slot)
+        }
+        .keyboardShortcut(KeyEquivalent(Character(String(slot))), modifiers: .control)
+        .disabled(selectWorkspaceAction == nil)
+      }
+
+      Button("Space 10") {
+        selectWorkspaceAction?(0)
+      }
+      .keyboardShortcut("0", modifiers: .control)
+      .disabled(selectWorkspaceAction == nil)
     }
 
     CommandMenu("Pane") {
@@ -254,6 +271,17 @@ extension FocusedValues {
   var selectLastTabAction: (() -> Void)? {
     get { self[SelectLastTabActionKey.self] }
     set { self[SelectLastTabActionKey.self] = newValue }
+  }
+}
+
+private struct SelectWorkspaceActionKey: FocusedValueKey {
+  typealias Value = (Int) -> Void
+}
+
+extension FocusedValues {
+  var selectWorkspaceAction: ((Int) -> Void)? {
+    get { self[SelectWorkspaceActionKey.self] }
+    set { self[SelectWorkspaceActionKey.self] = newValue }
   }
 }
 
