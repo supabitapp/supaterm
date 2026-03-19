@@ -109,7 +109,7 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distribution
+archive: $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distribution
 	mkdir -p build
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Release -destination "generic/platform=macOS" -archivePath build/supaterm.xcarchive archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$$APPLE_TEAM_ID" CODE_SIGN_IDENTITY="$$DEVELOPER_ID_IDENTITY_SHA" OTHER_CODE_SIGN_FLAGS="--timestamp" $(XCODEBUILD_FLAGS) -skipMacroValidation 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
