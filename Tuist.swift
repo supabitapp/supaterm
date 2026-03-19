@@ -10,7 +10,7 @@ let tuist = Tuist(
     swiftVersion: "6.2",
     generationOptions: .options(
       optionalAuthentication: true,
-      enableCaching: true
+      enableCaching: Environment.enableXcodeCache.getBoolean(default: true)
     ),
     cacheOptions: .options(
       profiles: .profiles(
