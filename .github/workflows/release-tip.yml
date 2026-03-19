@@ -112,7 +112,9 @@ jobs:
         run: |
           set -euo pipefail
           APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          SP_CLI_PATH="$APP_PATH/Contents/MacOS/sp"
           SPARKLE_DIR=$(find "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions" -mindepth 1 -maxdepth 1 -type d ! -name Current -print -quit)
+          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SP_CLI_PATH"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/XPCServices/Installer.xpc"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements -v "$SPARKLE_DIR/XPCServices/Downloader.xpc"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Updater.app"
@@ -120,6 +122,7 @@ jobs:
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Sparkle"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$APP_PATH"
+          codesign -vvv --strict "$SP_CLI_PATH"
           codesign -vvv --deep --strict "$APP_PATH"
       - name: Store notarization credentials
         run: |
@@ -142,13 +145,54 @@ jobs:
           fi
       - name: Notarize and staple
         run: |
+          set -euo pipefail
           APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          NOTARY_RESULT_PATH=build/notarytool-submit.json
+          NOTARY_LOG_PATH=build/notarytool-log.json
+          NOTARY_STATUS=""
+          NOTARY_ID=""
           for attempt in 1 2 3; do
             echo "Notarization attempt $attempt..."
-            xcrun notarytool submit build/supaterm.dmg --keychain-profile "notarytool-profile" --wait && break
+            submit_exit=0
+            if ! xcrun notarytool submit build/supaterm.dmg \
+              --keychain-profile "notarytool-profile" \
+              --wait \
+              --output-format json > "$NOTARY_RESULT_PATH"; then
+              submit_exit=$?
+            fi
+            cat "$NOTARY_RESULT_PATH" || true
+            NOTARY_STATUS=$(/usr/bin/python3 - <<'PY' "$NOTARY_RESULT_PATH"
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f).get("status", ""))
+except Exception:
+    print("")
+PY
+)
+            NOTARY_ID=$(/usr/bin/python3 - <<'PY' "$NOTARY_RESULT_PATH"
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f).get("id", ""))
+except Exception:
+    print("")
+PY
+)
+            if [ "$submit_exit" -eq 0 ] && [ "$NOTARY_STATUS" = "Accepted" ]; then
+              break
+            fi
+            if [ -n "$NOTARY_ID" ]; then
+              xcrun notarytool log "$NOTARY_ID" --keychain-profile "notarytool-profile" > "$NOTARY_LOG_PATH" || true
+              cat "$NOTARY_LOG_PATH" || true
+            fi
             echo "Attempt $attempt failed, retrying in 30s..."
             sleep 30
           done
+          if [ "$NOTARY_STATUS" != "Accepted" ]; then
+            echo "::error::Notarization failed with status '$NOTARY_STATUS'"
+            exit 1
+          fi
           xcrun stapler staple build/supaterm.dmg
           xcrun stapler staple "$APP_PATH"
       - name: Create app zip
