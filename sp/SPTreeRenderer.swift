@@ -7,7 +7,7 @@ enum SPTreeRenderer {
 
     for (windowOffset, window) in snapshot.windows.enumerated() {
       lines.append(windowLine(window))
-      lines.append(contentsOf: renderTabs(window.tabs))
+      lines.append(contentsOf: renderWorkspaces(window.workspaces))
 
       if windowOffset < snapshot.windows.count - 1 {
         lines.append("")
@@ -17,17 +17,32 @@ enum SPTreeRenderer {
     return lines.joined(separator: "\n")
   }
 
-  private static func renderTabs(_ tabs: [SupatermTreeSnapshot.Tab]) -> [String] {
-    tabs.enumerated().flatMap { offset, tab in
-      let isLastTab = offset == tabs.count - 1
-      let branch = isLastTab ? "└─ " : "├─ "
-      let childPrefix = isLastTab ? "   " : "│  "
+  private static func renderWorkspaces(_ workspaces: [SupatermTreeSnapshot.Workspace]) -> [String] {
+    workspaces.enumerated().flatMap { workspaceOffset, workspace in
+      let isLastWorkspace = workspaceOffset == workspaces.count - 1
+      let workspaceBranch = isLastWorkspace ? "└─ " : "├─ "
+      let workspacePrefix = isLastWorkspace ? "   " : "│  "
 
-      var lines = ["\(branch)\(tabLine(tab))"]
+      var lines = ["\(workspaceBranch)\(workspaceLine(workspace))"]
+      lines.append(contentsOf: renderTabs(workspace.tabs, prefix: workspacePrefix))
+      return lines
+    }
+  }
+
+  private static func renderTabs(
+    _ tabs: [SupatermTreeSnapshot.Tab],
+    prefix: String
+  ) -> [String] {
+    tabs.enumerated().flatMap { tabOffset, tab in
+      let isLastTab = tabOffset == tabs.count - 1
+      let tabBranch = isLastTab ? "└─ " : "├─ "
+      let tabPrefix = prefix + (isLastTab ? "   " : "│  ")
+
+      var lines = ["\(prefix)\(tabBranch)\(tabLine(tab))"]
       lines.append(
         contentsOf: tab.panes.enumerated().map { paneOffset, pane in
           let paneBranch = paneOffset == tab.panes.count - 1 ? "└─ " : "├─ "
-          return "\(childPrefix)\(paneBranch)\(paneLine(pane))"
+          return "\(tabPrefix)\(paneBranch)\(paneLine(pane))"
         }
       )
       return lines
@@ -44,6 +59,18 @@ enum SPTreeRenderer {
       return "window \(window.index)"
     }
     return "window \(window.index) [\(labels.joined(separator: ", "))]"
+  }
+
+  private static func workspaceLine(_ workspace: SupatermTreeSnapshot.Workspace) -> String {
+    var labels: [String] = []
+    if workspace.isSelected {
+      labels.append("selected")
+    }
+
+    if labels.isEmpty {
+      return "workspace \(workspace.index) \"\(workspace.name)\""
+    }
+    return "workspace \(workspace.index) \"\(workspace.name)\" [\(labels.joined(separator: ", "))]"
   }
 
   private static func tabLine(_ tab: SupatermTreeSnapshot.Tab) -> String {

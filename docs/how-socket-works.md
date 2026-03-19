@@ -33,10 +33,29 @@ This logic is shared by the app runtime, the CLI, and pane-launched commands.
 ## Supported Methods
 
 - `system.ping`: health check, returns `{"pong": true}`
-- `app.tree`: returns a typed `SupatermTreeSnapshot`
+- `app.tree`: returns a typed `SupatermTreeSnapshot` with a `window -> workspace -> tab -> pane` hierarchy
 - `terminal.new_pane`: validates targeting rules, creates a pane through `TerminalClient`, and returns `SupatermNewPaneResult`
 
 Method names and payload types live in `SupatermCLIShared/SupatermSocketProtocol.swift`.
+
+## Tree Shape
+
+- `app.tree` returns all workspaces in the window, not just the selected workspace.
+- Each window snapshot now contains ordered `workspaces`.
+- Each workspace contains:
+  - `index`
+  - `name`
+  - `isSelected`
+  - `tabs`
+- `Tab` and `Pane` payloads are otherwise unchanged.
+- `sp tree` renders the same hierarchy in human-readable form: `window -> workspace -> tab -> pane`.
+
+## Pane Targeting
+
+- `terminal.new_pane` is unchanged at the request and response level.
+- Explicit `window` and `tab` targets are resolved within the currently selected workspace.
+- Context-pane targeting still resolves globally through `SUPATERM_SURFACE_ID`.
+- No workspace-specific socket methods are exposed in v1.
 
 ## Flow
 
