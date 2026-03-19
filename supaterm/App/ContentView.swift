@@ -36,6 +36,7 @@ struct ContentView: View {
       .focusedSceneValue(\.previousTabAction, actions.previousTab)
       .focusedSceneValue(\.selectTabAction, actions.selectTab)
       .focusedSceneValue(\.selectLastTabAction, actions.selectLastTab)
+      .focusedSceneValue(\.selectWorkspaceAction, actions.selectWorkspace)
       .focusedSceneValue(\.toggleSidebarAction, actions.toggleSidebar)
       .focusedSceneValue(\.startSearchAction, actions.startSearch)
       .focusedSceneValue(\.searchSelectionAction, actions.searchSelection)
@@ -52,6 +53,7 @@ struct ContentView: View {
     let hasTab = terminal.selectedTabID != nil
     let hasSurface = terminal.selectedSurfaceView != nil
     let hasVisibleTabs = !terminal.visibleTabs.isEmpty
+    let hasWorkspaces = !terminal.workspaces.isEmpty
 
     return FocusedActions(
       newTerminal: {
@@ -81,6 +83,10 @@ struct ContentView: View {
       selectLastTab: hasVisibleTabs
         ? {
           terminalStore.send(.selectLastTabMenuItemSelected)
+        } : nil,
+      selectWorkspace: hasWorkspaces
+        ? {
+          terminalStore.send(.selectWorkspaceMenuItemSelected($0))
         } : nil,
       toggleSidebar: {
         terminalStore.send(.toggleSidebarButtonTapped)
@@ -132,6 +138,7 @@ struct ContentView: View {
     let previousTab: (() -> Void)?
     let selectTab: ((Int) -> Void)?
     let selectLastTab: (() -> Void)?
+    let selectWorkspace: ((Int) -> Void)?
     let toggleSidebar: (() -> Void)?
     let startSearch: (() -> Void)?
     let searchSelection: (() -> Void)?

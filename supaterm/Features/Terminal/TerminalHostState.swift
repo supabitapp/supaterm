@@ -91,6 +91,7 @@ final class TerminalHostState {
     case .selectLastTab,
       .selectTab,
       .selectTabSlot,
+      .selectWorkspaceSlot,
       .selectWorkspace,
       .setPinnedTabOrder,
       .setRegularTabOrder,
@@ -109,6 +110,8 @@ final class TerminalHostState {
       selectTab(tabID)
     case .selectTabSlot(let slot):
       selectTab(slot: slot)
+    case .selectWorkspaceSlot(let slot):
+      selectWorkspace(slot: slot)
     case .selectWorkspace(let workspaceID):
       selectWorkspace(workspaceID)
     case .setPinnedTabOrder(let orderedIDs):
@@ -292,6 +295,12 @@ final class TerminalHostState {
       lastEmittedFocusSurfaceID = nil
     }
     syncFocus(windowActivity)
+  }
+
+  func selectWorkspace(slot: Int) {
+    let index = slot == 0 ? 9 : slot - 1
+    guard workspaces.indices.contains(index) else { return }
+    selectWorkspace(workspaces[index].id)
   }
 
   func renameWorkspace(_ workspaceID: TerminalWorkspaceID, to name: String) {

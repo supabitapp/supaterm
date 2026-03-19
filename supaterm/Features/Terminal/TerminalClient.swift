@@ -46,6 +46,7 @@ struct TerminalClient: Sendable {
     case selectLastTab
     case selectTab(TerminalTabID)
     case selectTabSlot(Int)
+    case selectWorkspaceSlot(Int)
     case selectWorkspace(TerminalWorkspaceID)
     case setPinnedTabOrder([TerminalTabID])
     case setRegularTabOrder([TerminalTabID])
