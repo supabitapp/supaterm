@@ -3,13 +3,15 @@ import Foundation
 import SupatermCLIShared
 
 actor SocketControlRuntime {
-  enum RuntimeError: LocalizedError {
+  enum RuntimeError: Equatable, LocalizedError {
     case bindFailed(String)
     case createDirectoryFailed(String)
+    case existingPathIsNotSocket(String)
     case listenFailed(String)
     case missingSocketPath
     case pathTooLong(String)
     case socketCreationFailed
+    case unlinkFailed(String)
 
     var errorDescription: String? {
       switch self {
@@ -17,6 +19,8 @@ actor SocketControlRuntime {
         return "Failed to bind the Supaterm socket at \(path)."
       case .createDirectoryFailed(let path):
         return "Failed to create the Supaterm socket directory at \(path)."
+      case .existingPathIsNotSocket(let path):
+        return "Supaterm socket path is already occupied by a non-socket file: \(path)"
       case .listenFailed(let path):
         return "Failed to listen on the Supaterm socket at \(path)."
       case .missingSocketPath:
@@ -25,6 +29,8 @@ actor SocketControlRuntime {
         return "Supaterm socket path is too long: \(path)"
       case .socketCreationFailed:
         return "Failed to create the Supaterm socket server."
+      case .unlinkFailed(let path):
+        return "Failed to remove the stale Supaterm socket at \(path)."
       }
     }
   }
@@ -86,7 +92,7 @@ actor SocketControlRuntime {
       throw RuntimeError.createDirectoryFailed(directoryURL.path)
     }
 
-    _ = socketPath.withCString(unlink)
+    try Self.removeExistingSocket(at: socketPath)
 
     let serverSocket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
     guard serverSocket >= 0 else {
@@ -124,7 +130,7 @@ actor SocketControlRuntime {
       return socketPath
     } catch {
       Darwin.close(serverSocket)
-      _ = socketPath.withCString(unlink)
+      Self.removeSocketIfPresent(at: socketPath)
       throw error
     }
   }
@@ -148,7 +154,7 @@ actor SocketControlRuntime {
     requestsContinuation = nil
 
     if let socketPath {
-      _ = socketPath.withCString(unlink)
+      Self.removeSocketIfPresent(at: socketPath)
     }
     socketPath = nil
   }
@@ -235,6 +241,32 @@ actor SocketControlRuntime {
     }
 
     return address
+  }
+
+  private nonisolated static func removeExistingSocket(at path: String) throws {
+    var fileStatus = stat()
+    let status = path.withCString { pointer in
+      lstat(pointer, &fileStatus)
+    }
+    guard status == 0 else {
+      if errno == ENOENT {
+        return
+      }
+      throw RuntimeError.unlinkFailed(path)
+    }
+
+    guard (fileStatus.st_mode & S_IFMT) == S_IFSOCK else {
+      throw RuntimeError.existingPathIsNotSocket(path)
+    }
+
+    let unlinkResult = path.withCString(unlink)
+    guard unlinkResult == 0 else {
+      throw RuntimeError.unlinkFailed(path)
+    }
+  }
+
+  private nonisolated static func removeSocketIfPresent(at path: String) {
+    try? removeExistingSocket(at: path)
   }
 
   private nonisolated static func readLine(from socket: Int32) -> String? {
