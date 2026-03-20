@@ -932,7 +932,7 @@ private enum WindowTrafficLightMetrics {
   }
 }
 
-private let sidebarRowHorizontalPadding: CGFloat = 8
+private let sidebarRowHorizontalPadding: CGFloat = 4
 private let sidebarRowVerticalPadding: CGFloat = 7
 
 private struct NewTabButton: View {
