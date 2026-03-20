@@ -38,16 +38,30 @@ struct TerminalSceneFeatureTests {
   }
 
   @Test
-  func closeTabRequestedPresentsConfirmationWhenNeeded() async {
+  func closeTabRequestedAsksHostToResolveClose() async {
+    let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
 
     let store = TestStore(initialState: TerminalSceneFeature.State()) {
       TerminalSceneFeature()
     } withDependencies: {
-      $0.terminalClient.tabNeedsCloseConfirmation = { $0 == tabID }
+      $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.closeTabRequested(tabID)) {
+    await store.send(.closeTabRequested(tabID))
+
+    #expect(recorder.commands == [.requestCloseTab(tabID)])
+  }
+
+  @Test
+  func closeRequestedPresentsConfirmationWhenNeeded() async {
+    let tabID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalSceneFeature.State()) {
+      TerminalSceneFeature()
+    }
+
+    await store.send(.clientEvent(.closeRequested(.init(target: .tab(tabID), needsConfirmation: true)))) {
       $0.pendingCloseRequest = .init(
         target: .tab(tabID),
         title: "Close Tab?",
@@ -88,9 +102,9 @@ struct TerminalSceneFeatureTests {
       TerminalSceneFeature()
     }
 
-    await store.send(.clientEvent(.closeSurfaceRequested(surfaceID: surfaceID, processAlive: true))) {
+    await store.send(.clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: true)))) {
       $0.pendingCloseRequest = .init(
-        target: .pane(surfaceID),
+        target: .surface(surfaceID),
         title: "Close Pane?",
         message: "A process is still running in this pane. Close it anyway?"
       )
@@ -108,7 +122,7 @@ struct TerminalSceneFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.clientEvent(.closeSurfaceRequested(surfaceID: surfaceID, processAlive: false)))
+    await store.send(.clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: false))))
 
     #expect(recorder.commands == [.closeSurface(surfaceID)])
   }
@@ -192,6 +206,48 @@ struct TerminalSceneFeatureTests {
     }
 
     #expect(recorder.commands == [.deleteWorkspace(workspace.id)])
+  }
+
+  @Test
+  func quitConfirmationCancelRepliesFalse() async {
+    var terminationReplies: [Bool] = []
+    var initialState = TerminalSceneFeature.State()
+    initialState.isQuitConfirmationPresented = true
+
+    let store = TestStore(initialState: initialState) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.appTerminationClient.reply = { shouldTerminate in
+        terminationReplies.append(shouldTerminate)
+      }
+    }
+
+    await store.send(TerminalSceneFeature.Action.quitConfirmationCancelButtonTapped) {
+      $0.isQuitConfirmationPresented = false
+    }
+
+    #expect(terminationReplies == [false])
+  }
+
+  @Test
+  func quitConfirmationConfirmRepliesTrue() async {
+    var terminationReplies: [Bool] = []
+    var initialState = TerminalSceneFeature.State()
+    initialState.isQuitConfirmationPresented = true
+
+    let store = TestStore(initialState: initialState) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.appTerminationClient.reply = { shouldTerminate in
+        terminationReplies.append(shouldTerminate)
+      }
+    }
+
+    await store.send(TerminalSceneFeature.Action.quitConfirmationConfirmButtonTapped) {
+      $0.isQuitConfirmationPresented = false
+    }
+
+    #expect(terminationReplies == [true])
   }
 
   @Test

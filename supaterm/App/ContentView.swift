@@ -1,9 +1,24 @@
+import AppKit
 import ComposableArchitecture
 import SwiftUI
 
 struct ContentView: View {
   let store: StoreOf<AppFeature>
+  let ghosttyShortcuts: GhosttyShortcutManager
+  let onWindowChanged: (NSWindow?) -> Void
   @Bindable var terminal: TerminalHostState
+
+  init(
+    store: StoreOf<AppFeature>,
+    terminal: TerminalHostState,
+    ghosttyShortcuts: GhosttyShortcutManager,
+    onWindowChanged: @escaping (NSWindow?) -> Void
+  ) {
+    self.store = store
+    self._terminal = Bindable(terminal)
+    self.ghosttyShortcuts = ghosttyShortcuts
+    self.onWindowChanged = onWindowChanged
+  }
 
   private var terminalStore: StoreOf<TerminalSceneFeature> {
     store.scope(state: \.terminal, action: \.terminal)
@@ -14,6 +29,7 @@ struct ContentView: View {
       content: TerminalView(
         store: terminalStore,
         terminal: terminal,
+        onWindowChanged: onWindowChanged,
         updateStore: store.scope(state: \.update, action: \.update)
       )
       .task {
@@ -47,6 +63,8 @@ struct ContentView: View {
       .focusedSceneValue(\.splitRightAction, actions.splitRight)
       .focusedSceneValue(\.equalizePanesAction, actions.equalizePanes)
       .focusedSceneValue(\.togglePaneZoomAction, actions.togglePaneZoom)
+      .focusedSceneValue(\.checkForUpdatesAction, actions.checkForUpdates)
+      .focusedSceneValue(\.ghosttyKeyboardShortcutProvider, actions.keyboardShortcutProvider)
   }
 
   private func makeFocusedActions() -> FocusedActions {
@@ -61,7 +79,8 @@ struct ContentView: View {
       },
       closeSurface: hasSurface
         ? {
-          terminalStore.send(.closeSurfaceMenuItemSelected)
+          guard let selectedSurfaceID = terminal.selectedSurfaceView?.id else { return }
+          terminalStore.send(.closeSurfaceRequested(selectedSurfaceID))
         } : nil,
       closeTab: hasTab
         ? {
@@ -126,7 +145,14 @@ struct ContentView: View {
       togglePaneZoom: hasSurface
         ? {
           terminalStore.send(.togglePaneZoomMenuItemSelected)
-        } : nil
+        } : nil,
+      checkForUpdates: store.update.canCheckForUpdates
+        ? {
+          store.send(.update(.checkForUpdatesButtonTapped))
+        } : nil,
+      keyboardShortcutProvider: { action in
+        ghosttyShortcuts.keyboardShortcut(for: action)
+      }
     )
   }
 
@@ -149,5 +175,7 @@ struct ContentView: View {
     let splitRight: (() -> Void)?
     let equalizePanes: (() -> Void)?
     let togglePaneZoom: (() -> Void)?
+    let checkForUpdates: (() -> Void)?
+    let keyboardShortcutProvider: (String) -> KeyboardShortcut?
   }
 }

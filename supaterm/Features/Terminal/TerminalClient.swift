@@ -15,6 +15,16 @@ struct TerminalCreatePaneRequest: Equatable, Sendable {
   let target: Target
 }
 
+enum TerminalCloseTarget: Equatable, Sendable {
+  case surface(UUID)
+  case tab(TerminalTabID)
+}
+
+struct TerminalCloseRequest: Equatable, Sendable {
+  let target: TerminalCloseTarget
+  let needsConfirmation: Bool
+}
+
 enum TerminalCreatePaneError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
@@ -27,7 +37,6 @@ struct TerminalClient: Sendable {
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
-  var tabNeedsCloseConfirmation: @MainActor @Sendable (TerminalTabID) -> Bool
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
 
   enum Command: Equatable, @unchecked Sendable {
@@ -42,6 +51,8 @@ struct TerminalClient: Sendable {
     case performBindingActionOnFocusedSurface(String)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case previousTab
+    case requestCloseSurface(UUID)
+    case requestCloseTab(TerminalTabID)
     case renameWorkspace(TerminalWorkspaceID, String)
     case selectLastTab
     case selectTab(TerminalTabID)
@@ -55,8 +66,7 @@ struct TerminalClient: Sendable {
   }
 
   enum Event: Equatable, Sendable {
-    case closeSurfaceRequested(surfaceID: UUID, processAlive: Bool)
-    case closeTabRequested(TerminalTabID)
+    case closeRequested(TerminalCloseRequest)
     case gotoTabRequested(TerminalGotoTabTarget)
     case newTabRequested(inheritingFromSurfaceID: UUID?)
   }
@@ -71,9 +81,6 @@ struct TerminalClient: Sendable {
       },
       send: { command in
         host.handleCommand(command)
-      },
-      tabNeedsCloseConfirmation: { tabID in
-        host.tabNeedsCloseConfirmation(tabID)
       },
       treeSnapshot: {
         host.treeSnapshot()
@@ -96,7 +103,6 @@ extension TerminalClient: DependencyKey {
     },
     events: { AsyncStream { $0.finish() } },
     send: { _ in },
-    tabNeedsCloseConfirmation: { _ in false },
     treeSnapshot: { .init(windows: []) }
   )
 
@@ -106,7 +112,6 @@ extension TerminalClient: DependencyKey {
     },
     events: { AsyncStream { $0.finish() } },
     send: { _ in },
-    tabNeedsCloseConfirmation: { _ in false },
     treeSnapshot: { .init(windows: []) }
   )
 }
