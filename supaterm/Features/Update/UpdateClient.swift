@@ -137,6 +137,15 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
+  var menuItemText: String {
+    switch self {
+    case .checking, .downloading, .extracting, .installing, .updateAvailable:
+      return text
+    default:
+      return "Check for Updates..."
+    }
+  }
+
   var pillTone: UpdatePillTone {
     switch self {
     case .error:
