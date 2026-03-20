@@ -4,7 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class TerminalWorkspaceManager {
-  struct DeletedWorkspaceResult: Equatable {
+  struct WorkspaceCatalogDiff: Equatable {
     let removedTabIDs: [TerminalTabID]
   }
 
@@ -41,28 +41,25 @@ final class TerminalWorkspaceManager {
     selectedWorkspaceID != nil
   }
 
-  func restore(from snapshot: TerminalWorkspaceSnapshot?) {
+  func bootstrap(
+    from catalog: TerminalWorkspaceCatalog,
+    initialSelectedWorkspaceID: TerminalWorkspaceID?
+  ) {
     workspaces.removeAll()
     tabManagers.removeAll()
     selectedWorkspaceID = nil
 
-    let resolvedSnapshot = snapshot.flatMap(Self.sanitizedSnapshot(_:)) ?? Self.defaultSnapshot
-    for workspace in resolvedSnapshot.workspaces {
+    let resolvedCatalog = Self.sanitizedCatalog(catalog)
+    for workspace in resolvedCatalog.workspaces {
       let item = TerminalWorkspaceItem(id: workspace.id, name: workspace.name)
       workspaces.append(item)
       tabManagers[item.id] = TerminalTabManager()
     }
-    selectedWorkspaceID = resolvedSnapshot.selectedWorkspaceID
-  }
-
-  func snapshot() -> TerminalWorkspaceSnapshot {
-    let resolvedSelectedWorkspaceID = selectedWorkspaceID ?? workspaces[0].id
-    return TerminalWorkspaceSnapshot(
-      selectedWorkspaceID: resolvedSelectedWorkspaceID,
-      workspaces: workspaces.map {
-        PersistedTerminalWorkspace(id: $0.id, name: $0.name)
+    selectedWorkspaceID =
+      initialSelectedWorkspaceID.flatMap { workspaceID in
+        workspaces.contains(where: { $0.id == workspaceID }) ? workspaceID : nil
       }
-    )
+      ?? resolvedCatalog.defaultSelectedWorkspaceID
   }
 
   func selectWorkspace(_ id: TerminalWorkspaceID) -> Bool {
@@ -71,37 +68,35 @@ final class TerminalWorkspaceManager {
     return true
   }
 
-  @discardableResult
-  func createWorkspace() -> TerminalWorkspaceItem {
-    let workspace = TerminalWorkspaceItem(name: nextDefaultWorkspaceName())
-    workspaces.append(workspace)
-    tabManagers[workspace.id] = TerminalTabManager()
-    selectedWorkspaceID = workspace.id
-    return workspace
-  }
+  func applyCatalog(_ catalog: TerminalWorkspaceCatalog) -> WorkspaceCatalogDiff {
+    let resolvedCatalog = Self.sanitizedCatalog(catalog)
+    let previousWorkspaces = workspaces
+    let previousTabManagers = tabManagers
+    let previousSelectedWorkspaceID = selectedWorkspaceID
 
-  func renameWorkspace(_ id: TerminalWorkspaceID, to proposedName: String) -> Bool {
-    guard let normalizedName = normalizedName(proposedName) else { return false }
-    guard isNameAvailable(normalizedName, excluding: id) else { return false }
-    guard let index = workspaces.firstIndex(where: { $0.id == id }) else { return false }
-    workspaces[index].name = normalizedName
-    return true
-  }
-
-  func deleteWorkspace(_ id: TerminalWorkspaceID) -> DeletedWorkspaceResult? {
-    guard workspaces.count > 1 else { return nil }
-    guard let index = workspaces.firstIndex(where: { $0.id == id }) else { return nil }
-
-    let removedWorkspace = workspaces.remove(at: index)
-    let removedTabIDs = tabManagers[removedWorkspace.id]?.tabs.map(\.id) ?? []
-    tabManagers.removeValue(forKey: removedWorkspace.id)
-
-    if selectedWorkspaceID == removedWorkspace.id {
-      let nextIndex = max(0, index - 1)
-      selectedWorkspaceID = workspaces[nextIndex].id
+    let nextWorkspaces = resolvedCatalog.workspaces.map {
+      TerminalWorkspaceItem(id: $0.id, name: $0.name)
+    }
+    var nextTabManagers: [TerminalWorkspaceID: TerminalTabManager] = [:]
+    for workspace in nextWorkspaces {
+      nextTabManagers[workspace.id] = previousTabManagers[workspace.id] ?? TerminalTabManager()
     }
 
-    return DeletedWorkspaceResult(removedTabIDs: removedTabIDs)
+    let removedWorkspaceIDs = Set(previousTabManagers.keys).subtracting(nextTabManagers.keys)
+    let removedTabIDs =
+      previousWorkspaces
+      .filter { removedWorkspaceIDs.contains($0.id) }
+      .flatMap { previousTabManagers[$0.id]?.tabs.map(\.id) ?? [] }
+
+    workspaces = nextWorkspaces
+    tabManagers = nextTabManagers
+    selectedWorkspaceID = resolvedSelectedWorkspaceID(
+      current: previousSelectedWorkspaceID,
+      previousWorkspaces: previousWorkspaces,
+      resolvedCatalog: resolvedCatalog
+    )
+
+    return WorkspaceCatalogDiff(removedTabIDs: removedTabIDs)
   }
 
   func isNameAvailable(
@@ -162,36 +157,37 @@ final class TerminalWorkspaceManager {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  private static func sanitizedSnapshot(
-    _ snapshot: TerminalWorkspaceSnapshot
-  ) -> TerminalWorkspaceSnapshot? {
-    let workspaces = snapshot.workspaces.compactMap { workspace -> PersistedTerminalWorkspace? in
-      let trimmedName = workspace.name.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !trimmedName.isEmpty else { return nil }
-      return PersistedTerminalWorkspace(id: workspace.id, name: trimmedName)
+  private func resolvedSelectedWorkspaceID(
+    current currentSelectedWorkspaceID: TerminalWorkspaceID?,
+    previousWorkspaces: [TerminalWorkspaceItem],
+    resolvedCatalog: TerminalWorkspaceCatalog
+  ) -> TerminalWorkspaceID {
+    if let currentSelectedWorkspaceID,
+      workspaces.contains(where: { $0.id == currentSelectedWorkspaceID })
+    {
+      return currentSelectedWorkspaceID
     }
-    guard !workspaces.isEmpty else { return nil }
-    guard workspaces.contains(where: { $0.id == snapshot.selectedWorkspaceID }) else {
-      return TerminalWorkspaceSnapshot(
-        selectedWorkspaceID: workspaces[0].id,
-        workspaces: workspaces
-      )
+
+    if let currentSelectedWorkspaceID,
+      let currentIndex = previousWorkspaces.firstIndex(where: { $0.id == currentSelectedWorkspaceID })
+    {
+      for workspace in previousWorkspaces[..<currentIndex].reversed()
+      where workspaces.contains(where: { $0.id == workspace.id }) {
+        return workspace.id
+      }
     }
-    return TerminalWorkspaceSnapshot(
-      selectedWorkspaceID: snapshot.selectedWorkspaceID,
-      workspaces: workspaces
-    )
+
+    if workspaces.contains(where: { $0.id == resolvedCatalog.defaultSelectedWorkspaceID }) {
+      return resolvedCatalog.defaultSelectedWorkspaceID
+    }
+
+    return workspaces[0].id
   }
 
-  private static var defaultSnapshot: TerminalWorkspaceSnapshot {
-    let workspace = PersistedTerminalWorkspace(
-      id: TerminalWorkspaceID(),
-      name: "A"
-    )
-    return TerminalWorkspaceSnapshot(
-      selectedWorkspaceID: workspace.id,
-      workspaces: [workspace]
-    )
+  private static func sanitizedCatalog(
+    _ catalog: TerminalWorkspaceCatalog
+  ) -> TerminalWorkspaceCatalog {
+    TerminalWorkspaceCatalog.sanitized(catalog)
   }
 
   private static func spreadsheetLabel(for index: Int) -> String {

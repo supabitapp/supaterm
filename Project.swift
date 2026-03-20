@@ -141,6 +141,7 @@ let project = Project(
         .target(name: "sp"),
         .xcframework(path: "Frameworks/GhosttyKit.xcframework"),
         .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
         .external(name: "Sparkle"),
       ],
       settings: .settings(
@@ -173,6 +174,7 @@ let project = Project(
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
         .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
       ],
       settings: .settings(
         base: [

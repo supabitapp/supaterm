@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import GhosttyKit
 import Observation
+import Sharing
 import SupatermCLIShared
 import SwiftUI
 
@@ -26,11 +27,18 @@ final class TerminalHostState {
   }
 
   @ObservationIgnored
-  private let runtime: GhosttyRuntime
+  private let runtime: GhosttyRuntime?
   @ObservationIgnored
-  private let workspaceStore: TerminalWorkspaceStore
+  private let managesTerminalSurfaces: Bool
   @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
+  @ObservationIgnored
+  @Shared(.terminalWorkspaceCatalog)
+  private var workspaceCatalog = TerminalWorkspaceCatalog.default
+  @ObservationIgnored
+  private var workspaceCatalogObservationTask: Task<Void, Never>?
+  @ObservationIgnored
+  private var lastAppliedWorkspaceCatalog = TerminalWorkspaceCatalog.default
   let workspaceManager = TerminalWorkspaceManager()
 
   private var pendingEvents: [TerminalClient.Event] = []
@@ -42,12 +50,26 @@ final class TerminalHostState {
   var windowActivity = WindowActivityState.inactive
 
   init(
-    runtime: GhosttyRuntime = GhosttyRuntime(),
-    workspaceStore: TerminalWorkspaceStore = .live
+    runtime: GhosttyRuntime? = nil,
+    managesTerminalSurfaces: Bool = true
   ) {
-    self.runtime = runtime
-    self.workspaceStore = workspaceStore
-    workspaceManager.restore(from: workspaceStore.load())
+    self.managesTerminalSurfaces = managesTerminalSurfaces
+    self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
+
+    let initialWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
+    if initialWorkspaceCatalog != workspaceCatalog {
+      replaceWorkspaceCatalog(initialWorkspaceCatalog)
+    }
+    lastAppliedWorkspaceCatalog = initialWorkspaceCatalog
+    workspaceManager.bootstrap(
+      from: initialWorkspaceCatalog,
+      initialSelectedWorkspaceID: initialWorkspaceCatalog.defaultSelectedWorkspaceID
+    )
+    observeWorkspaceCatalog()
+  }
+
+  deinit {
+    workspaceCatalogObservationTask?.cancel()
   }
 
   func eventStream() -> AsyncStream<TerminalClient.Event> {
@@ -222,7 +244,11 @@ final class TerminalHostState {
 
   private func selectTab(_ tabID: TerminalTabID) {
     guard let workspace = workspaceManager.workspace(for: tabID) else { return }
+    let didChangeWorkspace = workspaceManager.selectedWorkspaceID != workspace.id
     guard workspaceManager.selectWorkspace(workspace.id) else { return }
+    if didChangeWorkspace {
+      persistDefaultSelectedWorkspaceID(workspace.id)
+    }
     workspaceManager.tabManager(for: workspace.id)?.selectTab(tabID)
     focusSurface(in: tabID)
     syncFocus(windowActivity)
@@ -276,25 +302,31 @@ final class TerminalHostState {
   }
 
   private func createWorkspace() {
-    _ = workspaceManager.createWorkspace()
-    persistWorkspaceSnapshot()
-    ensureInitialTab(focusing: false)
-    if let selectedTabID {
-      focusSurface(in: selectedTabID)
-    }
-    syncFocus(windowActivity)
+    let workspace = PersistedTerminalWorkspace(name: workspaceManager.nextDefaultWorkspaceName())
+    var updatedWorkspaceCatalog = workspaceCatalog
+    updatedWorkspaceCatalog.defaultSelectedWorkspaceID = workspace.id
+    updatedWorkspaceCatalog = TerminalWorkspaceCatalog(
+      defaultSelectedWorkspaceID: updatedWorkspaceCatalog.defaultSelectedWorkspaceID,
+      workspaces: updatedWorkspaceCatalog.workspaces + [workspace]
+    )
+    _ = writeWorkspaceCatalog(updatedWorkspaceCatalog)
+    guard workspaceManager.selectWorkspace(workspace.id) else { return }
+    finalizeWorkspaceSelectionChange()
   }
 
   private func selectWorkspace(_ workspaceID: TerminalWorkspaceID) {
+    selectWorkspace(workspaceID, persistDefaultSelection: true)
+  }
+
+  private func selectWorkspace(
+    _ workspaceID: TerminalWorkspaceID,
+    persistDefaultSelection: Bool
+  ) {
     guard workspaceManager.selectWorkspace(workspaceID) else { return }
-    persistWorkspaceSnapshot()
-    ensureInitialTab(focusing: false)
-    if let selectedTabID {
-      focusSurface(in: selectedTabID)
-    } else {
-      lastEmittedFocusSurfaceID = nil
+    if persistDefaultSelection {
+      persistDefaultSelectedWorkspaceID(workspaceID)
     }
-    syncFocus(windowActivity)
+    finalizeWorkspaceSelectionChange()
   }
 
   private func selectWorkspace(slot: Int) {
@@ -304,23 +336,28 @@ final class TerminalHostState {
   }
 
   private func renameWorkspace(_ workspaceID: TerminalWorkspaceID, to name: String) {
-    guard workspaceManager.renameWorkspace(workspaceID, to: name) else { return }
-    persistWorkspaceSnapshot()
+    let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedName.isEmpty else { return }
+    guard workspaceManager.isNameAvailable(normalizedName, excluding: workspaceID) else { return }
+    guard let index = workspaceCatalog.workspaces.firstIndex(where: { $0.id == workspaceID }) else { return }
+
+    var updatedWorkspaceCatalog = workspaceCatalog
+    updatedWorkspaceCatalog.workspaces[index].name = normalizedName
+    _ = writeWorkspaceCatalog(updatedWorkspaceCatalog)
   }
 
   private func deleteWorkspace(_ workspaceID: TerminalWorkspaceID) {
-    guard let deletedWorkspace = workspaceManager.deleteWorkspace(workspaceID) else { return }
-    for tabID in deletedWorkspace.removedTabIDs {
-      removeTree(for: tabID)
-    }
-    persistWorkspaceSnapshot()
-    ensureInitialTab(focusing: false)
-    if let selectedTabID {
-      focusSurface(in: selectedTabID)
-    } else {
-      lastEmittedFocusSurfaceID = nil
-    }
-    syncFocus(windowActivity)
+    let remainingWorkspaces = workspaceCatalog.workspaces.filter { $0.id != workspaceID }
+    guard !remainingWorkspaces.isEmpty else { return }
+    guard remainingWorkspaces.count != workspaceCatalog.workspaces.count else { return }
+
+    let nextSelectedWorkspaceID = nextSelectedWorkspaceID(afterDeleting: workspaceID)
+    let updatedWorkspaceCatalog = TerminalWorkspaceCatalog(
+      defaultSelectedWorkspaceID: nextSelectedWorkspaceID,
+      workspaces: remainingWorkspaces
+    )
+    _ = writeWorkspaceCatalog(updatedWorkspaceCatalog)
+    finalizeWorkspaceSelectionChange()
   }
 
   func isWorkspaceNameAvailable(
@@ -723,6 +760,9 @@ final class TerminalHostState {
     inheritingFromSurfaceID: UUID?,
     context: ghostty_surface_context_e
   ) -> GhosttySurfaceView {
+    guard let runtime else {
+      preconditionFailure("TerminalHostState cannot create surfaces without a GhosttyRuntime")
+    }
     let inherited = inheritedSurfaceConfig(fromSurfaceID: inheritingFromSurfaceID, context: context)
     let view = GhosttySurfaceView(
       runtime: runtime,
@@ -1046,8 +1086,100 @@ final class TerminalHostState {
     workspaceManager.tab(for: tabID)?.title ?? "Terminal"
   }
 
-  private func persistWorkspaceSnapshot() {
-    workspaceStore.save(workspaceManager.snapshot())
+  private func observeWorkspaceCatalog() {
+    workspaceCatalogObservationTask?.cancel()
+    workspaceCatalogObservationTask = Task { @MainActor [weak self] in
+      let observations = Observations { [weak self] in
+        self?.workspaceCatalog ?? .default
+      }
+      for await workspaceCatalog in observations {
+        guard let self else { return }
+        self.applyObservedWorkspaceCatalog(workspaceCatalog)
+      }
+    }
+  }
+
+  private func applyObservedWorkspaceCatalog(_ workspaceCatalog: TerminalWorkspaceCatalog) {
+    let resolvedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
+    guard resolvedWorkspaceCatalog != lastAppliedWorkspaceCatalog else { return }
+
+    let previousSelectedWorkspaceID = selectedWorkspaceID
+    lastAppliedWorkspaceCatalog = resolvedWorkspaceCatalog
+    let diff = workspaceManager.applyCatalog(resolvedWorkspaceCatalog)
+    removeTrees(for: diff.removedTabIDs)
+
+    if previousSelectedWorkspaceID != selectedWorkspaceID {
+      finalizeWorkspaceSelectionChange()
+    } else if !diff.removedTabIDs.isEmpty {
+      syncFocus(windowActivity)
+    }
+  }
+
+  @discardableResult
+  private func writeWorkspaceCatalog(
+    _ workspaceCatalog: TerminalWorkspaceCatalog
+  ) -> TerminalWorkspaceManager.WorkspaceCatalogDiff {
+    let resolvedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
+    replaceWorkspaceCatalog(resolvedWorkspaceCatalog)
+    lastAppliedWorkspaceCatalog = resolvedWorkspaceCatalog
+
+    let diff = workspaceManager.applyCatalog(resolvedWorkspaceCatalog)
+    removeTrees(for: diff.removedTabIDs)
+    return diff
+  }
+
+  private func persistDefaultSelectedWorkspaceID(_ workspaceID: TerminalWorkspaceID) {
+    guard workspaceCatalog.defaultSelectedWorkspaceID != workspaceID else { return }
+
+    var updatedWorkspaceCatalog = workspaceCatalog
+    updatedWorkspaceCatalog.defaultSelectedWorkspaceID = workspaceID
+    replaceWorkspaceCatalog(updatedWorkspaceCatalog)
+    lastAppliedWorkspaceCatalog = updatedWorkspaceCatalog
+  }
+
+  private func replaceWorkspaceCatalog(_ workspaceCatalog: TerminalWorkspaceCatalog) {
+    $workspaceCatalog.withLock { $0 = workspaceCatalog }
+  }
+
+  private func nextSelectedWorkspaceID(afterDeleting workspaceID: TerminalWorkspaceID) -> TerminalWorkspaceID {
+    let remainingWorkspaces = workspaces.filter { $0.id != workspaceID }
+    precondition(!remainingWorkspaces.isEmpty)
+
+    if let selectedWorkspaceID,
+      selectedWorkspaceID != workspaceID,
+      remainingWorkspaces.contains(where: { $0.id == selectedWorkspaceID })
+    {
+      return selectedWorkspaceID
+    }
+
+    if let deletedIndex = workspaces.firstIndex(where: { $0.id == workspaceID }) {
+      for workspace in workspaces[..<deletedIndex].reversed()
+      where remainingWorkspaces.contains(where: { $0.id == workspace.id }) {
+        return workspace.id
+      }
+    }
+
+    return remainingWorkspaces[0].id
+  }
+
+  private func finalizeWorkspaceSelectionChange() {
+    guard managesTerminalSurfaces else {
+      lastEmittedFocusSurfaceID = nil
+      return
+    }
+    ensureInitialTab(focusing: false)
+    if let selectedTabID {
+      focusSurface(in: selectedTabID)
+    } else {
+      lastEmittedFocusSurfaceID = nil
+    }
+    syncFocus(windowActivity)
+  }
+
+  private func removeTrees(for tabIDs: [TerminalTabID]) {
+    for tabID in tabIDs {
+      removeTree(for: tabID)
+    }
   }
 
   private func mapSplitDirection(_ direction: GhosttySplitAction.NewDirection)
