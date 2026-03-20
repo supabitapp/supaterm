@@ -654,19 +654,20 @@ private struct SidebarContainerView: View {
           sectionHeader("Pinned")
         }
         .transition(Self.sidebarSectionTransition)
-      }
 
-      Section {
-        regularTabContent
-      } header: {
-        if showsSectionHeaders {
+        Section {
+          regularTabContent
+        } header: {
           sectionHeader("Tabs")
             .transition(Self.sidebarSectionTransition)
         }
+      } else {
+        regularTabContent
       }
     }
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
+    .environment(\.defaultMinListRowHeight, 1)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .animation(.spring(response: 0.28, dampingFraction: 0.82), value: showsSectionHeaders)
   }
@@ -932,6 +933,7 @@ private enum WindowTrafficLightMetrics {
 }
 
 private let sidebarRowHorizontalPadding: CGFloat = 8
+private let sidebarRowVerticalPadding: CGFloat = 7
 
 private struct NewTabButton: View {
   let palette: TerminalPalette
@@ -955,7 +957,7 @@ private struct NewTabButton: View {
         Spacer(minLength: 0)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.vertical, 10)
+      .padding(.vertical, sidebarRowVerticalPadding)
       .padding(.horizontal, sidebarRowHorizontalPadding)
       .contentShape(Rectangle())
     }
@@ -1027,7 +1029,7 @@ private struct SidebarTabRow: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 10)
+    .padding(.vertical, sidebarRowVerticalPadding)
     .padding(.horizontal, sidebarRowHorizontalPadding)
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
