@@ -618,7 +618,7 @@ private struct TerminalSidebarView: View {
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    VStack(alignment: .leading, spacing: 4) {
       SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
       SidebarFooterView(store: store, palette: palette, terminal: terminal)
