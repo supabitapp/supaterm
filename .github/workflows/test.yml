@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build:
+  inspect-dependencies:
     runs-on: macos-26
     permissions:
       contents: read
@@ -23,6 +23,20 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
       - run: make inspect-dependencies
+
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    env:
+      MISE_HTTP_TIMEOUT: 120
+      MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-macos
       - run: make lint
       - run: make build-app
       - run: make test
