@@ -267,9 +267,33 @@ enum TerminalSplitMetrics {
   }
 }
 
+enum TerminalChromeMetrics {
+  static let paneInset: CGFloat = 6
+  static let paneCornerRadius: CGFloat = 16
+
+  static func nestedCornerRadius(
+    inside outerCornerRadius: CGFloat,
+    inset: CGFloat = paneInset
+  ) -> CGFloat {
+    Swift.max(0, outerCornerRadius - inset)
+  }
+}
+
 private enum TerminalCoordinateSpace {
   static let split = "TerminalSplit"
   static let floatingSidebar = "TerminalFloatingSidebar"
+}
+
+extension View {
+  fileprivate func terminalPaneChrome(palette: TerminalPalette) -> some View {
+    self
+      .clipShape(.rect(cornerRadius: TerminalChromeMetrics.paneCornerRadius))
+      .overlay {
+        RoundedRectangle(cornerRadius: TerminalChromeMetrics.paneCornerRadius, style: .continuous)
+          .stroke(palette.detailStroke, lineWidth: 1)
+      }
+      .padding(TerminalChromeMetrics.paneInset)
+  }
 }
 
 private struct TerminalSplitView: View {
@@ -871,13 +895,8 @@ private struct FloatingSidebarView: View {
     .background {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
     }
-    .clipShape(.rect(cornerRadius: 16))
-    .overlay {
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(palette.detailStroke, lineWidth: 1)
-    }
+    .terminalPaneChrome(palette: palette)
     .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
-    .padding(6)
   }
 }
 
@@ -1193,12 +1212,7 @@ private struct TerminalDetailView: View {
       selectedTabID: selectedTabID
     )
     .compositingGroup()
-    .clipShape(.rect(cornerRadius: 18))
-    .overlay {
-      RoundedRectangle(cornerRadius: 18, style: .continuous)
-        .stroke(palette.detailStroke, lineWidth: 1)
-    }
-    .padding(6)
+    .terminalPaneChrome(palette: palette)
   }
 }
 
