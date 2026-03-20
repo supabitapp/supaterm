@@ -86,6 +86,10 @@ final class TerminalHostState {
       performSplitOperation(operation, in: tabID)
     case .previousTab:
       previousTab()
+    case .requestCloseSurface(let surfaceID):
+      requestCloseSurface(surfaceID)
+    case .requestCloseTab(let tabID):
+      requestCloseTab(tabID)
     case .renameWorkspace(let workspaceID, let name):
       renameWorkspace(workspaceID, to: name)
     case .selectLastTab,
@@ -181,17 +185,13 @@ final class TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
-  func ensureInitialTab(focusing: Bool) {
+  private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)
   }
 
-  func setColorScheme(_ scheme: ColorScheme) {
-    runtime.setColorScheme(scheme)
-  }
-
   @discardableResult
-  func createTab(
+  private func createTab(
     focusing: Bool = true,
     initialInput: String? = nil,
     inheritingFromSurfaceID: UUID? = nil
@@ -220,7 +220,7 @@ final class TerminalHostState {
     return tabID
   }
 
-  func selectTab(_ tabID: TerminalTabID) {
+  private func selectTab(_ tabID: TerminalTabID) {
     guard let workspace = workspaceManager.workspace(for: tabID) else { return }
     guard workspaceManager.selectWorkspace(workspace.id) else { return }
     workspaceManager.tabManager(for: workspace.id)?.selectTab(tabID)
@@ -228,13 +228,13 @@ final class TerminalHostState {
     syncFocus(windowActivity)
   }
 
-  func selectTab(slot: Int) {
+  private func selectTab(slot: Int) {
     let index = slot - 1
     guard visibleTabs.indices.contains(index) else { return }
     selectTab(visibleTabs[index].id)
   }
 
-  func nextTab() {
+  private func nextTab() {
     guard
       let selectedTabID,
       let selectedIndex = tabs.firstIndex(where: { $0.id == selectedTabID }),
@@ -246,7 +246,7 @@ final class TerminalHostState {
     selectTab(tabs[nextIndex].id)
   }
 
-  func previousTab() {
+  private func previousTab() {
     guard
       let selectedTabID,
       let selectedIndex = tabs.firstIndex(where: { $0.id == selectedTabID }),
@@ -258,24 +258,24 @@ final class TerminalHostState {
     selectTab(tabs[previousIndex].id)
   }
 
-  func selectLastTab() {
+  private func selectLastTab() {
     guard let lastTabID = visibleTabs.last?.id else { return }
     selectTab(lastTabID)
   }
 
-  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
+  private func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     workspaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
   }
 
-  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
+  private func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
     workspaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
   }
 
-  func togglePinned(_ tabID: TerminalTabID) {
+  private func togglePinned(_ tabID: TerminalTabID) {
     workspaceManager.workspace(for: tabID).flatMap { workspaceManager.tabManager(for: $0.id) }?.togglePinned(tabID)
   }
 
-  func createWorkspace() {
+  private func createWorkspace() {
     _ = workspaceManager.createWorkspace()
     persistWorkspaceSnapshot()
     ensureInitialTab(focusing: false)
@@ -285,7 +285,7 @@ final class TerminalHostState {
     syncFocus(windowActivity)
   }
 
-  func selectWorkspace(_ workspaceID: TerminalWorkspaceID) {
+  private func selectWorkspace(_ workspaceID: TerminalWorkspaceID) {
     guard workspaceManager.selectWorkspace(workspaceID) else { return }
     persistWorkspaceSnapshot()
     ensureInitialTab(focusing: false)
@@ -297,18 +297,18 @@ final class TerminalHostState {
     syncFocus(windowActivity)
   }
 
-  func selectWorkspace(slot: Int) {
+  private func selectWorkspace(slot: Int) {
     let index = slot == 0 ? 9 : slot - 1
     guard workspaces.indices.contains(index) else { return }
     selectWorkspace(workspaces[index].id)
   }
 
-  func renameWorkspace(_ workspaceID: TerminalWorkspaceID, to name: String) {
+  private func renameWorkspace(_ workspaceID: TerminalWorkspaceID, to name: String) {
     guard workspaceManager.renameWorkspace(workspaceID, to: name) else { return }
     persistWorkspaceSnapshot()
   }
 
-  func deleteWorkspace(_ workspaceID: TerminalWorkspaceID) {
+  private func deleteWorkspace(_ workspaceID: TerminalWorkspaceID) {
     guard let deletedWorkspace = workspaceManager.deleteWorkspace(workspaceID) else { return }
     for tabID in deletedWorkspace.removedTabIDs {
       removeTree(for: tabID)
@@ -330,84 +330,58 @@ final class TerminalHostState {
     workspaceManager.isNameAvailable(proposedName, excluding: excludedWorkspaceID)
   }
 
-  func closeSurface(_ surfaceID: UUID) {
+  private func closeSurface(_ surfaceID: UUID) {
     performCloseSurface(surfaceID)
   }
 
-  func closeTab(_ tabID: TerminalTabID) {
+  private func closeTab(_ tabID: TerminalTabID) {
     performCloseTab(tabID)
   }
 
-  @discardableResult
-  func closeFocusedSurface() -> Bool {
-    performBindingActionOnFocusedSurface("close_surface")
+  private func requestCloseSurface(_ surfaceID: UUID, needsConfirmation: Bool? = nil) {
+    guard surfaces[surfaceID] != nil else { return }
+    emit(
+      .closeRequested(
+        .init(
+          target: .surface(surfaceID),
+          needsConfirmation: needsConfirmation ?? surfaceNeedsCloseConfirmation(surfaceID)
+        )
+      )
+    )
+  }
+
+  private func requestCloseTab(_ tabID: TerminalTabID) {
+    guard trees[tabID] != nil else { return }
+    emit(
+      .closeRequested(
+        .init(
+          target: .tab(tabID),
+          needsConfirmation: tabNeedsCloseConfirmation(tabID)
+        )
+      )
+    )
   }
 
   @discardableResult
-  func splitBelow() -> Bool {
-    performBindingActionOnFocusedSurface("new_split:down")
-  }
-
-  @discardableResult
-  func splitRight() -> Bool {
-    performBindingActionOnFocusedSurface("new_split:right")
-  }
-
-  @discardableResult
-  func equalizePanes() -> Bool {
-    performBindingActionOnFocusedSurface("equalize_splits")
-  }
-
-  @discardableResult
-  func togglePaneZoom() -> Bool {
-    performBindingActionOnFocusedSurface("toggle_split_zoom")
-  }
-
-  @discardableResult
-  func startSearch() -> Bool {
-    performBindingActionOnFocusedSurface("start_search")
-  }
-
-  @discardableResult
-  func endSearch() -> Bool {
-    performBindingActionOnFocusedSurface("end_search")
-  }
-
-  @discardableResult
-  func searchSelection() -> Bool {
-    performBindingActionOnFocusedSurface("search_selection")
-  }
-
-  @discardableResult
-  func navigateSearchOnFocusedSurface(_ direction: GhosttySearchDirection) -> Bool {
+  private func navigateSearchOnFocusedSurface(_ direction: GhosttySearchDirection) -> Bool {
     guard let surface = selectedSurfaceView else { return false }
     surface.navigateSearch(direction)
     return true
   }
 
   @discardableResult
-  func navigateSearchNext() -> Bool {
-    navigateSearchOnFocusedSurface(.next)
-  }
-
-  @discardableResult
-  func navigateSearchPrevious() -> Bool {
-    navigateSearchOnFocusedSurface(.previous)
-  }
-
-  @discardableResult
-  func performBindingActionOnFocusedSurface(_ action: String) -> Bool {
+  private func performBindingActionOnFocusedSurface(_ action: String) -> Bool {
     guard let surface = selectedSurfaceView else { return false }
     surface.performBindingAction(action)
     return true
   }
 
-  func updateWindowActivity(_ activity: WindowActivityState) {
+  private func updateWindowActivity(_ activity: WindowActivityState) {
     windowActivity = activity
     syncFocus(activity)
   }
 
-  func syncFocus(_ activity: WindowActivityState) {
+  private func syncFocus(_ activity: WindowActivityState) {
     let selectedTabID = workspaceManager.selectedTabID
     var surfaceToFocus: GhosttySurfaceView?
 
@@ -433,10 +407,6 @@ final class TerminalHostState {
     if let surfaceToFocus, surfaceToFocus.window?.firstResponder is GhosttySurfaceView {
       surfaceToFocus.window?.makeFirstResponder(surfaceToFocus)
     }
-  }
-
-  func syncFocus(windowIsKey: Bool, windowIsVisible: Bool) {
-    syncFocus(.init(isKeyWindow: windowIsKey, isVisible: windowIsVisible))
   }
 
   func treeSnapshot() -> SupatermTreeSnapshot {
@@ -563,7 +533,7 @@ final class TerminalHostState {
     return tree
   }
 
-  func performSplitAction(_ action: GhosttySplitAction, for surfaceID: UUID) -> Bool {
+  private func performSplitAction(_ action: GhosttySplitAction, for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID), var tree = trees[tabID] else {
       return false
     }
@@ -632,7 +602,7 @@ final class TerminalHostState {
     }
   }
 
-  func performSplitOperation(_ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID) {
+  private func performSplitOperation(_ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID) {
     guard var tree = trees[tabID] else { return }
 
     switch operation {
@@ -669,28 +639,6 @@ final class TerminalHostState {
     }
   }
 
-  func focusedSurfaceState(for tabID: TerminalTabID) -> GhosttySurfaceState? {
-    guard
-      let focusedSurfaceID = focusedSurfaceIDByTab[tabID],
-      let surface = surfaces[focusedSurfaceID]
-    else {
-      return nil
-    }
-    return surface.bridge.state
-  }
-
-  func closeAllSurfaces() {
-    for surface in surfaces.values {
-      surface.closeSurface()
-    }
-    surfaces.removeAll()
-    trees.removeAll()
-    focusedSurfaceIDByTab.removeAll()
-    for workspace in workspaces {
-      workspaceManager.tabManager(for: workspace.id)?.closeAll()
-    }
-  }
-
   static func surfaceActivity(
     isSelectedTab: Bool,
     windowIsVisible: Bool,
@@ -701,24 +649,6 @@ final class TerminalHostState {
     let isVisible = isSelectedTab && windowIsVisible
     let isFocused = isVisible && windowIsKey && focusedSurfaceID == surfaceID
     return SurfaceActivity(isVisible: isVisible, isFocused: isFocused)
-  }
-
-  func indicators(for tabID: TerminalTabID) -> TabIndicators {
-    guard
-      let focusedSurfaceID = focusedSurfaceIDByTab[tabID],
-      let surface = surfaces[focusedSurfaceID]
-    else {
-      return TabIndicators(
-        isRunning: workspaceManager.tab(for: tabID)?.isDirty ?? false
-      )
-    }
-
-    return TabIndicators(
-      isRunning: workspaceManager.tab(for: tabID)?.isDirty ?? false,
-      hasBell: surface.bridge.state.bellCount > 0,
-      isReadOnly: surface.bridge.state.readOnly == GHOSTTY_READONLY_ON,
-      hasSecureInput: surface.bridge.state.secureInput == GHOSTTY_SECURE_INPUT_ON
-    )
   }
 
   private func performCloseTab(_ tabID: TerminalTabID) {
@@ -822,7 +752,7 @@ final class TerminalHostState {
     }
     view.bridge.onCloseTab = { [weak self] _ in
       guard let self else { return false }
-      self.emit(.closeTabRequested(tabID))
+      self.requestCloseTab(tabID)
       return true
     }
     view.bridge.onGotoTab = { [weak self] target in
@@ -837,7 +767,7 @@ final class TerminalHostState {
     }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
-      self.emit(.closeSurfaceRequested(surfaceID: view.id, processAlive: processAlive))
+      self.requestCloseSurface(view.id, needsConfirmation: processAlive)
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
@@ -1055,9 +985,13 @@ final class TerminalHostState {
       .updateDirty(tabID, isDirty: isRunning)
   }
 
-  func tabNeedsCloseConfirmation(_ tabID: TerminalTabID) -> Bool {
+  private func tabNeedsCloseConfirmation(_ tabID: TerminalTabID) -> Bool {
     guard let tree = trees[tabID] else { return false }
     return tree.leaves().contains(where: \.needsCloseConfirmation)
+  }
+
+  private func surfaceNeedsCloseConfirmation(_ surfaceID: UUID) -> Bool {
+    surfaces[surfaceID]?.needsCloseConfirmation ?? false
   }
 
   private func tabID(containing surfaceID: UUID) -> TerminalTabID? {

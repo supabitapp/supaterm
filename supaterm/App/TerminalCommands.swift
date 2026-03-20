@@ -1,9 +1,6 @@
-import ComposableArchitecture
 import SwiftUI
 
 struct TerminalCommands: Commands {
-  let store: StoreOf<AppFeature>
-  let ghosttyShortcuts: GhosttyShortcutManager
   @FocusedValue(\.newTerminalAction) private var newTerminalAction
   @FocusedValue(\.closeSurfaceAction) private var closeSurfaceAction
   @FocusedValue(\.closeTabAction) private var closeTabAction
@@ -22,6 +19,8 @@ struct TerminalCommands: Commands {
   @FocusedValue(\.splitRightAction) private var splitRightAction
   @FocusedValue(\.equalizePanesAction) private var equalizePanesAction
   @FocusedValue(\.togglePaneZoomAction) private var togglePaneZoomAction
+  @FocusedValue(\.checkForUpdatesAction) private var checkForUpdatesAction
+  @FocusedValue(\.ghosttyKeyboardShortcutProvider) private var ghosttyKeyboardShortcutProvider
 
   var body: some Commands {
     CommandGroup(replacing: .sidebar) {
@@ -36,14 +35,14 @@ struct TerminalCommands: Commands {
       Button("New Tab") {
         newTerminalAction?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_tab")))
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "new_tab")))
       .disabled(newTerminalAction == nil)
 
       Button("Close") {
         closeSurfaceAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "close_surface"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "close_surface"))
       )
       .disabled(closeSurfaceAction == nil)
 
@@ -51,7 +50,7 @@ struct TerminalCommands: Commands {
         closeTabAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "close_tab"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "close_tab"))
       )
       .disabled(closeTabAction == nil)
     }
@@ -60,14 +59,14 @@ struct TerminalCommands: Commands {
       Button("Next Tab") {
         nextTabAction?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "next_tab")))
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "next_tab")))
       .disabled(nextTabAction == nil)
 
       Button("Previous Tab") {
         previousTabAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "previous_tab"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "previous_tab"))
       )
       .disabled(previousTabAction == nil)
 
@@ -78,7 +77,7 @@ struct TerminalCommands: Commands {
           selectTabAction?(slot)
         }
         .modifier(
-          KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "goto_tab:\(slot)"))
+          KeyboardShortcutModifier(shortcut: shortcut(for: "goto_tab:\(slot)"))
         )
         .disabled(selectTabAction == nil)
       }
@@ -86,7 +85,7 @@ struct TerminalCommands: Commands {
       Button("Last Tab") {
         selectLastTabAction?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "last_tab")))
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "last_tab")))
       .disabled(selectLastTabAction == nil)
     }
 
@@ -111,7 +110,7 @@ struct TerminalCommands: Commands {
         splitBelowAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_split:down"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:down"))
       )
       .disabled(splitBelowAction == nil)
 
@@ -119,7 +118,7 @@ struct TerminalCommands: Commands {
         splitRightAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "new_split:right"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:right"))
       )
       .disabled(splitRightAction == nil)
 
@@ -129,7 +128,7 @@ struct TerminalCommands: Commands {
         equalizePanesAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "equalize_splits"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "equalize_splits"))
       )
       .disabled(equalizePanesAction == nil)
 
@@ -137,7 +136,7 @@ struct TerminalCommands: Commands {
         togglePaneZoomAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "toggle_split_zoom"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "toggle_split_zoom"))
       )
       .disabled(togglePaneZoomAction == nil)
     }
@@ -147,7 +146,7 @@ struct TerminalCommands: Commands {
         startSearchAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "start_search"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "start_search"))
       )
       .disabled(startSearchAction == nil)
 
@@ -155,7 +154,7 @@ struct TerminalCommands: Commands {
         navigateSearchNextAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search:next"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "search:next"))
       )
       .disabled(navigateSearchNextAction == nil)
 
@@ -163,7 +162,7 @@ struct TerminalCommands: Commands {
         navigateSearchPreviousAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search:previous"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "search:previous"))
       )
       .disabled(navigateSearchPreviousAction == nil)
 
@@ -173,7 +172,7 @@ struct TerminalCommands: Commands {
         endSearchAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "end_search"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "end_search"))
       )
       .disabled(endSearchAction == nil)
 
@@ -183,17 +182,21 @@ struct TerminalCommands: Commands {
         searchSelectionAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: ghosttyShortcuts.keyboardShortcut(for: "search_selection"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: "search_selection"))
       )
       .disabled(searchSelectionAction == nil)
     }
 
     CommandGroup(after: .appInfo) {
       Button("Check for Updates...") {
-        store.send(.update(.checkForUpdatesButtonTapped))
+        checkForUpdatesAction?()
       }
-      .disabled(!store.update.canCheckForUpdates)
+      .disabled(checkForUpdatesAction == nil)
     }
+  }
+
+  private func shortcut(for action: String) -> KeyboardShortcut? {
+    ghosttyKeyboardShortcutProvider?(action)
   }
 }
 
@@ -392,6 +395,28 @@ extension FocusedValues {
   var togglePaneZoomAction: (() -> Void)? {
     get { self[TogglePaneZoomActionKey.self] }
     set { self[TogglePaneZoomActionKey.self] = newValue }
+  }
+}
+
+private struct CheckForUpdatesActionKey: FocusedValueKey {
+  typealias Value = () -> Void
+}
+
+extension FocusedValues {
+  var checkForUpdatesAction: (() -> Void)? {
+    get { self[CheckForUpdatesActionKey.self] }
+    set { self[CheckForUpdatesActionKey.self] = newValue }
+  }
+}
+
+private struct GhosttyKeyboardShortcutProviderKey: FocusedValueKey {
+  typealias Value = (String) -> KeyboardShortcut?
+}
+
+extension FocusedValues {
+  var ghosttyKeyboardShortcutProvider: ((String) -> KeyboardShortcut?)? {
+    get { self[GhosttyKeyboardShortcutProviderKey.self] }
+    set { self[GhosttyKeyboardShortcutProviderKey.self] = newValue }
   }
 }
 

@@ -49,14 +49,21 @@ struct AppFeatureTests {
   @Test
   func quitRequestedBypassesTerminalSceneWhenUpdateIsInstalling() async {
     let windowID = ObjectIdentifier(NSObject())
+    var terminationReplies: [Bool] = []
     var initialState = AppFeature.State()
     initialState.update.phase = .installing(.init(canInstallNow: true))
 
     let store = TestStore(initialState: initialState) {
       AppFeature()
+    } withDependencies: {
+      $0.appTerminationClient.reply = { shouldTerminate in
+        terminationReplies.append(shouldTerminate)
+      }
     }
 
-    await store.send(.quitRequested(windowID))
+    await store.send(AppFeature.Action.quitRequested(windowID))
     await store.finish()
+
+    #expect(terminationReplies == [true])
   }
 }

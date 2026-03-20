@@ -93,7 +93,7 @@ struct SocketControlFeatureTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalClient.treeSnapshot = { snapshot }
+      $0.terminalWindowsClient.treeSnapshot = { snapshot }
     }
 
     await store.send(.requestReceived(request))
@@ -135,7 +135,7 @@ struct SocketControlFeatureTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalClient.createPane = { request in
+      $0.terminalWindowsClient.createPane = { request in
         #expect(
           request
             == .init(
@@ -222,7 +222,7 @@ struct SocketControlFeatureTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalClient.createPane = { _ in
+      $0.terminalWindowsClient.createPane = { _ in
         throw TerminalCreatePaneError.tabNotFound(windowIndex: 1, tabIndex: 3)
       }
     }
