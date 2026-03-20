@@ -20,6 +20,7 @@ struct TerminalCommands: Commands {
   @FocusedValue(\.equalizePanesAction) private var equalizePanesAction
   @FocusedValue(\.togglePaneZoomAction) private var togglePaneZoomAction
   @FocusedValue(\.checkForUpdatesAction) private var checkForUpdatesAction
+  @FocusedValue(\.updatePhase) private var updatePhase
   @FocusedValue(\.ghosttyKeyboardShortcutProvider) private var ghosttyKeyboardShortcutProvider
 
   var body: some Commands {
@@ -196,7 +197,7 @@ struct TerminalCommands: Commands {
     }
 
     CommandGroup(after: .appInfo) {
-      Button("Check for Updates...") {
+      Button(updatePhase?.menuItemText ?? "Check for Updates...") {
         checkForUpdatesAction?()
       }
       .disabled(checkForUpdatesAction == nil)
@@ -419,6 +420,17 @@ extension FocusedValues {
 
 private struct GhosttyKeyboardShortcutProviderKey: FocusedValueKey {
   typealias Value = (String) -> KeyboardShortcut?
+}
+
+extension FocusedValues {
+  var updatePhase: UpdatePhase? {
+    get { self[UpdatePhaseKey.self] }
+    set { self[UpdatePhaseKey.self] = newValue }
+  }
+}
+
+private struct UpdatePhaseKey: FocusedValueKey {
+  typealias Value = UpdatePhase
 }
 
 extension FocusedValues {
