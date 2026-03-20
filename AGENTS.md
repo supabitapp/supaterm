@@ -42,4 +42,6 @@ The app uses **The Composable Architecture (TCA)** with a feature-based folder s
 
 **Dependency pattern**: External services are modeled as TCA `DependencyKey` structs with closure-based interfaces (see `UpdateClient`). Live implementations wrap platform SDKs; test implementations return inert defaults.
 
+**Persistence**: Workspace catalog persistence uses Point-Free's `Sharing` library with file storage. Keep the shared catalog in `Sharing`; do not add parallel ad hoc persistence for workspaces.
+
 **Tests** (`supatermTests/`) use Swift Testing (`@Test`, `@Suite`) with TCA's `TestStore`. Tests cover reducer logic; UI views are not snapshot-tested.
