@@ -6,44 +6,36 @@ import SwiftUI
 struct SupatermApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-  @State private var ghostty: GhosttyRuntime
-  @State private var ghosttyShortcuts: GhosttyShortcutManager
-  @State private var terminal: TerminalHostState
-  @State private var store: StoreOf<AppFeature>
+  @State private var terminalWindowRegistry: TerminalWindowRegistry
+  @State private var socketStore: StoreOf<SocketControlFeature>
 
   @MainActor init() {
     GhosttyBootstrap.initialize()
-    let runtime = GhosttyRuntime()
-    let terminal = TerminalHostState(runtime: runtime)
-    let store = Store(initialState: AppFeature.State()) {
-      AppFeature()
-        ._printChanges(.actionLabels)
+    let terminalWindowRegistry = TerminalWindowRegistry()
+    let socketStore = Store(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
     } withDependencies: {
-      $0.terminalClient = .live(host: terminal)
+      $0.terminalWindowsClient = .live(registry: terminalWindowRegistry)
     }
-    QuitRequestBridge.shared.onQuitRequested = { windowID in
-      store.send(.quitRequested(windowID))
+    _terminalWindowRegistry = State(initialValue: terminalWindowRegistry)
+    _socketStore = State(initialValue: socketStore)
+    appDelegate.onQuitRequested = { window in
+      terminalWindowRegistry.requestQuit(for: window)
     }
-    _ghostty = State(initialValue: runtime)
-    _ghosttyShortcuts = State(initialValue: GhosttyShortcutManager(runtime: runtime))
-    _terminal = State(initialValue: terminal)
-    _store = State(initialValue: store)
-    Task { @MainActor [store] in
-      store.send(.socket(.task))
+    Task { @MainActor [socketStore] in
+      socketStore.send(.task)
     }
   }
 
   var body: some Scene {
-    Window("Supaterm", id: "main") {
-      GhosttyColorSchemeSyncView(ghostty: ghostty) {
-        ContentView(store: store, terminal: terminal)
-      }
+    WindowGroup("Supaterm") {
+      WindowSceneRootView(registry: terminalWindowRegistry)
     }
     .defaultSize(width: 1_440, height: 900)
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      TerminalCommands(store: store, ghosttyShortcuts: ghosttyShortcuts)
+      TerminalCommands()
     }
   }
 }

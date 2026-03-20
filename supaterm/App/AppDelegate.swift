@@ -1,6 +1,8 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+  var onQuitRequested: (NSWindow) -> Bool = { _ in false }
+
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSWindow.allowsAutomaticWindowTabbing = false
   }
@@ -9,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard let targetWindow = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else {
       return .terminateNow
     }
-    QuitRequestBridge.shared.requestQuit(for: targetWindow)
-    return .terminateLater
+    return onQuitRequested(targetWindow) ? .terminateLater : .terminateNow
   }
 }

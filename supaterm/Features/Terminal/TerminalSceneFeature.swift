@@ -1,6 +1,6 @@
-import AppKit
 import ComposableArchitecture
 import CoreGraphics
+import Foundation
 
 private enum TerminalSceneCancelID {
   static let events = "TerminalSceneFeature.events"
@@ -40,7 +40,7 @@ struct TerminalSceneFeature {
 
     var id: String {
       switch target {
-      case .pane(let surfaceID):
+      case .surface(let surfaceID):
         return "pane:\(surfaceID.uuidString)"
       case .tab(let tabID):
         return "tab:\(tabID.rawValue.uuidString)"
@@ -49,7 +49,7 @@ struct TerminalSceneFeature {
   }
 
   enum PendingCloseTarget: Equatable {
-    case pane(UUID)
+    case surface(UUID)
     case tab(TerminalTabID)
   }
 
@@ -57,7 +57,7 @@ struct TerminalSceneFeature {
     case clientEvent(TerminalClient.Event)
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
-    case closeSurfaceMenuItemSelected
+    case closeSurfaceRequested(UUID)
     case closeTabRequested(TerminalTabID)
     case collapseSidebarButtonTapped
     case endSearchMenuItemSelected
@@ -101,25 +101,19 @@ struct TerminalSceneFeature {
   }
 
   @Dependency(TerminalClient.self) var terminalClient
+  @Dependency(AppTerminationClient.self) var appTerminationClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .clientEvent(let event):
         switch event {
-        case .closeSurfaceRequested(let surfaceID, let processAlive):
-          if processAlive {
-            state.pendingCloseRequest = PendingCloseRequest(
-              target: .pane(surfaceID),
-              title: "Close Pane?",
-              message: "A process is still running in this pane. Close it anyway?"
-            )
+        case .closeRequested(let request):
+          if request.needsConfirmation {
+            state.pendingCloseRequest = pendingCloseRequest(for: request.target)
             return .none
           }
-          return sendCommand(.closeSurface(surfaceID))
-
-        case .closeTabRequested(let tabID):
-          return .send(.closeTabRequested(tabID))
+          return executeClose(for: request.target)
 
         case .gotoTabRequested(let target):
           switch target {
@@ -144,12 +138,7 @@ struct TerminalSceneFeature {
       case .closeConfirmationConfirmButtonTapped:
         guard let pendingCloseRequest = state.pendingCloseRequest else { return .none }
         state.pendingCloseRequest = nil
-        switch pendingCloseRequest.target {
-        case .pane(let surfaceID):
-          return sendCommand(.closeSurface(surfaceID))
-        case .tab(let tabID):
-          return sendCommand(.closeTab(tabID))
-        }
+        return executeClose(for: closeTarget(for: pendingCloseRequest.target))
 
       case .workspaceDeleteCancelButtonTapped:
         state.pendingWorkspaceDeleteRequest = nil
@@ -160,19 +149,11 @@ struct TerminalSceneFeature {
         state.pendingWorkspaceDeleteRequest = nil
         return sendCommand(.deleteWorkspace(request.workspace.id))
 
-      case .closeSurfaceMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("close_surface"))
+      case .closeSurfaceRequested(let surfaceID):
+        return sendCommand(.requestCloseSurface(surfaceID))
 
       case .closeTabRequested(let tabID):
-        if terminalClient.tabNeedsCloseConfirmation(tabID) {
-          state.pendingCloseRequest = PendingCloseRequest(
-            target: .tab(tabID),
-            title: "Close Tab?",
-            message: "A process is still running in this tab. Close it anyway?"
-          )
-          return .none
-        }
-        return sendCommand(.closeTab(tabID))
+        return sendCommand(.requestCloseTab(tabID))
 
       case .collapseSidebarButtonTapped:
         state.isFloatingSidebarVisible = false
@@ -209,18 +190,14 @@ struct TerminalSceneFeature {
 
       case .quitConfirmationCancelButtonTapped:
         state.isQuitConfirmationPresented = false
-        return .run { _ in
-          await MainActor.run {
-            NSApplication.shared.reply(toApplicationShouldTerminate: false)
-          }
+        return .run { [appTerminationClient] _ in
+          await appTerminationClient.reply(false)
         }
 
       case .quitConfirmationConfirmButtonTapped:
         state.isQuitConfirmationPresented = false
-        return .run { _ in
-          await MainActor.run {
-            NSApplication.shared.reply(toApplicationShouldTerminate: true)
-          }
+        return .run { [appTerminationClient] _ in
+          await appTerminationClient.reply(true)
         }
 
       case .quitRequested(let windowID):
@@ -327,6 +304,41 @@ struct TerminalSceneFeature {
   private func sendCommand(_ command: TerminalClient.Command) -> Effect<Action> {
     .run { [terminalClient] _ in
       await terminalClient.send(command)
+    }
+  }
+
+  private func executeClose(for target: TerminalCloseTarget) -> Effect<Action> {
+    switch target {
+    case .surface(let surfaceID):
+      return sendCommand(.closeSurface(surfaceID))
+    case .tab(let tabID):
+      return sendCommand(.closeTab(tabID))
+    }
+  }
+
+  private func closeTarget(for target: PendingCloseTarget) -> TerminalCloseTarget {
+    switch target {
+    case .surface(let surfaceID):
+      return .surface(surfaceID)
+    case .tab(let tabID):
+      return .tab(tabID)
+    }
+  }
+
+  private func pendingCloseRequest(for target: TerminalCloseTarget) -> PendingCloseRequest {
+    switch target {
+    case .surface(let surfaceID):
+      return .init(
+        target: .surface(surfaceID),
+        title: "Close Pane?",
+        message: "A process is still running in this pane. Close it anyway?"
+      )
+    case .tab(let tabID):
+      return .init(
+        target: .tab(tabID),
+        title: "Close Tab?",
+        message: "A process is still running in this tab. Close it anyway?"
+      )
     }
   }
 }

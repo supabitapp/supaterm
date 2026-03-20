@@ -42,16 +42,16 @@ struct SocketControlFeature {
   }
 
   @Dependency(SocketControlClient.self) var socketControlClient
-  @Dependency(TerminalClient.self) var terminalClient
+  @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .requestReceived(let request):
-        return .run { [socketControlClient, terminalClient] _ in
+        return .run { [socketControlClient, terminalWindowsClient] _ in
           let response = await response(
             for: request.payload,
-            terminalClient: terminalClient
+            terminalWindowsClient: terminalWindowsClient
           )
           await socketControlClient.reply(request.handle, response)
         }
@@ -85,12 +85,12 @@ struct SocketControlFeature {
 
   private func response(
     for request: SupatermSocketRequest,
-    terminalClient: TerminalClient
+    terminalWindowsClient: TerminalWindowsClient
   ) async -> SupatermSocketResponse {
     do {
       switch request.method {
       case SupatermSocketMethod.appTree:
-        let snapshot = await terminalClient.treeSnapshot()
+        let snapshot = await terminalWindowsClient.treeSnapshot()
         return try .ok(id: request.id, encodableResult: snapshot)
 
       case SupatermSocketMethod.systemPing:
@@ -99,7 +99,7 @@ struct SocketControlFeature {
       case SupatermSocketMethod.terminalNewPane:
         let payload = try request.decodeParams(SupatermNewPaneRequest.self)
         let createPaneRequest = try createPaneRequest(from: payload)
-        let result = try await terminalClient.createPane(createPaneRequest)
+        let result = try await terminalWindowsClient.createPane(createPaneRequest)
         return try .ok(id: request.id, encodableResult: result)
 
       default:
