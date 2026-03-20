@@ -1,3 +1,9 @@
+supaterm is a terminal app tailored for coding agents
+
+## Issue tracking
+
+- Issues are tracked on: https://linear.app/supaterm
+
 ## Build Commands
 
 ```bash
