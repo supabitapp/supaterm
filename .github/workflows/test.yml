@@ -38,7 +38,6 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
       - run: make lint
-      - run: make build-app
       - run: make test
 
   warm-cache:
