@@ -4,10 +4,10 @@ description: Install macOS build deps and build GhosttyKit plus bundled resource
 runs:
   using: composite
   steps:
-    - run: brew install mise
-      shell: bash
-    - run: mise install
-      shell: bash
+    - uses: jdx/mise-action@v3
+      with:
+        version: 2026.3.0
+        cache: true
     - name: Ghostty cache key
       shell: bash
       run: |
