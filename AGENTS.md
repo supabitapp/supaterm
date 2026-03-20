@@ -1,10 +1,15 @@
-supaterm is a terminal app tailored for coding agents
+supaterm is a macOS terminal app tailored for coding agents, built on GhosttyKit for terminal emulation.
 
 ## Issue tracking
 
 - Issues are tracked on: https://linear.app/supaterm
 
 ## Build Commands
+
+First-time setup requires initializing the Ghostty submodule:
+```bash
+git submodule update --init --recursive
+```
 
 ```bash
 make check          # run both format and lint
@@ -35,15 +40,42 @@ xcodebuild test -workspace supaterm.xcworkspace -scheme supaterm -destination "p
 
 The app uses **The Composable Architecture (TCA)** with a feature-based folder structure under `supaterm/`:
 
-- `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `TerminalCommands`
-- `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection
-- `Features/Terminal/` — Terminal shell UI: sidebar, detail pane, split view, tab catalog, resize handles
-- `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates
+- `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `TerminalCommands`, `GhosttyBootstrap`
+- `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
+- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalSceneFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
+- `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates. Update lifecycle phases are modeled as an `UpdatePhase` enum
+- `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` starts the server and dispatches JSON-RPC-style requests (`app.tree`, `system.ping`, `terminal.new_pane`)
+- `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)
 
-**Dependency pattern**: External services are modeled as TCA `DependencyKey` structs with closure-based interfaces (see `UpdateClient`). Live implementations wrap platform SDKs; test implementations return inert defaults.
+### Dependency pattern
 
-**Persistence**: 
+External services are modeled as TCA `DependencyKey` structs with closure-based interfaces. Live implementations wrap platform SDK singletons (e.g., `UpdateRuntime`, `SocketControlRuntime`); test implementations return inert defaults — no mocking framework is used. Key clients: `TerminalClient`, `UpdateClient`, `SocketControlClient`, `AppTerminationClient`, `TerminalWindowsClient`.
 
-Always use pointfree sharing for persistence
+### GhosttyKit integration
 
-**Tests** (`supatermTests/`) use Swift Testing (`@Test`, `@Suite`) with TCA's `TestStore`. Tests cover reducer logic; UI views are not snapshot-tested.
+GhosttyKit is a pre-compiled C library from `ThirdParty/ghostty/` (git submodule), built via Zig into an XCFramework at `Frameworks/GhosttyKit.xcframework`. The Swift bridge lives in `Features/Terminal/Ghostty/`:
+
+- `GhosttyBootstrap` — Sets resource/terminfo env vars and calls `ghostty_init()` at app launch
+- `GhosttyRuntime` — App-level object calling `ghostty_app_new()` with C function pointer callbacks that marshal to `@MainActor`
+- `GhosttySurfaceBridge` — Per-pane bridge owning a `ghostty_surface_t`; dispatches C actions into typed Swift handlers via closures back to `TerminalHostState`
+- `GhosttySurfaceView` — `NSView` subclass for Metal-rendered terminal; bridges keyboard/mouse/resize events to `ghostty_surface_*` C calls
+
+Data flow: `TerminalHostState` → creates `GhosttySurfaceView` → owns `GhosttySurfaceBridge` → calls back via closures → `TerminalHostState`
+
+### `sp` CLI and socket IPC
+
+The app embeds an `sp` CLI binary (target in `sp/`, built with ArgumentParser) inside the app bundle. The app injects `SUPATERM_SURFACE_ID` and `SUPATERM_SOCKET_PATH` env vars into every shell pane, so `sp` commands work automatically from within a Supaterm terminal.
+
+Shared protocol types live in `SupatermCLIShared/` (imported by both the app and CLI): `SupatermSocketRequest`, `SupatermSocketResponse`, `SupatermTreeSnapshot`, etc. The CLI uses synchronous POSIX sockets (`SPSocketClient`).
+
+### Persistence
+
+Always use pointfree Sharing for persistence. Currently there is one persisted value: `TerminalWorkspaceCatalog` stored via `@Shared(.terminalWorkspaceCatalog)` using `FileStorageKey`. `TerminalHostState` observes catalog changes and applies diffs to the workspace manager; writes happen through `$workspaceCatalog.withLock { ... }`.
+
+### Tests
+
+Tests (`supatermTests/`) use Swift Testing (`@Test`, `@Suite`) with TCA's `TestStore`. Tests cover reducer logic; UI views are not snapshot-tested. Common patterns:
+
+- **Command recorder**: Inject a spy via `$0.terminalClient.send = { recorder.record($0) }` to assert which commands a reducer sends
+- **AsyncStream for events**: Use a captured continuation to push events mid-test and verify the reducer handles them with `await store.receive(\.clientEvent)`
+- **State mutation assertions**: TCA's `store.send(.action) { $0.field = newValue }` closure syntax
