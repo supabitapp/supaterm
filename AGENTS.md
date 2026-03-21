@@ -30,3 +30,4 @@ make mac-test
 - `mise` manages tool versions from the repo root `mise.toml`
 - The repo root `Makefile` is the stable entrypoint and delegates to app-local build logic
 - Read `docs/mac.md` before working in `apps/mac`
+- Read `apps/supaterm.com/AGENTS.md` before working in that as well
