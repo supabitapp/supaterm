@@ -4,6 +4,12 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-03-21",
   "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "supaterm.com",
+      "custom_domain": true,
+    },
+  ],
   "assets": {
     "binding": "ASSETS",
     "directory": "./dist",
