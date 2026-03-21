@@ -4,7 +4,7 @@ tuist = "4.155.4"
 swiftlint = "latest"
 xcbeautify = "3.1.4"
 pnpm = "10.32.1"
-"npm:create-dmg" = "latest"
+"npm:create-dmg" = { version = "latest", os = ["macos"] }
 
 [hooks]
 postinstall = '''
