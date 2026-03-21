@@ -21,13 +21,24 @@ final class SupatermMenuController: NSObject {
     static let hideFindBar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.hideFindBar")
     static let selectionForFind = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.selectionForFind")
     static let toggleSidebar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleSidebar")
-    static let equalizePanes = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.equalizePanes")
-    static let togglePaneZoom = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.togglePaneZoom")
     static let nextTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.next")
     static let previousTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.previous")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
     static let selectTabPrefix = "app.supabit.supaterm.tabs.select."
     static let selectWorkspacePrefix = "app.supabit.supaterm.spaces.select."
+    static let zoomSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.zoomSplit")
+    static let previousSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.previousSplit")
+    static let nextSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.nextSplit")
+    static let selectSplitAbove = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.selectSplitAbove")
+    static let selectSplitBelow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.selectSplitBelow")
+    static let selectSplitLeft = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.selectSplitLeft")
+    static let selectSplitRight = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.selectSplitRight")
+    static let equalizeSplits = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.equalizeSplits")
+    static let moveSplitDividerUp = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.moveSplitDividerUp")
+    static let moveSplitDividerDown = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.moveSplitDividerDown")
+    static let moveSplitDividerLeft = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.moveSplitDividerLeft")
+    static let moveSplitDividerRight = NSUserInterfaceItemIdentifier(
+      "app.supabit.supaterm.window.moveSplitDividerRight")
   }
 
   private let registry: TerminalWindowRegistry
@@ -137,9 +148,6 @@ final class SupatermMenuController: NSObject {
   private lazy var viewMenu: NSMenu = {
     let menu = NSMenu(title: "View")
     menu.addItem(toggleSidebarItem)
-    menu.addItem(.separator())
-    menu.addItem(equalizePanesItem)
-    menu.addItem(togglePaneZoomItem)
     return menu
   }()
 
@@ -168,7 +176,37 @@ final class SupatermMenuController: NSObject {
     menu.addItem(systemItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
     menu.addItem(systemItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:))))
     menu.addItem(.separator())
+    menu.addItem(zoomSplitItem)
+    menu.addItem(previousSplitItem)
+    menu.addItem(nextSplitItem)
+    let selectSplitMenuItem = NSMenuItem(title: "Select Split", action: nil, keyEquivalent: "")
+    selectSplitMenuItem.submenu = selectSplitMenu
+    menu.addItem(selectSplitMenuItem)
+    let resizeSplitMenuItem = NSMenuItem(title: "Resize Split", action: nil, keyEquivalent: "")
+    resizeSplitMenuItem.submenu = resizeSplitMenu
+    menu.addItem(resizeSplitMenuItem)
+    menu.addItem(.separator())
     menu.addItem(systemItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:))))
+    return menu
+  }()
+
+  private lazy var selectSplitMenu: NSMenu = {
+    let menu = NSMenu(title: "Select Split")
+    menu.addItem(selectSplitAboveItem)
+    menu.addItem(selectSplitBelowItem)
+    menu.addItem(selectSplitLeftItem)
+    menu.addItem(selectSplitRightItem)
+    return menu
+  }()
+
+  private lazy var resizeSplitMenu: NSMenu = {
+    let menu = NSMenu(title: "Resize Split")
+    menu.addItem(equalizeSplitsItem)
+    menu.addItem(.separator())
+    menu.addItem(moveSplitDividerUpItem)
+    menu.addItem(moveSplitDividerDownItem)
+    menu.addItem(moveSplitDividerLeftItem)
+    menu.addItem(moveSplitDividerRightItem)
     return menu
   }()
 
@@ -187,37 +225,44 @@ final class SupatermMenuController: NSObject {
   private lazy var newWindowItem = makeItem(
     title: "New Window",
     action: #selector(newWindow(_:)),
-    identifier: MenuItemIdentifier.newWindow
+    identifier: MenuItemIdentifier.newWindow,
+    symbol: "macwindow.badge.plus"
   )
   private lazy var newTabItem = makeItem(
     title: "New Tab",
     action: #selector(newTab(_:)),
-    identifier: MenuItemIdentifier.newTab
+    identifier: MenuItemIdentifier.newTab,
+    symbol: "macwindow"
   )
   private lazy var splitRightItem = makeItem(
     title: "Split Right",
     action: #selector(splitRight(_:)),
-    identifier: MenuItemIdentifier.splitRight
+    identifier: MenuItemIdentifier.splitRight,
+    symbol: "rectangle.righthalf.inset.filled"
   )
   private lazy var splitLeftItem = makeItem(
     title: "Split Left",
     action: #selector(splitLeft(_:)),
-    identifier: MenuItemIdentifier.splitLeft
+    identifier: MenuItemIdentifier.splitLeft,
+    symbol: "rectangle.leadinghalf.inset.filled"
   )
   private lazy var splitDownItem = makeItem(
     title: "Split Down",
     action: #selector(splitDown(_:)),
-    identifier: MenuItemIdentifier.splitDown
+    identifier: MenuItemIdentifier.splitDown,
+    symbol: "rectangle.bottomhalf.inset.filled"
   )
   private lazy var splitUpItem = makeItem(
     title: "Split Up",
     action: #selector(splitUp(_:)),
-    identifier: MenuItemIdentifier.splitUp
+    identifier: MenuItemIdentifier.splitUp,
+    symbol: "rectangle.tophalf.inset.filled"
   )
   private lazy var closeSurfaceItem = makeItem(
     title: "Close",
     action: #selector(closeSurface(_:)),
-    identifier: MenuItemIdentifier.closeSurface
+    identifier: MenuItemIdentifier.closeSurface,
+    symbol: "xmark"
   )
   private lazy var closeTabItem = makeItem(
     title: "Close Tab",
@@ -275,16 +320,6 @@ final class SupatermMenuController: NSObject {
     SupatermMenuShortcut.apply(KeyboardShortcut("s", modifiers: .command), to: item)
     return item
   }()
-  private lazy var equalizePanesItem = makeItem(
-    title: "Equalize Panes",
-    action: #selector(equalizePanes(_:)),
-    identifier: MenuItemIdentifier.equalizePanes
-  )
-  private lazy var togglePaneZoomItem = makeItem(
-    title: "Toggle Pane Zoom",
-    action: #selector(togglePaneZoom(_:)),
-    identifier: MenuItemIdentifier.togglePaneZoom
-  )
   private lazy var nextTabItem = makeItem(
     title: "Next Tab",
     action: #selector(nextTab(_:)),
@@ -309,6 +344,78 @@ final class SupatermMenuController: NSObject {
     item.representedObject = slot as NSNumber
     return item
   }
+  private lazy var zoomSplitItem = makeItem(
+    title: "Zoom Split",
+    action: #selector(zoomSplit(_:)),
+    identifier: MenuItemIdentifier.zoomSplit,
+    symbol: "arrow.up.left.and.arrow.down.right"
+  )
+  private lazy var previousSplitItem = makeItem(
+    title: "Select Previous Split",
+    action: #selector(previousSplit(_:)),
+    identifier: MenuItemIdentifier.previousSplit,
+    symbol: "chevron.backward.2"
+  )
+  private lazy var nextSplitItem = makeItem(
+    title: "Select Next Split",
+    action: #selector(nextSplit(_:)),
+    identifier: MenuItemIdentifier.nextSplit,
+    symbol: "chevron.forward.2"
+  )
+  private lazy var selectSplitAboveItem = makeItem(
+    title: "Select Split Above",
+    action: #selector(selectSplitAbove(_:)),
+    identifier: MenuItemIdentifier.selectSplitAbove,
+    symbol: "arrow.up"
+  )
+  private lazy var selectSplitBelowItem = makeItem(
+    title: "Select Split Below",
+    action: #selector(selectSplitBelow(_:)),
+    identifier: MenuItemIdentifier.selectSplitBelow,
+    symbol: "arrow.down"
+  )
+  private lazy var selectSplitLeftItem = makeItem(
+    title: "Select Split Left",
+    action: #selector(selectSplitLeft(_:)),
+    identifier: MenuItemIdentifier.selectSplitLeft,
+    symbol: "arrow.left"
+  )
+  private lazy var selectSplitRightItem = makeItem(
+    title: "Select Split Right",
+    action: #selector(selectSplitRight(_:)),
+    identifier: MenuItemIdentifier.selectSplitRight,
+    symbol: "arrow.right"
+  )
+  private lazy var equalizeSplitsItem = makeItem(
+    title: "Equalize Splits",
+    action: #selector(equalizeSplits(_:)),
+    identifier: MenuItemIdentifier.equalizeSplits,
+    symbol: "inset.filled.topleft.topright.bottomleft.bottomright.rectangle"
+  )
+  private lazy var moveSplitDividerUpItem = makeItem(
+    title: "Move Divider Up",
+    action: #selector(moveSplitDividerUp(_:)),
+    identifier: MenuItemIdentifier.moveSplitDividerUp,
+    symbol: "arrow.up.to.line"
+  )
+  private lazy var moveSplitDividerDownItem = makeItem(
+    title: "Move Divider Down",
+    action: #selector(moveSplitDividerDown(_:)),
+    identifier: MenuItemIdentifier.moveSplitDividerDown,
+    symbol: "arrow.down.to.line"
+  )
+  private lazy var moveSplitDividerLeftItem = makeItem(
+    title: "Move Divider Left",
+    action: #selector(moveSplitDividerLeft(_:)),
+    identifier: MenuItemIdentifier.moveSplitDividerLeft,
+    symbol: "arrow.left.to.line"
+  )
+  private lazy var moveSplitDividerRightItem = makeItem(
+    title: "Move Divider Right",
+    action: #selector(moveSplitDividerRight(_:)),
+    identifier: MenuItemIdentifier.moveSplitDividerRight,
+    symbol: "arrow.right.to.line"
+  )
   private lazy var selectWorkspaceItems: [NSMenuItem] = (1...10).map { slot in
     let item = makeItem(
       title: "Space \(slot)",
@@ -366,8 +473,18 @@ final class SupatermMenuController: NSObject {
     syncShortcut(command: .navigateSearch(.previous), item: findPreviousItem)
     syncShortcut(command: .endSearch, item: hideFindBarItem)
     syncShortcut(command: .searchSelection, item: selectionForFindItem)
-    syncShortcut(command: .equalizeSplits, item: equalizePanesItem)
-    syncShortcut(command: .toggleSplitZoom, item: togglePaneZoomItem)
+    syncShortcut(command: .toggleSplitZoom, item: zoomSplitItem)
+    syncShortcut(command: .goToSplit(.previous), item: previousSplitItem)
+    syncShortcut(command: .goToSplit(.next), item: nextSplitItem)
+    syncShortcut(command: .goToSplit(.top), item: selectSplitAboveItem)
+    syncShortcut(command: .goToSplit(.down), item: selectSplitBelowItem)
+    syncShortcut(command: .goToSplit(.left), item: selectSplitLeftItem)
+    syncShortcut(command: .goToSplit(.right), item: selectSplitRightItem)
+    syncShortcut(command: .equalizeSplits, item: equalizeSplitsItem)
+    syncShortcut(command: .resizeSplit(.top, 10), item: moveSplitDividerUpItem)
+    syncShortcut(command: .resizeSplit(.down, 10), item: moveSplitDividerDownItem)
+    syncShortcut(command: .resizeSplit(.left, 10), item: moveSplitDividerLeftItem)
+    syncShortcut(command: .resizeSplit(.right, 10), item: moveSplitDividerRightItem)
     syncShortcut(command: .nextTab, item: nextTabItem)
     syncShortcut(command: .previousTab, item: previousTabItem)
     for (offset, item) in selectTabItems.enumerated() {
@@ -456,12 +573,52 @@ final class SupatermMenuController: NSObject {
     registry.requestToggleSidebarInKeyWindow()
   }
 
-  @objc func equalizePanes(_ sender: Any?) {
+  @objc func zoomSplit(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.toggleSplitZoom)
+  }
+
+  @objc func previousSplit(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.previous))
+  }
+
+  @objc func nextSplit(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.next))
+  }
+
+  @objc func selectSplitAbove(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.top))
+  }
+
+  @objc func selectSplitBelow(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.down))
+  }
+
+  @objc func selectSplitLeft(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.left))
+  }
+
+  @objc func selectSplitRight(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.goToSplit(.right))
+  }
+
+  @objc func equalizeSplits(_ sender: Any?) {
     registry.requestBindingActionInKeyWindow(.equalizeSplits)
   }
 
-  @objc func togglePaneZoom(_ sender: Any?) {
-    registry.requestBindingActionInKeyWindow(.toggleSplitZoom)
+  @objc func moveSplitDividerUp(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.resizeSplit(.top, 10))
+  }
+
+  @objc func moveSplitDividerDown(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.resizeSplit(.down, 10))
+  }
+
+  @objc func moveSplitDividerLeft(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.resizeSplit(.left, 10))
+  }
+
+  @objc func moveSplitDividerRight(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.resizeSplit(.right, 10))
   }
 
   @objc func nextTab(_ sender: Any?) {
@@ -546,11 +703,15 @@ final class SupatermMenuController: NSObject {
   private func makeItem(
     title: String,
     action: Selector,
-    identifier: NSUserInterfaceItemIdentifier
+    identifier: NSUserInterfaceItemIdentifier,
+    symbol: String? = nil
   ) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
     item.identifier = identifier
     item.target = self
+    if let symbol {
+      item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    }
     return item
   }
 
@@ -594,8 +755,18 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.findNext,
       MenuItemIdentifier.findPrevious,
       MenuItemIdentifier.selectionForFind,
-      MenuItemIdentifier.equalizePanes,
-      MenuItemIdentifier.togglePaneZoom:
+      MenuItemIdentifier.zoomSplit,
+      MenuItemIdentifier.previousSplit,
+      MenuItemIdentifier.nextSplit,
+      MenuItemIdentifier.selectSplitAbove,
+      MenuItemIdentifier.selectSplitBelow,
+      MenuItemIdentifier.selectSplitLeft,
+      MenuItemIdentifier.selectSplitRight,
+      MenuItemIdentifier.equalizeSplits,
+      MenuItemIdentifier.moveSplitDividerUp,
+      MenuItemIdentifier.moveSplitDividerDown,
+      MenuItemIdentifier.moveSplitDividerLeft,
+      MenuItemIdentifier.moveSplitDividerRight:
       return context.availability.hasSurface
     case MenuItemIdentifier.hideFindBar:
       return context.hasSearch

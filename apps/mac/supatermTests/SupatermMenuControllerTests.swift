@@ -40,8 +40,11 @@ struct SupatermMenuControllerTests {
       ])
     #expect(fileMenu.items[0].keyEquivalent == "n")
     #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[0].image != nil)
+    #expect(fileMenu.items[2].isSeparatorItem)
     #expect(fileMenu.items[8].keyEquivalent == "w")
     #expect(fileMenu.items[8].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[8].image != nil)
 
     let tabsMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Tabs" })?.submenu)
     #expect(
@@ -66,6 +69,39 @@ struct SupatermMenuControllerTests {
     #expect(spacesMenu.items[0].keyEquivalentModifierMask == [.control])
     #expect(spacesMenu.items[9].keyEquivalent == "0")
     #expect(spacesMenu.items[9].keyEquivalentModifierMask == [.control])
+
+    let windowMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Window" })?.submenu)
+    #expect(
+      windowMenu.items.map(\.title) == [
+        "Minimize",
+        "Zoom",
+        "",
+        "Zoom Split",
+        "Select Previous Split",
+        "Select Next Split",
+        "Select Split",
+        "Resize Split",
+        "",
+        "Bring All to Front",
+      ])
+    let selectSplitMenu = try #require(windowMenu.items[6].submenu)
+    #expect(
+      selectSplitMenu.items.map(\.title) == [
+        "Select Split Above",
+        "Select Split Below",
+        "Select Split Left",
+        "Select Split Right",
+      ])
+    let resizeSplitMenu = try #require(windowMenu.items[7].submenu)
+    #expect(
+      resizeSplitMenu.items.map(\.title) == [
+        "Equalize Splits",
+        "",
+        "Move Divider Up",
+        "Move Divider Down",
+        "Move Divider Left",
+        "Move Divider Right",
+      ])
   }
 
   @Test
