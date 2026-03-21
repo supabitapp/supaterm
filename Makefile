@@ -22,15 +22,13 @@ GHOSTTY_SUBMODULE_HEAD_STAMP := $(GHOSTTY_STAMP_DIR)/head-$(GHOSTTY_SUBMODULE_HE
 GHOSTTY_BUILD_OUTPUTS_STAMP := $(GHOSTTY_STAMP_DIR)/outputs-$(GHOSTTY_SUBMODULE_HEAD)
 GHOSTTY_BUILD_INPUTS := Makefile mise.toml .gitmodules
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
-TUIST_XCODE_CACHE_SETUP_STAMP := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-xcode-cache-setup
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
-TUIST_XCODE_CACHE_SETUP_INPUTS := Tuist.swift mise.toml
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
+.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
 
 ifeq ($(CI),)
 TUIST_INSTALL_FLAGS :=
@@ -47,14 +45,7 @@ generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) 
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
 
-setup-xcode-cache: $(TUIST_XCODE_CACHE_SETUP_STAMP) # Install Tuist Xcode cache service for this machine
-
 build-ghostty-xcframework: $(GHOSTTY_BUILD_OUTPUTS_STAMP)
-
-$(TUIST_XCODE_CACHE_SETUP_STAMP): $(TUIST_XCODE_CACHE_SETUP_INPUTS)
-	mkdir -p "$(dir $@)"
-	mise exec -- tuist setup cache
-	touch "$@"
 
 $(GHOSTTY_SUBMODULE_HEAD_STAMP): $(GHOSTTY_BUILD_INPUTS)
 	mkdir -p "$(GHOSTTY_STAMP_DIR)"
@@ -83,7 +74,7 @@ $(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_BUILD_OUTPUTS_STAMP) $(TUIST_GENERATI
 	mise exec -- tuist generate --no-open --cache-profile "$*"
 	touch "$@"
 
-build-app: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
+build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
@@ -116,7 +107,7 @@ archive: $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distributi
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
+test: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
 	bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 format: # Format code with swift-format (local only)
