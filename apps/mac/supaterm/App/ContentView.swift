@@ -45,9 +45,6 @@ struct ContentView: View {
     actions: FocusedActions
   ) -> some View {
     content
-      .focusedSceneValue(\.newTerminalAction, actions.newTerminal)
-      .focusedSceneValue(\.closeSurfaceAction, actions.closeSurface)
-      .focusedSceneValue(\.closeTabAction, actions.closeTab)
       .focusedSceneValue(\.nextTabAction, actions.nextTab)
       .focusedSceneValue(\.previousTabAction, actions.previousTab)
       .focusedSceneValue(\.selectTabAction, actions.selectTab)
@@ -75,19 +72,6 @@ struct ContentView: View {
     let hasWorkspaces = !terminal.workspaces.isEmpty
 
     return FocusedActions(
-      newTerminal: {
-        terminalStore.send(.newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id))
-      },
-      closeSurface: hasSurface
-        ? {
-          guard let selectedSurfaceID = terminal.selectedSurfaceView?.id else { return }
-          terminalStore.send(.closeSurfaceRequested(selectedSurfaceID))
-        } : nil,
-      closeTab: hasTab
-        ? {
-          guard let selectedTabID = terminal.selectedTabID else { return }
-          terminalStore.send(.closeTabRequested(selectedTabID))
-        } : nil,
       nextTab: hasTab
         ? {
           terminalStore.send(.nextTabMenuItemSelected)
@@ -159,9 +143,6 @@ struct ContentView: View {
   }
 
   private struct FocusedActions {
-    let newTerminal: (() -> Void)?
-    let closeSurface: (() -> Void)?
-    let closeTab: (() -> Void)?
     let nextTab: (() -> Void)?
     let previousTab: (() -> Void)?
     let selectTab: ((Int) -> Void)?

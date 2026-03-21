@@ -1065,6 +1065,12 @@ final class TerminalHostState {
     return tree.leaves().contains(where: \.needsCloseConfirmation)
   }
 
+  func windowNeedsCloseConfirmation() -> Bool {
+    trees.values.contains { tree in
+      tree.leaves().contains(where: \.needsCloseConfirmation)
+    }
+  }
+
   private func surfaceNeedsCloseConfirmation(_ surfaceID: UUID) -> Bool {
     surfaces[surfaceID]?.needsCloseConfirmation ?? false
   }

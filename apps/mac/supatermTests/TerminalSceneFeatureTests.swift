@@ -266,15 +266,6 @@ struct TerminalSceneFeatureTests {
   }
 }
 
-@MainActor
-private final class TerminalCommandRecorder {
-  var commands: [TerminalClient.Command] = []
-
-  func record(_ command: TerminalClient.Command) {
-    commands.append(command)
-  }
-}
-
 private func makeEventStream() -> (
   AsyncStream<TerminalClient.Event>,
   AsyncStream<TerminalClient.Event>.Continuation

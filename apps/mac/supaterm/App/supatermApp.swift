@@ -12,6 +12,7 @@ struct SupatermApp: App {
   @MainActor init() {
     GhosttyBootstrap.initialize()
     let terminalWindowRegistry = TerminalWindowRegistry()
+    let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
     } withDependencies: {
@@ -19,6 +20,10 @@ struct SupatermApp: App {
     }
     _terminalWindowRegistry = State(initialValue: terminalWindowRegistry)
     _socketStore = State(initialValue: socketStore)
+    appDelegate.menuController = menuController
+    terminalWindowRegistry.onChange = { [weak menuController] in
+      menuController?.refresh()
+    }
     appDelegate.onQuitRequested = { window in
       terminalWindowRegistry.requestQuit(for: window)
     }

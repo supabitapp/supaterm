@@ -2,21 +2,37 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SwiftUI
 
 @MainActor
 final class TerminalWindowRegistry {
+  struct CommandAvailability: Equatable {
+    let hasWindow: Bool
+    let hasTab: Bool
+    let hasSurface: Bool
+  }
+
+  private final class WindowReference {
+    weak var value: NSWindow?
+  }
+
   private struct Entry {
-    let ghosttyShortcuts: GhosttyShortcutManager
+    let keyboardShortcut: (String) -> KeyboardShortcut?
     let sceneID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
-    var windowID: ObjectIdentifier?
+    let windowReference: WindowReference
   }
 
   private var entries: [Entry] = []
+  var onChange: @MainActor () -> Void = {}
+
+  var hasShortcutSource: Bool {
+    !entries.isEmpty
+  }
 
   func register(
-    ghosttyShortcuts: GhosttyShortcutManager,
+    keyboardShortcut: @escaping (String) -> KeyboardShortcut?,
     sceneID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState
@@ -24,31 +40,86 @@ final class TerminalWindowRegistry {
     guard !entries.contains(where: { $0.sceneID == sceneID }) else { return }
     entries.append(
       .init(
-        ghosttyShortcuts: ghosttyShortcuts,
+        keyboardShortcut: keyboardShortcut,
         sceneID: sceneID,
         store: store,
         terminal: terminal,
-        windowID: nil
+        windowReference: WindowReference()
       )
     )
+    onChange()
   }
 
   func unregister(sceneID: UUID) {
     entries.removeAll { $0.sceneID == sceneID }
+    onChange()
   }
 
-  func updateWindowID(
-    _ windowID: ObjectIdentifier?,
-    for sceneID: UUID
-  ) {
+  func updateWindow(_ window: NSWindow?, for sceneID: UUID) {
     guard let index = entries.firstIndex(where: { $0.sceneID == sceneID }) else { return }
-    entries[index].windowID = windowID
+    entries[index].windowReference.value = window
+    onChange()
   }
 
   func requestQuit(for window: NSWindow) -> Bool {
+    guard let entry = entry(for: window) else { return false }
     let windowID = ObjectIdentifier(window)
-    guard let entry = entries.first(where: { $0.windowID == windowID }) else { return false }
     entry.store.send(.quitRequested(windowID))
+    return true
+  }
+
+  func commandAvailability() -> CommandAvailability {
+    guard let entry = preferredActiveEntry() else {
+      return .init(hasWindow: false, hasTab: false, hasSurface: false)
+    }
+
+    return .init(
+      hasWindow: true,
+      hasTab: entry.terminal.selectedTabID != nil,
+      hasSurface: entry.terminal.selectedSurfaceView != nil
+    )
+  }
+
+  func keyboardShortcut(for action: String) -> KeyboardShortcut? {
+    shortcutEntry()?.keyboardShortcut(action)
+  }
+
+  func requestNewTabInKeyWindow() {
+    guard let entry = preferredActiveEntry() else { return }
+    entry.store.send(
+      .terminal(
+        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
+      )
+    )
+  }
+
+  func requestCloseSurfaceInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let surfaceID = entry.terminal.selectedSurfaceView?.id
+    else {
+      return
+    }
+    entry.store.send(.terminal(.closeSurfaceRequested(surfaceID)))
+  }
+
+  func requestCloseTabInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let tabID = entry.terminal.selectedTabID
+    else {
+      return
+    }
+    entry.store.send(.terminal(.closeTabRequested(tabID)))
+  }
+
+  @discardableResult
+  func requestCloseAllWindows() -> Bool {
+    let windows = activeEntries().compactMap(\.windowReference.value)
+    guard !windows.isEmpty else { return false }
+    for window in windows {
+      window.performClose(nil)
+    }
     return true
   }
 
@@ -67,7 +138,7 @@ final class TerminalWindowRegistry {
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
     guard let entry = entries.first else { return nil }
     return SupatermOnboardingSnapshotBuilder.snapshot { action in
-      entry.ghosttyShortcuts.keyboardShortcut(for: action)
+      entry.keyboardShortcut(action)
     }
   }
 
@@ -159,7 +230,7 @@ final class TerminalWindowRegistry {
   }
 
   private func activeEntries() -> [Entry] {
-    entries.filter { $0.windowID != nil }
+    entries.filter { $0.windowReference.value != nil }
   }
 
   private func entry(for windowIndex: Int) throws -> Entry {
@@ -169,6 +240,21 @@ final class TerminalWindowRegistry {
       throw TerminalCreatePaneError.windowNotFound(windowIndex)
     }
     return activeEntries[offset]
+  }
+
+  private func entry(for window: NSWindow) -> Entry? {
+    entries.first { $0.windowReference.value === window }
+  }
+
+  private func preferredActiveEntry() -> Entry? {
+    if let keyWindow = NSApp.keyWindow, let entry = entry(for: keyWindow) {
+      return entry
+    }
+    return activeEntries().first(where: { $0.terminal.windowActivity.isKeyWindow }) ?? activeEntries().first
+  }
+
+  private func shortcutEntry() -> Entry? {
+    preferredActiveEntry() ?? entries.first
   }
 
   private func rewrite(
