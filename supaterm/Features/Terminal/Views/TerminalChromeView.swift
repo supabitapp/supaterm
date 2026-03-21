@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum TerminalSplitMetrics {
-  static let resizeHandleWidth: CGFloat = 14
+  static let resizeHandleWidth: CGFloat = 24
 
   static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
     guard totalWidth > 0 else { return 0 }
@@ -96,7 +96,9 @@ struct ToolbarIconButton: View {
         .font(.system(size: 14, weight: .medium))
         .foregroundStyle(isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText)
         .frame(width: 30, height: 30)
-        .background(isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6))
+        .background(
+          isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6)
+        )
         .accessibilityHidden(true)
     }
     .buttonStyle(.plain)
