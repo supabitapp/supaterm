@@ -1,0 +1,44 @@
+name: deploy-web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/supaterm.com/**"
+      - ".github/workflows/deploy-web.yml"
+      - "Makefile"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Resolve Vite+ version
+        id: vite_plus
+        shell: bash
+        run: |
+          VERSION=$(node -e 'const fs = require("fs"); const lock = fs.readFileSync("apps/supaterm.com/pnpm-lock.yaml", "utf8"); const match = lock.match(/\n  vite-plus@([0-9][^:]+):/); if (!match) throw new Error("Unable to resolve vite-plus version from apps/supaterm.com/pnpm-lock.yaml"); process.stdout.write(match[1]);')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Install Vite+
+        run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
+      - run: make web-install
+      - run: make web-check
+      - run: make web-build
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/supaterm.com
+          command: deploy

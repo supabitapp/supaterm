@@ -20,4 +20,22 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ["worker/**/*.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.worker,
+      },
+    },
+  },
+  {
+    files: ["**/*.test.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.worker,
+      },
+    },
+  },
 ]);

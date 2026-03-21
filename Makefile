@@ -9,7 +9,7 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 GIT_HOOKS_DIR := .git-hooks
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-check web-lint web-fmt web-test web-build web-preview
+.PHONY: help install-git-hooks mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -70,6 +70,9 @@ web-install:  # Install web app dependencies.
 web-dev:  # Run the web development server.
 	@cd "$(WEB_APP_DIR)" && vp dev
 
+web-worker-dev:  # Run the Cloudflare Worker with built assets.
+	@cd "$(WEB_APP_DIR)" && vp exec wrangler dev
+
 web-check:  # Run formatting, linting, and type checks for the web app.
 	@cd "$(WEB_APP_DIR)" && vp check
 
@@ -87,3 +90,6 @@ web-build:  # Build the web app for production.
 
 web-preview:  # Preview the built web app.
 	@cd "$(WEB_APP_DIR)" && vp preview
+
+web-deploy:  # Deploy the web app to Cloudflare Workers.
+	@cd "$(WEB_APP_DIR)" && vp exec wrangler deploy
