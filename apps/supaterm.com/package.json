@@ -26,7 +26,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vite-plus": "latest"
+    "vite-plus": "latest",
+    "wrangler": "^4.76.0"
   },
   "packageManager": "pnpm@10.32.1",
   "pnpm": {
