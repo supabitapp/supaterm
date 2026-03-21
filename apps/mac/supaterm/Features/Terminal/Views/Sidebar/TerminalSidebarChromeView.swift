@@ -91,7 +91,9 @@ struct TerminalSidebarChromeView: View {
 
               pinnedSection
 
-              TerminalSidebarSectionDivider(palette: palette)
+              if !terminal.pinnedTabs.isEmpty {
+                TerminalSidebarSectionDivider(palette: palette)
+              }
 
               regularSection
 
