@@ -15,12 +15,6 @@ GHOSTTY_SUBMODULE_DIR := $(CURRENT_MAKEFILE_DIR)/ThirdParty/ghostty
 GHOSTTY_XCFRAMEWORK_PATH := $(CURRENT_MAKEFILE_DIR)/Frameworks/GhosttyKit.xcframework
 GHOSTTY_RESOURCE_PATH := $(CURRENT_MAKEFILE_DIR)/Resources/ghostty
 GHOSTTY_TERMINFO_PATH := $(CURRENT_MAKEFILE_DIR)/Resources/terminfo
-GHOSTTY_BUILD_OUTPUTS := $(GHOSTTY_XCFRAMEWORK_PATH) $(GHOSTTY_RESOURCE_PATH) $(GHOSTTY_TERMINFO_PATH)
-GHOSTTY_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.ghostty-stamps
-GHOSTTY_SUBMODULE_HEAD := $(shell if git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse --verify HEAD >/dev/null 2>&1; then git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse HEAD; else printf missing; fi)
-GHOSTTY_SUBMODULE_HEAD_STAMP := $(GHOSTTY_STAMP_DIR)/head-$(GHOSTTY_SUBMODULE_HEAD)
-GHOSTTY_BUILD_OUTPUTS_STAMP := $(GHOSTTY_STAMP_DIR)/outputs-$(GHOSTTY_SUBMODULE_HEAD)
-GHOSTTY_BUILD_INPUTS := Makefile mise.toml .gitmodules
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
@@ -45,18 +39,13 @@ generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) 
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
 
-build-ghostty-xcframework: $(GHOSTTY_BUILD_OUTPUTS_STAMP)
+build-ghostty-xcframework: $(GHOSTTY_XCFRAMEWORK_PATH)
 
-$(GHOSTTY_SUBMODULE_HEAD_STAMP): $(GHOSTTY_BUILD_INPUTS)
-	mkdir -p "$(GHOSTTY_STAMP_DIR)"
-	if [ "$(GHOSTTY_SUBMODULE_HEAD)" = "missing" ]; then \
+$(GHOSTTY_XCFRAMEWORK_PATH):
+	if ! git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse --verify HEAD >/dev/null 2>&1; then \
 		echo "error: Missing $(GHOSTTY_SUBMODULE_DIR). Run: git submodule update --init --recursive ThirdParty/ghostty" >&2; \
 		exit 1; \
 	fi
-	rm -f "$(GHOSTTY_STAMP_DIR)"/head-*
-	touch "$@"
-
-$(GHOSTTY_BUILD_OUTPUTS_STAMP): $(GHOSTTY_BUILD_INPUTS) $(GHOSTTY_SUBMODULE_HEAD_STAMP)
 	mkdir -p "$(dir $(GHOSTTY_XCFRAMEWORK_PATH))" "$(dir $(GHOSTTY_RESOURCE_PATH))" "$(dir $(GHOSTTY_TERMINFO_PATH))"
 	cd "$(GHOSTTY_SUBMODULE_DIR)" && mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false
 	rm -rf "$(GHOSTTY_XCFRAMEWORK_PATH)"
@@ -65,9 +54,8 @@ $(GHOSTTY_BUILD_OUTPUTS_STAMP): $(GHOSTTY_BUILD_INPUTS) $(GHOSTTY_SUBMODULE_HEAD
 	rsync -a --delete "$(GHOSTTY_SUBMODULE_DIR)/zig-out/share/ghostty/" "$(GHOSTTY_RESOURCE_PATH)/"
 	mkdir -p "$(GHOSTTY_TERMINFO_PATH)"
 	rsync -a --delete "$(GHOSTTY_SUBMODULE_DIR)/zig-out/share/terminfo/" "$(GHOSTTY_TERMINFO_PATH)/"
-	touch "$@"
 
-$(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_BUILD_OUTPUTS_STAMP) $(TUIST_GENERATION_INPUTS)
+$(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_XCFRAMEWORK_PATH) $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
