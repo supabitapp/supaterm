@@ -29,4 +29,4 @@ make mac-test
 
 - `mise` manages tool versions from the repo root `mise.toml`
 - The repo root `Makefile` is the stable entrypoint and delegates to app-local build logic
-- macOS app architecture and workflows live in `apps/mac/AGENTS.md`
+- Read `docs/mac.md` before working in `apps/mac`
