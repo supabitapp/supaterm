@@ -74,7 +74,6 @@ struct TerminalSplitView: View {
       if !isSidebarCollapsed {
         SidebarResizeHandle(
           palette: palette,
-          coordinateSpaceName: TerminalCoordinateSpace.split,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
@@ -254,7 +253,6 @@ struct FloatingSidebarOverlay: View {
       if isVisible {
         SidebarResizeHandle(
           palette: palette,
-          coordinateSpaceName: TerminalCoordinateSpace.floatingSidebar,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
@@ -284,7 +282,6 @@ struct FloatingSidebarOverlay: View {
 
 private struct SidebarResizeHandle: View {
   let palette: TerminalPalette
-  let coordinateSpaceName: String
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var dragFraction: CGFloat?
@@ -294,54 +291,149 @@ private struct SidebarResizeHandle: View {
   @State private var isHovering = false
 
   var body: some View {
-    Rectangle()
-      .fill(Color.clear)
-      .frame(width: TerminalSplitMetrics.resizeHandleWidth)
-      .overlay {
-        Rectangle()
-          .fill(isHovering ? palette.secondaryText.opacity(0.5) : .clear)
-          .frame(width: 2)
-      }
-      .contentShape(Rectangle())
-      .onHover { hovering in
-        guard hovering != isHovering else { return }
-        isHovering = hovering
-        if hovering {
-          NSCursor.resizeLeftRight.push()
-        } else {
-          NSCursor.pop()
-        }
-      }
-      .onDisappear {
-        guard isHovering else { return }
-        isHovering = false
-        NSCursor.pop()
-      }
-      .gesture(
-        DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
-          .onChanged { value in
-            dragFraction = TerminalSplitMetrics.rawFraction(
-              for: value.location.x,
-              totalWidth: totalWidth
-            )
-          }
-          .onEnded { value in
-            let rawFraction = TerminalSplitMetrics.rawFraction(
-              for: value.location.x,
-              totalWidth: totalWidth
-            )
-            if let onHide, rawFraction < minFraction {
-              onHide()
-            } else {
-              sidebarFraction = TerminalSplitMetrics.clampedFraction(
-                rawFraction,
-                minFraction: minFraction,
-                maxFraction: maxFraction
-              )
-            }
-            dragFraction = nil
-          }
+    SidebarResizeInteractionView(
+      isHovering: $isHovering,
+      onDragChanged: updateDragFraction(for:),
+      onDragEnded: commitDragFraction(for:)
+    )
+    .frame(width: TerminalSplitMetrics.resizeHandleWidth)
+    .frame(maxHeight: .infinity)
+    .overlay {
+      Rectangle()
+        .fill(isHovering ? palette.secondaryText.opacity(0.5) : .clear)
+        .frame(width: 2)
+    }
+  }
+
+  private func updateDragFraction(for locationX: CGFloat) {
+    dragFraction = TerminalSplitMetrics.rawFraction(
+      for: locationX,
+      totalWidth: totalWidth
+    )
+  }
+
+  private func commitDragFraction(for locationX: CGFloat) {
+    let rawFraction = TerminalSplitMetrics.rawFraction(
+      for: locationX,
+      totalWidth: totalWidth
+    )
+    if let onHide, rawFraction < minFraction {
+      onHide()
+    } else {
+      sidebarFraction = TerminalSplitMetrics.clampedFraction(
+        rawFraction,
+        minFraction: minFraction,
+        maxFraction: maxFraction
       )
+    }
+    dragFraction = nil
+  }
+}
+
+private struct SidebarResizeInteractionView: NSViewRepresentable {
+  @Binding var isHovering: Bool
+  let onDragChanged: (CGFloat) -> Void
+  let onDragEnded: (CGFloat) -> Void
+
+  func makeNSView(context: Context) -> SidebarResizeInteractionNSView {
+    let view = SidebarResizeInteractionNSView()
+    update(view)
+    return view
+  }
+
+  func updateNSView(_ nsView: SidebarResizeInteractionNSView, context: Context) {
+    update(nsView)
+  }
+
+  private func update(_ view: SidebarResizeInteractionNSView) {
+    view.onHoverChanged = { hovering in
+      guard hovering != isHovering else { return }
+      isHovering = hovering
+    }
+    view.onDragChanged = onDragChanged
+    view.onDragEnded = onDragEnded
+  }
+}
+
+private final class SidebarResizeInteractionNSView: NSView {
+  var onHoverChanged: ((Bool) -> Void)?
+  var onDragChanged: ((CGFloat) -> Void)?
+  var onDragEnded: ((CGFloat) -> Void)?
+  private var trackingArea: NSTrackingArea?
+
+  override var mouseDownCanMoveWindow: Bool {
+    false
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    bounds.contains(point) ? self : nil
+  }
+
+  override func updateTrackingAreas() {
+    if let trackingArea {
+      removeTrackingArea(trackingArea)
+    }
+    let trackingArea = NSTrackingArea(
+      rect: bounds,
+      options: [.activeAlways, .cursorUpdate, .inVisibleRect, .mouseEnteredAndExited],
+      owner: self,
+      userInfo: nil
+    )
+    addTrackingArea(trackingArea)
+    self.trackingArea = trackingArea
+    window?.invalidateCursorRects(for: self)
+    super.updateTrackingAreas()
+  }
+
+  override func resetCursorRects() {
+    discardCursorRects()
+    addCursorRect(bounds, cursor: .resizeLeftRight)
+  }
+
+  override func cursorUpdate(with event: NSEvent) {
+    NSCursor.resizeLeftRight.set()
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    onHoverChanged?(true)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    onHoverChanged?(false)
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    sendDragChanged(for: event)
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    sendDragChanged(for: event)
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    sendDragEnded(for: event)
+  }
+
+  override func viewWillMove(toWindow newWindow: NSWindow?) {
+    if newWindow == nil {
+      onHoverChanged?(false)
+    }
+    super.viewWillMove(toWindow: newWindow)
+  }
+
+  private func sendDragChanged(for event: NSEvent) {
+    guard let locationX = locationX(for: event) else { return }
+    onDragChanged?(locationX)
+  }
+
+  private func sendDragEnded(for event: NSEvent) {
+    guard let locationX = locationX(for: event) else { return }
+    onDragEnded?(locationX)
+  }
+
+  private func locationX(for event: NSEvent) -> CGFloat? {
+    guard let contentView = window?.contentView else { return nil }
+    return contentView.convert(event.locationInWindow, from: nil).x
   }
 }
 
