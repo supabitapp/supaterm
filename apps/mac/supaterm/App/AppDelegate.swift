@@ -61,9 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func performNewWindow() -> Bool {
     let controller = TerminalWindowController(registry: terminalWindowRegistry)
     controller.onWindowWillClose = { [weak self] controller in
-      self?.windowControllers.removeValue(forKey: controller.appWindowController.sceneID)
+      self?.windowControllers.removeValue(forKey: controller.windowControllerID)
     }
-    windowControllers[controller.appWindowController.sceneID] = controller
+    windowControllers[controller.windowControllerID] = controller
     controller.showWindow(nil)
     NSApp.activate(ignoringOtherApps: true)
     controller.window?.makeKeyAndOrderFront(nil)

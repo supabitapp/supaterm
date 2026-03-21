@@ -4,13 +4,13 @@ import ComposableArchitecture
 struct AppFeature {
   @ObservableState
   struct State: Equatable {
-    var terminal = TerminalSceneFeature.State()
+    var terminal = TerminalWindowFeature.State()
     var update = UpdateFeature.State()
   }
 
   enum Action {
     case quitRequested(ObjectIdentifier)
-    case terminal(TerminalSceneFeature.Action)
+    case terminal(TerminalWindowFeature.Action)
     case update(UpdateFeature.Action)
   }
 
@@ -18,7 +18,7 @@ struct AppFeature {
 
   var body: some Reducer<State, Action> {
     Scope(state: \.terminal, action: \.terminal) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     }
 
     Scope(state: \.update, action: \.update) {

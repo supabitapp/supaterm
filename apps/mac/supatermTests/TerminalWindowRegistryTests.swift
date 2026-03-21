@@ -16,7 +16,7 @@ struct TerminalWindowRegistryTests {
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
 
       let tabManager = try #require(host.workspaceManager.activeTabManager)
       let tabID = tabManager.createTab(title: "Terminal 1", icon: "terminal")
@@ -24,12 +24,12 @@ struct TerminalWindowRegistryTests {
 
       registry.register(
         keyboardShortcut: { _ in nil },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: sceneID)
+      registry.updateWindow(makeWindow(), for: windowControllerID)
 
       #expect(
         registry.commandAvailability()
@@ -55,7 +55,7 @@ struct TerminalWindowRegistryTests {
       } withDependencies: {
         $0.terminalClient.send = { recorder.record($0) }
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
 
       let tabManager = try #require(host.workspaceManager.activeTabManager)
       let tabID = tabManager.createTab(title: "Terminal 1", icon: "terminal")
@@ -63,12 +63,12 @@ struct TerminalWindowRegistryTests {
 
       registry.register(
         keyboardShortcut: { _ in nil },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: sceneID)
+      registry.updateWindow(makeWindow(), for: windowControllerID)
 
       registry.requestCloseTabInKeyWindow()
       await flushEffects()
@@ -90,16 +90,16 @@ struct TerminalWindowRegistryTests {
       } withDependencies: {
         $0.terminalClient.send = { recorder.record($0) }
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
 
       registry.register(
         keyboardShortcut: { _ in nil },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: sceneID)
+      registry.updateWindow(makeWindow(), for: windowControllerID)
 
       registry.requestNewTabInKeyWindow()
       await flushEffects()
@@ -121,16 +121,16 @@ struct TerminalWindowRegistryTests {
       } withDependencies: {
         $0.terminalClient.send = { recorder.record($0) }
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
 
       registry.register(
         keyboardShortcut: { _ in nil },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: sceneID)
+      registry.updateWindow(makeWindow(), for: windowControllerID)
 
       registry.requestBindingActionInKeyWindow(.newSplit(.left))
       await flushEffects()
@@ -152,16 +152,16 @@ struct TerminalWindowRegistryTests {
       } withDependencies: {
         $0.terminalClient.send = { recorder.record($0) }
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
 
       registry.register(
         keyboardShortcut: { _ in nil },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: sceneID)
+      registry.updateWindow(makeWindow(), for: windowControllerID)
 
       registry.requestNavigateSearchInKeyWindow(.previous)
       await flushEffects()

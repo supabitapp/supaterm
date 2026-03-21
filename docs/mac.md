@@ -53,9 +53,9 @@ xcodebuild test -workspace apps/mac/supaterm.xcworkspace -scheme supaterm -desti
 
 The app uses The Composable Architecture with a feature-based folder structure under `apps/mac/supaterm/`:
 
-- `App/` — App entry point (`SupatermApp`), `ContentView`, `AppDelegate`, `TerminalCommands`, `GhosttyBootstrap`
+- `App/` — App entry point (`main.swift` + `AppDelegate`), `TerminalWindowController`, `ContentView`, `SupatermMenuController`, `GhosttyBootstrap`
 - `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
-- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalSceneFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
+- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalWindowFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates. Update lifecycle phases are modeled as an `UpdatePhase` enum
 - `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` starts the server and dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
 - `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)

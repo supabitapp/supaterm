@@ -2,7 +2,7 @@ import ComposableArchitecture
 import SwiftUI
 
 struct TerminalDetailView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
@@ -19,7 +19,7 @@ struct TerminalDetailView: View {
 }
 
 private struct TerminalDetailSurface: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
@@ -36,7 +36,7 @@ private struct TerminalDetailSurface: View {
 }
 
 private struct TerminalSurfacePaneView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
 

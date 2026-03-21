@@ -3,7 +3,7 @@ import ComposableArchitecture
 import SwiftUI
 
 struct TerminalSplitView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -88,7 +88,7 @@ struct TerminalSplitView: View {
 }
 
 struct TerminalSidebarView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
@@ -107,7 +107,7 @@ struct TerminalSidebarView: View {
 }
 
 private struct SidebarContainerView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
@@ -209,7 +209,7 @@ private struct SidebarContainerView: View {
 }
 
 struct FloatingSidebarOverlay: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -409,7 +409,7 @@ private final class SidebarResizeInteractionNSView: NSView {
 }
 
 private struct FloatingSidebarView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
@@ -433,7 +433,7 @@ private struct FloatingSidebarView: View {
 }
 
 private struct SidebarHeaderView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let updateStore: StoreOf<UpdateFeature>
 
@@ -522,7 +522,7 @@ private struct NewTabButton: View {
 }
 
 private struct SidebarTabRow: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
   let palette: TerminalPalette
@@ -627,7 +627,7 @@ private struct SidebarTabRow: View {
 }
 
 private struct SidebarFooterView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
@@ -666,7 +666,7 @@ private struct SidebarFooterView: View {
 }
 
 private struct WorkspaceChipButton: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let workspace: TerminalWorkspaceItem
