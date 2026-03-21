@@ -79,6 +79,7 @@ struct TerminalSplitTreeView: View {
     let action: (Operation) -> Void
 
     @State private var dropState: DropState = .idle
+    @State private var isPaneHovering = false
 
     var body: some View {
       GeometryReader { geometry in
@@ -94,8 +95,14 @@ struct TerminalSplitTreeView: View {
           }
           .overlay(alignment: .top) {
             if isSplit {
-              DragHandle(surfaceView: surfaceView)
+              DragHandle(
+                surfaceView: surfaceView,
+                isVisible: isPaneHovering
+              )
             }
+          }
+          .onHover { hovering in
+            isPaneHovering = hovering
           }
           .background {
             Color.clear
@@ -122,16 +129,17 @@ struct TerminalSplitTreeView: View {
 
   struct DragHandle: View {
     let surfaceView: GhosttySurfaceView
+    let isVisible: Bool
     private let handleHeight: CGFloat = 10
-    @State private var isHovering = false
+    @State private var isHandleHovering = false
 
     var body: some View {
       Rectangle()
-        .fill(Color.primary.opacity(isHovering ? 0.12 : 0))
+        .fill(Color.primary.opacity(isVisible ? 0.12 : 0))
         .frame(maxWidth: .infinity)
         .frame(height: handleHeight)
         .overlay {
-          if isHovering {
+          if isVisible {
             Image(systemName: "ellipsis")
               .font(.system(.callout, weight: .semibold))
               .foregroundStyle(.primary.opacity(0.5))
@@ -140,8 +148,8 @@ struct TerminalSplitTreeView: View {
         }
         .contentShape(.rect)
         .onHover { hovering in
-          guard hovering != isHovering else { return }
-          isHovering = hovering
+          guard hovering != isHandleHovering else { return }
+          isHandleHovering = hovering
           if hovering {
             NSCursor.openHand.push()
           } else {
@@ -149,8 +157,8 @@ struct TerminalSplitTreeView: View {
           }
         }
         .onDisappear {
-          if isHovering {
-            isHovering = false
+          if isHandleHovering {
+            isHandleHovering = false
             NSCursor.pop()
           }
         }
