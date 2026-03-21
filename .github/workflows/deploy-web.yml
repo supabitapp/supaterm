@@ -24,8 +24,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install pnpm
-        run: npm install --global pnpm@10.32.1
+      - uses: jdx/mise-action@v3
+        with:
+          version: 2026.3.0
+          cache: true
       - name: Resolve Vite+ version
         id: vite_plus
         shell: bash
