@@ -18,8 +18,8 @@ final class GhosttyShortcutManager {
     generation += 1
   }
 
-  func keyboardShortcut(for action: String) -> KeyboardShortcut? {
+  func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
     _ = generation
-    return runtime.keyboardShortcut(for: action)
+    return runtime.keyboardShortcut(for: command)
   }
 }

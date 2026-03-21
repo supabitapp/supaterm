@@ -48,7 +48,7 @@ struct TerminalClient: Sendable {
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
     case nextTab
-    case performBindingActionOnFocusedSurface(String)
+    case performBindingActionOnFocusedSurface(SupatermCommand)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case previousTab
     case requestCloseSurface(UUID)

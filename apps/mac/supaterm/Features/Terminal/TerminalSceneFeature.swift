@@ -182,10 +182,10 @@ struct TerminalSceneFeature {
         return .none
 
       case .endSearchMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("end_search"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.endSearch))
 
       case .equalizePanesMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("equalize_splits"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.equalizeSplits))
 
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
@@ -220,7 +220,7 @@ struct TerminalSceneFeature {
         return sendCommand(.setRegularTabOrder(orderedIDs))
 
       case .searchSelectionMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("search_selection"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.searchSelection))
 
       case .selectLastTabMenuItemSelected:
         return sendCommand(.selectLastTab)
@@ -239,16 +239,16 @@ struct TerminalSceneFeature {
         return .none
 
       case .splitBelowMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("new_split:down"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.newSplit(.down)))
 
       case .splitOperationRequested(let tabID, let operation):
         return sendCommand(.performSplitOperation(tabID: tabID, operation: operation))
 
       case .splitRightMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("new_split:right"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.newSplit(.right)))
 
       case .startSearchMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("start_search"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.startSearch))
 
       case .tabSelected(let tabID):
         return sendCommand(.selectTab(tabID))
@@ -290,7 +290,7 @@ struct TerminalSceneFeature {
         return .none
 
       case .togglePaneZoomMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface("toggle_split_zoom"))
+        return sendCommand(.performBindingActionOnFocusedSurface(.toggleSplitZoom))
 
       case .togglePinned(let tabID):
         return sendCommand(.togglePinned(tabID))

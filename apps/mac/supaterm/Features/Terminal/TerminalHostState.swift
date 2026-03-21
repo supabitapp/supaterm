@@ -102,8 +102,8 @@ final class TerminalHostState {
       _ = navigateSearchOnFocusedSurface(direction)
     case .nextTab:
       nextTab()
-    case .performBindingActionOnFocusedSurface(let action):
-      _ = performBindingActionOnFocusedSurface(action)
+    case .performBindingActionOnFocusedSurface(let command):
+      _ = performBindingActionOnFocusedSurface(command)
     case .performSplitOperation(let tabID, let operation):
       performSplitOperation(operation, in: tabID)
     case .previousTab:
@@ -407,9 +407,9 @@ final class TerminalHostState {
   }
 
   @discardableResult
-  private func performBindingActionOnFocusedSurface(_ action: String) -> Bool {
+  private func performBindingActionOnFocusedSurface(_ command: SupatermCommand) -> Bool {
     guard let surface = selectedSurfaceView else { return false }
-    surface.performBindingAction(action)
+    surface.performBindingAction(command.ghosttyBindingAction)
     return true
   }
 

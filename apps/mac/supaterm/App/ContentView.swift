@@ -136,8 +136,8 @@ struct ContentView: View {
           store.send(.update(.checkForUpdatesButtonTapped))
         } : nil,
       updatePhase: store.update.phase,
-      keyboardShortcutProvider: { action in
-        ghosttyShortcuts.keyboardShortcut(for: action)
+      keyboardShortcutProvider: { command in
+        ghosttyShortcuts.keyboardShortcut(for: command)
       }
     )
   }
@@ -160,6 +160,6 @@ struct ContentView: View {
     let togglePaneZoom: (() -> Void)?
     let checkForUpdates: (() -> Void)?
     let updatePhase: UpdatePhase
-    let keyboardShortcutProvider: (String) -> KeyboardShortcut?
+    let keyboardShortcutProvider: (SupatermCommand) -> KeyboardShortcut?
   }
 }

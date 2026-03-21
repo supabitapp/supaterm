@@ -28,7 +28,7 @@ final class TerminalWindowRegistry {
   }
 
   private struct Entry {
-    let keyboardShortcut: (String) -> KeyboardShortcut?
+    let keyboardShortcut: (SupatermCommand) -> KeyboardShortcut?
     let requestConfirmedWindowClose: @MainActor () -> Void
     let sceneID: UUID
     let store: StoreOf<AppFeature>
@@ -44,7 +44,7 @@ final class TerminalWindowRegistry {
   }
 
   func register(
-    keyboardShortcut: @escaping (String) -> KeyboardShortcut?,
+    keyboardShortcut: @escaping (SupatermCommand) -> KeyboardShortcut?,
     sceneID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState,
@@ -94,8 +94,8 @@ final class TerminalWindowRegistry {
     )
   }
 
-  func keyboardShortcut(for action: String) -> KeyboardShortcut? {
-    shortcutEntry()?.keyboardShortcut(action)
+  func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    shortcutEntry()?.keyboardShortcut(command)
   }
 
   func requestNewTabInKeyWindow() {
@@ -181,8 +181,8 @@ final class TerminalWindowRegistry {
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
     guard let entry = entries.first else { return nil }
-    return SupatermOnboardingSnapshotBuilder.snapshot { action in
-      entry.keyboardShortcut(action)
+    return SupatermOnboardingSnapshotBuilder.snapshot { command in
+      entry.keyboardShortcut(command)
     }
   }
 

@@ -84,12 +84,12 @@ final class SupatermMenuController: NSObject {
       install()
       return
     }
-    syncShortcut(action: "new_window", item: newWindowItem)
-    syncShortcut(action: "new_tab", item: newTabItem)
-    syncShortcut(action: "close_surface", item: closeSurfaceItem)
-    syncShortcut(action: "close_tab", item: closeTabItem)
-    syncShortcut(action: "close_window", item: closeWindowItem)
-    syncShortcut(action: "close_all_windows", item: closeAllWindowsItem)
+    syncShortcut(command: .newWindow, item: newWindowItem)
+    syncShortcut(command: .newTab, item: newTabItem)
+    syncShortcut(command: .closeSurface, item: closeSurfaceItem)
+    syncShortcut(command: .closeTab, item: closeTabItem)
+    syncShortcut(command: .closeWindow, item: closeWindowItem)
+    syncShortcut(command: .closeAllWindows, item: closeAllWindowsItem)
     fileMenu?.update()
   }
 
@@ -120,9 +120,9 @@ final class SupatermMenuController: NSObject {
     _ = registry.requestCloseAllWindows()
   }
 
-  private func syncShortcut(action: String, item: NSMenuItem?) {
+  private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
     guard let item else { return }
-    if let shortcut = registry.keyboardShortcut(for: action) {
+    if let shortcut = registry.keyboardShortcut(for: command) {
       SupatermMenuShortcut.apply(shortcut, to: item)
       return
     }
