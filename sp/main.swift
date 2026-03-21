@@ -239,7 +239,7 @@ private func socketClient(path: String?) throws -> SPSocketClient {
 private enum SPOnboardingRenderer {
   static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
-    var lines = ["Shortcuts"]
+    var lines = ["Common Shortcuts"]
 
     if !snapshot.items.isEmpty {
       lines.append("")
