@@ -6,8 +6,9 @@ MAKEFLAGS += --warn-undefined-variables
 MAKEFLAGS += --no-builtin-rules
 
 MAC_APP_DIR := apps/mac
+WEB_APP_DIR := apps/supaterm.com
 .DEFAULT_GOAL := help
-.PHONY: help mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache
+.PHONY: help mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-check web-lint web-fmt web-test web-build web-preview
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -55,3 +56,30 @@ mac-inspect-dependencies:  # Check the macOS Tuist graph for implicit dependenci
 
 mac-warm-cache:  # Warm the macOS Tuist external dependency cache.
 	@$(MAKE) -C "$(MAC_APP_DIR)" warm-cache
+
+web-help:  # Show available Vite+ commands for the web app.
+	@cd "$(WEB_APP_DIR)" && vp help
+
+web-install:  # Install web app dependencies.
+	@cd "$(WEB_APP_DIR)" && vp install
+
+web-dev:  # Run the web development server.
+	@cd "$(WEB_APP_DIR)" && vp dev
+
+web-check:  # Run formatting, linting, and type checks for the web app.
+	@cd "$(WEB_APP_DIR)" && vp check
+
+web-lint:  # Lint the web app.
+	@cd "$(WEB_APP_DIR)" && vp lint
+
+web-fmt:  # Format web app files.
+	@cd "$(WEB_APP_DIR)" && vp fmt
+
+web-test:  # Run the web app test suite.
+	@cd "$(WEB_APP_DIR)" && vp test
+
+web-build:  # Build the web app for production.
+	@cd "$(WEB_APP_DIR)" && vp build
+
+web-preview:  # Preview the built web app.
+	@cd "$(WEB_APP_DIR)" && vp preview
