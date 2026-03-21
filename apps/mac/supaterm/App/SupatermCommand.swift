@@ -1,3 +1,5 @@
+import SwiftUI
+
 enum SupatermCommand: Hashable, Sendable {
   enum SearchDirection: Hashable, Sendable {
     case next
@@ -11,6 +13,7 @@ enum SupatermCommand: Hashable, Sendable {
     case top
   }
 
+  case copyToClipboard
   case closeAllWindows
   case closeSurface
   case closeTab
@@ -24,13 +27,18 @@ enum SupatermCommand: Hashable, Sendable {
   case newTab
   case newWindow
   case nextTab
+  case pasteFromClipboard
+  case pasteFromSelection
   case previousTab
   case searchSelection
+  case selectAll
   case startSearch
   case toggleSplitZoom
 
   var ghosttyBindingAction: String {
     switch self {
+    case .copyToClipboard:
+      "copy_to_clipboard"
     case .closeAllWindows:
       "close_all_windows"
     case .closeSurface:
@@ -65,14 +73,75 @@ enum SupatermCommand: Hashable, Sendable {
       "new_window"
     case .nextTab:
       "next_tab"
+    case .pasteFromClipboard:
+      "paste_from_clipboard"
+    case .pasteFromSelection:
+      "paste_from_selection"
     case .previousTab:
       "previous_tab"
     case .searchSelection:
       "search_selection"
+    case .selectAll:
+      "select_all"
     case .startSearch:
       "start_search"
     case .toggleSplitZoom:
       "toggle_split_zoom"
+    }
+  }
+
+  var defaultKeyboardShortcut: KeyboardShortcut? {
+    switch self {
+    case .copyToClipboard:
+      KeyboardShortcut("c", modifiers: .command)
+    case .closeAllWindows:
+      KeyboardShortcut("w", modifiers: [.command, .option, .shift])
+    case .closeSurface:
+      KeyboardShortcut("w", modifiers: .command)
+    case .closeTab:
+      KeyboardShortcut("w", modifiers: [.command, .option])
+    case .closeWindow:
+      KeyboardShortcut("w", modifiers: [.command, .shift])
+    case .endSearch:
+      KeyboardShortcut(.escape, modifiers: [])
+    case .equalizeSplits:
+      KeyboardShortcut("=", modifiers: [.command, .control])
+    case .goToTab(let tab) where (1...8).contains(tab):
+      KeyboardShortcut(KeyEquivalent(Character(String(tab))), modifiers: .command)
+    case .lastTab:
+      KeyboardShortcut("9", modifiers: .command)
+    case .navigateSearch(.next):
+      KeyboardShortcut("g", modifiers: .command)
+    case .navigateSearch(.previous):
+      KeyboardShortcut("g", modifiers: [.command, .shift])
+    case .newSplit(.down):
+      KeyboardShortcut("d", modifiers: [.command, .shift])
+    case .newSplit(.right):
+      KeyboardShortcut("d", modifiers: .command)
+    case .newTab:
+      KeyboardShortcut("t", modifiers: .command)
+    case .newWindow:
+      KeyboardShortcut("n", modifiers: .command)
+    case .nextTab:
+      KeyboardShortcut("]", modifiers: [.command, .shift])
+    case .pasteFromClipboard:
+      KeyboardShortcut("v", modifiers: .command)
+    case .pasteFromSelection:
+      KeyboardShortcut("v", modifiers: [.command, .shift])
+    case .previousTab:
+      KeyboardShortcut("[", modifiers: [.command, .shift])
+    case .searchSelection:
+      KeyboardShortcut("e", modifiers: .command)
+    case .selectAll:
+      KeyboardShortcut("a", modifiers: .command)
+    case .startSearch:
+      KeyboardShortcut("f", modifiers: .command)
+    case .toggleSplitZoom:
+      KeyboardShortcut(.return, modifiers: [.command, .shift])
+    case .goToTab,
+      .newSplit(.left),
+      .newSplit(.top):
+      nil
     }
   }
 }
