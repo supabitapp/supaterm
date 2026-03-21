@@ -33,6 +33,13 @@ struct SupatermOnboardingSnapshotBuilderTests {
         .init(shortcut: "⌘F", title: "Find"),
       ]
     )
+    #expect(
+      snapshot.paneTips == [
+        "Panes stay in the current tab.",
+        "Split right opens a pane beside the current pane.",
+        "Split down opens a pane below the current pane.",
+      ]
+    )
   }
 
   @Test
@@ -47,6 +54,13 @@ struct SupatermOnboardingSnapshotBuilderTests {
         .init(shortcut: "⌘S", title: "Toggle sidebar"),
         .init(shortcut: "⌘T", title: "New tab"),
         .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
+      ]
+    )
+    #expect(
+      snapshot.paneTips == [
+        "Panes stay in the current tab.",
+        "Split right opens a pane beside the current pane.",
+        "Split down opens a pane below the current pane.",
       ]
     )
   }

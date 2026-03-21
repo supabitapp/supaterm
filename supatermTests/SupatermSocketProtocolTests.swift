@@ -114,6 +114,10 @@ struct SupatermSocketProtocolTests {
       items: [
         .init(shortcut: "⌘S", title: "Toggle sidebar"),
         .init(shortcut: "⌘T", title: "New tab"),
+      ],
+      paneTips: [
+        "Panes stay in the current tab.",
+        "Split right opens a pane beside the current pane.",
       ]
     )
 

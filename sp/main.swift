@@ -246,16 +246,22 @@ private enum SPOnboardingRenderer {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
     var lines = ["Shortcuts"]
 
-    guard !snapshot.items.isEmpty else {
-      return lines.joined(separator: "\n")
+    if !snapshot.items.isEmpty {
+      lines.append("")
+      lines.append(
+        contentsOf: snapshot.items.map { item in
+          "\(item.shortcut.padding(toLength: shortcutWidth, withPad: " ", startingAt: 0))  \(item.title)"
+        }
+      )
     }
 
-    lines.append("")
-    lines.append(
-      contentsOf: snapshot.items.map { item in
-        "\(item.shortcut.padding(toLength: shortcutWidth, withPad: " ", startingAt: 0))  \(item.title)"
-      }
-    )
+    if !snapshot.paneTips.isEmpty {
+      lines.append("")
+      lines.append("Pane splitting")
+      lines.append("")
+      lines.append(contentsOf: snapshot.paneTips)
+    }
+
     return lines.joined(separator: "\n")
   }
 }
