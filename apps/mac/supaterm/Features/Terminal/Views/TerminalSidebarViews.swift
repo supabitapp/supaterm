@@ -467,9 +467,9 @@ private struct SidebarHeaderView: View {
 private let sidebarHorizontalPadding: CGFloat = 0
 private let sidebarTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
-private let sidebarRowLeadingPadding: CGFloat = 2
+private let sidebarRowLeadingPadding: CGFloat = 0
 private let sidebarRowTrailingPadding: CGFloat = 0
-private let sidebarRowBackgroundLeadingPadding: CGFloat = 4
+private let sidebarRowBackgroundLeadingPadding: CGFloat = 0
 private let sidebarRowBackgroundTrailingPadding: CGFloat = 0
 
 private struct NewTabButton: View {
@@ -484,7 +484,7 @@ private struct NewTabButton: View {
         Image(systemName: "plus")
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(palette.secondaryText)
-          .frame(width: 14, height: 16, alignment: .leading)
+          .frame(width: 12, height: 16, alignment: .leading)
           .accessibilityHidden(true)
 
         Text("New Tab")
@@ -537,7 +537,7 @@ private struct SidebarTabRow: View {
     HStack(spacing: 10) {
       RoundedRectangle(cornerRadius: 5, style: .continuous)
         .fill(palette.fill(for: tab.tone))
-        .frame(width: 14, height: 16, alignment: .leading)
+        .frame(width: 12, height: 16, alignment: .leading)
         .overlay {
           Image(systemName: tab.symbol)
             .font(.system(size: 9, weight: .bold))
@@ -565,7 +565,7 @@ private struct SidebarTabRow: View {
               .foregroundStyle(
                 isSelected ? palette.selectedText.opacity(0.9) : palette.secondaryText
               )
-              .frame(width: 14, height: 16, alignment: .trailing)
+              .frame(width: 12, height: 16, alignment: .trailing)
               .accessibilityHidden(true)
           }
         )
