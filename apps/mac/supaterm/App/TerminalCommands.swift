@@ -1,9 +1,6 @@
 import SwiftUI
 
 struct TerminalCommands: Commands {
-  @FocusedValue(\.newTerminalAction) private var newTerminalAction
-  @FocusedValue(\.closeSurfaceAction) private var closeSurfaceAction
-  @FocusedValue(\.closeTabAction) private var closeTabAction
   @FocusedValue(\.nextTabAction) private var nextTabAction
   @FocusedValue(\.previousTabAction) private var previousTabAction
   @FocusedValue(\.selectTabAction) private var selectTabAction
@@ -30,30 +27,6 @@ struct TerminalCommands: Commands {
       }
       .keyboardShortcut("s", modifiers: .command)
       .disabled(toggleSidebarAction == nil)
-    }
-
-    CommandGroup(after: .newItem) {
-      Button("New Tab") {
-        newTerminalAction?()
-      }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "new_tab")))
-      .disabled(newTerminalAction == nil)
-
-      Button("Close") {
-        closeSurfaceAction?()
-      }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "close_surface"))
-      )
-      .disabled(closeSurfaceAction == nil)
-
-      Button("Close Tab") {
-        closeTabAction?()
-      }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "close_tab"))
-      )
-      .disabled(closeTabAction == nil)
     }
 
     CommandMenu("Tabs") {
@@ -206,39 +179,6 @@ struct TerminalCommands: Commands {
 
   private func shortcut(for action: String) -> KeyboardShortcut? {
     ghosttyKeyboardShortcutProvider?(action)
-  }
-}
-
-private struct NewTerminalActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var newTerminalAction: (() -> Void)? {
-    get { self[NewTerminalActionKey.self] }
-    set { self[NewTerminalActionKey.self] = newValue }
-  }
-}
-
-private struct CloseSurfaceActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var closeSurfaceAction: (() -> Void)? {
-    get { self[CloseSurfaceActionKey.self] }
-    set { self[CloseSurfaceActionKey.self] = newValue }
-  }
-}
-
-private struct CloseTabActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var closeTabAction: (() -> Void)? {
-    get { self[CloseTabActionKey.self] }
-    set { self[CloseTabActionKey.self] = newValue }
   }
 }
 
