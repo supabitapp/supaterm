@@ -10,12 +10,7 @@ struct SP: ParsableCommand {
   )
 
   mutating func run() throws {
-    if SupatermCLIContext.current == nil {
-      print("sp is bundled for Supaterm terminal panes. Run 'sp --help' to see available commands.")
-      return
-    }
-
-    print("sp is available in this Supaterm pane. Run 'sp --help' to see available commands.")
+    print(Self.helpMessage())
   }
 }
 
