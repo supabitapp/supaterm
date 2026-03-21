@@ -467,9 +467,9 @@ private struct SidebarHeaderView: View {
 private let sidebarHorizontalPadding: CGFloat = 0
 private let sidebarTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
-private let sidebarRowLeadingPadding: CGFloat = 12
+private let sidebarRowLeadingPadding: CGFloat = 4
 private let sidebarRowTrailingPadding: CGFloat = 0
-private let sidebarRowBackgroundLeadingPadding: CGFloat = 12
+private let sidebarRowBackgroundLeadingPadding: CGFloat = 4
 private let sidebarRowBackgroundTrailingPadding: CGFloat = 0
 
 private struct NewTabButton: View {
