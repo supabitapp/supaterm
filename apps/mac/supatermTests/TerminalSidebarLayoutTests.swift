@@ -75,6 +75,35 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func insertingIDClampsAndRemovesExistingOccurrence() {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let third = TerminalTabID()
+
+    let reordered = TerminalSidebarLayout.insertingID(
+      second,
+      into: [first, second, third],
+      at: 10
+    )
+
+    #expect(reordered == [first, third, second])
+  }
+
+  @Test
+  func removingIDDropsOnlyTheRequestedTab() {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let third = TerminalTabID()
+
+    #expect(
+      TerminalSidebarLayout.removingID(
+        second,
+        from: [first, second, third]
+      ) == [first, third]
+    )
+  }
+
+  @Test
   func reorderOffsetShiftsRowsBetweenSourceAndDestination() {
     #expect(
       TerminalSidebarLayout.reorderOffset(

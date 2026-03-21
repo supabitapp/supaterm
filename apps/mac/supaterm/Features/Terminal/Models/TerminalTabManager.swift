@@ -69,6 +69,49 @@ final class TerminalTabManager {
     setVisibleTabs(pinnedTabs + orderedRegularTabs)
   }
 
+  func moveTab(
+    _ id: TerminalTabID,
+    pinnedOrder: [TerminalTabID],
+    regularOrder: [TerminalTabID]
+  ) {
+    guard var tab = tabs.first(where: { $0.id == id }) else { return }
+
+    let isPinnedDestination = pinnedOrder.contains(id)
+    let isRegularDestination = regularOrder.contains(id)
+    guard isPinnedDestination != isRegularDestination else { return }
+
+    var pinnedTabs = pinnedTabs
+    var regularTabs = regularTabs
+
+    if tab.isPinned {
+      pinnedTabs.removeAll { $0.id == id }
+    } else {
+      regularTabs.removeAll { $0.id == id }
+    }
+
+    tab.isPinned = isPinnedDestination
+
+    if isPinnedDestination {
+      pinnedTabs.append(tab)
+    } else {
+      regularTabs.append(tab)
+    }
+
+    let pinnedByID = Dictionary(uniqueKeysWithValues: pinnedTabs.map { ($0.id, $0) })
+    let regularByID = Dictionary(uniqueKeysWithValues: regularTabs.map { ($0.id, $0) })
+    let orderedPinnedTabs = pinnedOrder.compactMap { pinnedByID[$0] }
+    let orderedRegularTabs = regularOrder.compactMap { regularByID[$0] }
+
+    guard
+      orderedPinnedTabs.count == pinnedTabs.count,
+      orderedRegularTabs.count == regularTabs.count
+    else {
+      return
+    }
+
+    setVisibleTabs(orderedPinnedTabs + orderedRegularTabs)
+  }
+
   func togglePinned(_ id: TerminalTabID) {
     guard let tab = tabs.first(where: { $0.id == id }) else { return }
     moveTab(id, toPinned: !tab.isPinned)

@@ -88,4 +88,23 @@ struct TerminalTabManagerTests {
     manager.setRegularTabOrder([regularB, regularA])
     #expect(manager.tabs.map(\.id) == [pinnedB, pinnedA, regularB, regularA])
   }
+
+  @Test
+  func moveTabAppliesCrossSectionOrdersAtomically() {
+    let manager = TerminalTabManager()
+
+    let pinned = manager.createTab(title: "Pinned", icon: "terminal", isPinned: true)
+    let regularA = manager.createTab(title: "Regular A", icon: "terminal")
+    let regularB = manager.createTab(title: "Regular B", icon: "terminal")
+
+    manager.moveTab(
+      regularA,
+      pinnedOrder: [regularA, pinned],
+      regularOrder: [regularB]
+    )
+
+    #expect(manager.pinnedTabs.map(\.id) == [regularA, pinned])
+    #expect(manager.regularTabs.map(\.id) == [regularB])
+    #expect(manager.tabs.map(\.id) == [regularA, pinned, regularB])
+  }
 }

@@ -284,8 +284,8 @@ struct TerminalSidebarChromeView: View {
   ) {
     guard let pendingReorder else { return }
 
-    switch pendingReorder.zone {
-    case .pinned:
+    switch (pendingReorder.sourceZone, pendingReorder.targetZone) {
+    case (.pinned, .pinned):
       let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
         terminal.pinnedTabs.map(\.id),
         movingFrom: pendingReorder.fromIndex,
@@ -295,7 +295,7 @@ struct TerminalSidebarChromeView: View {
         _ = store.send(.pinnedTabOrderChanged(reorderedIDs))
       }
 
-    case .regular:
+    case (.regular, .regular):
       let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
         terminal.regularTabs.map(\.id),
         movingFrom: pendingReorder.fromIndex,
@@ -304,6 +304,38 @@ struct TerminalSidebarChromeView: View {
       if reorderedIDs != terminal.regularTabs.map(\.id) {
         _ = store.send(.regularTabOrderChanged(reorderedIDs))
       }
+
+    case (.regular, .pinned):
+      _ = store.send(
+        .sidebarTabMoveCommitted(
+          tabID: pendingReorder.item.tabID,
+          pinnedOrder: TerminalSidebarLayout.insertingID(
+            pendingReorder.item.tabID,
+            into: terminal.pinnedTabs.map(\.id),
+            at: pendingReorder.toIndex
+          ),
+          regularOrder: TerminalSidebarLayout.removingID(
+            pendingReorder.item.tabID,
+            from: terminal.regularTabs.map(\.id)
+          )
+        )
+      )
+
+    case (.pinned, .regular):
+      _ = store.send(
+        .sidebarTabMoveCommitted(
+          tabID: pendingReorder.item.tabID,
+          pinnedOrder: TerminalSidebarLayout.removingID(
+            pendingReorder.item.tabID,
+            from: terminal.pinnedTabs.map(\.id)
+          ),
+          regularOrder: TerminalSidebarLayout.insertingID(
+            pendingReorder.item.tabID,
+            into: terminal.regularTabs.map(\.id),
+            at: pendingReorder.toIndex
+          )
+        )
+      )
     }
 
     dragSession.pendingReorder = nil

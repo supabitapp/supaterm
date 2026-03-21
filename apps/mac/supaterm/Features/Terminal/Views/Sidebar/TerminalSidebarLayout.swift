@@ -39,6 +39,24 @@ enum TerminalSidebarWorkspaceBarLayoutMode: Equatable {
 }
 
 enum TerminalSidebarLayout {
+  static func insertingID(
+    _ id: TerminalTabID,
+    into ids: [TerminalTabID],
+    at destinationIndex: Int
+  ) -> [TerminalTabID] {
+    var reordered = ids.filter { $0 != id }
+    let clampedDestination = max(0, min(destinationIndex, reordered.count))
+    reordered.insert(id, at: clampedDestination)
+    return reordered
+  }
+
+  static func removingID(
+    _ id: TerminalTabID,
+    from ids: [TerminalTabID]
+  ) -> [TerminalTabID] {
+    ids.filter { $0 != id }
+  }
+
   static func workspaceMonogram(
     for name: String,
     fallbackIndex: Int

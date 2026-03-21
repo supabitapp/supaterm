@@ -20,7 +20,8 @@ struct TerminalSidebarDragItem: Equatable {
 
 struct TerminalSidebarPendingReorder: Equatable {
   let item: TerminalSidebarDragItem
-  let zone: TerminalSidebarDropZoneID
+  let sourceZone: TerminalSidebarDropZoneID
+  let targetZone: TerminalSidebarDropZoneID
   let fromIndex: Int
   let toIndex: Int
 }
@@ -118,8 +119,7 @@ final class TerminalSidebarDragSession: ObservableObject {
   func zoneAcceptsCurrentDrag(
     _ zone: TerminalSidebarDropZoneID
   ) -> Bool {
-    guard let sourceZone else { return false }
-    return sourceZone == zone
+    sourceZone != nil
   }
 
   func cursorEnteredZone(
@@ -154,31 +154,35 @@ final class TerminalSidebarDragSession: ObservableObject {
 
     let step = rowHeight + rowSpacing
     let rawIndex = step > 0 ? Int(round(localPoint.y / step)) : 0
-    let clampedIndex = max(0, min(rawIndex, count - 1))
+    let clampedIndex = max(0, min(rawIndex, count))
     if insertionIndex[zone] != clampedIndex {
       insertionIndex[zone] = clampedIndex
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
     }
   }
 
-  func completeReorderIfPossible(
+  func completeDropIfPossible(
     in zone: TerminalSidebarDropZoneID
   ) {
     guard
       let draggedItem,
       let sourceZone,
-      sourceZone == zone,
       let sourceIndex,
-      let destinationIndex = insertionIndex[zone],
-      sourceIndex != destinationIndex
+      let destinationIndex = insertionIndex[zone]
     else {
+      clearDrag()
+      return
+    }
+
+    guard sourceZone != zone || sourceIndex != destinationIndex else {
       clearDrag()
       return
     }
 
     pendingReorder = TerminalSidebarPendingReorder(
       item: draggedItem,
-      zone: zone,
+      sourceZone: sourceZone,
+      targetZone: zone,
       fromIndex: sourceIndex,
       toIndex: destinationIndex
     )
@@ -194,14 +198,27 @@ final class TerminalSidebarDragSession: ObservableObject {
     for zone: TerminalSidebarDropZoneID,
     at index: Int
   ) -> CGFloat {
-    guard sourceZone == zone, activeZone == zone else { return 0 }
-    return TerminalSidebarLayout.reorderOffset(
-      for: index,
-      sourceIndex: sourceIndex,
-      destinationIndex: insertionIndex[zone],
-      rowHeight: rowHeight,
-      spacing: rowSpacing
-    )
+    let step = rowHeight + rowSpacing
+    guard let sourceZone, let sourceIndex else { return 0 }
+
+    if sourceZone == zone {
+      if activeZone == zone {
+        return TerminalSidebarLayout.reorderOffset(
+          for: index,
+          sourceIndex: sourceIndex,
+          destinationIndex: insertionIndex[zone],
+          rowHeight: rowHeight,
+          spacing: rowSpacing
+        )
+      }
+      if activeZone != sourceZone, index > sourceIndex {
+        return -step
+      }
+      return 0
+    }
+
+    guard activeZone == zone, let destinationIndex = insertionIndex[zone] else { return 0 }
+    return index >= destinationIndex ? step : 0
   }
 
   private func clearDrag() {
@@ -289,7 +306,7 @@ final class TerminalSidebarDragSession: ObservableObject {
         let activeDragSourceID,
         let mouseDownPoint,
         !dragInitiatedFromMonitor,
-        let source = registeredSources[activeDragSourceID]?.view
+        registeredSources[activeDragSourceID]?.view != nil
       else {
         return .passThrough
       }
@@ -666,7 +683,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
     }
 
     MainActor.assumeIsolated {
-      coordinator.manager.completeReorderIfPossible(in: coordinator.zoneID)
+      coordinator.manager.completeDropIfPossible(in: coordinator.zoneID)
     }
     return true
   }
