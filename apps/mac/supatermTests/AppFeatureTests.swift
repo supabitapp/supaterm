@@ -42,7 +42,12 @@ struct AppFeatureTests {
 
     await store.send(.quitRequested(windowID))
     await store.receive(\.terminal) {
-      $0.terminal.isQuitConfirmationPresented = true
+      $0.terminal.confirmationRequest = .init(
+        target: .quit,
+        title: "Quit Supaterm?",
+        message: "Are you sure you want to quit?",
+        confirmTitle: "Quit"
+      )
     }
   }
 

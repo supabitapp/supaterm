@@ -110,14 +110,17 @@ struct TerminalView: View {
         _ = updateStore.send(.presentationContextChanged(updatePresentationContext))
       }
       .overlay {
-        if store.isQuitConfirmationPresented {
-          QuitConfirmationOverlay(
+        if let confirmationRequest = store.confirmationRequest {
+          TerminalConfirmationOverlay(
             palette: palette,
+            title: confirmationRequest.title,
+            message: confirmationRequest.message,
+            confirmTitle: confirmationRequest.confirmTitle,
             onConfirm: {
-              _ = store.send(.quitConfirmationConfirmButtonTapped)
+              _ = store.send(.confirmationConfirmButtonTapped)
             },
             onCancel: {
-              _ = store.send(.quitConfirmationCancelButtonTapped)
+              _ = store.send(.confirmationCancelButtonTapped)
             }
           )
         }
@@ -167,7 +170,7 @@ struct TerminalView: View {
       }
       .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
       .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
-      .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.isQuitConfirmationPresented)
+      .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.confirmationRequest)
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.workspaces.map(\.id))
   }

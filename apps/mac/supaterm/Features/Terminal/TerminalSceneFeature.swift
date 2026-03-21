@@ -23,14 +23,27 @@ struct TerminalWorkspaceRenameState: Equatable, Identifiable {
 struct TerminalSceneFeature {
   @ObservableState
   struct State: Equatable {
+    var confirmationRequest: ConfirmationRequest?
     var isFloatingSidebarVisible = false
-    var isQuitConfirmationPresented = false
     var isSidebarCollapsed = false
     var pendingCloseRequest: PendingCloseRequest?
     var pendingWorkspaceDeleteRequest: TerminalWorkspaceDeleteRequest?
     var sidebarFraction: CGFloat = 0.2
     var windowID: ObjectIdentifier?
     var workspaceRename: TerminalWorkspaceRenameState?
+  }
+
+  struct ConfirmationRequest: Equatable {
+    let target: ConfirmationTarget
+    let title: String
+    let message: String
+    let confirmTitle: String
+  }
+
+  enum ConfirmationTarget: Equatable {
+    case closeAllWindows([ObjectIdentifier])
+    case closeWindow(ObjectIdentifier)
+    case quit
   }
 
   struct PendingCloseRequest: Equatable, Identifiable {
@@ -57,6 +70,7 @@ struct TerminalSceneFeature {
     case clientEvent(TerminalClient.Event)
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
+    case closeAllWindowsRequested([ObjectIdentifier])
     case closeSurfaceRequested(UUID)
     case closeTabRequested(TerminalTabID)
     case collapseSidebarButtonTapped
@@ -69,8 +83,6 @@ struct TerminalSceneFeature {
     case nextTabMenuItemSelected
     case pinnedTabOrderChanged([TerminalTabID])
     case previousTabMenuItemSelected
-    case quitConfirmationCancelButtonTapped
-    case quitConfirmationConfirmButtonTapped
     case quitRequested(windowID: ObjectIdentifier)
     case regularTabOrderChanged([TerminalTabID])
     case searchSelectionMenuItemSelected
@@ -96,12 +108,16 @@ struct TerminalSceneFeature {
     case togglePaneZoomMenuItemSelected
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
+    case confirmationCancelButtonTapped
+    case confirmationConfirmButtonTapped
     case windowActivityChanged(WindowActivityState)
     case windowChanged(ObjectIdentifier?)
+    case windowCloseRequested(windowID: ObjectIdentifier)
   }
 
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(AppTerminationClient.self) var appTerminationClient
+  @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
@@ -155,6 +171,11 @@ struct TerminalSceneFeature {
       case .closeTabRequested(let tabID):
         return sendCommand(.requestCloseTab(tabID))
 
+      case .closeAllWindowsRequested(let windowIDs):
+        guard !windowIDs.isEmpty else { return .none }
+        state.confirmationRequest = confirmationRequest(for: .closeAllWindows(windowIDs))
+        return .none
+
       case .collapseSidebarButtonTapped:
         state.isFloatingSidebarVisible = false
         state.isSidebarCollapsed = true
@@ -188,23 +209,11 @@ struct TerminalSceneFeature {
       case .previousTabMenuItemSelected:
         return sendCommand(.previousTab)
 
-      case .quitConfirmationCancelButtonTapped:
-        state.isQuitConfirmationPresented = false
-        return .run { [appTerminationClient] _ in
-          await appTerminationClient.reply(false)
-        }
-
-      case .quitConfirmationConfirmButtonTapped:
-        state.isQuitConfirmationPresented = false
-        return .run { [appTerminationClient] _ in
-          await appTerminationClient.reply(true)
-        }
-
       case .quitRequested(let windowID):
         if let currentWindowID = state.windowID, currentWindowID != windowID {
           return .none
         }
-        state.isQuitConfirmationPresented = true
+        state.confirmationRequest = confirmationRequest(for: .quit)
         return .none
 
       case .regularTabOrderChanged(let orderedIDs):
@@ -291,11 +300,48 @@ struct TerminalSceneFeature {
         state.isSidebarCollapsed.toggle()
         return .none
 
+      case .confirmationCancelButtonTapped:
+        guard let confirmationRequest = state.confirmationRequest else { return .none }
+        state.confirmationRequest = nil
+        switch confirmationRequest.target {
+        case .quit:
+          return .run { [appTerminationClient] _ in
+            await appTerminationClient.reply(false)
+          }
+        case .closeWindow, .closeAllWindows:
+          return .none
+        }
+
+      case .confirmationConfirmButtonTapped:
+        guard let confirmationRequest = state.confirmationRequest else { return .none }
+        state.confirmationRequest = nil
+        switch confirmationRequest.target {
+        case .quit:
+          return .run { [appTerminationClient] _ in
+            await appTerminationClient.reply(true)
+          }
+        case .closeWindow(let windowID):
+          return .run { [terminalWindowsClient] _ in
+            await terminalWindowsClient.closeWindow(windowID)
+          }
+        case .closeAllWindows(let windowIDs):
+          return .run { [terminalWindowsClient] _ in
+            await terminalWindowsClient.closeWindows(windowIDs)
+          }
+        }
+
       case .windowActivityChanged(let activity):
         return sendCommand(.updateWindowActivity(activity))
 
       case .windowChanged(let windowID):
         state.windowID = windowID
+        return .none
+
+      case .windowCloseRequested(let windowID):
+        if let currentWindowID = state.windowID, currentWindowID != windowID {
+          return .none
+        }
+        state.confirmationRequest = confirmationRequest(for: .closeWindow(windowID))
         return .none
       }
     }
@@ -338,6 +384,32 @@ struct TerminalSceneFeature {
         target: .tab(tabID),
         title: "Close Tab?",
         message: "A process is still running in this tab. Close it anyway?"
+      )
+    }
+  }
+
+  private func confirmationRequest(for target: ConfirmationTarget) -> ConfirmationRequest {
+    switch target {
+    case .quit:
+      return .init(
+        target: .quit,
+        title: "Quit Supaterm?",
+        message: "Are you sure you want to quit?",
+        confirmTitle: "Quit"
+      )
+    case .closeWindow(let windowID):
+      return .init(
+        target: .closeWindow(windowID),
+        title: "Close Window?",
+        message: "A process is still running in this window. Close it anyway?",
+        confirmTitle: "Close"
+      )
+    case .closeAllWindows(let windowIDs):
+      return .init(
+        target: .closeAllWindows(windowIDs),
+        title: "Close All Windows?",
+        message: "All terminal sessions will be terminated.",
+        confirmTitle: "Close All Windows"
       )
     }
   }
