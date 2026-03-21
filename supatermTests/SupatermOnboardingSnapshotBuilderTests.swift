@@ -33,13 +33,6 @@ struct SupatermOnboardingSnapshotBuilderTests {
         .init(shortcut: "⌘F", title: "Find"),
       ]
     )
-    #expect(
-      snapshot.paneTips == [
-        "Panes stay in the current tab.",
-        "⌘D splits right beside the current pane.",
-        "⌘⇧D splits down below the current pane.",
-      ]
-    )
   }
 
   @Test
@@ -59,13 +52,6 @@ struct SupatermOnboardingSnapshotBuilderTests {
         .init(shortcut: "⌘D", title: "Split right"),
         .init(shortcut: "⌘⇧D", title: "Split down"),
         .init(shortcut: "⌘F", title: "Find"),
-      ]
-    )
-    #expect(
-      snapshot.paneTips == [
-        "Panes stay in the current tab.",
-        "⌘D splits right beside the current pane.",
-        "⌘⇧D splits down below the current pane.",
       ]
     )
   }

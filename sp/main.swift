@@ -250,13 +250,6 @@ private enum SPOnboardingRenderer {
       )
     }
 
-    if !snapshot.paneTips.isEmpty {
-      lines.append("")
-      lines.append("Pane splitting")
-      lines.append("")
-      lines.append(contentsOf: snapshot.paneTips)
-    }
-
     return lines.joined(separator: "\n")
   }
 }

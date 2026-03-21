@@ -207,14 +207,9 @@ public struct SupatermOnboardingShortcut: Equatable, Sendable, Codable {
 
 public struct SupatermOnboardingSnapshot: Equatable, Sendable, Codable {
   public let items: [SupatermOnboardingShortcut]
-  public let paneTips: [String]
 
-  public init(
-    items: [SupatermOnboardingShortcut],
-    paneTips: [String]
-  ) {
+  public init(items: [SupatermOnboardingShortcut]) {
     self.items = items
-    self.paneTips = paneTips
   }
 }
 
