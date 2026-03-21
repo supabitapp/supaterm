@@ -7,13 +7,17 @@ MAKEFLAGS += --no-builtin-rules
 
 MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
+GIT_HOOKS_DIR := .git-hooks
 .DEFAULT_GOAL := help
-.PHONY: help mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-check web-lint web-fmt web-test web-build web-preview
+.PHONY: help install-git-hooks mac-generate mac-generate-sources mac-build-ghostty-xcframework mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-check web-lint web-fmt web-test web-build web-preview
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
 	@-+echo
 	@-+grep -Eh "^[a-z-]+:.*#" $(lastword $(MAKEFILE_LIST)) | sed -E 's/^(.*:)(.*#+)(.*)/  \1 @@@ \3 /' | column -t -s "@@@"
+
+install-git-hooks:  # Install repo-local Git hooks.
+	@chmod +x "$(GIT_HOOKS_DIR)/pre-commit" && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
 
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project
