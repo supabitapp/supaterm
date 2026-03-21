@@ -465,8 +465,10 @@ private struct SidebarHeaderView: View {
 private let sidebarHorizontalPadding: CGFloat = 6
 private let sidebarTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
-private let sidebarRowHorizontalPadding: CGFloat = 6
-private let sidebarRowBackgroundHorizontalPadding: CGFloat = 4
+private let sidebarRowLeadingPadding: CGFloat = 2
+private let sidebarRowTrailingPadding: CGFloat = 6
+private let sidebarRowBackgroundLeadingPadding: CGFloat = 0
+private let sidebarRowBackgroundTrailingPadding: CGFloat = 2
 
 private struct NewTabButton: View {
   let palette: TerminalPalette
@@ -491,14 +493,19 @@ private struct NewTabButton: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding(.vertical, 10)
-      .padding(.horizontal, sidebarRowHorizontalPadding)
+      .padding(.leading, sidebarRowLeadingPadding)
+      .padding(.trailing, sidebarRowTrailingPadding)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .onHover { isHovering = $0 }
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowBackgroundHorizontalPadding))
+    .listRowBackground(
+      rowBackground
+        .padding(.leading, sidebarRowBackgroundLeadingPadding)
+        .padding(.trailing, sidebarRowBackgroundTrailingPadding)
+    )
   }
 
   @ViewBuilder
@@ -565,11 +572,16 @@ private struct SidebarTabRow: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 10)
-    .padding(.horizontal, sidebarRowHorizontalPadding)
+    .padding(.leading, sidebarRowLeadingPadding)
+    .padding(.trailing, sidebarRowTrailingPadding)
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowBackgroundHorizontalPadding))
+    .listRowBackground(
+      rowBackground
+        .padding(.leading, sidebarRowBackgroundLeadingPadding)
+        .padding(.trailing, sidebarRowBackgroundTrailingPadding)
+    )
     .onHover { isHovering = $0 }
     .contextMenu {
       Button("New Tab") {
