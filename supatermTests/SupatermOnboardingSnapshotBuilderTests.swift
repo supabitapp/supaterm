@@ -36,14 +36,14 @@ struct SupatermOnboardingSnapshotBuilderTests {
     #expect(
       snapshot.paneTips == [
         "Panes stay in the current tab.",
-        "Split right opens a pane beside the current pane.",
-        "Split down opens a pane below the current pane.",
+        "⌘D splits right beside the current pane.",
+        "⌘⇧D splits down below the current pane.",
       ]
     )
   }
 
   @Test
-  func snapshotOmitsUnboundGhosttyShortcuts() {
+  func snapshotFallsBackToDefaultCoreShortcuts() {
     let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { action in
       guard action == "new_tab" else { return nil }
       return KeyboardShortcut("t", modifiers: .command)
@@ -53,14 +53,19 @@ struct SupatermOnboardingSnapshotBuilderTests {
       snapshot.items == [
         .init(shortcut: "⌘S", title: "Toggle sidebar"),
         .init(shortcut: "⌘T", title: "New tab"),
+        .init(shortcut: "⌘W", title: "Close pane"),
+        .init(shortcut: "⌘⌥W", title: "Close tab"),
         .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
+        .init(shortcut: "⌘D", title: "Split right"),
+        .init(shortcut: "⌘⇧D", title: "Split down"),
+        .init(shortcut: "⌘F", title: "Find"),
       ]
     )
     #expect(
       snapshot.paneTips == [
         "Panes stay in the current tab.",
-        "Split right opens a pane beside the current pane.",
-        "Split down opens a pane below the current pane.",
+        "⌘D splits right beside the current pane.",
+        "⌘⇧D splits down below the current pane.",
       ]
     )
   }

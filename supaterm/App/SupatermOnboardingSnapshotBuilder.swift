@@ -6,68 +6,39 @@ enum SupatermOnboardingSnapshotBuilder {
   static func snapshot(
     shortcutForAction: (String) -> KeyboardShortcut?
   ) -> SupatermOnboardingSnapshot {
-    var items: [SupatermOnboardingShortcut] = [
-      .init(shortcut: "⌘S", title: "Toggle sidebar")
-    ]
-
-    appendGhosttyShortcut(
-      action: "new_tab",
-      title: "New tab",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
-    appendGhosttyShortcut(
-      action: "close_surface",
-      title: "Close pane",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
-    appendGhosttyShortcut(
-      action: "close_tab",
-      title: "Close tab",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
-
-    items.append(.init(shortcut: "⌃1-0", title: "Go to space 1-10"))
-
-    appendGhosttyShortcut(
-      action: "new_split:right",
-      title: "Split right",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
-    appendGhosttyShortcut(
-      action: "new_split:down",
-      title: "Split down",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
-    appendGhosttyShortcut(
-      action: "start_search",
-      title: "Find",
-      to: &items,
-      shortcutForAction: shortcutForAction
-    )
+    let items = onboardingItems(shortcutForAction: shortcutForAction)
+    let splitRightShortcut = items.first { $0.title == "Split right" }?.shortcut ?? "⌘D"
+    let splitDownShortcut = items.first { $0.title == "Split down" }?.shortcut ?? "⌘⇧D"
 
     return .init(
       items: items,
       paneTips: [
         "Panes stay in the current tab.",
-        "Split right opens a pane beside the current pane.",
-        "Split down opens a pane below the current pane.",
+        "\(splitRightShortcut) splits right beside the current pane.",
+        "\(splitDownShortcut) splits down below the current pane.",
       ]
     )
   }
 
-  private static func appendGhosttyShortcut(
-    action: String,
-    title: String,
-    to items: inout [SupatermOnboardingShortcut],
+  private static func onboardingItems(
     shortcutForAction: (String) -> KeyboardShortcut?
-  ) {
-    guard let shortcut = format(shortcutForAction(action)) else { return }
-    items.append(.init(shortcut: shortcut, title: title))
+  ) -> [SupatermOnboardingShortcut] {
+    curatedEntries.map { entry in
+      .init(
+        shortcut: resolvedShortcut(for: entry, shortcutForAction: shortcutForAction),
+        title: entry.title
+      )
+    }
+  }
+
+  private static func resolvedShortcut(
+    for entry: CuratedEntry,
+    shortcutForAction: (String) -> KeyboardShortcut?
+  ) -> String {
+    if let action = entry.action, let shortcut = format(shortcutForAction(action)) {
+      return shortcut
+    }
+    return entry.fallbackShortcut
   }
 
   private static func format(_ shortcut: KeyboardShortcut?) -> String? {
@@ -124,4 +95,21 @@ enum SupatermOnboardingSnapshotBuilder {
       return String(key.character).uppercased()
     }
   }
+
+  private struct CuratedEntry {
+    let action: String?
+    let fallbackShortcut: String
+    let title: String
+  }
+
+  private static let curatedEntries: [CuratedEntry] = [
+    .init(action: nil, fallbackShortcut: "⌘S", title: "Toggle sidebar"),
+    .init(action: "new_tab", fallbackShortcut: "⌘T", title: "New tab"),
+    .init(action: "close_surface", fallbackShortcut: "⌘W", title: "Close pane"),
+    .init(action: "close_tab", fallbackShortcut: "⌘⌥W", title: "Close tab"),
+    .init(action: nil, fallbackShortcut: "⌃1-0", title: "Go to space 1-10"),
+    .init(action: "new_split:right", fallbackShortcut: "⌘D", title: "Split right"),
+    .init(action: "new_split:down", fallbackShortcut: "⌘⇧D", title: "Split down"),
+    .init(action: "start_search", fallbackShortcut: "⌘F", title: "Find"),
+  ]
 }
