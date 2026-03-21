@@ -99,9 +99,9 @@ struct TerminalSidebarView: View {
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
       SidebarFooterView(store: store, palette: palette, terminal: terminal)
     }
-    .padding(.horizontal, 10)
-    .padding(.top, 8)
-    .padding(.bottom, 10)
+    .padding(.horizontal, sidebarHorizontalPadding)
+    .padding(.top, sidebarTopPadding)
+    .padding(.bottom, sidebarBottomPadding)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
@@ -462,7 +462,11 @@ private struct SidebarHeaderView: View {
   }
 }
 
-private let sidebarRowHorizontalPadding: CGFloat = 8
+private let sidebarHorizontalPadding: CGFloat = 6
+private let sidebarTopPadding: CGFloat = 6
+private let sidebarBottomPadding: CGFloat = 8
+private let sidebarRowHorizontalPadding: CGFloat = 6
+private let sidebarRowBackgroundHorizontalPadding: CGFloat = 4
 
 private struct NewTabButton: View {
   let palette: TerminalPalette
@@ -494,7 +498,7 @@ private struct NewTabButton: View {
     .onHover { isHovering = $0 }
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowBackgroundHorizontalPadding))
   }
 
   @ViewBuilder
@@ -565,7 +569,7 @@ private struct SidebarTabRow: View {
     .tag(tab.id)
     .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
     .listRowSeparator(.hidden)
-    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowHorizontalPadding))
+    .listRowBackground(rowBackground.padding(.horizontal, sidebarRowBackgroundHorizontalPadding))
     .onHover { isHovering = $0 }
     .contextMenu {
       Button("New Tab") {
