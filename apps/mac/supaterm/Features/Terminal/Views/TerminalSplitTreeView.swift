@@ -135,7 +135,7 @@ struct TerminalSplitTreeView: View {
 
     var body: some View {
       Rectangle()
-        .fill(Color.primary.opacity(isVisible ? 0.12 : 0))
+        .fill(Color.clear)
         .frame(maxWidth: .infinity)
         .frame(height: handleHeight)
         .overlay {
