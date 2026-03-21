@@ -38,6 +38,11 @@ enum TerminalSidebarWorkspaceBarLayoutMode: Equatable {
   }
 }
 
+enum TerminalSidebarDragPreviewStyle: Equatable {
+  case row
+  case ghost
+}
+
 enum TerminalSidebarLayout {
   static func insertingID(
     _ id: TerminalTabID,
@@ -106,6 +111,41 @@ enum TerminalSidebarLayout {
       return step
     }
     return 0
+  }
+
+  static func dragPreviewStyle(
+    sourceZone: TerminalSidebarDropZoneID?,
+    activeZone: TerminalSidebarDropZoneID?,
+    isCursorInSidebar: Bool
+  ) -> TerminalSidebarDragPreviewStyle {
+    if centersDragPreviewInSidebar(
+      sourceZone: sourceZone,
+      activeZone: activeZone,
+      isCursorInSidebar: isCursorInSidebar
+    ) {
+      return .row
+    }
+    if activeZone == sourceZone {
+      return .ghost
+    }
+    return activeZone == nil ? .ghost : .row
+  }
+
+  static func centersDragPreviewInSidebar(
+    sourceZone: TerminalSidebarDropZoneID?,
+    activeZone: TerminalSidebarDropZoneID?,
+    isCursorInSidebar: Bool
+  ) -> Bool {
+    guard isCursorInSidebar, let sourceZone else { return false }
+    return activeZone == sourceZone
+  }
+
+  static func unionFrame(
+    _ frames: [CGRect]
+  ) -> CGRect {
+    frames.reduce(.null) { partial, frame in
+      partial.union(frame)
+    }
   }
 
   static func showsTopIndicator(

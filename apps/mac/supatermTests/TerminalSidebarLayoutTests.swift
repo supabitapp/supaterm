@@ -164,4 +164,38 @@ struct TerminalSidebarLayoutTests {
       )
     )
   }
+
+  @Test
+  func dragPreviewUsesGhostOutsideSidebarDuringSourceReorder() {
+    #expect(
+      TerminalSidebarLayout.dragPreviewStyle(
+        sourceZone: .regular,
+        activeZone: .regular,
+        isCursorInSidebar: false
+      ) == .ghost
+    )
+  }
+
+  @Test
+  func dragPreviewUsesRowInsideSidebarWhenDroppingAcrossSections() {
+    #expect(
+      TerminalSidebarLayout.dragPreviewStyle(
+        sourceZone: .regular,
+        activeZone: .pinned,
+        isCursorInSidebar: true
+      ) == .row
+    )
+  }
+
+  @Test
+  func unionFrameSpansAllDropZones() {
+    #expect(
+      TerminalSidebarLayout.unionFrame(
+        [
+          CGRect(x: 10, y: 20, width: 100, height: 40),
+          CGRect(x: 12, y: 80, width: 96, height: 120),
+        ]
+      ) == CGRect(x: 10, y: 20, width: 100, height: 180)
+    )
+  }
 }

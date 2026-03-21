@@ -37,8 +37,10 @@ final class TerminalSidebarDragSession: ObservableObject {
   @Published var pendingReorder: TerminalSidebarPendingReorder?
   @Published var cursorScreenLocation: NSPoint = .zero
   @Published var colorScheme: ColorScheme = .light
+  @Published var sidebarScreenFrame: CGRect = .zero
 
   var zoneFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
+  var zoneScreenFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
   var itemCounts: [TerminalSidebarDropZoneID: Int] = [:]
   var rowHeight: CGFloat = 36
   var rowSpacing: CGFloat = 2
@@ -47,11 +49,36 @@ final class TerminalSidebarDragSession: ObservableObject {
     draggedItem != nil
   }
 
-  var previewWidth: CGFloat {
+  var isCursorInSidebar: Bool {
+    guard sidebarScreenFrame.width > 0 else { return false }
+    return cursorScreenLocation.x >= sidebarScreenFrame.minX
+      && cursorScreenLocation.x <= sidebarScreenFrame.maxX
+  }
+
+  var isSidebarReorder: Bool {
+    TerminalSidebarLayout.centersDragPreviewInSidebar(
+      sourceZone: sourceZone,
+      activeZone: activeZone,
+      isCursorInSidebar: isCursorInSidebar
+    )
+  }
+
+  var previewStyle: TerminalSidebarDragPreviewStyle {
+    TerminalSidebarLayout.dragPreviewStyle(
+      sourceZone: sourceZone,
+      activeZone: activeZone,
+      isCursorInSidebar: isCursorInSidebar
+    )
+  }
+
+  var previewRowWidth: CGFloat {
+    if sidebarScreenFrame.width > 0 {
+      return max(180, min(sidebarScreenFrame.width - 16, 320))
+    }
     if let sourceZone, let frame = zoneFrames[sourceZone], frame.width > 0 {
       return max(180, min(frame.width - 16, 320))
     }
-    return 240
+    return 200
   }
 
   private var previewWindow: TerminalSidebarDragPreviewWindow?
@@ -192,6 +219,16 @@ final class TerminalSidebarDragSession: ObservableObject {
 
   func cancelDrag() {
     clearDrag()
+  }
+
+  func updateZoneFrame(
+    for zone: TerminalSidebarDropZoneID,
+    frame: CGRect,
+    screenFrame: CGRect
+  ) {
+    zoneFrames[zone] = frame
+    zoneScreenFrames[zone] = screenFrame
+    sidebarScreenFrame = TerminalSidebarLayout.unionFrame(Array(zoneScreenFrames.values))
   }
 
   func reorderOffset(
@@ -336,6 +373,8 @@ final class TerminalSidebarDragSession: ObservableObject {
 
 @MainActor
 final class TerminalSidebarDragPreviewWindow: NSWindow {
+  static let previewSize = NSSize(width: 320, height: 160)
+
   private weak var manager: TerminalSidebarDragSession?
   private var cancellables = Set<AnyCancellable>()
 
@@ -343,7 +382,7 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
     self.manager = manager
 
     super.init(
-      contentRect: NSRect(origin: .zero, size: .init(width: 240, height: 36)),
+      contentRect: NSRect(origin: .zero, size: Self.previewSize),
       styleMask: [.borderless],
       backing: .buffered,
       defer: true
@@ -380,14 +419,39 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
         self?.updatePosition(screenPoint: screenPoint)
       }
       .store(in: &cancellables)
+
+    manager.$activeZone
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        guard let self, let manager = self.manager else { return }
+        self.updatePosition(screenPoint: manager.cursorScreenLocation)
+      }
+      .store(in: &cancellables)
+
+    manager.$sidebarScreenFrame
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        guard let self, let manager = self.manager else { return }
+        self.updatePosition(screenPoint: manager.cursorScreenLocation)
+      }
+      .store(in: &cancellables)
   }
 
   private func updatePosition(
     screenPoint: NSPoint
   ) {
     guard let manager, manager.isDragging else { return }
-    let width = manager.previewWidth
-    let size = NSSize(width: width, height: manager.rowHeight)
+    let size = Self.previewSize
+
+    if manager.isSidebarReorder {
+      let origin = NSPoint(
+        x: manager.sidebarScreenFrame.midX - (size.width / 2),
+        y: screenPoint.y - (size.height / 2)
+      )
+      setFrame(NSRect(origin: origin, size: size), display: true)
+      return
+    }
+
     let origin = NSPoint(
       x: screenPoint.x - (size.width / 2),
       y: screenPoint.y - (size.height / 2)
@@ -399,37 +463,169 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
 private struct TerminalSidebarDragPreviewContent: View {
   @ObservedObject var manager: TerminalSidebarDragSession
 
+  private var morphSpring: Animation {
+    .spring(response: 0.3, dampingFraction: 0.78)
+  }
+
   var body: some View {
-    if let tab = manager.draggedTab {
-      let palette = TerminalPalette(colorScheme: manager.colorScheme)
-      HStack(spacing: 8) {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(palette.fill(for: tab.tone))
-          .frame(width: 18, height: 18)
-          .overlay {
-            Image(systemName: tab.symbol)
-              .font(.system(size: 10, weight: .semibold))
-              .foregroundStyle(palette.primaryText)
-              .accessibilityHidden(true)
-          }
+    ZStack {
+      if let tab = manager.draggedTab {
+        let palette = TerminalPalette(colorScheme: manager.colorScheme)
+        TerminalSidebarMorphingPreview(
+          tab: tab,
+          style: manager.previewStyle,
+          showsUnsupportedDropTarget: manager.activeZone == nil,
+          rowWidth: manager.previewRowWidth,
+          palette: palette
+        )
+        .animation(morphSpring, value: manager.previewStyle)
+      }
+    }
+    .frame(
+      width: TerminalSidebarDragPreviewWindow.previewSize.width,
+      height: TerminalSidebarDragPreviewWindow.previewSize.height
+    )
+  }
+}
+
+private struct TerminalSidebarMorphingPreview: View {
+  let tab: TerminalTabItem
+  let style: TerminalSidebarDragPreviewStyle
+  let showsUnsupportedDropTarget: Bool
+  let rowWidth: CGFloat
+  let palette: TerminalPalette
+
+  private var effectiveWidth: CGFloat {
+    switch style {
+    case .row:
+      rowWidth
+    case .ghost:
+      160
+    }
+  }
+
+  private var effectiveHeight: CGFloat {
+    switch style {
+    case .row:
+      36
+    case .ghost:
+      100
+    }
+  }
+
+  private var effectiveCornerRadius: CGFloat {
+    switch style {
+    case .row:
+      12
+    case .ghost:
+      10
+    }
+  }
+
+  private var backgroundColor: Color {
+    switch style {
+    case .row:
+      Color(nsColor: .controlBackgroundColor).opacity(0.95)
+    case .ghost:
+      if showsUnsupportedDropTarget {
+        Color.red.opacity(0.14)
+      } else {
+        Color(nsColor: .windowBackgroundColor).opacity(0.95)
+      }
+    }
+  }
+
+  var body: some View {
+    ZStack {
+      rowContent
+        .opacity(style == .row ? 1 : 0)
+        .scaleEffect(style == .row ? 1 : 0.96)
+
+      ghostContent
+        .opacity(style == .ghost ? 1 : 0)
+        .scaleEffect(style == .ghost ? 1 : 0.96)
+    }
+    .frame(width: effectiveWidth, height: effectiveHeight)
+    .background(backgroundColor)
+    .clipShape(RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous)
+        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+    }
+    .shadow(
+      color: .black.opacity(0.25),
+      radius: style == .ghost ? 12 : 8,
+      y: style == .ghost ? 4 : 2
+    )
+  }
+
+  private var rowContent: some View {
+    HStack(spacing: 8) {
+      previewIcon(size: 18, symbolSize: 10)
+
+      Text(tab.title)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(1)
+
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 10)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var ghostContent: some View {
+    VStack(spacing: 10) {
+      Capsule()
+        .fill(palette.secondaryText.opacity(0.16))
+        .frame(width: 52, height: 6)
+        .padding(.top, 10)
+
+      if showsUnsupportedDropTarget {
+        Image(systemName: "nosign")
+          .font(.system(size: 18, weight: .semibold))
+          .foregroundStyle(Color.red.opacity(0.92))
+          .accessibilityHidden(true)
+
+        Text("Drop not supported")
+          .font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(palette.primaryText)
+          .lineLimit(1)
+          .padding(.horizontal, 12)
+
+        Text(tab.title)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
+          .lineLimit(1)
+          .padding(.horizontal, 12)
+      } else {
+        previewIcon(size: 22, symbolSize: 11)
 
         Text(tab.title)
           .font(.system(size: 13, weight: .medium))
           .foregroundStyle(palette.primaryText)
           .lineLimit(1)
+          .padding(.horizontal, 12)
+      }
 
-        Spacer(minLength: 0)
-      }
-      .padding(.horizontal, 10)
-      .frame(width: manager.previewWidth, height: manager.rowHeight)
-      .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-          .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
+      Spacer(minLength: 0)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+  }
+
+  private func previewIcon(
+    size: CGFloat,
+    symbolSize: CGFloat
+  ) -> some View {
+    RoundedRectangle(cornerRadius: 6, style: .continuous)
+      .fill(palette.fill(for: tab.tone))
+      .frame(width: size, height: size)
+      .overlay {
+        Image(systemName: tab.symbol)
+          .font(.system(size: symbolSize, weight: .semibold))
+          .foregroundStyle(palette.primaryText)
+          .accessibilityHidden(true)
+      }
   }
 }
 
@@ -617,6 +813,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
     }
 
     let frameInWindow = convert(bounds, to: nil)
+    let frameInScreen = window.convertToScreen(frameInWindow)
     let contentHeight = contentView.bounds.height
     let flipped = CGRect(
       x: frameInWindow.origin.x,
@@ -625,7 +822,11 @@ final class TerminalSidebarDropZoneNSView: NSView {
       height: frameInWindow.height
     )
     Task { @MainActor in
-      coordinator.manager.zoneFrames[coordinator.zoneID] = flipped
+      coordinator.manager.updateZoneFrame(
+        for: coordinator.zoneID,
+        frame: flipped,
+        screenFrame: frameInScreen
+      )
     }
   }
 
