@@ -9,6 +9,27 @@ on:
       - main
 
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Resolve Vite+ version
+        id: vite_plus
+        shell: bash
+        run: |
+          VERSION=$(node -e 'const fs = require("fs"); const lock = fs.readFileSync("apps/supaterm.com/pnpm-lock.yaml", "utf8"); const match = lock.match(/\n  vite-plus@([0-9][^:]+):/); if (!match) throw new Error("Unable to resolve vite-plus version from apps/supaterm.com/pnpm-lock.yaml"); process.stdout.write(match[1]);')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Install Vite+
+        run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
+      - run: make web-install
+      - run: make web-check
+      - run: make web-build
+
   inspect-dependencies:
     runs-on: macos-26
     permissions:
