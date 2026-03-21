@@ -5,3 +5,6 @@ swiftlint = "latest"
 xcbeautify = "3.1.4"
 pnpm = "latest"
 "npm:create-dmg" = "latest"
+
+[hooks]
+postinstall = "curl -fsSL https://vite.plus | bash"
