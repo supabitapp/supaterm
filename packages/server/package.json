@@ -1,0 +1,21 @@
+{
+  "name": "@supaterm/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build:pty",
+    "build:pty": "cc -O2 -o pty-helper src/pty-helper.c -lutil",
+    "predev": "bun run build:pty",
+    "dev": "bun run --watch src/index.ts",
+    "prestart": "bun run build:pty",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "lint": "oxlint src/",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@supaterm/shared": "workspace:*"
+  }
+}
