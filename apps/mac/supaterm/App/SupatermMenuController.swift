@@ -174,7 +174,8 @@ final class SupatermMenuController: NSObject {
 
   private lazy var helpMenu: NSMenu = {
     let menu = NSMenu(title: "Help")
-    menu.addItem(systemItem(title: "\(appName) Help", action: Selector(("showHelp:")), keyEquivalent: "?"))
+    menu.addItem(
+      systemItem(title: "\(appName) Help", action: #selector(NSApplication.showHelp(_:)), keyEquivalent: "?"))
     return menu
   }()
 
