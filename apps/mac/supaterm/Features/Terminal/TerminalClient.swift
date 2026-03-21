@@ -47,6 +47,7 @@ struct TerminalClient: Sendable {
     case deleteWorkspace(TerminalWorkspaceID)
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
+    case moveSidebarTab(tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
     case nextTab
     case performBindingActionOnFocusedSurface(SupatermCommand)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)

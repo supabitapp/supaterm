@@ -115,6 +115,7 @@ final class TerminalHostState {
     case .renameWorkspace(let workspaceID, let name):
       renameWorkspace(workspaceID, to: name)
     case .selectLastTab,
+      .moveSidebarTab,
       .selectTab,
       .selectTabSlot,
       .selectWorkspaceSlot,
@@ -140,6 +141,8 @@ final class TerminalHostState {
       selectWorkspace(slot: slot)
     case .selectWorkspace(let workspaceID):
       selectWorkspace(workspaceID)
+    case .moveSidebarTab(let tabID, let pinnedOrder, let regularOrder):
+      moveSidebarTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
     case .setPinnedTabOrder(let orderedIDs):
       setPinnedTabOrder(orderedIDs)
     case .setRegularTabOrder(let orderedIDs):
@@ -295,6 +298,16 @@ final class TerminalHostState {
 
   private func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
     workspaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
+  }
+
+  private func moveSidebarTab(
+    _ tabID: TerminalTabID,
+    pinnedOrder: [TerminalTabID],
+    regularOrder: [TerminalTabID]
+  ) {
+    workspaceManager.workspace(for: tabID)
+      .flatMap { workspaceManager.tabManager(for: $0.id) }?
+      .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
   }
 
   private func togglePinned(_ tabID: TerminalTabID) {

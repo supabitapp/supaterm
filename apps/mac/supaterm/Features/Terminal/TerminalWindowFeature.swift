@@ -87,6 +87,11 @@ struct TerminalWindowFeature {
     case selectTabMenuItemSelected(Int)
     case selectWorkspaceButtonTapped(TerminalWorkspaceID)
     case selectWorkspaceMenuItemSelected(Int)
+    case sidebarTabMoveCommitted(
+      tabID: TerminalTabID,
+      pinnedOrder: [TerminalTabID],
+      regularOrder: [TerminalTabID]
+    )
     case sidebarFractionChanged(CGFloat)
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case tabSelected(TerminalTabID)
@@ -217,6 +222,11 @@ struct TerminalWindowFeature {
 
       case .selectWorkspaceMenuItemSelected(let slot):
         return sendCommand(.selectWorkspaceSlot(slot))
+
+      case .sidebarTabMoveCommitted(let tabID, let pinnedOrder, let regularOrder):
+        return sendCommand(
+          .moveSidebarTab(tabID: tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
+        )
 
       case .sidebarFractionChanged(let fraction):
         state.sidebarFraction = fraction

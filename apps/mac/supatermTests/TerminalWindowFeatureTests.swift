@@ -171,6 +171,36 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func sidebarTabMoveCommittedSendsAtomicMoveCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+    let pinnedID = TerminalTabID()
+    let regularID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(
+      .sidebarTabMoveCommitted(
+        tabID: tabID,
+        pinnedOrder: [tabID, pinnedID],
+        regularOrder: [regularID]
+      )
+    )
+
+    let expected = TerminalClient.Command.moveSidebarTab(
+      tabID: tabID,
+      pinnedOrder: [tabID, pinnedID],
+      regularOrder: [regularID]
+    )
+
+    #expect(recorder.commands == [expected])
+  }
+
+  @Test
   func workspaceRenameFlowStoresDraftAndSendsRenameCommand() async {
     let recorder = TerminalCommandRecorder()
     let workspace = TerminalWorkspaceItem(
