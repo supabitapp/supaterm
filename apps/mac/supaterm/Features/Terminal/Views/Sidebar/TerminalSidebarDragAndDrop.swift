@@ -474,7 +474,6 @@ private struct TerminalSidebarDragPreviewContent: View {
         TerminalSidebarMorphingPreview(
           tab: tab,
           style: manager.previewStyle,
-          showsUnsupportedDropTarget: manager.activeZone == nil,
           rowWidth: manager.previewRowWidth,
           palette: palette
         )
@@ -491,7 +490,6 @@ private struct TerminalSidebarDragPreviewContent: View {
 private struct TerminalSidebarMorphingPreview: View {
   let tab: TerminalTabItem
   let style: TerminalSidebarDragPreviewStyle
-  let showsUnsupportedDropTarget: Bool
   let rowWidth: CGFloat
   let palette: TerminalPalette
 
@@ -500,7 +498,7 @@ private struct TerminalSidebarMorphingPreview: View {
     case .row:
       rowWidth
     case .ghost:
-      160
+      196
     }
   }
 
@@ -509,7 +507,7 @@ private struct TerminalSidebarMorphingPreview: View {
     case .row:
       36
     case .ghost:
-      100
+      128
     }
   }
 
@@ -527,11 +525,7 @@ private struct TerminalSidebarMorphingPreview: View {
     case .row:
       Color(nsColor: .controlBackgroundColor).opacity(0.95)
     case .ghost:
-      if showsUnsupportedDropTarget {
-        Color.red.opacity(0.14)
-      } else {
-        Color(nsColor: .windowBackgroundColor).opacity(0.95)
-      }
+      Color.red.opacity(0.14)
     }
   }
 
@@ -581,32 +575,21 @@ private struct TerminalSidebarMorphingPreview: View {
         .frame(width: 52, height: 6)
         .padding(.top, 10)
 
-      if showsUnsupportedDropTarget {
-        Image(systemName: "nosign")
-          .font(.system(size: 18, weight: .semibold))
-          .foregroundStyle(Color.red.opacity(0.92))
-          .accessibilityHidden(true)
+      Text("☹️")
+        .font(.system(size: 24))
+        .accessibilityHidden(true)
 
-        Text("Drop not supported")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-          .padding(.horizontal, 12)
+      Text("Dragging outside of the tab list is not supported yet")
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(palette.primaryText)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 12)
 
-        Text(tab.title)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.secondaryText)
-          .lineLimit(1)
-          .padding(.horizontal, 12)
-      } else {
-        previewIcon(size: 22, symbolSize: 11)
-
-        Text(tab.title)
-          .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-          .padding(.horizontal, 12)
-      }
+      Text(tab.title)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(palette.secondaryText)
+        .lineLimit(1)
+        .padding(.horizontal, 12)
 
       Spacer(minLength: 0)
     }
