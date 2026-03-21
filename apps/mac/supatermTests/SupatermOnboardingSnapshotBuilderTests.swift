@@ -8,17 +8,17 @@ import Testing
 struct SupatermOnboardingSnapshotBuilderTests {
   @Test
   func snapshotIncludesOrderedCoreShortcuts() {
-    let shortcuts: [String: KeyboardShortcut] = [
-      "close_surface": KeyboardShortcut("w", modifiers: .command),
-      "close_tab": KeyboardShortcut("w", modifiers: [.command, .shift]),
-      "new_split:down": KeyboardShortcut("d", modifiers: [.command, .shift]),
-      "new_split:right": KeyboardShortcut("d", modifiers: .command),
-      "new_tab": KeyboardShortcut("t", modifiers: .command),
-      "start_search": KeyboardShortcut("f", modifiers: .command),
+    let shortcuts: [SupatermCommand: KeyboardShortcut] = [
+      .closeSurface: KeyboardShortcut("w", modifiers: .command),
+      .closeTab: KeyboardShortcut("w", modifiers: [.command, .shift]),
+      .newSplit(.down): KeyboardShortcut("d", modifiers: [.command, .shift]),
+      .newSplit(.right): KeyboardShortcut("d", modifiers: .command),
+      .newTab: KeyboardShortcut("t", modifiers: .command),
+      .startSearch: KeyboardShortcut("f", modifiers: .command),
     ]
 
-    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { action in
-      shortcuts[action]
+    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { command in
+      shortcuts[command]
     }
 
     #expect(
@@ -37,8 +37,8 @@ struct SupatermOnboardingSnapshotBuilderTests {
 
   @Test
   func snapshotFallsBackToDefaultCoreShortcuts() {
-    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { action in
-      guard action == "new_tab" else { return nil }
+    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { command in
+      guard command == .newTab else { return nil }
       return KeyboardShortcut("t", modifiers: .command)
     }
 

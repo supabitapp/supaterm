@@ -2,56 +2,56 @@ enum GhosttySearchDirection: Equatable, Sendable {
   case next
   case previous
 
-  var bindingAction: String {
+  var command: SupatermCommand {
     switch self {
     case .next:
-      return "navigate_search:next"
+      return .navigateSearch(.next)
     case .previous:
-      return "navigate_search:previous"
+      return .navigateSearch(.previous)
     }
   }
 
-  var oppositeBindingAction: String {
+  var oppositeCommand: SupatermCommand {
     switch self {
     case .next:
-      return "navigate_search:previous"
+      return .navigateSearch(.previous)
     case .previous:
-      return "navigate_search:next"
+      return .navigateSearch(.next)
     }
   }
 }
 
 enum GhosttySearchNavigator {
-  static func bindingActions(
+  static func commands(
     direction: GhosttySearchDirection,
     selected: Int?,
     total: Int?
-  ) -> [String] {
-    let directAction = direction.bindingAction
+  ) -> [SupatermCommand] {
+    let directCommand = direction.command
     guard let total, let selected, total > 1, selected >= 0, selected < total else {
-      return [directAction]
+      return [directCommand]
     }
 
     switch direction {
     case .next where selected == total - 1:
-      return Array(repeating: direction.oppositeBindingAction, count: total - 1)
+      return Array(repeating: direction.oppositeCommand, count: total - 1)
     case .previous where selected == 0:
-      return Array(repeating: direction.oppositeBindingAction, count: total - 1)
+      return Array(repeating: direction.oppositeCommand, count: total - 1)
     default:
-      return [directAction]
+      return [directCommand]
     }
   }
 }
 
 extension GhosttySurfaceView {
   func navigateSearch(_ direction: GhosttySearchDirection) {
-    let actions = GhosttySearchNavigator.bindingActions(
+    let commands = GhosttySearchNavigator.commands(
       direction: direction,
       selected: bridge.state.searchSelected,
       total: bridge.state.searchTotal
     )
-    for action in actions {
-      performBindingAction(action)
+    for command in commands {
+      performBindingAction(command.ghosttyBindingAction)
     }
   }
 }

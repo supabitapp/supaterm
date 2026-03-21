@@ -5,25 +5,25 @@ import Testing
 struct GhosttySearchNavigationTests {
   @Test
   func directionsUseNavigateSearchBindings() {
-    #expect(GhosttySearchDirection.next.bindingAction == "navigate_search:next")
-    #expect(GhosttySearchDirection.previous.bindingAction == "navigate_search:previous")
+    #expect(GhosttySearchDirection.next.command == .navigateSearch(.next))
+    #expect(GhosttySearchDirection.previous.command == .navigateSearch(.previous))
   }
 
   @Test
-  func navigationDefaultsToDirectBindingAction() {
+  func navigationDefaultsToDirectCommand() {
     #expect(
-      GhosttySearchNavigator.bindingActions(
+      GhosttySearchNavigator.commands(
         direction: .next,
         selected: nil,
         total: nil
-      ) == ["navigate_search:next"]
+      ) == [.navigateSearch(.next)]
     )
     #expect(
-      GhosttySearchNavigator.bindingActions(
+      GhosttySearchNavigator.commands(
         direction: .previous,
         selected: nil,
         total: nil
-      ) == ["navigate_search:previous"]
+      ) == [.navigateSearch(.previous)]
     )
   }
 }

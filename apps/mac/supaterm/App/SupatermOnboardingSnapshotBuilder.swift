@@ -4,17 +4,17 @@ import SwiftUI
 @MainActor
 enum SupatermOnboardingSnapshotBuilder {
   static func snapshot(
-    shortcutForAction: (String) -> KeyboardShortcut?
+    shortcutForCommand: (SupatermCommand) -> KeyboardShortcut?
   ) -> SupatermOnboardingSnapshot {
-    .init(items: onboardingItems(shortcutForAction: shortcutForAction))
+    .init(items: onboardingItems(shortcutForCommand: shortcutForCommand))
   }
 
   private static func onboardingItems(
-    shortcutForAction: (String) -> KeyboardShortcut?
+    shortcutForCommand: (SupatermCommand) -> KeyboardShortcut?
   ) -> [SupatermOnboardingShortcut] {
     curatedEntries.map { entry in
       .init(
-        shortcut: resolvedShortcut(for: entry, shortcutForAction: shortcutForAction),
+        shortcut: resolvedShortcut(for: entry, shortcutForCommand: shortcutForCommand),
         title: entry.title
       )
     }
@@ -22,9 +22,9 @@ enum SupatermOnboardingSnapshotBuilder {
 
   private static func resolvedShortcut(
     for entry: CuratedEntry,
-    shortcutForAction: (String) -> KeyboardShortcut?
+    shortcutForCommand: (SupatermCommand) -> KeyboardShortcut?
   ) -> String {
-    if let action = entry.action, let shortcut = format(shortcutForAction(action)) {
+    if let command = entry.command, let shortcut = format(shortcutForCommand(command)) {
       return shortcut
     }
     return entry.fallbackShortcut
@@ -86,19 +86,19 @@ enum SupatermOnboardingSnapshotBuilder {
   }
 
   private struct CuratedEntry {
-    let action: String?
+    let command: SupatermCommand?
     let fallbackShortcut: String
     let title: String
   }
 
   private static let curatedEntries: [CuratedEntry] = [
-    .init(action: nil, fallbackShortcut: "⌘S", title: "Toggle sidebar"),
-    .init(action: "new_tab", fallbackShortcut: "⌘T", title: "New tab"),
-    .init(action: "close_surface", fallbackShortcut: "⌘W", title: "Close pane"),
-    .init(action: "close_tab", fallbackShortcut: "⌘⌥W", title: "Close tab"),
-    .init(action: nil, fallbackShortcut: "⌃1-0", title: "Go to space 1-10"),
-    .init(action: "new_split:right", fallbackShortcut: "⌘D", title: "Split right"),
-    .init(action: "new_split:down", fallbackShortcut: "⌘⇧D", title: "Split down"),
-    .init(action: "start_search", fallbackShortcut: "⌘F", title: "Find"),
+    .init(command: nil, fallbackShortcut: "⌘S", title: "Toggle sidebar"),
+    .init(command: .newTab, fallbackShortcut: "⌘T", title: "New tab"),
+    .init(command: .closeSurface, fallbackShortcut: "⌘W", title: "Close pane"),
+    .init(command: .closeTab, fallbackShortcut: "⌘⌥W", title: "Close tab"),
+    .init(command: nil, fallbackShortcut: "⌃1-0", title: "Go to space 1-10"),
+    .init(command: .newSplit(.right), fallbackShortcut: "⌘D", title: "Split right"),
+    .init(command: .newSplit(.down), fallbackShortcut: "⌘⇧D", title: "Split down"),
+    .init(command: .startSearch, fallbackShortcut: "⌘F", title: "Find"),
   ]
 }

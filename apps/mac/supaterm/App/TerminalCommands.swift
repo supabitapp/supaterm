@@ -33,14 +33,14 @@ struct TerminalCommands: Commands {
       Button("Next Tab") {
         nextTabAction?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "next_tab")))
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: .nextTab)))
       .disabled(nextTabAction == nil)
 
       Button("Previous Tab") {
         previousTabAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "previous_tab"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .previousTab))
       )
       .disabled(previousTabAction == nil)
 
@@ -51,7 +51,7 @@ struct TerminalCommands: Commands {
           selectTabAction?(slot)
         }
         .modifier(
-          KeyboardShortcutModifier(shortcut: shortcut(for: "goto_tab:\(slot)"))
+          KeyboardShortcutModifier(shortcut: shortcut(for: .goToTab(slot)))
         )
         .disabled(selectTabAction == nil)
       }
@@ -59,7 +59,7 @@ struct TerminalCommands: Commands {
       Button("Last Tab") {
         selectLastTabAction?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "last_tab")))
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: .lastTab)))
       .disabled(selectLastTabAction == nil)
     }
 
@@ -84,7 +84,7 @@ struct TerminalCommands: Commands {
         splitBelowAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:down"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .newSplit(.down)))
       )
       .disabled(splitBelowAction == nil)
 
@@ -92,7 +92,7 @@ struct TerminalCommands: Commands {
         splitRightAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:right"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .newSplit(.right)))
       )
       .disabled(splitRightAction == nil)
 
@@ -102,7 +102,7 @@ struct TerminalCommands: Commands {
         equalizePanesAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "equalize_splits"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .equalizeSplits))
       )
       .disabled(equalizePanesAction == nil)
 
@@ -110,7 +110,7 @@ struct TerminalCommands: Commands {
         togglePaneZoomAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "toggle_split_zoom"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .toggleSplitZoom))
       )
       .disabled(togglePaneZoomAction == nil)
     }
@@ -120,7 +120,7 @@ struct TerminalCommands: Commands {
         startSearchAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "start_search"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .startSearch))
       )
       .disabled(startSearchAction == nil)
 
@@ -130,7 +130,7 @@ struct TerminalCommands: Commands {
       .modifier(
         KeyboardShortcutModifier(
           shortcut: shortcut(
-            for: GhosttySearchDirection.next.bindingAction
+            for: .navigateSearch(.next)
           )
         )
       )
@@ -142,7 +142,7 @@ struct TerminalCommands: Commands {
       .modifier(
         KeyboardShortcutModifier(
           shortcut: shortcut(
-            for: GhosttySearchDirection.previous.bindingAction
+            for: .navigateSearch(.previous)
           )
         )
       )
@@ -154,7 +154,7 @@ struct TerminalCommands: Commands {
         endSearchAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "end_search"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .endSearch))
       )
       .disabled(endSearchAction == nil)
 
@@ -164,7 +164,7 @@ struct TerminalCommands: Commands {
         searchSelectionAction?()
       }
       .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "search_selection"))
+        KeyboardShortcutModifier(shortcut: shortcut(for: .searchSelection))
       )
       .disabled(searchSelectionAction == nil)
     }
@@ -177,8 +177,8 @@ struct TerminalCommands: Commands {
     }
   }
 
-  private func shortcut(for action: String) -> KeyboardShortcut? {
-    ghosttyKeyboardShortcutProvider?(action)
+  private func shortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    ghosttyKeyboardShortcutProvider?(command)
   }
 }
 
@@ -359,7 +359,7 @@ extension FocusedValues {
 }
 
 private struct GhosttyKeyboardShortcutProviderKey: FocusedValueKey {
-  typealias Value = (String) -> KeyboardShortcut?
+  typealias Value = (SupatermCommand) -> KeyboardShortcut?
 }
 
 extension FocusedValues {
@@ -374,7 +374,7 @@ private struct UpdatePhaseKey: FocusedValueKey {
 }
 
 extension FocusedValues {
-  var ghosttyKeyboardShortcutProvider: ((String) -> KeyboardShortcut?)? {
+  var ghosttyKeyboardShortcutProvider: ((SupatermCommand) -> KeyboardShortcut?)? {
     get { self[GhosttyKeyboardShortcutProviderKey.self] }
     set { self[GhosttyKeyboardShortcutProviderKey.self] = newValue }
   }

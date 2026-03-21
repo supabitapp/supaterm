@@ -447,8 +447,9 @@ final class GhosttyRuntime {
     return config
   }
 
-  func keyboardShortcut(for action: String) -> KeyboardShortcut? {
+  func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
     guard let config else { return nil }
+    let action = command.ghosttyBindingAction
     let trigger = ghostty_config_trigger(config, action, UInt(action.lengthOfBytes(using: .utf8)))
     return Self.keyboardShortcut(for: trigger)
   }

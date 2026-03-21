@@ -38,8 +38,8 @@ final class AppWindowController: NSObject, ObservableObject {
     super.init()
 
     registry.register(
-      keyboardShortcut: { [ghosttyShortcuts] action in
-        ghosttyShortcuts.keyboardShortcut(for: action)
+      keyboardShortcut: { [ghosttyShortcuts] command in
+        ghosttyShortcuts.keyboardShortcut(for: command)
       },
       sceneID: sceneID,
       store: store,
