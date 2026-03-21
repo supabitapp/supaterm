@@ -24,7 +24,7 @@ struct WindowChromeConfigurationTests {
     #expect(window.titlebarAppearsTransparent)
     #expect(window.titlebarSeparatorStyle == .none)
     #expect(window.toolbar == nil)
-    #expect(window.isMovableByWindowBackground)
+    #expect(window.isMovableByWindowBackground == false)
     #expect(window.standardWindowButton(.closeButton)?.isHidden == true)
     #expect(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
     #expect(window.standardWindowButton(.zoomButton)?.isHidden == true)
