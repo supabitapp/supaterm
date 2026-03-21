@@ -1,6 +1,22 @@
 import SwiftUI
 
 enum SupatermCommand: Hashable, Sendable {
+  enum SplitFocusDirection: Hashable, Sendable {
+    case down
+    case left
+    case next
+    case previous
+    case right
+    case top
+  }
+
+  enum SplitResizeDirection: Hashable, Sendable {
+    case down
+    case left
+    case right
+    case top
+  }
+
   enum SearchDirection: Hashable, Sendable {
     case next
     case previous
@@ -21,6 +37,7 @@ enum SupatermCommand: Hashable, Sendable {
   case endSearch
   case equalizeSplits
   case goToTab(Int)
+  case goToSplit(SplitFocusDirection)
   case lastTab
   case navigateSearch(SearchDirection)
   case newSplit(SplitDirection)
@@ -30,6 +47,7 @@ enum SupatermCommand: Hashable, Sendable {
   case pasteFromClipboard
   case pasteFromSelection
   case previousTab
+  case resizeSplit(SplitResizeDirection, UInt16)
   case searchSelection
   case selectAll
   case startSearch
@@ -53,6 +71,18 @@ enum SupatermCommand: Hashable, Sendable {
       "equalize_splits"
     case .goToTab(let tab):
       "goto_tab:\(tab)"
+    case .goToSplit(.down):
+      "goto_split:down"
+    case .goToSplit(.left):
+      "goto_split:left"
+    case .goToSplit(.next):
+      "goto_split:next"
+    case .goToSplit(.previous):
+      "goto_split:previous"
+    case .goToSplit(.right):
+      "goto_split:right"
+    case .goToSplit(.top):
+      "goto_split:up"
     case .lastTab:
       "last_tab"
     case .navigateSearch(.next):
@@ -79,6 +109,14 @@ enum SupatermCommand: Hashable, Sendable {
       "paste_from_selection"
     case .previousTab:
       "previous_tab"
+    case .resizeSplit(.down, let amount):
+      "resize_split:down,\(amount)"
+    case .resizeSplit(.left, let amount):
+      "resize_split:left,\(amount)"
+    case .resizeSplit(.right, let amount):
+      "resize_split:right,\(amount)"
+    case .resizeSplit(.top, let amount):
+      "resize_split:up,\(amount)"
     case .searchSelection:
       "search_selection"
     case .selectAll:
@@ -138,9 +176,11 @@ enum SupatermCommand: Hashable, Sendable {
       KeyboardShortcut("f", modifiers: .command)
     case .toggleSplitZoom:
       KeyboardShortcut(.return, modifiers: [.command, .shift])
-    case .goToTab,
+    case .goToSplit,
+      .goToTab,
       .newSplit(.left),
-      .newSplit(.top):
+      .newSplit(.top),
+      .resizeSplit:
       nil
     }
   }
