@@ -1,1 +1,3 @@
+git diff --cached --quiet -- apps/supaterm.com && exit 0
+git diff --cached --quiet -- . ":(exclude)apps/supaterm.com" || exit 0
 cd "$(dirname "$0")/.." && vp staged
