@@ -91,12 +91,12 @@ struct TerminalSidebarChromeView: View {
 
               pinnedSection
 
+              regularSection
+
               TerminalSidebarRegularSectionHeader(
                 palette: palette,
                 action: newTab
               )
-
-              regularSection
 
               Color.clear
                 .frame(height: 1)
