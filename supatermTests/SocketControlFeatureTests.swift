@@ -105,6 +105,38 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func onboardingRequestRepliesWithSnapshot() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "120B0BA1-4524-4C63-A0E6-CAC1327E7350")!
+    let snapshot = SupatermOnboardingSnapshot(
+      items: [
+        .init(shortcut: "⌘S", title: "Toggle sidebar"),
+        .init(shortcut: "⌘T", title: "New tab"),
+      ]
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: .onboarding(id: "onboarding-1")
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.onboardingSnapshot = { snapshot }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermOnboardingSnapshot.self) == snapshot)
+  }
+
+  @Test
   func newPaneRequestRepliesWithCreatedPane() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "0708C52C-64A0-4B3D-B469-3AB200CB4128")!
@@ -315,6 +347,40 @@ struct SocketControlFeatureTests {
             id: "request-2",
             code: "method_not_found",
             message: "Unknown method 'workspace.list'."
+          )
+        )
+    )
+  }
+
+  @Test
+  func onboardingRequestWithoutWindowRepliesWithStructuredError() async {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "7B0A8AAE-F4B3-48B6-B5CA-B9D9A7E55DA0")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: .onboarding(id: "onboarding-2")
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "onboarding-2",
+            code: "invalid_request",
+            message: "No Supaterm window is available."
           )
         )
     )

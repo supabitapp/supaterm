@@ -109,6 +109,22 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func onboardingRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
+    let snapshot = SupatermOnboardingSnapshot(
+      items: [
+        .init(shortcut: "⌘S", title: "Toggle sidebar"),
+        .init(shortcut: "⌘T", title: "New tab"),
+      ]
+    )
+
+    let request = SupatermSocketRequest.onboarding(id: "onboarding-1")
+    let response = try SupatermSocketResponse.ok(id: "onboarding-1", encodableResult: snapshot)
+
+    #expect(request.method == SupatermSocketMethod.appOnboarding)
+    #expect(try response.decodeResult(SupatermOnboardingSnapshot.self) == snapshot)
+  }
+
+  @Test
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewPaneRequest(
       command: "pwd",

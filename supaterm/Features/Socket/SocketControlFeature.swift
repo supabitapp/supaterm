@@ -9,6 +9,7 @@ private enum SocketControlCancelID {
 private enum SocketRequestError: Error, Equatable, LocalizedError {
   case invalidIndex(String)
   case missingTarget
+  case onboardingUnavailable
   case paneRequiresTab
   case windowRequiresTab
 
@@ -18,6 +19,8 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
       return "\(field) must be 1 or greater."
     case .missingTarget:
       return "Provide a target tab or run the command inside a Supaterm pane."
+    case .onboardingUnavailable:
+      return "No Supaterm window is available."
     case .paneRequiresTab:
       return "pane target requires a tab target."
     case .windowRequiresTab:
@@ -89,6 +92,12 @@ struct SocketControlFeature {
   ) async -> SupatermSocketResponse {
     do {
       switch request.method {
+      case SupatermSocketMethod.appOnboarding:
+        guard let snapshot = await terminalWindowsClient.onboardingSnapshot() else {
+          throw SocketRequestError.onboardingUnavailable
+        }
+        return try .ok(id: request.id, encodableResult: snapshot)
+
       case SupatermSocketMethod.appTree:
         let snapshot = await terminalWindowsClient.treeSnapshot()
         return try .ok(id: request.id, encodableResult: snapshot)

@@ -6,7 +6,7 @@ struct SP: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
-    subcommands: [Ping.self, Tree.self, NewPane.self]
+    subcommands: [Ping.self, Tree.self, Onboard.self, NewPane.self]
   )
 
   mutating func run() throws {
@@ -67,6 +67,27 @@ extension SP {
       } else {
         print(SPTreeRenderer.render(snapshot))
       }
+    }
+  }
+
+  struct Onboard: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "onboard",
+      abstract: "Show Supaterm's core onboarding shortcuts."
+    )
+
+    @Option(name: .long, help: "Override the Unix socket path.")
+    var socket: String?
+
+    mutating func run() throws {
+      let client = try socketClient(path: socket)
+      let response = try client.send(.onboarding())
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+
+      let snapshot = try response.decodeResult(SupatermOnboardingSnapshot.self)
+      print(SPOnboardingRenderer.render(snapshot))
     }
   }
 
@@ -218,6 +239,25 @@ private func shellEscapedToken(_ token: String) -> String {
 
 private func socketClient(path: String?) throws -> SPSocketClient {
   try SPSocketClient(path: resolvedSocketPath(explicitPath: path))
+}
+
+private enum SPOnboardingRenderer {
+  static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
+    let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
+    var lines = ["Shortcuts"]
+
+    guard !snapshot.items.isEmpty else {
+      return lines.joined(separator: "\n")
+    }
+
+    lines.append("")
+    lines.append(
+      contentsOf: snapshot.items.map { item in
+        "\(item.shortcut.padding(toLength: shortcutWidth, withPad: " ", startingAt: 0))  \(item.title)"
+      }
+    )
+    return lines.joined(separator: "\n")
+  }
 }
 
 SP.main()

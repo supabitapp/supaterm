@@ -6,6 +6,7 @@ import SupatermCLIShared
 @MainActor
 final class TerminalWindowRegistry {
   private struct Entry {
+    let ghosttyShortcuts: GhosttyShortcutManager
     let sceneID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
@@ -15,6 +16,7 @@ final class TerminalWindowRegistry {
   private var entries: [Entry] = []
 
   func register(
+    ghosttyShortcuts: GhosttyShortcutManager,
     sceneID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState
@@ -22,6 +24,7 @@ final class TerminalWindowRegistry {
     guard !entries.contains(where: { $0.sceneID == sceneID }) else { return }
     entries.append(
       .init(
+        ghosttyShortcuts: ghosttyShortcuts,
         sceneID: sceneID,
         store: store,
         terminal: terminal,
@@ -59,6 +62,13 @@ final class TerminalWindowRegistry {
       )
     }
     return .init(windows: windows)
+  }
+
+  func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
+    guard let entry = entries.first else { return nil }
+    return SupatermOnboardingSnapshotBuilder.snapshot { action in
+      entry.ghosttyShortcuts.keyboardShortcut(for: action)
+    }
   }
 
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
