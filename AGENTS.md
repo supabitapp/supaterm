@@ -44,7 +44,7 @@ The app uses **The Composable Architecture (TCA)** with a feature-based folder s
 - `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
 - `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalSceneFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` dependency wrapping Sparkle (SPU) for in-app updates. Update lifecycle phases are modeled as an `UpdatePhase` enum
-- `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` starts the server and dispatches JSON-RPC-style requests (`app.tree`, `system.ping`, `terminal.new_pane`)
+- `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` starts the server and dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
 - `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)
 
 ### Dependency pattern
@@ -64,9 +64,9 @@ Data flow: `TerminalHostState` → creates `GhosttySurfaceView` → owns `Ghostt
 
 ### `sp` CLI and socket IPC
 
-The app embeds an `sp` CLI binary (target in `sp/`, built with ArgumentParser) inside the app bundle. The app injects `SUPATERM_SURFACE_ID` and `SUPATERM_SOCKET_PATH` env vars into every shell pane, so `sp` commands work automatically from within a Supaterm terminal.
+The app embeds an `sp` CLI binary (target in `sp/`, built with ArgumentParser) inside the app bundle. The app injects `SUPATERM_SURFACE_ID`, `SUPATERM_TAB_ID`, and `SUPATERM_SOCKET_PATH` env vars into every shell pane, so `sp` commands work automatically from within a Supaterm terminal.
 
-Shared protocol types live in `SupatermCLIShared/` (imported by both the app and CLI): `SupatermSocketRequest`, `SupatermSocketResponse`, `SupatermTreeSnapshot`, etc. The CLI uses synchronous POSIX sockets (`SPSocketClient`).
+Shared protocol types live in `SupatermCLIShared/` (imported by both the app and CLI): `SupatermSocketRequest`, `SupatermSocketResponse`, `SupatermTreeSnapshot`, `SupatermAppDebugSnapshot`, etc. The CLI uses synchronous POSIX sockets (`SPSocketClient`).
 
 ### Persistence
 
