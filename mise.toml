@@ -7,4 +7,4 @@ pnpm = "latest"
 "npm:create-dmg" = "latest"
 
 [hooks]
-postinstall = "curl -fsSL https://vite.plus | bash"
+postinstall = "command -v vp >/dev/null 2>&1 || curl -fsSL https://vite.plus | bash"
