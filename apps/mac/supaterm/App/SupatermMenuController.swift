@@ -131,22 +131,20 @@ final class SupatermMenuController: NSObject {
       SupatermMenuShortcut.apply(shortcut, to: item)
       return
     }
-    guard registry.hasShortcutSource else { return }
-    SupatermMenuShortcut.apply(nil, to: item)
+    if registry.hasShortcutSource {
+      SupatermMenuShortcut.apply(nil, to: item)
+      return
+    }
+    SupatermMenuShortcut.apply(Self.defaultShortcut(for: command), to: item)
   }
 
   private func ensureOwnedFileItems(in fileMenu: NSMenu) {
     let ownedItems = ownedFileItems()
-    guard
-      !ownedItems.allSatisfy({ item in
-        fileMenu.items.contains(where: { $0 === item })
-      })
-    else { return }
-
     let insertionIndex = Self.insertionIndex(in: fileMenu)
 
     Self.removeOwnedItems(from: fileMenu)
     Self.removeBuiltInOverlapItems(from: fileMenu)
+    Self.removeRedundantSeparators(from: fileMenu)
 
     for (offset, item) in ownedItems.enumerated() {
       fileMenu.insertItem(item, at: insertionIndex + offset)
@@ -229,7 +227,7 @@ final class SupatermMenuController: NSObject {
       return currentOwnedIndex
     }
 
-    return builtInOverlapRange(in: fileMenu)?.lowerBound ?? 0
+    return builtInOverlapIndices(in: fileMenu).min() ?? 0
   }
 
   private static func removeOwnedItems(from fileMenu: NSMenu) {
@@ -239,25 +237,81 @@ final class SupatermMenuController: NSObject {
   }
 
   private static func removeBuiltInOverlapItems(from fileMenu: NSMenu) {
-    guard let range = builtInOverlapRange(in: fileMenu) else { return }
-    for index in range.reversed() {
+    for index in builtInOverlapIndices(in: fileMenu).sorted(by: >) {
       fileMenu.removeItem(at: index)
     }
   }
 
-  private static func builtInOverlapRange(in fileMenu: NSMenu) -> Range<Int>? {
-    guard
-      let closeWindowIndex = fileMenu.items.firstIndex(where: {
-        !isOwnedItem($0) && $0.action == #selector(NSWindow.performClose(_:))
-      }),
-      let newWindowIndex = fileMenu.items[..<closeWindowIndex].lastIndex(where: {
-        !$0.isSeparatorItem && !isOwnedItem($0) && $0.title == "New Window"
-      })
-    else {
-      return nil
+  private static func builtInOverlapIndices(in fileMenu: NSMenu) -> [Int] {
+    fileMenu.items.indices.filter { index in
+      isBuiltInOverlapItem(fileMenu.items[index])
     }
+  }
 
-    return newWindowIndex..<(closeWindowIndex + 1)
+  private static func isBuiltInOverlapItem(_ item: NSMenuItem) -> Bool {
+    guard !isOwnedItem(item), !item.isSeparatorItem else { return false }
+    if isBuiltInNewWindowItem(item) {
+      return true
+    }
+    if item.title == "Close" {
+      return item.keyEquivalent.caseInsensitiveCompare("w") == .orderedSame
+    }
+    if item.title == "Close Window" {
+      return item.keyEquivalent.caseInsensitiveCompare("w") == .orderedSame
+        && normalizedModifiers(for: item).contains(.shift)
+    }
+    if item.title == "Close All Windows" {
+      return item.keyEquivalent.caseInsensitiveCompare("w") == .orderedSame
+        && normalizedModifiers(for: item).contains(.option)
+        && normalizedModifiers(for: item).contains(.shift)
+    }
+    return false
+  }
+
+  private static func isBuiltInNewWindowItem(_ item: NSMenuItem) -> Bool {
+    item.title.hasPrefix("New ")
+      && item.title.hasSuffix(" Window")
+      && item.keyEquivalent.caseInsensitiveCompare("n") == .orderedSame
+      && normalizedModifiers(for: item) == .command
+  }
+
+  private static func normalizedModifiers(for item: NSMenuItem) -> NSEvent.ModifierFlags {
+    item.keyEquivalentModifierMask.intersection(.deviceIndependentFlagsMask)
+  }
+
+  private static func removeRedundantSeparators(from fileMenu: NSMenu) {
+    var previousWasSeparator = false
+    for index in fileMenu.items.indices.reversed() {
+      let item = fileMenu.items[index]
+      if item.isSeparatorItem {
+        if previousWasSeparator || index == 0 || index == fileMenu.items.count - 1 {
+          fileMenu.removeItem(at: index)
+          continue
+        }
+        previousWasSeparator = true
+      } else {
+        previousWasSeparator = false
+      }
+    }
+  }
+
+  private static func defaultShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    switch command {
+    case .newWindow:
+      KeyboardShortcut("n", modifiers: .command)
+    case .newTab:
+      KeyboardShortcut("t", modifiers: .command)
+    case .closeSurface:
+      KeyboardShortcut("w", modifiers: .command)
+    case .closeTab:
+      KeyboardShortcut("w", modifiers: [.command, .option])
+    case .closeWindow:
+      KeyboardShortcut("w", modifiers: [.command, .shift])
+    case .closeAllWindows:
+      KeyboardShortcut("w", modifiers: [.command, .option, .shift])
+    default:
+      nil
+    }
   }
 
   private static func isOwnedItem(_ item: NSMenuItem) -> Bool {
