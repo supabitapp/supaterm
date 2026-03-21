@@ -142,6 +142,8 @@ private struct SidebarContainerView: View {
       }
     }
     .listStyle(.sidebar)
+    .contentMargins(.trailing, 0, for: .scrollContent)
+    .contentMargins(.trailing, 0, for: .scrollIndicators)
     .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .animation(.spring(response: 0.28, dampingFraction: 0.82), value: showsSectionHeaders)
