@@ -32,6 +32,7 @@ final class AppWindowController: ObservableObject {
     self.store = store
 
     registry.register(
+      ghosttyShortcuts: ghosttyShortcuts,
       sceneID: sceneID,
       store: store,
       terminal: terminal

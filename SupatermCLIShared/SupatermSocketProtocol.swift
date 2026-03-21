@@ -1,6 +1,7 @@
 import Foundation
 
 public enum SupatermSocketMethod {
+  public static let appOnboarding = "app.onboarding"
   public static let appTree = "app.tree"
   public static let systemPing = "system.ping"
   public static let terminalNewPane = "terminal.new_pane"
@@ -48,6 +49,10 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
 
   public static func tree(id: String = UUID().uuidString) -> Self {
     Self(id: id, method: SupatermSocketMethod.appTree)
+  }
+
+  public static func onboarding(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.appOnboarding)
   }
 
   public static func newPane(
@@ -184,6 +189,27 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
 
   public init(windows: [Window]) {
     self.windows = windows
+  }
+}
+
+public struct SupatermOnboardingShortcut: Equatable, Sendable, Codable {
+  public let shortcut: String
+  public let title: String
+
+  public init(
+    shortcut: String,
+    title: String
+  ) {
+    self.shortcut = shortcut
+    self.title = title
+  }
+}
+
+public struct SupatermOnboardingSnapshot: Equatable, Sendable, Codable {
+  public let items: [SupatermOnboardingShortcut]
+
+  public init(items: [SupatermOnboardingShortcut]) {
+    self.items = items
   }
 }
 
