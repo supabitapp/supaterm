@@ -1,4 +1,5 @@
 import ArgumentParser
+import Darwin
 import Foundation
 import SupatermCLIShared
 
@@ -236,16 +237,25 @@ private func socketClient(path: String?) throws -> SPSocketClient {
   try SPSocketClient(path: resolvedSocketPath(explicitPath: path))
 }
 
+private enum SPTerminalStyle {
+  private static let isEnabled = isatty(FileHandle.standardOutput.fileDescriptor) != 0
+
+  static func bold(_ text: String) -> String {
+    guard isEnabled else { return text }
+    return "\u{001B}[1m\(text)\u{001B}[0m"
+  }
+}
+
 private enum SPOnboardingRenderer {
   static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
-    var lines = ["Common Shortcuts"]
+    var lines = [SPTerminalStyle.bold("Common Shortcuts")]
 
     if !snapshot.items.isEmpty {
       lines.append("")
       lines.append(
         contentsOf: snapshot.items.map { item in
-          "\(item.shortcut.padding(toLength: shortcutWidth, withPad: " ", startingAt: 0))  \(item.title)"
+          "\(SPTerminalStyle.bold(item.shortcut.padding(toLength: shortcutWidth, withPad: " ", startingAt: 0)))  \(item.title)"
         }
       )
     }
