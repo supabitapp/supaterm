@@ -475,9 +475,7 @@ final class TerminalSidebarDragSourceCoordinator: NSObject, NSDraggingSource {
     operation: NSDragOperation
   ) {
     Task { @MainActor in
-      if operation == [] {
-        manager.cancelDrag()
-      }
+      manager.cancelDrag()
     }
   }
 }
@@ -513,7 +511,6 @@ final class TerminalSidebarDragSourceNSView: NSView {
 
     let pasteboardItem = NSPasteboardItem()
     pasteboardItem.setString(coordinator.item.tabID.rawValue.uuidString, forType: .terminalSidebarTabItem)
-    pasteboardItem.setString(coordinator.item.tabID.rawValue.uuidString, forType: .string)
 
     let transparentImage = NSImage(size: NSSize(width: 1, height: 1))
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
@@ -715,7 +712,7 @@ private struct TerminalSidebarDropZoneAnchor: NSViewRepresentable {
   ) -> TerminalSidebarDropZoneNSView {
     let view = TerminalSidebarDropZoneNSView()
     view.coordinator = context.coordinator
-    view.registerForDraggedTypes([.terminalSidebarTabItem, .string])
+    view.registerForDraggedTypes([.terminalSidebarTabItem])
     return view
   }
 
