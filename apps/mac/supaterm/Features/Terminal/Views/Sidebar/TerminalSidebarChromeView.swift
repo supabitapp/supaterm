@@ -375,7 +375,6 @@ private struct TerminalSidebarRegularSectionHeader: View {
       }
       .padding(.horizontal, 10)
       .frame(height: 36)
-      .background(TerminalSidebarButtonBackground(fill: palette.rowFill))
     }
     .buttonStyle(TerminalSidebarRectButtonStyle())
   }
@@ -701,11 +700,29 @@ private struct TerminalSidebarScrollIndicatorButton: View {
 }
 
 private struct TerminalSidebarRectButtonStyle: ButtonStyle {
+  @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.isEnabled) private var isEnabled
+  @State private var isHovering = false
+
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
+      .background {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+          .fill(.primary.opacity(backgroundOpacity(isPressed: configuration.isPressed)))
+      }
       .contentShape(.rect)
-      .scaleEffect(configuration.isPressed ? 0.98 : 1)
+      .opacity(isEnabled ? 1 : 0.3)
+      .scaleEffect(configuration.isPressed && isEnabled ? 0.95 : 1)
       .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+      .animation(.easeInOut(duration: 0.15), value: isHovering)
+      .onHover { isHovering = $0 }
+  }
+
+  private func backgroundOpacity(isPressed: Bool) -> Double {
+    if (isHovering || isPressed) && isEnabled {
+      return colorScheme == .dark ? 0.2 : 0.1
+    }
+    return 0
   }
 }
 
@@ -787,14 +804,5 @@ private struct TerminalSidebarWorkspaceButtonStyle: ButtonStyle {
       return colorScheme == .dark ? 0.2 : 0.1
     }
     return 0
-  }
-}
-
-private struct TerminalSidebarButtonBackground: View {
-  let fill: Color
-
-  var body: some View {
-    RoundedRectangle(cornerRadius: 12, style: .continuous)
-      .fill(fill.opacity(0))
   }
 }
