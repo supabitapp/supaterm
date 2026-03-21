@@ -116,7 +116,7 @@ struct SupatermMenuControllerTests {
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()
       }
-      let sceneID = UUID()
+      let windowControllerID = UUID()
       registry.register(
         keyboardShortcut: { command in
           switch command {
@@ -128,7 +128,7 @@ struct SupatermMenuControllerTests {
             nil
           }
         },
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: host,
         requestConfirmedWindowClose: {}

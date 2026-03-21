@@ -3,9 +3,8 @@ import ComposableArchitecture
 import SwiftUI
 
 struct TerminalView: View {
-  let store: StoreOf<TerminalSceneFeature>
+  let store: StoreOf<TerminalWindowFeature>
   @Bindable var terminal: TerminalHostState
-  let onWindowChanged: (NSWindow?) -> Void
   let updateStore: StoreOf<UpdateFeature>
   @Environment(\.colorScheme) private var colorScheme
 
@@ -89,10 +88,6 @@ struct TerminalView: View {
           .frame(width: 0, height: 0)
       }
       .background(WindowReader(window: $window))
-      .onChange(of: window) { _, window in
-        _ = store.send(.windowChanged(window.map(ObjectIdentifier.init)))
-        onWindowChanged(window)
-      }
       .background(
         WindowFocusObserverView { activity in
           _ = store.send(.windowActivityChanged(activity))

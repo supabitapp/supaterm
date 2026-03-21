@@ -1,23 +1,19 @@
-import AppKit
 import ComposableArchitecture
 import SwiftUI
 
 struct ContentView: View {
   let store: StoreOf<AppFeature>
-  let onWindowChanged: (NSWindow?) -> Void
   @Bindable var terminal: TerminalHostState
 
   init(
     store: StoreOf<AppFeature>,
-    terminal: TerminalHostState,
-    onWindowChanged: @escaping (NSWindow?) -> Void
+    terminal: TerminalHostState
   ) {
     self.store = store
     self._terminal = Bindable(terminal)
-    self.onWindowChanged = onWindowChanged
   }
 
-  private var terminalStore: StoreOf<TerminalSceneFeature> {
+  private var terminalStore: StoreOf<TerminalWindowFeature> {
     store.scope(state: \.terminal, action: \.terminal)
   }
 
@@ -25,7 +21,6 @@ struct ContentView: View {
     TerminalView(
       store: terminalStore,
       terminal: terminal,
-      onWindowChanged: onWindowChanged,
       updateStore: store.scope(state: \.update, action: \.update)
     )
     .task {

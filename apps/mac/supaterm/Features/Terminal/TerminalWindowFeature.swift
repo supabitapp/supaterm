@@ -2,8 +2,8 @@ import ComposableArchitecture
 import CoreGraphics
 import Foundation
 
-private enum TerminalSceneCancelID {
-  static let events = "TerminalSceneFeature.events"
+private enum TerminalWindowCancelID {
+  static let events = "TerminalWindowFeature.events"
 }
 
 struct TerminalWorkspaceDeleteRequest: Equatable, Identifiable {
@@ -20,7 +20,7 @@ struct TerminalWorkspaceRenameState: Equatable, Identifiable {
 }
 
 @Reducer
-struct TerminalSceneFeature {
+struct TerminalWindowFeature {
   @ObservableState
   struct State: Equatable {
     var confirmationRequest: ConfirmationRequest?
@@ -75,28 +75,20 @@ struct TerminalSceneFeature {
     case closeSurfaceRequested(UUID)
     case closeTabRequested(TerminalTabID)
     case collapseSidebarButtonTapped
-    case endSearchMenuItemSelected
-    case equalizePanesMenuItemSelected
     case floatingSidebarVisibilityChanged(Bool)
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
-    case navigateSearchNextMenuItemSelected
-    case navigateSearchPreviousMenuItemSelected
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
     case nextTabMenuItemSelected
     case pinnedTabOrderChanged([TerminalTabID])
     case previousTabMenuItemSelected
     case quitRequested(windowID: ObjectIdentifier)
     case regularTabOrderChanged([TerminalTabID])
-    case searchSelectionMenuItemSelected
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
     case selectWorkspaceButtonTapped(TerminalWorkspaceID)
     case selectWorkspaceMenuItemSelected(Int)
     case sidebarFractionChanged(CGFloat)
-    case splitBelowMenuItemSelected
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
-    case splitRightMenuItemSelected
-    case startSearchMenuItemSelected
     case tabSelected(TerminalTabID)
     case task
     case workspaceCreateButtonTapped
@@ -107,13 +99,12 @@ struct TerminalSceneFeature {
     case workspaceRenameRequested(TerminalWorkspaceItem)
     case workspaceRenameSaveButtonTapped
     case workspaceRenameTextChanged(String)
-    case togglePaneZoomMenuItemSelected
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
     case confirmationCancelButtonTapped
     case confirmationConfirmButtonTapped
     case windowActivityChanged(WindowActivityState)
-    case windowChanged(ObjectIdentifier?)
+    case windowIdentifierChanged(ObjectIdentifier)
     case windowCloseRequested(windowID: ObjectIdentifier)
   }
 
@@ -186,24 +177,12 @@ struct TerminalSceneFeature {
         state.isSidebarCollapsed = true
         return .none
 
-      case .endSearchMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.endSearch))
-
-      case .equalizePanesMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.equalizeSplits))
-
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
         return .none
 
       case .navigateSearchMenuItemSelected(let direction):
         return sendCommand(.navigateSearch(direction))
-
-      case .navigateSearchNextMenuItemSelected:
-        return sendCommand(.navigateSearch(.next))
-
-      case .navigateSearchPreviousMenuItemSelected:
-        return sendCommand(.navigateSearch(.previous))
 
       case .newTabButtonTapped(let inheritingFromSurfaceID):
         return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
@@ -227,9 +206,6 @@ struct TerminalSceneFeature {
       case .regularTabOrderChanged(let orderedIDs):
         return sendCommand(.setRegularTabOrder(orderedIDs))
 
-      case .searchSelectionMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.searchSelection))
-
       case .selectLastTabMenuItemSelected:
         return sendCommand(.selectLastTab)
 
@@ -246,17 +222,8 @@ struct TerminalSceneFeature {
         state.sidebarFraction = fraction
         return .none
 
-      case .splitBelowMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.newSplit(.down)))
-
       case .splitOperationRequested(let tabID, let operation):
         return sendCommand(.performSplitOperation(tabID: tabID, operation: operation))
-
-      case .splitRightMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.newSplit(.right)))
-
-      case .startSearchMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.startSearch))
 
       case .tabSelected(let tabID):
         return sendCommand(.selectTab(tabID))
@@ -270,7 +237,7 @@ struct TerminalSceneFeature {
               await send(.clientEvent(event))
             }
           }
-          .cancellable(id: TerminalSceneCancelID.events, cancelInFlight: true)
+          .cancellable(id: TerminalWindowCancelID.events, cancelInFlight: true)
         )
 
       case .workspaceCreateButtonTapped:
@@ -296,9 +263,6 @@ struct TerminalSceneFeature {
       case .workspaceRenameTextChanged(let text):
         state.workspaceRename?.draftName = text
         return .none
-
-      case .togglePaneZoomMenuItemSelected:
-        return sendCommand(.performBindingActionOnFocusedSurface(.toggleSplitZoom))
 
       case .togglePinned(let tabID):
         return sendCommand(.togglePinned(tabID))
@@ -341,7 +305,7 @@ struct TerminalSceneFeature {
       case .windowActivityChanged(let activity):
         return sendCommand(.updateWindowActivity(activity))
 
-      case .windowChanged(let windowID):
+      case .windowIdentifierChanged(let windowID):
         state.windowID = windowID
         return .none
 

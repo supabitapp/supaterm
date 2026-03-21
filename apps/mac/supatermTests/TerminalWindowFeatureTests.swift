@@ -5,15 +5,15 @@ import Testing
 @testable import supaterm
 
 @MainActor
-struct TerminalSceneFeatureTests {
+struct TerminalWindowFeatureTests {
   @Test
   func taskBootstrapsTerminalAndRoutesClientEvents() async {
     let recorder = TerminalCommandRecorder()
     let surfaceID = UUID()
     let (stream, continuation) = makeEventStream()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.events = { stream }
       $0.terminalClient.send = { recorder.record($0) }
@@ -42,8 +42,8 @@ struct TerminalSceneFeatureTests {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -57,8 +57,8 @@ struct TerminalSceneFeatureTests {
   func closeRequestedPresentsConfirmationWhenNeeded() async {
     let tabID = TerminalTabID()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     }
 
     await store.send(.clientEvent(.closeRequested(.init(target: .tab(tabID), needsConfirmation: true)))) {
@@ -74,7 +74,7 @@ struct TerminalSceneFeatureTests {
   func closeConfirmationConfirmClosesPendingTab() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.pendingCloseRequest = .init(
       target: .tab(tabID),
       title: "Close Tab?",
@@ -82,7 +82,7 @@ struct TerminalSceneFeatureTests {
     )
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -98,8 +98,8 @@ struct TerminalSceneFeatureTests {
   func closeSurfaceRequestedPresentsConfirmationForLiveProcess() async {
     let surfaceID = UUID()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     }
 
     await store.send(.clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: true)))) {
@@ -116,8 +116,8 @@ struct TerminalSceneFeatureTests {
     let recorder = TerminalCommandRecorder()
     let surfaceID = UUID()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -129,11 +129,11 @@ struct TerminalSceneFeatureTests {
 
   @Test
   func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     }
 
     await store.send(.toggleSidebarButtonTapped) {
@@ -143,11 +143,24 @@ struct TerminalSceneFeatureTests {
   }
 
   @Test
+  func windowIdentifierChangedStoresWindowID() async {
+    let windowID = ObjectIdentifier(NSObject())
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.windowIdentifierChanged(windowID)) {
+      $0.windowID = windowID
+    }
+  }
+
+  @Test
   func workspaceCreateButtonTappedSendsCreateWorkspaceCommand() async {
     let recorder = TerminalCommandRecorder()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -165,8 +178,8 @@ struct TerminalSceneFeatureTests {
       name: "A"
     )
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -192,8 +205,8 @@ struct TerminalSceneFeatureTests {
       name: "B"
     )
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }
@@ -211,7 +224,7 @@ struct TerminalSceneFeatureTests {
   @Test
   func quitConfirmationCancelRepliesFalse() async {
     var terminationReplies: [Bool] = []
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.confirmationRequest = .init(
       target: .quit,
       title: "Quit Supaterm?",
@@ -220,14 +233,14 @@ struct TerminalSceneFeatureTests {
     )
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     } withDependencies: {
       $0.appTerminationClient.reply = { shouldTerminate in
         terminationReplies.append(shouldTerminate)
       }
     }
 
-    await store.send(TerminalSceneFeature.Action.confirmationCancelButtonTapped) {
+    await store.send(TerminalWindowFeature.Action.confirmationCancelButtonTapped) {
       $0.confirmationRequest = nil
     }
 
@@ -237,7 +250,7 @@ struct TerminalSceneFeatureTests {
   @Test
   func quitConfirmationConfirmRepliesTrue() async {
     var terminationReplies: [Bool] = []
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.confirmationRequest = .init(
       target: .quit,
       title: "Quit Supaterm?",
@@ -246,14 +259,14 @@ struct TerminalSceneFeatureTests {
     )
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     } withDependencies: {
       $0.appTerminationClient.reply = { shouldTerminate in
         terminationReplies.append(shouldTerminate)
       }
     }
 
-    await store.send(TerminalSceneFeature.Action.confirmationConfirmButtonTapped) {
+    await store.send(TerminalWindowFeature.Action.confirmationConfirmButtonTapped) {
       $0.confirmationRequest = nil
     }
 
@@ -263,11 +276,11 @@ struct TerminalSceneFeatureTests {
   @Test
   func windowCloseRequestedPresentsStyledConfirmation() async {
     let windowID = ObjectIdentifier(NSObject())
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.windowID = windowID
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     }
 
     await store.send(.windowCloseRequested(windowID: windowID)) {
@@ -285,7 +298,7 @@ struct TerminalSceneFeatureTests {
     let firstWindowID = ObjectIdentifier(NSObject())
     let secondWindowID = ObjectIdentifier(NSObject())
     var closedWindowIDs: [[ObjectIdentifier]] = []
-    var initialState = TerminalSceneFeature.State()
+    var initialState = TerminalWindowFeature.State()
     initialState.confirmationRequest = .init(
       target: .closeAllWindows([firstWindowID, secondWindowID]),
       title: "Close All Windows?",
@@ -294,7 +307,7 @@ struct TerminalSceneFeatureTests {
     )
 
     let store = TestStore(initialState: initialState) {
-      TerminalSceneFeature()
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalWindowsClient.closeWindows = { windowIDs in
         closedWindowIDs.append(windowIDs)
@@ -312,8 +325,8 @@ struct TerminalSceneFeatureTests {
   func selectWorkspaceMenuItemSelectedSendsSelectWorkspaceSlotCommand() async {
     let recorder = TerminalCommandRecorder()
 
-    let store = TestStore(initialState: TerminalSceneFeature.State()) {
-      TerminalSceneFeature()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.send = { recorder.record($0) }
     }

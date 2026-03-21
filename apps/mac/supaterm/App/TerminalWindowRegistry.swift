@@ -39,7 +39,7 @@ final class TerminalWindowRegistry {
   private struct Entry {
     let keyboardShortcut: (SupatermCommand) -> KeyboardShortcut?
     let requestConfirmedWindowClose: @MainActor () -> Void
-    let sceneID: UUID
+    let windowControllerID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
     let windowReference: WindowReference
@@ -54,17 +54,17 @@ final class TerminalWindowRegistry {
 
   func register(
     keyboardShortcut: @escaping (SupatermCommand) -> KeyboardShortcut?,
-    sceneID: UUID,
+    windowControllerID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState,
     requestConfirmedWindowClose: @escaping @MainActor () -> Void
   ) {
-    guard !entries.contains(where: { $0.sceneID == sceneID }) else { return }
+    guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     entries.append(
       .init(
         keyboardShortcut: keyboardShortcut,
         requestConfirmedWindowClose: requestConfirmedWindowClose,
-        sceneID: sceneID,
+        windowControllerID: windowControllerID,
         store: store,
         terminal: terminal,
         windowReference: WindowReference()
@@ -73,13 +73,13 @@ final class TerminalWindowRegistry {
     onChange()
   }
 
-  func unregister(sceneID: UUID) {
-    entries.removeAll { $0.sceneID == sceneID }
+  func unregister(windowControllerID: UUID) {
+    entries.removeAll { $0.windowControllerID == windowControllerID }
     onChange()
   }
 
-  func updateWindow(_ window: NSWindow?, for sceneID: UUID) {
-    guard let index = entries.firstIndex(where: { $0.sceneID == sceneID }) else { return }
+  func updateWindow(_ window: NSWindow?, for windowControllerID: UUID) {
+    guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID }) else { return }
     entries[index].windowReference.value = window
     onChange()
   }
