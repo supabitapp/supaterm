@@ -46,9 +46,6 @@ struct SupatermApp: App {
     .defaultSize(width: 1_440, height: 900)
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
-    .commands {
-      TerminalCommands()
-    }
   }
 
   private func configureNewWindowAction() {

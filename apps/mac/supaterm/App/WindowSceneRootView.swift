@@ -12,7 +12,6 @@ struct WindowSceneRootView: View {
       ContentView(
         store: controller.store,
         terminal: controller.terminal,
-        ghosttyShortcuts: controller.ghosttyShortcuts,
         onWindowChanged: controller.updateWindow
       )
     }

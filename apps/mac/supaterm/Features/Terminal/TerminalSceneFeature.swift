@@ -67,6 +67,7 @@ struct TerminalSceneFeature {
   }
 
   enum Action {
+    case bindingMenuItemSelected(SupatermCommand)
     case clientEvent(TerminalClient.Event)
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
@@ -77,6 +78,7 @@ struct TerminalSceneFeature {
     case endSearchMenuItemSelected
     case equalizePanesMenuItemSelected
     case floatingSidebarVisibilityChanged(Bool)
+    case navigateSearchMenuItemSelected(GhosttySearchDirection)
     case navigateSearchNextMenuItemSelected
     case navigateSearchPreviousMenuItemSelected
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
@@ -147,6 +149,9 @@ struct TerminalSceneFeature {
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
         }
 
+      case .bindingMenuItemSelected(let command):
+        return sendCommand(.performBindingActionOnFocusedSurface(command))
+
       case .closeConfirmationCancelButtonTapped:
         state.pendingCloseRequest = nil
         return .none
@@ -190,6 +195,9 @@ struct TerminalSceneFeature {
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
         return .none
+
+      case .navigateSearchMenuItemSelected(let direction):
+        return sendCommand(.navigateSearch(direction))
 
       case .navigateSearchNextMenuItemSelected:
         return sendCommand(.navigateSearch(.next))

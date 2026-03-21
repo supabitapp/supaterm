@@ -23,6 +23,15 @@ final class TerminalWindowRegistry {
     let hasSurface: Bool
   }
 
+  struct MenuContext: Equatable {
+    let availability: CommandAvailability
+    let hasSearch: Bool
+    let updateMenuItemText: String
+    let visibleTabCount: Int
+    let workspaceCount: Int
+    let canCheckForUpdates: Bool
+  }
+
   private final class WindowReference {
     weak var value: NSWindow?
   }
@@ -94,6 +103,32 @@ final class TerminalWindowRegistry {
     )
   }
 
+  func menuContext() -> MenuContext {
+    guard let entry = preferredActiveEntry() else {
+      return .init(
+        availability: .init(hasWindow: false, hasTab: false, hasSurface: false),
+        hasSearch: false,
+        updateMenuItemText: "Check for Updates...",
+        visibleTabCount: 0,
+        workspaceCount: 0,
+        canCheckForUpdates: false
+      )
+    }
+
+    return .init(
+      availability: .init(
+        hasWindow: true,
+        hasTab: entry.terminal.selectedTabID != nil,
+        hasSurface: entry.terminal.selectedSurfaceView != nil
+      ),
+      hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
+      updateMenuItemText: entry.store.update.phase.menuItemText,
+      visibleTabCount: entry.terminal.visibleTabs.count,
+      workspaceCount: entry.terminal.workspaces.count,
+      canCheckForUpdates: entry.store.update.canCheckForUpdates
+    )
+  }
+
   func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
     shortcutEntry()?.keyboardShortcut(command)
   }
@@ -105,6 +140,42 @@ final class TerminalWindowRegistry {
         .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
       )
     )
+  }
+
+  func requestNextTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.nextTabMenuItemSelected))
+  }
+
+  func requestPreviousTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.previousTabMenuItemSelected))
+  }
+
+  func requestSelectTabInKeyWindow(_ slot: Int) {
+    preferredActiveEntry()?.store.send(.terminal(.selectTabMenuItemSelected(slot)))
+  }
+
+  func requestSelectLastTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.selectLastTabMenuItemSelected))
+  }
+
+  func requestSelectWorkspaceInKeyWindow(_ slot: Int) {
+    preferredActiveEntry()?.store.send(.terminal(.selectWorkspaceMenuItemSelected(slot)))
+  }
+
+  func requestToggleSidebarInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
+  }
+
+  func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
+    preferredActiveEntry()?.store.send(.terminal(.bindingMenuItemSelected(command)))
+  }
+
+  func requestNavigateSearchInKeyWindow(_ direction: GhosttySearchDirection) {
+    preferredActiveEntry()?.store.send(.terminal(.navigateSearchMenuItemSelected(direction)))
+  }
+
+  func requestCheckForUpdatesInKeyWindow() {
+    preferredActiveEntry()?.store.send(.update(.checkForUpdatesButtonTapped))
   }
 
   func requestCloseSurfaceInKeyWindow() {
