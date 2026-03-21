@@ -73,7 +73,6 @@ struct TerminalSplitView: View {
 
       if !isSidebarCollapsed {
         SidebarResizeHandle(
-          palette: palette,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
@@ -252,7 +251,6 @@ struct FloatingSidebarOverlay: View {
 
       if isVisible {
         SidebarResizeHandle(
-          palette: palette,
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
           dragFraction: $dragFraction,
@@ -281,28 +279,20 @@ struct FloatingSidebarOverlay: View {
 }
 
 private struct SidebarResizeHandle: View {
-  let palette: TerminalPalette
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var dragFraction: CGFloat?
   let minFraction: CGFloat
   let maxFraction: CGFloat
   var onHide: (() -> Void)?
-  @State private var isHovering = false
 
   var body: some View {
     SidebarResizeInteractionView(
-      isHovering: $isHovering,
       onDragChanged: updateDragFraction(for:),
       onDragEnded: commitDragFraction(for:)
     )
     .frame(width: TerminalSplitMetrics.resizeHandleWidth)
     .frame(maxHeight: .infinity)
-    .overlay {
-      Rectangle()
-        .fill(isHovering ? palette.secondaryText.opacity(0.5) : .clear)
-        .frame(width: 2)
-    }
   }
 
   private func updateDragFraction(for locationX: CGFloat) {
@@ -331,7 +321,6 @@ private struct SidebarResizeHandle: View {
 }
 
 private struct SidebarResizeInteractionView: NSViewRepresentable {
-  @Binding var isHovering: Bool
   let onDragChanged: (CGFloat) -> Void
   let onDragEnded: (CGFloat) -> Void
 
@@ -346,17 +335,12 @@ private struct SidebarResizeInteractionView: NSViewRepresentable {
   }
 
   private func update(_ view: SidebarResizeInteractionNSView) {
-    view.onHoverChanged = { hovering in
-      guard hovering != isHovering else { return }
-      isHovering = hovering
-    }
     view.onDragChanged = onDragChanged
     view.onDragEnded = onDragEnded
   }
 }
 
 private final class SidebarResizeInteractionNSView: NSView {
-  var onHoverChanged: ((Bool) -> Void)?
   var onDragChanged: ((CGFloat) -> Void)?
   var onDragEnded: ((CGFloat) -> Void)?
   private var trackingArea: NSTrackingArea?
@@ -375,7 +359,7 @@ private final class SidebarResizeInteractionNSView: NSView {
     }
     let trackingArea = NSTrackingArea(
       rect: bounds,
-      options: [.activeAlways, .cursorUpdate, .inVisibleRect, .mouseEnteredAndExited],
+      options: [.activeAlways, .cursorUpdate, .inVisibleRect],
       owner: self,
       userInfo: nil
     )
@@ -394,14 +378,6 @@ private final class SidebarResizeInteractionNSView: NSView {
     NSCursor.resizeLeftRight.set()
   }
 
-  override func mouseEntered(with event: NSEvent) {
-    onHoverChanged?(true)
-  }
-
-  override func mouseExited(with event: NSEvent) {
-    onHoverChanged?(false)
-  }
-
   override func mouseDown(with event: NSEvent) {
     sendDragChanged(for: event)
   }
@@ -412,13 +388,6 @@ private final class SidebarResizeInteractionNSView: NSView {
 
   override func mouseUp(with event: NSEvent) {
     sendDragEnded(for: event)
-  }
-
-  override func viewWillMove(toWindow newWindow: NSWindow?) {
-    if newWindow == nil {
-      onHoverChanged?(false)
-    }
-    super.viewWillMove(toWindow: newWindow)
   }
 
   private func sendDragChanged(for event: NSEvent) {
