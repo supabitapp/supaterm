@@ -91,6 +91,8 @@ struct TerminalSidebarChromeView: View {
 
               pinnedSection
 
+              TerminalSidebarSectionDivider(palette: palette)
+
               regularSection
 
               TerminalSidebarRegularSectionHeader(
@@ -342,36 +344,40 @@ struct TerminalSidebarChromeView: View {
   }
 }
 
+private struct TerminalSidebarSectionDivider: View {
+  let palette: TerminalPalette
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 100, style: .continuous)
+      .fill(palette.secondaryText.opacity(0.14))
+      .frame(height: 1)
+  }
+}
+
 private struct TerminalSidebarRegularSectionHeader: View {
   let palette: TerminalPalette
   let action: () -> Void
 
   var body: some View {
-    VStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 100, style: .continuous)
-        .fill(palette.secondaryText.opacity(0.14))
-        .frame(height: 1)
+    Button(action: action) {
+      HStack(spacing: 8) {
+        Image(systemName: "plus")
+          .font(.system(size: 12, weight: .semibold))
+          .frame(width: 18, height: 18)
+          .foregroundStyle(palette.secondaryText)
+          .accessibilityHidden(true)
 
-      Button(action: action) {
-        HStack(spacing: 8) {
-          Image(systemName: "plus")
-            .font(.system(size: 12, weight: .semibold))
-            .frame(width: 18, height: 18)
-            .foregroundStyle(palette.secondaryText)
-            .accessibilityHidden(true)
+        Text("New Tab")
+          .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(palette.primaryText)
 
-          Text("New Tab")
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(palette.primaryText)
-
-          Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 36)
-        .background(TerminalSidebarButtonBackground(fill: palette.rowFill))
+        Spacer(minLength: 0)
       }
-      .buttonStyle(TerminalSidebarRectButtonStyle())
+      .padding(.horizontal, 10)
+      .frame(height: 36)
+      .background(TerminalSidebarButtonBackground(fill: palette.rowFill))
     }
+    .buttonStyle(TerminalSidebarRectButtonStyle())
   }
 }
 
