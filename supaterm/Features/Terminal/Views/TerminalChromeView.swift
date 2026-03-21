@@ -214,35 +214,37 @@ private enum TrafficLight: CaseIterable {
 }
 
 struct WindowChromeConfigurator: NSViewRepresentable {
-  func makeNSView(context: Context) -> NSView {
-    NSView()
+  func makeNSView(context: Context) -> WindowChromeConfiguratorView {
+    WindowChromeConfiguratorView()
   }
 
-  func updateNSView(_ nsView: NSView, context: Context) {
-    DispatchQueue.main.async {
-      guard let window = nsView.window else { return }
+  func updateNSView(_ nsView: WindowChromeConfiguratorView, context: Context) {
+    nsView.applyWindowChrome()
+  }
+}
 
-      window.titleVisibility = .hidden
-      window.titlebarAppearsTransparent = true
-      window.titlebarSeparatorStyle = .none
-      window.toolbar = nil
-      window.isMovableByWindowBackground = true
-      window.standardWindowButton(.closeButton)?.isHidden = true
-      window.standardWindowButton(.miniaturizeButton)?.isHidden = true
-      window.standardWindowButton(.zoomButton)?.isHidden = true
+enum WindowChromeConfiguration {
+  static func apply(to window: NSWindow) {
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.titlebarSeparatorStyle = .none
+    window.toolbar = nil
+    window.isMovableByWindowBackground = true
+    window.standardWindowButton(.closeButton)?.isHidden = true
+    window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+    window.standardWindowButton(.zoomButton)?.isHidden = true
 
-      if let themeFrame = window.contentView?.superview,
-        let titlebarContainer = firstDescendant(
-          named: "NSTitlebarContainerView",
-          in: themeFrame
-        )
-      {
-        titlebarContainer.isHidden = true
-      }
+    if let themeFrame = window.contentView?.superview,
+      let titlebarContainer = firstDescendant(
+        named: "NSTitlebarContainerView",
+        in: themeFrame
+      )
+    {
+      titlebarContainer.isHidden = true
     }
   }
 
-  private func firstDescendant(named className: String, in view: NSView) -> NSView? {
+  private static func firstDescendant(named className: String, in view: NSView) -> NSView? {
     for subview in view.subviews {
       if String(describing: type(of: subview)) == className {
         return subview
@@ -252,6 +254,44 @@ struct WindowChromeConfigurator: NSViewRepresentable {
       }
     }
     return nil
+  }
+}
+
+final class WindowChromeConfiguratorView: NSView {
+  private let maxDeferredApplyCount = 2
+  private var configuredWindowID: ObjectIdentifier?
+  private var remainingDeferredApplies = 0
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    guard let window else {
+      configuredWindowID = nil
+      remainingDeferredApplies = 0
+      return
+    }
+    let windowID = ObjectIdentifier(window)
+    if configuredWindowID != windowID {
+      configuredWindowID = windowID
+      remainingDeferredApplies = maxDeferredApplyCount
+    }
+    applyWindowChrome()
+  }
+
+  func applyWindowChrome() {
+    guard let window else { return }
+    WindowChromeConfiguration.apply(to: window)
+    scheduleDeferredApply(for: window)
+  }
+
+  private func scheduleDeferredApply(for window: NSWindow) {
+    guard remainingDeferredApplies > 0 else { return }
+    let windowID = ObjectIdentifier(window)
+    remainingDeferredApplies -= 1
+    DispatchQueue.main.async { [weak self] in
+      guard let self, let window = self.window, ObjectIdentifier(window) == windowID else { return }
+      WindowChromeConfiguration.apply(to: window)
+      self.scheduleDeferredApply(for: window)
+    }
   }
 }
 
