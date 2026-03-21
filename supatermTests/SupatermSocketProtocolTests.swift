@@ -125,6 +125,102 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func debugRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "20D1A721-EA1E-44FB-B46D-29FBF240D4CB")!,
+      tabID: UUID(uuidString: "9C643643-2288-42E1-88C1-79AFEF4D40CA")!
+    )
+    let pane = SupatermAppDebugSnapshot.Pane(
+      index: 1,
+      id: context.surfaceID,
+      isFocused: true,
+      displayTitle: "zsh",
+      pwd: "/tmp",
+      isReadOnly: false,
+      hasSecureInput: false,
+      bellCount: 0,
+      isRunning: true,
+      progressState: "indeterminate",
+      progressValue: nil,
+      needsCloseConfirmation: true,
+      lastCommandExitCode: 0,
+      lastCommandDurationMs: 120,
+      lastChildExitCode: nil,
+      lastChildExitTimeMs: nil
+    )
+    let tab = SupatermAppDebugSnapshot.Tab(
+      index: 1,
+      id: context.tabID,
+      title: "zsh",
+      isSelected: true,
+      isPinned: false,
+      isDirty: true,
+      isTitleLocked: false,
+      hasRunningActivity: true,
+      hasBell: false,
+      hasReadOnly: false,
+      hasSecureInput: false,
+      panes: [pane]
+    )
+    let workspace = SupatermAppDebugSnapshot.Workspace(
+      index: 1,
+      id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
+      name: "A",
+      isSelected: true,
+      tabs: [tab]
+    )
+    let window = SupatermAppDebugSnapshot.Window(
+      index: 1,
+      isKey: true,
+      isVisible: true,
+      workspaces: [workspace]
+    )
+    let snapshot = SupatermAppDebugSnapshot(
+      build: .init(
+        version: "1.2.3",
+        buildNumber: "45",
+        isDevelopmentBuild: true,
+        usesStubUpdateChecks: true
+      ),
+      update: .init(
+        canCheckForUpdates: true,
+        phase: "checking",
+        detail: "Please wait while Supaterm checks for available updates."
+      ),
+      summary: .init(
+        windowCount: 1,
+        workspaceCount: 1,
+        tabCount: 1,
+        paneCount: 1,
+        keyWindowIndex: 1
+      ),
+      currentTarget: .init(
+        windowIndex: 1,
+        workspaceIndex: 1,
+        workspaceID: workspace.id,
+        workspaceName: workspace.name,
+        tabIndex: 1,
+        tabID: context.tabID,
+        tabTitle: tab.title,
+        paneIndex: 1,
+        paneID: context.surfaceID
+      ),
+      windows: [window],
+      problems: []
+    )
+
+    let request = try SupatermSocketRequest.debug(
+      .init(context: context),
+      id: "debug-1"
+    )
+    let response = try SupatermSocketResponse.ok(id: "debug-1", encodableResult: snapshot)
+
+    #expect(request.method == SupatermSocketMethod.appDebug)
+    #expect(try request.decodeParams(SupatermDebugRequest.self) == .init(context: context))
+    #expect(try response.decodeResult(SupatermAppDebugSnapshot.self) == snapshot)
+  }
+
+  @Test
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewPaneRequest(
       command: "pwd",

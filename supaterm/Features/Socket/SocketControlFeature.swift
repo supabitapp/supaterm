@@ -98,6 +98,11 @@ struct SocketControlFeature {
         }
         return try .ok(id: request.id, encodableResult: snapshot)
 
+      case SupatermSocketMethod.appDebug:
+        let payload = try request.decodeParams(SupatermDebugRequest.self)
+        let snapshot = await terminalWindowsClient.debugSnapshot(payload)
+        return try .ok(id: request.id, encodableResult: snapshot)
+
       case SupatermSocketMethod.appTree:
         let snapshot = await terminalWindowsClient.treeSnapshot()
         return try .ok(id: request.id, encodableResult: snapshot)

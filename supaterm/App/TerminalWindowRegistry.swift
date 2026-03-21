@@ -71,6 +71,51 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func debugSnapshot(_ request: SupatermDebugRequest) -> SupatermAppDebugSnapshot {
+    let activeEntries = activeEntries()
+    let windows = activeEntries.enumerated().map { offset, entry in
+      entry.terminal.debugWindowSnapshot(index: offset + 1)
+    }
+    let resolution = SupatermDebugSnapshotResolver.resolve(
+      windows: windows,
+      context: request.context
+    )
+    let updateEntry =
+      activeEntries.first(where: { $0.terminal.windowActivity.isKeyWindow })
+      ?? activeEntries.first
+    var problems = resolution.problems
+    if windows.isEmpty {
+      problems.append("No active windows.")
+    }
+
+    return .init(
+      build: .init(
+        version: AppBuild.version,
+        buildNumber: AppBuild.buildNumber,
+        isDevelopmentBuild: AppBuild.isDevelopmentBuild,
+        usesStubUpdateChecks: AppBuild.usesStubUpdateChecks
+      ),
+      update: updateSnapshot(updateEntry?.store.update),
+      summary: .init(
+        windowCount: windows.count,
+        workspaceCount: windows.reduce(0) { $0 + $1.workspaces.count },
+        tabCount: windows.reduce(0) { partial, window in
+          partial + window.workspaces.reduce(0) { $0 + $1.tabs.count }
+        },
+        paneCount: windows.reduce(0) { partial, window in
+          partial
+            + window.workspaces.reduce(0) { workspacePartial, workspace in
+              workspacePartial + workspace.tabs.reduce(0) { $0 + $1.panes.count }
+            }
+        },
+        keyWindowIndex: windows.first(where: \.isKey)?.index
+      ),
+      currentTarget: resolution.currentTarget,
+      windows: windows,
+      problems: problems
+    )
+  }
+
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     switch request.target {
     case .contextPane:
@@ -138,5 +183,43 @@ final class TerminalWindowRegistry {
       tabIndex: result.tabIndex,
       windowIndex: windowIndex
     )
+  }
+
+  private func updateSnapshot(_ state: UpdateFeature.State?) -> SupatermAppDebugSnapshot.Update {
+    guard let state else {
+      return .init(
+        canCheckForUpdates: false,
+        phase: "idle",
+        detail: ""
+      )
+    }
+    return .init(
+      canCheckForUpdates: state.canCheckForUpdates,
+      phase: updatePhaseDescription(state.phase),
+      detail: state.phase.detailMessage
+    )
+  }
+
+  private func updatePhaseDescription(_ phase: UpdatePhase) -> String {
+    switch phase {
+    case .idle:
+      return "idle"
+    case .permissionRequest:
+      return "permission_request"
+    case .checking:
+      return "checking"
+    case .updateAvailable:
+      return "update_available"
+    case .downloading:
+      return "downloading"
+    case .extracting:
+      return "extracting"
+    case .installing:
+      return "installing"
+    case .notFound:
+      return "not_found"
+    case .error:
+      return "error"
+    }
   }
 }

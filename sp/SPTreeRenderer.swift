@@ -97,3 +97,252 @@ enum SPTreeRenderer {
     return "pane \(pane.index) [\(labels.joined(separator: ", "))]"
   }
 }
+
+struct SPDebugReport: Encodable {
+  struct Invocation: Encodable {
+    let isRunningInsideSupaterm: Bool
+    let context: SupatermCLIContext?
+    let resolvedSocketPath: String?
+  }
+
+  struct Socket: Encodable {
+    var path: String?
+    var isReachable: Bool
+    var requestSucceeded: Bool
+    var error: String?
+  }
+
+  let invocation: Invocation
+  let socket: Socket
+  let app: SupatermAppDebugSnapshot?
+  let problems: [String]
+}
+
+enum SPDebugRenderer {
+  static func render(_ report: SPDebugReport) -> String {
+    var lines = section(
+      "Invocation",
+      [
+        "inside Supaterm: \(yesNo(report.invocation.isRunningInsideSupaterm))",
+        "surface: \(report.invocation.context?.surfaceID.uuidString ?? "none")",
+        "tab: \(report.invocation.context?.tabID.uuidString ?? "none")",
+        "resolved socket path: \(report.invocation.resolvedSocketPath ?? "none")",
+      ]
+    )
+
+    lines.append("")
+    lines.append(contentsOf: section(
+      "Socket",
+      [
+        "path: \(report.socket.path ?? "none")",
+        "reachable: \(yesNo(report.socket.isReachable))",
+        "request succeeded: \(yesNo(report.socket.requestSucceeded))",
+        "error: \(report.socket.error ?? "none")",
+      ]
+    ))
+
+    if let app = report.app {
+      lines.append("")
+      lines.append(contentsOf: section(
+        "App",
+        [
+          "version: \(app.build.version.isEmpty ? "unknown" : app.build.version)",
+          "build: \(app.build.buildNumber.isEmpty ? "unknown" : app.build.buildNumber)",
+          "development build: \(yesNo(app.build.isDevelopmentBuild))",
+          "stub update checks: \(yesNo(app.build.usesStubUpdateChecks))",
+        ]
+      ))
+
+      lines.append("")
+      lines.append(contentsOf: section(
+        "Windows",
+        [
+          "window count: \(app.summary.windowCount)",
+          "workspace count: \(app.summary.workspaceCount)",
+          "tab count: \(app.summary.tabCount)",
+          "pane count: \(app.summary.paneCount)",
+          "key window: \(app.summary.keyWindowIndex.map(String.init) ?? "none")",
+        ]
+      ))
+
+      lines.append("")
+      lines.append(contentsOf: currentTargetSection(app))
+
+      if let currentTab = currentTab(in: app) {
+        lines.append("")
+        lines.append(contentsOf: section(
+          "Current Tab",
+          [
+            "title: \(currentTab.title)",
+            "selected: \(yesNo(currentTab.isSelected))",
+            "pinned: \(yesNo(currentTab.isPinned))",
+            "dirty: \(yesNo(currentTab.isDirty))",
+            "title locked: \(yesNo(currentTab.isTitleLocked))",
+            "running: \(yesNo(currentTab.hasRunningActivity))",
+            "bell: \(yesNo(currentTab.hasBell))",
+            "read only: \(yesNo(currentTab.hasReadOnly))",
+            "secure input: \(yesNo(currentTab.hasSecureInput))",
+          ]
+        ))
+      }
+
+      if let currentPane = currentPane(in: app) {
+        lines.append("")
+        lines.append(contentsOf: section(
+          "Current Pane",
+          [
+            "title: \(currentPane.displayTitle)",
+            "pwd: \(currentPane.pwd ?? "none")",
+            "focused: \(yesNo(currentPane.isFocused))",
+            "read only: \(yesNo(currentPane.isReadOnly))",
+            "secure input: \(yesNo(currentPane.hasSecureInput))",
+            "bell count: \(currentPane.bellCount)",
+            "running: \(yesNo(currentPane.isRunning))",
+            "progress: \(progressDescription(currentPane))",
+            "close confirmation: \(yesNo(currentPane.needsCloseConfirmation))",
+            "last command exit: \(value(currentPane.lastCommandExitCode))",
+            "last command duration ms: \(value(currentPane.lastCommandDurationMs))",
+            "last child exit: \(value(currentPane.lastChildExitCode))",
+            "last child exit time ms: \(value(currentPane.lastChildExitTimeMs))",
+          ]
+        ))
+      }
+
+      lines.append("")
+      lines.append(contentsOf: section(
+        "Update",
+        [
+          "can check for updates: \(yesNo(app.update.canCheckForUpdates))",
+          "phase: \(app.update.phase)",
+          "detail: \(app.update.detail.isEmpty ? "none" : app.update.detail)",
+        ]
+      ))
+
+      lines.append("")
+      lines.append("Topology")
+      lines.append(SPTreeRenderer.render(app.treeSnapshot))
+    }
+
+    let allProblems = report.problems + (report.app?.problems ?? [])
+    if !allProblems.isEmpty {
+      lines.append("")
+      lines.append("Problems")
+      lines.append(contentsOf: allProblems.map { "- \($0)" })
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  private static func currentTargetSection(_ app: SupatermAppDebugSnapshot) -> [String] {
+    guard let currentTarget = app.currentTarget else {
+      return section(
+        "Current Target",
+        ["unresolved"]
+      )
+    }
+
+    return section(
+      "Current Target",
+      [
+        "window: \(currentTarget.windowIndex)",
+        "workspace: \(currentTarget.workspaceIndex) \"\(currentTarget.workspaceName)\"",
+        "tab: \(currentTarget.tabIndex) \"\(currentTarget.tabTitle)\"",
+        "pane: \(currentTarget.paneIndex.map(String.init) ?? "none")",
+      ]
+    )
+  }
+
+  private static func currentTab(
+    in app: SupatermAppDebugSnapshot
+  ) -> SupatermAppDebugSnapshot.Tab? {
+    guard let currentTarget = app.currentTarget else { return nil }
+
+    for window in app.windows {
+      for workspace in window.workspaces {
+        if let tab = workspace.tabs.first(where: { $0.id == currentTarget.tabID }) {
+          return tab
+        }
+      }
+    }
+
+    return nil
+  }
+
+  private static func currentPane(
+    in app: SupatermAppDebugSnapshot
+  ) -> SupatermAppDebugSnapshot.Pane? {
+    guard let paneID = app.currentTarget?.paneID else { return nil }
+
+    for window in app.windows {
+      for workspace in window.workspaces {
+        for tab in workspace.tabs {
+          if let pane = tab.panes.first(where: { $0.id == paneID }) {
+            return pane
+          }
+        }
+      }
+    }
+
+    return nil
+  }
+
+  private static func progressDescription(
+    _ pane: SupatermAppDebugSnapshot.Pane
+  ) -> String {
+    guard let progressState = pane.progressState else {
+      return "none"
+    }
+    guard let progressValue = pane.progressValue else {
+      return progressState
+    }
+    return "\(progressState) \(progressValue)"
+  }
+
+  private static func section(
+    _ title: String,
+    _ rows: [String]
+  ) -> [String] {
+    [title] + rows
+  }
+
+  private static func yesNo(_ value: Bool) -> String {
+    value ? "yes" : "no"
+  }
+
+  private static func value<T: CustomStringConvertible>(_ value: T?) -> String {
+    value?.description ?? "none"
+  }
+}
+
+private extension SupatermAppDebugSnapshot {
+  var treeSnapshot: SupatermTreeSnapshot {
+    .init(
+      windows: windows.map { window in
+        .init(
+          index: window.index,
+          isKey: window.isKey,
+          workspaces: window.workspaces.map { workspace in
+            .init(
+              index: workspace.index,
+              name: workspace.name,
+              isSelected: workspace.isSelected,
+              tabs: workspace.tabs.map { tab in
+                .init(
+                  index: tab.index,
+                  title: tab.title,
+                  isSelected: tab.isSelected,
+                  panes: tab.panes.map { pane in
+                    .init(
+                      index: pane.index,
+                      isFocused: pane.isFocused
+                    )
+                  }
+                )
+              }
+            )
+          }
+        )
+      }
+    )
+  }
+}
