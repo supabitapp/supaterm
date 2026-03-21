@@ -1,0 +1,138 @@
+import CoreGraphics
+import Testing
+
+@testable import supaterm
+
+struct TerminalSidebarLayoutTests {
+  @Test
+  func workspaceBarLayoutUsesNormalModeWhenWidthFitsBadges() {
+    #expect(
+      TerminalSidebarWorkspaceBarLayoutMode.determine(
+        workspaceCount: 3,
+        availableWidth: 104
+      ) == .normal
+    )
+  }
+
+  @Test
+  func workspaceBarLayoutUsesCompactModeWhenWidthIsTight() {
+    #expect(
+      TerminalSidebarWorkspaceBarLayoutMode.determine(
+        workspaceCount: 3,
+        availableWidth: 103
+      ) == .compact
+    )
+  }
+
+  @Test
+  func workspaceMonogramUsesFirstNonWhitespaceCharacter() {
+    #expect(
+      TerminalSidebarLayout.workspaceMonogram(
+        for: "  shell",
+        fallbackIndex: 2
+      ) == "S"
+    )
+  }
+
+  @Test
+  func workspaceMonogramFallsBackToOrdinalForBlankName() {
+    #expect(
+      TerminalSidebarLayout.workspaceMonogram(
+        for: "   ",
+        fallbackIndex: 2
+      ) == "3"
+    )
+  }
+
+  @Test
+  func reorderedIDsMovesItemForward() {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let third = TerminalTabID()
+
+    let reordered = TerminalSidebarLayout.reorderedIDs(
+      [first, second, third],
+      movingFrom: 0,
+      to: 2
+    )
+
+    #expect(reordered == [second, third, first])
+  }
+
+  @Test
+  func reorderedIDsMovesItemBackward() {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let third = TerminalTabID()
+
+    let reordered = TerminalSidebarLayout.reorderedIDs(
+      [first, second, third],
+      movingFrom: 2,
+      to: 0
+    )
+
+    #expect(reordered == [third, first, second])
+  }
+
+  @Test
+  func reorderOffsetShiftsRowsBetweenSourceAndDestination() {
+    #expect(
+      TerminalSidebarLayout.reorderOffset(
+        for: 2,
+        sourceIndex: 1,
+        destinationIndex: 3,
+        rowHeight: 36,
+        spacing: 2
+      ) == -38
+    )
+    #expect(
+      TerminalSidebarLayout.reorderOffset(
+        for: 3,
+        sourceIndex: 1,
+        destinationIndex: 3,
+        rowHeight: 36,
+        spacing: 2
+      ) == -38
+    )
+    #expect(
+      TerminalSidebarLayout.reorderOffset(
+        for: 0,
+        sourceIndex: 1,
+        destinationIndex: 3,
+        rowHeight: 36,
+        spacing: 2
+      ) == 0
+    )
+  }
+
+  @Test
+  func scrollIndicatorsReflectOverflowAndSelectedTabPosition() {
+    #expect(TerminalSidebarLayout.showsTopIndicator(scrollOffset: 1))
+    #expect(!TerminalSidebarLayout.showsTopIndicator(scrollOffset: 0))
+
+    #expect(
+      TerminalSidebarLayout.showsBottomIndicator(
+        scrollOffset: 0,
+        viewportHeight: 200,
+        contentHeight: 260,
+        selectedFrame: nil
+      )
+    )
+    #expect(
+      TerminalSidebarLayout.showsBottomIndicator(
+        scrollOffset: 0,
+        viewportHeight: 200,
+        contentHeight: 180,
+        selectedFrame: CGRect(x: 0, y: 240, width: 100, height: 36)
+      )
+    )
+    #expect(
+      !TerminalSidebarLayout.showsBottomIndicator(
+        scrollOffset: 40,
+        viewportHeight: 200,
+        contentHeight: 220,
+        selectedFrame: CGRect(x: 0, y: 120, width: 100, height: 36)
+      )
+    )
+  }
+}

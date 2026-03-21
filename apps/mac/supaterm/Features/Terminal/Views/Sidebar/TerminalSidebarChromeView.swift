@@ -1,0 +1,718 @@
+import ComposableArchitecture
+import SwiftUI
+
+private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
+private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
+private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
+
+private struct TerminalSidebarTabFramePreferenceKey: PreferenceKey {
+  static let defaultValue: [TerminalTabID: CGRect] = [:]
+
+  static func reduce(
+    value: inout [TerminalTabID: CGRect],
+    nextValue: () -> [TerminalTabID: CGRect]
+  ) {
+    value.merge(nextValue()) { $1 }
+  }
+}
+
+private struct TerminalSidebarScrollOffsetPreferenceKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+
+  static func reduce(
+    value: inout CGFloat,
+    nextValue: () -> CGFloat
+  ) {
+    value = nextValue()
+  }
+}
+
+private struct TerminalSidebarContentHeightKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+
+  static func reduce(
+    value: inout CGFloat,
+    nextValue: () -> CGFloat
+  ) {
+    value = nextValue()
+  }
+}
+
+struct TerminalSidebarChromeView: View {
+  let store: StoreOf<TerminalWindowFeature>
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+
+  @Environment(\.colorScheme) private var colorScheme
+  @StateObject private var dragSession = TerminalSidebarDragSession()
+  @State private var scrollOffset: CGFloat = 0
+  @State private var contentHeight: CGFloat = 0
+  @State private var tabFrames: [TerminalTabID: CGRect] = [:]
+
+  var body: some View {
+    VStack(spacing: 10) {
+      tabList
+      TerminalSidebarWorkspaceBar(
+        store: store,
+        palette: palette,
+        terminal: terminal
+      )
+    }
+    .padding(.horizontal, 8)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .onAppear {
+      dragSession.colorScheme = colorScheme
+    }
+    .onChange(of: colorScheme) { _, newValue in
+      dragSession.colorScheme = newValue
+    }
+    .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
+      handle(pendingReorder)
+    }
+  }
+
+  private var tabList: some View {
+    GeometryReader { geometry in
+      ScrollViewReader { proxy in
+        ZStack {
+          ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
+              Color.clear
+                .frame(height: 0)
+                .background {
+                  GeometryReader { geometry in
+                    Color.clear.preference(
+                      key: TerminalSidebarScrollOffsetPreferenceKey.self,
+                      value: max(0, -geometry.frame(in: .named(terminalSidebarScrollSpace)).minY)
+                    )
+                  }
+                }
+                .id(terminalSidebarScrollTopID)
+
+              pinnedSection
+
+              TerminalSidebarRegularSectionHeader(
+                palette: palette,
+                action: newTab
+              )
+
+              regularSection
+
+              Color.clear
+                .frame(height: 1)
+                .id(terminalSidebarScrollBottomID)
+            }
+            .background {
+              GeometryReader { geometry in
+                Color.clear.preference(
+                  key: TerminalSidebarContentHeightKey.self,
+                  value: geometry.size.height
+                )
+              }
+            }
+            .padding(.bottom, 8)
+          }
+          .coordinateSpace(name: terminalSidebarScrollSpace)
+          .onPreferenceChange(TerminalSidebarScrollOffsetPreferenceKey.self) { scrollOffset in
+            self.scrollOffset = scrollOffset
+          }
+          .onPreferenceChange(TerminalSidebarContentHeightKey.self) { contentHeight in
+            self.contentHeight = contentHeight
+          }
+          .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
+            self.tabFrames = tabFrames
+          }
+
+          if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
+            TerminalSidebarScrollIndicatorButton(
+              symbol: "chevron.up",
+              palette: palette
+            ) {
+              withAnimation(.easeInOut(duration: 0.3)) {
+                proxy.scrollTo(terminalSidebarScrollTopID, anchor: .top)
+              }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 4)
+          }
+
+          if TerminalSidebarLayout.showsBottomIndicator(
+            scrollOffset: scrollOffset,
+            viewportHeight: geometry.size.height,
+            contentHeight: contentHeight,
+            selectedFrame: selectedTabFrame
+          ) {
+            TerminalSidebarScrollIndicatorButton(
+              symbol: "chevron.down",
+              palette: palette
+            ) {
+              scrollToBottom(using: proxy)
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, 4)
+          }
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+
+  private var pinnedSection: some View {
+    TerminalSidebarDropZoneHostView(
+      zoneID: .pinned,
+      manager: dragSession
+    ) {
+      VStack(spacing: 2) {
+        ForEach(Array(terminal.pinnedTabs.enumerated()), id: \.element.id) { index, tab in
+          draggableRow(
+            tab: tab,
+            index: index,
+            zoneID: .pinned
+          )
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .onAppear {
+      updateDragMetrics(for: .pinned, count: terminal.pinnedTabs.count)
+    }
+    .onChange(of: terminal.pinnedTabs.count) { _, count in
+      updateDragMetrics(for: .pinned, count: count)
+    }
+  }
+
+  private var regularSection: some View {
+    TerminalSidebarDropZoneHostView(
+      zoneID: .regular,
+      manager: dragSession
+    ) {
+      VStack(spacing: 2) {
+        ForEach(Array(terminal.regularTabs.enumerated()), id: \.element.id) { index, tab in
+          draggableRow(
+            tab: tab,
+            index: index,
+            zoneID: .regular
+          )
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .onAppear {
+      updateDragMetrics(for: .regular, count: terminal.regularTabs.count)
+    }
+    .onChange(of: terminal.regularTabs.count) { _, count in
+      updateDragMetrics(for: .regular, count: count)
+    }
+  }
+
+  @ViewBuilder
+  private func draggableRow(
+    tab: TerminalTabItem,
+    index: Int,
+    zoneID: TerminalSidebarDropZoneID
+  ) -> some View {
+    TerminalSidebarDragSourceView(
+      item: TerminalSidebarDragItem(
+        tabID: tab.id,
+        title: tab.title
+      ),
+      tab: tab,
+      zoneID: zoneID,
+      index: index,
+      manager: dragSession
+    ) {
+      TerminalSidebarTabRow(
+        store: store,
+        terminal: terminal,
+        tab: tab,
+        palette: palette
+      )
+      .id(tab.id)
+      .background {
+        GeometryReader { geometry in
+          Color.clear.preference(
+            key: TerminalSidebarTabFramePreferenceKey.self,
+            value: [tab.id: geometry.frame(in: .named(terminalSidebarScrollSpace))]
+          )
+        }
+      }
+      .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
+      .offset(y: dragSession.reorderOffset(for: zoneID, at: index))
+      .animation(
+        .spring(response: 0.3, dampingFraction: 0.8),
+        value: dragSession.insertionIndex[zoneID]
+      )
+    }
+  }
+
+  private var selectedTabFrame: CGRect? {
+    guard let selectedTabID = terminal.selectedTabID else { return nil }
+    return tabFrames[selectedTabID]
+  }
+
+  private func newTab() {
+    withAnimation(.easeInOut(duration: 0.2)) {
+      _ = store.send(
+        .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+      )
+    }
+  }
+
+  private func scrollToBottom(
+    using proxy: ScrollViewProxy
+  ) {
+    withAnimation(.easeInOut(duration: 0.3)) {
+      if let selectedTabID = terminal.selectedTabID {
+        proxy.scrollTo(selectedTabID, anchor: .bottom)
+      } else {
+        proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
+      }
+    }
+  }
+
+  private func updateDragMetrics(
+    for zoneID: TerminalSidebarDropZoneID,
+    count: Int
+  ) {
+    dragSession.itemCounts[zoneID] = count
+    dragSession.rowHeight = 36
+    dragSession.rowSpacing = 2
+  }
+
+  private func handle(
+    _ pendingReorder: TerminalSidebarPendingReorder?
+  ) {
+    guard let pendingReorder else { return }
+
+    switch pendingReorder.zone {
+    case .pinned:
+      let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
+        terminal.pinnedTabs.map(\.id),
+        movingFrom: pendingReorder.fromIndex,
+        to: pendingReorder.toIndex
+      )
+      if reorderedIDs != terminal.pinnedTabs.map(\.id) {
+        _ = store.send(.pinnedTabOrderChanged(reorderedIDs))
+      }
+
+    case .regular:
+      let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
+        terminal.regularTabs.map(\.id),
+        movingFrom: pendingReorder.fromIndex,
+        to: pendingReorder.toIndex
+      )
+      if reorderedIDs != terminal.regularTabs.map(\.id) {
+        _ = store.send(.regularTabOrderChanged(reorderedIDs))
+      }
+    }
+
+    dragSession.pendingReorder = nil
+  }
+}
+
+private struct TerminalSidebarRegularSectionHeader: View {
+  let palette: TerminalPalette
+  let action: () -> Void
+
+  var body: some View {
+    VStack(spacing: 8) {
+      RoundedRectangle(cornerRadius: 100, style: .continuous)
+        .fill(palette.secondaryText.opacity(0.14))
+        .frame(height: 1)
+
+      Button(action: action) {
+        HStack(spacing: 8) {
+          Image(systemName: "plus")
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: 18, height: 18)
+            .foregroundStyle(palette.secondaryText)
+            .accessibilityHidden(true)
+
+          Text("New Tab")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(palette.primaryText)
+
+          Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(TerminalSidebarButtonBackground(fill: palette.rowFill))
+      }
+      .buttonStyle(TerminalSidebarRectButtonStyle())
+    }
+  }
+}
+
+struct TerminalSidebarTabRow: View {
+  let store: StoreOf<TerminalWindowFeature>
+  let terminal: TerminalHostState
+  let tab: TerminalTabItem
+  let palette: TerminalPalette
+
+  @State private var isHovering = false
+  @State private var isCloseHovering = false
+
+  private var isSelected: Bool {
+    terminal.selectedTabID == tab.id
+  }
+
+  var body: some View {
+    Button(action: select) {
+      HStack(spacing: 8) {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(palette.fill(for: tab.tone))
+          .frame(width: 18, height: 18)
+          .overlay {
+            Image(systemName: tab.symbol)
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+              .accessibilityHidden(true)
+          }
+
+        Text(tab.title)
+          .font(.system(size: 13, weight: .medium))
+          .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+          .lineLimit(1)
+          .truncationMode(.tail)
+
+        Spacer(minLength: 0)
+
+        if isHovering {
+          Button(action: close) {
+            Image(systemName: "xmark")
+              .font(.system(size: 12, weight: .heavy))
+              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+              .frame(width: 24, height: 24)
+              .accessibilityHidden(true)
+              .background(
+                isCloseHovering
+                  ? (isSelected ? palette.clearFill : palette.rowFill)
+                  : .clear,
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+              )
+          }
+          .buttonStyle(.plain)
+          .onHover { isCloseHovering = $0 }
+        }
+      }
+      .padding(.horizontal, 10)
+      .frame(height: 36)
+      .frame(maxWidth: .infinity)
+      .background(backgroundColor)
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
+      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+    .buttonStyle(.plain)
+    .onHover { isHovering in
+      withAnimation(.easeInOut(duration: 0.05)) {
+        self.isHovering = isHovering
+      }
+    }
+    .contextMenu {
+      Button {
+        _ = store.send(
+          .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+        )
+      } label: {
+        Label("New Tab", systemImage: "plus")
+      }
+
+      Divider()
+
+      Button {
+        _ = store.send(.togglePinned(tab.id))
+      } label: {
+        Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
+      }
+
+      Divider()
+
+      Button(role: .destructive) {
+        _ = store.send(.closeTabRequested(tab.id))
+      } label: {
+        Label("Close", systemImage: "xmark")
+      }
+    }
+  }
+
+  private var backgroundColor: Color {
+    if isSelected {
+      return palette.selectedFill
+    }
+    if isHovering {
+      return palette.rowFill
+    }
+    return .clear
+  }
+
+  private func select() {
+    _ = store.send(.tabSelected(tab.id))
+  }
+
+  private func close() {
+    withAnimation(.easeInOut(duration: 0.15)) {
+      _ = store.send(.closeTabRequested(tab.id))
+    }
+  }
+}
+
+private struct TerminalSidebarWorkspaceBar: View {
+  let store: StoreOf<TerminalWindowFeature>
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+
+  @State private var availableWidth: CGFloat = 0
+  @State private var hoveredWorkspaceID: TerminalWorkspaceID?
+  @State private var showPreview = false
+  @State private var isHoveringList = false
+
+  private var layoutMode: TerminalSidebarWorkspaceBarLayoutMode {
+    TerminalSidebarWorkspaceBarLayoutMode.determine(
+      workspaceCount: terminal.workspaces.count,
+      availableWidth: availableWidth
+    )
+  }
+
+  var body: some View {
+    HStack(alignment: .bottom, spacing: 10) {
+      workspaceList
+      Button {
+        _ = store.send(.workspaceCreateButtonTapped)
+      } label: {
+        Image(systemName: "plus")
+          .font(.system(size: 12, weight: .semibold))
+          .frame(width: 32, height: 32)
+      }
+      .buttonStyle(TerminalSidebarIconButtonStyle(fill: palette.rowFill))
+      .foregroundStyle(palette.primaryText)
+      .accessibilityLabel("Add workspace")
+    }
+    .frame(height: 32)
+  }
+
+  private var workspaceList: some View {
+    Color.clear
+      .overlay {
+        HStack(spacing: 0) {
+          ForEach(Array(terminal.workspaces.enumerated()), id: \.element.id) { index, workspace in
+            TerminalSidebarWorkspaceItemView(
+              workspace: workspace,
+              monogram: TerminalSidebarLayout.workspaceMonogram(
+                for: workspace.name,
+                fallbackIndex: index
+              ),
+              isSelected: terminal.selectedWorkspaceID == workspace.id,
+              compact: layoutMode == .compact,
+              palette: palette,
+              workspacesCount: terminal.workspaces.count,
+              onHoverChange: { isHovering in
+                if isHovering {
+                  hoveredWorkspaceID = workspace.id
+                  if !showPreview {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                      if hoveredWorkspaceID == workspace.id && isHoveringList {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                          showPreview = true
+                        }
+                      }
+                    }
+                  }
+                } else if hoveredWorkspaceID == workspace.id {
+                  hoveredWorkspaceID = nil
+                }
+              },
+              onSelect: {
+                withAnimation(.easeOut(duration: 0.1)) {
+                  _ = store.send(.selectWorkspaceButtonTapped(workspace.id))
+                }
+              },
+              onRename: {
+                _ = store.send(.workspaceRenameRequested(workspace))
+              },
+              onDelete: {
+                _ = store.send(.workspaceDeleteRequested(workspace))
+              }
+            )
+
+            if index != terminal.workspaces.count - 1 {
+              Spacer()
+                .frame(minWidth: 1, maxWidth: 8)
+                .layoutPriority(-1)
+            }
+          }
+        }
+        .onHover { hovering in
+          isHoveringList = hovering
+          if !hovering {
+            showPreview = false
+            hoveredWorkspaceID = nil
+          }
+        }
+        .overlay(alignment: .top) {
+          if showPreview,
+            let hoveredWorkspaceID,
+            hoveredWorkspaceID != terminal.selectedWorkspaceID,
+            let hoveredWorkspace = terminal.workspaces.first(where: { $0.id == hoveredWorkspaceID })
+          {
+            Text(hoveredWorkspace.name)
+              .font(.caption)
+              .foregroundStyle(palette.primaryText.opacity(0.7))
+              .lineLimit(1)
+              .id(hoveredWorkspace.id)
+              .transition(.opacity.combined(with: .scale(scale: 0.96)))
+              .offset(y: -20)
+          }
+        }
+      }
+      .background {
+        GeometryReader { geometry in
+          Color.clear
+            .task(id: geometry.size.width) {
+              availableWidth = geometry.size.width
+            }
+        }
+      }
+      .frame(maxWidth: .infinity)
+  }
+}
+
+private struct TerminalSidebarWorkspaceItemView: View {
+  let workspace: TerminalWorkspaceItem
+  let monogram: String
+  let isSelected: Bool
+  let compact: Bool
+  let palette: TerminalPalette
+  let workspacesCount: Int
+  let onHoverChange: (Bool) -> Void
+  let onSelect: () -> Void
+  let onRename: () -> Void
+  let onDelete: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: onSelect) {
+      Group {
+        if compact && !isSelected {
+          Circle()
+            .fill(palette.secondaryText.opacity(0.7))
+            .frame(width: 6, height: 6)
+            .frame(width: 32, height: 32)
+        } else {
+          Text(monogram)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .frame(width: 32, height: 32)
+            .background(
+              isSelected ? palette.selectedFill : .clear,
+              in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+        }
+      }
+      .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText.opacity(0.72))
+      .opacity(isSelected ? 1 : 0.8)
+    }
+    .buttonStyle(TerminalSidebarWorkspaceButtonStyle())
+    .onHover { hovering in
+      isHovering = hovering
+      onHoverChange(hovering)
+    }
+    .contextMenu {
+      Button {
+        onRename()
+      } label: {
+        Label("Rename Workspace", systemImage: "textformat")
+      }
+
+      Divider()
+
+      Button(role: .destructive) {
+        onDelete()
+      } label: {
+        Label("Delete Workspace", systemImage: "trash")
+      }
+      .disabled(workspacesCount <= 1)
+    }
+    .accessibilityLabel("Workspace \(workspace.name)")
+  }
+}
+
+private struct TerminalSidebarScrollIndicatorButton: View {
+  let symbol: String
+  let palette: TerminalPalette
+  let action: () -> Void
+
+  var body: some View {
+    HStack {
+      RoundedRectangle(cornerRadius: 100, style: .continuous)
+        .fill(palette.secondaryText.opacity(0.14))
+        .frame(height: 1)
+
+      Button(action: action) {
+        Image(systemName: symbol)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.secondaryText)
+          .frame(width: 24, height: 24)
+          .background(palette.detailBackground.opacity(0.92), in: Circle())
+          .accessibilityHidden(true)
+          .overlay {
+            Circle()
+              .stroke(palette.selectionStroke.opacity(0.45), lineWidth: 1)
+          }
+      }
+      .buttonStyle(.plain)
+    }
+    .padding(.horizontal, 8)
+  }
+}
+
+private struct TerminalSidebarRectButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .contentShape(.rect)
+      .scaleEffect(configuration.isPressed ? 0.98 : 1)
+      .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+  }
+}
+
+private struct TerminalSidebarIconButtonStyle: ButtonStyle {
+  let fill: Color
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .background(
+        fill.opacity(configuration.isPressed ? 1 : 0),
+        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+      )
+      .contentShape(.rect)
+      .scaleEffect(configuration.isPressed ? 0.95 : 1)
+      .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+  }
+}
+
+private struct TerminalSidebarWorkspaceButtonStyle: ButtonStyle {
+  @State private var isHovering = false
+
+  func makeBody(configuration: Configuration) -> some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 8, style: .continuous)
+        .fill(Color.primary.opacity((isHovering || configuration.isPressed) ? 0.08 : 0))
+
+      configuration.label
+    }
+    .contentShape(.rect)
+    .scaleEffect(configuration.isPressed ? 0.95 : 1)
+    .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    .animation(.easeInOut(duration: 0.15), value: isHovering)
+    .onHover { isHovering = $0 }
+  }
+}
+
+private struct TerminalSidebarButtonBackground: View {
+  let fill: Color
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 12, style: .continuous)
+      .fill(fill.opacity(0))
+  }
+}
