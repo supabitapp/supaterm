@@ -51,8 +51,9 @@ struct TerminalSplitMetricsTests {
   @Test
   func sidebarWidthAndHandleOffsetTrackFraction() {
     let width = TerminalSplitMetrics.sidebarWidth(for: 1_200, fraction: 0.25)
+    let handleOffset = TerminalSplitMetrics.resizeHandleOffset(for: width)
 
     #expect(width == 300)
-    #expect(TerminalSplitMetrics.resizeHandleOffset(for: width) == 293)
+    #expect(handleOffset + (TerminalSplitMetrics.resizeHandleWidth / 2) == width)
   }
 }
