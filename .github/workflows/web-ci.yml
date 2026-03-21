@@ -1,0 +1,60 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "package.json"
+      - "bunfig.toml"
+      - "turbo.json"
+      - "Dockerfile"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/**"
+      - "package.json"
+      - "bunfig.toml"
+      - "turbo.json"
+      - "Dockerfile"
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: typecheck
+            command: mise exec -- bunx turbo run typecheck:tsgo
+          - task: lint
+            command: mise exec -- bunx turbo run lint
+          - task: build
+            command: mise exec -- bash -c "cd packages/web && bunx vite build"
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-web
+      - name: ${{ matrix.task }}
+        run: ${{ matrix.command }}
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
