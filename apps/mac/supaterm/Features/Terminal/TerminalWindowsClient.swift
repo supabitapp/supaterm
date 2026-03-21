@@ -2,6 +2,8 @@ import ComposableArchitecture
 import SupatermCLIShared
 
 struct TerminalWindowsClient: Sendable {
+  var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
+  var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var onboardingSnapshot: @MainActor @Sendable () async -> SupatermOnboardingSnapshot?
   var debugSnapshot: @MainActor @Sendable (SupatermDebugRequest) async -> SupatermAppDebugSnapshot
@@ -9,6 +11,12 @@ struct TerminalWindowsClient: Sendable {
 
   static func live(registry: TerminalWindowRegistry) -> Self {
     Self(
+      closeWindow: { windowID in
+        registry.closeWindow(windowID)
+      },
+      closeWindows: { windowIDs in
+        registry.closeWindows(windowIDs)
+      },
       createPane: { request in
         try registry.createPane(request)
       },
@@ -27,6 +35,8 @@ struct TerminalWindowsClient: Sendable {
 
 extension TerminalWindowsClient: DependencyKey {
   static let liveValue = Self(
+    closeWindow: { _ in },
+    closeWindows: { _ in },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -36,6 +46,8 @@ extension TerminalWindowsClient: DependencyKey {
   )
 
   static let testValue = Self(
+    closeWindow: { _ in },
+    closeWindows: { _ in },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },

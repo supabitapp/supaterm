@@ -26,7 +26,8 @@ struct TerminalWindowRegistryTests {
         keyboardShortcut: { _ in nil },
         sceneID: sceneID,
         store: store,
-        terminal: host
+        terminal: host,
+        requestConfirmedWindowClose: {}
       )
       registry.updateWindow(makeWindow(), for: sceneID)
 
@@ -64,7 +65,8 @@ struct TerminalWindowRegistryTests {
         keyboardShortcut: { _ in nil },
         sceneID: sceneID,
         store: store,
-        terminal: host
+        terminal: host,
+        requestConfirmedWindowClose: {}
       )
       registry.updateWindow(makeWindow(), for: sceneID)
 
@@ -94,7 +96,8 @@ struct TerminalWindowRegistryTests {
         keyboardShortcut: { _ in nil },
         sceneID: sceneID,
         store: store,
-        terminal: host
+        terminal: host,
+        requestConfirmedWindowClose: {}
       )
       registry.updateWindow(makeWindow(), for: sceneID)
 
@@ -106,23 +109,22 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func closeAllWindowsPlanUsesSingleConfirmationWindow() {
+  func closeAllWindowsPlanRequestsConfirmationOnce() {
     let confirmWindow = makeWindow()
     let secondWindow = makeWindow()
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        .init(window: confirmWindow, needsConfirmation: true),
-        .init(window: secondWindow, needsConfirmation: false),
+        .init(windowID: ObjectIdentifier(confirmWindow), needsConfirmation: true),
+        .init(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
       ]
     )
 
     switch plan {
-    case .confirm(let plannedConfirmWindow, let windows):
-      #expect(plannedConfirmWindow === confirmWindow)
-      #expect(windows.count == 2)
-      #expect(windows[0] === confirmWindow)
-      #expect(windows[1] === secondWindow)
+    case .confirm(let windowIDs):
+      #expect(windowIDs.count == 2)
+      #expect(windowIDs[0] == ObjectIdentifier(confirmWindow))
+      #expect(windowIDs[1] == ObjectIdentifier(secondWindow))
     default:
       Issue.record("Expected confirm plan")
     }
@@ -135,16 +137,16 @@ struct TerminalWindowRegistryTests {
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        .init(window: firstWindow, needsConfirmation: false),
-        .init(window: secondWindow, needsConfirmation: false),
+        .init(windowID: ObjectIdentifier(firstWindow), needsConfirmation: false),
+        .init(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
       ]
     )
 
     switch plan {
-    case .closeImmediately(let windows):
-      #expect(windows.count == 2)
-      #expect(windows[0] === firstWindow)
-      #expect(windows[1] === secondWindow)
+    case .closeImmediately(let windowIDs):
+      #expect(windowIDs.count == 2)
+      #expect(windowIDs[0] == ObjectIdentifier(firstWindow))
+      #expect(windowIDs[1] == ObjectIdentifier(secondWindow))
     default:
       Issue.record("Expected immediate close plan")
     }

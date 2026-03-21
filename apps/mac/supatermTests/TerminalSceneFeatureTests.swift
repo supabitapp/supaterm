@@ -212,7 +212,12 @@ struct TerminalSceneFeatureTests {
   func quitConfirmationCancelRepliesFalse() async {
     var terminationReplies: [Bool] = []
     var initialState = TerminalSceneFeature.State()
-    initialState.isQuitConfirmationPresented = true
+    initialState.confirmationRequest = .init(
+      target: .quit,
+      title: "Quit Supaterm?",
+      message: "Are you sure you want to quit?",
+      confirmTitle: "Quit"
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalSceneFeature()
@@ -222,8 +227,8 @@ struct TerminalSceneFeatureTests {
       }
     }
 
-    await store.send(TerminalSceneFeature.Action.quitConfirmationCancelButtonTapped) {
-      $0.isQuitConfirmationPresented = false
+    await store.send(TerminalSceneFeature.Action.confirmationCancelButtonTapped) {
+      $0.confirmationRequest = nil
     }
 
     #expect(terminationReplies == [false])
@@ -233,7 +238,12 @@ struct TerminalSceneFeatureTests {
   func quitConfirmationConfirmRepliesTrue() async {
     var terminationReplies: [Bool] = []
     var initialState = TerminalSceneFeature.State()
-    initialState.isQuitConfirmationPresented = true
+    initialState.confirmationRequest = .init(
+      target: .quit,
+      title: "Quit Supaterm?",
+      message: "Are you sure you want to quit?",
+      confirmTitle: "Quit"
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalSceneFeature()
@@ -243,11 +253,59 @@ struct TerminalSceneFeatureTests {
       }
     }
 
-    await store.send(TerminalSceneFeature.Action.quitConfirmationConfirmButtonTapped) {
-      $0.isQuitConfirmationPresented = false
+    await store.send(TerminalSceneFeature.Action.confirmationConfirmButtonTapped) {
+      $0.confirmationRequest = nil
     }
 
     #expect(terminationReplies == [true])
+  }
+
+  @Test
+  func windowCloseRequestedPresentsStyledConfirmation() async {
+    let windowID = ObjectIdentifier(NSObject())
+    var initialState = TerminalSceneFeature.State()
+    initialState.windowID = windowID
+
+    let store = TestStore(initialState: initialState) {
+      TerminalSceneFeature()
+    }
+
+    await store.send(.windowCloseRequested(windowID: windowID)) {
+      $0.confirmationRequest = .init(
+        target: .closeWindow(windowID),
+        title: "Close Window?",
+        message: "A process is still running in this window. Close it anyway?",
+        confirmTitle: "Close"
+      )
+    }
+  }
+
+  @Test
+  func closeAllWindowsConfirmationClosesProvidedWindowIDs() async {
+    let firstWindowID = ObjectIdentifier(NSObject())
+    let secondWindowID = ObjectIdentifier(NSObject())
+    var closedWindowIDs: [[ObjectIdentifier]] = []
+    var initialState = TerminalSceneFeature.State()
+    initialState.confirmationRequest = .init(
+      target: .closeAllWindows([firstWindowID, secondWindowID]),
+      title: "Close All Windows?",
+      message: "All terminal sessions will be terminated.",
+      confirmTitle: "Close All Windows"
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalSceneFeature()
+    } withDependencies: {
+      $0.terminalWindowsClient.closeWindows = { windowIDs in
+        closedWindowIDs.append(windowIDs)
+      }
+    }
+
+    await store.send(.confirmationConfirmButtonTapped) {
+      $0.confirmationRequest = nil
+    }
+
+    #expect(closedWindowIDs == [[firstWindowID, secondWindowID]])
   }
 
   @Test

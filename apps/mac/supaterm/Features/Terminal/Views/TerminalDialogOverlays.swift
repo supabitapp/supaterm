@@ -1,8 +1,11 @@
 import AppKit
 import SwiftUI
 
-struct QuitConfirmationOverlay: View {
+struct TerminalConfirmationOverlay: View {
   let palette: TerminalPalette
+  let title: String
+  let message: String
+  let confirmTitle: String
   let onConfirm: () -> Void
   let onCancel: () -> Void
 
@@ -18,18 +21,18 @@ struct QuitConfirmationOverlay: View {
           .ignoresSafeArea()
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Cancel quit confirmation")
+      .accessibilityLabel("Cancel confirmation")
 
       VStack(alignment: .leading, spacing: 0) {
         VStack(alignment: .leading, spacing: 0) {
-          QuitConfirmationIcon()
+          TerminalConfirmationIcon()
             .padding(.bottom, 16)
 
-          Text("Quit Supaterm?")
+          Text(title)
             .font(.system(size: 22, weight: .semibold))
             .foregroundStyle(palette.primaryText)
 
-          Text("Are you sure you want to quit?")
+          Text(message)
             .font(.system(size: 13))
             .foregroundStyle(palette.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
@@ -49,7 +52,7 @@ struct QuitConfirmationOverlay: View {
 
             DialogActionButton(
               palette: palette,
-              title: "Quit",
+              title: confirmTitle,
               style: .destructive,
               shortcut: .symbol("return"),
               action: onConfirm
@@ -74,7 +77,7 @@ struct QuitConfirmationOverlay: View {
   }
 }
 
-private struct QuitConfirmationIcon: View {
+private struct TerminalConfirmationIcon: View {
   var body: some View {
     Image(nsImage: NSApp.applicationIconImage)
       .resizable()
