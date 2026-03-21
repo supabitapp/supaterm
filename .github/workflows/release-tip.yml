@@ -198,7 +198,7 @@ jobs:
           STAGING=$(mktemp -d)
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
           printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/build/sparkle-tools/bin/generate_appcast \
-            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/tip/" \
+            --download-url-prefix "https://supaterm.com/download/tip/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
           cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
