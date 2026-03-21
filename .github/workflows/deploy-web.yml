@@ -28,6 +28,9 @@ jobs:
         with:
           version: 2026.3.0
           cache: true
+          install: false
+      - name: Install pnpm with mise
+        run: mise install pnpm
       - name: Resolve Vite+ version
         id: vite_plus
         shell: bash
