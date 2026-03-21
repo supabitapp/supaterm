@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig.json", "package.json", "vite.config.ts"],
+      "outputs": ["dist/**"]
+    },
+    "build:pty": {
+      "inputs": ["src/pty-helper.c"],
+      "outputs": ["pty-helper"],
+      "cache": true
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["src/**", "tsconfig.json"],
+      "outputs": []
+    },
+    "typecheck:tsgo": {
+      "dependsOn": ["^typecheck:tsgo"],
+      "inputs": ["src/**", "tsconfig.json"],
+      "outputs": []
+    },
+    "lint": {
+      "inputs": ["src/**"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**", "test/**"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

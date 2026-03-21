@@ -134,3 +134,54 @@ warm-cache: $(GHOSTTY_XCFRAMEWORK_PATH) # Warm Tuist module cache for external d
 	mise exec -- tuist cache warm --external-only --configuration Debug
 
 check: format lint # Format and lint
+
+# --- Web / Server ---
+
+WEB_DIR := $(CURRENT_MAKEFILE_DIR)/packages/web
+SERVER_DIR := $(CURRENT_MAKEFILE_DIR)/packages/server
+PTY_HELPER := $(SERVER_DIR)/pty-helper
+
+$(PTY_HELPER): $(SERVER_DIR)/src/pty-helper.c
+	cc -O2 -o "$@" "$<" -lutil
+
+build-server: $(PTY_HELPER) # Build the server (compile pty-helper)
+
+build-bridge: # Build the bridge binary (standalone, no bun needed)
+	cd "$(CURRENT_MAKEFILE_DIR)/packages/bridge" && bun build --compile src/index.ts --outfile supaterm-bridge
+
+install-bridge: build-bridge # Install bridge to ~/.bun/bin for macOS app access
+	mkdir -p "$(HOME)/.bun/bin"
+	cp "$(CURRENT_MAKEFILE_DIR)/packages/bridge/supaterm-bridge" "$(HOME)/.bun/bin/supaterm-bridge"
+	@echo "Installed supaterm-bridge to ~/.bun/bin/supaterm-bridge"
+
+build-web: # Build web client for production
+	cd "$(WEB_DIR)" && bunx vite build
+
+typecheck-web: # Type-check all TS packages via tsgo
+	bunx turbo run typecheck:tsgo
+
+lint-web: # Lint all TS packages via oxlint
+	bunx turbo run lint
+
+check-web: typecheck-web lint-web # Type-check + lint
+
+dev-server: $(PTY_HELPER) # Run server in dev mode (watch)
+	cd "$(SERVER_DIR)" && bun run --watch src/index.ts
+
+dev-web: # Run web dev server (Vite + HMR)
+	cd "$(WEB_DIR)" && bunx vite
+
+dev: $(PTY_HELPER) # Run server + web dev concurrently (native macOS)
+	@trap 'kill 0' EXIT; \
+	cd "$(SERVER_DIR)" && bun run --watch src/index.ts & \
+	cd "$(WEB_DIR)" && bunx vite & \
+	wait
+
+dev-docker: # Run server + web in Docker (hot reload via volume mounts)
+	docker compose up --build
+
+dev-docker-down: # Stop Docker dev containers
+	docker compose down
+
+docker-prod: # Build production Docker image (server + bundled web)
+	docker build --target production -t supaterm .

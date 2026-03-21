@@ -72,3 +72,13 @@ fastlane/test_output
 
 *.profraw
 .env
+
+# Node/Bun
+node_modules/
+bun.lock
+packages/*/dist/
+packages/server/pty-helper
+packages/bridge/supaterm-bridge
+
+# Turborepo
+.turbo/

@@ -1,0 +1,31 @@
+node_modules
+bun.lock
+.turbo
+.build
+.derivedData
+Derived
+
+# Build artifacts
+packages/*/dist
+packages/server/pty-helper
+packages/bridge/supaterm-bridge
+
+# macOS app (not needed in Docker)
+supaterm/
+supatermTests/
+ThirdParty/
+Frameworks/
+Resources/
+Configurations/
+*.xcodeproj
+*.xcworkspace
+*.entitlements
+Project.swift
+Tuist.swift
+Tuist/
+
+# IDE / OS
+.git
+.claude
+.DS_Store
+*.profraw

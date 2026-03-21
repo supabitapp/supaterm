@@ -1,0 +1,34 @@
+services:
+  server:
+    build:
+      context: .
+      target: server-dev
+    ports:
+      - "7681:7681"
+    environment:
+      - PORT=7681
+      - SUPATERM_NO_AUTH=1
+    volumes:
+      - ./packages/shared/src:/app/packages/shared/src:ro
+      - ./packages/server/src:/app/packages/server/src:ro
+      - supaterm-data:/root/.config/supaterm
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web-dev
+    ports:
+      - "5173:5173"
+    environment:
+      # Browser connects directly to server on host port — no Vite proxy needed for WS
+      - VITE_SERVER_URL=http://localhost:7681
+    volumes:
+      - ./packages/shared/src:/app/packages/shared/src:ro
+      - ./packages/web/src:/app/packages/web/src:ro
+      - ./packages/web/index.html:/app/packages/web/index.html:ro
+    depends_on:
+      - server
+
+volumes:
+  supaterm-data:

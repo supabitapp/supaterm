@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/oxc/json-schema/npm/oxlint/configuration_schema.json",
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "no-control-regex": "off",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "warn"
+  },
+  "ignorePatterns": ["dist/", "node_modules/", "*.d.ts", "*.config.ts", "*.config.js"]
+}
