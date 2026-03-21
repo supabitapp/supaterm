@@ -8,7 +8,6 @@ supaterm is a monorepo. The current product code lives in `apps/mac`.
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
 - `docs` — shared repository documentation
-- `plans` — implementation plans
 
 ## Build Commands
 
