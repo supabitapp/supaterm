@@ -462,13 +462,13 @@ private struct SidebarHeaderView: View {
   }
 }
 
-private let sidebarHorizontalPadding: CGFloat = 6
+private let sidebarHorizontalPadding: CGFloat = 0
 private let sidebarTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
-private let sidebarRowLeadingPadding: CGFloat = 2
-private let sidebarRowTrailingPadding: CGFloat = 6
+private let sidebarRowLeadingPadding: CGFloat = 0
+private let sidebarRowTrailingPadding: CGFloat = 0
 private let sidebarRowBackgroundLeadingPadding: CGFloat = 0
-private let sidebarRowBackgroundTrailingPadding: CGFloat = 2
+private let sidebarRowBackgroundTrailingPadding: CGFloat = 0
 
 private struct NewTabButton: View {
   let palette: TerminalPalette
