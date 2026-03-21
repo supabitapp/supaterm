@@ -24,6 +24,14 @@ enum AppBuild {
     #endif
   }
 
+  nonisolated static var version: String {
+    infoString("CFBundleShortVersionString")
+  }
+
+  nonisolated static var buildNumber: String {
+    infoString("CFBundleVersion")
+  }
+
   nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
     switch value {
     case let boolValue as Bool:
@@ -35,6 +43,11 @@ enum AppBuild {
     default:
       return false
     }
+  }
+
+  nonisolated static func infoString(_ key: String) -> String {
+    let value = Bundle.main.object(forInfoDictionaryKey: key) as? String
+    return value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
   }
 }
 

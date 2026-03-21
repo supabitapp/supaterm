@@ -16,7 +16,7 @@ public struct SupatermCLIEnvironmentVariable: Equatable, Sendable {
   }
 }
 
-public struct SupatermCLIContext: Equatable, Sendable {
+public struct SupatermCLIContext: Equatable, Sendable, Codable {
   public let surfaceID: UUID
   public let tabID: UUID
 

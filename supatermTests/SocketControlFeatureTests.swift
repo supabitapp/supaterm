@@ -137,6 +137,62 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func debugRequestRepliesWithSnapshot() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "E8ECEDC8-C9D7-4127-9D7D-7C58A42C0F35")!
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "BEB80BB0-902E-4E56-AF34-A57A613F977A")!,
+      tabID: UUID(uuidString: "3B9FB2DD-0C6E-4AE0-BE47-328F70A5A315")!
+    )
+    let snapshot = SupatermAppDebugSnapshot(
+      build: .init(
+        version: "1.2.3",
+        buildNumber: "45",
+        isDevelopmentBuild: true,
+        usesStubUpdateChecks: false
+      ),
+      update: .init(
+        canCheckForUpdates: true,
+        phase: "checking",
+        detail: "Please wait while Supaterm checks for available updates."
+      ),
+      summary: .init(
+        windowCount: 1,
+        workspaceCount: 0,
+        tabCount: 0,
+        paneCount: 0,
+        keyWindowIndex: 1
+      ),
+      currentTarget: nil,
+      windows: [],
+      problems: ["No active windows."]
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .debug(.init(context: context), id: "debug-1")
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.debugSnapshot = { request in
+        #expect(request == .init(context: context))
+        return snapshot
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermAppDebugSnapshot.self) == snapshot)
+  }
+
+  @Test
   func newPaneRequestRepliesWithCreatedPane() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "0708C52C-64A0-4B3D-B469-3AB200CB4128")!

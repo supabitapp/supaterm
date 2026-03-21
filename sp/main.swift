@@ -7,7 +7,7 @@ struct SP: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
-    subcommands: [Ping.self, Tree.self, Onboard.self, NewPane.self]
+    subcommands: [Ping.self, Tree.self, Onboard.self, Debug.self, NewPane.self]
   )
 
   mutating func run() throws {
@@ -84,6 +84,86 @@ extension SP {
 
       let snapshot = try response.decodeResult(SupatermOnboardingSnapshot.self)
       print(SPOnboardingRenderer.render(snapshot))
+    }
+  }
+
+  struct Debug: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "debug",
+      abstract: "Show live Supaterm diagnostics for the current application."
+    )
+
+    @Flag(name: .long, help: "Print the report as JSON.")
+    var json = false
+
+    @Option(name: .long, help: "Override the Unix socket path.")
+    var socket: String?
+
+    mutating func run() throws {
+      let context = SupatermCLIContext.current
+      var problems: [String] = []
+      let socketPath = SupatermSocketPath.resolve(explicitPath: socket)
+      var socketStatus = SPDebugReport.Socket(
+        path: socketPath,
+        isReachable: false,
+        requestSucceeded: false,
+        error: nil
+      )
+      var appSnapshot: SupatermAppDebugSnapshot?
+
+      if let socketPath {
+        do {
+          let client = try SPSocketClient(path: socketPath)
+          let response = try client.send(
+            .debug(.init(context: context))
+          )
+          socketStatus.isReachable = true
+
+          if response.ok {
+            do {
+              appSnapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
+              socketStatus.requestSucceeded = true
+            } catch {
+              let message = error.localizedDescription
+              socketStatus.error = message
+              problems.append(message)
+            }
+          } else {
+            let message = response.error?.message ?? "Supaterm socket request failed."
+            socketStatus.error = message
+            problems.append(message)
+          }
+        } catch {
+          let message = error.localizedDescription
+          socketStatus.error = message
+          problems.append(message)
+        }
+      } else {
+        let message = "Unable to resolve a Supaterm socket path."
+        socketStatus.error = message
+        problems.append(message)
+      }
+
+      let report = SPDebugReport(
+        invocation: .init(
+          isRunningInsideSupaterm: context != nil,
+          context: context,
+          resolvedSocketPath: socketPath
+        ),
+        socket: socketStatus,
+        app: appSnapshot,
+        problems: problems
+      )
+
+      if json {
+        print(try jsonString(report))
+      } else {
+        print(SPDebugRenderer.render(report))
+      }
+
+      if !socketStatus.requestSucceeded {
+        throw ExitCode.failure
+      }
     }
   }
 

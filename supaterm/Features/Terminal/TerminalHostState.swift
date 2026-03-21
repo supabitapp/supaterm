@@ -479,6 +479,49 @@ final class TerminalHostState {
     return SupatermTreeSnapshot(windows: [window])
   }
 
+  func debugWindowSnapshot(index: Int) -> SupatermAppDebugSnapshot.Window {
+    .init(
+      index: index,
+      isKey: windowActivity.isKeyWindow,
+      isVisible: windowActivity.isVisible,
+      workspaces: workspaces.enumerated().map { workspaceOffset, workspace in
+        let tabs = workspaceManager.tabs(in: workspace.id).enumerated().map { tabOffset, tab in
+          let focusedSurfaceID = focusedSurfaceIDByTab[tab.id]
+          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+            debugPaneSnapshot(
+              pane,
+              index: paneOffset + 1,
+              isFocused: pane.id == focusedSurfaceID
+            )
+          }
+
+          return SupatermAppDebugSnapshot.Tab(
+            index: tabOffset + 1,
+            id: tab.id.rawValue,
+            title: tab.title,
+            isSelected: tab.id == workspaceManager.selectedTabID(in: workspace.id),
+            isPinned: tab.isPinned,
+            isDirty: tab.isDirty,
+            isTitleLocked: tab.isTitleLocked,
+            hasRunningActivity: panes.contains(where: \.isRunning),
+            hasBell: panes.contains(where: { $0.bellCount > 0 }),
+            hasReadOnly: panes.contains(where: \.isReadOnly),
+            hasSecureInput: panes.contains(where: \.hasSecureInput),
+            panes: panes
+          )
+        }
+
+        return SupatermAppDebugSnapshot.Workspace(
+          index: workspaceOffset + 1,
+          id: workspace.id.rawValue,
+          name: workspace.name,
+          isSelected: workspace.id == selectedWorkspaceID,
+          tabs: tabs
+        )
+      }
+    )
+  }
+
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     let resolvedTarget = try resolveCreatePaneTarget(request.target)
     let newSurface = createSurface(
@@ -1010,15 +1053,7 @@ final class TerminalHostState {
   private func updateRunningState(for tabID: TerminalTabID) {
     guard let tree = trees[tabID] else { return }
     let isRunning = tree.leaves().contains { surface in
-      switch surface.bridge.state.progressState {
-      case .some(GHOSTTY_PROGRESS_STATE_SET),
-        .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE),
-        .some(GHOSTTY_PROGRESS_STATE_PAUSE),
-        .some(GHOSTTY_PROGRESS_STATE_ERROR):
-        return true
-      default:
-        return false
-      }
+      Self.isRunning(progressState: surface.bridge.state.progressState)
     }
     workspaceManager.workspace(for: tabID)
       .flatMap { workspaceManager.tabManager(for: $0.id) }?
@@ -1259,6 +1294,70 @@ final class TerminalHostState {
     case .right:
       return .right
     }
+  }
+
+  private func debugPaneSnapshot(
+    _ surface: GhosttySurfaceView,
+    index: Int,
+    isFocused: Bool
+  ) -> SupatermAppDebugSnapshot.Pane {
+    let state = surface.bridge.state
+    return .init(
+      index: index,
+      id: surface.id,
+      isFocused: isFocused,
+      displayTitle: surface.resolvedDisplayTitle(defaultValue: "Pane \(index)"),
+      pwd: Self.trimmedNonEmpty(state.pwd),
+      isReadOnly: state.readOnly == GHOSTTY_READONLY_ON,
+      hasSecureInput: surface.passwordInput,
+      bellCount: state.bellCount,
+      isRunning: Self.isRunning(progressState: state.progressState),
+      progressState: Self.progressStateDescription(state.progressState),
+      progressValue: state.progressValue,
+      needsCloseConfirmation: surface.needsCloseConfirmation,
+      lastCommandExitCode: state.commandExitCode,
+      lastCommandDurationMs: state.commandDuration,
+      lastChildExitCode: state.childExitCode,
+      lastChildExitTimeMs: state.childExitTimeMs
+    )
+  }
+
+  private static func isRunning(
+    progressState: ghostty_action_progress_report_state_e?
+  ) -> Bool {
+    switch progressState {
+    case .some(GHOSTTY_PROGRESS_STATE_SET),
+      .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE),
+      .some(GHOSTTY_PROGRESS_STATE_PAUSE),
+      .some(GHOSTTY_PROGRESS_STATE_ERROR):
+      return true
+    default:
+      return false
+    }
+  }
+
+  private static func progressStateDescription(
+    _ progressState: ghostty_action_progress_report_state_e?
+  ) -> String? {
+    switch progressState {
+    case .some(GHOSTTY_PROGRESS_STATE_SET):
+      return "set"
+    case .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE):
+      return "indeterminate"
+    case .some(GHOSTTY_PROGRESS_STATE_PAUSE):
+      return "pause"
+    case .some(GHOSTTY_PROGRESS_STATE_ERROR):
+      return "error"
+    case .some(GHOSTTY_PROGRESS_STATE_REMOVE):
+      return "remove"
+    default:
+      return nil
+    }
+  }
+
+  private static func trimmedNonEmpty(_ value: String?) -> String? {
+    let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.isEmpty ? nil : trimmed
   }
 }
 
