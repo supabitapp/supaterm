@@ -50,7 +50,14 @@ enum SupatermOnboardingSnapshotBuilder {
       shortcutForAction: shortcutForAction
     )
 
-    return .init(items: items)
+    return .init(
+      items: items,
+      paneTips: [
+        "Panes stay in the current tab.",
+        "Split right opens a pane beside the current pane.",
+        "Split down opens a pane below the current pane.",
+      ]
+    )
   }
 
   private static func appendGhosttyShortcut(
