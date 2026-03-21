@@ -6,6 +6,17 @@ import SwiftUI
 
 @MainActor
 final class TerminalWindowRegistry {
+  struct CloseAllWindowsCandidate {
+    let window: NSWindow
+    let needsConfirmation: Bool
+  }
+
+  enum CloseAllWindowsPlan {
+    case noWindows
+    case closeImmediately([NSWindow])
+    case confirm(confirmWindow: NSWindow, windows: [NSWindow])
+  }
+
   struct CommandAvailability: Equatable {
     let hasWindow: Bool
     let hasTab: Bool
@@ -25,6 +36,7 @@ final class TerminalWindowRegistry {
   }
 
   private var entries: [Entry] = []
+  private var isPresentingCloseAllWindowsAlert = false
   var onChange: @MainActor () -> Void = {}
 
   var hasShortcutSource: Bool {
@@ -115,12 +127,43 @@ final class TerminalWindowRegistry {
 
   @discardableResult
   func requestCloseAllWindows() -> Bool {
-    let windows = activeEntries().compactMap(\.windowReference.value)
-    guard !windows.isEmpty else { return false }
-    for window in windows {
-      window.performClose(nil)
+    switch Self.closeAllWindowsPlan(for: closeAllWindowsCandidates()) {
+    case .noWindows:
+      return false
+
+    case .closeImmediately(let windows):
+      closeAllWindowsImmediately(windows)
+      return true
+
+    case .confirm(let confirmWindow, let windows):
+      guard !isPresentingCloseAllWindowsAlert else { return true }
+      isPresentingCloseAllWindowsAlert = true
+
+      let alert = NSAlert()
+      alert.alertStyle = .warning
+      alert.messageText = "Close All Windows?"
+      alert.informativeText = "All terminal sessions will be terminated."
+      alert.addButton(withTitle: "Close All Windows")
+      alert.addButton(withTitle: "Cancel")
+      alert.beginSheetModal(for: confirmWindow) { [weak self] response in
+        guard let self else { return }
+        self.isPresentingCloseAllWindowsAlert = false
+        if response == .alertFirstButtonReturn {
+          alert.window.orderOut(nil)
+          self.closeAllWindowsImmediately(windows)
+        }
+      }
+      return true
     }
-    return true
+  }
+
+  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan {
+    let windows = candidates.map(\.window)
+    guard !windows.isEmpty else { return .noWindows }
+    guard let confirmWindow = candidates.first(where: \.needsConfirmation)?.window else {
+      return .closeImmediately(windows)
+    }
+    return .confirm(confirmWindow: confirmWindow, windows: windows)
   }
 
   func treeSnapshot() -> SupatermTreeSnapshot {
@@ -231,6 +274,22 @@ final class TerminalWindowRegistry {
 
   private func activeEntries() -> [Entry] {
     entries.filter { $0.windowReference.value != nil }
+  }
+
+  private func closeAllWindowsCandidates() -> [CloseAllWindowsCandidate] {
+    activeEntries().compactMap { entry in
+      guard let window = entry.windowReference.value else { return nil }
+      return .init(
+        window: window,
+        needsConfirmation: entry.terminal.windowNeedsCloseConfirmation()
+      )
+    }
+  }
+
+  private func closeAllWindowsImmediately(_ windows: [NSWindow]) {
+    for window in windows {
+      window.close()
+    }
   }
 
   private func entry(for windowIndex: Int) throws -> Entry {

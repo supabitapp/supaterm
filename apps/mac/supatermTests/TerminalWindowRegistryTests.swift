@@ -105,6 +105,63 @@ struct TerminalWindowRegistryTests {
     }
   }
 
+  @Test
+  func closeAllWindowsPlanUsesSingleConfirmationWindow() {
+    let confirmWindow = makeWindow()
+    let secondWindow = makeWindow()
+
+    let plan = TerminalWindowRegistry.closeAllWindowsPlan(
+      for: [
+        .init(window: confirmWindow, needsConfirmation: true),
+        .init(window: secondWindow, needsConfirmation: false),
+      ]
+    )
+
+    switch plan {
+    case .confirm(let plannedConfirmWindow, let windows):
+      #expect(plannedConfirmWindow === confirmWindow)
+      #expect(windows.count == 2)
+      #expect(windows[0] === confirmWindow)
+      #expect(windows[1] === secondWindow)
+    default:
+      Issue.record("Expected confirm plan")
+    }
+  }
+
+  @Test
+  func closeAllWindowsPlanClosesImmediatelyWhenNoWindowNeedsConfirmation() {
+    let firstWindow = makeWindow()
+    let secondWindow = makeWindow()
+
+    let plan = TerminalWindowRegistry.closeAllWindowsPlan(
+      for: [
+        .init(window: firstWindow, needsConfirmation: false),
+        .init(window: secondWindow, needsConfirmation: false),
+      ]
+    )
+
+    switch plan {
+    case .closeImmediately(let windows):
+      #expect(windows.count == 2)
+      #expect(windows[0] === firstWindow)
+      #expect(windows[1] === secondWindow)
+    default:
+      Issue.record("Expected immediate close plan")
+    }
+  }
+
+  @Test
+  func closeAllWindowsPlanReturnsNoWindowsWhenEmpty() {
+    let plan = TerminalWindowRegistry.closeAllWindowsPlan(for: [])
+
+    switch plan {
+    case .noWindows:
+      break
+    default:
+      Issue.record("Expected no windows plan")
+    }
+  }
+
   private func makeWindow() -> NSWindow {
     NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
