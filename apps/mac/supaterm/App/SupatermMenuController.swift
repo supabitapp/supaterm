@@ -3,100 +3,96 @@ import SwiftUI
 
 @MainActor
 final class SupatermMenuController: NSObject {
-  private enum MenuItemTag {
-    static let newTab = 5_100
-    static let closeSurface = 5_101
-    static let closeTab = 5_102
-    static let closeAllWindows = 5_103
+  private enum MenuItemIdentifier {
+    static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
+    static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
+    static let sectionSeparator = NSUserInterfaceItemIdentifier(
+      "app.supabit.supaterm.file.sectionSeparator"
+    )
+    static let closeSurface = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.close")
+    static let closeTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.closeTab")
+    static let closeWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.closeWindow")
+    static let closeAllWindows = NSUserInterfaceItemIdentifier(
+      "app.supabit.supaterm.file.closeAllWindows"
+    )
+
+    static let owned: Set<NSUserInterfaceItemIdentifier> = [
+      newWindow,
+      newTab,
+      sectionSeparator,
+      closeSurface,
+      closeTab,
+      closeWindow,
+      closeAllWindows,
+    ]
   }
 
   private let registry: TerminalWindowRegistry
   private var observers: [NSObjectProtocol] = []
-  private var isInstalled = false
-
+  private var requestNewWindow: @MainActor () -> Bool = { false }
   private weak var fileMenu: NSMenu?
-  private weak var newWindowItem: NSMenuItem?
-  private weak var newTabItem: NSMenuItem?
-  private weak var closeSurfaceItem: NSMenuItem?
-  private weak var closeTabItem: NSMenuItem?
-  private weak var closeWindowItem: NSMenuItem?
-  private weak var closeAllWindowsItem: NSMenuItem?
+
+  private lazy var newWindowItem = makeItem(
+    title: "New Window",
+    action: #selector(newWindow(_:)),
+    identifier: MenuItemIdentifier.newWindow
+  )
+  private lazy var newTabItem = makeItem(
+    title: "New Tab",
+    action: #selector(newTab(_:)),
+    identifier: MenuItemIdentifier.newTab
+  )
+  private lazy var sectionSeparatorItem = makeSeparator(identifier: MenuItemIdentifier.sectionSeparator)
+  private lazy var closeSurfaceItem = makeItem(
+    title: "Close",
+    action: #selector(closeSurface(_:)),
+    identifier: MenuItemIdentifier.closeSurface
+  )
+  private lazy var closeTabItem = makeItem(
+    title: "Close Tab",
+    action: #selector(closeTab(_:)),
+    identifier: MenuItemIdentifier.closeTab
+  )
+  private lazy var closeWindowItem = makeItem(
+    title: "Close Window",
+    action: #selector(closeWindow(_:)),
+    identifier: MenuItemIdentifier.closeWindow
+  )
+  private lazy var closeAllWindowsItem = makeItem(
+    title: "Close All Windows",
+    action: #selector(closeAllWindows(_:)),
+    identifier: MenuItemIdentifier.closeAllWindows
+  )
 
   init(registry: TerminalWindowRegistry) {
     self.registry = registry
   }
 
+  func setNewWindowAction(_ action: @escaping @MainActor () -> Bool) {
+    requestNewWindow = action
+  }
+
   func install() {
     installObservers()
-    guard !isInstalled else {
-      refresh()
-      return
-    }
-    guard
-      let fileMenu = Self.fileMenu(),
-      let newWindowItem = Self.newWindowItem(in: fileMenu),
-      let closeWindowItem = Self.closeWindowItem(in: fileMenu)
-    else {
-      return
-    }
-
-    self.fileMenu = fileMenu
-    self.newWindowItem = newWindowItem
-    self.closeWindowItem = closeWindowItem
-
-    newWindowItem.title = "New Window"
-    closeWindowItem.title = "Close Window"
-
-    let newTabItem = NSMenuItem(title: "New Tab", action: #selector(newTab(_:)), keyEquivalent: "")
-    newTabItem.target = self
-    newTabItem.tag = MenuItemTag.newTab
-    fileMenu.insertItem(newTabItem, at: fileMenu.index(of: newWindowItem) + 1)
-    self.newTabItem = newTabItem
-
-    let closeSurfaceItem = NSMenuItem(title: "Close", action: #selector(closeSurface(_:)), keyEquivalent: "")
-    closeSurfaceItem.target = self
-    closeSurfaceItem.tag = MenuItemTag.closeSurface
-    fileMenu.insertItem(closeSurfaceItem, at: fileMenu.index(of: closeWindowItem))
-    self.closeSurfaceItem = closeSurfaceItem
-
-    let closeTabItem = NSMenuItem(title: "Close Tab", action: #selector(closeTab(_:)), keyEquivalent: "")
-    closeTabItem.target = self
-    closeTabItem.tag = MenuItemTag.closeTab
-    fileMenu.insertItem(closeTabItem, at: fileMenu.index(of: closeWindowItem))
-    self.closeTabItem = closeTabItem
-
-    let closeAllWindowsItem = NSMenuItem(
-      title: "Close All Windows",
-      action: #selector(closeAllWindows(_:)),
-      keyEquivalent: ""
-    )
-    closeAllWindowsItem.target = self
-    closeAllWindowsItem.tag = MenuItemTag.closeAllWindows
-    fileMenu.insertItem(closeAllWindowsItem, at: fileMenu.index(of: closeWindowItem) + 1)
-    self.closeAllWindowsItem = closeAllWindowsItem
-
-    isInstalled = true
     refresh()
   }
 
   func refresh() {
-    guard isInstalled else {
-      install()
-      return
-    }
+    guard let fileMenu = Self.fileMenu() else { return }
+    self.fileMenu = fileMenu
+    ensureOwnedFileItems(in: fileMenu)
     syncShortcut(command: .newWindow, item: newWindowItem)
     syncShortcut(command: .newTab, item: newTabItem)
     syncShortcut(command: .closeSurface, item: closeSurfaceItem)
     syncShortcut(command: .closeTab, item: closeTabItem)
     syncShortcut(command: .closeWindow, item: closeWindowItem)
     syncShortcut(command: .closeAllWindows, item: closeAllWindowsItem)
-    fileMenu?.update()
+    fileMenu.update()
   }
 
   @discardableResult
   func performNewWindow() -> Bool {
-    guard let newWindowItem, let action = newWindowItem.action else { return false }
-    return NSApp.sendAction(action, to: newWindowItem.target, from: newWindowItem)
+    requestNewWindow()
   }
 
   @discardableResult
@@ -108,12 +104,21 @@ final class SupatermMenuController: NSObject {
     registry.requestNewTabInKeyWindow()
   }
 
+  @objc func newWindow(_ sender: Any?) {
+    _ = performNewWindow()
+  }
+
   @objc func closeSurface(_ sender: Any?) {
     registry.requestCloseSurfaceInKeyWindow()
   }
 
   @objc func closeTab(_ sender: Any?) {
     registry.requestCloseTabInKeyWindow()
+  }
+
+  @objc func closeWindow(_ sender: Any?) {
+    guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else { return }
+    window.performClose(sender)
   }
 
   @objc func closeAllWindows(_ sender: Any?) {
@@ -128,6 +133,24 @@ final class SupatermMenuController: NSObject {
     }
     guard registry.hasShortcutSource else { return }
     SupatermMenuShortcut.apply(nil, to: item)
+  }
+
+  private func ensureOwnedFileItems(in fileMenu: NSMenu) {
+    let ownedItems = ownedFileItems()
+    guard
+      !ownedItems.allSatisfy({ item in
+        fileMenu.items.contains(where: { $0 === item })
+      })
+    else { return }
+
+    let insertionIndex = Self.insertionIndex(in: fileMenu)
+
+    Self.removeOwnedItems(from: fileMenu)
+    Self.removeBuiltInOverlapItems(from: fileMenu)
+
+    for (offset, item) in ownedItems.enumerated() {
+      fileMenu.insertItem(item, at: insertionIndex + offset)
+    }
   }
 
   private func installObservers() {
@@ -172,16 +195,74 @@ final class SupatermMenuController: NSObject {
     NSApp.mainMenu?.items.first(where: { $0.title == "File" })?.submenu
   }
 
-  private static func newWindowItem(in fileMenu: NSMenu) -> NSMenuItem? {
-    fileMenu.items.first { item in
-      !item.isSeparatorItem && item.title.hasPrefix("New ")
+  private func ownedFileItems() -> [NSMenuItem] {
+    [
+      newWindowItem,
+      newTabItem,
+      sectionSeparatorItem,
+      closeSurfaceItem,
+      closeTabItem,
+      closeWindowItem,
+      closeAllWindowsItem,
+    ]
+  }
+
+  private func makeItem(
+    title: String,
+    action: Selector,
+    identifier: NSUserInterfaceItemIdentifier
+  ) -> NSMenuItem {
+    let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    item.identifier = identifier
+    item.target = self
+    return item
+  }
+
+  private func makeSeparator(identifier: NSUserInterfaceItemIdentifier) -> NSMenuItem {
+    let item = NSMenuItem.separator()
+    item.identifier = identifier
+    return item
+  }
+
+  private static func insertionIndex(in fileMenu: NSMenu) -> Int {
+    if let currentOwnedIndex = fileMenu.items.firstIndex(where: isOwnedItem(_:)) {
+      return currentOwnedIndex
+    }
+
+    return builtInOverlapRange(in: fileMenu)?.lowerBound ?? 0
+  }
+
+  private static func removeOwnedItems(from fileMenu: NSMenu) {
+    for index in fileMenu.items.indices.reversed() where isOwnedItem(fileMenu.items[index]) {
+      fileMenu.removeItem(at: index)
     }
   }
 
-  private static func closeWindowItem(in fileMenu: NSMenu) -> NSMenuItem? {
-    fileMenu.items.first { item in
-      item.action == #selector(NSWindow.performClose(_:))
+  private static func removeBuiltInOverlapItems(from fileMenu: NSMenu) {
+    guard let range = builtInOverlapRange(in: fileMenu) else { return }
+    for index in range.reversed() {
+      fileMenu.removeItem(at: index)
     }
+  }
+
+  private static func builtInOverlapRange(in fileMenu: NSMenu) -> Range<Int>? {
+    guard
+      let closeWindowIndex = fileMenu.items.firstIndex(where: {
+        !isOwnedItem($0) && $0.action == #selector(NSWindow.performClose(_:))
+      }),
+      let newWindowIndex = fileMenu.items[..<closeWindowIndex].lastIndex(where: {
+        !$0.isSeparatorItem && !isOwnedItem($0) && $0.title == "New Window"
+      })
+    else {
+      return nil
+    }
+
+    return newWindowIndex..<(closeWindowIndex + 1)
+  }
+
+  private static func isOwnedItem(_ item: NSMenuItem) -> Bool {
+    guard let identifier = item.identifier else { return false }
+    return MenuItemIdentifier.owned.contains(identifier)
   }
 }
 
@@ -189,14 +270,16 @@ extension SupatermMenuController: NSMenuItemValidation {
   func validateMenuItem(_ item: NSMenuItem) -> Bool {
     let availability = registry.commandAvailability()
 
-    switch item.tag {
-    case MenuItemTag.newTab:
+    switch item.identifier {
+    case MenuItemIdentifier.newTab:
       return availability.hasWindow
-    case MenuItemTag.closeSurface:
+    case MenuItemIdentifier.closeSurface:
       return availability.hasSurface
-    case MenuItemTag.closeTab:
+    case MenuItemIdentifier.closeTab:
       return availability.hasTab
-    case MenuItemTag.closeAllWindows:
+    case MenuItemIdentifier.closeWindow:
+      return availability.hasWindow
+    case MenuItemIdentifier.closeAllWindows:
       return availability.hasWindow
     default:
       return true

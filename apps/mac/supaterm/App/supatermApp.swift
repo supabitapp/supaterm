@@ -4,8 +4,12 @@ import SwiftUI
 @main
 @MainActor
 struct SupatermApp: App {
-  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  static let mainWindowGroupID = "main"
 
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @Environment(\.openWindow) private var openWindow
+
+  @State private var menuController: SupatermMenuController
   @State private var terminalWindowRegistry: TerminalWindowRegistry
   @State private var socketStore: StoreOf<SocketControlFeature>
 
@@ -18,6 +22,7 @@ struct SupatermApp: App {
     } withDependencies: {
       $0.terminalWindowsClient = .live(registry: terminalWindowRegistry)
     }
+    _menuController = State(initialValue: menuController)
     _terminalWindowRegistry = State(initialValue: terminalWindowRegistry)
     _socketStore = State(initialValue: socketStore)
     appDelegate.menuController = menuController
@@ -33,7 +38,9 @@ struct SupatermApp: App {
   }
 
   var body: some Scene {
-    WindowGroup("Supaterm") {
+    configureNewWindowAction()
+
+    return WindowGroup("Supaterm", id: Self.mainWindowGroupID) {
       WindowSceneRootView(registry: terminalWindowRegistry)
     }
     .defaultSize(width: 1_440, height: 900)
@@ -41,6 +48,13 @@ struct SupatermApp: App {
     .windowResizability(.contentMinSize)
     .commands {
       TerminalCommands()
+    }
+  }
+
+  private func configureNewWindowAction() {
+    menuController.setNewWindowAction { [openWindow] in
+      openWindow(id: Self.mainWindowGroupID)
+      return true
     }
   }
 }
