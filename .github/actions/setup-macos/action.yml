@@ -11,18 +11,17 @@ runs:
     - name: Ghostty cache key
       shell: bash
       run: |
-        set -euo pipefail
-        GHOSTTY_SHA="$(git -C ThirdParty/ghostty rev-parse HEAD)"
+        GHOSTTY_SHA="$(git -C apps/mac/ThirdParty/ghostty rev-parse HEAD)"
         printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
     - name: Ghostty cache
       id: ghostty_cache
       uses: actions/cache@v5
       with:
         path: |
-          Frameworks/GhosttyKit.xcframework
-          Resources/ghostty
-          Resources/terminfo
-        key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'mise.toml', '.gitmodules') }}
+          apps/mac/Frameworks/GhosttyKit.xcframework
+          apps/mac/Resources/ghostty
+          apps/mac/Resources/terminfo
+        key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'apps/mac/Makefile', 'mise.toml', '.gitmodules') }}
         restore-keys: |
           ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-
           ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-
@@ -30,16 +29,15 @@ runs:
       if: steps.ghostty_cache.outputs.cache-hit == 'true'
       shell: bash
       run: |
-        set -euo pipefail
-        mkdir -p .build/.ghostty-stamps
-        rm -f .build/.ghostty-stamps/head-*
-        test -d Frameworks/GhosttyKit.xcframework
-        test -d Resources/ghostty
-        test -d Resources/terminfo
-        touch ".build/.ghostty-stamps/head-${GHOSTTY_SHA}"
-        touch ".build/.ghostty-stamps/outputs-${GHOSTTY_SHA}"
-        touch Frameworks/GhosttyKit.xcframework
+        mkdir -p apps/mac/.build/.ghostty-stamps
+        rm -f apps/mac/.build/.ghostty-stamps/head-*
+        test -d apps/mac/Frameworks/GhosttyKit.xcframework
+        test -d apps/mac/Resources/ghostty
+        test -d apps/mac/Resources/terminfo
+        touch "apps/mac/.build/.ghostty-stamps/head-${GHOSTTY_SHA}"
+        touch "apps/mac/.build/.ghostty-stamps/outputs-${GHOSTTY_SHA}"
+        touch apps/mac/Frameworks/GhosttyKit.xcframework
     - name: Build ghostty
       if: steps.ghostty_cache.outputs.cache-hit != 'true'
       shell: bash
-      run: make build-ghostty-xcframework
+      run: make mac-build-ghostty-xcframework

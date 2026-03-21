@@ -1,35 +1,37 @@
 # Supaterm
 
-Minimal macOS starter app for the next version of Supaterm.
+Supaterm is a monorepo. The current shipped product is the macOS terminal app in `apps/mac`.
 
-## Technical Stack
+## Layout
 
-- [The Composable Architecture](https://github.com/pointfreeco/swift-composable-architecture)
-- [Tuist](https://tuist.dev/)
+- `apps/mac` — macOS app, embedded `sp` CLI, Tuist project, and Ghostty dependency
+- `docs` — shared repository documentation
+- `plans` — implementation plans
 
 ## Requirements
 
 - macOS 26.0+
-- [mise](https://mise.jdx.dev/) (for pinned toolchain dependencies, including Tuist and Zig)
+- [mise](https://mise.jdx.dev/) for pinned toolchain dependencies
 
 ## Building
 
+If your clone predates the monorepo move:
+
 ```bash
+git submodule sync --recursive
 git submodule update --init --recursive
-make build-app
-make run-app
 ```
 
-If you want Tuist remote cache, authenticate once with 
-
+```bash
+make mac-build
+make mac-run
 ```
-mise exec -- tuist auth login
-```
-If you are not authenticated, builds still work and fall back to source dependencies.
 
 ## Development
 
 ```bash
-make test
-make check
+make mac-test
+make mac-check
 ```
+
+See `apps/mac/README.md` for mac app details.

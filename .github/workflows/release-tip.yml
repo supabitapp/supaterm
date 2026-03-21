@@ -60,7 +60,7 @@ jobs:
       - uses: ./.github/actions/setup-macos
       - name: Compute tip build number
         run: |
-          BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' Configurations/Project.xcconfig)
+          BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' apps/mac/Configurations/Project.xcconfig)
           OFFSET=${{ github.run_number }}
           if [ "$OFFSET" -gt 999 ]; then
             echo "::error::Tip run_number ($OFFSET) exceeds 999. Bump CURRENT_PROJECT_VERSION before the next tip release."
@@ -88,11 +88,11 @@ jobs:
             exit 1
           fi
           echo "DEVELOPER_ID_IDENTITY_SHA=$DEVELOPER_ID_IDENTITY_SHA" >> "$GITHUB_ENV"
-      - run: make archive XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
+      - run: make mac-archive XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
       - name: Write export options
         run: |
-          mkdir -p build
-          cat > build/ExportOptions.plist <<EOF
+          mkdir -p apps/mac/build
+          cat > apps/mac/build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -108,11 +108,11 @@ jobs:
           </dict>
           </plist>
           EOF
-      - run: make export-archive
+      - run: make mac-export-archive
       - name: Re-sign Sparkle helpers
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
           SPARKLE_DIR=$(find "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions" -mindepth 1 -maxdepth 1 -type d ! -name Current -print -quit)
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/XPCServices/Installer.xpc"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements -v "$SPARKLE_DIR/XPCServices/Downloader.xpc"
@@ -132,27 +132,27 @@ jobs:
           rm notarization_key.p8
       - name: Build DMG
         run: |
-          APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          mise exec -- create-dmg "$APP_PATH" build/ \
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          mise exec -- create-dmg "$APP_PATH" apps/mac/build/ \
             --overwrite \
             --dmg-title="Supaterm" \
             --identity="$DEVELOPER_ID_IDENTITY_SHA"
-          DMG_OUTPUT=$(find build -maxdepth 1 -name '*.dmg' -print -quit)
-          if [ "$DMG_OUTPUT" != "build/supaterm.dmg" ]; then
-            mv "$DMG_OUTPUT" build/supaterm.dmg
+          DMG_OUTPUT=$(find apps/mac/build -maxdepth 1 -name '*.dmg' -print -quit)
+          if [ "$DMG_OUTPUT" != "apps/mac/build/supaterm.dmg" ]; then
+            mv "$DMG_OUTPUT" apps/mac/build/supaterm.dmg
           fi
       - name: Notarize and staple
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          NOTARY_RESULT_PATH=build/notarytool-submit.json
-          NOTARY_LOG_PATH=build/notarytool-log.json
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          NOTARY_RESULT_PATH=apps/mac/build/notarytool-submit.json
+          NOTARY_LOG_PATH=apps/mac/build/notarytool-log.json
           NOTARY_STATUS=""
           NOTARY_ID=""
           for attempt in 1 2 3; do
             echo "Notarization attempt $attempt..."
             submit_exit=0
-            if ! xcrun notarytool submit build/supaterm.dmg \
+            if ! xcrun notarytool submit apps/mac/build/supaterm.dmg \
               --keychain-profile "notarytool-profile" \
               --wait \
               --output-format json > "$NOTARY_RESULT_PATH"; then
@@ -175,41 +175,41 @@ jobs:
             echo "::error::Notarization failed with status '$NOTARY_STATUS'"
             exit 1
           fi
-          xcrun stapler staple build/supaterm.dmg
+          xcrun stapler staple apps/mac/build/supaterm.dmg
           xcrun stapler staple "$APP_PATH"
       - name: Create app zip
         run: |
-          APP_PATH=$(find build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/supaterm.app.zip
+          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" apps/mac/build/supaterm.app.zip
       - name: Download Sparkle tools
         run: |
-          SPARKLE_VERSION=$(awk -F'"' '/sparkle-project\/Sparkle/ { print $4; exit }' Tuist/Package.swift)
+          SPARKLE_VERSION=$(awk -F'"' '/sparkle-project\/Sparkle/ { print $4; exit }' apps/mac/Tuist/Package.swift)
           if [ -z "$SPARKLE_VERSION" ]; then
             echo "::error::Unable to determine Sparkle version"
             exit 1
           fi
-          rm -rf build/sparkle-tools
-          mkdir -p build/sparkle-tools
-          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip" -o build/sparkle-tools/sparkle.zip
-          unzip -q build/sparkle-tools/sparkle.zip -d build/sparkle-tools
+          rm -rf apps/mac/build/sparkle-tools
+          mkdir -p apps/mac/build/sparkle-tools
+          curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip" -o apps/mac/build/sparkle-tools/sparkle.zip
+          unzip -q apps/mac/build/sparkle-tools/sparkle.zip -d apps/mac/build/sparkle-tools
       - name: Generate tip appcast
         run: |
           set -euo pipefail
           STAGING=$(mktemp -d)
-          cp build/supaterm.app.zip "$STAGING/"
-          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | build/sparkle-tools/bin/generate_appcast \
+          cp apps/mac/build/supaterm.app.zip "$STAGING/"
+          printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/build/sparkle-tools/bin/generate_appcast \
             --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/tip/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
-          cp "$STAGING/appcast.xml" build/appcast.xml
+          cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
       - uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
           if-no-files-found: ignore
           path: |
-            build/supaterm.dmg
-            build/supaterm.app.zip
-            build/appcast.xml
+            apps/mac/build/supaterm.dmg
+            apps/mac/build/supaterm.app.zip
+            apps/mac/build/appcast.xml
 
   tag:
     runs-on: ubuntu-latest

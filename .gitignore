@@ -39,6 +39,12 @@ Tuist/Dependencies/
 Frameworks/GhosttyKit.xcframework/
 Resources/ghostty/
 Resources/terminfo/
+apps/mac/supaterm.xcodeproj/
+apps/mac/supaterm.xcworkspace/
+apps/mac/Tuist/Dependencies/
+apps/mac/Frameworks/GhosttyKit.xcframework/
+apps/mac/Resources/ghostty/
+apps/mac/Resources/terminfo/
 
 # CocoaPods
 #

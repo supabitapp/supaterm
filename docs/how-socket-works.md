@@ -4,14 +4,14 @@ This document is a current map of Supaterm's socket control path. The source is 
 
 ## Overview
 
-- `SupatermApp` creates a dedicated `StoreOf<SocketControlFeature>` during app initialization and starts socket observation by sending `.task` directly to that store. See `supaterm/App/supatermApp.swift`.
-- `SocketControlFeature` owns socket command semantics. It starts the socket runtime through `SocketControlClient`, consumes streamed requests, maps them to terminal operations, and sends structured responses. See `supaterm/Features/Socket/SocketControlFeature.swift`.
-- `SocketControlClient` is the dependency boundary between the reducer and the runtime. The live implementation delegates to `SocketControlRuntime.shared`. See `supaterm/Features/Socket/SocketControlClient.swift`.
-- `SocketControlRuntime` owns the Unix domain socket transport: path resolution, directory creation, stale socket cleanup, `bind`, `listen`, `accept`, request decoding, buffering, and response writes. See `supaterm/Features/Socket/SocketControlRuntime.swift`.
-- `TerminalWindowsClient` provides the app-side operations the socket feature can invoke today: debug snapshots, tree snapshots, and pane creation. See `supaterm/Features/Terminal/TerminalWindowsClient.swift`.
-- `SupatermCLIShared` owns the shared contract between the app and CLI: environment keys, pane context parsing, socket path resolution, method names, and typed request/response payloads. See `SupatermCLIShared/SupatermCLIContext.swift`, `SupatermCLIShared/SupatermSocketPath.swift`, and `SupatermCLIShared/SupatermSocketProtocol.swift`.
-- The `sp` CLI resolves the socket path, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp ping`, `sp tree`, `sp debug`, and `sp new-pane`. See `sp/main.swift` and `sp/SPSocketClient.swift`.
-- `GhosttySurfaceView` injects pane context and the resolved socket path into the terminal process environment. See `supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`.
+- `SupatermApp` creates a dedicated `StoreOf<SocketControlFeature>` during app initialization and starts socket observation by sending `.task` directly to that store. See `apps/mac/supaterm/App/supatermApp.swift`.
+- `SocketControlFeature` owns socket command semantics. It starts the socket runtime through `SocketControlClient`, consumes streamed requests, maps them to terminal operations, and sends structured responses. See `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift`.
+- `SocketControlClient` is the dependency boundary between the reducer and the runtime. The live implementation delegates to `SocketControlRuntime.shared`. See `apps/mac/supaterm/Features/Socket/SocketControlClient.swift`.
+- `SocketControlRuntime` owns the Unix domain socket transport: path resolution, directory creation, stale socket cleanup, `bind`, `listen`, `accept`, request decoding, buffering, and response writes. See `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`.
+- `TerminalWindowsClient` provides the app-side operations the socket feature can invoke today: debug snapshots, tree snapshots, and pane creation. See `apps/mac/supaterm/Features/Terminal/TerminalWindowsClient.swift`.
+- `SupatermCLIShared` owns the shared contract between the app and CLI: environment keys, pane context parsing, socket path resolution, method names, and typed request/response payloads. See `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`, `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`, and `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
+- The `sp` CLI resolves the socket path, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp ping`, `sp tree`, `sp debug`, and `sp new-pane`. See `apps/mac/sp/main.swift` and `apps/mac/sp/SPSocketClient.swift`.
+- `GhosttySurfaceView` injects pane context and the resolved socket path into the terminal process environment. See `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`.
 
 ## Environment
 
@@ -19,7 +19,7 @@ This document is a current map of Supaterm's socket control path. The source is 
 - `SUPATERM_SURFACE_ID`: current pane surface identifier
 - `SUPATERM_TAB_ID`: current pane tab identifier
 
-Definitions live in `SupatermCLIShared/SupatermCLIContext.swift`.
+Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 
 ## Socket Path Resolution
 
@@ -36,7 +36,7 @@ This logic is shared by the app runtime, the CLI, and pane-launched commands.
 - `app.tree`: returns a typed `SupatermTreeSnapshot` with a `window -> workspace -> tab -> pane` hierarchy
 - `terminal.new_pane`: validates targeting rules, creates a pane through `TerminalWindowsClient`, and returns `SupatermNewPaneResult`
 
-Method names and payload types live in `SupatermCLIShared/SupatermSocketProtocol.swift`.
+Method names and payload types live in `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
 
 ## Tree Shape
 
@@ -110,23 +110,23 @@ Pane path
 
 ## Code Map
 
-- App startup: `supaterm/App/supatermApp.swift`
-- Socket feature semantics: `supaterm/Features/Socket/SocketControlFeature.swift`
-- Dependency boundary: `supaterm/Features/Socket/SocketControlClient.swift`
-- Unix socket transport: `supaterm/Features/Socket/SocketControlRuntime.swift`
-- Socket target resolution: `supaterm/Features/Socket/SupatermDebugSnapshotResolver.swift`
-- Terminal operations exposed to the socket feature: `supaterm/Features/Terminal/TerminalWindowsClient.swift`
-- Shared pane environment contract: `SupatermCLIShared/SupatermCLIContext.swift`
-- Shared path resolution: `SupatermCLIShared/SupatermSocketPath.swift`
-- Shared protocol types: `SupatermCLIShared/SupatermSocketProtocol.swift`
-- Pane environment injection: `supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`
-- CLI entrypoint: `sp/main.swift`
-- CLI socket client: `sp/SPSocketClient.swift`
+- App startup: `apps/mac/supaterm/App/supatermApp.swift`
+- Socket feature semantics: `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift`
+- Dependency boundary: `apps/mac/supaterm/Features/Socket/SocketControlClient.swift`
+- Unix socket transport: `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`
+- Socket target resolution: `apps/mac/supaterm/Features/Socket/SupatermDebugSnapshotResolver.swift`
+- Terminal operations exposed to the socket feature: `apps/mac/supaterm/Features/Terminal/TerminalWindowsClient.swift`
+- Shared pane environment contract: `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`
+- Shared path resolution: `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`
+- Shared protocol types: `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`
+- Pane environment injection: `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`
+- CLI entrypoint: `apps/mac/sp/main.swift`
+- CLI socket client: `apps/mac/sp/SPSocketClient.swift`
 
 ## Tests
 
-- Reducer tests: `supatermTests/SocketControlFeatureTests.swift`
-- Debug target resolution tests: `supatermTests/SupatermDebugSnapshotResolverTests.swift`
-- Runtime tests: `supatermTests/SocketControlRuntimeTests.swift`
-- Shared protocol and path tests: `supatermTests/SupatermSocketProtocolTests.swift`
-- Pane environment contract tests: `supatermTests/SupatermCLIContextTests.swift`
+- Reducer tests: `apps/mac/supatermTests/SocketControlFeatureTests.swift`
+- Debug target resolution tests: `apps/mac/supatermTests/SupatermDebugSnapshotResolverTests.swift`
+- Runtime tests: `apps/mac/supatermTests/SocketControlRuntimeTests.swift`
+- Shared protocol and path tests: `apps/mac/supatermTests/SupatermSocketProtocolTests.swift`
+- Pane environment contract tests: `apps/mac/supatermTests/SupatermCLIContextTests.swift`

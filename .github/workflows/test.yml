@@ -22,7 +22,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make inspect-dependencies
+      - run: make mac-inspect-dependencies
 
   build:
     runs-on: macos-26
@@ -37,8 +37,8 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make lint
-      - run: make test
+      - run: make mac-lint
+      - run: make mac-test
 
   warm-cache:
     runs-on: macos-26
@@ -61,4 +61,4 @@ jobs:
             echo "::error::TUIST_TOKEN is required to warm the Tuist remote cache."
             exit 1
           fi
-      - run: make warm-cache
+      - run: make mac-warm-cache
