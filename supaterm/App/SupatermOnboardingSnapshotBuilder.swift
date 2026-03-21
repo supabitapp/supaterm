@@ -6,18 +6,7 @@ enum SupatermOnboardingSnapshotBuilder {
   static func snapshot(
     shortcutForAction: (String) -> KeyboardShortcut?
   ) -> SupatermOnboardingSnapshot {
-    let items = onboardingItems(shortcutForAction: shortcutForAction)
-    let splitRightShortcut = items.first { $0.title == "Split right" }?.shortcut ?? "⌘D"
-    let splitDownShortcut = items.first { $0.title == "Split down" }?.shortcut ?? "⌘⇧D"
-
-    return .init(
-      items: items,
-      paneTips: [
-        "Panes stay in the current tab.",
-        "\(splitRightShortcut) splits right beside the current pane.",
-        "\(splitDownShortcut) splits down below the current pane.",
-      ]
-    )
+    .init(items: onboardingItems(shortcutForAction: shortcutForAction))
   }
 
   private static func onboardingItems(
