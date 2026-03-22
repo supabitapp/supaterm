@@ -381,15 +381,27 @@ struct TerminalSidebarTabSummaryView: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 6, style: .continuous)
-        .fill(palette.fill(for: tab.tone))
-        .frame(width: 18, height: 18)
-        .overlay {
-          Image(systemName: tab.symbol)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
-            .accessibilityHidden(true)
-        }
+      if unreadCount > 0 {
+        Text(unreadCount.formatted())
+          .font(.system(size: 10, weight: .bold))
+          .foregroundStyle(isSelected ? palette.selectedText : Color.white)
+          .padding(.horizontal, unreadCount > 9 ? 7 : 6)
+          .frame(minWidth: 18, minHeight: 18)
+          .background(
+            isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
+            in: Capsule(style: .continuous)
+          )
+      } else {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+          .fill(palette.fill(for: tab.tone))
+          .frame(width: 18, height: 18)
+          .overlay {
+            Image(systemName: tab.symbol)
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+              .accessibilityHidden(true)
+          }
+      }
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
@@ -398,18 +410,6 @@ struct TerminalSidebarTabSummaryView: View {
             .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
             .truncationMode(.tail)
-
-          if unreadCount > 0 {
-            Text(unreadCount.formatted())
-              .font(.system(size: 10, weight: .bold))
-              .foregroundStyle(isSelected ? palette.selectedText : Color.white)
-              .padding(.horizontal, unreadCount > 9 ? 7 : 6)
-              .frame(minHeight: 18)
-              .background(
-                isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
-                in: Capsule(style: .continuous)
-              )
-          }
 
           Spacer(minLength: 0)
         }
