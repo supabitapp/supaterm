@@ -15,7 +15,6 @@ extension NSPasteboard.PasteboardType {
 
 struct TerminalSidebarDragItem: Equatable {
   let tabID: TerminalTabID
-  var title: String
 }
 
 struct TerminalSidebarPendingReorder: Equatable {
@@ -135,16 +134,10 @@ final class TerminalSidebarDragSession: ObservableObject {
     }
   }
 
-  func zoneAcceptsCurrentDrag(
-    _ zone: TerminalSidebarDropZoneID
-  ) -> Bool {
-    sourceZone != nil
-  }
-
   func cursorEnteredZone(
     _ zone: TerminalSidebarDropZoneID
   ) {
-    guard zoneAcceptsCurrentDrag(zone) else { return }
+    guard sourceZone != nil else { return }
     if activeZone != zone {
       activeZone = zone
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
@@ -163,7 +156,7 @@ final class TerminalSidebarDragSession: ObservableObject {
     for zone: TerminalSidebarDropZoneID,
     localPoint: CGPoint
   ) {
-    guard zoneAcceptsCurrentDrag(zone) else { return }
+    guard sourceZone != nil else { return }
 
     let count = itemCounts[zone] ?? 0
     guard count > 0 else {
@@ -451,7 +444,7 @@ private struct TerminalSidebarDragPreviewContent: View {
   @ObservedObject var manager: TerminalSidebarDragSession
 
   var body: some View {
-    ZStack {
+    Group {
       if let tab = manager.draggedTab {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
@@ -459,6 +452,8 @@ private struct TerminalSidebarDragPreviewContent: View {
           rowWidth: manager.previewRowWidth,
           palette: palette
         )
+      } else {
+        Color.clear
       }
     }
     .frame(
@@ -473,29 +468,13 @@ private struct TerminalSidebarMorphingPreview: View {
   let rowWidth: CGFloat
   let palette: TerminalPalette
 
-  private var effectiveWidth: CGFloat {
-    rowWidth
-  }
-
-  private var effectiveHeight: CGFloat {
-    36
-  }
-
-  private var effectiveCornerRadius: CGFloat {
-    12
-  }
-
-  private var backgroundColor: Color {
-    Color(nsColor: .controlBackgroundColor).opacity(0.95)
-  }
-
   var body: some View {
     rowContent
-      .frame(width: effectiveWidth, height: effectiveHeight)
-      .background(backgroundColor)
-      .clipShape(RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous))
+      .frame(width: rowWidth, height: 36)
+      .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
+      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
       .overlay {
-        RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
           .stroke(Color.primary.opacity(0.08), lineWidth: 1)
       }
       .shadow(
@@ -742,7 +721,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> NSDragOperation {
     guard
       let coordinator,
-      coordinator.manager.zoneAcceptsCurrentDrag(coordinator.zoneID)
+      coordinator.manager.sourceZone != nil
     else {
       return []
     }
@@ -759,7 +738,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> NSDragOperation {
     guard
       let coordinator,
-      coordinator.manager.zoneAcceptsCurrentDrag(coordinator.zoneID)
+      coordinator.manager.sourceZone != nil
     else {
       return []
     }
@@ -782,7 +761,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> Bool {
     guard
       let coordinator,
-      coordinator.manager.zoneAcceptsCurrentDrag(coordinator.zoneID)
+      coordinator.manager.sourceZone != nil
     else {
       return false
     }
