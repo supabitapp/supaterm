@@ -4,7 +4,7 @@ description: Install macOS build dependencies and restore Ghostty build cache
 runs:
   using: composite
   steps:
-    - uses: jdx/mise-action@v3
+    - uses: jdx/mise-action@v4
       with:
         version: 2026.3.0
         cache: true
