@@ -10,9 +10,16 @@ struct TerminalDetailView: View {
   var body: some View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
+        canSplit: terminal.selectedSurfaceView != nil,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
-        title: terminal.selectedPaneDisplayTitle
+        title: terminal.selectedPaneDisplayTitle,
+        splitDown: {
+          _ = store.send(.bindingMenuItemSelected(.newSplit(.down)))
+        },
+        splitRight: {
+          _ = store.send(.bindingMenuItemSelected(.newSplit(.right)))
+        }
       )
       TerminalDetailSurface(
         store: store,
@@ -26,9 +33,12 @@ struct TerminalDetailView: View {
 }
 
 private struct TerminalDetailTopBar: View {
+  let canSplit: Bool
   let palette: TerminalPalette
   let backgroundColor: Color
   let title: String
+  let splitDown: () -> Void
+  let splitRight: () -> Void
 
   var body: some View {
     HStack(spacing: 0) {
@@ -37,9 +47,31 @@ private struct TerminalDetailTopBar: View {
         .foregroundStyle(palette.primaryText)
         .lineLimit(1)
         .truncationMode(.middle)
-      Spacer(minLength: 0)
+      Spacer(minLength: 8)
+      HStack(spacing: 4) {
+        ToolbarIconButton(
+          symbol: "square.split.2x1",
+          palette: palette,
+          accessibilityLabel: "Split right",
+          action: splitRight
+        )
+        .help("Split Right")
+        .disabled(!canSplit)
+        .opacity(canSplit ? 1 : 0.45)
+
+        ToolbarIconButton(
+          symbol: "square.split.1x2",
+          palette: palette,
+          accessibilityLabel: "Split down",
+          action: splitDown
+        )
+        .help("Split Down")
+        .disabled(!canSplit)
+        .opacity(canSplit ? 1 : 0.45)
+      }
     }
-    .padding(.horizontal, 12)
+    .padding(.leading, 12)
+    .padding(.trailing, 8)
     .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36, alignment: .leading)
     .background(backgroundColor)
     .overlay(alignment: .bottom) {
