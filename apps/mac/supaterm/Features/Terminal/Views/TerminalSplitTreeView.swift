@@ -91,8 +91,13 @@ struct TerminalSplitTreeView: View {
     let isUnread: Bool
     let action: (Operation) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dropState: DropState = .idle
     @State private var isPaneHovering = false
+
+    private var unreadGlowAnimation: Animation? {
+      reduceMotion ? nil : .easeInOut(duration: 0.2)
+    }
 
     var body: some View {
       GeometryReader { geometry in
@@ -130,20 +135,22 @@ struct TerminalSplitTreeView: View {
                 ))
           }
           .background {
-            if isUnread {
-              RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-                .padding(3)
-            }
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+              .fill(Color.accentColor.opacity(0.08))
+              .padding(3)
+              .opacity(isUnread ? 1 : 0)
+              .animation(unreadGlowAnimation, value: isUnread)
+              .allowsHitTesting(false)
           }
           .overlay {
-            if isUnread {
-              RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
-                .padding(3)
-                .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
-                .allowsHitTesting(false)
-            }
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+              .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
+              .padding(3)
+              .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
+              .compositingGroup()
+              .opacity(isUnread ? 1 : 0)
+              .animation(unreadGlowAnimation, value: isUnread)
+              .allowsHitTesting(false)
           }
           .overlay {
             if case .dropping(let zone) = dropState {
