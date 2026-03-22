@@ -9,12 +9,9 @@ struct AppFeature {
   }
 
   enum Action {
-    case quitRequested(ObjectIdentifier)
     case terminal(TerminalWindowFeature.Action)
     case update(UpdateFeature.Action)
   }
-
-  @Dependency(AppTerminationClient.self) var appTerminationClient
 
   var body: some Reducer<State, Action> {
     Scope(state: \.terminal, action: \.terminal) {
@@ -25,16 +22,8 @@ struct AppFeature {
       UpdateFeature()
     }
 
-    Reduce { state, action in
+    Reduce { _, action in
       switch action {
-      case .quitRequested(let windowID):
-        if state.update.phase.bypassesQuitConfirmation {
-          return .run { [appTerminationClient] _ in
-            await appTerminationClient.reply(true)
-          }
-        }
-        return .send(.terminal(.quitRequested(windowID: windowID)))
-
       case .terminal:
         return .none
 

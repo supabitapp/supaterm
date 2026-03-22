@@ -63,10 +63,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    guard let targetWindow = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) else {
-      return .terminateNow
+    Self.terminateReply(
+      hasVisibleTerminalWindows: terminalWindowRegistry.hasVisibleTerminalWindows,
+      bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation,
+      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation
+    ) {
+      let alert = NSAlert()
+      alert.messageText = "Quit Supaterm?"
+      alert.informativeText = "All terminal sessions will be terminated."
+      alert.addButton(withTitle: "Quit Supaterm")
+      alert.addButton(withTitle: "Cancel")
+      alert.alertStyle = .warning
+      return alert.runModal() == .alertFirstButtonReturn
     }
-    return terminalWindowRegistry.requestQuit(for: targetWindow) ? .terminateLater : .terminateNow
   }
 
   @discardableResult
@@ -127,5 +136,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       return true
     }
     return performNewWindow()
+  }
+
+  static func terminateReply(
+    hasVisibleTerminalWindows: Bool,
+    bypassesQuitConfirmation: Bool,
+    needsQuitConfirmation: Bool,
+    confirmQuit: () -> Bool
+  ) -> NSApplication.TerminateReply {
+    guard hasVisibleTerminalWindows else { return .terminateNow }
+    guard !bypassesQuitConfirmation else { return .terminateNow }
+    guard needsQuitConfirmation else { return .terminateNow }
+    return confirmQuit() ? .terminateNow : .terminateCancel
   }
 }

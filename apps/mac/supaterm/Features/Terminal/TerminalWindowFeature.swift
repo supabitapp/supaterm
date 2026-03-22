@@ -43,7 +43,6 @@ struct TerminalWindowFeature {
   enum ConfirmationTarget: Equatable {
     case closeAllWindows([ObjectIdentifier])
     case closeWindow(ObjectIdentifier)
-    case quit
   }
 
   struct PendingCloseRequest: Equatable, Identifiable {
@@ -81,7 +80,6 @@ struct TerminalWindowFeature {
     case nextTabMenuItemSelected
     case pinnedTabOrderChanged([TerminalTabID])
     case previousTabMenuItemSelected
-    case quitRequested(windowID: ObjectIdentifier)
     case regularTabOrderChanged([TerminalTabID])
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
@@ -114,7 +112,6 @@ struct TerminalWindowFeature {
   }
 
   @Dependency(TerminalClient.self) var terminalClient
-  @Dependency(AppTerminationClient.self) var appTerminationClient
   @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
   var body: some Reducer<State, Action> {
@@ -201,13 +198,6 @@ struct TerminalWindowFeature {
       case .previousTabMenuItemSelected:
         return sendCommand(.previousTab)
 
-      case .quitRequested(let windowID):
-        if let currentWindowID = state.windowID, currentWindowID != windowID {
-          return .none
-        }
-        state.confirmationRequest = confirmationRequest(for: .quit)
-        return .none
-
       case .regularTabOrderChanged(let orderedIDs):
         return sendCommand(.setRegularTabOrder(orderedIDs))
 
@@ -286,10 +276,6 @@ struct TerminalWindowFeature {
         guard let confirmationRequest = state.confirmationRequest else { return .none }
         state.confirmationRequest = nil
         switch confirmationRequest.target {
-        case .quit:
-          return .run { [appTerminationClient] _ in
-            await appTerminationClient.reply(false)
-          }
         case .closeWindow, .closeAllWindows:
           return .none
         }
@@ -298,10 +284,6 @@ struct TerminalWindowFeature {
         guard let confirmationRequest = state.confirmationRequest else { return .none }
         state.confirmationRequest = nil
         switch confirmationRequest.target {
-        case .quit:
-          return .run { [appTerminationClient] _ in
-            await appTerminationClient.reply(true)
-          }
         case .closeWindow(let windowID):
           return .run { [terminalWindowsClient] _ in
             await terminalWindowsClient.closeWindow(windowID)
@@ -372,13 +354,6 @@ struct TerminalWindowFeature {
 
   private func confirmationRequest(for target: ConfirmationTarget) -> ConfirmationRequest {
     switch target {
-    case .quit:
-      return .init(
-        target: .quit,
-        title: "Quit Supaterm?",
-        message: "Are you sure you want to quit?",
-        confirmTitle: "Quit"
-      )
     case .closeWindow(let windowID):
       return .init(
         target: .closeWindow(windowID),

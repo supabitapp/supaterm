@@ -52,6 +52,18 @@ final class TerminalWindowRegistry {
     !entries.isEmpty
   }
 
+  var hasVisibleTerminalWindows: Bool {
+    !visibleEntries().isEmpty
+  }
+
+  var bypassesQuitConfirmation: Bool {
+    visibleEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
+  }
+
+  var needsQuitConfirmation: Bool {
+    visibleEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
+  }
+
   func register(
     keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
     windowControllerID: UUID,
@@ -82,13 +94,6 @@ final class TerminalWindowRegistry {
     guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID }) else { return }
     entries[index].windowReference.value = window
     onChange()
-  }
-
-  func requestQuit(for window: NSWindow) -> Bool {
-    guard let entry = entry(for: window) else { return false }
-    let windowID = ObjectIdentifier(window)
-    entry.store.send(.quitRequested(windowID))
-    return true
   }
 
   func commandAvailability() -> CommandAvailability {
@@ -353,6 +358,10 @@ final class TerminalWindowRegistry {
 
   private func activeEntries() -> [Entry] {
     entries.filter { $0.windowReference.value != nil }
+  }
+
+  private func visibleEntries() -> [Entry] {
+    activeEntries().filter { $0.windowReference.value?.isVisible == true }
   }
 
   private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
