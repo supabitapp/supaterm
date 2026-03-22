@@ -166,20 +166,6 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func dragPreviewHidesWithoutAnActiveZone() {
-    #expect(
-      !TerminalSidebarLayout.showsDragPreview(activeZone: nil)
-    )
-  }
-
-  @Test
-  func dragPreviewShowsWithAnActiveZone() {
-    #expect(
-      TerminalSidebarLayout.showsDragPreview(activeZone: .pinned)
-    )
-  }
-
-  @Test
   func unionFrameSpansAllDropZones() {
     #expect(
       TerminalSidebarLayout.unionFrame(

@@ -125,12 +125,6 @@ enum TerminalSidebarLayout {
     }
   }
 
-  static func showsDragPreview(
-    activeZone: TerminalSidebarDropZoneID?
-  ) -> Bool {
-    activeZone != nil
-  }
-
   static func showsTopIndicator(
     scrollOffset: CGFloat
   ) -> Bool {
