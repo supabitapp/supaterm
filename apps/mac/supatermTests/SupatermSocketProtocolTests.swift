@@ -226,17 +226,19 @@ struct SupatermSocketProtocolTests {
       command: "pwd",
       direction: .down,
       focus: false,
-      targetPaneIndex: 2,
+      targetWindowIndex: 1,
+      targetSpaceIndex: 2,
       targetTabIndex: 1,
-      targetWindowIndex: 1
+      targetPaneIndex: 2
     )
     let result = SupatermNewPaneResult(
       direction: .down,
       isFocused: false,
       isSelectedTab: true,
-      paneIndex: 3,
+      windowIndex: 1,
+      spaceIndex: 2,
       tabIndex: 1,
-      windowIndex: 1
+      paneIndex: 3
     )
 
     let request = try SupatermSocketRequest.newPane(requestPayload, id: "new-pane-1")

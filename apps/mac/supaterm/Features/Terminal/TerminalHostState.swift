@@ -573,8 +573,9 @@ final class TerminalHostState {
       syncFocus(windowActivity)
 
       guard
-        let space = spaceManager.space(for: resolvedTarget.tabID),
-        let tabIndex = spaceManager.tabs(in: space.id).firstIndex(where: { $0.id == resolvedTarget.tabID }),
+        let spaceIndex = spaceManager.spaceIndex(for: resolvedTarget.spaceID),
+        let tabIndex = spaceManager.tabs(in: resolvedTarget.spaceID)
+          .firstIndex(where: { $0.id == resolvedTarget.tabID }),
         let paneIndex = newTree.leaves().firstIndex(where: { $0.id == newSurface.id })
       else {
         throw TerminalCreatePaneError.creationFailed
@@ -591,9 +592,10 @@ final class TerminalHostState {
         direction: request.direction,
         isFocused: selectionState.isFocused,
         isSelectedTab: selectionState.isSelectedTab,
-        paneIndex: paneIndex + 1,
+        windowIndex: 1,
+        spaceIndex: spaceIndex,
         tabIndex: tabIndex + 1,
-        windowIndex: 1
+        paneIndex: paneIndex + 1
       )
     } catch let error as TerminalCreatePaneError {
       newSurface.closeSurface()
@@ -921,6 +923,13 @@ final class TerminalHostState {
 
   private struct ResolvedCreatePaneTarget {
     let anchorSurface: GhosttySurfaceView
+    let spaceID: TerminalSpaceID
+    let tabID: TerminalTabID
+    let tree: SplitTree<GhosttySurfaceView>
+  }
+
+  private struct ResolvedCreatePaneTab {
+    let space: TerminalSpaceItem
     let tabID: TerminalTabID
     let tree: SplitTree<GhosttySurfaceView>
   }
@@ -932,6 +941,7 @@ final class TerminalHostState {
     case .contextPane(let paneID):
       guard
         let tabID = tabID(containing: paneID),
+        let space = spaceManager.space(for: tabID),
         let tree = trees[tabID],
         let anchorSurface = surfaces[paneID]
       else {
@@ -940,17 +950,19 @@ final class TerminalHostState {
 
       return ResolvedCreatePaneTarget(
         anchorSurface: anchorSurface,
+        spaceID: space.id,
         tabID: tabID,
         tree: tree
       )
 
-    case .pane(let windowIndex, let tabIndex, let paneIndex):
-      let resolvedTab = try resolveTab(windowIndex: windowIndex, tabIndex: tabIndex)
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let resolvedTab = try resolveTab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
       let panes = resolvedTab.tree.leaves()
       let paneOffset = paneIndex - 1
       guard panes.indices.contains(paneOffset) else {
         throw TerminalCreatePaneError.paneNotFound(
           windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -958,12 +970,13 @@ final class TerminalHostState {
 
       return ResolvedCreatePaneTarget(
         anchorSurface: panes[paneOffset],
+        spaceID: resolvedTab.space.id,
         tabID: resolvedTab.tabID,
         tree: resolvedTab.tree
       )
 
-    case .tab(let windowIndex, let tabIndex):
-      let resolvedTab = try resolveTab(windowIndex: windowIndex, tabIndex: tabIndex)
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let resolvedTab = try resolveTab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
       let anchorSurface =
         focusedSurfaceIDByTab[resolvedTab.tabID].flatMap { surfaces[$0] }
         ?? resolvedTab.tree.root?.leftmostLeaf()
@@ -973,24 +986,38 @@ final class TerminalHostState {
 
       return ResolvedCreatePaneTarget(
         anchorSurface: anchorSurface,
+        spaceID: resolvedTab.space.id,
         tabID: resolvedTab.tabID,
         tree: resolvedTab.tree
       )
     }
   }
 
-  private func resolveTab(
+  private func resolveSpace(
     windowIndex: Int,
-    tabIndex: Int
-  ) throws -> (tabID: TerminalTabID, tree: SplitTree<GhosttySurfaceView>) {
+    spaceIndex: Int
+  ) throws -> TerminalSpaceItem {
     guard windowIndex == 1 else {
       throw TerminalCreatePaneError.windowNotFound(windowIndex)
     }
+    guard let space = spaceManager.space(at: spaceIndex) else {
+      throw TerminalCreatePaneError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    }
+    return space
+  }
 
+  private func resolveTab(
+    windowIndex: Int,
+    spaceIndex: Int,
+    tabIndex: Int
+  ) throws -> ResolvedCreatePaneTab {
+    let space = try resolveSpace(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    let tabs = spaceManager.tabs(in: space.id)
     let tabOffset = tabIndex - 1
     guard tabs.indices.contains(tabOffset) else {
       throw TerminalCreatePaneError.tabNotFound(
         windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
         tabIndex: tabIndex
       )
     }
@@ -1000,7 +1027,7 @@ final class TerminalHostState {
       throw TerminalCreatePaneError.creationFailed
     }
 
-    return (tabID, tree)
+    return .init(space: space, tabID: tabID, tree: tree)
   }
 
   private func updateTabTitle(for tabID: TerminalTabID) {

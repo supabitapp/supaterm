@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 @MainActor
@@ -224,6 +225,47 @@ struct TerminalWindowRegistryTests {
     default:
       Issue.record("Expected no windows plan")
     }
+  }
+
+  @Test
+  func rewriteNewPaneResultPreservesSpaceIndexAndUpdatesWindowIndex() {
+    let result = SupatermNewPaneResult(
+      direction: .right,
+      isFocused: true,
+      isSelectedTab: true,
+      windowIndex: 1,
+      spaceIndex: 3,
+      tabIndex: 2,
+      paneIndex: 4
+    )
+
+    #expect(
+      TerminalWindowRegistry.rewrite(result, windowIndex: 2)
+        == .init(
+          direction: .right,
+          isFocused: true,
+          isSelectedTab: true,
+          windowIndex: 2,
+          spaceIndex: 3,
+          tabIndex: 2,
+          paneIndex: 4
+        )
+    )
+  }
+
+  @Test
+  func rewriteCreatePaneErrorPreservesSpaceIndexAndUpdatesWindowIndex() {
+    let error = TerminalCreatePaneError.paneNotFound(
+      windowIndex: 1,
+      spaceIndex: 3,
+      tabIndex: 2,
+      paneIndex: 4
+    )
+
+    #expect(
+      TerminalWindowRegistry.rewrite(error, windowIndex: 2)
+        == .paneNotFound(windowIndex: 2, spaceIndex: 3, tabIndex: 2, paneIndex: 4)
+    )
   }
 
   private func makeWindow() -> NSWindow {

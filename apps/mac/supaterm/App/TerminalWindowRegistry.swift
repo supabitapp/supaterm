@@ -329,25 +329,33 @@ final class TerminalWindowRegistry {
     case .contextPane:
       return try createContextPane(request)
 
-    case .pane(let windowIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       let entry = try entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         command: request.command,
         direction: request.direction,
         focus: request.focus,
-        target: .pane(windowIndex: 1, tabIndex: tabIndex, paneIndex: paneIndex)
+        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
       )
-      return rewrite(try entry.terminal.createPane(localRequest), windowIndex: windowIndex)
+      do {
+        return Self.rewrite(try entry.terminal.createPane(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalCreatePaneError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
 
-    case .tab(let windowIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
       let entry = try entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         command: request.command,
         direction: request.direction,
         focus: request.focus,
-        target: .tab(windowIndex: 1, tabIndex: tabIndex)
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
       )
-      return rewrite(try entry.terminal.createPane(localRequest), windowIndex: windowIndex)
+      do {
+        return Self.rewrite(try entry.terminal.createPane(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalCreatePaneError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
     }
   }
 
@@ -355,7 +363,7 @@ final class TerminalWindowRegistry {
     for (offset, entry) in activeEntries().enumerated() {
       do {
         let result = try entry.terminal.createPane(request)
-        return rewrite(result, windowIndex: offset + 1)
+        return Self.rewrite(result, windowIndex: offset + 1)
       } catch let error as TerminalCreatePaneError {
         if case .contextPaneNotFound = error {
           continue
@@ -414,7 +422,7 @@ final class TerminalWindowRegistry {
     preferredActiveEntry() ?? entries.first
   }
 
-  private func rewrite(
+  static func rewrite(
     _ result: SupatermNewPaneResult,
     windowIndex: Int
   ) -> SupatermNewPaneResult {
@@ -422,10 +430,40 @@ final class TerminalWindowRegistry {
       direction: result.direction,
       isFocused: result.isFocused,
       isSelectedTab: result.isSelectedTab,
-      paneIndex: result.paneIndex,
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
       tabIndex: result.tabIndex,
-      windowIndex: windowIndex
+      paneIndex: result.paneIndex
     )
+  }
+
+  static func rewrite(
+    _ error: TerminalCreatePaneError,
+    windowIndex: Int
+  ) -> TerminalCreatePaneError {
+    switch error {
+    case .contextPaneNotFound:
+      return .contextPaneNotFound
+    case .creationFailed:
+      return .creationFailed
+    case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
+      return .paneNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex,
+        paneIndex: paneIndex
+      )
+    case .spaceNotFound(_, let spaceIndex):
+      return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    case .tabNotFound(_, let spaceIndex, let tabIndex):
+      return .tabNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex
+      )
+    case .windowNotFound:
+      return .windowNotFound(windowIndex)
+    }
   }
 
   private func updateSnapshot(_ state: UpdateFeature.State?) -> SupatermAppDebugSnapshot.Update {

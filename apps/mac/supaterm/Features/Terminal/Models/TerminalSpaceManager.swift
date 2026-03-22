@@ -123,6 +123,12 @@ final class TerminalSpaceManager {
     tabManagers[spaceID]?.tabs ?? []
   }
 
+  func space(at index: Int) -> TerminalSpaceItem? {
+    let offset = index - 1
+    guard spaces.indices.contains(offset) else { return nil }
+    return spaces[offset]
+  }
+
   func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
     tabManagers[spaceID]?.selectedTabId
   }

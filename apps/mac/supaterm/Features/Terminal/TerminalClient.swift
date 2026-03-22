@@ -5,8 +5,8 @@ import SupatermCLIShared
 struct TerminalCreatePaneRequest: Equatable, Sendable {
   enum Target: Equatable, Sendable {
     case contextPane(UUID)
-    case pane(windowIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, tabIndex: Int)
+    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   }
 
   let command: String?
@@ -28,8 +28,9 @@ struct TerminalCloseRequest: Equatable, Sendable {
 enum TerminalCreatePaneError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
-  case paneNotFound(windowIndex: Int, tabIndex: Int, paneIndex: Int)
-  case tabNotFound(windowIndex: Int, tabIndex: Int)
+  case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
+  case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   case windowNotFound(Int)
 }
 

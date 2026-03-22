@@ -500,26 +500,29 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let direction: SupatermPaneDirection
   public let focus: Bool
-  public let targetPaneIndex: Int?
-  public let targetTabIndex: Int?
   public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+  public let targetTabIndex: Int?
+  public let targetPaneIndex: Int?
 
   public init(
     command: String? = nil,
     contextPaneID: UUID? = nil,
     direction: SupatermPaneDirection,
     focus: Bool,
-    targetPaneIndex: Int? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil,
     targetTabIndex: Int? = nil,
-    targetWindowIndex: Int? = nil
+    targetPaneIndex: Int? = nil
   ) {
     self.command = command
     self.contextPaneID = contextPaneID
     self.direction = direction
     self.focus = focus
-    self.targetPaneIndex = targetPaneIndex
-    self.targetTabIndex = targetTabIndex
     self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+    self.targetTabIndex = targetTabIndex
+    self.targetPaneIndex = targetPaneIndex
   }
 }
 
@@ -527,24 +530,27 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let direction: SupatermPaneDirection
   public let isFocused: Bool
   public let isSelectedTab: Bool
-  public let paneIndex: Int
-  public let tabIndex: Int
   public let windowIndex: Int
+  public let spaceIndex: Int
+  public let tabIndex: Int
+  public let paneIndex: Int
 
   public init(
     direction: SupatermPaneDirection,
     isFocused: Bool,
     isSelectedTab: Bool,
-    paneIndex: Int,
+    windowIndex: Int,
+    spaceIndex: Int,
     tabIndex: Int,
-    windowIndex: Int
+    paneIndex: Int
   ) {
     self.direction = direction
     self.isFocused = isFocused
     self.isSelectedTab = isSelectedTab
-    self.paneIndex = paneIndex
-    self.tabIndex = tabIndex
     self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.tabIndex = tabIndex
+    self.paneIndex = paneIndex
   }
 }
 

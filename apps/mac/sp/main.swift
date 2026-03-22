@@ -196,16 +196,19 @@ extension SP {
     @Argument(help: "Direction for the new pane.")
     var direction: PaneDirectionArgument = .right
 
-    @Option(name: .long, help: "Target a pane inside the selected tab by its 1-based index.")
+    @Option(name: .long, help: "Target a pane inside the specified tab by its 1-based index.")
     var pane: Int?
+
+    @Option(name: .long, help: "Target a space by its 1-based index.")
+    var space: Int?
 
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
-    @Option(name: .long, help: "Target a tab by its 1-based index.")
+    @Option(name: .long, help: "Target a tab inside the specified space by its 1-based index.")
     var tab: Int?
 
-    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a tab target is set.")
+    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
     var window: Int?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new pane after creating it.")
@@ -230,13 +233,18 @@ extension SP {
       if json {
         print(try jsonString(result))
       } else {
-        print("window \(result.windowIndex) tab \(result.tabIndex) pane \(result.paneIndex)")
+        print(
+          "window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)"
+        )
       }
     }
 
     func validate() throws {
       if let window, window < 1 {
         throw ValidationError("--window must be 1 or greater.")
+      }
+      if let space, space < 1 {
+        throw ValidationError("--space must be 1 or greater.")
       }
       if let tab, tab < 1 {
         throw ValidationError("--tab must be 1 or greater.")
@@ -247,11 +255,17 @@ extension SP {
       if pane != nil && tab == nil {
         throw ValidationError("--pane requires --tab.")
       }
-      if window != nil && tab == nil {
-        throw ValidationError("--window requires --tab.")
+      if tab != nil && space == nil {
+        throw ValidationError("--tab requires --space.")
       }
-      if tab == nil && pane == nil && SupatermCLIContext.current == nil {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --tab.")
+      if window != nil && space == nil {
+        throw ValidationError("--window requires --space.")
+      }
+      if space != nil && tab == nil {
+        throw ValidationError("--space requires --tab.")
+      }
+      if space == nil && tab == nil && pane == nil && SupatermCLIContext.current == nil {
+        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
       }
     }
 
@@ -263,14 +277,15 @@ extension SP {
           command: command,
           direction: direction.direction,
           focus: focus,
-          targetPaneIndex: pane,
+          targetWindowIndex: window ?? 1,
+          targetSpaceIndex: space,
           targetTabIndex: tab,
-          targetWindowIndex: window ?? 1
+          targetPaneIndex: pane
         )
       }
 
       guard let context = SupatermCLIContext.current else {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --tab.")
+        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
       }
 
       return SupatermNewPaneRequest(

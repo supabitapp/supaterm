@@ -67,6 +67,18 @@ struct TerminalSpaceManagerTests {
     #expect(manager.selectedSpaceID == catalog.spaces[1].id)
   }
 
+  @Test
+  func spaceAtIndexUsesOneBasedOrdering() {
+    let manager = TerminalSpaceManager()
+    let catalog = makeCatalog(["A", "B"])
+
+    manager.bootstrap(from: catalog, initialSelectedSpaceID: nil)
+
+    #expect(manager.space(at: 1)?.id == catalog.spaces[0].id)
+    #expect(manager.space(at: 2)?.id == catalog.spaces[1].id)
+    #expect(manager.space(at: 3) == nil)
+  }
+
   private func makeCatalog(
     _ spaceNames: [String],
     defaultSelectedIndex: Int = 0

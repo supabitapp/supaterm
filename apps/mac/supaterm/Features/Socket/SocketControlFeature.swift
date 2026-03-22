@@ -11,20 +11,26 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
   case missingTarget
   case onboardingUnavailable
   case paneRequiresTab
-  case windowRequiresTab
+  case spaceRequiresTab
+  case tabRequiresSpace
+  case windowRequiresSpace
 
   var errorDescription: String? {
     switch self {
     case .invalidIndex(let field):
       return "\(field) must be 1 or greater."
     case .missingTarget:
-      return "Provide a target tab or run the command inside a Supaterm pane."
+      return "Provide a target space and tab or run the command inside a Supaterm pane."
     case .onboardingUnavailable:
       return "No Supaterm window is available."
     case .paneRequiresTab:
       return "pane target requires a tab target."
-    case .windowRequiresTab:
-      return "window target requires a tab target."
+    case .spaceRequiresTab:
+      return "space target requires a tab target."
+    case .tabRequiresSpace:
+      return "tab target requires a space target."
+    case .windowRequiresSpace:
+      return "window target requires a space target."
     }
   }
 }
@@ -149,8 +155,24 @@ struct SocketControlFeature {
   private func createPaneRequest(
     from payload: SupatermNewPaneRequest
   ) throws -> TerminalCreatePaneRequest {
+    try validateCreatePanePayload(payload)
+
+    return .init(
+      command: payload.command,
+      direction: payload.direction,
+      focus: payload.focus,
+      target: try createPaneTarget(from: payload)
+    )
+  }
+
+  private func validateCreatePanePayload(
+    _ payload: SupatermNewPaneRequest
+  ) throws {
     if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
       throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
     }
     if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
       throw SocketRequestError.invalidIndex("tab")
@@ -158,41 +180,55 @@ struct SocketControlFeature {
     if let paneIndex = payload.targetPaneIndex, paneIndex < 1 {
       throw SocketRequestError.invalidIndex("pane")
     }
+    if payload.targetPaneIndex != nil && payload.targetTabIndex == nil {
+      throw SocketRequestError.paneRequiresTab
+    }
+    if payload.targetTabIndex != nil && payload.targetSpaceIndex == nil {
+      throw SocketRequestError.tabRequiresSpace
+    }
+    if payload.targetSpaceIndex != nil && payload.targetTabIndex == nil {
+      throw SocketRequestError.spaceRequiresTab
+    }
+    if payload.targetWindowIndex != nil && payload.targetSpaceIndex == nil {
+      throw SocketRequestError.windowRequiresSpace
+    }
+  }
 
-    let target: TerminalCreatePaneRequest.Target
-    switch (payload.targetTabIndex, payload.targetPaneIndex) {
-    case (nil, nil):
+  private func createPaneTarget(
+    from payload: SupatermNewPaneRequest
+  ) throws -> TerminalCreatePaneRequest.Target {
+    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
+    case (nil, nil, nil):
       guard let contextPaneID = payload.contextPaneID else {
         throw SocketRequestError.missingTarget
       }
       if payload.targetWindowIndex != nil {
-        throw SocketRequestError.windowRequiresTab
+        throw SocketRequestError.windowRequiresSpace
       }
-      target = .contextPane(contextPaneID)
+      return .contextPane(contextPaneID)
 
-    case (nil, .some):
-      throw SocketRequestError.paneRequiresTab
-
-    case (.some, nil):
-      target = .tab(
+    case (.some, .some, nil):
+      return .tab(
         windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
         tabIndex: payload.targetTabIndex!
       )
 
-    case (.some, .some):
-      target = .pane(
+    case (.some, .some, .some):
+      return .pane(
         windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
         tabIndex: payload.targetTabIndex!,
         paneIndex: payload.targetPaneIndex!
       )
-    }
 
-    return .init(
-      command: payload.command,
-      direction: payload.direction,
-      focus: payload.focus,
-      target: target
-    )
+    case (.none, .some, _):
+      throw SocketRequestError.tabRequiresSpace
+    case (.some, .none, _):
+      throw SocketRequestError.spaceRequiresTab
+    case (.none, .none, .some):
+      throw SocketRequestError.paneRequiresTab
+    }
   }
 
   private func createPaneErrorResponse(
@@ -214,18 +250,25 @@ struct SocketControlFeature {
         message: "Failed to create a new pane."
       )
 
-    case .paneNotFound(let windowIndex, let tabIndex, let paneIndex):
+    case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       return .error(
         id: requestID,
         code: "not_found",
-        message: "Pane \(paneIndex) was not found in tab \(tabIndex) of window \(windowIndex)."
+        message: "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
       )
 
-    case .tabNotFound(let windowIndex, let tabIndex):
+    case .spaceNotFound(let windowIndex, let spaceIndex):
       return .error(
         id: requestID,
         code: "not_found",
-        message: "Tab \(tabIndex) was not found in window \(windowIndex)."
+        message: "Space \(spaceIndex) was not found in window \(windowIndex)."
+      )
+
+    case .tabNotFound(let windowIndex, let spaceIndex, let tabIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Tab \(tabIndex) was not found in space \(spaceIndex) of window \(windowIndex)."
       )
 
     case .windowNotFound(let windowIndex):

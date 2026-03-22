@@ -59,10 +59,11 @@ Method names and payload types live in `apps/mac/SupatermCLIShared/SupatermSocke
 
 ## Pane Targeting
 
-- `terminal.new_pane` is unchanged at the request and response level.
-- Explicit `window` and `tab` targets are resolved within the currently selected space.
+- `terminal.new_pane` explicit targets now resolve as `window -> space -> tab -> pane`.
+- Explicit `window`, `space`, `tab`, and `pane` targets are resolved within the requested window and space.
+- Explicit socket requests must provide `space` together with `tab`; `pane` still requires `tab`.
 - Context-pane targeting still resolves globally through `SUPATERM_SURFACE_ID`.
-- No space-specific socket methods are exposed in v1.
+- `SupatermNewPaneResult` now includes the resolved `spaceIndex`.
 
 ## Flow
 
