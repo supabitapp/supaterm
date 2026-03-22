@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import SwiftUI
 
@@ -442,6 +443,10 @@ struct TerminalSidebarTabRow: View {
       .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     .buttonStyle(.plain)
+    .background(
+      TerminalSidebarMiddleClickActionView(action: close)
+        .allowsHitTesting(false)
+    )
     .onHover { isHovering in
       withAnimation(.easeInOut(duration: 0.05)) {
         self.isHovering = isHovering
@@ -491,6 +496,67 @@ struct TerminalSidebarTabRow: View {
   private func close() {
     withAnimation(.easeInOut(duration: 0.15)) {
       _ = store.send(.closeTabRequested(tab.id))
+    }
+  }
+}
+
+private struct TerminalSidebarMiddleClickActionView: NSViewRepresentable {
+  let action: () -> Void
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(action: action)
+  }
+
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    context.coordinator.view = view
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    context.coordinator.view = nsView
+    context.coordinator.action = action
+  }
+
+  static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+    coordinator.view = nil
+  }
+
+  final class Coordinator {
+    weak var view: NSView?
+    var action: () -> Void
+    private var localMonitor: Any?
+
+    init(action: @escaping () -> Void) {
+      self.action = action
+      localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { [weak self] event in
+        self?.handle(event) ?? event
+      }
+    }
+
+    deinit {
+      if let localMonitor {
+        NSEvent.removeMonitor(localMonitor)
+      }
+    }
+
+    private func handle(_ event: NSEvent) -> NSEvent? {
+      guard
+        event.buttonNumber == 2,
+        let view,
+        let window = view.window,
+        window == event.window
+      else {
+        return event
+      }
+
+      let location = view.convert(event.locationInWindow, from: nil)
+      guard view.bounds.contains(location) else {
+        return event
+      }
+
+      action()
+      return nil
     }
   }
 }
