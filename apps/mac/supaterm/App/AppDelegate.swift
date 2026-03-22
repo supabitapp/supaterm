@@ -12,6 +12,7 @@ protocol GhosttyAppActionPerforming: AnyObject {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
   private let menuController: SupatermMenuController
+  private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
   private var settingsWindowController: SettingsWindowController?
@@ -21,12 +22,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     GhosttyBootstrap.initialize()
     let terminalWindowRegistry = TerminalWindowRegistry()
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
+    let quitConfirmationPresenter = QuitConfirmationPresenter()
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
     } withDependencies: {
       $0.terminalWindowsClient = .live(registry: terminalWindowRegistry)
     }
     self.menuController = menuController
+    self.quitConfirmationPresenter = quitConfirmationPresenter
     self.socketStore = socketStore
     self.terminalWindowRegistry = terminalWindowRegistry
     super.init()
@@ -67,13 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       hasVisibleTerminalWindows: terminalWindowRegistry.hasVisibleTerminalWindows,
       bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation
     ) {
-      let alert = NSAlert()
-      alert.messageText = "Quit Supaterm?"
-      alert.informativeText = "All terminal sessions will be terminated."
-      alert.addButton(withTitle: "Quit Supaterm")
-      alert.addButton(withTitle: "Cancel")
-      alert.alertStyle = .warning
-      return alert.runModal() == .alertFirstButtonReturn
+      quitConfirmationPresenter.confirmQuit()
     }
   }
 
