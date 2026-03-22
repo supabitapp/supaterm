@@ -58,6 +58,47 @@ struct TerminalHostStateSelectionTests {
   }
 
   @Test
+  func shouldSyncFocusDuringTabCreationWhenFocusRequested() {
+    let currentSelectedSpaceID = TerminalSpaceID()
+    let targetSpaceID = TerminalSpaceID()
+
+    let synchronizesFocus = TerminalHostState.shouldSyncFocusDuringTabCreation(
+      targetSpaceID: targetSpaceID,
+      focusRequested: true,
+      currentSelectedSpaceID: currentSelectedSpaceID
+    )
+
+    #expect(synchronizesFocus)
+  }
+
+  @Test
+  func shouldSyncFocusDuringTabCreationWhenTargetSpaceIsNotSelected() {
+    let currentSelectedSpaceID = TerminalSpaceID()
+    let targetSpaceID = TerminalSpaceID()
+
+    let synchronizesFocus = TerminalHostState.shouldSyncFocusDuringTabCreation(
+      targetSpaceID: targetSpaceID,
+      focusRequested: false,
+      currentSelectedSpaceID: currentSelectedSpaceID
+    )
+
+    #expect(synchronizesFocus)
+  }
+
+  @Test
+  func shouldNotSyncFocusDuringBackgroundTabCreationInSelectedSpace() {
+    let targetSpaceID = TerminalSpaceID()
+
+    let synchronizesFocus = TerminalHostState.shouldSyncFocusDuringTabCreation(
+      targetSpaceID: targetSpaceID,
+      focusRequested: false,
+      currentSelectedSpaceID: targetSpaceID
+    )
+
+    #expect(!synchronizesFocus)
+  }
+
+  @Test
   func selectedTabIDAfterCreatingPaneUsesTargetTabWhenFocusRequested() {
     let currentSelectedTabID = TerminalTabID()
     let targetTabID = TerminalTabID()

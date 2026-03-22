@@ -266,7 +266,8 @@ final class TerminalHostState {
     focusing: Bool = true,
     initialInput: String? = nil,
     workingDirectory: URL? = nil,
-    inheritingFromSurfaceID: UUID? = nil
+    inheritingFromSurfaceID: UUID? = nil,
+    synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
     guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
@@ -289,7 +290,9 @@ final class TerminalHostState {
     if focusing, let surface = tree.root?.leftmostLeaf() {
       focusSurface(surface, in: tabID)
     }
-    syncFocus(windowActivity)
+    if synchronizesFocus {
+      syncFocus(windowActivity)
+    }
     return tabID
   }
 
@@ -668,7 +671,12 @@ final class TerminalHostState {
           focusing: false,
           initialInput: request.command.map { "\($0)\n" },
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
-          inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID
+          inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
+          synchronizesFocus: Self.shouldSyncFocusDuringTabCreation(
+            targetSpaceID: resolvedTarget.space.id,
+            focusRequested: request.focus,
+            currentSelectedSpaceID: currentSelectedSpaceID
+          )
         )
       guard
         let tabID,
@@ -1272,6 +1280,14 @@ final class TerminalHostState {
       return targetTabID
     }
     return currentSelectedTabID
+  }
+
+  static func shouldSyncFocusDuringTabCreation(
+    targetSpaceID: TerminalSpaceID,
+    focusRequested: Bool,
+    currentSelectedSpaceID: TerminalSpaceID?
+  ) -> Bool {
+    focusRequested || currentSelectedSpaceID != targetSpaceID
   }
 
   static func selectedTabID(
