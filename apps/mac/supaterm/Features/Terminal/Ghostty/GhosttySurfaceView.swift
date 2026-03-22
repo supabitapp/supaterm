@@ -98,6 +98,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
   var onFocusChange: ((Bool) -> Void)?
+  var onKeyboardActivity: (() -> Void)?
 
   private var accessibilityPaneIndexHelp: String?
 
@@ -547,6 +548,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
       interpretKeyEvents([event])
       return
     }
+    if focused {
+      onKeyboardActivity?()
+    }
     bridge.state.bellCount = 0
     let (translationEvent, translationMods) = translationState(event, surface: surface)
     let action = event.isARepeat ? GHOSTTY_ACTION_REPEAT : GHOSTTY_ACTION_PRESS
@@ -980,6 +984,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       if shouldAttemptMenu(for: bindingFlags),
         (NSApp.delegate as? AppDelegate)?.performGhosttyBindingMenuKeyEquivalent(with: event) == true
       {
+        onKeyboardActivity?()
         return true
       }
       keyDown(with: event)
