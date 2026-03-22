@@ -25,6 +25,7 @@ final class TerminalWindowRegistry {
 
   struct MenuContext: Equatable {
     let availability: CommandAvailability
+    let closesKeyWindowDirectly: Bool
     let hasSearch: Bool
     let updateMenuItemText: String
     let visibleTabCount: Int
@@ -108,10 +109,12 @@ final class TerminalWindowRegistry {
     )
   }
 
-  func menuContext() -> MenuContext {
+  func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
+    let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
     guard let entry = preferredActiveEntry() else {
       return .init(
         availability: .init(hasWindow: false, hasTab: false, hasSurface: false),
+        closesKeyWindowDirectly: closesKeyWindowDirectly,
         hasSearch: false,
         updateMenuItemText: "Check for Updates...",
         visibleTabCount: 0,
@@ -126,6 +129,7 @@ final class TerminalWindowRegistry {
         hasTab: entry.terminal.selectedTabID != nil,
         hasSurface: entry.terminal.selectedSurfaceView != nil
       ),
+      closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
       updateMenuItemText: entry.store.update.phase.menuItemText,
       visibleTabCount: entry.terminal.visibleTabs.count,
@@ -198,6 +202,16 @@ final class TerminalWindowRegistry {
       return
     }
     entry.store.send(.terminal(.closeSurfaceRequested(surfaceID)))
+  }
+
+  func ownsWindow(_ window: NSWindow) -> Bool {
+    entry(for: window) != nil
+  }
+
+  func closesWindowDirectly(_ window: NSWindow?) -> Bool {
+    guard let window else { return false }
+    guard !ownsWindow(window) else { return false }
+    return window.styleMask.contains(.closable)
   }
 
   func requestCloseTabInKeyWindow() {
