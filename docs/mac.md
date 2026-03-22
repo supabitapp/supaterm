@@ -66,7 +66,7 @@ External services are modeled as TCA `DependencyKey` structs with closure-based 
 
 ### GhosttyKit integration
 
-GhosttyKit is a pre-compiled C library from `apps/mac/ThirdParty/ghostty/`, built via Zig into an XCFramework at `apps/mac/Frameworks/GhosttyKit.xcframework`. The Swift bridge lives in `apps/mac/supaterm/Features/Terminal/Ghostty/`:
+GhosttyKit is built from `apps/mac/ThirdParty/ghostty/` through Tuist as a foreign-build target. The XCFramework is materialized at `apps/mac/Frameworks/GhosttyKit.xcframework`, and the app target copies Ghostty's generated `zig-out/share/ghostty` and `zig-out/share/terminfo` directories into the app bundle during the build. The Swift bridge lives in `apps/mac/supaterm/Features/Terminal/Ghostty/`:
 
 - `GhosttyBootstrap` — Sets resource and terminfo environment variables and calls `ghostty_init()` at app launch
 - `GhosttyRuntime` — App-level object calling `ghostty_app_new()` with C function pointer callbacks that marshal to `@MainActor`
