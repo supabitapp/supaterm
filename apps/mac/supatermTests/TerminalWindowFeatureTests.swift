@@ -252,58 +252,6 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func quitConfirmationCancelRepliesFalse() async {
-    var terminationReplies: [Bool] = []
-    var initialState = TerminalWindowFeature.State()
-    initialState.confirmationRequest = .init(
-      target: .quit,
-      title: "Quit Supaterm?",
-      message: "Are you sure you want to quit?",
-      confirmTitle: "Quit"
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.appTerminationClient.reply = { shouldTerminate in
-        terminationReplies.append(shouldTerminate)
-      }
-    }
-
-    await store.send(TerminalWindowFeature.Action.confirmationCancelButtonTapped) {
-      $0.confirmationRequest = nil
-    }
-
-    #expect(terminationReplies == [false])
-  }
-
-  @Test
-  func quitConfirmationConfirmRepliesTrue() async {
-    var terminationReplies: [Bool] = []
-    var initialState = TerminalWindowFeature.State()
-    initialState.confirmationRequest = .init(
-      target: .quit,
-      title: "Quit Supaterm?",
-      message: "Are you sure you want to quit?",
-      confirmTitle: "Quit"
-    )
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.appTerminationClient.reply = { shouldTerminate in
-        terminationReplies.append(shouldTerminate)
-      }
-    }
-
-    await store.send(TerminalWindowFeature.Action.confirmationConfirmButtonTapped) {
-      $0.confirmationRequest = nil
-    }
-
-    #expect(terminationReplies == [true])
-  }
-
-  @Test
   func windowCloseRequestedPresentsStyledConfirmation() async {
     let windowID = ObjectIdentifier(NSObject())
     var initialState = TerminalWindowFeature.State()

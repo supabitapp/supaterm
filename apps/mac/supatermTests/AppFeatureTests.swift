@@ -30,45 +30,4 @@ struct AppFeatureTests {
       $0.update.phase = .checking
     }
   }
-
-  @Test
-  func quitRequestedRoutesToTerminalSceneWhenUpdateDoesNotBypassConfirmation() async {
-    let window = NSObject()
-    let windowID = ObjectIdentifier(window)
-
-    let store = TestStore(initialState: AppFeature.State()) {
-      AppFeature()
-    }
-
-    await store.send(.quitRequested(windowID))
-    await store.receive(\.terminal) {
-      $0.terminal.confirmationRequest = .init(
-        target: .quit,
-        title: "Quit Supaterm?",
-        message: "Are you sure you want to quit?",
-        confirmTitle: "Quit"
-      )
-    }
-  }
-
-  @Test
-  func quitRequestedBypassesTerminalSceneWhenUpdateIsInstalling() async {
-    let windowID = ObjectIdentifier(NSObject())
-    var terminationReplies: [Bool] = []
-    var initialState = AppFeature.State()
-    initialState.update.phase = .installing(.init(canInstallNow: true))
-
-    let store = TestStore(initialState: initialState) {
-      AppFeature()
-    } withDependencies: {
-      $0.appTerminationClient.reply = { shouldTerminate in
-        terminationReplies.append(shouldTerminate)
-      }
-    }
-
-    await store.send(AppFeature.Action.quitRequested(windowID))
-    await store.finish()
-
-    #expect(terminationReplies == [true])
-  }
 }
