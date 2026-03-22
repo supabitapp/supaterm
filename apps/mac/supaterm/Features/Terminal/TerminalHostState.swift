@@ -211,6 +211,15 @@ final class TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
+  var selectedPaneDisplayTitle: String {
+    Self.selectedPaneDisplayTitle(
+      focusedSurfaceID: currentFocusedSurfaceID(),
+      in: selectedTree,
+      title: { $0.bridge.state.title },
+      pwd: { $0.bridge.state.pwd }
+    )
+  }
+
   private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)
@@ -1411,6 +1420,50 @@ final class TerminalHostState {
     )
   }
 
+  static func selectedPaneDisplayTitle<Surface: NSView & Identifiable>(
+    focusedSurfaceID: UUID?,
+    in tree: SplitTree<Surface>?,
+    title: (Surface) -> String?,
+    pwd: (Surface) -> String?
+  ) -> String where Surface.ID == UUID {
+    let leaves = tree?.leaves() ?? []
+    guard let surface = focusedSurfaceID.flatMap({ id in leaves.first(where: { $0.id == id }) }) ?? leaves.first
+    else {
+      return "Pane"
+    }
+    return resolvedPaneDisplayTitle(
+      title: title(surface),
+      pwd: pwd(surface),
+      defaultValue: paneFallbackTitle(for: surface.id, in: tree)
+    )
+  }
+
+  static func resolvedPaneDisplayTitle(
+    title: String?,
+    pwd: String?,
+    defaultValue: String
+  ) -> String {
+    if let title = trimmedNonEmpty(title) {
+      return title
+    }
+    if let pwd = trimmedNonEmpty(pwd) {
+      return pwd
+    }
+    return defaultValue
+  }
+
+  static func paneFallbackTitle<Surface: NSView & Identifiable>(
+    for surfaceID: UUID?,
+    in tree: SplitTree<Surface>?
+  ) -> String where Surface.ID == UUID {
+    let leaves = tree?.leaves() ?? []
+    guard !leaves.isEmpty else { return "Pane" }
+    if let surfaceID, let index = leaves.firstIndex(where: { $0.id == surfaceID }) {
+      return "Pane \(index + 1)"
+    }
+    return "Pane 1"
+  }
+
   private static func isRunning(
     progressState: ghostty_action_progress_report_state_e?
   ) -> Bool {
@@ -1457,14 +1510,10 @@ extension GhosttySurfaceView {
   }
 
   fileprivate func resolvedDisplayTitle(defaultValue: String) -> String {
-    let title = bridge.state.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !title.isEmpty {
-      return title
-    }
-    let pwd = bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !pwd.isEmpty {
-      return pwd
-    }
-    return defaultValue
+    TerminalHostState.resolvedPaneDisplayTitle(
+      title: bridge.state.title,
+      pwd: bridge.state.pwd,
+      defaultValue: defaultValue
+    )
   }
 }
