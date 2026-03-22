@@ -1,5 +1,3 @@
-supaterm is a monorepo. The current product code lives in `apps/mac`.
-
 ## Issue tracking
 
 - Issues are tracked on: https://linear.app/supaterm
@@ -7,27 +5,51 @@ supaterm is a monorepo. The current product code lives in `apps/mac`.
 ## Layout
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
-- `docs` — shared repository documentation
+- `apps/supaterm.com` — Marketing website (Vite+, Cloudflare Workers)
 
-## Build Commands
+## Documentation
 
-If your clone predates the monorepo move:
+- `./docs/how-socket-works.md` - how the sp cli and the macOS app talk through socket IPC
+- Read `apps/supaterm.com/AGENTS.md` before working in the web app
 
-```bash
-git submodule sync --recursive
-git submodule update --init --recursive
-```
+### Commands
 
 ```bash
-make mac-check
-make mac-build
-make mac-run
-make mac-test
+make mac-check          # format + lint
+make mac-build          # Debug build
+make mac-run            # Debug build + launch
+make mac-test           # full test suite
 ```
 
-## Tooling
+Run a single test class or method:
+```bash
+xcodebuild test -workspace apps/mac/supaterm.xcworkspace -scheme supaterm -destination "platform=macOS" \
+  -only-testing:supatermTests/AppFeatureTests \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation
+```
 
-- `mise` manages tool versions from the repo root `mise.toml`
-- The repo root `Makefile` is the stable entrypoint and delegates to app-local build logic
-- Read `docs/mac.md` before working in `apps/mac`
-- Read `apps/supaterm.com/AGENTS.md` before working in that as well
+### Website (`apps/supaterm.com`)
+
+```bash
+make web-install        # install dependencies (vp install)
+make web-check          # format + lint + type check
+make web-dev            # dev server
+make web-test           # test suite
+make web-build          # production build
+```
+
+
+## Some rules
+
+- When logic changes in a Reducer, always add tests
+
+## macOS App Architecture
+
+The app uses The Composable Architecture (TCA) with a feature-based folder structure under `apps/mac/supaterm/`:
+
+- `App/` — App entry point (`main.swift` + `AppDelegate`), `TerminalWindowController`, `ContentView`, `SupatermMenuController`, `GhosttyBootstrap`
+- `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
+- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalWindowFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
+- `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` wrapping Sparkle (SPU). Lifecycle modeled as `UpdatePhase` enum
+- `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
+- `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)
