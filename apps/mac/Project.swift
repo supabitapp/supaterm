@@ -4,16 +4,9 @@ let ghosttyBuildRootPath: Path = ".build/ghostty"
 let ghosttyXCFrameworkPath: Path = ".build/ghostty/GhosttyKit.xcframework"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
-let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
-let ghosttyFingerprintScript = """
-cd "${SRCROOT}/ThirdParty/ghostty"
-{
-  git rev-parse HEAD
-  git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
-  git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
-  shasum -a 256 "${SRCROOT}/scripts/prepare-ghostty-xcframework.sh"
-  shasum -a 256 "${SRCROOT}/../../mise.toml"
-} | shasum -a 256 | awk '{print $1}'
+let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+let ghosttyFingerprintInputScript = """
+"${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
 
 let project = Project(
@@ -82,50 +75,12 @@ let project = Project(
       name: "GhosttyKit",
       destinations: .macOS,
       script: """
-        set -euo pipefail
-
-        ghostty_dir="${SRCROOT}/ThirdParty/ghostty"
-        ghostty_build_root="${SRCROOT}/\(ghosttyBuildRootPath.pathString)"
-        ghostty_local_cache_dir="${ghostty_build_root}/.zig-cache"
-        ghostty_global_cache_dir="${ghostty_build_root}/.zig-global-cache"
-        ghostty_fingerprint_path="${SRCROOT}/\(ghosttyFingerprintPath.pathString)"
-        ghostty_legacy_prefix_path="${ghostty_dir}/zig-out"
-        ghostty_legacy_share_path="${ghostty_legacy_prefix_path}/share"
-        xcframework_path="${SRCROOT}/\(ghosttyXCFrameworkPath.pathString)"
-        ghostty_resources_path="${SRCROOT}/\(ghosttyResourcesPath.pathString)"
-        ghostty_terminfo_path="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
-
-        if [ ! -f "${ghostty_dir}/build.zig" ]; then
-          echo "error: Missing ${ghostty_dir}. Run: git submodule sync --recursive && git submodule update --init --recursive" >&2
-          exit 1
-        fi
-
-        fingerprint="$(
-        \(ghosttyFingerprintScript)
-        )"
-
-        rm -rf "${ghostty_legacy_prefix_path}"
-        mkdir -p "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
-        ln -s "${ghostty_build_root}/share" "${ghostty_legacy_share_path}"
-
-        if [ -f "${ghostty_fingerprint_path}" ] &&
-          [ -d "${xcframework_path}" ] &&
-          [ -d "${ghostty_resources_path}" ] &&
-          [ -d "${ghostty_terminfo_path}" ] &&
-          [ "$(cat "${ghostty_fingerprint_path}")" = "${fingerprint}" ]; then
-          exit 0
-        fi
-
-        cd "${ghostty_dir}"
-        mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
-        rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
-        "${SRCROOT}/scripts/prepare-ghostty-xcframework.sh" "${xcframework_path}"
-        printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"
+        "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)"
         """,
       inputs: [
         .file("../../mise.toml"),
-        .file("scripts/prepare-ghostty-xcframework.sh"),
-        .script(ghosttyFingerprintScript),
+        .file(ghosttyBuildScriptPath),
+        .script(ghosttyFingerprintInputScript),
       ],
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
     ),
