@@ -26,7 +26,9 @@ final class SupatermMenuController: NSObject {
   }
 
   private enum MenuItemIdentifier {
+    static let about = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.about")
     static let checkForUpdates = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
+    static let settings = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.settings")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
     static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
     static let splitRight = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.splitRight")
@@ -66,6 +68,7 @@ final class SupatermMenuController: NSObject {
   private let registry: TerminalWindowRegistry
   private var observers: [NSObjectProtocol] = []
   private var requestNewWindow: @MainActor () -> Bool = { false }
+  private var requestShowSettings: @MainActor (SettingsFeature.Tab) -> Bool = { _ in false }
   private var ghosttyBindingItems: [GhosttyBindingMenuItem] = []
 
   private var appName: String {
@@ -99,8 +102,8 @@ final class SupatermMenuController: NSObject {
 
   private lazy var appMenu: NSMenu = {
     let menu = NSMenu(title: appName)
-    menu.addItem(
-      systemItem(title: "About \(appName)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:))))
+    menu.addItem(aboutItem)
+    menu.addItem(settingsItem)
     menu.addItem(.separator())
     menu.addItem(checkForUpdatesItem)
     menu.addItem(.separator())
@@ -245,6 +248,21 @@ final class SupatermMenuController: NSObject {
     action: #selector(checkForUpdates(_:)),
     identifier: MenuItemIdentifier.checkForUpdates
   )
+  private lazy var aboutItem = makeItem(
+    title: "About \(appName)",
+    action: #selector(about(_:)),
+    identifier: MenuItemIdentifier.about
+  )
+  private lazy var settingsItem: NSMenuItem = {
+    let item = makeItem(
+      title: "Settings...",
+      action: #selector(showSettings(_:)),
+      identifier: MenuItemIdentifier.settings
+    )
+    item.keyEquivalent = ","
+    item.keyEquivalentModifierMask = .command
+    return item
+  }()
   private lazy var newWindowItem = makeItem(
     title: "New Window",
     action: #selector(newWindow(_:)),
@@ -462,6 +480,10 @@ final class SupatermMenuController: NSObject {
     requestNewWindow = action
   }
 
+  func setShowSettingsAction(_ action: @escaping @MainActor (SettingsFeature.Tab) -> Bool) {
+    requestShowSettings = action
+  }
+
   func install() {
     installObservers()
     NSApp.mainMenu = mainMenu
@@ -537,12 +559,25 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
+  func performShowSettings(_ tab: SettingsFeature.Tab) -> Bool {
+    requestShowSettings(tab)
+  }
+
+  @discardableResult
   func performCloseAllWindows() -> Bool {
     registry.requestCloseAllWindows()
   }
 
+  @objc func about(_ sender: Any?) {
+    _ = performShowSettings(.about)
+  }
+
   @objc func checkForUpdates(_ sender: Any?) {
     registry.requestCheckForUpdatesInKeyWindow()
+  }
+
+  @objc func showSettings(_ sender: Any?) {
+    _ = performShowSettings(.general)
   }
 
   @objc func newWindow(_ sender: Any?) {
