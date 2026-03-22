@@ -73,7 +73,10 @@ private struct TerminalSurfacePaneView: View {
   let tabID: TerminalTabID
 
   var body: some View {
-    TerminalSplitTreeAXContainer(tree: terminal.splitTree(for: tabID)) { operation in
+    TerminalSplitTreeAXContainer(
+      tree: terminal.splitTree(for: tabID),
+      unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
+    ) { operation in
       _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)

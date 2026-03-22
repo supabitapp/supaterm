@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct TerminalSplitTreeView: View {
   let tree: SplitTree<GhosttySurfaceView>
+  let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
 
   private static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
@@ -22,8 +23,13 @@ struct TerminalSplitTreeView: View {
 
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
-      SubtreeView(node: node, isRoot: node == tree.root, action: action)
-        .id(node.structuralIdentity)
+      SubtreeView(
+        node: node,
+        unreadSurfaceIDs: unreadSurfaceIDs,
+        isRoot: node == tree.root,
+        action: action
+      )
+      .id(node.structuralIdentity)
     }
   }
 
@@ -35,13 +41,19 @@ struct TerminalSplitTreeView: View {
 
   struct SubtreeView: View {
     let node: SplitTree<GhosttySurfaceView>.Node
+    let unreadSurfaceIDs: Set<UUID>
     var isRoot: Bool = false
     let action: (Operation) -> Void
 
     var body: some View {
       switch node {
       case .leaf(let leafView):
-        LeafView(surfaceView: leafView, isSplit: !isRoot, action: action)
+        LeafView(
+          surfaceView: leafView,
+          isSplit: !isRoot,
+          isUnread: unreadSurfaceIDs.contains(leafView.id),
+          action: action
+        )
       case .split(let split):
         let splitViewDirection: SplitView<SubtreeView, SubtreeView>.Direction =
           switch split.direction {
@@ -60,10 +72,10 @@ struct TerminalSplitTreeView: View {
           dividerColor: .secondary,
           resizeIncrements: .init(width: 1, height: 1),
           left: {
-            SubtreeView(node: split.left, action: action)
+            SubtreeView(node: split.left, unreadSurfaceIDs: unreadSurfaceIDs, action: action)
           },
           right: {
-            SubtreeView(node: split.right, action: action)
+            SubtreeView(node: split.right, unreadSurfaceIDs: unreadSurfaceIDs, action: action)
           },
           onEqualize: {
             action(.equalize)
@@ -76,6 +88,7 @@ struct TerminalSplitTreeView: View {
   struct LeafView: View {
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
+    let isUnread: Bool
     let action: (Operation) -> Void
 
     @State private var dropState: DropState = .idle
@@ -115,6 +128,22 @@ struct TerminalSplitTreeView: View {
                   destinationId: surfaceView.id,
                   action: action
                 ))
+          }
+          .background {
+            if isUnread {
+              RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+                .padding(3)
+            }
+          }
+          .overlay {
+            if isUnread {
+              RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
+                .padding(3)
+                .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
+                .allowsHitTesting(false)
+            }
           }
           .overlay {
             if case .dropping(let zone) = dropState {
@@ -291,6 +320,7 @@ extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let tree: SplitTree<GhosttySurfaceView>
+  let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
 
   func makeNSView(context: Context) -> TerminalSplitAXContainerView {
@@ -301,7 +331,13 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
     let visibleNode = tree.zoomed ?? tree.root
     let visiblePanes = visibleNode?.leaves() ?? []
     nsView.update(
-      rootView: AnyView(TerminalSplitTreeView(tree: tree, action: action)),
+      rootView: AnyView(
+        TerminalSplitTreeView(
+          tree: tree,
+          unreadSurfaceIDs: unreadSurfaceIDs,
+          action: action
+        )
+      ),
       panes: visiblePanes
     )
   }

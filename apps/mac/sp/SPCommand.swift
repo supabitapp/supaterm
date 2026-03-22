@@ -8,7 +8,7 @@ public struct SP: ParsableCommand {
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
     discussion: SPHelp.rootDiscussion,
-    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self]
+    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self, Notify.self]
   )
 
   public init() {}
@@ -370,33 +370,7 @@ extension SP {
     }
 
     func validate() throws {
-      if let window, window < 1 {
-        throw ValidationError("--window must be 1 or greater.")
-      }
-      if let space, space < 1 {
-        throw ValidationError("--space must be 1 or greater.")
-      }
-      if let tab, tab < 1 {
-        throw ValidationError("--tab must be 1 or greater.")
-      }
-      if let pane, pane < 1 {
-        throw ValidationError("--pane must be 1 or greater.")
-      }
-      if pane != nil && tab == nil {
-        throw ValidationError("--pane requires --tab.")
-      }
-      if tab != nil && space == nil {
-        throw ValidationError("--tab requires --space.")
-      }
-      if window != nil && space == nil {
-        throw ValidationError("--window requires --space.")
-      }
-      if space != nil && tab == nil {
-        throw ValidationError("--space requires --tab.")
-      }
-      if space == nil && tab == nil && pane == nil && SupatermCLIContext.current == nil {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
-      }
+      try validateTargetSelection(window: window, space: space, tab: tab, pane: pane)
     }
 
     private func requestPayload() throws -> SupatermNewPaneRequest {
@@ -423,6 +397,90 @@ extension SP {
         contextPaneID: context.surfaceID,
         direction: direction.direction,
         focus: focus
+      )
+    }
+  }
+
+  struct Notify: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "notify",
+      abstract: "Send a notification to a Supaterm pane.",
+      discussion: SPHelp.notifyDiscussion
+    )
+
+    @Option(name: .long, help: "Notification title. Defaults to \"Notification\".")
+    var title: String?
+
+    @Option(name: .long, help: "Notification subtitle.")
+    var subtitle = ""
+
+    @Option(name: .long, help: "Notification body.")
+    var body = ""
+
+    @Option(name: .long, help: "Target a pane inside the specified tab by its 1-based index.")
+    var pane: Int?
+
+    @Option(name: .long, help: "Target a space by its 1-based index.")
+    var space: Int?
+
+    @Option(name: .long, help: "Target a tab inside the specified space by its 1-based index.")
+    var tab: Int?
+
+    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
+    var window: Int?
+
+    @Flag(name: .long, help: "Print the result as JSON.")
+    var json = false
+
+    @OptionGroup
+    var connection: SPConnectionOptions
+
+    mutating func run() throws {
+      try validate()
+
+      let client = try socketClient(
+        path: connection.explicitSocketPath,
+        instance: connection.instance
+      )
+      let response = try client.send(.notify(try requestPayload()))
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+
+      let result = try response.decodeResult(SupatermNotifyResult.self)
+      if json {
+        print(try jsonString(result))
+      } else {
+        print("window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)")
+      }
+    }
+
+    func validate() throws {
+      try validateTargetSelection(window: window, space: space, tab: tab, pane: pane)
+    }
+
+    private func requestPayload() throws -> SupatermNotifyRequest {
+      if let tab {
+        return .init(
+          body: body,
+          subtitle: subtitle,
+          targetPaneIndex: pane,
+          targetSpaceIndex: space,
+          targetTabIndex: tab,
+          targetWindowIndex: window ?? 1,
+          title: title
+        )
+      }
+
+      guard let context = SupatermCLIContext.current else {
+        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
+      }
+
+      return .init(
+        body: body,
+        contextPaneID: context.surfaceID,
+        subtitle: subtitle,
+        title: title
       )
     }
   }
@@ -502,6 +560,41 @@ private func socketClient(
     alwaysDiscover: alwaysDiscover
   )
   return try SPSocketClient(path: resolvedTarget.path)
+}
+
+private func validateTargetSelection(
+  window: Int?,
+  space: Int?,
+  tab: Int?,
+  pane: Int?
+) throws {
+  if let window, window < 1 {
+    throw ValidationError("--window must be 1 or greater.")
+  }
+  if let space, space < 1 {
+    throw ValidationError("--space must be 1 or greater.")
+  }
+  if let tab, tab < 1 {
+    throw ValidationError("--tab must be 1 or greater.")
+  }
+  if let pane, pane < 1 {
+    throw ValidationError("--pane must be 1 or greater.")
+  }
+  if pane != nil && tab == nil {
+    throw ValidationError("--pane requires --tab.")
+  }
+  if tab != nil && space == nil {
+    throw ValidationError("--tab requires --space.")
+  }
+  if window != nil && space == nil {
+    throw ValidationError("--window requires --space.")
+  }
+  if space != nil && tab == nil {
+    throw ValidationError("--space requires --tab.")
+  }
+  if space == nil && tab == nil && pane == nil && SupatermCLIContext.current == nil {
+    throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
+  }
 }
 
 private enum SPTerminalStyle {

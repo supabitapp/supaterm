@@ -683,6 +683,57 @@ struct SupatermSocketProtocolTests {
     #expect(try request.decodeParams(SupatermNewPaneRequest.self) == requestPayload)
     #expect(try response.decodeResult(SupatermNewPaneResult.self) == result)
   }
+
+  @Test
+  func notifyRequestAndResponseRoundTripThroughTypedHelpers() throws {
+    let requestPayload = SupatermNotifyRequest(
+      body: "Build finished",
+      subtitle: "CI",
+      targetPaneIndex: 2,
+      targetSpaceIndex: 2,
+      targetTabIndex: 1,
+      targetWindowIndex: 1,
+      title: "Deploy complete"
+    )
+    let result = SupatermNotifyResult(
+      isUnread: true,
+      shouldDeliverDesktopNotification: true,
+      paneIndex: 2,
+      spaceIndex: 2,
+      tabIndex: 1,
+      windowIndex: 1
+    )
+
+    let request = try SupatermSocketRequest.notify(requestPayload, id: "notify-1")
+    let response = try SupatermSocketResponse.ok(id: "notify-1", encodableResult: result)
+
+    #expect(request.method == SupatermSocketMethod.terminalNotify)
+    #expect(try request.decodeParams(SupatermNotifyRequest.self) == requestPayload)
+    #expect(try response.decodeResult(SupatermNotifyResult.self) == result)
+  }
+
+  @Test
+  func notifyRequestDecodingDefaultsMissingTitle() throws {
+    let request = SupatermSocketRequest(
+      id: "notify-default-title",
+      method: SupatermSocketMethod.terminalNotify,
+      params: [
+        "body": "Build finished",
+        "targetSpaceIndex": 1,
+        "targetTabIndex": 2,
+      ]
+    )
+
+    #expect(
+      try request.decodeParams(SupatermNotifyRequest.self)
+        == .init(
+          body: "Build finished",
+          targetSpaceIndex: 1,
+          targetTabIndex: 2,
+          title: SupatermNotifyRequest.defaultTitle
+        )
+    )
+  }
 }
 
 private func socketEndpoint(

@@ -110,26 +110,26 @@ struct TerminalSidebarLayoutTests {
         for: 2,
         sourceIndex: 1,
         destinationIndex: 3,
-        rowHeight: 36,
-        spacing: 2
-      ) == -38
+        rowHeight: TerminalSidebarLayout.tabRowHeight,
+        spacing: TerminalSidebarLayout.tabRowSpacing
+      ) == -(TerminalSidebarLayout.tabRowHeight + TerminalSidebarLayout.tabRowSpacing)
     )
     #expect(
       TerminalSidebarLayout.reorderOffset(
         for: 3,
         sourceIndex: 1,
         destinationIndex: 3,
-        rowHeight: 36,
-        spacing: 2
-      ) == -38
+        rowHeight: TerminalSidebarLayout.tabRowHeight,
+        spacing: TerminalSidebarLayout.tabRowSpacing
+      ) == -(TerminalSidebarLayout.tabRowHeight + TerminalSidebarLayout.tabRowSpacing)
     )
     #expect(
       TerminalSidebarLayout.reorderOffset(
         for: 0,
         sourceIndex: 1,
         destinationIndex: 3,
-        rowHeight: 36,
-        spacing: 2
+        rowHeight: TerminalSidebarLayout.tabRowHeight,
+        spacing: TerminalSidebarLayout.tabRowSpacing
       ) == 0
     )
   }
@@ -152,7 +152,12 @@ struct TerminalSidebarLayoutTests {
         scrollOffset: 0,
         viewportHeight: 200,
         contentHeight: 180,
-        selectedFrame: CGRect(x: 0, y: 240, width: 100, height: 36)
+        selectedFrame: CGRect(
+          x: 0,
+          y: 240,
+          width: 100,
+          height: TerminalSidebarLayout.tabRowHeight
+        )
       )
     )
     #expect(
@@ -160,7 +165,12 @@ struct TerminalSidebarLayoutTests {
         scrollOffset: 40,
         viewportHeight: 200,
         contentHeight: 220,
-        selectedFrame: CGRect(x: 0, y: 120, width: 100, height: 36)
+        selectedFrame: CGRect(
+          x: 0,
+          y: 120,
+          width: 100,
+          height: TerminalSidebarLayout.tabRowHeight
+        )
       )
     )
   }

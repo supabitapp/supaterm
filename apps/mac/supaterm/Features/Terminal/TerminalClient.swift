@@ -27,6 +27,19 @@ struct TerminalCreatePaneRequest: Equatable, Sendable {
   let target: Target
 }
 
+struct TerminalNotifyRequest: Equatable, Sendable {
+  enum Target: Equatable, Sendable {
+    case contextPane(UUID)
+    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+  }
+
+  let body: String
+  let subtitle: String
+  let target: Target
+  let title: String
+}
+
 enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)

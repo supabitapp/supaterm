@@ -395,10 +395,60 @@ final class TerminalWindowRegistry {
     throw TerminalCreateTabError.contextPaneNotFound
   }
 
+  func notify(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {
+    switch request.target {
+    case .contextPane:
+      return try notifyContextPane(request)
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalNotifyRequest(
+        body: request.body,
+        subtitle: request.subtitle,
+        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
+        title: request.title
+      )
+      do {
+        return Self.rewrite(try entry.terminal.notify(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalCreatePaneError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalNotifyRequest(
+        body: request.body,
+        subtitle: request.subtitle,
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex),
+        title: request.title
+      )
+      do {
+        return Self.rewrite(try entry.terminal.notify(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalCreatePaneError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   private func createContextPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     for (offset, entry) in activeEntries().enumerated() {
       do {
         let result = try entry.terminal.createPane(request)
+        return Self.rewrite(result, windowIndex: offset + 1)
+      } catch let error as TerminalCreatePaneError {
+        if case .contextPaneNotFound = error {
+          continue
+        }
+        throw error
+      }
+    }
+    throw TerminalCreatePaneError.contextPaneNotFound
+  }
+
+  private func notifyContextPane(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {
+    for (offset, entry) in activeEntries().enumerated() {
+      do {
+        let result = try entry.terminal.notify(request)
         return Self.rewrite(result, windowIndex: offset + 1)
       } catch let error as TerminalCreatePaneError {
         if case .contextPaneNotFound = error {
@@ -502,6 +552,20 @@ final class TerminalWindowRegistry {
     case .windowNotFound:
       return .windowNotFound(windowIndex)
     }
+  }
+
+  static func rewrite(
+    _ result: SupatermNotifyResult,
+    windowIndex: Int
+  ) -> SupatermNotifyResult {
+    .init(
+      isUnread: result.isUnread,
+      shouldDeliverDesktopNotification: result.shouldDeliverDesktopNotification,
+      paneIndex: result.paneIndex,
+      spaceIndex: result.spaceIndex,
+      tabIndex: result.tabIndex,
+      windowIndex: windowIndex
+    )
   }
 
   static func rewrite(

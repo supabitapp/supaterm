@@ -42,6 +42,14 @@ final class TerminalHostState {
     let isFocused: Bool
   }
 
+  struct PaneNotification: Equatable, Sendable {
+    var body: String
+    let createdAt: Date
+    var isUnread: Bool
+    var subtitle: String
+    var title: String
+  }
+
   @ObservationIgnored
   private let runtime: GhosttyRuntime?
   @ObservationIgnored
@@ -61,6 +69,7 @@ final class TerminalHostState {
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
+  private var paneNotifications: [UUID: PaneNotification] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
 
@@ -240,6 +249,21 @@ final class TerminalHostState {
     Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
+  func latestNotificationText(for tabID: TerminalTabID) -> String? {
+    Self.notificationText(latestNotification(for: tabID))
+  }
+
+  func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
+    Self.unreadNotificationCount(in: Array(notifications(for: tabID).values))
+  }
+
+  func unreadNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
+    Set(
+      notifications(for: tabID)
+        .filter(\.value.isUnread)
+        .map(\.key)
+    )
+  }
   private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)
@@ -480,6 +504,7 @@ final class TerminalHostState {
   private func updateWindowActivity(_ activity: WindowActivityState) {
     windowActivity = activity
     syncFocus(activity)
+    clearUnreadOnFocusedSurfaceIfNeeded()
   }
 
   private func syncFocus(_ activity: WindowActivityState) {
@@ -622,14 +647,12 @@ final class TerminalHostState {
 
       syncFocus(windowActivity)
 
-      guard
-        let spaceIndex = spaceManager.spaceIndex(for: resolvedTarget.spaceID),
-        let tabIndex = spaceManager.tabs(in: resolvedTarget.spaceID)
-          .firstIndex(where: { $0.id == resolvedTarget.tabID }),
-        let paneIndex = newTree.leaves().firstIndex(where: { $0.id == newSurface.id })
-      else {
-        throw TerminalCreatePaneError.creationFailed
-      }
+      let paneLocation = try resolvedPaneLocation(
+        spaceID: resolvedTarget.spaceID,
+        tabID: resolvedTarget.tabID,
+        surfaceID: newSurface.id,
+        tree: newTree
+      )
       let selectionState = Self.newPaneSelectionState(
         selectedTabID: spaceManager.selectedTabID,
         targetTabID: resolvedTarget.tabID,
@@ -643,9 +666,9 @@ final class TerminalHostState {
         isFocused: selectionState.isFocused,
         isSelectedTab: selectionState.isSelectedTab,
         windowIndex: 1,
-        spaceIndex: spaceIndex,
-        tabIndex: tabIndex + 1,
-        paneIndex: paneIndex + 1
+        spaceIndex: paneLocation.spaceIndex,
+        tabIndex: paneLocation.tabIndex,
+        paneIndex: paneLocation.paneIndex
       )
     } catch let error as TerminalCreatePaneError {
       newSurface.closeSurface()
@@ -755,6 +778,40 @@ final class TerminalHostState {
       }
       throw TerminalCreateTabError.creationFailed
     }
+  }
+
+  func notify(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {
+    let resolvedTarget = try resolveNotifyTarget(request.target)
+    let paneLocation = try resolvedPaneLocation(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: resolvedTarget.tree
+    )
+    let selectionState = Self.newPaneSelectionState(
+      selectedTabID: spaceManager.selectedTabID,
+      targetTabID: resolvedTarget.tabID,
+      windowActivity: windowActivity,
+      focusedSurfaceID: focusedSurfaceIDByTab[resolvedTarget.tabID],
+      surfaceID: resolvedTarget.anchorSurface.id
+    )
+    let shouldDeliverDesktopNotification = !selectionState.isFocused
+    paneNotifications[resolvedTarget.anchorSurface.id] = .init(
+      body: request.body,
+      createdAt: Date(),
+      isUnread: true,
+      subtitle: request.subtitle,
+      title: request.title
+    )
+
+    return .init(
+      isUnread: true,
+      shouldDeliverDesktopNotification: shouldDeliverDesktopNotification,
+      paneIndex: paneLocation.paneIndex,
+      spaceIndex: paneLocation.spaceIndex,
+      tabIndex: paneLocation.tabIndex,
+      windowIndex: 1
+    )
   }
 
   func splitTree(
@@ -935,6 +992,7 @@ final class TerminalHostState {
     let newTree = tree.removing(node)
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
+    paneNotifications.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
@@ -1035,6 +1093,7 @@ final class TerminalHostState {
       self.focusedSurfaceIDByTab[tabID] = view.id
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
+      self.markNotificationRead(for: view.id)
       self.emitFocusChangedIfNeeded(view.id)
     }
     surfaces[view.id] = view
@@ -1144,6 +1203,12 @@ final class TerminalHostState {
     }
   }
 
+  private struct ResolvedPaneLocation {
+    let paneIndex: Int
+    let spaceIndex: Int
+    let tabIndex: Int
+  }
+
   private func resolveCreatePaneTarget(
     _ target: TerminalCreatePaneRequest.Target
   ) throws -> ResolvedCreatePaneTarget {
@@ -1203,6 +1268,23 @@ final class TerminalHostState {
     }
   }
 
+  private func resolveNotifyTarget(
+    _ target: TerminalNotifyRequest.Target
+  ) throws -> ResolvedCreatePaneTarget {
+    switch target {
+    case .contextPane(let paneID):
+      return try resolveCreatePaneTarget(.contextPane(paneID))
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      return try resolveCreatePaneTarget(
+        .pane(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+      )
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      return try resolveCreatePaneTarget(
+        .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      )
+    }
+  }
+
   private func resolveSpace(
     windowIndex: Int,
     spaceIndex: Int
@@ -1240,6 +1322,27 @@ final class TerminalHostState {
     return .init(space: space, tabID: tabID, tree: tree)
   }
 
+  private func resolvedPaneLocation(
+    spaceID: TerminalSpaceID,
+    tabID: TerminalTabID,
+    surfaceID: UUID,
+    tree: SplitTree<GhosttySurfaceView>
+  ) throws -> ResolvedPaneLocation {
+    guard
+      let spaceIndex = spaceManager.spaceIndex(for: spaceID),
+      let tabIndex = spaceManager.tabs(in: spaceID).firstIndex(where: { $0.id == tabID }),
+      let paneIndex = tree.leaves().firstIndex(where: { $0.id == surfaceID })
+    else {
+      throw TerminalCreatePaneError.creationFailed
+    }
+
+    return .init(
+      paneIndex: paneIndex + 1,
+      spaceIndex: spaceIndex,
+      tabIndex: tabIndex + 1
+    )
+  }
+
   private func updateTabTitle(for tabID: TerminalTabID) {
     let resolvedTitle = currentTabTitle(for: tabID)
     spaceManager.space(for: tabID)
@@ -1262,6 +1365,7 @@ final class TerminalHostState {
     let previousSurface = focusedSurfaceIDByTab[tabID].flatMap { surfaces[$0] }
     focusedSurfaceIDByTab[tabID] = surface.id
     updateTabTitle(for: tabID)
+    markNotificationRead(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
@@ -1337,11 +1441,50 @@ final class TerminalHostState {
   private func removeTree(for tabID: TerminalTabID) {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
+      paneNotifications.removeValue(forKey: surface.id)
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     tabTitleOverrides.removeValue(forKey: tabID)
+  }
+
+  private func notifications(for tabID: TerminalTabID) -> [UUID: PaneNotification] {
+    guard let tree = trees[tabID] else { return [:] }
+    return Dictionary(
+      uniqueKeysWithValues: tree.leaves().compactMap { surface in
+        paneNotifications[surface.id].map { (surface.id, $0) }
+      }
+    )
+  }
+
+  private func latestNotification(for tabID: TerminalTabID) -> PaneNotification? {
+    Self.latestNotification(in: Array(notifications(for: tabID).values))
+  }
+
+  private func clearUnreadOnFocusedSurfaceIfNeeded() {
+    guard
+      let selectedTabID = spaceManager.selectedTabID,
+      let surfaceID = focusedSurfaceIDByTab[selectedTabID]
+    else {
+      return
+    }
+    markNotificationRead(for: surfaceID)
+  }
+
+  private func markNotificationRead(for surfaceID: UUID) {
+    guard let tabID = tabID(containing: surfaceID) else { return }
+    let activity = Self.surfaceActivity(
+      isSelectedTab: tabID == spaceManager.selectedTabID,
+      windowIsVisible: windowActivity.isVisible,
+      windowIsKey: windowActivity.isKeyWindow,
+      focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+      surfaceID: surfaceID
+    )
+    guard activity.isFocused else { return }
+    guard var notification = paneNotifications[surfaceID], notification.isUnread else { return }
+    notification.isUnread = false
+    paneNotifications[surfaceID] = notification
   }
 
   private func updateRunningState(for tabID: TerminalTabID) {
@@ -1735,6 +1878,26 @@ final class TerminalHostState {
     default:
       return nil
     }
+  }
+
+  static func latestNotification(in notifications: [PaneNotification]) -> PaneNotification? {
+    notifications.max { lhs, rhs in
+      lhs.createdAt < rhs.createdAt
+    }
+  }
+
+  static func unreadNotificationCount(in notifications: [PaneNotification]) -> Int {
+    notifications.filter(\.isUnread).count
+  }
+
+  static func notificationText(_ notification: PaneNotification?) -> String? {
+    guard let notification else { return nil }
+    let body = notification.body.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !body.isEmpty {
+      return body
+    }
+    let title = notification.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    return title.isEmpty ? nil : title
   }
 
   private static func trimmedNonEmpty(_ value: String?) -> String? {

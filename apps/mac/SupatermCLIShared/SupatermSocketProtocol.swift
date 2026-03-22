@@ -8,6 +8,7 @@ public enum SupatermSocketMethod {
   public static let systemPing = "system.ping"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
+  public static let terminalNotify = "terminal.notify"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -119,6 +120,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalNewTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func notify(
+    _ payload: SupatermNotifyRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalNotify,
       params: try JSONObject(payload)
     )
   }
@@ -593,6 +605,69 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
+  public static let defaultTitle = "Notification"
+
+  public let body: String
+  public let contextPaneID: UUID?
+  public let subtitle: String
+  public let targetPaneIndex: Int?
+  public let targetSpaceIndex: Int?
+  public let targetTabIndex: Int?
+  public let targetWindowIndex: Int?
+  public let title: String
+
+  public init(
+    body: String = "",
+    contextPaneID: UUID? = nil,
+    subtitle: String = "",
+    targetPaneIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil,
+    targetTabIndex: Int? = nil,
+    targetWindowIndex: Int? = nil,
+    title: String? = nil
+  ) {
+    self.body = body
+    self.contextPaneID = contextPaneID
+    self.subtitle = subtitle
+    self.targetPaneIndex = targetPaneIndex
+    self.targetSpaceIndex = targetSpaceIndex
+    self.targetTabIndex = targetTabIndex
+    self.targetWindowIndex = targetWindowIndex
+    self.title = Self.normalizedTitle(title)
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      body: try container.decodeIfPresent(String.self, forKey: .body) ?? "",
+      contextPaneID: try container.decodeIfPresent(UUID.self, forKey: .contextPaneID),
+      subtitle: try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "",
+      targetPaneIndex: try container.decodeIfPresent(Int.self, forKey: .targetPaneIndex),
+      targetSpaceIndex: try container.decodeIfPresent(Int.self, forKey: .targetSpaceIndex),
+      targetTabIndex: try container.decodeIfPresent(Int.self, forKey: .targetTabIndex),
+      targetWindowIndex: try container.decodeIfPresent(Int.self, forKey: .targetWindowIndex),
+      title: try container.decodeIfPresent(String.self, forKey: .title)
+    )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case body
+    case contextPaneID
+    case subtitle
+    case targetPaneIndex
+    case targetSpaceIndex
+    case targetTabIndex
+    case targetWindowIndex
+    case title
+  }
+
+  private static func normalizedTitle(_ title: String?) -> String {
+    let title = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return title.isEmpty ? defaultTitle : title
+  }
+}
+
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let command: String?
   public let contextPaneID: UUID?
@@ -621,6 +696,31 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     self.targetSpaceIndex = targetSpaceIndex
     self.targetTabIndex = targetTabIndex
     self.targetPaneIndex = targetPaneIndex
+  }
+}
+
+public struct SupatermNotifyResult: Equatable, Sendable, Codable {
+  public let isUnread: Bool
+  public let shouldDeliverDesktopNotification: Bool
+  public let paneIndex: Int
+  public let spaceIndex: Int
+  public let tabIndex: Int
+  public let windowIndex: Int
+
+  public init(
+    isUnread: Bool,
+    shouldDeliverDesktopNotification: Bool,
+    paneIndex: Int,
+    spaceIndex: Int,
+    tabIndex: Int,
+    windowIndex: Int
+  ) {
+    self.isUnread = isUnread
+    self.shouldDeliverDesktopNotification = shouldDeliverDesktopNotification
+    self.paneIndex = paneIndex
+    self.spaceIndex = spaceIndex
+    self.tabIndex = tabIndex
+    self.windowIndex = windowIndex
   }
 }
 
