@@ -63,12 +63,8 @@ final class TerminalSidebarDragSession: ObservableObject {
     )
   }
 
-  var previewStyle: TerminalSidebarDragPreviewStyle {
-    TerminalSidebarLayout.dragPreviewStyle(
-      sourceZone: sourceZone,
-      activeZone: activeZone,
-      isCursorInSidebar: isCursorInSidebar
-    )
+  var showsPreview: Bool {
+    TerminalSidebarLayout.showsDragPreview(activeZone: activeZone)
   }
 
   var previewRowWidth: CGFloat {
@@ -395,7 +391,10 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
     )
 
     manager.$draggedItem
-      .map { $0 != nil }
+      .combineLatest(manager.$activeZone)
+      .map { draggedItem, activeZone in
+        draggedItem != nil && TerminalSidebarLayout.showsDragPreview(activeZone: activeZone)
+      }
       .removeDuplicates()
       .receive(on: RunLoop.main)
       .sink { [weak self] isVisible in
@@ -458,21 +457,15 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
 private struct TerminalSidebarDragPreviewContent: View {
   @ObservedObject var manager: TerminalSidebarDragSession
 
-  private var morphSpring: Animation {
-    .spring(response: 0.3, dampingFraction: 0.78)
-  }
-
   var body: some View {
     ZStack {
-      if let tab = manager.draggedTab {
+      if manager.showsPreview, let tab = manager.draggedTab {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: tab,
-          style: manager.previewStyle,
           rowWidth: manager.previewRowWidth,
           palette: palette
         )
-        .animation(morphSpring, value: manager.previewStyle)
       }
     }
     .frame(
@@ -484,68 +477,39 @@ private struct TerminalSidebarDragPreviewContent: View {
 
 private struct TerminalSidebarMorphingPreview: View {
   let tab: TerminalTabItem
-  let style: TerminalSidebarDragPreviewStyle
   let rowWidth: CGFloat
   let palette: TerminalPalette
 
   private var effectiveWidth: CGFloat {
-    switch style {
-    case .row:
-      rowWidth
-    case .ghost:
-      196
-    }
+    rowWidth
   }
 
   private var effectiveHeight: CGFloat {
-    switch style {
-    case .row:
-      36
-    case .ghost:
-      128
-    }
+    36
   }
 
   private var effectiveCornerRadius: CGFloat {
-    switch style {
-    case .row:
-      12
-    case .ghost:
-      10
-    }
+    12
   }
 
   private var backgroundColor: Color {
-    switch style {
-    case .row:
-      Color(nsColor: .controlBackgroundColor).opacity(0.95)
-    case .ghost:
-      Color.red.opacity(0.14)
-    }
+    Color(nsColor: .controlBackgroundColor).opacity(0.95)
   }
 
   var body: some View {
-    ZStack {
-      rowContent
-        .opacity(style == .row ? 1 : 0)
-        .scaleEffect(style == .row ? 1 : 0.96)
-
-      ghostContent
-        .opacity(style == .ghost ? 1 : 0)
-        .scaleEffect(style == .ghost ? 1 : 0.96)
-    }
-    .frame(width: effectiveWidth, height: effectiveHeight)
-    .background(backgroundColor)
-    .clipShape(RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous)
-        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-    }
-    .shadow(
-      color: .black.opacity(0.25),
-      radius: style == .ghost ? 12 : 8,
-      y: style == .ghost ? 4 : 2
-    )
+    rowContent
+      .frame(width: effectiveWidth, height: effectiveHeight)
+      .background(backgroundColor)
+      .clipShape(RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous))
+      .overlay {
+        RoundedRectangle(cornerRadius: effectiveCornerRadius, style: .continuous)
+          .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+      }
+      .shadow(
+        color: .black.opacity(0.25),
+        radius: 8,
+        y: 2
+      )
   }
 
   private var rowContent: some View {
@@ -561,34 +525,6 @@ private struct TerminalSidebarMorphingPreview: View {
     }
     .padding(.horizontal, 10)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  private var ghostContent: some View {
-    VStack(spacing: 10) {
-      Capsule()
-        .fill(palette.secondaryText.opacity(0.16))
-        .frame(width: 52, height: 6)
-        .padding(.top, 10)
-
-      Text("☹️")
-        .font(.system(size: 24))
-        .accessibilityHidden(true)
-
-      Text("Dragging outside of the tab list is not supported yet")
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(palette.primaryText)
-        .multilineTextAlignment(.center)
-        .padding(.horizontal, 12)
-
-      Text(tab.title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
-        .lineLimit(1)
-        .padding(.horizontal, 12)
-
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
   }
 
   private func previewIcon(
