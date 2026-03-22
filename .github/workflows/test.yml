@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.3.0
           cache: true
