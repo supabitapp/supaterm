@@ -5,17 +5,36 @@ import Testing
 
 struct SPHelpTests {
   @Test
-  func rootHelpListsEnvironmentVariables() {
+  func rootHelpListsEnvironmentVariablesAndExamples() {
     let help = SP.helpMessage(for: SP.self, columns: 100)
 
     #expect(help.contains("Environment:"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
+    #expect(help.contains("Example:"))
+    #expect(help.contains("sp tree"))
+    #expect(help.contains("sp new-pane --space 1 --tab 1 down"))
   }
 
   @Test
-  func newPaneHelpShowsSocketEnvironmentDefaultAndAmbientPaneTargeting() {
+  func everyCommandHelpShowsExamples() {
+    let helps = [
+      SP.helpMessage(for: SP.Tree.self, columns: 100),
+      SP.helpMessage(for: SP.Onboard.self, columns: 100),
+      SP.helpMessage(for: SP.Debug.self, columns: 100),
+      SP.helpMessage(for: SP.Instances.self, columns: 100),
+      SP.helpMessage(for: SP.NewTab.self, columns: 100),
+      SP.helpMessage(for: SP.NewPane.self, columns: 100),
+    ]
+
+    for help in helps {
+      #expect(help.contains("Example:"))
+    }
+  }
+
+  @Test
+  func newPaneHelpShowsSocketEnvironmentDefaultAmbientPaneTargetingAndExamples() {
     let help = SP.helpMessage(for: SP.NewPane.self, columns: 100)
 
     #expect(help.contains("--socket <socket>"))
@@ -23,6 +42,8 @@ struct SPHelpTests {
     #expect(help.contains("If you omit --space and --tab inside Supaterm"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
+    #expect(help.contains("Example:"))
+    #expect(help.contains("sp new-pane down htop"))
     #expect(!help.contains("--space <space>                Target a space by its 1-based index. (default:"))
     #expect(
       !help.contains(

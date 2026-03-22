@@ -22,7 +22,8 @@ extension SP {
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "tree",
-      abstract: "Show the current Supaterm window, space, tab, and pane tree."
+      abstract: "Show the current Supaterm window, space, tab, and pane tree.",
+      discussion: SPHelp.treeDiscussion
     )
 
     @Flag(name: .long, help: "Print the tree as JSON.")
@@ -53,7 +54,8 @@ extension SP {
   struct Onboard: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "onboard",
-      abstract: "Show Supaterm's core onboarding shortcuts."
+      abstract: "Show Supaterm's core onboarding shortcuts.",
+      discussion: SPHelp.onboardDiscussion
     )
 
     @OptionGroup
@@ -77,7 +79,8 @@ extension SP {
   struct Debug: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "debug",
-      abstract: "Show live Supaterm diagnostics for the current application."
+      abstract: "Show live Supaterm diagnostics for the current application.",
+      discussion: SPHelp.debugDiscussion
     )
 
     @Flag(name: .long, help: "Print the report as JSON.")
@@ -171,7 +174,8 @@ extension SP {
   struct Instances: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "instances",
-      abstract: "List reachable Supaterm instances."
+      abstract: "List reachable Supaterm instances.",
+      discussion: SPHelp.instancesDiscussion
     )
 
     @Flag(name: .long, help: "Print the instances as JSON.")

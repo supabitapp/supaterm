@@ -9,12 +9,51 @@ enum SPHelp {
       \(SupatermCLIEnvironment.socketPathKey)  Auto-set in Supaterm panes. Default --socket.
       \(SupatermCLIEnvironment.surfaceIDKey)  Auto-set in Supaterm panes. Current pane ID.
       \(SupatermCLIEnvironment.tabIDKey)  Auto-set in Supaterm panes. Current tab ID.
+
+    Example:
+      sp tree
+      sp new-tab --space 1 --focus
+      sp new-pane --space 1 --tab 1 down
+      sp debug
+      sp instances
+    """
+
+  static let treeDiscussion = """
+    Example:
+      sp tree
+      sp tree --json
+      sp tree --instance work-mac
+    """
+
+  static let onboardDiscussion = """
+    Example:
+      sp onboard
+      sp onboard --instance work-mac
+    """
+
+  static let debugDiscussion = """
+    Example:
+      sp debug
+      sp debug --json
+      sp debug --instance work-mac
+    """
+
+  static let instancesDiscussion = """
+    Example:
+      sp instances
+      sp instances --json
     """
 
   static let newPaneDiscussion = """
     If you omit --space and --tab inside Supaterm, this command splits the current pane.
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
+
+    Example:
+      sp new-pane right
+      sp new-pane down htop
+      sp new-pane --space 1 --tab 2 left
+      sp new-pane --space 1 --tab 2 --pane 3 down tail -f /tmp/server.log
     """
 
   static let newTabDiscussion = """
