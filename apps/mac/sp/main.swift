@@ -41,7 +41,7 @@ extension SP {
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "tree",
-      abstract: "Show the current Supaterm window, tab, and pane tree."
+      abstract: "Show the current Supaterm window, space, tab, and pane tree."
     )
 
     @Flag(name: .long, help: "Print the tree as JSON.")
