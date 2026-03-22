@@ -90,6 +90,7 @@ let project = Project(
         ghostty_global_cache_dir="${ghostty_build_root}/.zig-global-cache"
         ghostty_fingerprint_path="${SRCROOT}/\(ghosttyFingerprintPath.pathString)"
         ghostty_legacy_prefix_path="${ghostty_dir}/zig-out"
+        ghostty_legacy_share_path="${ghostty_legacy_prefix_path}/share"
         xcframework_path="${SRCROOT}/\(ghosttyXCFrameworkPath.pathString)"
         ghostty_resources_path="${SRCROOT}/\(ghosttyResourcesPath.pathString)"
         ghostty_terminfo_path="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
@@ -103,9 +104,9 @@ let project = Project(
         \(ghosttyFingerprintScript)
         )"
 
-        mkdir -p "${ghostty_build_root}"
         rm -rf "${ghostty_legacy_prefix_path}"
-        ln -s "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
+        mkdir -p "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
+        ln -s "${ghostty_build_root}/share" "${ghostty_legacy_share_path}"
 
         if [ -f "${ghostty_fingerprint_path}" ] &&
           [ -d "${xcframework_path}" ] &&
