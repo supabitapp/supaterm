@@ -5,16 +5,15 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
   let store: StoreOf<SettingsFeature>
+  private let tabViewController: SettingsTabViewController
 
   init() {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
     }
     self.store = store
-
-    let hostingController = NSHostingController(
-      rootView: SettingsView(store: store)
-    )
+    let tabViewController = SettingsTabViewController(store: store)
+    self.tabViewController = tabViewController
 
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
@@ -22,13 +21,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
       backing: .buffered,
       defer: false
     )
-    window.contentViewController = hostingController
-    window.contentMinSize = NSSize(width: 720, height: 520)
+    window.contentViewController = tabViewController
+    window.contentMinSize = NSSize(width: 520, height: 360)
     window.identifier = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.settings")
     window.isReleasedWhenClosed = false
     window.setFrameAutosaveName("SupatermSettingsWindow")
     window.title = "Settings"
     window.tabbingMode = .disallowed
+    window.toolbarStyle = .preference
 
     super.init(window: window)
 
@@ -41,7 +41,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
   }
 
   func show(tab: SettingsFeature.Tab) {
-    store.send(.tabSelected(tab))
+    tabViewController.select(tab)
 
     guard let window else { return }
     if window.isMiniaturized {
@@ -51,5 +51,71 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     showWindow(nil)
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
+  }
+}
+
+@MainActor
+private final class SettingsTabViewController: NSTabViewController {
+  private let store: StoreOf<SettingsFeature>
+
+  init(store: StoreOf<SettingsFeature>) {
+    self.store = store
+    super.init(nibName: nil, bundle: nil)
+    canPropagateSelectedChildViewControllerTitle = true
+    tabStyle = .toolbar
+    transitionOptions = []
+    SettingsFeature.Tab.allCases.forEach { addTabViewItem(makeTabViewItem(for: $0)) }
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    syncSelection()
+  }
+
+  override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+    super.tabView(tabView, didSelect: tabViewItem)
+    guard let tab = tab(for: tabViewItem) else { return }
+    _ = store.send(.tabSelected(tab))
+  }
+
+  override func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    [.flexibleSpace] + super.toolbarDefaultItemIdentifiers(toolbar) + [.flexibleSpace]
+  }
+
+  override func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+    super.toolbarAllowedItemIdentifiers(toolbar) + [.flexibleSpace]
+  }
+
+  func select(_ tab: SettingsFeature.Tab) {
+    _ = store.send(.tabSelected(tab))
+    loadViewIfNeeded()
+    syncSelection()
+  }
+
+  private func syncSelection() {
+    guard let index = SettingsFeature.Tab.allCases.firstIndex(of: store.selectedTab) else { return }
+    selectedTabViewItemIndex = index
+  }
+
+  private func tab(for tabViewItem: NSTabViewItem?) -> SettingsFeature.Tab? {
+    guard let identifier = tabViewItem?.identifier as? String else { return nil }
+    return SettingsFeature.Tab(rawValue: identifier)
+  }
+
+  private func makeTabViewItem(for tab: SettingsFeature.Tab) -> NSTabViewItem {
+    let viewController = NSHostingController(rootView: SettingsTabContentView(tab: tab))
+    viewController.title = tab.title
+
+    let tabViewItem = NSTabViewItem(identifier: tab.rawValue)
+    tabViewItem.viewController = viewController
+    tabViewItem.label = tab.title
+    tabViewItem.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: tab.title)
+    tabViewItem.toolTip = tab.detail
+    return tabViewItem
   }
 }
