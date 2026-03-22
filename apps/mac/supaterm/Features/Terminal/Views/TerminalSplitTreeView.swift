@@ -7,6 +7,47 @@ struct TerminalSplitTreeView: View {
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
 
+  enum OuterEdgeBranch {
+    case left
+    case right
+  }
+
+  struct OuterEdges: OptionSet, Equatable {
+    let rawValue: Int
+
+    static let top = Self(rawValue: 1 << 0)
+    static let bottom = Self(rawValue: 1 << 1)
+    static let leading = Self(rawValue: 1 << 2)
+    static let trailing = Self(rawValue: 1 << 3)
+    static let all: Self = [.top, .bottom, .leading, .trailing]
+
+    func child(_ branch: OuterEdgeBranch, in direction: SplitTree<GhosttySurfaceView>.Direction) -> Self {
+      switch (direction, branch) {
+      case (.horizontal, .left):
+        removing(.trailing)
+      case (.horizontal, .right):
+        removing(.leading)
+      case (.vertical, .left):
+        removing(.bottom)
+      case (.vertical, .right):
+        removing(.top)
+      }
+    }
+
+    func cornerRadii(cornerRadius: CGFloat) -> RectangleCornerRadii {
+      .init(
+        topLeading: contains(.top) && contains(.leading) ? cornerRadius : 0,
+        bottomLeading: contains(.bottom) && contains(.leading) ? cornerRadius : 0,
+        bottomTrailing: contains(.bottom) && contains(.trailing) ? cornerRadius : 0,
+        topTrailing: contains(.top) && contains(.trailing) ? cornerRadius : 0
+      )
+    }
+
+    private func removing(_ edges: Self) -> Self {
+      .init(rawValue: rawValue & ~edges.rawValue)
+    }
+  }
+
   private static let dragType = UTType(exportedAs: "sh.supacode.ghosttySurfaceId")
   private static func dragProvider(for surfaceView: GhosttySurfaceView) -> NSItemProvider {
     let provider = NSItemProvider()
@@ -26,6 +67,7 @@ struct TerminalSplitTreeView: View {
       SubtreeView(
         node: node,
         unreadSurfaceIDs: unreadSurfaceIDs,
+        outerEdges: .all,
         isRoot: node == tree.root,
         action: action
       )
@@ -42,6 +84,7 @@ struct TerminalSplitTreeView: View {
   struct SubtreeView: View {
     let node: SplitTree<GhosttySurfaceView>.Node
     let unreadSurfaceIDs: Set<UUID>
+    let outerEdges: OuterEdges
     var isRoot: Bool = false
     let action: (Operation) -> Void
 
@@ -52,6 +95,7 @@ struct TerminalSplitTreeView: View {
           surfaceView: leafView,
           isSplit: !isRoot,
           isUnread: unreadSurfaceIDs.contains(leafView.id),
+          outerEdges: outerEdges,
           action: action
         )
       case .split(let split):
@@ -72,10 +116,20 @@ struct TerminalSplitTreeView: View {
           dividerColor: .secondary,
           resizeIncrements: .init(width: 1, height: 1),
           left: {
-            SubtreeView(node: split.left, unreadSurfaceIDs: unreadSurfaceIDs, action: action)
+            SubtreeView(
+              node: split.left,
+              unreadSurfaceIDs: unreadSurfaceIDs,
+              outerEdges: outerEdges.child(.left, in: split.direction),
+              action: action
+            )
           },
           right: {
-            SubtreeView(node: split.right, unreadSurfaceIDs: unreadSurfaceIDs, action: action)
+            SubtreeView(
+              node: split.right,
+              unreadSurfaceIDs: unreadSurfaceIDs,
+              outerEdges: outerEdges.child(.right, in: split.direction),
+              action: action
+            )
           },
           onEqualize: {
             action(.equalize)
@@ -89,6 +143,7 @@ struct TerminalSplitTreeView: View {
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
     let isUnread: Bool
+    let outerEdges: OuterEdges
     let action: (Operation) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -97,6 +152,13 @@ struct TerminalSplitTreeView: View {
 
     private var unreadGlowAnimation: Animation? {
       reduceMotion ? nil : .easeInOut(duration: 0.2)
+    }
+
+    private var unreadGlowShape: UnevenRoundedRectangle {
+      UnevenRoundedRectangle(
+        cornerRadii: outerEdges.cornerRadii(cornerRadius: TerminalChromeMetrics.paneCornerRadius),
+        style: .continuous
+      )
     }
 
     var body: some View {
@@ -135,14 +197,14 @@ struct TerminalSplitTreeView: View {
                 ))
           }
           .background {
-            Rectangle()
+            unreadGlowShape
               .fill(Color.accentColor.opacity(0.08))
               .opacity(isUnread ? 1 : 0)
               .animation(unreadGlowAnimation, value: isUnread)
               .allowsHitTesting(false)
           }
           .overlay {
-            Rectangle()
+            unreadGlowShape
               .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
               .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
               .compositingGroup()
