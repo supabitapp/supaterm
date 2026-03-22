@@ -36,3 +36,17 @@ This document captures the stable rules of Supaterm's socket IPC. The source rem
 - Reachable sockets are never silently replaced.
 - Path resolution is canonicalized so endpoint creation, discovery, and identity agree on the same location.
 - Incoming requests can be buffered briefly until the app starts consuming the stream.
+
+## Code Index
+
+- `apps/mac/supaterm/Features/Socket/` is the app-side socket boundary.
+- `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift` owns request semantics.
+- `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift` owns socket lifecycle and transport.
+- `apps/mac/SupatermCLIShared/` holds the shared IPC contract.
+- `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift` defines request and response types.
+- `apps/mac/SupatermCLIShared/SupatermSocketPath.swift` defines endpoint resolution and discovery.
+- `apps/mac/SupatermCLIShared/SupatermCLIContext.swift` defines pane context passed through environment.
+- `apps/mac/sp/` is the CLI surface.
+- `apps/mac/sp/main.swift` is the CLI entrypoint.
+- `apps/mac/sp/SPSocketClient.swift` is the CLI transport client.
+- `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift` injects pane context into terminal processes.
