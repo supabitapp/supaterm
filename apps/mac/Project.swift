@@ -83,6 +83,7 @@ let project = Project(
         "sp/main.swift",
       ],
       dependencies: [
+        .external(name: "ArgumentParser"),
         .target(name: "SPCLI"),
       ],
       settings: .settings(
@@ -241,6 +242,7 @@ let project = Project(
         "supatermTests",
       ],
       dependencies: [
+        .external(name: "ArgumentParser"),
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
