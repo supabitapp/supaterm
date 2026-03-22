@@ -33,6 +33,19 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func socketEndpointDisplayStringIncludesShortIDPidAndPath() {
+    let endpoint = socketEndpoint(
+      id: UUID(uuidString: "FC905729-0A5F-4D1D-8077-5E0E90529B86")!,
+      name: "main",
+      path: "/tmp/main.sock",
+      pid: 77,
+      startedAt: 3
+    )
+
+    #expect(endpoint.displayString == "main [FC905729] pid 77 socket /tmp/main.sock")
+  }
+
+  @Test
   func explicitPathResolutionPrefersExplicitPathThenEnvironment() {
     let environmentPath = "/tmp/supaterm.environment.sock"
     let explicitPath = "/tmp/supaterm.explicit.sock"

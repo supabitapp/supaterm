@@ -349,7 +349,7 @@ enum SPSocketSelection {
   }
 
   static func formatEndpoint(_ endpoint: SupatermSocketEndpoint) -> String {
-    "\(endpoint.name) [\(shortID(endpoint.id))] pid \(endpoint.pid) socket \(endpoint.path)"
+    endpoint.displayString
   }
 
   private static func probeEndpoint(at path: String) -> SupatermManagedSocketCandidateStatus {
@@ -415,9 +415,5 @@ enum SPSocketSelection {
     guard !endpoints.isEmpty else { return nil }
     let formatted = endpoints.map(formatEndpoint).joined(separator: "\n- ")
     return "Available instances:\n- \(formatted)"
-  }
-
-  private static func shortID(_ id: UUID) -> String {
-    String(id.uuidString.prefix(8))
   }
 }

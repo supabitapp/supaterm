@@ -52,6 +52,12 @@ public struct SupatermSocketEndpoint: Equatable, Sendable, Codable {
   }
 }
 
+extension SupatermSocketEndpoint {
+  public var displayString: String {
+    "\(name) [\(String(id.uuidString.prefix(8)))] pid \(pid) socket \(path)"
+  }
+}
+
 public struct SupatermSocketRequest: Equatable, Sendable, Codable {
   public let id: String
   public let method: String

@@ -131,6 +131,9 @@ actor SocketControlRuntime {
 
       self.serverSocket = serverSocket
       self.endpoint = endpoint
+      if Self.shouldPrintSocket() {
+        Self.writeStandardError("Supaterm socket: \(endpoint.displayString)\n")
+      }
 
       let runtime = self
       listenerTask = Task.detached(priority: .utility) {
@@ -324,6 +327,17 @@ actor SocketControlRuntime {
       }
     }
     return result == 0
+  }
+
+  private nonisolated static func shouldPrintSocket() -> Bool {
+    ProcessInfo.processInfo.environment["SUPATERM_PRINT_SOCKET"] == "1"
+  }
+
+  private nonisolated static func writeStandardError(_ message: String) {
+    _ = message.withCString { pointer in
+      fputs(pointer, stderr)
+    }
+    fflush(stderr)
   }
 
   private nonisolated static func readLine(from socket: Int32) -> String? {
