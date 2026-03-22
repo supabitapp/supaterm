@@ -45,7 +45,6 @@ final class GhosttySurfaceState {
   var reloadConfigSoft: Bool?
   var configChangeCount: Int = 0
   var bellCount: Int = 0
-  var openConfigCount: Int = 0
   var presentTerminalCount: Int = 0
   var resetWindowSizeCount: Int = 0
   var quitTimer: ghostty_action_quit_timer_e?

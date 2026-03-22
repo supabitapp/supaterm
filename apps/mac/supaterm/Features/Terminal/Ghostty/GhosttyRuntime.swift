@@ -488,6 +488,8 @@ final class GhosttyRuntime {
       return performer?.performCloseAllWindows() ?? false
     case GHOSTTY_ACTION_CHECK_FOR_UPDATES:
       return performer?.performCheckForUpdates() ?? false
+    case GHOSTTY_ACTION_OPEN_CONFIG:
+      return (NSApp.delegate as? any GhosttyOpenConfigPerforming)?.performOpenConfig() ?? false
     default:
       return false
     }

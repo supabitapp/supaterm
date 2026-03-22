@@ -89,9 +89,10 @@ final class GhosttySurfaceBridge {
   }
 
   private func handleAppAction(_ action: ghostty_action_s) -> Bool? {
+    let performer = NSApp.delegate as? any GhosttyAppActionPerforming
     switch action.tag {
     case GHOSTTY_ACTION_NEW_WINDOW:
-      return (NSApp.delegate as? AppDelegate)?.performNewWindow() ?? false
+      return performer?.performNewWindow() ?? false
     case GHOSTTY_ACTION_NEW_TAB:
       return onNewTab?() ?? false
     case GHOSTTY_ACTION_CLOSE_TAB:
@@ -101,16 +102,17 @@ final class GhosttySurfaceBridge {
       window.performClose(nil)
       return true
     case GHOSTTY_ACTION_CLOSE_ALL_WINDOWS:
-      return (NSApp.delegate as? AppDelegate)?.performCloseAllWindows() ?? false
+      return performer?.performCloseAllWindows() ?? false
     case GHOSTTY_ACTION_GOTO_TAB:
       return onGotoTab?(action.action.goto_tab) ?? false
     case GHOSTTY_ACTION_MOVE_TAB:
       return onMoveTab?(action.action.move_tab) ?? false
     case GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE:
       return onCommandPaletteToggle?() ?? false
+    case GHOSTTY_ACTION_OPEN_CONFIG:
+      return (NSApp.delegate as? any GhosttyOpenConfigPerforming)?.performOpenConfig() ?? false
     case GHOSTTY_ACTION_QUIT:
-      NSApp.terminate(nil)
-      return true
+      return performer?.performQuit() ?? false
     case GHOSTTY_ACTION_GOTO_WINDOW,
       GHOSTTY_ACTION_TOGGLE_QUICK_TERMINAL:
       return false
@@ -470,10 +472,6 @@ final class GhosttySurfaceBridge {
 
     case GHOSTTY_ACTION_CONFIG_CHANGE:
       state.configChangeCount += 1
-      return true
-
-    case GHOSTTY_ACTION_OPEN_CONFIG:
-      state.openConfigCount += 1
       return true
 
     case GHOSTTY_ACTION_PRESENT_TERMINAL:
