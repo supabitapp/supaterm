@@ -505,6 +505,11 @@ final class SupatermMenuController: NSObject {
     }
 
     ghosttyBindingItems = []
+    syncShortcut(
+      action: "open_config",
+      item: settingsItem,
+      defaultShortcut: KeyboardShortcut(",", modifiers: .command)
+    )
     syncShortcut(action: "check_for_updates", item: checkForUpdatesItem)
     syncShortcut(
       action: "quit",

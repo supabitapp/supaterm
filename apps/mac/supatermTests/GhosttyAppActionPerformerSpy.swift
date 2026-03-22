@@ -3,10 +3,13 @@ import AppKit
 @testable import supaterm
 
 @MainActor
-final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
+final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming,
+  GhosttyOpenConfigPerforming
+{
   var checkForUpdatesCount = 0
   var closeAllWindowsCount = 0
   var newWindowCount = 0
+  var openConfigCount = 0
   var quitCount = 0
 
   func performCheckForUpdates() -> Bool {
@@ -21,6 +24,11 @@ final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, Ghost
 
   func performNewWindow() -> Bool {
     newWindowCount += 1
+    return true
+  }
+
+  func performOpenConfig() -> Bool {
+    openConfigCount += 1
     return true
   }
 
