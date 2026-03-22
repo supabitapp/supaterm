@@ -135,7 +135,7 @@ struct TerminalSplitTreeView: View {
                 ))
           }
           .background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            Rectangle()
               .fill(Color.accentColor.opacity(0.08))
               .padding(3)
               .opacity(isUnread ? 1 : 0)
@@ -143,7 +143,7 @@ struct TerminalSplitTreeView: View {
               .allowsHitTesting(false)
           }
           .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            Rectangle()
               .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
               .padding(3)
               .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
