@@ -63,10 +63,6 @@ final class TerminalSidebarDragSession: ObservableObject {
     )
   }
 
-  var showsPreview: Bool {
-    TerminalSidebarLayout.showsDragPreview(activeZone: activeZone)
-  }
-
   var previewRowWidth: CGFloat {
     if sidebarScreenFrame.width > 0 {
       return max(180, min(sidebarScreenFrame.width - 16, 320))
@@ -391,10 +387,7 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
     )
 
     manager.$draggedItem
-      .combineLatest(manager.$activeZone)
-      .map { draggedItem, activeZone in
-        draggedItem != nil && TerminalSidebarLayout.showsDragPreview(activeZone: activeZone)
-      }
+      .map { $0 != nil }
       .removeDuplicates()
       .receive(on: RunLoop.main)
       .sink { [weak self] isVisible in
@@ -459,7 +452,7 @@ private struct TerminalSidebarDragPreviewContent: View {
 
   var body: some View {
     ZStack {
-      if manager.showsPreview, let tab = manager.draggedTab {
+      if let tab = manager.draggedTab {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: tab,
