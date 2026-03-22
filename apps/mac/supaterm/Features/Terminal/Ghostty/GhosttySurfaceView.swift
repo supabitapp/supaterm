@@ -1123,6 +1123,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
         action: #selector(splitUp(_:)),
         symbol: "rectangle.tophalf.inset.filled"
       ))
+    menu.addItem(
+      menuItem(
+        title: "Close Pane",
+        action: #selector(closePane(_:)),
+        symbol: "xmark"
+      ))
     menu.addItem(.separator())
     menu.addItem(
       menuItem(
@@ -1160,6 +1166,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   @IBAction func splitUp(_ sender: Any?) {
     _ = bridge.onSplitAction?(.newSplit(direction: .top))
+  }
+
+  @IBAction func closePane(_ sender: Any?) {
+    performBindingAction(SupatermCommand.closeSurface.ghosttyBindingAction)
   }
 
   @IBAction func resetTerminal(_ sender: Any?) {
