@@ -3,6 +3,28 @@ import SwiftUI
 
 @MainActor
 final class SupatermMenuController: NSObject {
+  private struct MenuShortcutKey: Equatable {
+    let keyEquivalent: String
+    let modifierMask: NSEvent.ModifierFlags
+
+    init(shortcut: KeyboardShortcut) {
+      self.keyEquivalent = shortcut.key.character.description.lowercased()
+      self.modifierMask = .init(swiftUIFlags: shortcut.modifiers).intersection(.deviceIndependentFlagsMask)
+    }
+
+    func matches(_ event: NSEvent) -> Bool {
+      let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+      guard eventModifiers == modifierMask else { return false }
+      let eventKeys = Set([event.charactersIgnoringModifiers, event.characters].compactMap { $0?.lowercased() })
+      return eventKeys.contains(keyEquivalent)
+    }
+  }
+
+  private struct GhosttyBindingMenuItem {
+    let shortcut: MenuShortcutKey
+    let item: NSMenuItem
+  }
+
   private enum MenuItemIdentifier {
     static let checkForUpdates = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
@@ -44,6 +66,7 @@ final class SupatermMenuController: NSObject {
   private let registry: TerminalWindowRegistry
   private var observers: [NSObjectProtocol] = []
   private var requestNewWindow: @MainActor () -> Bool = { false }
+  private var ghosttyBindingItems: [GhosttyBindingMenuItem] = []
 
   private var appName: String {
     if let name = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
@@ -454,6 +477,7 @@ final class SupatermMenuController: NSObject {
       NSApp.windowsMenu = windowMenu
     }
 
+    ghosttyBindingItems = []
     syncShortcut(command: .newWindow, item: newWindowItem)
     syncShortcut(command: .newTab, item: newTabItem)
     syncShortcut(command: .newSplit(.right), item: splitRightItem)
@@ -492,6 +516,19 @@ final class SupatermMenuController: NSObject {
     }
     syncShortcut(command: .lastTab, item: selectLastTabItem)
     mainMenu.update()
+  }
+
+  @discardableResult
+  func performGhosttyBindingMenuKeyEquivalent(with event: NSEvent) -> Bool {
+    let item =
+      (ghosttyBindingItems
+      .lazy
+      .first { $0.shortcut.matches(event) })?.item
+    guard let item else { return false }
+    item.menu?.update()
+    guard item.isEnabled else { return false }
+    guard let action = item.action else { return false }
+    return NSApp.sendAction(action, to: item.target, from: item)
   }
 
   @discardableResult
@@ -647,13 +684,26 @@ final class SupatermMenuController: NSObject {
     guard let item else { return }
     if let shortcut = registry.keyboardShortcut(for: command) {
       SupatermMenuShortcut.apply(shortcut, to: item)
+      syncGhosttyBindingItem(item, shortcut: shortcut)
       return
     }
     if registry.hasShortcutSource {
       SupatermMenuShortcut.apply(nil, to: item)
       return
     }
-    SupatermMenuShortcut.apply(command.defaultKeyboardShortcut, to: item)
+    let shortcut = command.defaultKeyboardShortcut
+    SupatermMenuShortcut.apply(shortcut, to: item)
+    syncGhosttyBindingItem(item, shortcut: shortcut)
+  }
+
+  private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {
+    guard let shortcut else { return }
+    ghosttyBindingItems.append(
+      .init(
+        shortcut: .init(shortcut: shortcut),
+        item: item
+      )
+    )
   }
 
   private func installObservers() {

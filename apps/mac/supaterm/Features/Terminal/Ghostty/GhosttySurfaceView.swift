@@ -202,6 +202,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     if let surface {
       surfaceRef = runtime.registerSurface(surface)
     }
+    syncRuntimeConfigState()
     registerForDraggedTypes(Array(Self.dropTypes))
 
     eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp, .leftMouseDown]) {
@@ -874,6 +875,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     updateSurfaceSize()
   }
 
+  func syncRuntimeConfigState() {
+    bridge.state.progressStyleEnabled = runtime.progressStyle()
+  }
+
   private static func withEnvironmentVariables<Result>(
     _ environmentVariables: [SupatermCLIEnvironmentVariable],
     _ body: (UnsafeMutablePointer<ghostty_env_var_s>?, Int) -> Result
@@ -973,8 +978,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
     if let bindingFlags = bindingFlags(for: event, surface: surface) {
       if shouldAttemptMenu(for: bindingFlags),
-        let menu = NSApp.mainMenu,
-        menu.performKeyEquivalent(with: event)
+        (NSApp.delegate as? AppDelegate)?.performGhosttyBindingMenuKeyEquivalent(with: event) == true
       {
         return true
       }
@@ -1703,6 +1707,7 @@ final class GhosttySurfaceScrollView: NSView {
         queue: .main
       ) { [weak self] _ in
         MainActor.assumeIsolated {
+          self?.surfaceView.syncRuntimeConfigState()
           self?.refreshAppearance()
         }
       })

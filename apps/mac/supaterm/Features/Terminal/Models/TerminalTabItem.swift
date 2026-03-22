@@ -2,6 +2,7 @@ import Foundation
 
 struct TerminalTabItem: Identifiable, Equatable, Sendable {
   let id: TerminalTabID
+  let defaultTitle: String
   var title: String
   var icon: String?
   var isDirty: Bool
@@ -31,6 +32,7 @@ struct TerminalTabItem: Identifiable, Equatable, Sendable {
     isTitleLocked: Bool = false
   ) {
     self.id = id
+    self.defaultTitle = title
     self.title = title
     self.icon = icon
     self.isDirty = isDirty

@@ -9,6 +9,8 @@ final class GhosttySurfaceBridge {
   weak var surfaceView: GhosttySurfaceView?
   var onTitleChange: ((String) -> Void)?
   var onPathChange: (() -> Void)?
+  var onTabTitleChange: ((String?) -> Bool)?
+  var onCopyTitleToClipboard: (() -> Bool)?
   var onSplitAction: ((GhosttySplitAction) -> Bool)?
   var onCloseRequest: ((Bool) -> Void)?
   var onNewTab: (() -> Bool)?
@@ -28,6 +30,7 @@ final class GhosttySurfaceBridge {
   func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
     if let handled = handleAppAction(action) { return handled }
     if let handled = handleSplitAction(action) { return handled }
+    if let handled = handleTabAction(action) { return handled }
     if handleTitleAndPath(action) {
       onStateChange?()
       return false
@@ -53,6 +56,20 @@ final class GhosttySurfaceBridge {
       return false
     }
     return false
+  }
+
+  private func handleTabAction(_ action: ghostty_action_s) -> Bool? {
+    switch action.tag {
+    case GHOSTTY_ACTION_SET_TAB_TITLE:
+      let title = string(from: action.action.set_tab_title.title) ?? ""
+      return onTabTitleChange?(title.isEmpty ? nil : title) ?? false
+
+    case GHOSTTY_ACTION_COPY_TITLE_TO_CLIPBOARD:
+      return onCopyTitleToClipboard?() ?? false
+
+    default:
+      return nil
+    }
   }
 
   func sendText(_ text: String) {

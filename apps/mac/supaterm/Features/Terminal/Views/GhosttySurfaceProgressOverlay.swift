@@ -9,7 +9,10 @@ struct GhosttySurfaceProgressOverlay: View {
   }
 
   var body: some View {
-    if let progressState = state.progressState, progressState != GHOSTTY_PROGRESS_STATE_REMOVE {
+    if state.progressStyleEnabled,
+      let progressState = state.progressState,
+      progressState != GHOSTTY_PROGRESS_STATE_REMOVE
+    {
       GhosttySurfaceProgressBar(
         progressState: progressState,
         progressValue: state.progressValue

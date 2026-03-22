@@ -165,4 +165,93 @@ struct SupatermMenuControllerTests {
     #expect(controller.performNewWindow())
     #expect(invocations == 1)
   }
+
+  @Test
+  func performGhosttyBindingMenuKeyEquivalentIgnoresSystemMenuItems() throws {
+    let app = NSApplication.shared
+    let previousMainMenu = app.mainMenu
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    defer {
+      app.mainMenu = previousMainMenu
+    }
+
+    controller.install()
+
+    let event = try #require(
+      NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [.command],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: "h",
+        charactersIgnoringModifiers: "h",
+        isARepeat: false,
+        keyCode: 4
+      )
+    )
+
+    #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+  }
+
+  @Test
+  func performGhosttyBindingMenuKeyEquivalentRoutesIndexedGhosttyItemsOnly() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcut: { command in
+          switch command {
+          case .newWindow:
+            KeyboardShortcut("h", modifiers: [.command])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      var invocations = 0
+      controller.setNewWindowAction {
+        invocations += 1
+        return true
+      }
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let event = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "h",
+          charactersIgnoringModifiers: "h",
+          isARepeat: false,
+          keyCode: 4
+        )
+      )
+
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+      #expect(invocations == 1)
+    }
+  }
 }
