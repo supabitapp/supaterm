@@ -1084,7 +1084,10 @@ final class TerminalHostState {
   }
 
   func windowNeedsCloseConfirmation() -> Bool {
-    trees.values.contains { tree in
+    if let runtime {
+      return runtime.needsConfirmQuit()
+    }
+    return trees.values.contains { tree in
       tree.leaves().contains(where: \.needsCloseConfirmation)
     }
   }

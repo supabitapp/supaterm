@@ -117,6 +117,11 @@ final class GhosttyRuntime {
     }
   }
 
+  func needsConfirmQuit() -> Bool {
+    guard let app else { return false }
+    return ghostty_app_needs_confirm_quit(app)
+  }
+
   func setColorScheme(_ scheme: ColorScheme) {
     guard let app else { return }
     let ghosttyScheme: ghostty_color_scheme_e =
