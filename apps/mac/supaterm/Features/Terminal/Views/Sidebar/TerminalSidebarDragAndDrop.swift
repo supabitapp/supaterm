@@ -289,19 +289,14 @@ final class TerminalSidebarDragSession: ObservableObject {
     }
   }
 
-  nonisolated private func handleMonitoredEvent(
+  private func handleMonitoredEvent(
     _ event: NSEvent
   ) -> NSEvent? {
-    let result = MainActor.assumeIsolated {
-      handleMonitoredEventOnMain(event)
-    }
-    switch result {
+    switch handleMonitoredEventOnMain(event) {
     case .passThrough:
       return event
     case .consumeAndStartDrag(let sourceID):
-      MainActor.assumeIsolated {
-        registeredSources[sourceID]?.view?.initiateDrag(with: event)
-      }
+      registeredSources[sourceID]?.view?.initiateDrag(with: event)
       return nil
     }
   }
