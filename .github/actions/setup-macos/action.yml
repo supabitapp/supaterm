@@ -27,9 +27,6 @@ runs:
           apps/mac/Resources/ghostty
           apps/mac/Resources/terminfo
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-${{ env.GHOSTTY_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'Makefile', 'apps/mac/Makefile', 'mise.toml', '.gitmodules') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-${{ env.GHOSTTY_SHA }}-
-          ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-
     - name: Sync Ghostty build stamp
       if: steps.ghostty_cache.outputs.cache-hit == 'true'
       shell: bash
