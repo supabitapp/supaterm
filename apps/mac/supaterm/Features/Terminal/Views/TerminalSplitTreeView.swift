@@ -36,10 +36,10 @@ struct TerminalSplitTreeView: View {
 
     func cornerRadii(cornerRadius: CGFloat) -> RectangleCornerRadii {
       .init(
-        topLeading: contains(.top) && contains(.leading) ? cornerRadius : 0,
+        topLeading: 0,
         bottomLeading: contains(.bottom) && contains(.leading) ? cornerRadius : 0,
         bottomTrailing: contains(.bottom) && contains(.trailing) ? cornerRadius : 0,
-        topTrailing: contains(.top) && contains(.trailing) ? cornerRadius : 0
+        topTrailing: 0
       )
     }
 
