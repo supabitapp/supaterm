@@ -75,6 +75,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     terminalWindowRegistry.requestCloseAllWindows()
   }
 
+  @discardableResult
+  func performGhosttyBindingMenuKeyEquivalent(with event: NSEvent) -> Bool {
+    menuController.performGhosttyBindingMenuKeyEquivalent(with: event)
+  }
+
   private func showExistingWindowOrCreate() -> Bool {
     if let window = windowControllers.values.compactMap(\.window).first {
       if window.isMiniaturized {

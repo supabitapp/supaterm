@@ -45,6 +45,7 @@ final class TerminalHostState {
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
+  private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
 
   var windowActivity = WindowActivityState.inactive
@@ -785,6 +786,7 @@ final class TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
+      tabTitleOverrides.removeValue(forKey: tabID)
       workspaceManager.workspace(for: tabID)
         .flatMap { workspaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
@@ -836,6 +838,15 @@ final class TerminalHostState {
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+    }
+    view.bridge.onTabTitleChange = { [weak self] title in
+      guard let self else { return false }
+      self.setTabTitleOverride(title, for: tabID)
+      return true
+    }
+    view.bridge.onCopyTitleToClipboard = { [weak self] in
+      guard let self else { return false }
+      return self.copyTitleToClipboard(for: tabID)
     }
     view.bridge.onSplitAction = { [weak self, weak view] action in
       guard let self, let view else { return false }
@@ -993,14 +1004,7 @@ final class TerminalHostState {
   }
 
   private func updateTabTitle(for tabID: TerminalTabID) {
-    guard
-      let focusedSurfaceID = focusedSurfaceIDByTab[tabID],
-      let surface = surfaces[focusedSurfaceID]
-    else {
-      return
-    }
-
-    let resolvedTitle = surface.resolvedDisplayTitle(defaultValue: fallbackTitle(for: tabID))
+    let resolvedTitle = currentTabTitle(for: tabID)
     workspaceManager.workspace(for: tabID)
       .flatMap { workspaceManager.tabManager(for: $0.id) }?
       .updateTitle(tabID, title: resolvedTitle)
@@ -1061,6 +1065,7 @@ final class TerminalHostState {
       surfaces.removeValue(forKey: surface.id)
     }
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
+    tabTitleOverrides.removeValue(forKey: tabID)
   }
 
   private func updateRunningState(for tabID: TerminalTabID) {
@@ -1137,7 +1142,42 @@ final class TerminalHostState {
   }
 
   private func fallbackTitle(for tabID: TerminalTabID) -> String {
-    workspaceManager.tab(for: tabID)?.title ?? "Terminal"
+    workspaceManager.tab(for: tabID)?.defaultTitle ?? "Terminal"
+  }
+
+  private func setTabTitleOverride(_ title: String?, for tabID: TerminalTabID) {
+    if let title {
+      tabTitleOverrides[tabID] = title
+    } else {
+      tabTitleOverrides.removeValue(forKey: tabID)
+    }
+    updateTabTitle(for: tabID)
+  }
+
+  private func copyTitleToClipboard(for tabID: TerminalTabID) -> Bool {
+    let title = currentTabTitle(for: tabID).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !title.isEmpty else { return false }
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    return pasteboard.setString(title, forType: .string)
+  }
+
+  private func currentTabTitle(for tabID: TerminalTabID) -> String {
+    if let title = tabTitleOverrides[tabID] {
+      return title
+    }
+    let fallbackTitle = fallbackTitle(for: tabID)
+    guard let surface = titleSurface(for: tabID) else {
+      return fallbackTitle
+    }
+    return surface.resolvedDisplayTitle(defaultValue: fallbackTitle)
+  }
+
+  private func titleSurface(for tabID: TerminalTabID) -> GhosttySurfaceView? {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID] {
+      return surfaces[focusedSurfaceID]
+    }
+    return trees[tabID]?.root?.leftmostLeaf()
   }
 
   private func observeWorkspaceCatalog() {
