@@ -166,24 +166,16 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func dragPreviewUsesGhostOutsideSidebarDuringSourceReorder() {
+  func dragPreviewHidesWithoutAnActiveZone() {
     #expect(
-      TerminalSidebarLayout.dragPreviewStyle(
-        sourceZone: .regular,
-        activeZone: .regular,
-        isCursorInSidebar: false
-      ) == .ghost
+      !TerminalSidebarLayout.showsDragPreview(activeZone: nil)
     )
   }
 
   @Test
-  func dragPreviewUsesRowInsideSidebarWhenDroppingAcrossSections() {
+  func dragPreviewShowsWithAnActiveZone() {
     #expect(
-      TerminalSidebarLayout.dragPreviewStyle(
-        sourceZone: .regular,
-        activeZone: .pinned,
-        isCursorInSidebar: true
-      ) == .row
+      TerminalSidebarLayout.showsDragPreview(activeZone: .pinned)
     )
   }
 
