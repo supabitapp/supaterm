@@ -5,21 +5,31 @@ import Testing
 
 struct SupatermSocketProtocolTests {
   @Test
-  func managedSocketURLUsesApplicationSupportDirectory() {
-    let appSupportDirectory = URL(fileURLWithPath: "/tmp/SupatermTests/Application Support", isDirectory: true)
+  func managedSocketURLUsesPerUserTmpDirectory() {
+    let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
     let endpointID = UUID(uuidString: "46AF523B-6B85-4DDB-B6E6-C5E87F9BAA94")!
 
     #expect(
       SupatermSocketPath.managedSocketURL(
         endpointID: endpointID,
-        appSupportDirectory: appSupportDirectory
+        rootDirectory: rootDirectory,
+        userID: 501
       )
-        == appSupportDirectory
-        .appendingPathComponent("Supaterm", isDirectory: true)
-        .appendingPathComponent("sockets", isDirectory: true)
+        == rootDirectory
+        .appendingPathComponent("supaterm-501", isDirectory: true)
         .appendingPathComponent(endpointID.uuidString, isDirectory: false)
         .appendingPathExtension("sock")
     )
+  }
+
+  @Test
+  func managedSocketURLFitsDarwinSocketLimit() {
+    let path = SupatermSocketPath.managedSocketURL(
+      endpointID: UUID(uuidString: "46AF523B-6B85-4DDB-B6E6-C5E87F9BAA94")!,
+      userID: 501
+    ).path
+
+    #expect(path.utf8.count < 104)
   }
 
   @Test
@@ -43,7 +53,7 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func processSocketEndpointUsesManagedPathAndInstanceName() {
-    let appSupportDirectory = URL(fileURLWithPath: "/tmp/SupatermTests/Application Support", isDirectory: true)
+    let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
     let endpointID = UUID(uuidString: "C46492BD-5A6E-4C73-8D0F-71AFBA7EF1DE")!
     let startedAt = Date(timeIntervalSince1970: 123)
 
@@ -52,7 +62,8 @@ struct SupatermSocketProtocolTests {
       endpointID: endpointID,
       processID: 99,
       startedAt: startedAt,
-      appSupportDirectory: appSupportDirectory
+      rootDirectory: rootDirectory,
+      userID: 501
     )
 
     #expect(
@@ -61,9 +72,8 @@ struct SupatermSocketProtocolTests {
           id: endpointID,
           name: "dev",
           path:
-            appSupportDirectory
-            .appendingPathComponent("Supaterm", isDirectory: true)
-            .appendingPathComponent("sockets", isDirectory: true)
+            rootDirectory
+            .appendingPathComponent("supaterm-501", isDirectory: true)
             .appendingPathComponent(endpointID.uuidString, isDirectory: false)
             .appendingPathExtension("sock")
             .path,
@@ -74,18 +84,29 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func processSocketEndpointPrefersExplicitSocketPath() {
+  func processSocketEndpointIgnoresInheritedSocketPath() {
+    let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
+    let endpointID = UUID(uuidString: "0DC934AE-CE34-4B47-B968-B70E0A1E8733")!
     let endpoint = SupatermProcessSocketEndpoint.make(
       environment: [
         SupatermCLIEnvironment.socketPathKey: "/tmp/override.sock",
         SupatermCLIEnvironment.instanceNameKey: "named",
       ],
-      endpointID: UUID(uuidString: "0DC934AE-CE34-4B47-B968-B70E0A1E8733")!,
+      endpointID: endpointID,
       processID: 7,
-      startedAt: Date(timeIntervalSince1970: 456)
+      startedAt: Date(timeIntervalSince1970: 456),
+      rootDirectory: rootDirectory,
+      userID: 501
     )
 
-    #expect(endpoint?.path == "/tmp/override.sock")
+    #expect(
+      endpoint?.path
+        == rootDirectory
+        .appendingPathComponent("supaterm-501", isDirectory: true)
+        .appendingPathComponent(endpointID.uuidString, isDirectory: false)
+        .appendingPathExtension("sock")
+        .path
+    )
     #expect(endpoint?.name == "named")
   }
 
@@ -156,7 +177,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func managedSocketDiscoveryRemovesStalePathsAndSortsEndpoints() {
+  func managedSocketDiscoveryRemovesOnlyStalePathsAndSortsEndpoints() {
     let older = socketEndpoint(
       id: UUID(uuidString: "99E743B9-198E-4109-A8D3-5DF618FF56AB")!,
       name: "older",
@@ -174,15 +195,17 @@ struct SupatermSocketProtocolTests {
     var removed: [String] = []
 
     let discovery = SupatermManagedSocketDiscovery.discover(
-      candidatePaths: [older.path, "/tmp/stale.sock", newer.path],
-      identify: { path in
+      candidatePaths: [older.path, "/tmp/ignored.sock", "/tmp/stale.sock", newer.path],
+      probe: { path in
         switch path {
         case older.path:
-          return older
+          return .reachable(older)
         case newer.path:
-          return newer
+          return .reachable(newer)
+        case "/tmp/ignored.sock":
+          return .ignored
         default:
-          throw TestError()
+          return .stale
         }
       },
       removeStalePath: { path in
@@ -416,8 +439,6 @@ struct SupatermSocketProtocolTests {
     #expect(try response.decodeResult(SupatermNewPaneResult.self) == result)
   }
 }
-
-private struct TestError: Error {}
 
 private func socketEndpoint(
   id: UUID,

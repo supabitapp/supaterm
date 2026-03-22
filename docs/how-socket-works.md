@@ -15,7 +15,7 @@ This document is a current map of Supaterm's socket control path. The source is 
 
 ## Environment
 
-- `SUPATERM_SOCKET_PATH`: optional socket path override and pane-provided socket location
+- `SUPATERM_SOCKET_PATH`: pane-provided socket location for CLI targeting
 - `SUPATERM_INSTANCE_NAME`: optional process display name for endpoint discovery
 - `SUPATERM_SURFACE_ID`: current pane surface identifier
 - `SUPATERM_TAB_ID`: current pane tab identifier
@@ -25,8 +25,7 @@ Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 ## Endpoint Model
 
 - Each Supaterm app process computes one `SupatermSocketEndpoint` for its lifetime.
-- Managed endpoints live under `~/Library/Application Support/Supaterm/sockets/<endpoint-id>.sock`.
-- If `SUPATERM_SOCKET_PATH` is set, that explicit path replaces the managed path for the current process.
+- Managed endpoints live under `/tmp/supaterm-<uid>/<endpoint-id>.sock`.
 - If `SUPATERM_INSTANCE_NAME` is set, it becomes the endpoint display name. Otherwise the name defaults to `pid-<pid>`.
 - `GhosttySurfaceView` injects the process endpoint path into every pane as `SUPATERM_SOCKET_PATH`, so pane-launched `sp` commands route back to the owning process without discovery.
 
@@ -117,6 +116,7 @@ Pane path
 - If the path already contains a reachable socket node, startup fails.
 - If the path contains an unreachable socket node, the runtime treats it as stale, removes it, and reuses the path.
 - If the path is occupied by a non-socket file, startup fails.
+- Discovery removes only managed socket paths that fail to connect. Post-connect identity failures are ignored without unlinking the path.
 - Requests are newline-delimited JSON messages.
 - Replies are newline-delimited JSON responses.
 - If the reducer has not started consuming the request stream yet, the runtime buffers requests until `requests()` is observed.
