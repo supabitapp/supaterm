@@ -7,7 +7,7 @@ struct SP: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
-    subcommands: [Ping.self, Tree.self, Onboard.self, Debug.self, Instances.self, NewPane.self]
+    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewPane.self]
   )
 
   mutating func run() throws {
@@ -16,31 +16,6 @@ struct SP: ParsableCommand {
 }
 
 extension SP {
-  struct Ping: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "ping",
-      abstract: "Ping the running Supaterm socket server."
-    )
-
-    @Option(name: .long, help: "Override the Unix socket path.")
-    var socket: String?
-
-    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
-    var instance: String?
-
-    mutating func run() throws {
-      let client = try socketClient(path: socket, instance: instance)
-      let response = try client.send(.ping())
-      guard response.ok else {
-        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-      }
-      guard response.result?["pong"]?.boolValue == true else {
-        throw ValidationError("Supaterm socket ping returned an unexpected response.")
-      }
-      print("pong")
-    }
-  }
-
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "tree",

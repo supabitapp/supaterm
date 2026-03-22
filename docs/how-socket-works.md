@@ -10,7 +10,7 @@ This document is a current map of Supaterm's socket control path. The source is 
 - `SocketControlRuntime` owns the Unix domain socket transport: endpoint binding, directory creation, stale socket cleanup, `bind`, `listen`, `accept`, request decoding, buffering, and response writes. See `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`.
 - `TerminalWindowsClient` provides the app-side operations the socket feature can invoke today: debug snapshots, tree snapshots, and pane creation. See `apps/mac/supaterm/Features/Terminal/TerminalWindowsClient.swift`.
 - `SupatermCLIShared` owns the shared contract between the app and CLI: environment keys, pane context parsing, endpoint discovery, method names, and typed request/response payloads. See `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`, `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`, and `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
-- The `sp` CLI resolves a target endpoint, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp ping`, `sp tree`, `sp onboard`, `sp debug`, `sp instances`, and `sp new-pane`. See `apps/mac/sp/main.swift` and `apps/mac/sp/SPSocketClient.swift`.
+- The `sp` CLI resolves a target endpoint, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp tree`, `sp onboard`, `sp debug`, `sp instances`, and `sp new-pane`. See `apps/mac/sp/main.swift` and `apps/mac/sp/SPSocketClient.swift`.
 - `GhosttySurfaceView` injects pane context and the resolved socket path into the terminal process environment. See `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`.
 
 ## Environment
@@ -95,8 +95,9 @@ App side
 CLI side                                                              |
 
 +------------------+      +------------------+                        |
-| sp ping/tree/    | ---> | SPSocketClient   +------------------------+
-| debug/new-pane   |      +------------------+
+| sp tree/onboard/ | ---> | SPSocketClient   +------------------------+
+| debug/instances/ |      |                  |
+| new-pane         |      +------------------+
 +------------------+
 
 Pane path
