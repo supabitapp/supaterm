@@ -70,7 +70,7 @@ struct SupatermSocketProtocolTests {
   @Test
   func managedSocketURLFitsDarwinSocketLimit() {
     let path = SupatermSocketPath.managedSocketURL(
-      endpointID: UUID(uuidString: "46AF523B-6B85-4DDB-B6E6-C5E87F9BAA94")!,
+      processID: 501,
       userID: 501
     ).path
 
@@ -80,11 +80,10 @@ struct SupatermSocketProtocolTests {
   @Test
   func managedSocketURLUsesOverrideAsTempStyleRoot() {
     let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
-    let endpointID = UUID(uuidString: "46AF523B-6B85-4DDB-B6E6-C5E87F9BAA94")!
 
     #expect(
       SupatermSocketPath.managedSocketURL(
-        endpointID: endpointID,
+        processID: 77,
         rootDirectory: rootDirectory,
         environment: [
           "XDG_RUNTIME_DIR": "/run/user/501",
@@ -94,7 +93,7 @@ struct SupatermSocketProtocolTests {
       )
         == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
         .appendingPathComponent("supaterm-501", isDirectory: true)
-        .appendingPathComponent("46af523b6b854ddbb6e6c5e87f9baa94", isDirectory: false)
+        .appendingPathComponent("pid-77", isDirectory: false)
     )
   }
 
@@ -178,7 +177,7 @@ struct SupatermSocketProtocolTests {
           path:
             URL(fileURLWithPath: "/run/user/501", isDirectory: true)
             .appendingPathComponent("supaterm", isDirectory: true)
-            .appendingPathComponent("c46492bd5a6e4c738d0f71afba7ef1de", isDirectory: false)
+            .appendingPathComponent("pid-99", isDirectory: false)
             .path,
           pid: 99,
           startedAt: startedAt
@@ -205,10 +204,37 @@ struct SupatermSocketProtocolTests {
       endpoint?.path
         == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
         .appendingPathComponent("supaterm-501", isDirectory: true)
-        .appendingPathComponent("0dc934aece344b47b968b70e0a1e8733", isDirectory: false)
+        .appendingPathComponent("pid-7", isDirectory: false)
         .path
     )
     #expect(endpoint?.name == "named")
+  }
+
+  @Test
+  func processSocketEndpointPathDependsOnProcessIDNotEndpointID() {
+    let first = SupatermProcessSocketEndpoint.make(
+      environment: ["TMPDIR": "/tmp/SupatermTests"],
+      endpointID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+      processID: 42,
+      startedAt: .init(timeIntervalSince1970: 0),
+      userID: 501
+    )
+    let second = SupatermProcessSocketEndpoint.make(
+      environment: ["TMPDIR": "/tmp/SupatermTests"],
+      endpointID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+      processID: 42,
+      startedAt: .init(timeIntervalSince1970: 1),
+      userID: 501
+    )
+
+    #expect(first?.path == second?.path)
+    #expect(
+      first?.path
+        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
+        .appendingPathComponent("supaterm-501", isDirectory: true)
+        .appendingPathComponent("pid-42", isDirectory: false)
+        .path
+    )
   }
 
   @Test

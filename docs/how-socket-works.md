@@ -26,8 +26,8 @@ Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 
 - Each Supaterm app process computes one `SupatermSocketEndpoint` for its lifetime.
 - Managed endpoint roots resolve in this order: `XDG_RUNTIME_DIR`, then `TMPDIR`, then `/tmp`.
-- If `XDG_RUNTIME_DIR` is set, managed endpoints live under `<XDG_RUNTIME_DIR>/supaterm/<compact-endpoint-id>`.
-- Otherwise managed endpoints live under `<TMPDIR or /private/tmp>/supaterm-<uid>/<compact-endpoint-id>`.
+- If `XDG_RUNTIME_DIR` is set, managed endpoints live under `<XDG_RUNTIME_DIR>/supaterm/pid-<pid>`.
+- Otherwise managed endpoints live under `<TMPDIR or /private/tmp>/supaterm-<uid>/pid-<pid>`.
 - If `SUPATERM_INSTANCE_NAME` is set, it becomes the endpoint display name. Otherwise the name defaults to `pid-<pid>`.
 - `GhosttySurfaceView` injects the process endpoint path into every pane as `SUPATERM_SOCKET_PATH`, so pane-launched `sp` commands route back to the owning process without discovery.
 
