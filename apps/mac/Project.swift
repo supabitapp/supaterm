@@ -48,6 +48,31 @@ let project = Project(
       )
     ),
     .target(
+      name: "SPCLI",
+      destinations: .macOS,
+      product: .staticLibrary,
+      bundleId: "app.supabit.sp-cli",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      sources: [
+        "sp/SPCommand.swift",
+        "sp/SPHelp.swift",
+        "sp/SPSocketClient.swift",
+        "sp/SPTreeRenderer.swift",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .external(name: "ArgumentParser"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "sp",
       destinations: .macOS,
       product: .commandLineTool,
@@ -55,11 +80,10 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       sources: [
-        "sp/**",
+        "sp/main.swift",
       ],
       dependencies: [
-        .target(name: "SupatermCLIShared"),
-        .external(name: "ArgumentParser"),
+        .target(name: "SPCLI"),
       ],
       settings: .settings(
         base: [
@@ -217,6 +241,7 @@ let project = Project(
         "supatermTests",
       ],
       dependencies: [
+        .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
         .target(name: "GhosttyKit"),
