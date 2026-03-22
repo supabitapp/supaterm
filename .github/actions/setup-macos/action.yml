@@ -8,6 +8,11 @@ runs:
       with:
         version: 2026.3.0
         cache: true
+    - name: Xcode cache key
+      shell: bash
+      run: |
+        XCODE_VERSION="$(xcodebuild -version | tr '\n' '-' | sed 's/[^A-Za-z0-9._-]/_/g; s/-$//')"
+        printf '%s\n' "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
     - name: Ghostty cache key
       shell: bash
       run: |
@@ -21,10 +26,10 @@ runs:
           apps/mac/Frameworks/GhosttyKit.xcframework
           apps/mac/Resources/ghostty
           apps/mac/Resources/terminfo
-        key: ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-${{ hashFiles('Makefile', 'apps/mac/Makefile', 'mise.toml', '.gitmodules') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-${{ env.GHOSTTY_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'Makefile', 'apps/mac/Makefile', 'mise.toml', '.gitmodules') }}
         restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-${{ env.GHOSTTY_SHA }}-
-          ${{ runner.os }}-${{ runner.arch }}-ghostty-v0-
+          ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-${{ env.GHOSTTY_SHA }}-
+          ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v1-
     - name: Sync Ghostty build stamp
       if: steps.ghostty_cache.outputs.cache-hit == 'true'
       shell: bash
