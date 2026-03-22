@@ -1,12 +1,14 @@
 import ProjectDescription
 
+let ghosttyXCFrameworkPath: Path = "Frameworks/GhosttyKit.xcframework"
+
 let project = Project(
   name: "supaterm",
   settings: .settings(
     base: [
       "CLANG_ENABLE_MODULES": "YES",
       "CODE_SIGN_STYLE": "Automatic",
-      "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
+      "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
       "SUPATERM_DEVELOPMENT_BUILD": "NO",
       "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
       "SWIFT_DEFAULT_ACTOR_ISOLATION": "MainActor",
@@ -62,6 +64,38 @@ let project = Project(
         defaultSettings: .essential
       )
     ),
+    .foreignBuild(
+      name: "GhosttyKit",
+      destinations: .macOS,
+      script: """
+        set -euo pipefail
+
+        ghostty_dir="${SRCROOT}/ThirdParty/ghostty"
+        xcframework_path="${SRCROOT}/\(ghosttyXCFrameworkPath.pathString)"
+
+        if [ ! -f "${ghostty_dir}/build.zig" ]; then
+          echo "error: Missing ${ghostty_dir}. Run: git submodule sync --recursive && git submodule update --init --recursive" >&2
+          exit 1
+        fi
+
+        mkdir -p "$(dirname "${xcframework_path}")"
+        cd "${ghostty_dir}"
+        mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false
+        rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
+        "${SRCROOT}/scripts/prepare-ghostty-xcframework.sh" "${xcframework_path}"
+        """,
+      inputs: [
+        .file("../../mise.toml"),
+        .file("scripts/prepare-ghostty-xcframework.sh"),
+        .script("""
+          cd "${SRCROOT}/ThirdParty/ghostty"
+          git rev-parse HEAD
+          git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
+          git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
+          """),
+      ],
+      output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
+    ),
     .target(
       name: "supaterm",
       destinations: .macOS,
@@ -93,14 +127,38 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
-        .folderReference(path: "Resources/ghostty"),
-        .folderReference(path: "Resources/terminfo"),
       ],
       buildableFolders: [
         "supaterm/App",
         "supaterm/Features",
       ],
       scripts: [
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_root="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+            ghostty_source="${SRCROOT}/ThirdParty/ghostty/zig-out/share/ghostty"
+            terminfo_source="${SRCROOT}/ThirdParty/ghostty/zig-out/share/terminfo"
+            ghostty_destination="${destination_root}/ghostty"
+            terminfo_destination="${destination_root}/terminfo"
+
+            rm -rf "${ghostty_destination}" "${terminfo_destination}"
+            mkdir -p "${ghostty_destination}" "${terminfo_destination}"
+            rsync -a --delete "${ghostty_source}/" "${ghostty_destination}/"
+            rsync -a --delete "${terminfo_source}/" "${terminfo_destination}/"
+            """,
+          name: "Embed Ghostty Resources",
+          inputPaths: [
+            "$(SRCROOT)/ThirdParty/ghostty/zig-out/share/ghostty",
+            "$(SRCROOT)/ThirdParty/ghostty/zig-out/share/terminfo",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty",
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/terminfo",
+          ],
+          basedOnDependencyAnalysis: false
+        ),
         .post(
           script: """
             set -eu
@@ -138,8 +196,8 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "GhosttyKit"),
         .target(name: "sp"),
-        .xcframework(path: "Frameworks/GhosttyKit.xcframework"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
         .external(name: "Sparkle"),
