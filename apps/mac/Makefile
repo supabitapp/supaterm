@@ -50,7 +50,7 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	build_dir="$$(echo "$$settings" | jq -r '.[0].buildSettings.BUILT_PRODUCTS_DIR')"; \
 	product="$$(echo "$$settings" | jq -r '.[0].buildSettings.FULL_PRODUCT_NAME')"; \
 	exec_name="$$(echo "$$settings" | jq -r '.[0].buildSettings.EXECUTABLE_NAME')"; \
-	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
+	SUPATERM_PRINT_SOCKET=1 "$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 install-tip: # Install tip build from github
 	@tmpdir="$$(mktemp -d)"; \
