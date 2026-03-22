@@ -228,6 +228,32 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func rewriteNewTabResultPreservesSpaceIndexAndUpdatesWindowIndex() {
+    let result = SupatermNewTabResult(
+      isFocused: false,
+      isSelectedSpace: false,
+      isSelectedTab: false,
+      windowIndex: 1,
+      spaceIndex: 3,
+      tabIndex: 2,
+      paneIndex: 1
+    )
+
+    #expect(
+      TerminalWindowRegistry.rewrite(result, windowIndex: 2)
+        == .init(
+          isFocused: false,
+          isSelectedSpace: false,
+          isSelectedTab: false,
+          windowIndex: 2,
+          spaceIndex: 3,
+          tabIndex: 2,
+          paneIndex: 1
+        )
+    )
+  }
+
+  @Test
   func rewriteNewPaneResultPreservesSpaceIndexAndUpdatesWindowIndex() {
     let result = SupatermNewPaneResult(
       direction: .right,
@@ -250,6 +276,19 @@ struct TerminalWindowRegistryTests {
           tabIndex: 2,
           paneIndex: 4
         )
+    )
+  }
+
+  @Test
+  func rewriteCreateTabErrorPreservesSpaceIndexAndUpdatesWindowIndex() {
+    let error = TerminalCreateTabError.spaceNotFound(
+      windowIndex: 1,
+      spaceIndex: 3
+    )
+
+    #expect(
+      TerminalWindowRegistry.rewrite(error, windowIndex: 2)
+        == .spaceNotFound(windowIndex: 2, spaceIndex: 3)
     )
   }
 

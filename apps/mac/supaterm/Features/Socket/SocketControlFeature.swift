@@ -9,6 +9,7 @@ private enum SocketControlCancelID {
 private enum SocketRequestError: Error, Equatable, LocalizedError {
   case invalidIndex(String)
   case missingTarget
+  case missingSpaceTarget
   case onboardingUnavailable
   case paneRequiresTab
   case spaceRequiresTab
@@ -21,6 +22,8 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
       return "\(field) must be 1 or greater."
     case .missingTarget:
       return "Provide a target space and tab or run the command inside a Supaterm pane."
+    case .missingSpaceTarget:
+      return "Provide a target space or run the command inside a Supaterm pane."
     case .onboardingUnavailable:
       return "No Supaterm window is available."
     case .paneRequiresTab:
@@ -137,6 +140,12 @@ struct SocketControlFeature {
       case SupatermSocketMethod.systemPing:
         return .ok(id: request.id, result: ["pong": true])
 
+      case SupatermSocketMethod.terminalNewTab:
+        let payload = try request.decodeParams(SupatermNewTabRequest.self)
+        let createTabRequest = try createTabRequest(from: payload)
+        let result = try await terminalWindowsClient.createTab(createTabRequest)
+        return try .ok(id: request.id, encodableResult: result)
+
       case SupatermSocketMethod.terminalNewPane:
         let payload = try request.decodeParams(SupatermNewPaneRequest.self)
         let createPaneRequest = try createPaneRequest(from: payload)
@@ -162,6 +171,8 @@ struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
+    } catch let error as TerminalCreateTabError {
+      return createTabErrorResponse(error, requestID: request.id)
     } catch let error as TerminalCreatePaneError {
       return createPaneErrorResponse(error, requestID: request.id)
     } catch {
@@ -170,6 +181,54 @@ struct SocketControlFeature {
         code: "internal_error",
         message: error.localizedDescription
       )
+    }
+  }
+
+  private func createTabRequest(
+    from payload: SupatermNewTabRequest
+  ) throws -> TerminalCreateTabRequest {
+    try validateCreateTabPayload(payload)
+
+    return .init(
+      command: payload.command,
+      cwd: payload.cwd,
+      focus: payload.focus,
+      target: try createTabTarget(from: payload)
+    )
+  }
+
+  private func validateCreateTabPayload(
+    _ payload: SupatermNewTabRequest
+  ) throws {
+    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+      throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
+    }
+    if payload.targetWindowIndex != nil && payload.targetSpaceIndex == nil {
+      throw SocketRequestError.windowRequiresSpace
+    }
+  }
+
+  private func createTabTarget(
+    from payload: SupatermNewTabRequest
+  ) throws -> TerminalCreateTabRequest.Target {
+    switch payload.targetSpaceIndex {
+    case .some(let spaceIndex):
+      return .space(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: spaceIndex
+      )
+
+    case .none:
+      guard let contextPaneID = payload.contextPaneID else {
+        throw SocketRequestError.missingSpaceTarget
+      }
+      if payload.targetWindowIndex != nil {
+        throw SocketRequestError.windowRequiresSpace
+      }
+      return .contextPane(contextPaneID)
     }
   }
 
@@ -249,6 +308,41 @@ struct SocketControlFeature {
       throw SocketRequestError.spaceRequiresTab
     case (.none, .none, .some):
       throw SocketRequestError.paneRequiresTab
+    }
+  }
+
+  private func createTabErrorResponse(
+    _ error: TerminalCreateTabError,
+    requestID: String
+  ) -> SupatermSocketResponse {
+    switch error {
+    case .contextPaneNotFound:
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "The current pane could not be resolved."
+      )
+
+    case .creationFailed:
+      return .error(
+        id: requestID,
+        code: "internal_error",
+        message: "Failed to create a new tab."
+      )
+
+    case .spaceNotFound(let windowIndex, let spaceIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Space \(spaceIndex) was not found in window \(windowIndex)."
+      )
+
+    case .windowNotFound(let windowIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Window \(windowIndex) was not found."
+      )
     }
   }
 

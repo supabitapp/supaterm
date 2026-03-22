@@ -629,6 +629,33 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
+  func newTabRequestAndResponseRoundTripThroughTypedHelpers() throws {
+    let requestPayload = SupatermNewTabRequest(
+      command: "pwd",
+      cwd: "/tmp/example",
+      focus: false,
+      targetWindowIndex: 1,
+      targetSpaceIndex: 2
+    )
+    let result = SupatermNewTabResult(
+      isFocused: false,
+      isSelectedSpace: false,
+      isSelectedTab: false,
+      windowIndex: 1,
+      spaceIndex: 2,
+      tabIndex: 3,
+      paneIndex: 1
+    )
+
+    let request = try SupatermSocketRequest.newTab(requestPayload, id: "new-tab-1")
+    let response = try SupatermSocketResponse.ok(id: "new-tab-1", encodableResult: result)
+
+    #expect(request.method == SupatermSocketMethod.terminalNewTab)
+    #expect(try request.decodeParams(SupatermNewTabRequest.self) == requestPayload)
+    #expect(try response.decodeResult(SupatermNewTabResult.self) == result)
+  }
+
+  @Test
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewPaneRequest(
       command: "pwd",

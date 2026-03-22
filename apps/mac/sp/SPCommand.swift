@@ -8,7 +8,7 @@ public struct SP: ParsableCommand {
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
     discussion: SPHelp.rootDiscussion,
-    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewPane.self]
+    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self]
   )
 
   public init() {}
@@ -197,6 +197,98 @@ extension SP {
     }
   }
 
+  struct NewTab: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "new-tab",
+      abstract: "Create a new tab inside a Supaterm space.",
+      discussion: SPHelp.newTabDiscussion
+    )
+
+    @Option(name: .long, help: "Start the new tab in the specified working directory.")
+    var cwd: String?
+
+    @Option(name: .long, help: "Target a space by its 1-based index.")
+    var space: Int?
+
+    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
+    var window: Int?
+
+    @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
+    var focus = false
+
+    @Flag(name: .long, help: "Print the result as JSON.")
+    var json = false
+
+    @OptionGroup
+    var connection: SPConnectionOptions
+
+    @Argument(help: "Optional shell command to run immediately in the new tab.")
+    var command: [String] = []
+
+    mutating func run() throws {
+      try validate()
+
+      let client = try socketClient(
+        path: connection.explicitSocketPath,
+        instance: connection.instance
+      )
+      let response = try client.send(.newTab(try requestPayload()))
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+
+      let result = try response.decodeResult(SupatermNewTabResult.self)
+      if json {
+        print(try jsonString(result))
+      } else {
+        print(
+          "window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)"
+        )
+      }
+    }
+
+    func validate() throws {
+      if let window, window < 1 {
+        throw ValidationError("--window must be 1 or greater.")
+      }
+      if let space, space < 1 {
+        throw ValidationError("--space must be 1 or greater.")
+      }
+      if window != nil && space == nil {
+        throw ValidationError("--window requires --space.")
+      }
+      if space == nil && SupatermCLIContext.current == nil {
+        throw ValidationError("Run this command inside a Supaterm pane or provide --space.")
+      }
+    }
+
+    private func requestPayload() throws -> SupatermNewTabRequest {
+      let command = shellCommandInput(command)
+      let cwd = try resolvedWorkingDirectory(cwd)
+
+      if let space {
+        return SupatermNewTabRequest(
+          command: command,
+          cwd: cwd,
+          focus: focus,
+          targetWindowIndex: window ?? 1,
+          targetSpaceIndex: space
+        )
+      }
+
+      guard let context = SupatermCLIContext.current else {
+        throw ValidationError("Run this command inside a Supaterm pane or provide --space.")
+      }
+
+      return SupatermNewTabRequest(
+        command: command,
+        contextPaneID: context.surfaceID,
+        cwd: cwd,
+        focus: focus
+      )
+    }
+  }
+
   struct NewPane: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "new-pane",
@@ -335,7 +427,7 @@ extension SP {
 private func jsonString<T: Encodable>(_ value: T) throws -> String {
   let encoder = JSONEncoder()
   encoder.dateEncodingStrategy = .iso8601
-  encoder.outputFormatting = [.sortedKeys]
+  encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
   return String(decoding: try encoder.encode(value), as: UTF8.self)
 }
 
@@ -360,6 +452,27 @@ private func resolvedSocketTarget(
 private func shellCommandInput(_ tokens: [String]) -> String? {
   guard !tokens.isEmpty else { return nil }
   return tokens.map(shellEscapedToken).joined(separator: " ")
+}
+
+private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
+  guard let path else { return nil }
+
+  let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !trimmed.isEmpty else {
+    throw ValidationError("--cwd must not be empty.")
+  }
+
+  let expandedPath = NSString(string: trimmed).expandingTildeInPath
+  let url: URL
+
+  if expandedPath.hasPrefix("/") {
+    url = URL(fileURLWithPath: expandedPath, isDirectory: true)
+  } else {
+    url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+      .appendingPathComponent(expandedPath, isDirectory: true)
+  }
+
+  return url.standardizedFileURL.path
 }
 
 private func shellEscapedToken(_ token: String) -> String {
