@@ -72,3 +72,5 @@ fastlane/test_output
 
 *.profraw
 .env
+
+execplans/
