@@ -65,8 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     Self.terminateReply(
       hasVisibleTerminalWindows: terminalWindowRegistry.hasVisibleTerminalWindows,
-      bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation,
-      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation
+      bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation
     ) {
       let alert = NSAlert()
       alert.messageText = "Quit Supaterm?"
@@ -141,12 +140,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   static func terminateReply(
     hasVisibleTerminalWindows: Bool,
     bypassesQuitConfirmation: Bool,
-    needsQuitConfirmation: Bool,
     confirmQuit: () -> Bool
   ) -> NSApplication.TerminateReply {
     guard hasVisibleTerminalWindows else { return .terminateNow }
     guard !bypassesQuitConfirmation else { return .terminateNow }
-    guard needsQuitConfirmation else { return .terminateNow }
     return confirmQuit() ? .terminateNow : .terminateCancel
   }
 }

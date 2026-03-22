@@ -61,10 +61,6 @@ final class TerminalWindowRegistry {
     visibleEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
   }
 
-  var needsQuitConfirmation: Bool {
-    visibleEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
-  }
-
   func register(
     keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
     windowControllerID: UUID,
