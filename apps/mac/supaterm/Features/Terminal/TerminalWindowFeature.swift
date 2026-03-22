@@ -6,17 +6,17 @@ private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
 }
 
-struct TerminalWorkspaceDeleteRequest: Equatable, Identifiable {
-  let workspace: TerminalWorkspaceItem
+struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
+  let space: TerminalSpaceItem
 
-  var id: TerminalWorkspaceID { workspace.id }
+  var id: TerminalSpaceID { space.id }
 }
 
-struct TerminalWorkspaceRenameState: Equatable, Identifiable {
-  let workspace: TerminalWorkspaceItem
+struct TerminalSpaceRenameState: Equatable, Identifiable {
+  let space: TerminalSpaceItem
   var draftName: String
 
-  var id: TerminalWorkspaceID { workspace.id }
+  var id: TerminalSpaceID { space.id }
 }
 
 @Reducer
@@ -27,10 +27,10 @@ struct TerminalWindowFeature {
     var isFloatingSidebarVisible = false
     var isSidebarCollapsed = false
     var pendingCloseRequest: PendingCloseRequest?
-    var pendingWorkspaceDeleteRequest: TerminalWorkspaceDeleteRequest?
+    var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
     var sidebarFraction: CGFloat = 0.2
     var windowID: ObjectIdentifier?
-    var workspaceRename: TerminalWorkspaceRenameState?
+    var spaceRename: TerminalSpaceRenameState?
   }
 
   struct ConfirmationRequest: Equatable {
@@ -83,8 +83,8 @@ struct TerminalWindowFeature {
     case regularTabOrderChanged([TerminalTabID])
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
-    case selectWorkspaceButtonTapped(TerminalWorkspaceID)
-    case selectWorkspaceMenuItemSelected(Int)
+    case selectSpaceButtonTapped(TerminalSpaceID)
+    case selectSpaceMenuItemSelected(Int)
     case sidebarTabMoveCommitted(
       tabID: TerminalTabID,
       pinnedOrder: [TerminalTabID],
@@ -94,14 +94,14 @@ struct TerminalWindowFeature {
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case tabSelected(TerminalTabID)
     case task
-    case workspaceCreateButtonTapped
-    case workspaceDeleteCancelButtonTapped
-    case workspaceDeleteConfirmButtonTapped
-    case workspaceDeleteRequested(TerminalWorkspaceItem)
-    case workspaceRenameCancelButtonTapped
-    case workspaceRenameRequested(TerminalWorkspaceItem)
-    case workspaceRenameSaveButtonTapped
-    case workspaceRenameTextChanged(String)
+    case spaceCreateButtonTapped
+    case spaceDeleteCancelButtonTapped
+    case spaceDeleteConfirmButtonTapped
+    case spaceDeleteRequested(TerminalSpaceItem)
+    case spaceRenameCancelButtonTapped
+    case spaceRenameRequested(TerminalSpaceItem)
+    case spaceRenameSaveButtonTapped
+    case spaceRenameTextChanged(String)
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
     case confirmationCancelButtonTapped
@@ -154,14 +154,14 @@ struct TerminalWindowFeature {
         state.pendingCloseRequest = nil
         return executeClose(for: closeTarget(for: pendingCloseRequest.target))
 
-      case .workspaceDeleteCancelButtonTapped:
-        state.pendingWorkspaceDeleteRequest = nil
+      case .spaceDeleteCancelButtonTapped:
+        state.pendingSpaceDeleteRequest = nil
         return .none
 
-      case .workspaceDeleteConfirmButtonTapped:
-        guard let request = state.pendingWorkspaceDeleteRequest else { return .none }
-        state.pendingWorkspaceDeleteRequest = nil
-        return sendCommand(.deleteWorkspace(request.workspace.id))
+      case .spaceDeleteConfirmButtonTapped:
+        guard let request = state.pendingSpaceDeleteRequest else { return .none }
+        state.pendingSpaceDeleteRequest = nil
+        return sendCommand(.deleteSpace(request.space.id))
 
       case .closeSurfaceRequested(let surfaceID):
         return sendCommand(.requestCloseSurface(surfaceID))
@@ -207,11 +207,11 @@ struct TerminalWindowFeature {
       case .selectTabMenuItemSelected(let slot):
         return sendCommand(.selectTabSlot(slot))
 
-      case .selectWorkspaceButtonTapped(let workspaceID):
-        return sendCommand(.selectWorkspace(workspaceID))
+      case .selectSpaceButtonTapped(let spaceID):
+        return sendCommand(.selectSpace(spaceID))
 
-      case .selectWorkspaceMenuItemSelected(let slot):
-        return sendCommand(.selectWorkspaceSlot(slot))
+      case .selectSpaceMenuItemSelected(let slot):
+        return sendCommand(.selectSpaceSlot(slot))
 
       case .sidebarTabMoveCommitted(let tabID, let pinnedOrder, let regularOrder):
         return sendCommand(
@@ -240,28 +240,28 @@ struct TerminalWindowFeature {
           .cancellable(id: TerminalWindowCancelID.events, cancelInFlight: true)
         )
 
-      case .workspaceCreateButtonTapped:
-        return sendCommand(.createWorkspace)
+      case .spaceCreateButtonTapped:
+        return sendCommand(.createSpace)
 
-      case .workspaceDeleteRequested(let workspace):
-        state.pendingWorkspaceDeleteRequest = .init(workspace: workspace)
+      case .spaceDeleteRequested(let space):
+        state.pendingSpaceDeleteRequest = .init(space: space)
         return .none
 
-      case .workspaceRenameCancelButtonTapped:
-        state.workspaceRename = nil
+      case .spaceRenameCancelButtonTapped:
+        state.spaceRename = nil
         return .none
 
-      case .workspaceRenameRequested(let workspace):
-        state.workspaceRename = .init(workspace: workspace, draftName: workspace.name)
+      case .spaceRenameRequested(let space):
+        state.spaceRename = .init(space: space, draftName: space.name)
         return .none
 
-      case .workspaceRenameSaveButtonTapped:
-        guard let workspaceRename = state.workspaceRename else { return .none }
-        state.workspaceRename = nil
-        return sendCommand(.renameWorkspace(workspaceRename.workspace.id, workspaceRename.draftName))
+      case .spaceRenameSaveButtonTapped:
+        guard let spaceRename = state.spaceRename else { return .none }
+        state.spaceRename = nil
+        return sendCommand(.renameSpace(spaceRename.space.id, spaceRename.draftName))
 
-      case .workspaceRenameTextChanged(let text):
-        state.workspaceRename?.draftName = text
+      case .spaceRenameTextChanged(let text):
+        state.spaceRename?.draftName = text
         return .none
 
       case .togglePinned(let tabID):

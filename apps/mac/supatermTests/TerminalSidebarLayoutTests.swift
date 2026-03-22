@@ -5,29 +5,29 @@ import Testing
 
 struct TerminalSidebarLayoutTests {
   @Test
-  func workspaceBarLayoutUsesNormalModeWhenWidthFitsBadges() {
+  func spaceBarLayoutUsesNormalModeWhenWidthFitsBadges() {
     #expect(
-      TerminalSidebarWorkspaceBarLayoutMode.determine(
-        workspaceCount: 3,
+      TerminalSidebarSpaceBarLayoutMode.determine(
+        spaceCount: 3,
         availableWidth: 104
       ) == .normal
     )
   }
 
   @Test
-  func workspaceBarLayoutUsesCompactModeWhenWidthIsTight() {
+  func spaceBarLayoutUsesCompactModeWhenWidthIsTight() {
     #expect(
-      TerminalSidebarWorkspaceBarLayoutMode.determine(
-        workspaceCount: 3,
+      TerminalSidebarSpaceBarLayoutMode.determine(
+        spaceCount: 3,
         availableWidth: 103
       ) == .compact
     )
   }
 
   @Test
-  func workspaceMonogramUsesFirstNonWhitespaceCharacter() {
+  func spaceMonogramUsesFirstNonWhitespaceCharacter() {
     #expect(
-      TerminalSidebarLayout.workspaceMonogram(
+      TerminalSidebarLayout.spaceMonogram(
         for: "  shell",
         fallbackIndex: 2
       ) == "S"
@@ -35,9 +35,9 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func workspaceMonogramFallsBackToOrdinalForBlankName() {
+  func spaceMonogramFallsBackToOrdinalForBlankName() {
     #expect(
-      TerminalSidebarLayout.workspaceMonogram(
+      TerminalSidebarLayout.spaceMonogram(
         for: "   ",
         fallbackIndex: 2
       ) == "3"

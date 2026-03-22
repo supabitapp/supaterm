@@ -32,27 +32,27 @@ This logic is shared by the app runtime, the CLI, and pane-launched commands.
 ## Supported Methods
 
 - `system.ping`: health check, returns `{"pong": true}`
-- `app.debug`: returns a typed `SupatermAppDebugSnapshot` with invocation-resolved current target, app build and update state, per-window workspace and pane diagnostics, and problem strings
-- `app.tree`: returns a typed `SupatermTreeSnapshot` with a `window -> workspace -> tab -> pane` hierarchy
+- `app.debug`: returns a typed `SupatermAppDebugSnapshot` with invocation-resolved current target, app build and update state, per-window space and pane diagnostics, and problem strings
+- `app.tree`: returns a typed `SupatermTreeSnapshot` with a `window -> space -> tab -> pane` hierarchy
 - `terminal.new_pane`: validates targeting rules, creates a pane through `TerminalWindowsClient`, and returns `SupatermNewPaneResult`
 
 Method names and payload types live in `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
 
 ## Tree Shape
 
-- `app.tree` returns all workspaces in the window, not just the selected workspace.
-- Each window snapshot now contains ordered `workspaces`.
-- Each workspace contains:
+- `app.tree` returns all spaces in the window, not just the selected space.
+- Each window snapshot now contains ordered `spaces`.
+- Each space contains:
   - `index`
   - `name`
   - `isSelected`
   - `tabs`
 - `Tab` and `Pane` payloads are otherwise unchanged.
-- `sp tree` renders the same hierarchy in human-readable form: `window -> workspace -> tab -> pane`.
+- `sp tree` renders the same hierarchy in human-readable form: `window -> space -> tab -> pane`.
 
 ## Debug Shape
 
-- `app.debug` returns the same window, workspace, tab, and pane ordering as `app.tree`, but augments it with stable UUIDs and diagnostic fields.
+- `app.debug` returns the same window, space, tab, and pane ordering as `app.tree`, but augments it with stable UUIDs and diagnostic fields.
 - The top-level payload also includes build metadata, update state, aggregate counts, current-target resolution from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`, and a `problems` array.
 - `sp debug` prints local invocation and socket diagnostics first, then the remote app snapshot when the socket request succeeds.
 - `sp debug --json` wraps the remote snapshot in a local report so unresolved socket failures still return machine-readable diagnostics.
@@ -60,9 +60,9 @@ Method names and payload types live in `apps/mac/SupatermCLIShared/SupatermSocke
 ## Pane Targeting
 
 - `terminal.new_pane` is unchanged at the request and response level.
-- Explicit `window` and `tab` targets are resolved within the currently selected workspace.
+- Explicit `window` and `tab` targets are resolved within the currently selected space.
 - Context-pane targeting still resolves globally through `SUPATERM_SURFACE_ID`.
-- No workspace-specific socket methods are exposed in v1.
+- No space-specific socket methods are exposed in v1.
 
 ## Flow
 

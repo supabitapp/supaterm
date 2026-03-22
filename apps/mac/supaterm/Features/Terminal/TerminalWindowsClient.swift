@@ -70,7 +70,7 @@ extension TerminalWindowsClient: DependencyKey {
     ),
     summary: .init(
       windowCount: 0,
-      workspaceCount: 0,
+      spaceCount: 0,
       tabCount: 0,
       paneCount: 0,
       keyWindowIndex: nil

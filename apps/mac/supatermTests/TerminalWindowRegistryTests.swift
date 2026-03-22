@@ -18,7 +18,7 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = try #require(host.workspaceManager.activeTabManager)
+      let tabManager = try #require(host.spaceManager.activeTabManager)
       let tabID = tabManager.createTab(title: "Terminal 1", icon: "terminal")
       tabManager.selectTab(tabID)
 
@@ -57,7 +57,7 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = try #require(host.workspaceManager.activeTabManager)
+      let tabManager = try #require(host.spaceManager.activeTabManager)
       let tabID = tabManager.createTab(title: "Terminal 1", icon: "terminal")
       tabManager.selectTab(tabID)
 

@@ -50,7 +50,7 @@ final class SupatermMenuController: NSObject {
     static let previousTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.previous")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
     static let selectTabPrefix = "app.supabit.supaterm.tabs.select."
-    static let selectWorkspacePrefix = "app.supabit.supaterm.spaces.select."
+    static let selectSpacePrefix = "app.supabit.supaterm.spaces.select."
     static let zoomSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.zoomSplit")
     static let previousSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.previousSplit")
     static let nextSplit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.nextSplit")
@@ -191,7 +191,7 @@ final class SupatermMenuController: NSObject {
 
   private lazy var spacesMenu: NSMenu = {
     let menu = NSMenu(title: "Spaces")
-    for item in selectWorkspaceItems {
+    for item in selectSpaceItems {
       menu.addItem(item)
     }
     return menu
@@ -462,11 +462,11 @@ final class SupatermMenuController: NSObject {
     identifier: MenuItemIdentifier.moveSplitDividerRight,
     symbol: "arrow.right.to.line"
   )
-  private lazy var selectWorkspaceItems: [NSMenuItem] = (1...10).map { slot in
+  private lazy var selectSpaceItems: [NSMenuItem] = (1...10).map { slot in
     let item = makeItem(
       title: "Space \(slot)",
-      action: #selector(selectWorkspace(_:)),
-      identifier: .init(MenuItemIdentifier.selectWorkspacePrefix + "\(slot)")
+      action: #selector(selectSpace(_:)),
+      identifier: .init(MenuItemIdentifier.selectSpacePrefix + "\(slot)")
     )
     let key = slot == 10 ? "0" : "\(slot)"
     SupatermMenuShortcut.apply(
@@ -744,9 +744,9 @@ final class SupatermMenuController: NSObject {
     registry.requestSelectLastTabInKeyWindow()
   }
 
-  @objc func selectWorkspace(_ sender: Any?) {
+  @objc func selectSpace(_ sender: Any?) {
     guard let slot = (sender as? NSMenuItem)?.representedObject as? NSNumber else { return }
-    registry.requestSelectWorkspaceInKeyWindow(slot.intValue)
+    registry.requestSelectSpaceInKeyWindow(slot.intValue)
   }
 
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
@@ -921,10 +921,10 @@ extension SupatermMenuController: NSMenuItemValidation {
       {
         return context.visibleTabCount >= slot
       }
-      if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectWorkspacePrefix, with: "")),
-        identifier.hasPrefix(MenuItemIdentifier.selectWorkspacePrefix)
+      if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectSpacePrefix, with: "")),
+        identifier.hasPrefix(MenuItemIdentifier.selectSpacePrefix)
       {
-        return context.workspaceCount >= slot
+        return context.spaceCount >= slot
       }
       return true
     }

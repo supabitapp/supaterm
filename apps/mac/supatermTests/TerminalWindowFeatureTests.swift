@@ -156,7 +156,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func workspaceCreateButtonTappedSendsCreateWorkspaceCommand() async {
+  func spaceCreateButtonTappedSendsCreateSpaceCommand() async {
     let recorder = TerminalCommandRecorder()
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -165,9 +165,9 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.workspaceCreateButtonTapped)
+    await store.send(.spaceCreateButtonTapped)
 
-    #expect(recorder.commands == [.createWorkspace])
+    #expect(recorder.commands == [.createSpace])
   }
 
   @Test
@@ -201,10 +201,10 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func workspaceRenameFlowStoresDraftAndSendsRenameCommand() async {
+  func spaceRenameFlowStoresDraftAndSendsRenameCommand() async {
     let recorder = TerminalCommandRecorder()
-    let workspace = TerminalWorkspaceItem(
-      id: TerminalWorkspaceID(rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!),
+    let space = TerminalSpaceItem(
+      id: TerminalSpaceID(rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!),
       name: "A"
     )
 
@@ -214,24 +214,24 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.workspaceRenameRequested(workspace)) {
-      $0.workspaceRename = .init(workspace: workspace, draftName: "A")
+    await store.send(.spaceRenameRequested(space)) {
+      $0.spaceRename = .init(space: space, draftName: "A")
     }
-    await store.send(.workspaceRenameTextChanged("Shell")) {
-      $0.workspaceRename?.draftName = "Shell"
+    await store.send(.spaceRenameTextChanged("Shell")) {
+      $0.spaceRename?.draftName = "Shell"
     }
-    await store.send(.workspaceRenameSaveButtonTapped) {
-      $0.workspaceRename = nil
+    await store.send(.spaceRenameSaveButtonTapped) {
+      $0.spaceRename = nil
     }
 
-    #expect(recorder.commands == [.renameWorkspace(workspace.id, "Shell")])
+    #expect(recorder.commands == [.renameSpace(space.id, "Shell")])
   }
 
   @Test
-  func workspaceDeleteFlowStoresRequestAndSendsDeleteCommand() async {
+  func spaceDeleteFlowStoresRequestAndSendsDeleteCommand() async {
     let recorder = TerminalCommandRecorder()
-    let workspace = TerminalWorkspaceItem(
-      id: TerminalWorkspaceID(rawValue: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!),
+    let space = TerminalSpaceItem(
+      id: TerminalSpaceID(rawValue: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!),
       name: "B"
     )
 
@@ -241,14 +241,14 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.workspaceDeleteRequested(workspace)) {
-      $0.pendingWorkspaceDeleteRequest = .init(workspace: workspace)
+    await store.send(.spaceDeleteRequested(space)) {
+      $0.pendingSpaceDeleteRequest = .init(space: space)
     }
-    await store.send(.workspaceDeleteConfirmButtonTapped) {
-      $0.pendingWorkspaceDeleteRequest = nil
+    await store.send(.spaceDeleteConfirmButtonTapped) {
+      $0.pendingSpaceDeleteRequest = nil
     }
 
-    #expect(recorder.commands == [.deleteWorkspace(workspace.id)])
+    #expect(recorder.commands == [.deleteSpace(space.id)])
   }
 
   @Test
@@ -300,7 +300,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func selectWorkspaceMenuItemSelectedSendsSelectWorkspaceSlotCommand() async {
+  func selectSpaceMenuItemSelectedSendsSelectSpaceSlotCommand() async {
     let recorder = TerminalCommandRecorder()
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -309,9 +309,9 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.selectWorkspaceMenuItemSelected(4))
+    await store.send(.selectSpaceMenuItemSelected(4))
 
-    #expect(recorder.commands == [.selectWorkspaceSlot(4)])
+    #expect(recorder.commands == [.selectSpaceSlot(4)])
   }
 }
 

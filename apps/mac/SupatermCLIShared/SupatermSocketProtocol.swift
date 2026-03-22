@@ -187,20 +187,20 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
 
   public struct Summary: Equatable, Sendable, Codable {
     public let windowCount: Int
-    public let workspaceCount: Int
+    public let spaceCount: Int
     public let tabCount: Int
     public let paneCount: Int
     public let keyWindowIndex: Int?
 
     public init(
       windowCount: Int,
-      workspaceCount: Int,
+      spaceCount: Int,
       tabCount: Int,
       paneCount: Int,
       keyWindowIndex: Int?
     ) {
       self.windowCount = windowCount
-      self.workspaceCount = workspaceCount
+      self.spaceCount = spaceCount
       self.tabCount = tabCount
       self.paneCount = paneCount
       self.keyWindowIndex = keyWindowIndex
@@ -209,9 +209,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
 
   public struct CurrentTarget: Equatable, Sendable, Codable {
     public let windowIndex: Int
-    public let workspaceIndex: Int
-    public let workspaceID: UUID
-    public let workspaceName: String
+    public let spaceIndex: Int
+    public let spaceID: UUID
+    public let spaceName: String
     public let tabIndex: Int
     public let tabID: UUID
     public let tabTitle: String
@@ -220,9 +220,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
 
     public init(
       windowIndex: Int,
-      workspaceIndex: Int,
-      workspaceID: UUID,
-      workspaceName: String,
+      spaceIndex: Int,
+      spaceID: UUID,
+      spaceName: String,
       tabIndex: Int,
       tabID: UUID,
       tabTitle: String,
@@ -230,9 +230,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       paneID: UUID?
     ) {
       self.windowIndex = windowIndex
-      self.workspaceIndex = workspaceIndex
-      self.workspaceID = workspaceID
-      self.workspaceName = workspaceName
+      self.spaceIndex = spaceIndex
+      self.spaceID = spaceID
+      self.spaceName = spaceName
       self.tabIndex = tabIndex
       self.tabID = tabID
       self.tabTitle = tabTitle
@@ -245,22 +245,22 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
     public let isVisible: Bool
-    public let workspaces: [Workspace]
+    public let spaces: [Space]
 
     public init(
       index: Int,
       isKey: Bool,
       isVisible: Bool,
-      workspaces: [Workspace]
+      spaces: [Space]
     ) {
       self.index = index
       self.isKey = isKey
       self.isVisible = isVisible
-      self.workspaces = workspaces
+      self.spaces = spaces
     }
   }
 
-  public struct Workspace: Equatable, Sendable, Codable {
+  public struct Space: Equatable, Sendable, Codable {
     public let index: Int
     public let id: UUID
     public let name: String
@@ -408,16 +408,16 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
-    public let workspaces: [Workspace]
+    public let spaces: [Space]
 
-    public init(index: Int, isKey: Bool, workspaces: [Workspace]) {
+    public init(index: Int, isKey: Bool, spaces: [Space]) {
       self.index = index
       self.isKey = isKey
-      self.workspaces = workspaces
+      self.spaces = spaces
     }
   }
 
-  public struct Workspace: Equatable, Sendable, Codable {
+  public struct Space: Equatable, Sendable, Codable {
     public let index: Int
     public let name: String
     public let isSelected: Bool

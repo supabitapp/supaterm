@@ -42,9 +42,9 @@ struct TerminalClient: Sendable {
   enum Command: Equatable, @unchecked Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
-    case createWorkspace
+    case createSpace
     case createTab(inheritingFromSurfaceID: UUID?)
-    case deleteWorkspace(TerminalWorkspaceID)
+    case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
     case moveSidebarTab(tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
@@ -54,12 +54,12 @@ struct TerminalClient: Sendable {
     case previousTab
     case requestCloseSurface(UUID)
     case requestCloseTab(TerminalTabID)
-    case renameWorkspace(TerminalWorkspaceID, String)
+    case renameSpace(TerminalSpaceID, String)
     case selectLastTab
     case selectTab(TerminalTabID)
     case selectTabSlot(Int)
-    case selectWorkspaceSlot(Int)
-    case selectWorkspace(TerminalWorkspaceID)
+    case selectSpaceSlot(Int)
+    case selectSpace(TerminalSpaceID)
     case setPinnedTabOrder([TerminalTabID])
     case setRegularTabOrder([TerminalTabID])
     case togglePinned(TerminalTabID)
