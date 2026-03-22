@@ -200,9 +200,10 @@ struct SocketControlFeatureTests {
       command: "pwd",
       direction: .down,
       focus: false,
-      targetPaneIndex: 2,
+      targetWindowIndex: 1,
+      targetSpaceIndex: 2,
       targetTabIndex: 1,
-      targetWindowIndex: 1
+      targetPaneIndex: 2
     )
     let request = SocketControlClient.Request(
       handle: handle,
@@ -212,9 +213,10 @@ struct SocketControlFeatureTests {
       direction: .down,
       isFocused: false,
       isSelectedTab: true,
-      paneIndex: 3,
+      windowIndex: 1,
+      spaceIndex: 2,
       tabIndex: 1,
-      windowIndex: 1
+      paneIndex: 3
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -230,7 +232,7 @@ struct SocketControlFeatureTests {
               command: "pwd",
               direction: .down,
               focus: false,
-              target: .pane(windowIndex: 1, tabIndex: 1, paneIndex: 2)
+              target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2)
             )
         )
         return expectedResult
@@ -280,7 +282,7 @@ struct SocketControlFeatureTests {
           response: .error(
             id: "new-pane-2",
             code: "invalid_request",
-            message: "Provide a target tab or run the command inside a Supaterm pane."
+            message: "Provide a target space and tab or run the command inside a Supaterm pane."
           )
         )
     )
@@ -297,8 +299,9 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .right,
           focus: true,
-          targetTabIndex: 3,
-          targetWindowIndex: 1
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3
         ),
         id: "new-pane-3"
       )
@@ -311,7 +314,7 @@ struct SocketControlFeatureTests {
         await recorder.record(handle: handle, response: response)
       }
       $0.terminalWindowsClient.createPane = { _ in
-        throw TerminalCreatePaneError.tabNotFound(windowIndex: 1, tabIndex: 3)
+        throw TerminalCreatePaneError.tabNotFound(windowIndex: 1, spaceIndex: 2, tabIndex: 3)
       }
     }
 
@@ -326,7 +329,7 @@ struct SocketControlFeatureTests {
           response: .error(
             id: "new-pane-3",
             code: "not_found",
-            message: "Tab 3 was not found in window 1."
+            message: "Tab 3 was not found in space 2 of window 1."
           )
         )
     )
@@ -369,6 +372,138 @@ struct SocketControlFeatureTests {
             id: "new-pane-4",
             code: "invalid_request",
             message: "pane target requires a tab target."
+          )
+        )
+    )
+  }
+
+  @Test
+  func newPaneRequestWithTabWithoutSpaceRepliesWithStructuredError() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "EAA030B4-15BB-450D-AFC5-C3C3093576D0")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .newPane(
+        .init(
+          command: nil,
+          direction: .right,
+          focus: true,
+          targetTabIndex: 2
+        ),
+        id: "new-pane-5"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "new-pane-5",
+            code: "invalid_request",
+            message: "tab target requires a space target."
+          )
+        )
+    )
+  }
+
+  @Test
+  func newPaneRequestWithSpaceWithoutTabRepliesWithStructuredError() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "D51A0AFB-96F2-4B41-A893-6A1AE06BA123")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .newPane(
+        .init(
+          command: nil,
+          direction: .right,
+          focus: true,
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2
+        ),
+        id: "new-pane-6"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "new-pane-6",
+            code: "invalid_request",
+            message: "space target requires a tab target."
+          )
+        )
+    )
+  }
+
+  @Test
+  func newPaneRequestMapsMissingSpaceToNotFound() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "6BD0C483-E2AC-464A-81DF-D29134C9232D")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .newPane(
+        .init(
+          command: nil,
+          direction: .right,
+          focus: true,
+          targetWindowIndex: 1,
+          targetSpaceIndex: 4,
+          targetTabIndex: 1
+        ),
+        id: "new-pane-7"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.createPane = { _ in
+        throw TerminalCreatePaneError.spaceNotFound(windowIndex: 1, spaceIndex: 4)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "new-pane-7",
+            code: "not_found",
+            message: "Space 4 was not found in window 1."
           )
         )
     )
