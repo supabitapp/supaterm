@@ -8,13 +8,43 @@ struct TerminalDetailView: View {
   let selectedTabID: TerminalTabID
 
   var body: some View {
-    TerminalDetailSurface(
-      store: store,
-      terminal: terminal,
-      selectedTabID: selectedTabID
-    )
+    VStack(spacing: 0) {
+      TerminalDetailTopBar(
+        palette: palette,
+        title: terminal.selectedPaneDisplayTitle
+      )
+      TerminalDetailSurface(
+        store: store,
+        terminal: terminal,
+        selectedTabID: selectedTabID
+      )
+    }
     .compositingGroup()
     .terminalPaneChrome(palette: palette)
+  }
+}
+
+private struct TerminalDetailTopBar: View {
+  let palette: TerminalPalette
+  let title: String
+
+  var body: some View {
+    HStack(spacing: 0) {
+      Text(title)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(1)
+        .truncationMode(.middle)
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 12)
+    .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36, alignment: .leading)
+    .background(palette.detailBackground)
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(palette.detailStroke)
+        .frame(height: 1)
+    }
   }
 }
 
