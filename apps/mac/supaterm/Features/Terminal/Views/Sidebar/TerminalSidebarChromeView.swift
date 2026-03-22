@@ -443,9 +443,8 @@ struct TerminalSidebarTabRow: View {
       .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
     .buttonStyle(.plain)
-    .background(
+    .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
-        .allowsHitTesting(false)
     )
     .onHover { isHovering in
       withAnimation(.easeInOut(duration: 0.05)) {
@@ -503,62 +502,42 @@ struct TerminalSidebarTabRow: View {
 private struct TerminalSidebarMiddleClickActionView: NSViewRepresentable {
   let action: () -> Void
 
-  func makeCoordinator() -> Coordinator {
-    Coordinator(action: action)
+  func makeNSView(context: Context) -> TerminalSidebarMiddleClickNSView {
+    TerminalSidebarMiddleClickNSView(action: action)
   }
 
-  func makeNSView(context: Context) -> NSView {
-    let view = NSView()
-    context.coordinator.view = view
-    return view
+  func updateNSView(_ nsView: TerminalSidebarMiddleClickNSView, context: Context) {
+    nsView.action = action
+  }
+}
+
+private final class TerminalSidebarMiddleClickNSView: NSView {
+  var action: () -> Void
+
+  init(action: @escaping () -> Void) {
+    self.action = action
+    super.init(frame: .zero)
   }
 
-  func updateNSView(_ nsView: NSView, context: Context) {
-    context.coordinator.view = nsView
-    context.coordinator.action = action
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    guard let event = NSApp.currentEvent,
+      event.type == .otherMouseDown || event.type == .otherMouseUp
+    else { return nil }
+    return super.hitTest(point)
   }
 
-  static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
-    coordinator.view = nil
-  }
-
-  final class Coordinator {
-    weak var view: NSView?
-    var action: () -> Void
-    private var localMonitor: Any?
-
-    init(action: @escaping () -> Void) {
-      self.action = action
-      localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { [weak self] event in
-        self?.handle(event) ?? event
-      }
-    }
-
-    deinit {
-      if let localMonitor {
-        NSEvent.removeMonitor(localMonitor)
-      }
-    }
-
-    private func handle(_ event: NSEvent) -> NSEvent? {
-      guard
-        event.buttonNumber == 2,
-        let view,
-        let window = view.window,
-        window == event.window
-      else {
-        return event
-      }
-
-      let location = view.convert(event.locationInWindow, from: nil)
-      guard view.bounds.contains(location) else {
-        return event
-      }
-
+  override func otherMouseUp(with event: NSEvent) {
+    if event.buttonNumber == 2 {
       action()
-      return nil
+    } else {
+      super.otherMouseUp(with: event)
     }
   }
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 private struct TerminalSidebarSpaceBar: View {
