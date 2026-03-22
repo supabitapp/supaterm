@@ -13,6 +13,7 @@ PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
 GHOSTTY_SUBMODULE_DIR := $(CURRENT_MAKEFILE_DIR)/ThirdParty/ghostty
 GHOSTTY_XCFRAMEWORK_PATH := $(CURRENT_MAKEFILE_DIR)/Frameworks/GhosttyKit.xcframework
+GHOSTTY_PREPARE_SCRIPT := $(CURRENT_MAKEFILE_DIR)/scripts/prepare-ghostty-xcframework.sh
 GHOSTTY_RESOURCE_PATH := $(CURRENT_MAKEFILE_DIR)/Resources/ghostty
 GHOSTTY_TERMINFO_PATH := $(CURRENT_MAKEFILE_DIR)/Resources/terminfo
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
@@ -22,7 +23,7 @@ TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/P
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
+.PHONY: build-ghostty-xcframework prepare-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -39,7 +40,10 @@ generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) 
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
 
-build-ghostty-xcframework: $(GHOSTTY_XCFRAMEWORK_PATH)
+build-ghostty-xcframework: prepare-ghostty-xcframework
+
+prepare-ghostty-xcframework: $(GHOSTTY_XCFRAMEWORK_PATH)
+	"$(GHOSTTY_PREPARE_SCRIPT)" "$(GHOSTTY_XCFRAMEWORK_PATH)"
 
 $(GHOSTTY_XCFRAMEWORK_PATH):
 	if ! git -C "$(GHOSTTY_SUBMODULE_DIR)" rev-parse --verify HEAD >/dev/null 2>&1; then \
@@ -55,7 +59,7 @@ $(GHOSTTY_XCFRAMEWORK_PATH):
 	mkdir -p "$(GHOSTTY_TERMINFO_PATH)"
 	rsync -a --delete "$(GHOSTTY_SUBMODULE_DIR)/zig-out/share/terminfo/" "$(GHOSTTY_TERMINFO_PATH)/"
 
-$(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_XCFRAMEWORK_PATH) $(TUIST_GENERATION_INPUTS)
+$(TUIST_GENERATION_STAMP_DIR)/%: prepare-ghostty-xcframework $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
@@ -104,11 +108,11 @@ format: # Format code with swift-format (local only)
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
 
-inspect-dependencies: $(GHOSTTY_XCFRAMEWORK_PATH) # Check for implicit Tuist dependencies
+inspect-dependencies: prepare-ghostty-xcframework # Check for implicit Tuist dependencies
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist inspect dependencies --only implicit
 
-warm-cache: $(GHOSTTY_XCFRAMEWORK_PATH) # Warm Tuist module cache for external dependencies
+warm-cache: prepare-ghostty-xcframework # Warm Tuist module cache for external dependencies
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist cache warm --external-only --configuration Debug
 
