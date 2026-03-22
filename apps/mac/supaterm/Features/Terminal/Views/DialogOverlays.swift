@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct TerminalConfirmationOverlay: View {
+struct ConfirmationOverlay: View {
   let palette: TerminalPalette
   let title: String
   let message: String
@@ -25,7 +25,7 @@ struct TerminalConfirmationOverlay: View {
 
       VStack(alignment: .leading, spacing: 0) {
         VStack(alignment: .leading, spacing: 0) {
-          TerminalConfirmationIcon()
+          ConfirmationIcon()
             .padding(.bottom, 16)
 
           Text(title)
@@ -77,7 +77,7 @@ struct TerminalConfirmationOverlay: View {
   }
 }
 
-private struct TerminalConfirmationIcon: View {
+private struct ConfirmationIcon: View {
   var body: some View {
     Image(nsImage: NSApp.applicationIconImage)
       .resizable()

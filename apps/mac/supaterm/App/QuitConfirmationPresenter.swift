@@ -119,7 +119,7 @@ private struct QuitConfirmationView: View {
   let onCancel: () -> Void
 
   var body: some View {
-    TerminalConfirmationOverlay(
+    ConfirmationOverlay(
       palette: palette,
       title: "Quit Supaterm?",
       message: "All terminal sessions will be terminated.",

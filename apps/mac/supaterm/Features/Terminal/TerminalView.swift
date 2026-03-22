@@ -106,7 +106,7 @@ struct TerminalView: View {
       }
       .overlay {
         if let confirmationRequest = store.confirmationRequest {
-          TerminalConfirmationOverlay(
+          ConfirmationOverlay(
             palette: palette,
             title: confirmationRequest.title,
             message: confirmationRequest.message,
