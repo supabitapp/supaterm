@@ -4,7 +4,9 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 script_path="${script_dir}/$(basename "${BASH_SOURCE[0]}")"
 srcroot="${SRCROOT:-$(cd "${script_dir}/.." && pwd)}"
+repo_root="$(cd "${srcroot}/../.." && pwd)"
 ghostty_dir="${srcroot}/ThirdParty/ghostty"
+ghostty_submodule_path="${ghostty_dir#"${repo_root}/"}"
 ghostty_build_root="${srcroot}/.build/ghostty"
 ghostty_local_cache_dir="${ghostty_build_root}/.zig-cache"
 ghostty_global_cache_dir="${ghostty_build_root}/.zig-global-cache"
@@ -40,14 +42,25 @@ EOF
   done
 }
 
+ensure_ghostty_checkout() {
+  if [ -f "${ghostty_dir}/build.zig" ]; then
+    return
+  fi
+
+  git -C "${repo_root}" submodule sync --recursive -- "${ghostty_submodule_path}"
+  git -C "${repo_root}" submodule update --init --recursive -- "${ghostty_submodule_path}"
+
+  if [ ! -f "${ghostty_dir}/build.zig" ]; then
+    echo "error: Missing ${ghostty_dir} after submodule update" >&2
+    exit 1
+  fi
+}
+
+ensure_ghostty_checkout
+
 if [ "${1:-}" = "--print-fingerprint" ]; then
   print_fingerprint
   exit 0
-fi
-
-if [ ! -f "${ghostty_dir}/build.zig" ]; then
-  echo "error: Missing ${ghostty_dir}. Run: git submodule sync --recursive && git submodule update --init --recursive" >&2
-  exit 1
 fi
 
 fingerprint="$(print_fingerprint)"
