@@ -137,7 +137,6 @@ struct TerminalSplitTreeView: View {
           .background {
             Rectangle()
               .fill(Color.accentColor.opacity(0.08))
-              .padding(3)
               .opacity(isUnread ? 1 : 0)
               .animation(unreadGlowAnimation, value: isUnread)
               .allowsHitTesting(false)
@@ -145,7 +144,6 @@ struct TerminalSplitTreeView: View {
           .overlay {
             Rectangle()
               .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
-              .padding(3)
               .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
               .compositingGroup()
               .opacity(isUnread ? 1 : 0)
