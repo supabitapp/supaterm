@@ -25,7 +25,7 @@ Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 ## Endpoint Model
 
 - Each Supaterm app process computes one `SupatermSocketEndpoint` for its lifetime.
-- Managed endpoints live under `/tmp/supaterm-<uid>/<endpoint-id>.sock`.
+- Managed endpoints live under the canonical tmp path `/private/tmp/supaterm-<uid>/<endpoint-id>.sock`.
 - If `SUPATERM_INSTANCE_NAME` is set, it becomes the endpoint display name. Otherwise the name defaults to `pid-<pid>`.
 - `GhosttySurfaceView` injects the process endpoint path into every pane as `SUPATERM_SOCKET_PATH`, so pane-launched `sp` commands route back to the owning process without discovery.
 
@@ -33,7 +33,7 @@ Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 
 - `--socket` wins first.
 - If `SUPATERM_SOCKET_PATH` is present in the current process environment, it wins next.
-- `--instance` matches an exact endpoint UUID first, then an exact endpoint name.
+- `--instance` matches a parsed endpoint UUID first, then an exact endpoint name.
 - If neither explicit input is present, `sp` discovers managed sockets and auto-selects only when exactly one reachable endpoint exists.
 - If zero or multiple reachable endpoints are found, `sp` fails instead of guessing.
 - `sp instances` lists all reachable managed endpoints.
@@ -112,6 +112,7 @@ Pane path
 ## Runtime Notes
 
 - `SocketControlRuntime.start()` creates the socket directory with `0700` permissions.
+- If the socket directory already exists and is owned by the current user, startup forces it back to `0700`.
 - The socket file is created with `0600` permissions after a successful bind.
 - If the path already contains a reachable socket node, startup fails.
 - If the path contains an unreachable socket node, the runtime treats it as stale, removes it, and reuses the path.
