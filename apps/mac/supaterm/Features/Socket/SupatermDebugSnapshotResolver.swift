@@ -16,8 +16,8 @@ enum SupatermDebugSnapshotResolver {
     }
 
     for window in windows {
-      for workspace in window.workspaces {
-        for tab in workspace.tabs where tab.id == context.tabID {
+      for space in window.spaces {
+        for tab in space.tabs where tab.id == context.tabID {
           let pane = tab.panes.first { $0.id == context.surfaceID }
           var problems: [String] = []
           if pane == nil {
@@ -27,9 +27,9 @@ enum SupatermDebugSnapshotResolver {
           return .init(
             currentTarget: .init(
               windowIndex: window.index,
-              workspaceIndex: workspace.index,
-              workspaceID: workspace.id,
-              workspaceName: workspace.name,
+              spaceIndex: space.index,
+              spaceID: space.id,
+              spaceName: space.name,
               tabIndex: tab.index,
               tabID: tab.id,
               tabTitle: tab.title,

@@ -68,7 +68,7 @@ struct SocketControlFeatureTests {
       isSelected: true,
       panes: [.init(index: 1, isFocused: true)]
     )
-    let workspace = SupatermTreeSnapshot.Workspace(
+    let space = SupatermTreeSnapshot.Space(
       index: 1,
       name: "A",
       isSelected: true,
@@ -77,7 +77,7 @@ struct SocketControlFeatureTests {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
-      workspaces: [workspace]
+      spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(
       windows: [window]
@@ -158,7 +158,7 @@ struct SocketControlFeatureTests {
       ),
       summary: .init(
         windowCount: 1,
-        workspaceCount: 0,
+        spaceCount: 0,
         tabCount: 0,
         paneCount: 0,
         keyWindowIndex: 1
@@ -380,7 +380,7 @@ struct SocketControlFeatureTests {
     let handle = UUID(uuidString: "B12602E1-5D37-470E-9388-55CD09D400CA")!
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: .init(id: "request-2", method: "workspace.list")
+      payload: .init(id: "request-2", method: "space.list")
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -402,7 +402,7 @@ struct SocketControlFeatureTests {
           response: .error(
             id: "request-2",
             code: "method_not_found",
-            message: "Unknown method 'workspace.list'."
+            message: "Unknown method 'space.list'."
           )
         )
     )

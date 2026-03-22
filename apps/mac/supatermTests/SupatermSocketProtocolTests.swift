@@ -86,7 +86,7 @@ struct SupatermSocketProtocolTests {
         .init(index: 2, isFocused: false),
       ]
     )
-    let workspace = SupatermTreeSnapshot.Workspace(
+    let space = SupatermTreeSnapshot.Space(
       index: 1,
       name: "A",
       isSelected: true,
@@ -95,7 +95,7 @@ struct SupatermSocketProtocolTests {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
       isKey: true,
-      workspaces: [workspace]
+      spaces: [space]
     )
     let snapshot = SupatermTreeSnapshot(
       windows: [window]
@@ -162,7 +162,7 @@ struct SupatermSocketProtocolTests {
       hasSecureInput: false,
       panes: [pane]
     )
-    let workspace = SupatermAppDebugSnapshot.Workspace(
+    let space = SupatermAppDebugSnapshot.Space(
       index: 1,
       id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
       name: "A",
@@ -173,7 +173,7 @@ struct SupatermSocketProtocolTests {
       index: 1,
       isKey: true,
       isVisible: true,
-      workspaces: [workspace]
+      spaces: [space]
     )
     let snapshot = SupatermAppDebugSnapshot(
       build: .init(
@@ -189,16 +189,16 @@ struct SupatermSocketProtocolTests {
       ),
       summary: .init(
         windowCount: 1,
-        workspaceCount: 1,
+        spaceCount: 1,
         tabCount: 1,
         paneCount: 1,
         keyWindowIndex: 1
       ),
       currentTarget: .init(
         windowIndex: 1,
-        workspaceIndex: 1,
-        workspaceID: workspace.id,
-        workspaceName: workspace.name,
+        spaceIndex: 1,
+        spaceID: space.id,
+        spaceName: space.name,
         tabIndex: 1,
         tabID: context.tabID,
         tabTitle: tab.title,

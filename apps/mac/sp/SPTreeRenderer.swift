@@ -7,7 +7,7 @@ enum SPTreeRenderer {
 
     for (windowOffset, window) in snapshot.windows.enumerated() {
       lines.append(windowLine(window))
-      lines.append(contentsOf: renderWorkspaces(window.workspaces))
+      lines.append(contentsOf: renderSpaces(window.spaces))
 
       if windowOffset < snapshot.windows.count - 1 {
         lines.append("")
@@ -17,14 +17,14 @@ enum SPTreeRenderer {
     return lines.joined(separator: "\n")
   }
 
-  private static func renderWorkspaces(_ workspaces: [SupatermTreeSnapshot.Workspace]) -> [String] {
-    workspaces.enumerated().flatMap { workspaceOffset, workspace in
-      let isLastWorkspace = workspaceOffset == workspaces.count - 1
-      let workspaceBranch = isLastWorkspace ? "└─ " : "├─ "
-      let workspacePrefix = isLastWorkspace ? "   " : "│  "
+  private static func renderSpaces(_ spaces: [SupatermTreeSnapshot.Space]) -> [String] {
+    spaces.enumerated().flatMap { spaceOffset, space in
+      let isLastSpace = spaceOffset == spaces.count - 1
+      let spaceBranch = isLastSpace ? "└─ " : "├─ "
+      let spacePrefix = isLastSpace ? "   " : "│  "
 
-      var lines = ["\(workspaceBranch)\(workspaceLine(workspace))"]
-      lines.append(contentsOf: renderTabs(workspace.tabs, prefix: workspacePrefix))
+      var lines = ["\(spaceBranch)\(spaceLine(space))"]
+      lines.append(contentsOf: renderTabs(space.tabs, prefix: spacePrefix))
       return lines
     }
   }
@@ -61,16 +61,16 @@ enum SPTreeRenderer {
     return "window \(window.index) [\(labels.joined(separator: ", "))]"
   }
 
-  private static func workspaceLine(_ workspace: SupatermTreeSnapshot.Workspace) -> String {
+  private static func spaceLine(_ space: SupatermTreeSnapshot.Space) -> String {
     var labels: [String] = []
-    if workspace.isSelected {
+    if space.isSelected {
       labels.append("selected")
     }
 
     if labels.isEmpty {
-      return "workspace \(workspace.index) \"\(workspace.name)\""
+      return "space \(space.index) \"\(space.name)\""
     }
-    return "workspace \(workspace.index) \"\(workspace.name)\" [\(labels.joined(separator: ", "))]"
+    return "space \(space.index) \"\(space.name)\" [\(labels.joined(separator: ", "))]"
   }
 
   private static func tabLine(_ tab: SupatermTreeSnapshot.Tab) -> String {
@@ -158,7 +158,7 @@ enum SPDebugRenderer {
         "Windows",
         [
           "window count: \(app.summary.windowCount)",
-          "workspace count: \(app.summary.workspaceCount)",
+          "space count: \(app.summary.spaceCount)",
           "tab count: \(app.summary.tabCount)",
           "pane count: \(app.summary.paneCount)",
           "key window: \(app.summary.keyWindowIndex.map(String.init) ?? "none")",
@@ -245,7 +245,7 @@ enum SPDebugRenderer {
       "Current Target",
       [
         "window: \(currentTarget.windowIndex)",
-        "workspace: \(currentTarget.workspaceIndex) \"\(currentTarget.workspaceName)\"",
+        "space: \(currentTarget.spaceIndex) \"\(currentTarget.spaceName)\"",
         "tab: \(currentTarget.tabIndex) \"\(currentTarget.tabTitle)\"",
         "pane: \(currentTarget.paneIndex.map(String.init) ?? "none")",
       ]
@@ -258,8 +258,8 @@ enum SPDebugRenderer {
     guard let currentTarget = app.currentTarget else { return nil }
 
     for window in app.windows {
-      for workspace in window.workspaces {
-        if let tab = workspace.tabs.first(where: { $0.id == currentTarget.tabID }) {
+      for space in window.spaces {
+        if let tab = space.tabs.first(where: { $0.id == currentTarget.tabID }) {
           return tab
         }
       }
@@ -274,8 +274,8 @@ enum SPDebugRenderer {
     guard let paneID = app.currentTarget?.paneID else { return nil }
 
     for window in app.windows {
-      for workspace in window.workspaces {
-        for tab in workspace.tabs {
+      for space in window.spaces {
+        for tab in space.tabs {
           if let pane = tab.panes.first(where: { $0.id == paneID }) {
             return pane
           }
@@ -321,12 +321,12 @@ private extension SupatermAppDebugSnapshot {
         .init(
           index: window.index,
           isKey: window.isKey,
-          workspaces: window.workspaces.map { workspace in
+          spaces: window.spaces.map { space in
             .init(
-              index: workspace.index,
-              name: workspace.name,
-              isSelected: workspace.isSelected,
-              tabs: workspace.tabs.map { tab in
+              index: space.index,
+              name: space.name,
+              isSelected: space.isSelected,
+              tabs: space.tabs.map { tab in
                 .init(
                   index: tab.index,
                   title: tab.title,

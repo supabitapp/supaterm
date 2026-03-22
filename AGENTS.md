@@ -43,13 +43,19 @@ make web-build          # production build
 
 - When logic changes in a Reducer, always add tests
 
+## Terminology
+
+- Spaces are the top-level container in a window
+- Tabs belong to spaces and can be pinned
+- Panes belong to tabs, and a tab can have multiple panes
+
 ## macOS App Architecture
 
 The app uses The Composable Architecture (TCA) with a feature-based folder structure under `apps/mac/supaterm/`:
 
 - `App/` — App entry point (`main.swift` + `AppDelegate`), `TerminalWindowController`, `ContentView`, `SupatermMenuController`, `GhosttyBootstrap`
 - `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
-- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, workspace management. `TerminalWindowFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
+- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, and space management. `TerminalWindowFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` wrapping Sparkle (SPU). Lifecycle modeled as `UpdatePhase` enum
 - `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
 - `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)

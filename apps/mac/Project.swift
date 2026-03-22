@@ -103,6 +103,10 @@ let project = Project(
         \(ghosttyFingerprintScript)
         )"
 
+        mkdir -p "${ghostty_build_root}"
+        rm -rf "${ghostty_legacy_prefix_path}"
+        ln -s "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
+
         if [ -f "${ghostty_fingerprint_path}" ] &&
           [ -d "${xcframework_path}" ] &&
           [ -d "${ghostty_resources_path}" ] &&
@@ -111,9 +115,6 @@ let project = Project(
           exit 0
         fi
 
-        mkdir -p "${ghostty_build_root}"
-        rm -rf "${ghostty_legacy_prefix_path}"
-        ln -s "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
         cd "${ghostty_dir}"
         mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
         rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
@@ -262,6 +263,7 @@ let project = Project(
       dependencies: [
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
       ],

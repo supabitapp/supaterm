@@ -29,7 +29,7 @@ final class TerminalWindowRegistry {
     let hasSearch: Bool
     let updateMenuItemText: String
     let visibleTabCount: Int
-    let workspaceCount: Int
+    let spaceCount: Int
     let canCheckForUpdates: Bool
   }
 
@@ -114,7 +114,7 @@ final class TerminalWindowRegistry {
         hasSearch: false,
         updateMenuItemText: "Check for Updates...",
         visibleTabCount: 0,
-        workspaceCount: 0,
+        spaceCount: 0,
         canCheckForUpdates: false
       )
     }
@@ -129,7 +129,7 @@ final class TerminalWindowRegistry {
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
       updateMenuItemText: entry.store.update.phase.menuItemText,
       visibleTabCount: entry.terminal.visibleTabs.count,
-      workspaceCount: entry.terminal.workspaces.count,
+      spaceCount: entry.terminal.spaces.count,
       canCheckForUpdates: entry.store.update.canCheckForUpdates
     )
   }
@@ -167,8 +167,8 @@ final class TerminalWindowRegistry {
     preferredActiveEntry()?.store.send(.terminal(.selectLastTabMenuItemSelected))
   }
 
-  func requestSelectWorkspaceInKeyWindow(_ slot: Int) {
-    preferredActiveEntry()?.store.send(.terminal(.selectWorkspaceMenuItemSelected(slot)))
+  func requestSelectSpaceInKeyWindow(_ slot: Int) {
+    preferredActiveEntry()?.store.send(.terminal(.selectSpaceMenuItemSelected(slot)))
   }
 
   func requestToggleSidebarInKeyWindow() {
@@ -266,7 +266,7 @@ final class TerminalWindowRegistry {
       return SupatermTreeSnapshot.Window(
         index: offset + 1,
         isKey: entry.terminal.windowActivity.isKeyWindow,
-        workspaces: snapshot.windows.first?.workspaces ?? []
+        spaces: snapshot.windows.first?.spaces ?? []
       )
     }
     return .init(windows: windows)
@@ -306,14 +306,14 @@ final class TerminalWindowRegistry {
       update: updateSnapshot(updateEntry?.store.update),
       summary: .init(
         windowCount: windows.count,
-        workspaceCount: windows.reduce(0) { $0 + $1.workspaces.count },
+        spaceCount: windows.reduce(0) { $0 + $1.spaces.count },
         tabCount: windows.reduce(0) { partial, window in
-          partial + window.workspaces.reduce(0) { $0 + $1.tabs.count }
+          partial + window.spaces.reduce(0) { $0 + $1.tabs.count }
         },
         paneCount: windows.reduce(0) { partial, window in
           partial
-            + window.workspaces.reduce(0) { workspacePartial, workspace in
-              workspacePartial + workspace.tabs.reduce(0) { $0 + $1.panes.count }
+            + window.spaces.reduce(0) { spacePartial, space in
+              spacePartial + space.tabs.reduce(0) { $0 + $1.panes.count }
             }
         },
         keyWindowIndex: windows.first(where: \.isKey)?.index

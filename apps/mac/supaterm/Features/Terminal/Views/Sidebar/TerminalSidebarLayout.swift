@@ -6,27 +6,27 @@ enum TerminalSidebarDropZoneID: Hashable {
   case regular
 }
 
-enum TerminalSidebarWorkspaceBarLayoutMode: Equatable {
+enum TerminalSidebarSpaceBarLayoutMode: Equatable {
   case normal
   case compact
 
   static func determine(
-    workspaceCount: Int,
+    spaceCount: Int,
     availableWidth: CGFloat
   ) -> Self {
-    guard workspaceCount > 0 else { return .normal }
+    guard spaceCount > 0 else { return .normal }
 
     let badgeSide: CGFloat = 32
     let minSpacing: CGFloat = 4
     let dotSide: CGFloat = 6
 
     let normalMinWidth =
-      (CGFloat(workspaceCount) * badgeSide)
-      + (CGFloat(max(workspaceCount - 1, 0)) * minSpacing)
+      (CGFloat(spaceCount) * badgeSide)
+      + (CGFloat(max(spaceCount - 1, 0)) * minSpacing)
     let compactMinWidth =
       badgeSide
-      + (CGFloat(max(workspaceCount - 1, 0)) * dotSide)
-      + (CGFloat(max(workspaceCount - 1, 0)) * minSpacing)
+      + (CGFloat(max(spaceCount - 1, 0)) * dotSide)
+      + (CGFloat(max(spaceCount - 1, 0)) * minSpacing)
 
     if availableWidth >= normalMinWidth {
       return .normal
@@ -57,7 +57,7 @@ enum TerminalSidebarLayout {
     ids.filter { $0 != id }
   }
 
-  static func workspaceMonogram(
+  static func spaceMonogram(
     for name: String,
     fallbackIndex: Int
   ) -> String {

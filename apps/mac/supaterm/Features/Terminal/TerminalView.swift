@@ -35,29 +35,29 @@ struct TerminalView: View {
     )
   }
 
-  private var pendingWorkspaceDeleteBinding: Binding<Bool> {
+  private var pendingSpaceDeleteBinding: Binding<Bool> {
     Binding(
-      get: { store.pendingWorkspaceDeleteRequest != nil },
+      get: { store.pendingSpaceDeleteRequest != nil },
       set: {
         if !$0 {
-          _ = store.send(.workspaceDeleteCancelButtonTapped)
+          _ = store.send(.spaceDeleteCancelButtonTapped)
         }
       }
     )
   }
 
-  private var workspaceRenameTextBinding: Binding<String> {
+  private var spaceRenameTextBinding: Binding<String> {
     Binding(
-      get: { store.workspaceRename?.draftName ?? "" },
-      set: { _ = store.send(.workspaceRenameTextChanged($0)) }
+      get: { store.spaceRename?.draftName ?? "" },
+      set: { _ = store.send(.spaceRenameTextChanged($0)) }
     )
   }
 
-  private var workspaceRenameIsValid: Bool {
-    guard let workspaceRename = store.workspaceRename else { return false }
-    return terminal.isWorkspaceNameAvailable(
-      workspaceRename.draftName,
-      excluding: workspaceRename.workspace.id
+  private var spaceRenameIsValid: Bool {
+    guard let spaceRename = store.spaceRename else { return false }
+    return terminal.isSpaceNameAvailable(
+      spaceRename.draftName,
+      excluding: spaceRename.space.id
     )
   }
 
@@ -121,18 +121,18 @@ struct TerminalView: View {
         }
       }
       .overlay {
-        if store.workspaceRename != nil {
-          WorkspaceRenameOverlay(
+        if store.spaceRename != nil {
+          SpaceRenameOverlay(
             palette: palette,
-            title: "Rename Workspace",
-            name: workspaceRenameTextBinding,
-            isSaveEnabled: workspaceRenameIsValid,
+            title: "Rename Space",
+            name: spaceRenameTextBinding,
+            isSaveEnabled: spaceRenameIsValid,
             onSave: {
-              guard workspaceRenameIsValid else { return }
-              _ = store.send(.workspaceRenameSaveButtonTapped)
+              guard spaceRenameIsValid else { return }
+              _ = store.send(.spaceRenameSaveButtonTapped)
             },
             onCancel: {
-              _ = store.send(.workspaceRenameCancelButtonTapped)
+              _ = store.send(.spaceRenameCancelButtonTapped)
             }
           )
         }
@@ -151,34 +151,34 @@ struct TerminalView: View {
         Text(store.pendingCloseRequest?.message ?? "")
       }
       .alert(
-        workspaceDeleteTitle,
-        isPresented: pendingWorkspaceDeleteBinding
+        spaceDeleteTitle,
+        isPresented: pendingSpaceDeleteBinding
       ) {
         Button("Cancel", role: .cancel) {
-          _ = store.send(.workspaceDeleteCancelButtonTapped)
+          _ = store.send(.spaceDeleteCancelButtonTapped)
         }
         Button("Delete", role: .destructive) {
-          _ = store.send(.workspaceDeleteConfirmButtonTapped)
+          _ = store.send(.spaceDeleteConfirmButtonTapped)
         }
       } message: {
-        Text(workspaceDeleteMessage)
+        Text(spaceDeleteMessage)
       }
       .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
       .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
       .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.confirmationRequest)
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
-      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.workspaces.map(\.id))
+      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.spaces.map(\.id))
   }
 
-  private var workspaceDeleteTitle: String {
-    guard let request = store.pendingWorkspaceDeleteRequest else {
-      return "Delete Workspace?"
+  private var spaceDeleteTitle: String {
+    guard let request = store.pendingSpaceDeleteRequest else {
+      return "Delete Space?"
     }
-    return "Delete Workspace \"\(request.workspace.name)\"?"
+    return "Delete Space \"\(request.space.name)\"?"
   }
 
-  private var workspaceDeleteMessage: String {
-    "All tabs in this workspace will be closed."
+  private var spaceDeleteMessage: String {
+    "All tabs in this space will be closed."
   }
 
   private var resolvedWindowActivity: WindowActivityState {

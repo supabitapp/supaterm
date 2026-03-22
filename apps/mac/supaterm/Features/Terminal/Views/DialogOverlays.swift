@@ -178,7 +178,7 @@ private struct DialogActionButton: View {
   }
 }
 
-struct WorkspaceRenameOverlay: View {
+struct SpaceRenameOverlay: View {
   let palette: TerminalPalette
   let title: String
   @Binding var name: String
@@ -195,7 +195,7 @@ struct WorkspaceRenameOverlay: View {
           .ignoresSafeArea()
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Cancel workspace rename")
+      .accessibilityLabel("Cancel space rename")
 
       VStack(alignment: .leading, spacing: 0) {
         VStack(alignment: .leading, spacing: 16) {
@@ -203,7 +203,7 @@ struct WorkspaceRenameOverlay: View {
             .font(.system(size: 22, weight: .semibold))
             .foregroundStyle(palette.primaryText)
 
-          TextField("Workspace name", text: $name)
+          TextField("Space name", text: $name)
             .textFieldStyle(.plain)
             .font(.system(size: 13))
             .padding(.horizontal, 12)

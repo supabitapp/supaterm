@@ -52,7 +52,7 @@ struct TerminalSidebarChromeView: View {
   var body: some View {
     VStack(spacing: 10) {
       tabList
-      TerminalSidebarWorkspaceBar(
+      TerminalSidebarSpaceBar(
         store: store,
         palette: palette,
         terminal: terminal
@@ -495,28 +495,28 @@ struct TerminalSidebarTabRow: View {
   }
 }
 
-private struct TerminalSidebarWorkspaceBar: View {
+private struct TerminalSidebarSpaceBar: View {
   let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
   @State private var availableWidth: CGFloat = 0
-  @State private var hoveredWorkspaceID: TerminalWorkspaceID?
+  @State private var hoveredSpaceID: TerminalSpaceID?
   @State private var showPreview = false
   @State private var isHoveringList = false
 
-  private var layoutMode: TerminalSidebarWorkspaceBarLayoutMode {
-    TerminalSidebarWorkspaceBarLayoutMode.determine(
-      workspaceCount: terminal.workspaces.count,
+  private var layoutMode: TerminalSidebarSpaceBarLayoutMode {
+    TerminalSidebarSpaceBarLayoutMode.determine(
+      spaceCount: terminal.spaces.count,
       availableWidth: availableWidth
     )
   }
 
   var body: some View {
     HStack(alignment: .bottom, spacing: 10) {
-      workspaceList
+      spaceList
       Button {
-        _ = store.send(.workspaceCreateButtonTapped)
+        _ = store.send(.spaceCreateButtonTapped)
       } label: {
         Image(systemName: "plus")
           .font(.system(size: 12, weight: .semibold))
@@ -524,57 +524,57 @@ private struct TerminalSidebarWorkspaceBar: View {
       }
       .buttonStyle(TerminalSidebarIconButtonStyle())
       .foregroundStyle(palette.primaryText)
-      .accessibilityLabel("Add workspace")
+      .accessibilityLabel("Add space")
     }
     .fixedSize(horizontal: false, vertical: true)
     .frame(height: 32)
   }
 
-  private var workspaceList: some View {
+  private var spaceList: some View {
     Color.clear
       .overlay {
         HStack(spacing: 0) {
-          ForEach(Array(terminal.workspaces.enumerated()), id: \.element.id) { index, workspace in
-            TerminalSidebarWorkspaceItemView(
-              workspace: workspace,
-              monogram: TerminalSidebarLayout.workspaceMonogram(
-                for: workspace.name,
+          ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
+            TerminalSidebarSpaceItemView(
+              space: space,
+              monogram: TerminalSidebarLayout.spaceMonogram(
+                for: space.name,
                 fallbackIndex: index
               ),
-              isSelected: terminal.selectedWorkspaceID == workspace.id,
+              isSelected: terminal.selectedSpaceID == space.id,
               compact: layoutMode == .compact,
               palette: palette,
-              workspacesCount: terminal.workspaces.count,
+              spacesCount: terminal.spaces.count,
               onHoverChange: { isHovering in
                 if isHovering {
-                  hoveredWorkspaceID = workspace.id
+                  hoveredSpaceID = space.id
                   if !showPreview {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                      if hoveredWorkspaceID == workspace.id && isHoveringList {
+                      if hoveredSpaceID == space.id && isHoveringList {
                         withAnimation(.easeInOut(duration: 0.2)) {
                           showPreview = true
                         }
                       }
                     }
                   }
-                } else if hoveredWorkspaceID == workspace.id {
-                  hoveredWorkspaceID = nil
+                } else if hoveredSpaceID == space.id {
+                  hoveredSpaceID = nil
                 }
               },
               onSelect: {
                 withAnimation(.easeOut(duration: 0.1)) {
-                  _ = store.send(.selectWorkspaceButtonTapped(workspace.id))
+                  _ = store.send(.selectSpaceButtonTapped(space.id))
                 }
               },
               onRename: {
-                _ = store.send(.workspaceRenameRequested(workspace))
+                _ = store.send(.spaceRenameRequested(space))
               },
               onDelete: {
-                _ = store.send(.workspaceDeleteRequested(workspace))
+                _ = store.send(.spaceDeleteRequested(space))
               }
             )
 
-            if index != terminal.workspaces.count - 1 {
+            if index != terminal.spaces.count - 1 {
               Spacer()
                 .frame(minWidth: 1, maxWidth: 8)
                 .layoutPriority(-1)
@@ -585,20 +585,20 @@ private struct TerminalSidebarWorkspaceBar: View {
           isHoveringList = hovering
           if !hovering {
             showPreview = false
-            hoveredWorkspaceID = nil
+            hoveredSpaceID = nil
           }
         }
         .overlay(alignment: .top) {
           if showPreview,
-            let hoveredWorkspaceID,
-            hoveredWorkspaceID != terminal.selectedWorkspaceID,
-            let hoveredWorkspace = terminal.workspaces.first(where: { $0.id == hoveredWorkspaceID })
+            let hoveredSpaceID,
+            hoveredSpaceID != terminal.selectedSpaceID,
+            let hoveredSpace = terminal.spaces.first(where: { $0.id == hoveredSpaceID })
           {
-            Text(hoveredWorkspace.name)
+            Text(hoveredSpace.name)
               .font(.caption)
               .foregroundStyle(palette.primaryText.opacity(0.7))
               .lineLimit(1)
-              .id(hoveredWorkspace.id)
+              .id(hoveredSpace.id)
               .transition(.opacity.combined(with: .scale(scale: 0.96)))
               .offset(y: -20)
           }
@@ -616,13 +616,13 @@ private struct TerminalSidebarWorkspaceBar: View {
   }
 }
 
-private struct TerminalSidebarWorkspaceItemView: View {
-  let workspace: TerminalWorkspaceItem
+private struct TerminalSidebarSpaceItemView: View {
+  let space: TerminalSpaceItem
   let monogram: String
   let isSelected: Bool
   let compact: Bool
   let palette: TerminalPalette
-  let workspacesCount: Int
+  let spacesCount: Int
   let onHoverChange: (Bool) -> Void
   let onSelect: () -> Void
   let onRename: () -> Void
@@ -646,7 +646,7 @@ private struct TerminalSidebarWorkspaceItemView: View {
       .foregroundStyle(palette.primaryText)
       .opacity(isSelected ? 1 : 0.7)
     }
-    .buttonStyle(TerminalSidebarWorkspaceButtonStyle())
+    .buttonStyle(TerminalSidebarSpaceButtonStyle())
     .onHover { hovering in
       isHovering = hovering
       onHoverChange(hovering)
@@ -655,7 +655,7 @@ private struct TerminalSidebarWorkspaceItemView: View {
       Button {
         onRename()
       } label: {
-        Label("Rename Workspace", systemImage: "textformat")
+        Label("Rename Space", systemImage: "textformat")
       }
 
       Divider()
@@ -663,11 +663,11 @@ private struct TerminalSidebarWorkspaceItemView: View {
       Button(role: .destructive) {
         onDelete()
       } label: {
-        Label("Delete Workspace", systemImage: "trash")
+        Label("Delete Space", systemImage: "trash")
       }
-      .disabled(workspacesCount <= 1)
+      .disabled(spacesCount <= 1)
     }
-    .accessibilityLabel("Workspace \(workspace.name)")
+    .accessibilityLabel("Space \(space.name)")
   }
 }
 
@@ -767,7 +767,7 @@ private struct TerminalSidebarIconButtonStyle: ButtonStyle {
   }
 }
 
-private struct TerminalSidebarWorkspaceButtonStyle: ButtonStyle {
+private struct TerminalSidebarSpaceButtonStyle: ButtonStyle {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize

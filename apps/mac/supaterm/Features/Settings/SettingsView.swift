@@ -121,7 +121,7 @@ struct SettingsView: View {
       palette: palette,
       accent: [palette.sky.opacity(0.32), palette.mint.opacity(0.28), palette.clearFill],
       badge: AnyView(AppIconBadge()),
-      eyebrow: "Workspace defaults",
+      eyebrow: "Space defaults",
       title: "Shape the window before the logic lands.",
       detail:
         """
@@ -146,14 +146,14 @@ struct SettingsView: View {
         )
         SettingsToggleRow(
           palette: palette,
-          title: "Restore previous workspace",
+          title: "Restore previous space",
           detail: "Rebuild the last terminal layout when the app opens.",
           isOn: false
         )
         SettingsToggleRow(
           palette: palette,
           title: "Open a fresh tab on launch",
-          detail: "Start each new session with an empty workspace.",
+          detail: "Start each new session with an empty space.",
           isOn: true
         )
       }
@@ -308,7 +308,7 @@ struct SettingsView: View {
       badge: AnyView(AppIconBadge()),
       eyebrow: "Supaterm",
       title: appName,
-      detail: "A focused terminal for shaping panes, tabs, and workspaces around how you actually work."
+      detail: "A focused terminal for shaping panes, tabs, and spaces around how you actually work."
     )
   }
 
