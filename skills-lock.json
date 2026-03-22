@@ -21,6 +21,11 @@
       "sourceType": "github",
       "computedHash": "458f8047ce1b93820c9d27d2267750904cd0384fd5a0e7f5b0f1079dbe9d19a9"
     },
+    "peekabo": {
+      "source": "git@github.com:khoi/skills.git",
+      "sourceType": "git",
+      "computedHash": "d186b38e3b54254c6bf45abeb615afcd7d598151799ef5c728599656aecac277"
+    },
     "swift-concurrency": {
       "source": "avdlee/swift-concurrency-agent-skill",
       "sourceType": "github",
