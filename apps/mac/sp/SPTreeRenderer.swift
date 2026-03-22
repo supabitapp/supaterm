@@ -102,7 +102,16 @@ struct SPDebugReport: Encodable {
   struct Invocation: Encodable {
     let isRunningInsideSupaterm: Bool
     let context: SupatermCLIContext?
+    let explicitSocketPath: String?
+    let environmentSocketPath: String?
+    let requestedInstance: String?
+    let selectionSource: String?
     let resolvedSocketPath: String?
+  }
+
+  struct Discovery: Encodable {
+    let reachableInstances: [SupatermSocketEndpoint]
+    let removedStalePaths: [String]
   }
 
   struct Socket: Encodable {
@@ -113,6 +122,7 @@ struct SPDebugReport: Encodable {
   }
 
   let invocation: Invocation
+  let discovery: Discovery
   let socket: Socket
   let app: SupatermAppDebugSnapshot?
   let problems: [String]
@@ -126,9 +136,34 @@ enum SPDebugRenderer {
         "inside Supaterm: \(yesNo(report.invocation.isRunningInsideSupaterm))",
         "surface: \(report.invocation.context?.surfaceID.uuidString ?? "none")",
         "tab: \(report.invocation.context?.tabID.uuidString ?? "none")",
+        "explicit socket path: \(report.invocation.explicitSocketPath ?? "none")",
+        "environment socket path: \(report.invocation.environmentSocketPath ?? "none")",
+        "requested instance: \(report.invocation.requestedInstance ?? "none")",
+        "selection source: \(report.invocation.selectionSource ?? "none")",
         "resolved socket path: \(report.invocation.resolvedSocketPath ?? "none")",
       ]
     )
+
+    lines.append("")
+    lines.append(contentsOf: section(
+      "Discovery",
+      [
+        "reachable instances: \(report.discovery.reachableInstances.count)",
+        "removed stale paths: \(report.discovery.removedStalePaths.count)",
+      ]
+    ))
+
+    if !report.discovery.reachableInstances.isEmpty {
+      lines.append(contentsOf: report.discovery.reachableInstances.map { endpoint in
+        "- \(SPSocketSelection.formatEndpoint(endpoint))"
+      })
+    }
+
+    if !report.discovery.removedStalePaths.isEmpty {
+      lines.append(contentsOf: report.discovery.removedStalePaths.map { path in
+        "- removed stale socket: \(path)"
+      })
+    }
 
     lines.append("")
     lines.append(contentsOf: section(

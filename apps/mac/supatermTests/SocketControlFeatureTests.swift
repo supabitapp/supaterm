@@ -8,19 +8,26 @@ import Testing
 @MainActor
 struct SocketControlFeatureTests {
   @Test
-  func taskStartsSocketObservationAndStoresSocketPath() async {
+  func taskStartsSocketObservationAndStoresEndpoint() async {
     let (stream, continuation) = AsyncStream.makeStream(of: SocketControlClient.Request.self)
+    let endpoint = SupatermSocketEndpoint(
+      id: UUID(uuidString: "8D630A04-61B5-48E8-9D7E-F7E0BB8B9B16")!,
+      name: "test",
+      path: "/tmp/supaterm.sock",
+      pid: 1,
+      startedAt: .init(timeIntervalSince1970: 0)
+    )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
     } withDependencies: {
       $0.socketControlClient.requests = { stream }
-      $0.socketControlClient.start = { "/tmp/supaterm.sock" }
+      $0.socketControlClient.start = { endpoint }
     }
 
     await store.send(.task)
     await store.receive(\.started) {
-      $0.socketPath = "/tmp/supaterm.sock"
+      $0.endpoint = endpoint
       $0.startErrorMessage = nil
     }
 
@@ -56,6 +63,56 @@ struct SocketControlFeatureTests {
           response: .ok(id: "ping-1", result: ["pong": true])
         )
     )
+  }
+
+  @Test
+  func identityRequestRepliesWithEndpoint() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "47185392-AB73-4468-892D-B3B9D1D298D2")!
+    let endpoint = SupatermSocketEndpoint(
+      id: UUID(uuidString: "DD52F0A9-E77A-4B52-982C-2778426AF7FB")!,
+      name: "dev",
+      path: "/tmp/dev.sock",
+      pid: 42,
+      startedAt: .init(timeIntervalSince1970: 1)
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: .identity(id: "identity-1")
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.currentEndpoint = { endpoint }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermSocketEndpoint.self) == endpoint)
+  }
+
+  @Test
+  func shutdownStopsSocketRuntime() async {
+    let recorder = StopRecorder()
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.stop = {
+        await recorder.recordStop()
+      }
+    }
+
+    await store.send(.shutdown)
+
+    #expect(await recorder.stopCount() == 1)
   }
 
   @Test
@@ -595,5 +652,17 @@ private actor SocketReplyRecorder {
 
   func snapshot() -> [Record] {
     records
+  }
+}
+
+private actor StopRecorder {
+  private var count = 0
+
+  func recordStop() {
+    count += 1
+  }
+
+  func stopCount() -> Int {
+    count
   }
 }

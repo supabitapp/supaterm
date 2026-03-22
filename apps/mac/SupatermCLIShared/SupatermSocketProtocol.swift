@@ -4,6 +4,7 @@ public enum SupatermSocketMethod {
   public static let appOnboarding = "app.onboarding"
   public static let appDebug = "app.debug"
   public static let appTree = "app.tree"
+  public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalNewPane = "terminal.new_pane"
 }
@@ -29,6 +30,28 @@ extension SupatermSocketProtocolError: LocalizedError {
 
 public typealias JSONObject = [String: JSONValue]
 
+public struct SupatermSocketEndpoint: Equatable, Sendable, Codable {
+  public let id: UUID
+  public let name: String
+  public let path: String
+  public let pid: Int32
+  public let startedAt: Date
+
+  public init(
+    id: UUID,
+    name: String,
+    path: String,
+    pid: Int32,
+    startedAt: Date
+  ) {
+    self.id = id
+    self.name = name
+    self.path = path
+    self.pid = pid
+    self.startedAt = startedAt
+  }
+}
+
 public struct SupatermSocketRequest: Equatable, Sendable, Codable {
   public let id: String
   public let method: String
@@ -46,6 +69,10 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
 
   public static func ping(id: String = UUID().uuidString) -> Self {
     Self(id: id, method: SupatermSocketMethod.systemPing)
+  }
+
+  public static func identity(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.systemIdentity)
   }
 
   public static func tree(id: String = UUID().uuidString) -> Self {

@@ -7,7 +7,7 @@ struct SP: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
-    subcommands: [Ping.self, Tree.self, Onboard.self, Debug.self, NewPane.self]
+    subcommands: [Ping.self, Tree.self, Onboard.self, Debug.self, Instances.self, NewPane.self]
   )
 
   mutating func run() throws {
@@ -25,8 +25,11 @@ extension SP {
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
+    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
+    var instance: String?
+
     mutating func run() throws {
-      let client = try socketClient(path: socket)
+      let client = try socketClient(path: socket, instance: instance)
       let response = try client.send(.ping())
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
@@ -50,8 +53,11 @@ extension SP {
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
+    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
+    var instance: String?
+
     mutating func run() throws {
-      let client = try socketClient(path: socket)
+      let client = try socketClient(path: socket, instance: instance)
       let response = try client.send(.tree())
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
@@ -75,8 +81,11 @@ extension SP {
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
+    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
+    var instance: String?
+
     mutating func run() throws {
-      let client = try socketClient(path: socket)
+      let client = try socketClient(path: socket, instance: instance)
       let response = try client.send(.onboarding())
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
@@ -99,21 +108,28 @@ extension SP {
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
+    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
+    var instance: String?
+
     mutating func run() throws {
       let context = SupatermCLIContext.current
+      let diagnostics = SPSocketSelection.resolve(
+        explicitPath: socket,
+        instance: instance,
+        alwaysDiscover: true
+      )
       var problems: [String] = []
-      let socketPath = SupatermSocketPath.resolve(explicitPath: socket)
       var socketStatus = SPDebugReport.Socket(
-        path: socketPath,
+        path: diagnostics.resolvedTarget?.path,
         isReachable: false,
         requestSucceeded: false,
         error: nil
       )
       var appSnapshot: SupatermAppDebugSnapshot?
 
-      if let socketPath {
+      if let resolvedTarget = diagnostics.resolvedTarget {
         do {
-          let client = try SPSocketClient(path: socketPath)
+          let client = try SPSocketClient(path: resolvedTarget.path)
           let response = try client.send(
             .debug(.init(context: context))
           )
@@ -139,7 +155,7 @@ extension SP {
           problems.append(message)
         }
       } else {
-        let message = "Unable to resolve a Supaterm socket path."
+        let message = diagnostics.errorMessage ?? "Unable to resolve a Supaterm socket path."
         socketStatus.error = message
         problems.append(message)
       }
@@ -148,7 +164,17 @@ extension SP {
         invocation: .init(
           isRunningInsideSupaterm: context != nil,
           context: context,
-          resolvedSocketPath: socketPath
+          explicitSocketPath: diagnostics.explicitSocketPath,
+          environmentSocketPath: diagnostics.environmentSocketPath,
+          requestedInstance: diagnostics.requestedInstance,
+          selectionSource: SPSocketSelection.selectionSourceDescription(
+            diagnostics.resolvedTarget?.source
+          ),
+          resolvedSocketPath: diagnostics.resolvedTarget?.path
+        ),
+        discovery: .init(
+          reachableInstances: diagnostics.discoveredEndpoints,
+          removedStalePaths: diagnostics.removedStalePaths
         ),
         socket: socketStatus,
         app: appSnapshot,
@@ -164,6 +190,35 @@ extension SP {
       if !socketStatus.requestSucceeded {
         throw ExitCode.failure
       }
+    }
+  }
+
+  struct Instances: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "instances",
+      abstract: "List reachable Supaterm instances."
+    )
+
+    @Flag(name: .long, help: "Print the instances as JSON.")
+    var json = false
+
+    mutating func run() throws {
+      let diagnostics = SPSocketSelection.resolve(
+        explicitPath: nil,
+        instance: nil,
+        alwaysDiscover: true
+      )
+      let endpoints = diagnostics.discoveredEndpoints
+      if json {
+        print(try jsonString(endpoints))
+        return
+      }
+
+      guard !endpoints.isEmpty else {
+        throw ValidationError("No reachable Supaterm instances were found.")
+      }
+
+      print(endpoints.map(SPSocketSelection.formatEndpoint).joined(separator: "\n"))
     }
   }
 
@@ -205,6 +260,9 @@ extension SP {
     @Option(name: .long, help: "Override the Unix socket path.")
     var socket: String?
 
+    @Option(name: .long, help: "Target a reachable Supaterm instance by name or endpoint ID.")
+    var instance: String?
+
     @Option(name: .long, help: "Target a tab inside the specified space by its 1-based index.")
     var tab: Int?
 
@@ -223,7 +281,7 @@ extension SP {
     mutating func run() throws {
       try validate()
 
-      let client = try socketClient(path: socket)
+      let client = try socketClient(path: socket, instance: instance)
       let response = try client.send(.newPane(try requestPayload()))
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
@@ -300,15 +358,27 @@ extension SP {
 
 private func jsonString<T: Encodable>(_ value: T) throws -> String {
   let encoder = JSONEncoder()
+  encoder.dateEncodingStrategy = .iso8601
   encoder.outputFormatting = [.sortedKeys]
   return String(decoding: try encoder.encode(value), as: UTF8.self)
 }
 
-private func resolvedSocketPath(explicitPath: String?) throws -> String {
-  guard let path = SupatermSocketPath.resolve(explicitPath: explicitPath) else {
-    throw ValidationError("Unable to resolve a Supaterm socket path.")
+private func resolvedSocketTarget(
+  explicitPath: String?,
+  instance: String?,
+  alwaysDiscover: Bool = false
+) throws -> SupatermResolvedSocketTarget {
+  let diagnostics = SPSocketSelection.resolve(
+    explicitPath: explicitPath,
+    instance: instance,
+    alwaysDiscover: alwaysDiscover
+  )
+
+  guard let resolvedTarget = diagnostics.resolvedTarget else {
+    throw ValidationError(diagnostics.errorMessage ?? "Unable to resolve a Supaterm socket path.")
   }
-  return path
+
+  return resolvedTarget
 }
 
 private func shellCommandInput(_ tokens: [String]) -> String? {
@@ -328,8 +398,17 @@ private func shellEscapedToken(_ token: String) -> String {
   return "'\(token.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
 }
 
-private func socketClient(path: String?) throws -> SPSocketClient {
-  try SPSocketClient(path: resolvedSocketPath(explicitPath: path))
+private func socketClient(
+  path: String?,
+  instance: String?,
+  alwaysDiscover: Bool = false
+) throws -> SPSocketClient {
+  let resolvedTarget = try resolvedSocketTarget(
+    explicitPath: path,
+    instance: instance,
+    alwaysDiscover: alwaysDiscover
+  )
+  return try SPSocketClient(path: resolvedTarget.path)
 }
 
 private enum SPTerminalStyle {
