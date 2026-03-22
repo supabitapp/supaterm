@@ -38,40 +38,61 @@ struct SPSocketClient {
   private let path: String
   private let decoder = JSONDecoder()
   private let encoder = JSONEncoder()
-  private let connectRetryInterval: TimeInterval = 0.1
-  private let connectRetryTimeout: TimeInterval = 2
+  private let connectRetryInterval: TimeInterval
+  private let connectRetryTimeout: TimeInterval
+  private let responseTimeout: TimeInterval
 
-  init(path: String) throws {
+  init(
+    path: String,
+    connectRetryInterval: TimeInterval = 0.1,
+    connectRetryTimeout: TimeInterval = 2,
+    responseTimeout: TimeInterval = 5
+  ) throws {
     guard let normalized = SupatermSocketPath.normalized(path) else {
       throw SocketClientError.connectFailed(path)
     }
     self.path = normalized
+    self.connectRetryInterval = connectRetryInterval
+    self.connectRetryTimeout = connectRetryTimeout
+    self.responseTimeout = responseTimeout
   }
 
   func send(_ request: SupatermSocketRequest) throws -> SupatermSocketResponse {
     let socket = try openSocket()
     defer { Darwin.close(socket) }
 
-    let timeout = timeval(tv_sec: 5, tv_usec: 0)
-    var receiveTimeout = timeout
-    _ = setsockopt(
-      socket,
-      SOL_SOCKET,
-      SO_RCVTIMEO,
-      &receiveTimeout,
-      socklen_t(MemoryLayout<timeval>.size)
-    )
+    return try send(request, over: socket)
+  }
 
-    let requestData = try encoder.encode(request) + Data([0x0A])
-    try writeAll(requestData, to: socket)
+  func probeIdentity() -> SupatermManagedSocketCandidateStatus {
+    let socket: Int32
+    do {
+      socket = try openSocket()
+    } catch let error as SocketClientError {
+      switch error {
+      case .connectFailed:
+        return .stale
+      default:
+        return .ignored
+      }
+    } catch {
+      return .ignored
+    }
+    defer { Darwin.close(socket) }
 
-    guard let responseLine = readLine(from: socket) else {
-      throw SocketClientError.readFailed
+    do {
+      let response = try send(.identity(), over: socket)
+      guard response.ok else {
+        return .ignored
+      }
+      let endpoint = try response.decodeResult(SupatermSocketEndpoint.self)
+      guard endpoint.path == path else {
+        return .ignored
+      }
+      return .reachable(endpoint)
+    } catch {
+      return .ignored
     }
-    guard let responseData = responseLine.data(using: .utf8) else {
-      throw SocketClientError.invalidResponse
-    }
-    return try decoder.decode(SupatermSocketResponse.self, from: responseData)
   }
 
   private func openSocket() throws -> Int32 {
@@ -112,6 +133,31 @@ struct SPSocketClient {
 
       Thread.sleep(forTimeInterval: connectRetryInterval)
     }
+  }
+
+  private func send(
+    _ request: SupatermSocketRequest,
+    over socket: Int32
+  ) throws -> SupatermSocketResponse {
+    var receiveTimeout = socketTimeout(responseTimeout)
+    _ = setsockopt(
+      socket,
+      SOL_SOCKET,
+      SO_RCVTIMEO,
+      &receiveTimeout,
+      socklen_t(MemoryLayout<timeval>.size)
+    )
+
+    let requestData = try encoder.encode(request) + Data([0x0A])
+    try writeAll(requestData, to: socket)
+
+    guard let responseLine = readLine(from: socket) else {
+      throw SocketClientError.readFailed
+    }
+    guard let responseData = responseLine.data(using: .utf8) else {
+      throw SocketClientError.invalidResponse
+    }
+    return try decoder.decode(SupatermSocketResponse.self, from: responseData)
   }
 
   private func socketAddress(path: String) throws -> sockaddr_un {
@@ -183,6 +229,13 @@ struct SPSocketClient {
     }
   }
 
+  private func socketTimeout(_ interval: TimeInterval) -> timeval {
+    let clampedInterval = max(0, interval)
+    let seconds = __darwin_time_t(clampedInterval.rounded(.down))
+    let microseconds = __darwin_suseconds_t(((clampedInterval - Double(seconds)) * 1_000_000).rounded())
+    return timeval(tv_sec: seconds, tv_usec: microseconds)
+  }
+
   private func readLine(from socket: Int32) -> String? {
     var data = Data()
     var buffer = [UInt8](repeating: 0, count: 1024)
@@ -214,24 +267,17 @@ struct SPSocketSelectionDiagnostics {
   let errorMessage: String?
 }
 
-private enum SPSocketSelectionError: LocalizedError {
-  case identityRequestFailed(String)
-
-  var errorDescription: String? {
-    switch self {
-    case .identityRequestFailed(let message):
-      return message
-    }
-  }
-}
-
 enum SPSocketSelection {
+  private static let discoveryConnectRetryInterval: TimeInterval = 0.05
+  private static let discoveryConnectRetryTimeout: TimeInterval = 0.25
+  private static let discoveryResponseTimeout: TimeInterval = 0.25
+
   static func resolve(
     explicitPath: String?,
     instance: String?,
     alwaysDiscover: Bool = false,
     environment: [String: String] = ProcessInfo.processInfo.environment,
-    appSupportDirectory: URL? = nil,
+    rootDirectory: URL? = nil,
     fileManager: FileManager = .default
   ) -> SPSocketSelectionDiagnostics {
     let explicitSocketPath = SupatermSocketPath.normalized(explicitPath)
@@ -241,12 +287,12 @@ enum SPSocketSelection {
     let discovery: SupatermManagedSocketDiscoveryResult
     if shouldDiscover {
       let candidatePaths = SupatermSocketPath.discoverManagedSocketPaths(
-        appSupportDirectory: appSupportDirectory,
+        rootDirectory: rootDirectory,
         fileManager: fileManager
       )
       discovery = SupatermManagedSocketDiscovery.discover(
         candidatePaths: candidatePaths,
-        identify: identifyEndpoint,
+        probe: probeEndpoint,
         removeStalePath: { path in
           removeManagedSocketPath(path)
         }
@@ -306,15 +352,16 @@ enum SPSocketSelection {
     "\(endpoint.name) [\(shortID(endpoint.id))] pid \(endpoint.pid) socket \(endpoint.path)"
   }
 
-  private static func identifyEndpoint(at path: String) throws -> SupatermSocketEndpoint {
-    let client = try SPSocketClient(path: path)
-    let response = try client.send(.identity())
-    guard response.ok else {
-      throw SPSocketSelectionError.identityRequestFailed(
-        response.error?.message ?? "Supaterm socket identity request failed."
-      )
+  private static func probeEndpoint(at path: String) -> SupatermManagedSocketCandidateStatus {
+    guard let client = try? SPSocketClient(
+      path: path,
+      connectRetryInterval: discoveryConnectRetryInterval,
+      connectRetryTimeout: discoveryConnectRetryTimeout,
+      responseTimeout: discoveryResponseTimeout
+    ) else {
+      return .ignored
     }
-    return try response.decodeResult(SupatermSocketEndpoint.self)
+    return client.probeIdentity()
   }
 
   private static func removeManagedSocketPath(_ path: String) {

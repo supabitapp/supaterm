@@ -107,6 +107,7 @@ actor SocketControlRuntime {
       throw RuntimeError.socketCreationFailed
     }
 
+    var didBind = false
     do {
       var address = try Self.socketAddress(path: socketPath)
       let bindResult = withUnsafePointer(to: &address) { pointer in
@@ -117,6 +118,7 @@ actor SocketControlRuntime {
       guard bindResult == 0 else {
         throw RuntimeError.bindFailed(socketPath)
       }
+      didBind = true
 
       try FileManager.default.setAttributes(
         [.posixPermissions: 0o600],
@@ -138,7 +140,9 @@ actor SocketControlRuntime {
       return endpoint
     } catch {
       Darwin.close(serverSocket)
-      Self.removeSocketIfPresent(at: socketPath)
+      if didBind {
+        Self.removeSocketIfPresent(at: socketPath)
+      }
       throw error
     }
   }

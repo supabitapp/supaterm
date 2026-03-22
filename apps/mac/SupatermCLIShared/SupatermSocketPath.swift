@@ -2,47 +2,26 @@ import Darwin
 import Foundation
 
 public enum SupatermSocketPath {
-  public static let directoryName = "Supaterm"
-  public static let managedDirectoryName = "sockets"
+  public static let managedDirectoryPrefix = "supaterm-"
   public static let managedFileExtension = "sock"
 
-  public static func applicationSupportDirectoryURL(
-    appSupportDirectory: URL? = nil,
-    fileManager: FileManager = .default
-  ) -> URL? {
-    let resolvedAppSupportDirectory: URL
-    if let appSupportDirectory {
-      resolvedAppSupportDirectory = appSupportDirectory
-    } else if let discovered = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-      resolvedAppSupportDirectory = discovered
-    } else {
-      return nil
-    }
-
-    return resolvedAppSupportDirectory
-  }
-
   public static func managedDirectoryURL(
-    appSupportDirectory: URL? = nil,
-    fileManager: FileManager = .default
-  ) -> URL? {
-    applicationSupportDirectoryURL(
-      appSupportDirectory: appSupportDirectory,
-      fileManager: fileManager
-    )?
-    .appendingPathComponent(directoryName, isDirectory: true)
-    .appendingPathComponent(managedDirectoryName, isDirectory: true)
+    rootDirectory: URL? = nil,
+    userID: uid_t = getuid()
+  ) -> URL {
+    (rootDirectory ?? URL(fileURLWithPath: "/tmp", isDirectory: true))
+      .appendingPathComponent("\(managedDirectoryPrefix)\(userID)", isDirectory: true)
   }
 
   public static func managedSocketURL(
     endpointID: UUID,
-    appSupportDirectory: URL? = nil,
-    fileManager: FileManager = .default
-  ) -> URL? {
+    rootDirectory: URL? = nil,
+    userID: uid_t = getuid()
+  ) -> URL {
     managedDirectoryURL(
-      appSupportDirectory: appSupportDirectory,
-      fileManager: fileManager
-    )?
+      rootDirectory: rootDirectory,
+      userID: userID
+    )
     .appendingPathComponent(endpointID.uuidString, isDirectory: false)
     .appendingPathExtension(managedFileExtension)
   }
@@ -62,14 +41,15 @@ public enum SupatermSocketPath {
   }
 
   public static func discoverManagedSocketPaths(
-    appSupportDirectory: URL? = nil,
+    rootDirectory: URL? = nil,
+    userID: uid_t = getuid(),
     fileManager: FileManager = .default
   ) -> [String] {
+    let managedDirectoryURL = managedDirectoryURL(
+      rootDirectory: rootDirectory,
+      userID: userID
+    )
     guard
-      let managedDirectoryURL = managedDirectoryURL(
-        appSupportDirectory: appSupportDirectory,
-        fileManager: fileManager
-      ),
       let contents = try? fileManager.contentsOfDirectory(
         at: managedDirectoryURL,
         includingPropertiesForKeys: nil,
@@ -87,21 +67,21 @@ public enum SupatermSocketPath {
 
   public static func isManagedSocketPath(
     _ path: String,
-    appSupportDirectory: URL? = nil,
-    fileManager: FileManager = .default
+    rootDirectory: URL? = nil,
+    userID: uid_t = getuid()
   ) -> Bool {
     guard
-      let managedDirectoryPath = managedDirectoryURL(
-        appSupportDirectory: appSupportDirectory,
-        fileManager: fileManager
-      )?.path,
       let normalizedPath = normalized(path)
     else {
       return false
     }
 
     let standardizedPath = URL(fileURLWithPath: normalizedPath).standardizedFileURL.path
-    let standardizedManagedDirectoryPath = URL(fileURLWithPath: managedDirectoryPath).standardizedFileURL.path
+    let standardizedManagedDirectoryPath = managedDirectoryURL(
+      rootDirectory: rootDirectory,
+      userID: userID
+    )
+    .standardizedFileURL.path
     return standardizedPath.hasPrefix(standardizedManagedDirectoryPath + "/")
   }
 
@@ -140,28 +120,20 @@ public enum SupatermProcessSocketEndpoint {
     endpointID: UUID = UUID(),
     processID: Int32,
     startedAt: Date,
-    appSupportDirectory: URL? = nil,
-    fileManager: FileManager = .default
+    rootDirectory: URL? = nil,
+    userID: uid_t = getuid()
   ) -> SupatermSocketEndpoint? {
-    let path =
-      SupatermSocketPath.resolveExplicitPath(environment: environment)
-      ?? SupatermSocketPath.managedSocketURL(
-        endpointID: endpointID,
-        appSupportDirectory: appSupportDirectory,
-        fileManager: fileManager
-      )?.path
-
-    guard let path = SupatermSocketPath.normalized(path) else {
-      return nil
-    }
-
     let name =
       SupatermSocketPath.normalized(environment[SupatermCLIEnvironment.instanceNameKey])
       ?? "pid-\(processID)"
     return .init(
       id: endpointID,
       name: name,
-      path: path,
+      path: SupatermSocketPath.managedSocketURL(
+        endpointID: endpointID,
+        rootDirectory: rootDirectory,
+        userID: userID
+      ).path,
       pid: processID,
       startedAt: startedAt
     )
@@ -286,25 +258,30 @@ public struct SupatermManagedSocketDiscoveryResult: Equatable, Sendable {
   }
 }
 
+public enum SupatermManagedSocketCandidateStatus: Equatable, Sendable {
+  case ignored
+  case reachable(SupatermSocketEndpoint)
+  case stale
+}
+
 public enum SupatermManagedSocketDiscovery {
   public static func discover(
     candidatePaths: [String],
-    identify: (String) throws -> SupatermSocketEndpoint,
+    probe: (String) -> SupatermManagedSocketCandidateStatus,
     removeStalePath: (String) -> Void
   ) -> SupatermManagedSocketDiscoveryResult {
     var reachableEndpoints: [SupatermSocketEndpoint] = []
     var removedStalePaths: [String] = []
 
     for candidatePath in candidatePaths {
-      do {
-        let endpoint = try identify(candidatePath)
-        guard endpoint.path == candidatePath else {
-          removeStalePath(candidatePath)
-          removedStalePaths.append(candidatePath)
-          continue
-        }
+      switch probe(candidatePath) {
+      case .ignored:
+        continue
+
+      case .reachable(let endpoint):
         reachableEndpoints.append(endpoint)
-      } catch {
+
+      case .stale:
         removeStalePath(candidatePath)
         removedStalePaths.append(candidatePath)
       }
