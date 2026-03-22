@@ -40,7 +40,9 @@ enum TerminalSidebarSpaceBarLayoutMode: Equatable {
 
 enum TerminalSidebarLayout {
   static let tabRowCornerRadius: CGFloat = 12
-  static let tabRowHeight: CGFloat = 48
+  static let tabRowMinHeight: CGFloat = 36
+  static let tabRowHorizontalPadding: CGFloat = 10
+  static let tabRowVerticalPadding: CGFloat = 8
   static let tabRowSpacing: CGFloat = 2
 
   static func insertingID(
@@ -86,28 +88,41 @@ enum TerminalSidebarLayout {
     return reordered
   }
 
+  static func insertionIndex(
+    for localY: CGFloat,
+    orderedIDs: [TerminalTabID],
+    frames: [TerminalTabID: CGRect]
+  ) -> Int {
+    for (index, id) in orderedIDs.enumerated() {
+      guard let frame = frames[id] else { continue }
+      if localY < frame.midY {
+        return index
+      }
+    }
+    return orderedIDs.count
+  }
+
   static func reorderOffset(
     for index: Int,
     sourceIndex: Int?,
     destinationIndex: Int?,
-    rowHeight: CGFloat,
-    spacing: CGFloat
+    rowExtent: CGFloat
   ) -> CGFloat {
     guard
       let sourceIndex,
       let destinationIndex,
-      sourceIndex != destinationIndex
+      sourceIndex != destinationIndex,
+      rowExtent > 0
     else {
       return 0
     }
 
-    let step = rowHeight + spacing
     if sourceIndex < destinationIndex {
       if index > sourceIndex && index <= destinationIndex {
-        return -step
+        return -rowExtent
       }
     } else if index >= destinationIndex && index < sourceIndex {
-      return step
+      return rowExtent
     }
     return 0
   }
