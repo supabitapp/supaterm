@@ -17,6 +17,12 @@ struct TerminalSidebarDragItem: Equatable {
   let tabID: TerminalTabID
 }
 
+struct TerminalSidebarDragPreviewItem: Equatable {
+  let tab: TerminalTabItem
+  let latestNotificationText: String?
+  let unreadCount: Int
+}
+
 struct TerminalSidebarPendingReorder: Equatable {
   let item: TerminalSidebarDragItem
   let sourceZone: TerminalSidebarDropZoneID
@@ -28,7 +34,7 @@ struct TerminalSidebarPendingReorder: Equatable {
 @MainActor
 final class TerminalSidebarDragSession: ObservableObject {
   @Published var draggedItem: TerminalSidebarDragItem?
-  @Published var draggedTab: TerminalTabItem?
+  @Published var draggedPreview: TerminalSidebarDragPreviewItem?
   @Published var sourceZone: TerminalSidebarDropZoneID?
   @Published var sourceIndex: Int?
   @Published var activeZone: TerminalSidebarDropZoneID?
@@ -40,9 +46,8 @@ final class TerminalSidebarDragSession: ObservableObject {
 
   var zoneFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
   var zoneScreenFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
-  var itemCounts: [TerminalSidebarDropZoneID: Int] = [:]
-  var rowHeight: CGFloat = TerminalSidebarLayout.tabRowHeight
-  var rowSpacing: CGFloat = TerminalSidebarLayout.tabRowSpacing
+  var orderedTabIDs: [TerminalSidebarDropZoneID: [TerminalTabID]] = [:]
+  var measuredTabFrames: [TerminalSidebarDropZoneID: [TerminalTabID: CGRect]] = [:]
 
   var isDragging: Bool {
     draggedItem != nil
@@ -111,13 +116,13 @@ final class TerminalSidebarDragSession: ObservableObject {
 
   func beginDrag(
     item: TerminalSidebarDragItem,
-    tab: TerminalTabItem,
+    preview: TerminalSidebarDragPreviewItem,
     from zone: TerminalSidebarDropZoneID,
     at index: Int
   ) {
     ensurePreviewWindow()
     draggedItem = item
-    draggedTab = tab
+    draggedPreview = preview
     sourceZone = zone
     sourceIndex = index
     activeZone = zone
@@ -158,15 +163,17 @@ final class TerminalSidebarDragSession: ObservableObject {
   ) {
     guard sourceZone != nil else { return }
 
-    let count = itemCounts[zone] ?? 0
-    guard count > 0 else {
+    let orderedIDs = orderedTabIDs[zone] ?? []
+    guard !orderedIDs.isEmpty else {
       insertionIndex[zone] = 0
       return
     }
 
-    let step = rowHeight + rowSpacing
-    let rawIndex = step > 0 ? Int(round(localPoint.y / step)) : 0
-    let clampedIndex = max(0, min(rawIndex, count))
+    let clampedIndex = TerminalSidebarLayout.insertionIndex(
+      for: localPoint.y,
+      orderedIDs: orderedIDs,
+      frames: measuredTabFrames[zone] ?? [:]
+    )
     if insertionIndex[zone] != clampedIndex {
       insertionIndex[zone] = clampedIndex
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
@@ -218,10 +225,18 @@ final class TerminalSidebarDragSession: ObservableObject {
 
   func reorderOffset(
     for zone: TerminalSidebarDropZoneID,
-    at index: Int
+    tabID: TerminalTabID
   ) -> CGFloat {
-    let step = rowHeight + rowSpacing
-    guard let sourceZone, let sourceIndex else { return 0 }
+    guard
+      let draggedItem,
+      let sourceZone,
+      let sourceIndex
+    else {
+      return 0
+    }
+
+    let rowExtent = draggedRowExtent(for: draggedItem.tabID, in: sourceZone)
+    guard let index = orderedTabIDs[zone]?.firstIndex(of: tabID) else { return 0 }
 
     if sourceZone == zone {
       if activeZone == zone {
@@ -229,27 +244,51 @@ final class TerminalSidebarDragSession: ObservableObject {
           for: index,
           sourceIndex: sourceIndex,
           destinationIndex: insertionIndex[zone],
-          rowHeight: rowHeight,
-          spacing: rowSpacing
+          rowExtent: rowExtent
         )
       }
       if activeZone != sourceZone, index > sourceIndex {
-        return -step
+        return -rowExtent
       }
       return 0
     }
 
     guard activeZone == zone, let destinationIndex = insertionIndex[zone] else { return 0 }
-    return index >= destinationIndex ? step : 0
+    return index >= destinationIndex ? rowExtent : 0
+  }
+
+  func updateTabIDs(
+    _ tabIDs: [TerminalTabID],
+    for zone: TerminalSidebarDropZoneID
+  ) {
+    orderedTabIDs[zone] = tabIDs
+  }
+
+  func updateMeasuredTabFrames(
+    _ frames: [TerminalTabID: TerminalSidebarMeasuredTabFrame]
+  ) {
+    var grouped: [TerminalSidebarDropZoneID: [TerminalTabID: CGRect]] = [:]
+    for (tabID, measuredFrame) in frames {
+      grouped[measuredFrame.zoneID, default: [:]][tabID] = measuredFrame.zoneFrame
+    }
+    measuredTabFrames = grouped
   }
 
   private func clearDrag() {
     draggedItem = nil
-    draggedTab = nil
+    draggedPreview = nil
     sourceZone = nil
     sourceIndex = nil
     activeZone = nil
     insertionIndex = [:]
+  }
+
+  private func draggedRowExtent(
+    for tabID: TerminalTabID,
+    in zone: TerminalSidebarDropZoneID
+  ) -> CGFloat {
+    let height = measuredTabFrames[zone]?[tabID]?.height ?? TerminalSidebarLayout.tabRowMinHeight
+    return height + TerminalSidebarLayout.tabRowSpacing
   }
 
   private func ensurePreviewWindow() {
@@ -445,10 +484,12 @@ private struct TerminalSidebarDragPreviewContent: View {
 
   var body: some View {
     Group {
-      if let tab = manager.draggedTab {
+      if let preview = manager.draggedPreview {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
-          tab: tab,
+          tab: preview.tab,
+          latestNotificationText: preview.latestNotificationText,
+          unreadCount: preview.unreadCount,
           rowWidth: manager.previewRowWidth,
           palette: palette
         )
@@ -465,75 +506,56 @@ private struct TerminalSidebarDragPreviewContent: View {
 
 private struct TerminalSidebarMorphingPreview: View {
   let tab: TerminalTabItem
+  let latestNotificationText: String?
+  let unreadCount: Int
   let rowWidth: CGFloat
   let palette: TerminalPalette
 
   var body: some View {
-    rowContent
-      .frame(width: rowWidth, height: TerminalSidebarLayout.tabRowHeight)
-      .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
-      .clipShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-      .overlay {
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-          .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-      }
-      .shadow(
-        color: .black.opacity(0.25),
-        radius: 8,
-        y: 2
-      )
-  }
-
-  private var rowContent: some View {
-    HStack(spacing: 8) {
-      previewIcon(size: 18, symbolSize: 10)
-
-      Text(tab.title)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-
-      Spacer(minLength: 0)
+    TerminalSidebarTabSummaryView(
+      tab: tab,
+      palette: palette,
+      isSelected: false,
+      latestNotificationText: latestNotificationText,
+      unreadCount: unreadCount
+    )
+    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+    .frame(width: rowWidth)
+    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+    .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
+    .clipShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
+    .overlay {
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
     }
-    .padding(.horizontal, 10)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-  }
-
-  private func previewIcon(
-    size: CGFloat,
-    symbolSize: CGFloat
-  ) -> some View {
-    RoundedRectangle(cornerRadius: 6, style: .continuous)
-      .fill(palette.fill(for: tab.tone))
-      .frame(width: size, height: size)
-      .overlay {
-        Image(systemName: tab.symbol)
-          .font(.system(size: symbolSize, weight: .semibold))
-          .foregroundStyle(palette.primaryText)
-          .accessibilityHidden(true)
-      }
+    .shadow(
+      color: .black.opacity(0.25),
+      radius: 8,
+      y: 2
+    )
   }
 }
 
 @MainActor
 final class TerminalSidebarDragSourceCoordinator: NSObject, NSDraggingSource {
   var item: TerminalSidebarDragItem
-  var tab: TerminalTabItem
+  var preview: TerminalSidebarDragPreviewItem
   var zoneID: TerminalSidebarDropZoneID
   var index: Int
   let manager: TerminalSidebarDragSession
 
   init(
     item: TerminalSidebarDragItem,
-    tab: TerminalTabItem,
+    preview: TerminalSidebarDragPreviewItem,
     zoneID: TerminalSidebarDropZoneID,
     index: Int,
     manager: TerminalSidebarDragSession
   ) {
     self.item = item
-    self.tab = tab
+    self.preview = preview
     self.zoneID = zoneID
     self.index = index
     self.manager = manager
@@ -588,7 +610,7 @@ final class TerminalSidebarDragSourceNSView: NSView {
 
     coordinator.manager.beginDrag(
       item: coordinator.item,
-      tab: coordinator.tab,
+      preview: coordinator.preview,
       from: coordinator.zoneID,
       at: coordinator.index
     )
@@ -609,7 +631,7 @@ final class TerminalSidebarDragSourceNSView: NSView {
 
 private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
   let item: TerminalSidebarDragItem
-  let tab: TerminalTabItem
+  let preview: TerminalSidebarDragPreviewItem
   let zoneID: TerminalSidebarDropZoneID
   let index: Int
   let manager: TerminalSidebarDragSession
@@ -628,7 +650,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
     context: Context
   ) {
     context.coordinator.item = item
-    context.coordinator.tab = tab
+    context.coordinator.preview = preview
     context.coordinator.zoneID = zoneID
     context.coordinator.index = index
   }
@@ -643,7 +665,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
   func makeCoordinator() -> TerminalSidebarDragSourceCoordinator {
     TerminalSidebarDragSourceCoordinator(
       item: item,
-      tab: tab,
+      preview: preview,
       zoneID: zoneID,
       index: index,
       manager: manager
@@ -653,7 +675,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
 
 struct TerminalSidebarDragSourceView<Content: View>: View {
   let item: TerminalSidebarDragItem
-  let tab: TerminalTabItem
+  let preview: TerminalSidebarDragPreviewItem
   let zoneID: TerminalSidebarDropZoneID
   let index: Int
   let manager: TerminalSidebarDragSession
@@ -664,7 +686,7 @@ struct TerminalSidebarDragSourceView<Content: View>: View {
       .background(
         TerminalSidebarDragSourceAnchor(
           item: item,
-          tab: tab,
+          preview: preview,
           zoneID: zoneID,
           index: index,
           manager: manager

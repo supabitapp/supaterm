@@ -6,12 +6,29 @@ private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
 private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
 
+struct TerminalSidebarMeasuredTabFrame: Equatable {
+  let zoneID: TerminalSidebarDropZoneID
+  let scrollFrame: CGRect
+  let zoneFrame: CGRect
+}
+
+extension TerminalSidebarDropZoneID {
+  fileprivate var coordinateSpaceID: String {
+    switch self {
+    case .pinned:
+      "TerminalSidebarPinnedZone"
+    case .regular:
+      "TerminalSidebarRegularZone"
+    }
+  }
+}
+
 private struct TerminalSidebarTabFramePreferenceKey: PreferenceKey {
-  static let defaultValue: [TerminalTabID: CGRect] = [:]
+  static let defaultValue: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
 
   static func reduce(
-    value: inout [TerminalTabID: CGRect],
-    nextValue: () -> [TerminalTabID: CGRect]
+    value: inout [TerminalTabID: TerminalSidebarMeasuredTabFrame],
+    nextValue: () -> [TerminalTabID: TerminalSidebarMeasuredTabFrame]
   ) {
     value.merge(nextValue()) { $1 }
   }
@@ -48,7 +65,7 @@ struct TerminalSidebarChromeView: View {
   @StateObject private var dragSession = TerminalSidebarDragSession()
   @State private var scrollOffset: CGFloat = 0
   @State private var contentHeight: CGFloat = 0
-  @State private var tabFrames: [TerminalTabID: CGRect] = [:]
+  @State private var tabFrames: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
 
   var body: some View {
     VStack(spacing: 10) {
@@ -126,6 +143,7 @@ struct TerminalSidebarChromeView: View {
           }
           .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
             self.tabFrames = tabFrames
+            dragSession.updateMeasuredTabFrames(tabFrames)
           }
 
           if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
@@ -176,13 +194,14 @@ struct TerminalSidebarChromeView: View {
           )
         }
       }
+      .coordinateSpace(name: TerminalSidebarDropZoneID.pinned.coordinateSpaceID)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .onAppear {
-      updateDragMetrics(for: .pinned, count: terminal.pinnedTabs.count)
+      dragSession.updateTabIDs(terminal.pinnedTabs.map(\.id), for: .pinned)
     }
-    .onChange(of: terminal.pinnedTabs.count) { _, count in
-      updateDragMetrics(for: .pinned, count: count)
+    .onChange(of: terminal.pinnedTabs.map(\.id)) { _, tabIDs in
+      dragSession.updateTabIDs(tabIDs, for: .pinned)
     }
   }
 
@@ -200,13 +219,14 @@ struct TerminalSidebarChromeView: View {
           )
         }
       }
+      .coordinateSpace(name: TerminalSidebarDropZoneID.regular.coordinateSpaceID)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .onAppear {
-      updateDragMetrics(for: .regular, count: terminal.regularTabs.count)
+      dragSession.updateTabIDs(terminal.regularTabs.map(\.id), for: .regular)
     }
-    .onChange(of: terminal.regularTabs.count) { _, count in
-      updateDragMetrics(for: .regular, count: count)
+    .onChange(of: terminal.regularTabs.map(\.id)) { _, tabIDs in
+      dragSession.updateTabIDs(tabIDs, for: .regular)
     }
   }
 
@@ -216,11 +236,19 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
+    let latestNotificationText = terminal.latestNotificationText(for: tab.id)
+    let unreadCount = terminal.unreadNotificationCount(for: tab.id)
+    let preview = TerminalSidebarDragPreviewItem(
+      tab: tab,
+      latestNotificationText: latestNotificationText,
+      unreadCount: unreadCount
+    )
+
     TerminalSidebarDragSourceView(
       item: TerminalSidebarDragItem(
         tabID: tab.id
       ),
-      tab: tab,
+      preview: preview,
       zoneID: zoneID,
       index: index,
       manager: dragSession
@@ -229,19 +257,26 @@ struct TerminalSidebarChromeView: View {
         store: store,
         terminal: terminal,
         tab: tab,
+        latestNotificationText: latestNotificationText,
+        unreadCount: unreadCount,
         palette: palette
       )
       .id(tab.id)
       .background {
         GeometryReader { geometry in
+          let measuredFrame = TerminalSidebarMeasuredTabFrame(
+            zoneID: zoneID,
+            scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
+            zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
+          )
           Color.clear.preference(
             key: TerminalSidebarTabFramePreferenceKey.self,
-            value: [tab.id: geometry.frame(in: .named(terminalSidebarScrollSpace))]
+            value: [tab.id: measuredFrame]
           )
         }
       }
       .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
-      .offset(y: dragSession.reorderOffset(for: zoneID, at: index))
+      .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
       .animation(
         .spring(response: 0.3, dampingFraction: 0.8),
         value: dragSession.insertionIndex[zoneID]
@@ -251,7 +286,7 @@ struct TerminalSidebarChromeView: View {
 
   private var selectedTabFrame: CGRect? {
     guard let selectedTabID = terminal.selectedTabID else { return nil }
-    return tabFrames[selectedTabID]
+    return tabFrames[selectedTabID]?.scrollFrame
   }
 
   private func newTab() {
@@ -272,15 +307,6 @@ struct TerminalSidebarChromeView: View {
         proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
       }
     }
-  }
-
-  private func updateDragMetrics(
-    for zoneID: TerminalSidebarDropZoneID,
-    count: Int
-  ) {
-    dragSession.itemCounts[zoneID] = count
-    dragSession.rowHeight = TerminalSidebarLayout.tabRowHeight
-    dragSession.rowSpacing = TerminalSidebarLayout.tabRowSpacing
   }
 
   private func handle(
@@ -346,6 +372,65 @@ struct TerminalSidebarChromeView: View {
   }
 }
 
+struct TerminalSidebarTabSummaryView: View {
+  let tab: TerminalTabItem
+  let palette: TerminalPalette
+  let isSelected: Bool
+  let latestNotificationText: String?
+  let unreadCount: Int
+
+  var body: some View {
+    HStack(spacing: 8) {
+      RoundedRectangle(cornerRadius: 6, style: .continuous)
+        .fill(palette.fill(for: tab.tone))
+        .frame(width: 18, height: 18)
+        .overlay {
+          Image(systemName: tab.symbol)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+            .accessibilityHidden(true)
+        }
+
+      VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 6) {
+          Text(tab.title)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+            .lineLimit(1)
+            .truncationMode(.tail)
+
+          if unreadCount > 0 {
+            Text(unreadCount.formatted())
+              .font(.system(size: 10, weight: .bold))
+              .foregroundStyle(isSelected ? palette.selectedText : Color.white)
+              .padding(.horizontal, unreadCount > 9 ? 7 : 6)
+              .frame(minHeight: 18)
+              .background(
+                isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
+                in: Capsule(style: .continuous)
+              )
+          }
+
+          Spacer(minLength: 0)
+        }
+
+        if let latestNotificationText {
+          Text(latestNotificationText)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(
+              isSelected
+                ? palette.selectedText.opacity(0.82)
+                : palette.secondaryText
+            )
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
 private struct TerminalSidebarSectionDivider: View {
   let palette: TerminalPalette
 
@@ -386,6 +471,8 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let latestNotificationText: String?
+  let unreadCount: Int
   let palette: TerminalPalette
 
   @State private var isHovering = false
@@ -395,63 +482,16 @@ struct TerminalSidebarTabRow: View {
     terminal.selectedTabID == tab.id
   }
 
-  private var latestNotificationText: String? {
-    terminal.latestNotificationText(for: tab.id)
-  }
-
-  private var unreadCount: Int {
-    terminal.unreadNotificationCount(for: tab.id)
-  }
-
   var body: some View {
     Button(action: select) {
       HStack(spacing: 8) {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(palette.fill(for: tab.tone))
-          .frame(width: 18, height: 18)
-          .overlay {
-            Image(systemName: tab.symbol)
-              .font(.system(size: 10, weight: .semibold))
-              .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
-              .accessibilityHidden(true)
-          }
-
-        VStack(alignment: .leading, spacing: 2) {
-          HStack(spacing: 6) {
-            Text(tab.title)
-              .font(.system(size: 13, weight: .medium))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-              .lineLimit(1)
-              .truncationMode(.tail)
-
-            if unreadCount > 0 {
-              Text(unreadCount.formatted())
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(isSelected ? palette.selectedText : Color.white)
-                .padding(.horizontal, unreadCount > 9 ? 7 : 6)
-                .frame(minHeight: 18)
-                .background(
-                  isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
-                  in: Capsule(style: .continuous)
-                )
-            }
-
-            Spacer(minLength: 0)
-          }
-
-          if let latestNotificationText {
-            Text(latestNotificationText)
-              .font(.system(size: 11, weight: .medium))
-              .foregroundStyle(
-                isSelected
-                  ? palette.selectedText.opacity(0.82)
-                  : palette.secondaryText
-              )
-              .lineLimit(1)
-              .truncationMode(.tail)
-          }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        TerminalSidebarTabSummaryView(
+          tab: tab,
+          palette: palette,
+          isSelected: isSelected,
+          latestNotificationText: latestNotificationText,
+          unreadCount: unreadCount
+        )
 
         if isHovering {
           Button(action: close) {
@@ -471,8 +511,9 @@ struct TerminalSidebarTabRow: View {
           .onHover { isCloseHovering = $0 }
         }
       }
-      .padding(.horizontal, 10)
-      .frame(height: TerminalSidebarLayout.tabRowHeight)
+      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       .frame(maxWidth: .infinity)
       .background(backgroundColor)
       .clipShape(
