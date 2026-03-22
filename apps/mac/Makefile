@@ -14,8 +14,10 @@ APP_SCHEME := supaterm
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
+TUIST_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development-release
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= development
+TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
 .PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
@@ -40,6 +42,13 @@ $(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS)
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist generate --no-open --cache-profile "$*"
+	touch "$@"
+
+$(TUIST_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS)
+	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
+	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
+	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
+	mise exec -- tuist generate --no-open --cache-profile development --configuration Release
 	touch "$@"
 
 build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
@@ -68,7 +77,7 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: $(TUIST_SOURCE_GENERATION_STAMP) # Archive Release build for distribution
+archive: $(TUIST_RELEASE_GENERATION_STAMP) # Archive Release build for distribution
 	mkdir -p build
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Release -destination "generic/platform=macOS" -archivePath build/supaterm.xcarchive archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$$APPLE_TEAM_ID" CODE_SIGN_IDENTITY="$$DEVELOPER_ID_IDENTITY_SHA" OTHER_CODE_SIGN_FLAGS="--timestamp" $(XCODEBUILD_FLAGS) -skipMacroValidation 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
@@ -90,6 +99,6 @@ inspect-dependencies: # Check for implicit Tuist dependencies
 
 warm-cache: # Warm Tuist module cache for external dependencies
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
-	mise exec -- tuist cache warm --external-only --configuration Debug
+	mise exec -- tuist cache warm --external-only --configuration $(TUIST_CACHE_CONFIGURATION)
 
 check: format lint # Format and lint
