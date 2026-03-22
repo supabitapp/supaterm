@@ -158,6 +158,21 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func bindingMenuItemSelectedEqualizeSendsFocusedSurfaceBindingCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.bindingMenuItemSelected(.equalizeSplits))
+
+    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.equalizeSplits)])
+  }
+
+  @Test
   func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true

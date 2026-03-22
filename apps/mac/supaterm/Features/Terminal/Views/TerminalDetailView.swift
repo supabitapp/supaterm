@@ -10,9 +10,13 @@ struct TerminalDetailView: View {
   var body: some View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
+        canEqualize: terminal.selectedTree?.isSplit ?? false,
         canSplit: terminal.selectedSurfaceView != nil,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
+        equalizePanes: {
+          _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
+        },
         title: terminal.selectedPaneDisplayTitle,
         splitDown: {
           _ = store.send(.bindingMenuItemSelected(.newSplit(.down)))
@@ -33,9 +37,11 @@ struct TerminalDetailView: View {
 }
 
 private struct TerminalDetailTopBar: View {
+  let canEqualize: Bool
   let canSplit: Bool
   let palette: TerminalPalette
   let backgroundColor: Color
+  let equalizePanes: () -> Void
   let title: String
   let splitDown: () -> Void
   let splitRight: () -> Void
@@ -68,6 +74,16 @@ private struct TerminalDetailTopBar: View {
         .help("Split Down")
         .disabled(!canSplit)
         .opacity(canSplit ? 1 : 0.45)
+
+        ToolbarIconButton(
+          symbol: "equal.square",
+          palette: palette,
+          accessibilityLabel: "Equalize panes",
+          action: equalizePanes
+        )
+        .help("Equalize Panes")
+        .disabled(!canEqualize)
+        .opacity(canEqualize ? 1 : 0.45)
       }
     }
     .padding(.leading, 12)
