@@ -28,6 +28,7 @@ final class SupatermMenuController: NSObject {
   private enum MenuItemIdentifier {
     static let about = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.about")
     static let checkForUpdates = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
+    static let quit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.quit")
     static let settings = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.settings")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
     static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
@@ -121,8 +122,7 @@ final class SupatermMenuController: NSObject {
     menu.addItem(hideOthers)
     menu.addItem(systemItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:))))
     menu.addItem(.separator())
-    menu.addItem(
-      systemItem(title: "Quit \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+    menu.addItem(quitItem)
     return menu
   }()
 
@@ -252,6 +252,11 @@ final class SupatermMenuController: NSObject {
     title: "About \(appName)",
     action: #selector(about(_:)),
     identifier: MenuItemIdentifier.about
+  )
+  private lazy var quitItem = makeItem(
+    title: "Quit \(appName)",
+    action: #selector(quit(_:)),
+    identifier: MenuItemIdentifier.quit
   )
   private lazy var settingsItem: NSMenuItem = {
     let item = makeItem(
@@ -500,6 +505,12 @@ final class SupatermMenuController: NSObject {
     }
 
     ghosttyBindingItems = []
+    syncShortcut(action: "check_for_updates", item: checkForUpdatesItem)
+    syncShortcut(
+      action: "quit",
+      item: quitItem,
+      defaultShortcut: KeyboardShortcut("q", modifiers: .command)
+    )
     syncShortcut(command: .newWindow, item: newWindowItem)
     syncShortcut(command: .newTab, item: newTabItem)
     syncShortcut(command: .newSplit(.right), item: splitRightItem)
@@ -564,8 +575,22 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
+  func performCheckForUpdates() -> Bool {
+    registry.requestCheckForUpdatesInKeyWindow()
+  }
+
+  @discardableResult
   func performCloseAllWindows() -> Bool {
     registry.requestCloseAllWindows()
+  }
+
+  @discardableResult
+  func performQuit() -> Bool {
+    if let performer = NSApp.delegate as? any GhosttyAppActionPerforming {
+      return performer.performQuit()
+    }
+    NSApp.terminate(nil)
+    return true
   }
 
   @objc func about(_ sender: Any?) {
@@ -573,7 +598,11 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func checkForUpdates(_ sender: Any?) {
-    registry.requestCheckForUpdatesInKeyWindow()
+    _ = performCheckForUpdates()
+  }
+
+  @objc func quit(_ sender: Any?) {
+    _ = performQuit()
   }
 
   @objc func showSettings(_ sender: Any?) {
@@ -716,8 +745,20 @@ final class SupatermMenuController: NSObject {
   }
 
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
+    syncShortcut(
+      action: command.ghosttyBindingAction,
+      item: item,
+      defaultShortcut: command.defaultKeyboardShortcut
+    )
+  }
+
+  private func syncShortcut(
+    action: String,
+    item: NSMenuItem?,
+    defaultShortcut: KeyboardShortcut? = nil
+  ) {
     guard let item else { return }
-    if let shortcut = registry.keyboardShortcut(for: command) {
+    if let shortcut = registry.keyboardShortcut(forAction: action) {
       SupatermMenuShortcut.apply(shortcut, to: item)
       syncGhosttyBindingItem(item, shortcut: shortcut)
       return
@@ -726,9 +767,8 @@ final class SupatermMenuController: NSObject {
       SupatermMenuShortcut.apply(nil, to: item)
       return
     }
-    let shortcut = command.defaultKeyboardShortcut
-    SupatermMenuShortcut.apply(shortcut, to: item)
-    syncGhosttyBindingItem(item, shortcut: shortcut)
+    SupatermMenuShortcut.apply(defaultShortcut, to: item)
+    syncGhosttyBindingItem(item, shortcut: defaultShortcut)
   }
 
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {

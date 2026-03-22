@@ -63,8 +63,8 @@ final class TerminalWindowController: NSWindowController {
 
     window.delegate = self
     registry.register(
-      keyboardShortcut: { [ghosttyShortcuts] command in
-        ghosttyShortcuts.keyboardShortcut(for: command)
+      keyboardShortcutForAction: { [ghosttyShortcuts] action in
+        ghosttyShortcuts.keyboardShortcut(forAction: action)
       },
       windowControllerID: windowControllerID,
       store: store,

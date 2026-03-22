@@ -363,16 +363,26 @@ final class GhosttyRuntime {
         runtime.setConfig(clone)
         runtime.onConfigChange?()
         NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: runtime)
+        return true
       }
       if action.tag == GHOSTTY_ACTION_RELOAD_CONFIG {
         let soft = action.action.reload_config.soft
         runtime.reloadConfig(soft: soft, target: target)
+        if target.tag == GHOSTTY_TARGET_APP {
+          return true
+        }
       }
     }
-    guard target.tag == GHOSTTY_TARGET_SURFACE else { return false }
-    guard let surface = target.target.surface else { return false }
-    guard let bridge = surfaceBridge(fromSurface: surface) else { return false }
-    return bridge.handleAction(target: target, action: action)
+    switch target.tag {
+    case GHOSTTY_TARGET_APP:
+      return dispatchAppAction(action)
+    case GHOSTTY_TARGET_SURFACE:
+      guard let surface = target.target.surface else { return false }
+      guard let bridge = surfaceBridge(fromSurface: surface) else { return false }
+      return bridge.handleAction(target: target, action: action)
+    default:
+      return false
+    }
   }
 
   private static func readClipboard(
@@ -453,10 +463,34 @@ final class GhosttyRuntime {
   }
 
   func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    keyboardShortcut(forAction: command.ghosttyBindingAction)
+  }
+
+  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
     guard let config else { return nil }
-    let action = command.ghosttyBindingAction
     let trigger = ghostty_config_trigger(config, action, UInt(action.lengthOfBytes(using: .utf8)))
     return Self.keyboardShortcut(for: trigger)
+  }
+
+  @MainActor
+  static func dispatchAppAction(_ action: ghostty_action_s) -> Bool {
+    let performer = NSApp.delegate as? any GhosttyAppActionPerforming
+    switch action.tag {
+    case GHOSTTY_ACTION_QUIT:
+      if let performer {
+        return performer.performQuit()
+      }
+      NSApp.terminate(nil)
+      return true
+    case GHOSTTY_ACTION_NEW_WINDOW:
+      return performer?.performNewWindow() ?? false
+    case GHOSTTY_ACTION_CLOSE_ALL_WINDOWS:
+      return performer?.performCloseAllWindows() ?? false
+    case GHOSTTY_ACTION_CHECK_FOR_UPDATES:
+      return performer?.performCheckForUpdates() ?? false
+    default:
+      return false
+    }
   }
 
   func commandPaletteEntries() -> [GhosttyCommand] {

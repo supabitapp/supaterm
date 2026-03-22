@@ -37,7 +37,7 @@ final class TerminalWindowRegistry {
   }
 
   private struct Entry {
-    let keyboardShortcut: (SupatermCommand) -> KeyboardShortcut?
+    let keyboardShortcutForAction: (String) -> KeyboardShortcut?
     let requestConfirmedWindowClose: @MainActor () -> Void
     let windowControllerID: UUID
     let store: StoreOf<AppFeature>
@@ -53,7 +53,7 @@ final class TerminalWindowRegistry {
   }
 
   func register(
-    keyboardShortcut: @escaping (SupatermCommand) -> KeyboardShortcut?,
+    keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
     windowControllerID: UUID,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState,
@@ -62,7 +62,7 @@ final class TerminalWindowRegistry {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     entries.append(
       .init(
-        keyboardShortcut: keyboardShortcut,
+        keyboardShortcutForAction: keyboardShortcutForAction,
         requestConfirmedWindowClose: requestConfirmedWindowClose,
         windowControllerID: windowControllerID,
         store: store,
@@ -130,7 +130,11 @@ final class TerminalWindowRegistry {
   }
 
   func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
-    shortcutEntry()?.keyboardShortcut(command)
+    keyboardShortcut(forAction: command.ghosttyBindingAction)
+  }
+
+  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+    shortcutEntry()?.keyboardShortcutForAction(action)
   }
 
   func requestNewTabInKeyWindow() {
@@ -174,8 +178,11 @@ final class TerminalWindowRegistry {
     preferredActiveEntry()?.store.send(.terminal(.navigateSearchMenuItemSelected(direction)))
   }
 
-  func requestCheckForUpdatesInKeyWindow() {
-    preferredActiveEntry()?.store.send(.update(.checkForUpdatesButtonTapped))
+  @discardableResult
+  func requestCheckForUpdatesInKeyWindow() -> Bool {
+    guard let entry = preferredActiveEntry() else { return false }
+    entry.store.send(.update(.checkForUpdatesButtonTapped))
+    return true
   }
 
   func requestCloseSurfaceInKeyWindow() {
@@ -253,7 +260,7 @@ final class TerminalWindowRegistry {
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
     guard let entry = entries.first else { return nil }
     return SupatermOnboardingSnapshotBuilder.snapshot { command in
-      entry.keyboardShortcut(command)
+      entry.keyboardShortcutForAction(command.ghosttyBindingAction)
     }
   }
 

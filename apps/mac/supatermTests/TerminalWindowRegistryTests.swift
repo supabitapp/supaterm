@@ -23,7 +23,7 @@ struct TerminalWindowRegistryTests {
       tabManager.selectTab(tabID)
 
       registry.register(
-        keyboardShortcut: { _ in nil },
+        keyboardShortcutForAction: { _ in nil },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,
@@ -62,7 +62,7 @@ struct TerminalWindowRegistryTests {
       tabManager.selectTab(tabID)
 
       registry.register(
-        keyboardShortcut: { _ in nil },
+        keyboardShortcutForAction: { _ in nil },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,
@@ -93,7 +93,7 @@ struct TerminalWindowRegistryTests {
       let windowControllerID = UUID()
 
       registry.register(
-        keyboardShortcut: { _ in nil },
+        keyboardShortcutForAction: { _ in nil },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,
@@ -124,7 +124,7 @@ struct TerminalWindowRegistryTests {
       let windowControllerID = UUID()
 
       registry.register(
-        keyboardShortcut: { _ in nil },
+        keyboardShortcutForAction: { _ in nil },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,
@@ -155,7 +155,7 @@ struct TerminalWindowRegistryTests {
       let windowControllerID = UUID()
 
       registry.register(
-        keyboardShortcut: { _ in nil },
+        keyboardShortcutForAction: { _ in nil },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,

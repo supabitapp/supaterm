@@ -19,7 +19,11 @@ final class GhosttyShortcutManager {
   }
 
   func keyboardShortcut(for command: SupatermCommand) -> KeyboardShortcut? {
+    keyboardShortcut(forAction: command.ghosttyBindingAction)
+  }
+
+  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
     _ = generation
-    return runtime.keyboardShortcut(for: command)
+    return runtime.keyboardShortcut(forAction: action)
   }
 }

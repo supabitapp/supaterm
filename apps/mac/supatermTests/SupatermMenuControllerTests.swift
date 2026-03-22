@@ -31,6 +31,10 @@ struct SupatermMenuControllerTests {
     #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
     #expect(appMenu.items[2].isSeparatorItem)
     #expect(appMenu.items[3].title == "Check for Updates...")
+    #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
+    #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
+    #expect(appMenu.items.last?.keyEquivalent == "q")
+    #expect(appMenu.items.last?.keyEquivalentModifierMask == [.command])
 
     let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
     #expect(
@@ -128,11 +132,11 @@ struct SupatermMenuControllerTests {
       }
       let windowControllerID = UUID()
       registry.register(
-        keyboardShortcut: { command in
-          switch command {
-          case .newWindow:
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "new_window":
             KeyboardShortcut("u", modifiers: [.command, .option])
-          case .startSearch:
+          case "start_search":
             KeyboardShortcut("l", modifiers: [.command, .shift])
           default:
             nil
@@ -235,9 +239,9 @@ struct SupatermMenuControllerTests {
       }
       let windowControllerID = UUID()
       registry.register(
-        keyboardShortcut: { command in
-          switch command {
-          case .newWindow:
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "new_window":
             KeyboardShortcut("h", modifiers: [.command])
           default:
             nil
@@ -278,6 +282,166 @@ struct SupatermMenuControllerTests {
 
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
       #expect(invocations == 1)
+    }
+  }
+
+  @Test
+  func refreshClearsQuitShortcutWhenGhosttyLeavesQuitUnbound() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "new_window":
+            KeyboardShortcut("u", modifiers: [.command, .option])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+      let quitItem = try #require(appMenu.items.last)
+      #expect(quitItem.keyEquivalent.isEmpty)
+      #expect(quitItem.keyEquivalentModifierMask.isEmpty)
+    }
+  }
+
+  @Test
+  func refreshUsesGhosttyShortcutForCheckForUpdates() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      var state = AppFeature.State()
+      state.update.canCheckForUpdates = true
+      let store = Store(initialState: state) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "check_for_updates":
+            KeyboardShortcut("u", modifiers: [.command, .shift])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+      let item = try #require(appMenu.items.first(where: { $0.title == "Check for Updates..." }))
+      #expect(item.keyEquivalent == "u")
+      #expect(item.keyEquivalentModifierMask == [.command, .shift])
+    }
+  }
+
+  @Test
+  func performGhosttyBindingMenuKeyEquivalentRoutesReboundQuit() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let previousDelegate = app.delegate
+      let delegate = GhosttyAppActionPerformerSpy()
+      app.delegate = delegate
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "quit":
+            KeyboardShortcut("k", modifiers: [.command, .option])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+        app.delegate = previousDelegate
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let reboundEvent = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command, .option],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "k",
+          charactersIgnoringModifiers: "k",
+          isARepeat: false,
+          keyCode: 40
+        )
+      )
+      let defaultEvent = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "q",
+          charactersIgnoringModifiers: "q",
+          isARepeat: false,
+          keyCode: 12
+        )
+      )
+
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: reboundEvent))
+      #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: defaultEvent))
+      #expect(delegate.quitCount == 1)
     }
   }
 }

@@ -2,7 +2,15 @@ import AppKit
 import ComposableArchitecture
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+protocol GhosttyAppActionPerforming: AnyObject {
+  func performCheckForUpdates() -> Bool
+  func performCloseAllWindows() -> Bool
+  func performNewWindow() -> Bool
+  func performQuit() -> Bool
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
   private let menuController: SupatermMenuController
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
@@ -77,6 +85,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @discardableResult
   func performCloseAllWindows() -> Bool {
     terminalWindowRegistry.requestCloseAllWindows()
+  }
+
+  @discardableResult
+  func performCheckForUpdates() -> Bool {
+    menuController.performCheckForUpdates()
+  }
+
+  @discardableResult
+  func performQuit() -> Bool {
+    NSApp.terminate(nil)
+    return true
   }
 
   @discardableResult
