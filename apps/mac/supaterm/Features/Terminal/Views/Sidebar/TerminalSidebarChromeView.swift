@@ -217,8 +217,7 @@ struct TerminalSidebarChromeView: View {
   ) -> some View {
     TerminalSidebarDragSourceView(
       item: TerminalSidebarDragItem(
-        tabID: tab.id,
-        title: tab.title
+        tabID: tab.id
       ),
       tab: tab,
       zoneID: zoneID,
