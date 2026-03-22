@@ -28,7 +28,7 @@ public enum SupatermSocketPath {
   }
 
   public static func managedSocketURL(
-    endpointID: UUID,
+    processID: Int32,
     rootDirectory: URL? = nil,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid()
@@ -38,7 +38,7 @@ public enum SupatermSocketPath {
       environment: environment,
       userID: userID
     )
-    .appendingPathComponent(managedSocketFileName(for: endpointID), isDirectory: false)
+    .appendingPathComponent(managedSocketFileName(for: processID), isDirectory: false)
   }
 
   public static func resolveExplicitPath(
@@ -173,8 +173,8 @@ public enum SupatermSocketPath {
     return "\(managedDirectoryPrefix)\(userID)"
   }
 
-  private static func managedSocketFileName(for endpointID: UUID) -> String {
-    endpointID.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+  private static func managedSocketFileName(for processID: Int32) -> String {
+    "pid-\(processID)"
   }
 
   private static func canonicalizedExistingPrefix(of path: String) -> String {
@@ -261,7 +261,7 @@ public enum SupatermProcessSocketEndpoint {
       id: endpointID,
       name: name,
       path: SupatermSocketPath.managedSocketURL(
-        endpointID: endpointID,
+        processID: processID,
         rootDirectory: rootDirectory,
         environment: environment,
         userID: userID
