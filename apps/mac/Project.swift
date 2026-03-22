@@ -1,6 +1,20 @@
 import ProjectDescription
 
-let ghosttyXCFrameworkPath: Path = "Frameworks/GhosttyKit.xcframework"
+let ghosttyBuildRootPath: Path = ".build/ghostty"
+let ghosttyXCFrameworkPath: Path = ".build/ghostty/GhosttyKit.xcframework"
+let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
+let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
+let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
+let ghosttyFingerprintScript = """
+cd "${SRCROOT}/ThirdParty/ghostty"
+{
+  git rev-parse HEAD
+  git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
+  git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
+  shasum -a 256 "${SRCROOT}/scripts/prepare-ghostty-xcframework.sh"
+  shasum -a 256 "${SRCROOT}/../../mise.toml"
+} | shasum -a 256 | awk '{print $1}'
+"""
 
 let project = Project(
   name: "supaterm",
@@ -71,28 +85,42 @@ let project = Project(
         set -euo pipefail
 
         ghostty_dir="${SRCROOT}/ThirdParty/ghostty"
+        ghostty_build_root="${SRCROOT}/\(ghosttyBuildRootPath.pathString)"
+        ghostty_local_cache_dir="${ghostty_build_root}/.zig-cache"
+        ghostty_global_cache_dir="${ghostty_build_root}/.zig-global-cache"
+        ghostty_fingerprint_path="${SRCROOT}/\(ghosttyFingerprintPath.pathString)"
         xcframework_path="${SRCROOT}/\(ghosttyXCFrameworkPath.pathString)"
+        ghostty_resources_path="${SRCROOT}/\(ghosttyResourcesPath.pathString)"
+        ghostty_terminfo_path="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
 
         if [ ! -f "${ghostty_dir}/build.zig" ]; then
           echo "error: Missing ${ghostty_dir}. Run: git submodule sync --recursive && git submodule update --init --recursive" >&2
           exit 1
         fi
 
-        mkdir -p "$(dirname "${xcframework_path}")"
+        fingerprint="$(
+        \(ghosttyFingerprintScript)
+        )"
+
+        if [ -f "${ghostty_fingerprint_path}" ] &&
+          [ -d "${xcframework_path}" ] &&
+          [ -d "${ghostty_resources_path}" ] &&
+          [ -d "${ghostty_terminfo_path}" ] &&
+          [ "$(cat "${ghostty_fingerprint_path}")" = "${fingerprint}" ]; then
+          exit 0
+        fi
+
+        mkdir -p "${ghostty_build_root}"
         cd "${ghostty_dir}"
-        mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false
+        mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
         rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
         "${SRCROOT}/scripts/prepare-ghostty-xcframework.sh" "${xcframework_path}"
+        printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"
         """,
       inputs: [
         .file("../../mise.toml"),
         .file("scripts/prepare-ghostty-xcframework.sh"),
-        .script("""
-          cd "${SRCROOT}/ThirdParty/ghostty"
-          git rev-parse HEAD
-          git diff --no-ext-diff --no-color HEAD -- . | shasum -a 256
-          git ls-files --others --exclude-standard | LC_ALL=C sort | shasum -a 256
-          """),
+        .script(ghosttyFingerprintScript),
       ],
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
     ),
@@ -138,8 +166,8 @@ let project = Project(
             set -euo pipefail
 
             destination_root="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
-            ghostty_source="${SRCROOT}/ThirdParty/ghostty/zig-out/share/ghostty"
-            terminfo_source="${SRCROOT}/ThirdParty/ghostty/zig-out/share/terminfo"
+            ghostty_source="${SRCROOT}/\(ghosttyResourcesPath.pathString)"
+            terminfo_source="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
             ghostty_destination="${destination_root}/ghostty"
             terminfo_destination="${destination_root}/terminfo"
 
@@ -150,8 +178,8 @@ let project = Project(
             """,
           name: "Embed Ghostty Resources",
           inputPaths: [
-            "$(SRCROOT)/ThirdParty/ghostty/zig-out/share/ghostty",
-            "$(SRCROOT)/ThirdParty/ghostty/zig-out/share/terminfo",
+            "$(SRCROOT)/\(ghosttyResourcesPath.pathString)",
+            "$(SRCROOT)/\(ghosttyTerminfoPath.pathString)",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty",
