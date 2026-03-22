@@ -55,15 +55,17 @@ struct SocketControlFeature {
   }
 
   @Dependency(SocketControlClient.self) var socketControlClient
+  @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .requestReceived(let request):
-        return .run { [socketControlClient, terminalWindowsClient] _ in
+        return .run { [desktopNotificationClient, socketControlClient, terminalWindowsClient] _ in
           let response = await response(
             for: request.payload,
+            desktopNotificationClient: desktopNotificationClient,
             socketControlClient: socketControlClient,
             terminalWindowsClient: terminalWindowsClient
           )
@@ -107,6 +109,7 @@ struct SocketControlFeature {
 
   private func response(
     for request: SupatermSocketRequest,
+    desktopNotificationClient: DesktopNotificationClient,
     socketControlClient: SocketControlClient,
     terminalWindowsClient: TerminalWindowsClient
   ) async -> SupatermSocketResponse {
@@ -152,6 +155,21 @@ struct SocketControlFeature {
         let result = try await terminalWindowsClient.createPane(createPaneRequest)
         return try .ok(id: request.id, encodableResult: result)
 
+      case SupatermSocketMethod.terminalNotify:
+        let payload = try request.decodeParams(SupatermNotifyRequest.self)
+        let notifyRequest = try notifyRequest(from: payload)
+        let result = try await terminalWindowsClient.notify(notifyRequest)
+        if result.shouldDeliverDesktopNotification {
+          await desktopNotificationClient.deliver(
+            .init(
+              body: payload.body,
+              subtitle: payload.subtitle,
+              title: payload.title
+            )
+          )
+        }
+        return try .ok(id: request.id, encodableResult: result)
+
       default:
         return .error(
           id: request.id,
@@ -174,7 +192,7 @@ struct SocketControlFeature {
     } catch let error as TerminalCreateTabError {
       return createTabErrorResponse(error, requestID: request.id)
     } catch let error as TerminalCreatePaneError {
-      return createPaneErrorResponse(error, requestID: request.id)
+      return terminalErrorResponse(error, requestID: request.id)
     } catch {
       return .error(
         id: request.id,
@@ -245,31 +263,63 @@ struct SocketControlFeature {
     )
   }
 
+  private func notifyRequest(
+    from payload: SupatermNotifyRequest
+  ) throws -> TerminalNotifyRequest {
+    try validateTargetPayload(
+      windowIndex: payload.targetWindowIndex,
+      spaceIndex: payload.targetSpaceIndex,
+      tabIndex: payload.targetTabIndex,
+      paneIndex: payload.targetPaneIndex
+    )
+
+    return .init(
+      body: payload.body,
+      subtitle: payload.subtitle,
+      target: try createNotifyTarget(from: payload),
+      title: payload.title
+    )
+  }
+
   private func validateCreatePanePayload(
     _ payload: SupatermNewPaneRequest
   ) throws {
-    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+    try validateTargetPayload(
+      windowIndex: payload.targetWindowIndex,
+      spaceIndex: payload.targetSpaceIndex,
+      tabIndex: payload.targetTabIndex,
+      paneIndex: payload.targetPaneIndex
+    )
+  }
+
+  private func validateTargetPayload(
+    windowIndex: Int?,
+    spaceIndex: Int?,
+    tabIndex: Int?,
+    paneIndex: Int?
+  ) throws {
+    if let windowIndex, windowIndex < 1 {
       throw SocketRequestError.invalidIndex("window")
     }
-    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+    if let spaceIndex, spaceIndex < 1 {
       throw SocketRequestError.invalidIndex("space")
     }
-    if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
+    if let tabIndex, tabIndex < 1 {
       throw SocketRequestError.invalidIndex("tab")
     }
-    if let paneIndex = payload.targetPaneIndex, paneIndex < 1 {
+    if let paneIndex, paneIndex < 1 {
       throw SocketRequestError.invalidIndex("pane")
     }
-    if payload.targetPaneIndex != nil && payload.targetTabIndex == nil {
+    if paneIndex != nil && tabIndex == nil {
       throw SocketRequestError.paneRequiresTab
     }
-    if payload.targetTabIndex != nil && payload.targetSpaceIndex == nil {
+    if tabIndex != nil && spaceIndex == nil {
       throw SocketRequestError.tabRequiresSpace
     }
-    if payload.targetSpaceIndex != nil && payload.targetTabIndex == nil {
+    if spaceIndex != nil && tabIndex == nil {
       throw SocketRequestError.spaceRequiresTab
     }
-    if payload.targetWindowIndex != nil && payload.targetSpaceIndex == nil {
+    if windowIndex != nil && spaceIndex == nil {
       throw SocketRequestError.windowRequiresSpace
     }
   }
@@ -346,7 +396,44 @@ struct SocketControlFeature {
     }
   }
 
-  private func createPaneErrorResponse(
+  private func createNotifyTarget(
+    from payload: SupatermNotifyRequest
+  ) throws -> TerminalNotifyRequest.Target {
+    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
+    case (nil, nil, nil):
+      guard let contextPaneID = payload.contextPaneID else {
+        throw SocketRequestError.missingTarget
+      }
+      if payload.targetWindowIndex != nil {
+        throw SocketRequestError.windowRequiresSpace
+      }
+      return .contextPane(contextPaneID)
+
+    case (.some, .some, nil):
+      return .tab(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
+        tabIndex: payload.targetTabIndex!
+      )
+
+    case (.some, .some, .some):
+      return .pane(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
+        tabIndex: payload.targetTabIndex!,
+        paneIndex: payload.targetPaneIndex!
+      )
+
+    case (.none, .some, _):
+      throw SocketRequestError.tabRequiresSpace
+    case (.some, .none, _):
+      throw SocketRequestError.spaceRequiresTab
+    case (.none, .none, .some):
+      throw SocketRequestError.paneRequiresTab
+    }
+  }
+
+  private func terminalErrorResponse(
     _ error: TerminalCreatePaneError,
     requestID: String
   ) -> SupatermSocketResponse {

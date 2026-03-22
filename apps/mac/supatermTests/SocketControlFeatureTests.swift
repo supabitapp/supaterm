@@ -497,6 +497,227 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func notifyRequestRepliesWithTargetedPaneAndDesktopNotification() async throws {
+    let recorder = SocketReplyRecorder()
+    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let handle = UUID(uuidString: "165EBD38-E4CC-4D2D-8C17-3EB953C0BE7B")!
+    let requestPayload = SupatermNotifyRequest(
+      body: "Build finished",
+      subtitle: "CI",
+      targetPaneIndex: 2,
+      targetSpaceIndex: 2,
+      targetTabIndex: 1,
+      targetWindowIndex: 1,
+      title: "Deploy complete"
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .notify(requestPayload, id: "notify-1")
+    )
+    let expectedResult = SupatermNotifyResult(
+      isUnread: true,
+      shouldDeliverDesktopNotification: true,
+      paneIndex: 2,
+      spaceIndex: 2,
+      tabIndex: 1,
+      windowIndex: 1
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await desktopNotificationRecorder.record(request)
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.notify = { request in
+        #expect(
+          request
+            == .init(
+              body: "Build finished",
+              subtitle: "CI",
+              target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2),
+              title: "Deploy complete"
+            )
+        )
+        return expectedResult
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermNotifyResult.self) == expectedResult)
+    #expect(
+      await desktopNotificationRecorder.snapshot()
+        == [.init(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
+    )
+  }
+
+  @Test
+  func notifyRequestSkipsDesktopNotificationWhenPaneIsAlreadyFocused() async throws {
+    let recorder = SocketReplyRecorder()
+    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let handle = UUID(uuidString: "C2930565-97D3-4E3B-8745-3EC7AE53C284")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .notify(
+        .init(
+          body: "Build finished",
+          subtitle: "",
+          targetSpaceIndex: 1,
+          targetTabIndex: 1,
+          targetWindowIndex: 1,
+          title: "Deploy complete"
+        ),
+        id: "notify-2"
+      )
+    )
+    let expectedResult = SupatermNotifyResult(
+      isUnread: true,
+      shouldDeliverDesktopNotification: false,
+      paneIndex: 1,
+      spaceIndex: 1,
+      tabIndex: 1,
+      windowIndex: 1
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await desktopNotificationRecorder.record(request)
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.notify = { request in
+        #expect(
+          request
+            == .init(
+              body: "Build finished",
+              subtitle: "",
+              target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+              title: "Deploy complete"
+            )
+        )
+        return expectedResult
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermNotifyResult.self) == expectedResult)
+    #expect(await desktopNotificationRecorder.snapshot().isEmpty)
+  }
+
+  @Test
+  func notifyRequestWithoutTargetRepliesWithStructuredError() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "0EFD6A47-1B80-4478-9CA6-C0F0E08A4A0E")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .notify(
+        .init(title: "Deploy complete"),
+        id: "notify-3"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "notify-3",
+            code: "invalid_request",
+            message: "Provide a target space and tab or run the command inside a Supaterm pane."
+          )
+        )
+    )
+  }
+
+  @Test
+  func notifyRequestWithoutTitleDefaultsTitle() async throws {
+    let recorder = SocketReplyRecorder()
+    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let handle = UUID(uuidString: "EE8E0D84-181A-4A80-B3E7-2E3615969478")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .notify(
+        .init(
+          body: "Build finished",
+          targetSpaceIndex: 1,
+          targetTabIndex: 1
+        ),
+        id: "notify-4"
+      )
+    )
+    let expectedResult = SupatermNotifyResult(
+      isUnread: true,
+      shouldDeliverDesktopNotification: true,
+      paneIndex: 1,
+      spaceIndex: 1,
+      tabIndex: 1,
+      windowIndex: 1
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await desktopNotificationRecorder.record(request)
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.notify = { request in
+        #expect(
+          request
+            == .init(
+              body: "Build finished",
+              subtitle: "",
+              target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+              title: SupatermNotifyRequest.defaultTitle
+            )
+        )
+        return expectedResult
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(
+      try records.first?.response.decodeResult(SupatermNotifyResult.self) == expectedResult
+    )
+    #expect(
+      await desktopNotificationRecorder.snapshot()
+        == [.init(body: "Build finished", subtitle: "", title: SupatermNotifyRequest.defaultTitle)]
+    )
+  }
+
+  @Test
   func newPaneRequestWithoutTargetRepliesWithStructuredError() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "EA06B587-72E5-4B21-8D1F-B4FD97E0C497")!
@@ -856,5 +1077,17 @@ private actor StopRecorder {
 
   func stopCount() -> Int {
     count
+  }
+}
+
+private actor DesktopNotificationRecorder {
+  private var requests: [DesktopNotificationRequest] = []
+
+  func record(_ request: DesktopNotificationRequest) {
+    requests.append(request)
+  }
+
+  func snapshot() -> [DesktopNotificationRequest] {
+    requests
   }
 }

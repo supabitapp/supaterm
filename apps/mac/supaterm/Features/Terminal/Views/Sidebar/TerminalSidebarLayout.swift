@@ -39,6 +39,10 @@ enum TerminalSidebarSpaceBarLayoutMode: Equatable {
 }
 
 enum TerminalSidebarLayout {
+  static let tabRowCornerRadius: CGFloat = 12
+  static let tabRowHeight: CGFloat = 48
+  static let tabRowSpacing: CGFloat = 2
+
   static func insertingID(
     _ id: TerminalTabID,
     into ids: [TerminalTabID],

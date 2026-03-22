@@ -66,6 +66,12 @@ enum SPHelp {
       sp new-tab --focus ping 1.1.1.1
       sp new-tab --space 1 --cwd ~/tmp ping 1.1.1.1
     """
+
+  static let notifyDiscussion = """
+    Example:
+      sp notify --body "All tests passed"
+      sp notify --space 1 --tab 2 --pane 3 --body "Deploy complete"
+    """
 }
 
 enum SPSocketOption: ExpressibleByArgument {

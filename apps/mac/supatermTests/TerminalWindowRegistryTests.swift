@@ -293,6 +293,30 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func rewriteNotifyResultPreservesSpaceIndexAndUpdatesWindowIndex() {
+    let result = SupatermNotifyResult(
+      isUnread: true,
+      shouldDeliverDesktopNotification: true,
+      paneIndex: 4,
+      spaceIndex: 3,
+      tabIndex: 2,
+      windowIndex: 1
+    )
+
+    #expect(
+      TerminalWindowRegistry.rewrite(result, windowIndex: 2)
+        == .init(
+          isUnread: true,
+          shouldDeliverDesktopNotification: true,
+          paneIndex: 4,
+          spaceIndex: 3,
+          tabIndex: 2,
+          windowIndex: 2
+        )
+    )
+  }
+
+  @Test
   func rewriteCreatePaneErrorPreservesSpaceIndexAndUpdatesWindowIndex() {
     let error = TerminalCreatePaneError.paneNotFound(
       windowIndex: 1,

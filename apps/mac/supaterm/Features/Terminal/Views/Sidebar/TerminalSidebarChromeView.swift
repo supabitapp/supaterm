@@ -167,7 +167,7 @@ struct TerminalSidebarChromeView: View {
       zoneID: .pinned,
       manager: dragSession
     ) {
-      VStack(spacing: 2) {
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
         ForEach(Array(terminal.pinnedTabs.enumerated()), id: \.element.id) { index, tab in
           draggableRow(
             tab: tab,
@@ -191,7 +191,7 @@ struct TerminalSidebarChromeView: View {
       zoneID: .regular,
       manager: dragSession
     ) {
-      VStack(spacing: 2) {
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
         ForEach(Array(terminal.regularTabs.enumerated()), id: \.element.id) { index, tab in
           draggableRow(
             tab: tab,
@@ -279,8 +279,8 @@ struct TerminalSidebarChromeView: View {
     count: Int
   ) {
     dragSession.itemCounts[zoneID] = count
-    dragSession.rowHeight = 36
-    dragSession.rowSpacing = 2
+    dragSession.rowHeight = TerminalSidebarLayout.tabRowHeight
+    dragSession.rowSpacing = TerminalSidebarLayout.tabRowSpacing
   }
 
   private func handle(
@@ -395,6 +395,14 @@ struct TerminalSidebarTabRow: View {
     terminal.selectedTabID == tab.id
   }
 
+  private var latestNotificationText: String? {
+    terminal.latestNotificationText(for: tab.id)
+  }
+
+  private var unreadCount: Int {
+    terminal.unreadNotificationCount(for: tab.id)
+  }
+
   var body: some View {
     Button(action: select) {
       HStack(spacing: 8) {
@@ -408,13 +416,42 @@ struct TerminalSidebarTabRow: View {
               .accessibilityHidden(true)
           }
 
-        Text(tab.title)
-          .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-          .lineLimit(1)
-          .truncationMode(.tail)
+        VStack(alignment: .leading, spacing: 2) {
+          HStack(spacing: 6) {
+            Text(tab.title)
+              .font(.system(size: 13, weight: .medium))
+              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+              .lineLimit(1)
+              .truncationMode(.tail)
 
-        Spacer(minLength: 0)
+            if unreadCount > 0 {
+              Text(unreadCount.formatted())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(isSelected ? palette.selectedText : Color.white)
+                .padding(.horizontal, unreadCount > 9 ? 7 : 6)
+                .frame(minHeight: 18)
+                .background(
+                  isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
+                  in: Capsule(style: .continuous)
+                )
+            }
+
+            Spacer(minLength: 0)
+          }
+
+          if let latestNotificationText {
+            Text(latestNotificationText)
+              .font(.system(size: 11, weight: .medium))
+              .foregroundStyle(
+                isSelected
+                  ? palette.selectedText.opacity(0.82)
+                  : palette.secondaryText
+              )
+              .lineLimit(1)
+              .truncationMode(.tail)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         if isHovering {
           Button(action: close) {
@@ -435,12 +472,16 @@ struct TerminalSidebarTabRow: View {
         }
       }
       .padding(.horizontal, 10)
-      .frame(height: 36)
+      .frame(height: TerminalSidebarLayout.tabRowHeight)
       .frame(maxWidth: .infinity)
       .background(backgroundColor)
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .clipShape(
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+      )
       .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
-      .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .contentShape(
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+      )
     }
     .buttonStyle(.plain)
     .overlay(

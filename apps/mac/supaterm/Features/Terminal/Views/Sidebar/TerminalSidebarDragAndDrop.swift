@@ -41,8 +41,8 @@ final class TerminalSidebarDragSession: ObservableObject {
   var zoneFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
   var zoneScreenFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
   var itemCounts: [TerminalSidebarDropZoneID: Int] = [:]
-  var rowHeight: CGFloat = 36
-  var rowSpacing: CGFloat = 2
+  var rowHeight: CGFloat = TerminalSidebarLayout.tabRowHeight
+  var rowSpacing: CGFloat = TerminalSidebarLayout.tabRowSpacing
 
   var isDragging: Bool {
     draggedItem != nil
@@ -470,11 +470,13 @@ private struct TerminalSidebarMorphingPreview: View {
 
   var body: some View {
     rowContent
-      .frame(width: rowWidth, height: 36)
+      .frame(width: rowWidth, height: TerminalSidebarLayout.tabRowHeight)
       .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
-      .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      .clipShape(
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+      )
       .overlay {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
           .stroke(Color.primary.opacity(0.08), lineWidth: 1)
       }
       .shadow(

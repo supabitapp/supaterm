@@ -6,6 +6,7 @@ struct TerminalWindowsClient: Sendable {
   var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
   var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var notify: @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult
   var onboardingSnapshot: @MainActor @Sendable () async -> SupatermOnboardingSnapshot?
   var debugSnapshot: @MainActor @Sendable (SupatermDebugRequest) async -> SupatermAppDebugSnapshot
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
@@ -23,6 +24,9 @@ struct TerminalWindowsClient: Sendable {
       },
       createPane: { request in
         try registry.createPane(request)
+      },
+      notify: { request in
+        try registry.notify(request)
       },
       onboardingSnapshot: {
         registry.onboardingSnapshot()
@@ -47,6 +51,9 @@ extension TerminalWindowsClient: DependencyKey {
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
+    notify: { _ in
+      throw TerminalCreatePaneError.creationFailed
+    },
     onboardingSnapshot: { nil },
     debugSnapshot: { _ in Self.emptyDebugSnapshot },
     treeSnapshot: { .init(windows: []) }
@@ -59,6 +66,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalCreateTabError.creationFailed
     },
     createPane: { _ in
+      throw TerminalCreatePaneError.creationFailed
+    },
+    notify: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
     onboardingSnapshot: { nil },
