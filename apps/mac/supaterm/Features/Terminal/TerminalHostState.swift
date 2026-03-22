@@ -220,6 +220,10 @@ final class TerminalHostState {
     )
   }
 
+  var terminalBackgroundColor: Color {
+    Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
+  }
+
   private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)

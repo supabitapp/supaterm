@@ -11,6 +11,7 @@ struct TerminalDetailView: View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
         palette: palette,
+        backgroundColor: terminal.terminalBackgroundColor,
         title: terminal.selectedPaneDisplayTitle
       )
       TerminalDetailSurface(
@@ -26,6 +27,7 @@ struct TerminalDetailView: View {
 
 private struct TerminalDetailTopBar: View {
   let palette: TerminalPalette
+  let backgroundColor: Color
   let title: String
 
   var body: some View {
@@ -39,7 +41,7 @@ private struct TerminalDetailTopBar: View {
     }
     .padding(.horizontal, 12)
     .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36, alignment: .leading)
-    .background(palette.detailBackground)
+    .background(backgroundColor)
     .overlay(alignment: .bottom) {
       Rectangle()
         .fill(palette.detailStroke)
