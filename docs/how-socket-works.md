@@ -25,7 +25,9 @@ Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 ## Endpoint Model
 
 - Each Supaterm app process computes one `SupatermSocketEndpoint` for its lifetime.
-- Managed endpoints live under the canonical tmp path `/private/tmp/supaterm-<uid>/<endpoint-id>.sock`.
+- Managed endpoint roots resolve in this order: `XDG_RUNTIME_DIR`, then `TMPDIR`, then `/tmp`.
+- If `XDG_RUNTIME_DIR` is set, managed endpoints live under `<XDG_RUNTIME_DIR>/supaterm/<compact-endpoint-id>`.
+- Otherwise managed endpoints live under `<TMPDIR or /private/tmp>/supaterm-<uid>/<compact-endpoint-id>`.
 - If `SUPATERM_INSTANCE_NAME` is set, it becomes the endpoint display name. Otherwise the name defaults to `pid-<pid>`.
 - `GhosttySurfaceView` injects the process endpoint path into every pane as `SUPATERM_SOCKET_PATH`, so pane-launched `sp` commands route back to the owning process without discovery.
 
@@ -117,6 +119,7 @@ Pane path
 - If the path already contains a reachable socket node, startup fails.
 - If the path contains an unreachable socket node, the runtime treats it as stale, removes it, and reuses the path.
 - If the path is occupied by a non-socket file, startup fails.
+- Managed root resolution is shared by endpoint creation, runtime bind, discovery, and `system.identity`, so symlinked temp roots collapse to one canonical path.
 - Discovery removes only managed socket paths that fail to connect. Post-connect identity failures are ignored without unlinking the path.
 - Requests are newline-delimited JSON messages.
 - Replies are newline-delimited JSON responses.

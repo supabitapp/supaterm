@@ -100,13 +100,100 @@ struct SocketControlRuntimeTests {
 
     await runtime.stop()
   }
+
+  @Test
+  func startCreatesXdgManagedDirectoryWithPrivatePermissions() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let xdgRuntimeDirectory = rootURL.appendingPathComponent("xdg", isDirectory: true)
+    let endpoint = SupatermProcessSocketEndpoint.make(
+      environment: ["XDG_RUNTIME_DIR": xdgRuntimeDirectory.path],
+      endpointID: UUID(uuidString: "804AD5E3-9956-4E82-BD6B-C40F4EF27F90")!,
+      processID: 1,
+      startedAt: .init(timeIntervalSince1970: 0),
+      userID: getuid()
+    )!
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+
+    let resolvedEndpoint = try await runtime.start()
+
+    #expect(resolvedEndpoint == endpoint)
+    #expect(
+      endpoint.path.hasPrefix(
+        xdgRuntimeDirectory.appendingPathComponent("supaterm", isDirectory: true).path + "/"
+      )
+    )
+    #expect(
+      try existingPermissions(at: xdgRuntimeDirectory.appendingPathComponent("supaterm", isDirectory: true))
+        == 0o700
+    )
+
+    await runtime.stop()
+  }
+
+  @Test
+  func startCreatesTmpManagedDirectoryWithPrivatePermissions() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let temporaryDirectory = rootURL.appendingPathComponent("tmp", isDirectory: true)
+    let endpoint = SupatermProcessSocketEndpoint.make(
+      environment: ["TMPDIR": temporaryDirectory.path],
+      endpointID: UUID(uuidString: "11AA053B-4A30-4C39-9A88-97250768746E")!,
+      processID: 1,
+      startedAt: .init(timeIntervalSince1970: 0),
+      userID: 501
+    )!
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+
+    let resolvedEndpoint = try await runtime.start()
+    let managedDirectory =
+      temporaryDirectory
+      .appendingPathComponent("supaterm-501", isDirectory: true)
+
+    #expect(resolvedEndpoint == endpoint)
+    #expect(endpoint.path.hasPrefix(managedDirectory.path + "/"))
+    #expect(try existingPermissions(at: managedDirectory) == 0o700)
+
+    await runtime.stop()
+  }
+
+  @Test
+  func startRejectsOverlongXdgManagedPath() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let xdgRuntimeDirectory =
+      rootURL
+      .appendingPathComponent(String(repeating: "x", count: 80), isDirectory: true)
+    let endpoint = SupatermProcessSocketEndpoint.make(
+      environment: ["XDG_RUNTIME_DIR": xdgRuntimeDirectory.path],
+      endpointID: UUID(uuidString: "5E6A9FDD-B5D8-4F46-BDA7-79C20AC2A61F")!,
+      processID: 1,
+      startedAt: .init(timeIntervalSince1970: 0),
+      userID: getuid()
+    )!
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+
+    do {
+      _ = try await runtime.start()
+      Issue.record("Expected start() to reject an overlong XDG socket path.")
+    } catch let error as SocketControlRuntime.RuntimeError {
+      #expect(error == .pathTooLong(endpoint.path))
+    } catch {
+      Issue.record("Unexpected error: \(error)")
+    }
+  }
 }
 
 private func makeTemporaryDirectory() throws -> URL {
-  let rootURL = FileManager.default.temporaryDirectory
-    .appendingPathComponent(UUID().uuidString, isDirectory: true)
-  try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-  return rootURL
+  var template = Array("/tmp/stm.XXXXXX".utf8CString)
+  guard let pointer = mkdtemp(&template) else {
+    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
+  let path = SupatermSocketPath.canonicalized(String(cString: pointer)) ?? String(cString: pointer)
+  return URL(fileURLWithPath: path, isDirectory: true)
 }
 
 private func existingNodeType(at url: URL) throws -> mode_t {
