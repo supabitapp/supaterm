@@ -4,6 +4,7 @@ import SupatermCLIShared
 struct TerminalWindowsClient: Sendable {
   var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
   var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
+  var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var onboardingSnapshot: @MainActor @Sendable () async -> SupatermOnboardingSnapshot?
   var debugSnapshot: @MainActor @Sendable (SupatermDebugRequest) async -> SupatermAppDebugSnapshot
@@ -16,6 +17,9 @@ struct TerminalWindowsClient: Sendable {
       },
       closeWindows: { windowIDs in
         registry.closeWindows(windowIDs)
+      },
+      createTab: { request in
+        try registry.createTab(request)
       },
       createPane: { request in
         try registry.createPane(request)
@@ -37,6 +41,9 @@ extension TerminalWindowsClient: DependencyKey {
   static let liveValue = Self(
     closeWindow: { _ in },
     closeWindows: { _ in },
+    createTab: { _ in
+      throw TerminalCreateTabError.creationFailed
+    },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -48,6 +55,9 @@ extension TerminalWindowsClient: DependencyKey {
   static let testValue = Self(
     closeWindow: { _ in },
     closeWindows: { _ in },
+    createTab: { _ in
+      throw TerminalCreateTabError.creationFailed
+    },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },

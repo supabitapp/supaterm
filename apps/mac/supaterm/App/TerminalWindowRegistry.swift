@@ -324,6 +324,27 @@ final class TerminalWindowRegistry {
     )
   }
 
+  func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
+    switch request.target {
+    case .contextPane:
+      return try createContextTab(request)
+
+    case .space(let windowIndex, let spaceIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalCreateTabRequest(
+        command: request.command,
+        cwd: request.cwd,
+        focus: request.focus,
+        target: .space(windowIndex: 1, spaceIndex: spaceIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.createTab(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalCreateTabError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     switch request.target {
     case .contextPane:
@@ -357,6 +378,21 @@ final class TerminalWindowRegistry {
         throw Self.rewrite(error, windowIndex: windowIndex)
       }
     }
+  }
+
+  private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
+    for (offset, entry) in activeEntries().enumerated() {
+      do {
+        let result = try entry.terminal.createTab(request)
+        return Self.rewrite(result, windowIndex: offset + 1)
+      } catch let error as TerminalCreateTabError {
+        if case .contextPaneNotFound = error {
+          continue
+        }
+        throw error
+      }
+    }
+    throw TerminalCreateTabError.contextPaneNotFound
   }
 
   private func createContextPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
@@ -423,6 +459,21 @@ final class TerminalWindowRegistry {
   }
 
   static func rewrite(
+    _ result: SupatermNewTabResult,
+    windowIndex: Int
+  ) -> SupatermNewTabResult {
+    .init(
+      isFocused: result.isFocused,
+      isSelectedSpace: result.isSelectedSpace,
+      isSelectedTab: result.isSelectedTab,
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
+      tabIndex: result.tabIndex,
+      paneIndex: result.paneIndex
+    )
+  }
+
+  static func rewrite(
     _ result: SupatermNewPaneResult,
     windowIndex: Int
   ) -> SupatermNewPaneResult {
@@ -435,6 +486,22 @@ final class TerminalWindowRegistry {
       tabIndex: result.tabIndex,
       paneIndex: result.paneIndex
     )
+  }
+
+  static func rewrite(
+    _ error: TerminalCreateTabError,
+    windowIndex: Int
+  ) -> TerminalCreateTabError {
+    switch error {
+    case .contextPaneNotFound:
+      return .contextPaneNotFound
+    case .creationFailed:
+      return .creationFailed
+    case .spaceNotFound(_, let spaceIndex):
+      return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    case .windowNotFound:
+      return .windowNotFound(windowIndex)
+    }
   }
 
   static func rewrite(

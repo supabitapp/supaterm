@@ -16,6 +16,17 @@ enum SPHelp {
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
     """
+
+  static let newTabDiscussion = """
+    If you omit --space inside Supaterm, this command creates the tab in the current space.
+
+    That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
+
+    Example:
+      sp new-tab ping 1.1.1.1
+      sp new-tab --focus ping 1.1.1.1
+      sp new-tab --space 1 --cwd ~/tmp ping 1.1.1.1
+    """
 }
 
 enum SPSocketOption: ExpressibleByArgument {

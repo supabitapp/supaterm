@@ -9,6 +9,22 @@ import SwiftUI
 @MainActor
 @Observable
 final class TerminalHostState {
+  struct NewTabSelectionInput: Equatable {
+    let selectedSpaceID: TerminalSpaceID?
+    let targetSpaceID: TerminalSpaceID
+    let selectedTabID: TerminalTabID?
+    let targetTabID: TerminalTabID
+    let windowActivity: WindowActivityState
+    let focusedSurfaceID: UUID?
+    let surfaceID: UUID
+  }
+
+  struct NewTabSelectionState: Equatable {
+    let isFocused: Bool
+    let isSelectedSpace: Bool
+    let isSelectedTab: Bool
+  }
+
   struct NewPaneSelectionState: Equatable {
     let isFocused: Bool
     let isSelectedTab: Bool
@@ -235,19 +251,37 @@ final class TerminalHostState {
     initialInput: String? = nil,
     inheritingFromSurfaceID: UUID? = nil
   ) -> TerminalTabID? {
-    guard let activeTabManager = spaceManager.activeTabManager else { return nil }
+    guard let selectedSpaceID = spaceManager.selectedSpaceID else { return nil }
+    return createTab(
+      in: selectedSpaceID,
+      focusing: focusing,
+      initialInput: initialInput,
+      inheritingFromSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID()
+    )
+  }
+
+  @discardableResult
+  private func createTab(
+    in spaceID: TerminalSpaceID,
+    focusing: Bool = true,
+    initialInput: String? = nil,
+    workingDirectory: URL? = nil,
+    inheritingFromSurfaceID: UUID? = nil
+  ) -> TerminalTabID? {
+    guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
-      activeTabManager.tabs.isEmpty
+      tabManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
-    let tabID = activeTabManager.createTab(
-      title: "Terminal \(nextTabIndex())",
+    let tabID = tabManager.createTab(
+      title: "Terminal \(nextTabIndex(in: spaceID))",
       icon: "terminal"
     )
     let tree = splitTree(
       for: tabID,
-      inheritingFromSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
+      inheritingFromSurfaceID: inheritingFromSurfaceID,
       initialInput: initialInput,
+      workingDirectory: workingDirectory,
       context: context
     )
     updateRunningState(for: tabID)
@@ -621,10 +655,105 @@ final class TerminalHostState {
     }
   }
 
+  func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
+    let resolvedTarget = try resolveCreateTabTarget(request.target)
+    let currentSelectedSpaceID = spaceManager.selectedSpaceID
+    let currentSelectedTabID = spaceManager.selectedTabID
+    var createdTabID: TerminalTabID?
+
+    do {
+      let tabID =
+        createTab(
+          in: resolvedTarget.space.id,
+          focusing: false,
+          initialInput: request.command.map { "\($0)\n" },
+          workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
+          inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID
+        )
+      guard
+        let tabID,
+        let tree = trees[tabID],
+        let surfaceID = tree.root?.leftmostLeaf().id
+      else {
+        throw TerminalCreateTabError.creationFailed
+      }
+      createdTabID = tabID
+
+      let resolvedSelectedTabID = Self.selectedTabID(
+        afterCreatingTabIn: resolvedTarget.space.id,
+        targetTabID: tabID,
+        focusRequested: request.focus,
+        currentSelectedSpaceID: currentSelectedSpaceID,
+        currentSelectedTabID: currentSelectedTabID
+      )
+      if let tabManager = spaceManager.tabManager(for: resolvedTarget.space.id),
+        resolvedSelectedTabID != tabManager.selectedTabId
+      {
+        tabManager.selectTab(resolvedSelectedTabID)
+      }
+
+      if request.focus {
+        if currentSelectedSpaceID != resolvedTarget.space.id {
+          selectSpace(resolvedTarget.space.id, persistDefaultSelection: true)
+        }
+        spaceManager.tabManager(for: resolvedTarget.space.id)?.selectTab(tabID)
+        if let surface = surfaces[surfaceID] {
+          focusSurface(surface, in: tabID)
+        }
+      }
+
+      syncFocus(windowActivity)
+
+      guard
+        let spaceIndex = spaceManager.spaceIndex(for: resolvedTarget.space.id),
+        let tabIndex = spaceManager.tabs(in: resolvedTarget.space.id)
+          .firstIndex(where: { $0.id == tabID }),
+        let paneIndex = tree.leaves().firstIndex(where: { $0.id == surfaceID })
+      else {
+        throw TerminalCreateTabError.creationFailed
+      }
+
+      let selectionState = Self.newTabSelectionState(
+        .init(
+          selectedSpaceID: spaceManager.selectedSpaceID,
+          targetSpaceID: resolvedTarget.space.id,
+          selectedTabID: spaceManager.selectedTabID,
+          targetTabID: tabID,
+          windowActivity: windowActivity,
+          focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+          surfaceID: surfaceID
+        )
+      )
+
+      return .init(
+        isFocused: selectionState.isFocused,
+        isSelectedSpace: selectionState.isSelectedSpace,
+        isSelectedTab: selectionState.isSelectedTab,
+        windowIndex: 1,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex + 1,
+        paneIndex: paneIndex + 1
+      )
+    } catch let error as TerminalCreateTabError {
+      if let createdTabID {
+        removeTree(for: createdTabID)
+        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+      }
+      throw error
+    } catch {
+      if let createdTabID {
+        removeTree(for: createdTabID)
+        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+      }
+      throw TerminalCreateTabError.creationFailed
+    }
+  }
+
   func splitTree(
     for tabID: TerminalTabID,
     inheritingFromSurfaceID: UUID? = nil,
     initialInput: String? = nil,
+    workingDirectory: URL? = nil,
     context: ghostty_surface_context_e = GHOSTTY_SURFACE_CONTEXT_TAB
   ) -> SplitTree<GhosttySurfaceView> {
     if let existing = trees[tabID] {
@@ -634,6 +763,7 @@ final class TerminalHostState {
       tabID: tabID,
       initialInput: initialInput,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
+      workingDirectory: workingDirectory,
       context: context
     )
     let tree = SplitTree(view: surface)
@@ -831,6 +961,7 @@ final class TerminalHostState {
     tabID: TerminalTabID,
     initialInput: String?,
     inheritingFromSurfaceID: UUID?,
+    workingDirectory: URL? = nil,
     context: ghostty_surface_context_e
   ) -> GhosttySurfaceView {
     guard let runtime else {
@@ -840,7 +971,7 @@ final class TerminalHostState {
     let view = GhosttySurfaceView(
       runtime: runtime,
       tabID: tabID.rawValue,
-      workingDirectory: inherited.workingDirectory,
+      workingDirectory: workingDirectory ?? inherited.workingDirectory,
       initialInput: initialInput,
       fontSize: inherited.fontSize,
       context: context,
@@ -934,6 +1065,33 @@ final class TerminalHostState {
     return focusedSurfaceIDByTab[selectedTabID]
   }
 
+  private func inheritedSurfaceID(in spaceID: TerminalSpaceID) -> UUID? {
+    if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
+      if let focusedSurfaceID = focusedSurfaceIDByTab[selectedTabID], surfaces[focusedSurfaceID] != nil {
+        return focusedSurfaceID
+      }
+      if let surfaceID = trees[selectedTabID]?.root?.leftmostLeaf().id {
+        return surfaceID
+      }
+    }
+
+    for tab in spaceManager.tabs(in: spaceID) {
+      if let focusedSurfaceID = focusedSurfaceIDByTab[tab.id], surfaces[focusedSurfaceID] != nil {
+        return focusedSurfaceID
+      }
+      if let surfaceID = trees[tab.id]?.root?.leftmostLeaf().id {
+        return surfaceID
+      }
+    }
+
+    return nil
+  }
+
+  private struct ResolvedCreateTabTarget {
+    let inheritedSurfaceID: UUID?
+    let space: TerminalSpaceItem
+  }
+
   private struct ResolvedCreatePaneTarget {
     let anchorSurface: GhosttySurfaceView
     let spaceID: TerminalSpaceID
@@ -945,6 +1103,37 @@ final class TerminalHostState {
     let space: TerminalSpaceItem
     let tabID: TerminalTabID
     let tree: SplitTree<GhosttySurfaceView>
+  }
+
+  private func resolveCreateTabTarget(
+    _ target: TerminalCreateTabRequest.Target
+  ) throws -> ResolvedCreateTabTarget {
+    switch target {
+    case .contextPane(let paneID):
+      guard
+        let tabID = tabID(containing: paneID),
+        let space = spaceManager.space(for: tabID)
+      else {
+        throw TerminalCreateTabError.contextPaneNotFound
+      }
+
+      return ResolvedCreateTabTarget(
+        inheritedSurfaceID: paneID,
+        space: space
+      )
+
+    case .space(let windowIndex, let spaceIndex):
+      guard windowIndex == 1 else {
+        throw TerminalCreateTabError.windowNotFound(windowIndex)
+      }
+      guard let space = spaceManager.space(at: spaceIndex) else {
+        throw TerminalCreateTabError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      }
+      return ResolvedCreateTabTarget(
+        inheritedSurfaceID: inheritedSurfaceID(in: space.id),
+        space: space
+      )
+    }
   }
 
   private func resolveCreatePaneTarget(
@@ -1072,6 +1261,20 @@ final class TerminalHostState {
   }
 
   static func selectedTabID(
+    afterCreatingTabIn targetSpaceID: TerminalSpaceID,
+    targetTabID: TerminalTabID,
+    focusRequested: Bool,
+    currentSelectedSpaceID: TerminalSpaceID?,
+    currentSelectedTabID: TerminalTabID?
+  ) -> TerminalTabID {
+    guard !focusRequested else { return targetTabID }
+    guard currentSelectedSpaceID == targetSpaceID, let currentSelectedTabID else {
+      return targetTabID
+    }
+    return currentSelectedTabID
+  }
+
+  static func selectedTabID(
     afterCreatingPaneIn targetTabID: TerminalTabID,
     focusRequested: Bool,
     currentSelectedTabID: TerminalTabID?
@@ -1096,6 +1299,23 @@ final class TerminalHostState {
       surfaceID: surfaceID
     )
     return NewPaneSelectionState(isFocused: activity.isFocused, isSelectedTab: isSelectedTab)
+  }
+
+  static func newTabSelectionState(_ input: NewTabSelectionInput) -> NewTabSelectionState {
+    let isSelectedSpace = input.targetSpaceID == input.selectedSpaceID
+    let isSelectedTab = isSelectedSpace && input.targetTabID == input.selectedTabID
+    let activity = surfaceActivity(
+      isSelectedTab: isSelectedTab,
+      windowIsVisible: input.windowActivity.isVisible,
+      windowIsKey: input.windowActivity.isKeyWindow,
+      focusedSurfaceID: input.focusedSurfaceID,
+      surfaceID: input.surfaceID
+    )
+    return NewTabSelectionState(
+      isFocused: activity.isFocused,
+      isSelectedSpace: isSelectedSpace,
+      isSelectedTab: isSelectedTab
+    )
   }
 
   private func removeTree(for tabID: TerminalTabID) {
@@ -1173,9 +1393,9 @@ final class TerminalHostState {
     return .index(raw)
   }
 
-  private func nextTabIndex() -> Int {
+  private func nextTabIndex(in spaceID: TerminalSpaceID) -> Int {
     var maxIndex = 0
-    for tab in tabs {
+    for tab in spaceManager.tabs(in: spaceID) {
       guard tab.title.hasPrefix("Terminal ") else { continue }
       let suffix = tab.title.dropFirst("Terminal ".count)
       guard let value = Int(suffix) else { continue }

@@ -2,6 +2,18 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 
+struct TerminalCreateTabRequest: Equatable, Sendable {
+  enum Target: Equatable, Sendable {
+    case contextPane(UUID)
+    case space(windowIndex: Int, spaceIndex: Int)
+  }
+
+  let command: String?
+  let cwd: String?
+  let focus: Bool
+  let target: Target
+}
+
 struct TerminalCreatePaneRequest: Equatable, Sendable {
   enum Target: Equatable, Sendable {
     case contextPane(UUID)
@@ -31,6 +43,13 @@ enum TerminalCreatePaneError: Error, Equatable {
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+  case windowNotFound(Int)
+}
+
+enum TerminalCreateTabError: Error, Equatable {
+  case contextPaneNotFound
+  case creationFailed
+  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case windowNotFound(Int)
 }
 

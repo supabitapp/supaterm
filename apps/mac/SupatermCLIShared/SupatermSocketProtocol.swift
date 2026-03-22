@@ -6,6 +6,7 @@ public enum SupatermSocketMethod {
   public static let appTree = "app.tree"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
+  public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
 }
 
@@ -107,6 +108,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalNewPane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func newTab(
+    _ payload: SupatermNewTabRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalNewTab,
       params: try JSONObject(payload)
     )
   }
@@ -526,6 +538,59 @@ public enum SupatermPaneDirection: String, CaseIterable, Sendable, Codable {
   case left
   case right
   case up
+}
+
+public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
+  public let command: String?
+  public let contextPaneID: UUID?
+  public let cwd: String?
+  public let focus: Bool
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+
+  public init(
+    command: String? = nil,
+    contextPaneID: UUID? = nil,
+    cwd: String? = nil,
+    focus: Bool,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil
+  ) {
+    self.command = command
+    self.contextPaneID = contextPaneID
+    self.cwd = cwd
+    self.focus = focus
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+  }
+}
+
+public struct SupatermNewTabResult: Equatable, Sendable, Codable {
+  public let isFocused: Bool
+  public let isSelectedSpace: Bool
+  public let isSelectedTab: Bool
+  public let windowIndex: Int
+  public let spaceIndex: Int
+  public let tabIndex: Int
+  public let paneIndex: Int
+
+  public init(
+    isFocused: Bool,
+    isSelectedSpace: Bool,
+    isSelectedTab: Bool,
+    windowIndex: Int,
+    spaceIndex: Int,
+    tabIndex: Int,
+    paneIndex: Int
+  ) {
+    self.isFocused = isFocused
+    self.isSelectedSpace = isSelectedSpace
+    self.isSelectedTab = isSelectedTab
+    self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.tabIndex = tabIndex
+    self.paneIndex = paneIndex
+  }
 }
 
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
