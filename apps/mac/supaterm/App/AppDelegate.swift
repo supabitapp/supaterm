@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private let menuController: SupatermMenuController
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
+  private var settingsWindowController: SettingsWindowController?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
 
   override init() {
@@ -26,6 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     menuController.setNewWindowAction { [weak self] in
       self?.performNewWindow() ?? false
+    }
+    menuController.setShowSettingsAction { [weak self] tab in
+      self?.performShowSettings(tab: tab) ?? false
     }
   }
 
@@ -73,6 +77,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @discardableResult
   func performCloseAllWindows() -> Bool {
     terminalWindowRegistry.requestCloseAllWindows()
+  }
+
+  @discardableResult
+  func performShowSettings(tab: SettingsFeature.Tab) -> Bool {
+    let controller: SettingsWindowController
+    if let settingsWindowController {
+      controller = settingsWindowController
+    } else {
+      let createdController = SettingsWindowController()
+      settingsWindowController = createdController
+      controller = createdController
+    }
+    controller.show(tab: tab)
+    return true
   }
 
   @discardableResult

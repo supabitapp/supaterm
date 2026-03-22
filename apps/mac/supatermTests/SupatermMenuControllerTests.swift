@@ -22,6 +22,16 @@ struct SupatermMenuControllerTests {
     #expect(titles.count == 8)
     #expect(Array(titles.suffix(7)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window", "Help"])
 
+    let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+    #expect(appMenu.items[0].title.hasPrefix("About "))
+    #expect(appMenu.items[0].action == #selector(SupatermMenuController.about(_:)))
+    #expect(appMenu.items[1].title == "Settings...")
+    #expect(appMenu.items[1].action == #selector(SupatermMenuController.showSettings(_:)))
+    #expect(appMenu.items[1].keyEquivalent == ",")
+    #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
+    #expect(appMenu.items[2].isSeparatorItem)
+    #expect(appMenu.items[3].title == "Check for Updates...")
+
     let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
     #expect(
       fileMenu.items.map(\.title) == [
@@ -164,6 +174,22 @@ struct SupatermMenuControllerTests {
 
     #expect(controller.performNewWindow())
     #expect(invocations == 1)
+  }
+
+  @Test
+  func aboutAndSettingsMenuItemsUseConfiguredSettingsAction() {
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    var tabs: [SettingsFeature.Tab] = []
+
+    controller.setShowSettingsAction { tab in
+      tabs.append(tab)
+      return true
+    }
+
+    controller.about(nil)
+    controller.showSettings(nil)
+
+    #expect(tabs == [.about, .general])
   }
 
   @Test
