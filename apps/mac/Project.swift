@@ -89,6 +89,7 @@ let project = Project(
         ghostty_local_cache_dir="${ghostty_build_root}/.zig-cache"
         ghostty_global_cache_dir="${ghostty_build_root}/.zig-global-cache"
         ghostty_fingerprint_path="${SRCROOT}/\(ghosttyFingerprintPath.pathString)"
+        ghostty_legacy_prefix_path="${ghostty_dir}/zig-out"
         xcframework_path="${SRCROOT}/\(ghosttyXCFrameworkPath.pathString)"
         ghostty_resources_path="${SRCROOT}/\(ghosttyResourcesPath.pathString)"
         ghostty_terminfo_path="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
@@ -111,6 +112,8 @@ let project = Project(
         fi
 
         mkdir -p "${ghostty_build_root}"
+        rm -rf "${ghostty_legacy_prefix_path}"
+        ln -s "${ghostty_build_root}" "${ghostty_legacy_prefix_path}"
         cd "${ghostty_dir}"
         mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
         rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
