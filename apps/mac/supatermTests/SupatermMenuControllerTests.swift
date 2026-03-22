@@ -197,6 +197,24 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func closeSurfaceClosesKeyNonTerminalWindow() {
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    let window = CloseRecordingWindow()
+
+    #expect(controller.performCloseSurface(for: window, sender: nil))
+
+    #expect(window.performCloseCount == 1)
+  }
+
+  @Test
+  func menuContextTreatsClosableNonTerminalWindowAsDirectClose() {
+    let registry = TerminalWindowRegistry()
+    let window = CloseRecordingWindow()
+
+    #expect(registry.menuContext(keyWindow: window).closesKeyWindowDirectly)
+  }
+
+  @Test
   func performGhosttyBindingMenuKeyEquivalentRoutesReboundOpenConfigToSettings() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -503,5 +521,23 @@ struct SupatermMenuControllerTests {
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: defaultEvent))
       #expect(delegate.quitCount == 1)
     }
+  }
+}
+
+@MainActor
+private final class CloseRecordingWindow: NSWindow {
+  var performCloseCount = 0
+
+  init() {
+    super.init(
+      contentRect: NSRect(x: 0, y: 0, width: 640, height: 480),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+  }
+
+  override func performClose(_ sender: Any?) {
+    performCloseCount += 1
   }
 }

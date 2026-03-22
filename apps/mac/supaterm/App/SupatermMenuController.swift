@@ -639,7 +639,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func closeSurface(_ sender: Any?) {
-    registry.requestCloseSurfaceInKeyWindow()
+    _ = performCloseSurface(for: NSApp.keyWindow, sender: sender)
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -856,6 +856,16 @@ final class SupatermMenuController: NSObject {
     }
     return item
   }
+
+  @discardableResult
+  func performCloseSurface(for keyWindow: NSWindow?, sender: Any?) -> Bool {
+    if registry.closesWindowDirectly(keyWindow) {
+      keyWindow?.performClose(sender)
+      return true
+    }
+    registry.requestCloseSurfaceInKeyWindow()
+    return true
+  }
 }
 
 extension SupatermMenuController: NSMenuItemValidation {
@@ -874,7 +884,7 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.splitUp:
       return context.availability.hasSurface
     case MenuItemIdentifier.closeSurface:
-      return context.availability.hasSurface
+      return context.availability.hasSurface || context.closesKeyWindowDirectly
     case MenuItemIdentifier.closeTab:
       return context.availability.hasTab
     case MenuItemIdentifier.closeWindow,
