@@ -4,12 +4,18 @@ import Foundation
 public enum SupatermSocketPath {
   public static let managedDirectoryPrefix = "supaterm-"
   public static let managedFileExtension = "sock"
+  private static let privateTmpPath = "/private/tmp"
+  private static let tmpPath = "/tmp"
 
   public static func managedDirectoryURL(
     rootDirectory: URL? = nil,
     userID: uid_t = getuid()
   ) -> URL {
-    (rootDirectory ?? URL(fileURLWithPath: "/tmp", isDirectory: true))
+    URL(
+      fileURLWithPath: canonicalized((rootDirectory ?? URL(fileURLWithPath: tmpPath, isDirectory: true)).path)
+        ?? privateTmpPath,
+      isDirectory: true
+    )
       .appendingPathComponent("\(managedDirectoryPrefix)\(userID)", isDirectory: true)
   }
 
@@ -71,18 +77,22 @@ public enum SupatermSocketPath {
     userID: uid_t = getuid()
   ) -> Bool {
     guard
-      let normalizedPath = normalized(path)
+      let canonicalPath = canonicalized(path)
     else {
       return false
     }
 
-    let standardizedPath = URL(fileURLWithPath: normalizedPath).standardizedFileURL.path
-    let standardizedManagedDirectoryPath = managedDirectoryURL(
+    let canonicalManagedDirectoryPath = canonicalized(
+      managedDirectoryURL(
+        rootDirectory: rootDirectory,
+        userID: userID
+      ).path
+    ) ?? managedDirectoryURL(
       rootDirectory: rootDirectory,
       userID: userID
     )
-    .standardizedFileURL.path
-    return standardizedPath.hasPrefix(standardizedManagedDirectoryPath + "/")
+    .path
+    return canonicalPath.hasPrefix(canonicalManagedDirectoryPath + "/")
   }
 
   public static func normalized(_ path: String?) -> String? {
@@ -90,6 +100,18 @@ public enum SupatermSocketPath {
     let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
     return trimmed
+  }
+
+  public static func canonicalized(_ path: String?) -> String? {
+    guard let path = normalized(path) else { return nil }
+    let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+    if standardizedPath == tmpPath {
+      return privateTmpPath
+    }
+    if standardizedPath.hasPrefix(tmpPath + "/") {
+      return privateTmpPath + String(standardizedPath.dropFirst(tmpPath.count))
+    }
+    return standardizedPath
   }
 
   private static func isSocketNode(at path: String) -> Bool {
@@ -207,7 +229,9 @@ public enum SupatermSocketTargetResolver {
     }
 
     if let instance = SupatermSocketPath.normalized(instance) {
-      if let matchedByID = discoveredEndpoints.first(where: { $0.id.uuidString == instance }) {
+      if let instanceID = UUID(uuidString: instance),
+        let matchedByID = discoveredEndpoints.first(where: { $0.id == instanceID })
+      {
         return .init(
           endpoint: matchedByID,
           path: matchedByID.path,

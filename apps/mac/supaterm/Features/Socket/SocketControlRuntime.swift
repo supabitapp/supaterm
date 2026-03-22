@@ -12,6 +12,7 @@ actor SocketControlRuntime {
     case missingSocketPath
     case pathTooLong(String)
     case socketCreationFailed
+    case unsafeSocketDirectory(String)
     case unlinkFailed(String)
 
     var errorDescription: String? {
@@ -32,6 +33,8 @@ actor SocketControlRuntime {
         return "Supaterm socket path is too long: \(path)"
       case .socketCreationFailed:
         return "Failed to create the Supaterm socket server."
+      case .unsafeSocketDirectory(let path):
+        return "Supaterm socket directory must be owned by the current user and private: \(path)"
       case .unlinkFailed(let path):
         return "Failed to remove the stale Supaterm socket at \(path)."
       }
@@ -99,6 +102,7 @@ actor SocketControlRuntime {
     } catch {
       throw RuntimeError.createDirectoryFailed(directoryURL.path)
     }
+    try Self.prepareSocketDirectory(directoryURL.path)
 
     try Self.prepareSocketPathForBinding(socketPath)
 
@@ -303,6 +307,34 @@ actor SocketControlRuntime {
     let unlinkResult = path.withCString(unlink)
     guard unlinkResult == 0 else {
       throw RuntimeError.unlinkFailed(path)
+    }
+  }
+
+  private nonisolated static func prepareSocketDirectory(_ path: String) throws {
+    var fileStatus = stat()
+    let status = path.withCString { pointer in
+      lstat(pointer, &fileStatus)
+    }
+    guard status == 0 else {
+      throw RuntimeError.createDirectoryFailed(path)
+    }
+
+    guard (fileStatus.st_mode & S_IFMT) == S_IFDIR else {
+      throw RuntimeError.unsafeSocketDirectory(path)
+    }
+
+    guard fileStatus.st_uid == getuid() else {
+      throw RuntimeError.unsafeSocketDirectory(path)
+    }
+
+    let permissions = fileStatus.st_mode & 0o777
+    if permissions != 0o700 {
+      let chmodResult = path.withCString { pointer in
+        chmod(pointer, 0o700)
+      }
+      guard chmodResult == 0 else {
+        throw RuntimeError.unsafeSocketDirectory(path)
+      }
     }
   }
 

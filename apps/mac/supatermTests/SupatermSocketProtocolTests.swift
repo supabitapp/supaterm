@@ -15,10 +15,22 @@ struct SupatermSocketProtocolTests {
         rootDirectory: rootDirectory,
         userID: 501
       )
-        == rootDirectory
+        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
         .appendingPathComponent("supaterm-501", isDirectory: true)
         .appendingPathComponent(endpointID.uuidString, isDirectory: false)
         .appendingPathExtension("sock")
+    )
+  }
+
+  @Test
+  func canonicalizedPromotesTmpPathsToPrivateTmp() {
+    #expect(
+      SupatermSocketPath.canonicalized("/tmp/supaterm-501/control.sock")
+        == "/private/tmp/supaterm-501/control.sock"
+    )
+    #expect(
+      SupatermSocketPath.canonicalized("/tmp/SupatermTests")
+        == "/private/tmp/SupatermTests"
     )
   }
 
@@ -85,7 +97,7 @@ struct SupatermSocketProtocolTests {
           id: endpointID,
           name: "dev",
           path:
-            rootDirectory
+            URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
             .appendingPathComponent("supaterm-501", isDirectory: true)
             .appendingPathComponent(endpointID.uuidString, isDirectory: false)
             .appendingPathExtension("sock")
@@ -114,7 +126,7 @@ struct SupatermSocketProtocolTests {
 
     #expect(
       endpoint?.path
-        == rootDirectory
+        == URL(fileURLWithPath: "/private/tmp/SupatermTests", isDirectory: true)
         .appendingPathComponent("supaterm-501", isDirectory: true)
         .appendingPathComponent(endpointID.uuidString, isDirectory: false)
         .appendingPathExtension("sock")
@@ -174,6 +186,15 @@ struct SupatermSocketProtocolTests {
         instance: "beta",
         discoveredEndpoints: [alpha, beta]
       ) == .init(endpoint: beta, path: beta.path, source: .explicitInstance)
+    )
+
+    #expect(
+      try SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: nil,
+        instance: alpha.id.uuidString.lowercased(),
+        discoveredEndpoints: [alpha, beta]
+      ) == .init(endpoint: alpha, path: alpha.path, source: .explicitInstance)
     )
 
     do {

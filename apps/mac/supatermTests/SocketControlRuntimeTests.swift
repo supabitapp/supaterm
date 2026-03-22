@@ -76,6 +76,30 @@ struct SocketControlRuntimeTests {
 
     await firstRuntime.stop()
   }
+
+  @Test
+  func startRepairsOwnedSocketDirectoryPermissions() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let socketsURL = rootURL.appendingPathComponent("sockets", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: socketsURL,
+      withIntermediateDirectories: true,
+      attributes: [.posixPermissions: 0o777]
+    )
+
+    let socketURL = socketsURL.appendingPathComponent("control.sock", isDirectory: false)
+    let runtime = SocketControlRuntime(endpointProvider: {
+      socketEndpoint(path: socketURL.path)
+    })
+
+    _ = try await runtime.start()
+
+    #expect(try existingPermissions(at: socketsURL) == 0o700)
+
+    await runtime.stop()
+  }
 }
 
 private func makeTemporaryDirectory() throws -> URL {
@@ -94,6 +118,17 @@ private func existingNodeType(at url: URL) throws -> mode_t {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
   }
   return fileStatus.st_mode & S_IFMT
+}
+
+private func existingPermissions(at url: URL) throws -> mode_t {
+  var fileStatus = stat()
+  let status = url.path.withCString { pointer in
+    lstat(pointer, &fileStatus)
+  }
+  guard status == 0 else {
+    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
+  return fileStatus.st_mode & 0o777
 }
 
 private func createStaleSocket(at url: URL) throws {

@@ -86,7 +86,10 @@ struct SPSocketClient {
         return .ignored
       }
       let endpoint = try response.decodeResult(SupatermSocketEndpoint.self)
-      guard endpoint.path == path else {
+      guard
+        SupatermSocketPath.canonicalized(endpoint.path)
+          == SupatermSocketPath.canonicalized(path)
+      else {
         return .ignored
       }
       return .reachable(endpoint)
