@@ -1,5 +1,5 @@
 name: Setup macOS build deps
-description: Install macOS build dependencies
+description: Install macOS build dependencies and restore Ghostty build cache
 
 runs:
   using: composite
@@ -8,3 +8,18 @@ runs:
       with:
         version: 2026.3.0
         cache: true
+    - name: Xcode cache key
+      shell: bash
+      run: |
+        XCODE_VERSION="$(xcodebuild -version | tr '\n' '-' | sed 's/[^A-Za-z0-9._-]/_/g; s/-$//')"
+        printf '%s\n' "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
+    - name: Ghostty cache key
+      shell: bash
+      run: |
+        GHOSTTY_SHA="$(git -C apps/mac/ThirdParty/ghostty rev-parse HEAD)"
+        printf '%s\n' "GHOSTTY_SHA=$GHOSTTY_SHA" >> "$GITHUB_ENV"
+    - name: Ghostty cache
+      uses: actions/cache@v5
+      with:
+        path: apps/mac/.build/ghostty
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v2-${{ env.GHOSTTY_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/prepare-ghostty-xcframework.sh', 'mise.toml', '.gitmodules') }}
