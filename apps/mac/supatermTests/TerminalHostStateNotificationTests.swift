@@ -6,6 +6,25 @@ import Testing
 @MainActor
 struct TerminalHostStateNotificationTests {
   @Test
+  func keyboardActivityClearsUnreadNotificationWithoutDroppingLatestText() {
+    let notification = TerminalHostState.PaneNotification(
+      body: "Build finished",
+      createdAt: .init(timeIntervalSince1970: 1),
+      isUnread: true,
+      subtitle: "",
+      title: "Notification"
+    )
+
+    let updatedNotification = TerminalHostState.notificationAfterKeyboardActivity(
+      notification,
+      activity: .init(isVisible: true, isFocused: true)
+    )
+
+    #expect(updatedNotification?.isUnread == false)
+    #expect(TerminalHostState.notificationText(updatedNotification) == "Build finished")
+  }
+
+  @Test
   func latestNotificationUsesNewestTimestamp() {
     let older = TerminalHostState.PaneNotification(
       body: "older",

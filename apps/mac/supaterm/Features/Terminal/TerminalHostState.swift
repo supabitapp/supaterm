@@ -814,6 +814,10 @@ final class TerminalHostState {
     )
   }
 
+  func handleKeyboardActivity(on surfaceID: UUID) {
+    markNotificationRead(for: surfaceID)
+  }
+
   func splitTree(
     for tabID: TerminalTabID,
     inheritingFromSurfaceID: UUID? = nil,
@@ -1087,6 +1091,10 @@ final class TerminalHostState {
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)
+    }
+    view.onKeyboardActivity = { [weak self, weak view] in
+      guard let self, let view else { return }
+      self.handleKeyboardActivity(on: view.id)
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
@@ -1481,10 +1489,15 @@ final class TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[tabID],
       surfaceID: surfaceID
     )
-    guard activity.isFocused else { return }
-    guard var notification = paneNotifications[surfaceID], notification.isUnread else { return }
-    notification.isUnread = false
-    paneNotifications[surfaceID] = notification
+    guard
+      let updatedNotification = Self.notificationAfterKeyboardActivity(
+        paneNotifications[surfaceID],
+        activity: activity
+      )
+    else {
+      return
+    }
+    paneNotifications[surfaceID] = updatedNotification
   }
 
   private func updateRunningState(for tabID: TerminalTabID) {
@@ -1888,6 +1901,16 @@ final class TerminalHostState {
 
   static func unreadNotificationCount(in notifications: [PaneNotification]) -> Int {
     notifications.filter(\.isUnread).count
+  }
+
+  static func notificationAfterKeyboardActivity(
+    _ notification: PaneNotification?,
+    activity: SurfaceActivity
+  ) -> PaneNotification? {
+    guard activity.isFocused else { return notification }
+    guard var notification, notification.isUnread else { return notification }
+    notification.isUnread = false
+    return notification
   }
 
   static func notificationText(_ notification: PaneNotification?) -> String? {
