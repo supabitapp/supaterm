@@ -291,6 +291,7 @@ enum SPSocketSelection {
     if shouldDiscover {
       let candidatePaths = SupatermSocketPath.discoverManagedSocketPaths(
         rootDirectory: rootDirectory,
+        environment: environment,
         fileManager: fileManager
       )
       discovery = SupatermManagedSocketDiscovery.discover(

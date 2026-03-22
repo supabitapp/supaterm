@@ -3,33 +3,42 @@ import Foundation
 
 public enum SupatermSocketPath {
   public static let managedDirectoryPrefix = "supaterm-"
-  public static let managedFileExtension = "sock"
-  private static let privateTmpPath = "/private/tmp"
+  public static let managedRuntimeDirectoryName = "supaterm"
   private static let tmpPath = "/tmp"
+  private static let xdgRuntimeDirectoryKey = "XDG_RUNTIME_DIR"
+  private static let temporaryDirectoryKey = "TMPDIR"
 
   public static func managedDirectoryURL(
     rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid()
   ) -> URL {
-    URL(
-      fileURLWithPath: canonicalized((rootDirectory ?? URL(fileURLWithPath: tmpPath, isDirectory: true)).path)
-        ?? privateTmpPath,
+    resolvedManagedRootDirectoryURL(
+      rootDirectory: rootDirectory,
+      environment: environment
+    )
+    .appendingPathComponent(
+      managedDirectoryName(
+        rootDirectory: rootDirectory,
+        environment: environment,
+        userID: userID
+      ),
       isDirectory: true
     )
-      .appendingPathComponent("\(managedDirectoryPrefix)\(userID)", isDirectory: true)
   }
 
   public static func managedSocketURL(
     endpointID: UUID,
     rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid()
   ) -> URL {
     managedDirectoryURL(
       rootDirectory: rootDirectory,
+      environment: environment,
       userID: userID
     )
-    .appendingPathComponent(endpointID.uuidString, isDirectory: false)
-    .appendingPathExtension(managedFileExtension)
+    .appendingPathComponent(managedSocketFileName(for: endpointID), isDirectory: false)
   }
 
   public static func resolveExplicitPath(
@@ -48,11 +57,13 @@ public enum SupatermSocketPath {
 
   public static func discoverManagedSocketPaths(
     rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid(),
     fileManager: FileManager = .default
   ) -> [String] {
     let managedDirectoryURL = managedDirectoryURL(
       rootDirectory: rootDirectory,
+      environment: environment,
       userID: userID
     )
     guard
@@ -66,7 +77,7 @@ public enum SupatermSocketPath {
     }
 
     return contents
-      .filter { $0.pathExtension == managedFileExtension && isSocketNode(at: $0.path) }
+      .filter { isSocketNode(at: $0.path) }
       .map { $0.path }
       .sorted()
   }
@@ -74,6 +85,7 @@ public enum SupatermSocketPath {
   public static func isManagedSocketPath(
     _ path: String,
     rootDirectory: URL? = nil,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid()
   ) -> Bool {
     guard
@@ -85,10 +97,12 @@ public enum SupatermSocketPath {
     let canonicalManagedDirectoryPath = canonicalized(
       managedDirectoryURL(
         rootDirectory: rootDirectory,
+        environment: environment,
         userID: userID
       ).path
     ) ?? managedDirectoryURL(
       rootDirectory: rootDirectory,
+      environment: environment,
       userID: userID
     )
     .path
@@ -104,14 +118,7 @@ public enum SupatermSocketPath {
 
   public static func canonicalized(_ path: String?) -> String? {
     guard let path = normalized(path) else { return nil }
-    let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
-    if standardizedPath == tmpPath {
-      return privateTmpPath
-    }
-    if standardizedPath.hasPrefix(tmpPath + "/") {
-      return privateTmpPath + String(standardizedPath.dropFirst(tmpPath.count))
-    }
-    return standardizedPath
+    return canonicalizedExistingPrefix(of: URL(fileURLWithPath: path).standardizedFileURL.path)
   }
 
   private static func isSocketNode(at path: String) -> Bool {
@@ -123,6 +130,108 @@ public enum SupatermSocketPath {
       return false
     }
     return (fileStatus.st_mode & S_IFMT) == S_IFSOCK
+  }
+
+  private static func resolvedManagedRootDirectoryURL(
+    rootDirectory: URL?,
+    environment: [String: String]
+  ) -> URL {
+    if let rootDirectory {
+      return URL(
+        fileURLWithPath: canonicalized(rootDirectory.path) ?? rootDirectory.path,
+        isDirectory: true
+      )
+    }
+
+    if let xdgRuntimeDirectory = normalized(environment[xdgRuntimeDirectoryKey]) {
+      return URL(
+        fileURLWithPath: canonicalized(xdgRuntimeDirectory) ?? xdgRuntimeDirectory,
+        isDirectory: true
+      )
+    }
+
+    let temporaryDirectory = normalized(environment[temporaryDirectoryKey]) ?? tmpPath
+    return URL(
+      fileURLWithPath: canonicalized(temporaryDirectory) ?? temporaryDirectory,
+      isDirectory: true
+    )
+  }
+
+  private static func managedDirectoryName(
+    rootDirectory: URL?,
+    environment: [String: String],
+    userID: uid_t
+  ) -> String {
+    if rootDirectory != nil {
+      return "\(managedDirectoryPrefix)\(userID)"
+    }
+
+    if normalized(environment[xdgRuntimeDirectoryKey]) != nil {
+      return managedRuntimeDirectoryName
+    }
+
+    return "\(managedDirectoryPrefix)\(userID)"
+  }
+
+  private static func managedSocketFileName(for endpointID: UUID) -> String {
+    endpointID.uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+  }
+
+  private static func canonicalizedExistingPrefix(of path: String) -> String {
+    let pathComponents = (path as NSString).pathComponents
+    guard !pathComponents.isEmpty else {
+      return path
+    }
+
+    var resolvedPath = pathComponents.first == "/" ? "/" : ""
+    var index = pathComponents.first == "/" ? 1 : 0
+
+    while index < pathComponents.count {
+      let candidatePath =
+        resolvedPath == "/" || resolvedPath.isEmpty
+        ? resolvedPath + pathComponents[index]
+        : (resolvedPath as NSString).appendingPathComponent(pathComponents[index])
+      var fileStatus = stat()
+      let status = candidatePath.withCString { pointer in
+        lstat(pointer, &fileStatus)
+      }
+
+      guard status == 0 else {
+        let remainingPath = NSString.path(withComponents: Array(pathComponents[index...]))
+        guard !remainingPath.isEmpty else {
+          return resolvedPath.isEmpty ? candidatePath : resolvedPath
+        }
+        guard !resolvedPath.isEmpty else {
+          return remainingPath
+        }
+        return resolvedPath == "/"
+          ? resolvedPath + remainingPath
+          : (resolvedPath as NSString).appendingPathComponent(remainingPath)
+      }
+
+      if (fileStatus.st_mode & S_IFMT) == S_IFLNK,
+        let resolvedCandidatePath = realpathString(candidatePath)
+      {
+        resolvedPath = resolvedCandidatePath
+      } else {
+        resolvedPath = candidatePath
+      }
+
+      index += 1
+    }
+
+    return resolvedPath.isEmpty ? path : resolvedPath
+  }
+
+  private static func realpathString(_ path: String) -> String? {
+    let resolvedPointer = path.withCString { pointer in
+      realpath(pointer, nil)
+    }
+    guard let resolvedPointer else {
+      return nil
+    }
+    defer { free(resolvedPointer) }
+    return String(cString: resolvedPointer)
   }
 }
 
@@ -154,6 +263,7 @@ public enum SupatermProcessSocketEndpoint {
       path: SupatermSocketPath.managedSocketURL(
         endpointID: endpointID,
         rootDirectory: rootDirectory,
+        environment: environment,
         userID: userID
       ).path,
       pid: processID,
