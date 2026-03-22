@@ -114,69 +114,12 @@ struct SocketControlFeature {
     terminalWindowsClient: TerminalWindowsClient
   ) async -> SupatermSocketResponse {
     do {
-      switch request.method {
-      case SupatermSocketMethod.appOnboarding:
-        guard let snapshot = await terminalWindowsClient.onboardingSnapshot() else {
-          throw SocketRequestError.onboardingUnavailable
-        }
-        return try .ok(id: request.id, encodableResult: snapshot)
-
-      case SupatermSocketMethod.appDebug:
-        let payload = try request.decodeParams(SupatermDebugRequest.self)
-        let snapshot = await terminalWindowsClient.debugSnapshot(payload)
-        return try .ok(id: request.id, encodableResult: snapshot)
-
-      case SupatermSocketMethod.appTree:
-        let snapshot = await terminalWindowsClient.treeSnapshot()
-        return try .ok(id: request.id, encodableResult: snapshot)
-
-      case SupatermSocketMethod.systemIdentity:
-        guard let endpoint = await socketControlClient.currentEndpoint() else {
-          return .error(
-            id: request.id,
-            code: "internal_error",
-            message: "Supaterm socket endpoint is unavailable."
-          )
-        }
-        return try .ok(id: request.id, encodableResult: endpoint)
-
-      case SupatermSocketMethod.systemPing:
-        return .ok(id: request.id, result: ["pong": true])
-
-      case SupatermSocketMethod.terminalNewTab:
-        let payload = try request.decodeParams(SupatermNewTabRequest.self)
-        let createTabRequest = try createTabRequest(from: payload)
-        let result = try await terminalWindowsClient.createTab(createTabRequest)
-        return try .ok(id: request.id, encodableResult: result)
-
-      case SupatermSocketMethod.terminalNewPane:
-        let payload = try request.decodeParams(SupatermNewPaneRequest.self)
-        let createPaneRequest = try createPaneRequest(from: payload)
-        let result = try await terminalWindowsClient.createPane(createPaneRequest)
-        return try .ok(id: request.id, encodableResult: result)
-
-      case SupatermSocketMethod.terminalNotify:
-        let payload = try request.decodeParams(SupatermNotifyRequest.self)
-        let notifyRequest = try notifyRequest(from: payload)
-        let result = try await terminalWindowsClient.notify(notifyRequest)
-        if result.shouldDeliverDesktopNotification {
-          await desktopNotificationClient.deliver(
-            .init(
-              body: payload.body,
-              subtitle: payload.subtitle,
-              title: payload.title
-            )
-          )
-        }
-        return try .ok(id: request.id, encodableResult: result)
-
-      default:
-        return .error(
-          id: request.id,
-          code: "method_not_found",
-          message: "Unknown method '\(request.method)'."
-        )
-      }
+      return try await responseResult(
+        for: request,
+        desktopNotificationClient: desktopNotificationClient,
+        socketControlClient: socketControlClient,
+        terminalWindowsClient: terminalWindowsClient
+      )
     } catch let error as SocketRequestError {
       return .error(
         id: request.id,
@@ -198,6 +141,77 @@ struct SocketControlFeature {
         id: request.id,
         code: "internal_error",
         message: error.localizedDescription
+      )
+    }
+  }
+
+  private func responseResult(
+    for request: SupatermSocketRequest,
+    desktopNotificationClient: DesktopNotificationClient,
+    socketControlClient: SocketControlClient,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse {
+    switch request.method {
+    case SupatermSocketMethod.appOnboarding:
+      guard let snapshot = await terminalWindowsClient.onboardingSnapshot() else {
+        throw SocketRequestError.onboardingUnavailable
+      }
+      return try .ok(id: request.id, encodableResult: snapshot)
+
+    case SupatermSocketMethod.appDebug:
+      let payload = try request.decodeParams(SupatermDebugRequest.self)
+      let snapshot = await terminalWindowsClient.debugSnapshot(payload)
+      return try .ok(id: request.id, encodableResult: snapshot)
+
+    case SupatermSocketMethod.appTree:
+      let snapshot = await terminalWindowsClient.treeSnapshot()
+      return try .ok(id: request.id, encodableResult: snapshot)
+
+    case SupatermSocketMethod.systemIdentity:
+      guard let endpoint = await socketControlClient.currentEndpoint() else {
+        return .error(
+          id: request.id,
+          code: "internal_error",
+          message: "Supaterm socket endpoint is unavailable."
+        )
+      }
+      return try .ok(id: request.id, encodableResult: endpoint)
+
+    case SupatermSocketMethod.systemPing:
+      return .ok(id: request.id, result: ["pong": true])
+
+    case SupatermSocketMethod.terminalNewTab:
+      let payload = try request.decodeParams(SupatermNewTabRequest.self)
+      let createTabRequest = try createTabRequest(from: payload)
+      let result = try await terminalWindowsClient.createTab(createTabRequest)
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalNewPane:
+      let payload = try request.decodeParams(SupatermNewPaneRequest.self)
+      let createPaneRequest = try createPaneRequest(from: payload)
+      let result = try await terminalWindowsClient.createPane(createPaneRequest)
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalNotify:
+      let payload = try request.decodeParams(SupatermNotifyRequest.self)
+      let notifyRequest = try notifyRequest(from: payload)
+      let result = try await terminalWindowsClient.notify(notifyRequest)
+      if result.shouldDeliverDesktopNotification {
+        await desktopNotificationClient.deliver(
+          .init(
+            body: payload.body,
+            subtitle: payload.subtitle,
+            title: payload.title
+          )
+        )
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
+    default:
+      return .error(
+        id: request.id,
+        code: "method_not_found",
+        message: "Unknown method '\(request.method)'."
       )
     }
   }
