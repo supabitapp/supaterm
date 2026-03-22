@@ -39,13 +39,14 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
 struct SocketControlFeature {
   @ObservableState
   struct State: Equatable {
-    var socketPath: String?
+    var endpoint: SupatermSocketEndpoint?
     var startErrorMessage: String?
   }
 
   enum Action {
     case requestReceived(SocketControlClient.Request)
-    case started(String)
+    case shutdown
+    case started(SupatermSocketEndpoint)
     case startFailed(String)
     case task
   }
@@ -60,13 +61,14 @@ struct SocketControlFeature {
         return .run { [socketControlClient, terminalWindowsClient] _ in
           let response = await response(
             for: request.payload,
+            socketControlClient: socketControlClient,
             terminalWindowsClient: terminalWindowsClient
           )
           await socketControlClient.reply(request.handle, response)
         }
 
-      case .started(let socketPath):
-        state.socketPath = socketPath
+      case .started(let endpoint):
+        state.endpoint = endpoint
         state.startErrorMessage = nil
         return .none
 
@@ -74,11 +76,19 @@ struct SocketControlFeature {
         state.startErrorMessage = message
         return .none
 
+      case .shutdown:
+        return .merge(
+          .cancel(id: SocketControlCancelID.requests),
+          .run { [socketControlClient] _ in
+            await socketControlClient.stop()
+          }
+        )
+
       case .task:
         return .run { [socketControlClient] send in
           do {
-            let socketPath = try await socketControlClient.start()
-            await send(.started(socketPath))
+            let endpoint = try await socketControlClient.start()
+            await send(.started(endpoint))
             let requests = await socketControlClient.requests()
             for await request in requests {
               await send(.requestReceived(request))
@@ -94,6 +104,7 @@ struct SocketControlFeature {
 
   private func response(
     for request: SupatermSocketRequest,
+    socketControlClient: SocketControlClient,
     terminalWindowsClient: TerminalWindowsClient
   ) async -> SupatermSocketResponse {
     do {
@@ -112,6 +123,16 @@ struct SocketControlFeature {
       case SupatermSocketMethod.appTree:
         let snapshot = await terminalWindowsClient.treeSnapshot()
         return try .ok(id: request.id, encodableResult: snapshot)
+
+      case SupatermSocketMethod.systemIdentity:
+        guard let endpoint = await socketControlClient.currentEndpoint() else {
+          return .error(
+            id: request.id,
+            code: "internal_error",
+            message: "Supaterm socket endpoint is unavailable."
+          )
+        }
+        return try .ok(id: request.id, encodableResult: endpoint)
 
       case SupatermSocketMethod.systemPing:
         return .ok(id: request.id, result: ["pong": true])

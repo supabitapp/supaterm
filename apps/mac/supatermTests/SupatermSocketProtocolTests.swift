@@ -5,43 +5,194 @@ import Testing
 
 struct SupatermSocketProtocolTests {
   @Test
-  func defaultSocketURLUsesApplicationSupportDirectory() {
+  func managedSocketURLUsesApplicationSupportDirectory() {
     let appSupportDirectory = URL(fileURLWithPath: "/tmp/SupatermTests/Application Support", isDirectory: true)
+    let endpointID = UUID(uuidString: "46AF523B-6B85-4DDB-B6E6-C5E87F9BAA94")!
 
     #expect(
-      SupatermSocketPath.defaultURL(appSupportDirectory: appSupportDirectory)
+      SupatermSocketPath.managedSocketURL(
+        endpointID: endpointID,
+        appSupportDirectory: appSupportDirectory
+      )
         == appSupportDirectory
         .appendingPathComponent("Supaterm", isDirectory: true)
-        .appendingPathComponent("supaterm.sock", isDirectory: false)
+        .appendingPathComponent("sockets", isDirectory: true)
+        .appendingPathComponent(endpointID.uuidString, isDirectory: false)
+        .appendingPathExtension("sock")
     )
   }
 
   @Test
-  func socketPathResolutionPrefersExplicitPathThenEnvironmentThenDefault() {
-    let appSupportDirectory = URL(fileURLWithPath: "/tmp/SupatermTests/Application Support", isDirectory: true)
+  func explicitPathResolutionPrefersExplicitPathThenEnvironment() {
     let environmentPath = "/tmp/supaterm.environment.sock"
     let explicitPath = "/tmp/supaterm.explicit.sock"
 
     #expect(
-      SupatermSocketPath.resolve(
+      SupatermSocketPath.resolveExplicitPath(
         explicitPath: explicitPath,
-        environment: [SupatermCLIEnvironment.socketPathKey: environmentPath],
-        appSupportDirectory: appSupportDirectory
+        environment: [SupatermCLIEnvironment.socketPathKey: environmentPath]
       ) == explicitPath
     )
     #expect(
-      SupatermSocketPath.resolve(
-        environment: [SupatermCLIEnvironment.socketPathKey: environmentPath],
-        appSupportDirectory: appSupportDirectory
+      SupatermSocketPath.resolveExplicitPath(
+        environment: [SupatermCLIEnvironment.socketPathKey: environmentPath]
       ) == environmentPath
     )
-    #expect(
-      SupatermSocketPath.resolve(appSupportDirectory: appSupportDirectory)
-        == appSupportDirectory
-        .appendingPathComponent("Supaterm", isDirectory: true)
-        .appendingPathComponent("supaterm.sock", isDirectory: false)
-        .path
+    #expect(SupatermSocketPath.resolveExplicitPath(environment: [:]) == nil)
+  }
+
+  @Test
+  func processSocketEndpointUsesManagedPathAndInstanceName() {
+    let appSupportDirectory = URL(fileURLWithPath: "/tmp/SupatermTests/Application Support", isDirectory: true)
+    let endpointID = UUID(uuidString: "C46492BD-5A6E-4C73-8D0F-71AFBA7EF1DE")!
+    let startedAt = Date(timeIntervalSince1970: 123)
+
+    let endpoint = SupatermProcessSocketEndpoint.make(
+      environment: [SupatermCLIEnvironment.instanceNameKey: "dev"],
+      endpointID: endpointID,
+      processID: 99,
+      startedAt: startedAt,
+      appSupportDirectory: appSupportDirectory
     )
+
+    #expect(
+      endpoint
+        == .init(
+          id: endpointID,
+          name: "dev",
+          path:
+            appSupportDirectory
+            .appendingPathComponent("Supaterm", isDirectory: true)
+            .appendingPathComponent("sockets", isDirectory: true)
+            .appendingPathComponent(endpointID.uuidString, isDirectory: false)
+            .appendingPathExtension("sock")
+            .path,
+          pid: 99,
+          startedAt: startedAt
+        )
+    )
+  }
+
+  @Test
+  func processSocketEndpointPrefersExplicitSocketPath() {
+    let endpoint = SupatermProcessSocketEndpoint.make(
+      environment: [
+        SupatermCLIEnvironment.socketPathKey: "/tmp/override.sock",
+        SupatermCLIEnvironment.instanceNameKey: "named",
+      ],
+      endpointID: UUID(uuidString: "0DC934AE-CE34-4B47-B968-B70E0A1E8733")!,
+      processID: 7,
+      startedAt: Date(timeIntervalSince1970: 456)
+    )
+
+    #expect(endpoint?.path == "/tmp/override.sock")
+    #expect(endpoint?.name == "named")
+  }
+
+  @Test
+  func socketTargetResolverHonorsPrecedenceAndAmbiguity() throws {
+    let alpha = socketEndpoint(
+      id: UUID(uuidString: "86DB92A0-7F32-4493-9217-F0B29D81B39C")!,
+      name: "alpha",
+      path: "/tmp/alpha.sock",
+      pid: 1,
+      startedAt: 2
+    )
+    let beta = socketEndpoint(
+      id: UUID(uuidString: "4B337D2A-99A2-4FB2-BB72-C3C3A2AB62D2")!,
+      name: "beta",
+      path: "/tmp/beta.sock",
+      pid: 2,
+      startedAt: 1
+    )
+
+    #expect(
+      try SupatermSocketTargetResolver.resolve(
+        explicitPath: "/tmp/explicit.sock",
+        environmentPath: "/tmp/environment.sock",
+        instance: "alpha",
+        discoveredEndpoints: [alpha, beta]
+      ) == .init(endpoint: nil, path: "/tmp/explicit.sock", source: .explicitPath)
+    )
+
+    #expect(
+      try SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: "/tmp/environment.sock",
+        instance: "alpha",
+        discoveredEndpoints: [alpha, beta]
+      ) == .init(endpoint: nil, path: "/tmp/environment.sock", source: .environmentPath)
+    )
+
+    #expect(
+      try SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: nil,
+        instance: alpha.id.uuidString,
+        discoveredEndpoints: [alpha, beta]
+      ) == .init(endpoint: alpha, path: alpha.path, source: .explicitInstance)
+    )
+
+    #expect(
+      try SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: nil,
+        instance: "beta",
+        discoveredEndpoints: [alpha, beta]
+      ) == .init(endpoint: beta, path: beta.path, source: .explicitInstance)
+    )
+
+    do {
+      _ = try SupatermSocketTargetResolver.resolve(
+        explicitPath: nil,
+        environmentPath: nil,
+        instance: nil,
+        discoveredEndpoints: [alpha, beta]
+      )
+      Issue.record("Expected ambiguous discovered instances.")
+    } catch let error as SupatermSocketSelectionError {
+      #expect(error == .ambiguousDiscoveredInstances([alpha, beta]))
+    }
+  }
+
+  @Test
+  func managedSocketDiscoveryRemovesStalePathsAndSortsEndpoints() {
+    let older = socketEndpoint(
+      id: UUID(uuidString: "99E743B9-198E-4109-A8D3-5DF618FF56AB")!,
+      name: "older",
+      path: "/tmp/older.sock",
+      pid: 1,
+      startedAt: 1
+    )
+    let newer = socketEndpoint(
+      id: UUID(uuidString: "F20D93D7-D7E0-4667-A695-98620E4686C9")!,
+      name: "newer",
+      path: "/tmp/newer.sock",
+      pid: 2,
+      startedAt: 2
+    )
+    var removed: [String] = []
+
+    let discovery = SupatermManagedSocketDiscovery.discover(
+      candidatePaths: [older.path, "/tmp/stale.sock", newer.path],
+      identify: { path in
+        switch path {
+        case older.path:
+          return older
+        case newer.path:
+          return newer
+        default:
+          throw TestError()
+        }
+      },
+      removeStalePath: { path in
+        removed.append(path)
+      }
+    )
+
+    #expect(discovery.reachableEndpoints == [newer, older])
+    #expect(discovery.removedStalePaths == ["/tmp/stale.sock"])
+    #expect(removed == ["/tmp/stale.sock"])
   }
 
   @Test
@@ -73,6 +224,22 @@ struct SupatermSocketProtocolTests {
         from: encoder.encode(response)
       ) == response
     )
+  }
+
+  @Test
+  func identityRequestAndEndpointRoundTripThroughTypedHelpers() throws {
+    let endpoint = socketEndpoint(
+      id: UUID(uuidString: "FC905729-0A5F-4D1D-8077-5E0E90529B86")!,
+      name: "main",
+      path: "/tmp/main.sock",
+      pid: 77,
+      startedAt: 3
+    )
+    let request = SupatermSocketRequest.identity(id: "identity-1")
+    let response = try SupatermSocketResponse.ok(id: "identity-1", encodableResult: endpoint)
+
+    #expect(request.method == SupatermSocketMethod.systemIdentity)
+    #expect(try response.decodeResult(SupatermSocketEndpoint.self) == endpoint)
   }
 
   @Test
@@ -248,4 +415,22 @@ struct SupatermSocketProtocolTests {
     #expect(try request.decodeParams(SupatermNewPaneRequest.self) == requestPayload)
     #expect(try response.decodeResult(SupatermNewPaneResult.self) == result)
   }
+}
+
+private struct TestError: Error {}
+
+private func socketEndpoint(
+  id: UUID,
+  name: String,
+  path: String,
+  pid: Int32,
+  startedAt: TimeInterval
+) -> SupatermSocketEndpoint {
+  .init(
+    id: id,
+    name: name,
+    path: path,
+    pid: pid,
+    startedAt: .init(timeIntervalSince1970: startedAt)
+  )
 }

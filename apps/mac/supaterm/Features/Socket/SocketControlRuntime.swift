@@ -8,6 +8,7 @@ actor SocketControlRuntime {
     case createDirectoryFailed(String)
     case existingPathIsNotSocket(String)
     case listenFailed(String)
+    case pathAlreadyInUse(String)
     case missingSocketPath
     case pathTooLong(String)
     case socketCreationFailed
@@ -23,6 +24,8 @@ actor SocketControlRuntime {
         return "Supaterm socket path is already occupied by a non-socket file: \(path)"
       case .listenFailed(let path):
         return "Failed to listen on the Supaterm socket at \(path)."
+      case .pathAlreadyInUse(let path):
+        return "Supaterm socket path is already in use: \(path)"
       case .missingSocketPath:
         return "Unable to resolve a Supaterm socket path."
       case .pathTooLong(let path):
@@ -41,20 +44,24 @@ actor SocketControlRuntime {
 
   static let shared = SocketControlRuntime()
 
-  private let pathProvider: @Sendable () -> String?
+  private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
   private var bufferedRequests: [SocketControlClient.Request] = []
+  private var endpoint: SupatermSocketEndpoint?
   private var listenerTask: Task<Void, Never>?
   private var pendingReplies: [UUID: PendingReply] = [:]
   private var requestsContinuation: AsyncStream<SocketControlClient.Request>.Continuation?
   private var serverSocket: Int32 = -1
-  private var socketPath: String?
 
   init(
-    pathProvider: @escaping @Sendable () -> String? = {
-      SupatermSocketPath.resolve()
+    endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint? = {
+      SupatermProcessSocketEndpoint.current()
     }
   ) {
-    self.pathProvider = pathProvider
+    self.endpointProvider = endpointProvider
+  }
+
+  func currentEndpoint() -> SupatermSocketEndpoint? {
+    endpoint
   }
 
   func requests() -> AsyncStream<SocketControlClient.Request> {
@@ -71,14 +78,15 @@ actor SocketControlRuntime {
     return stream
   }
 
-  func start() throws -> String {
-    if let socketPath {
-      return socketPath
+  func start() throws -> SupatermSocketEndpoint {
+    if let endpoint {
+      return endpoint
     }
 
-    guard let socketPath = pathProvider() else {
+    guard let endpoint = endpointProvider() else {
       throw RuntimeError.missingSocketPath
     }
+    let socketPath = endpoint.path
 
     let socketURL = URL(fileURLWithPath: socketPath)
     let directoryURL = socketURL.deletingLastPathComponent()
@@ -92,7 +100,7 @@ actor SocketControlRuntime {
       throw RuntimeError.createDirectoryFailed(directoryURL.path)
     }
 
-    try Self.removeExistingSocket(at: socketPath)
+    try Self.prepareSocketPathForBinding(socketPath)
 
     let serverSocket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
     guard serverSocket >= 0 else {
@@ -120,14 +128,14 @@ actor SocketControlRuntime {
       }
 
       self.serverSocket = serverSocket
-      self.socketPath = socketPath
+      self.endpoint = endpoint
 
       let runtime = self
       listenerTask = Task.detached(priority: .utility) {
         Self.acceptLoop(serverSocket: serverSocket, runtime: runtime)
       }
 
-      return socketPath
+      return endpoint
     } catch {
       Darwin.close(serverSocket)
       Self.removeSocketIfPresent(at: socketPath)
@@ -153,10 +161,10 @@ actor SocketControlRuntime {
     requestsContinuation?.finish()
     requestsContinuation = nil
 
-    if let socketPath {
-      Self.removeSocketIfPresent(at: socketPath)
+    if let endpoint {
+      Self.removeSocketIfPresent(at: endpoint.path)
     }
-    socketPath = nil
+    endpoint = nil
   }
 
   func reply(_ response: SupatermSocketResponse, to handle: UUID) {
@@ -265,8 +273,53 @@ actor SocketControlRuntime {
     }
   }
 
+  private nonisolated static func prepareSocketPathForBinding(_ path: String) throws {
+    var fileStatus = stat()
+    let status = path.withCString { pointer in
+      lstat(pointer, &fileStatus)
+    }
+    guard status == 0 else {
+      if errno == ENOENT {
+        return
+      }
+      throw RuntimeError.unlinkFailed(path)
+    }
+
+    guard (fileStatus.st_mode & S_IFMT) == S_IFSOCK else {
+      throw RuntimeError.existingPathIsNotSocket(path)
+    }
+
+    if Self.canConnect(to: path) {
+      throw RuntimeError.pathAlreadyInUse(path)
+    }
+
+    let unlinkResult = path.withCString(unlink)
+    guard unlinkResult == 0 else {
+      throw RuntimeError.unlinkFailed(path)
+    }
+  }
+
   private nonisolated static func removeSocketIfPresent(at path: String) {
     try? removeExistingSocket(at: path)
+  }
+
+  private nonisolated static func canConnect(to path: String) -> Bool {
+    let socket = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+    guard socket >= 0 else {
+      return false
+    }
+    defer { Darwin.close(socket) }
+
+    guard var address = try? socketAddress(path: path) else {
+      return false
+    }
+
+    let result = withUnsafePointer(to: &address) { pointer in
+      pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+        Darwin.connect(socket, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_un>.size))
+      }
+    }
+    return result == 0
   }
 
   private nonisolated static func readLine(from socket: Int32) -> String? {

@@ -8,9 +8,10 @@ struct SocketControlClient: Sendable {
     nonisolated let payload: SupatermSocketRequest
   }
 
+  var currentEndpoint: @Sendable () async -> SupatermSocketEndpoint?
   var requests: @Sendable () async -> AsyncStream<Request>
   var reply: @Sendable (UUID, SupatermSocketResponse) async -> Void
-  var start: @Sendable () async throws -> String
+  var start: @Sendable () async throws -> SupatermSocketEndpoint
   var stop: @Sendable () async -> Void
 }
 
@@ -18,6 +19,9 @@ extension SocketControlClient: DependencyKey {
   static let liveValue: Self = {
     let runtime = SocketControlRuntime.shared
     return Self(
+      currentEndpoint: {
+        await runtime.currentEndpoint()
+      },
       requests: {
         await runtime.requests()
       },
@@ -34,6 +38,9 @@ extension SocketControlClient: DependencyKey {
   }()
 
   static let testValue = Self(
+    currentEndpoint: {
+      nil
+    },
     requests: {
       AsyncStream { continuation in
         continuation.finish()
@@ -41,7 +48,13 @@ extension SocketControlClient: DependencyKey {
     },
     reply: { _, _ in },
     start: {
-      "/tmp/supaterm-test.sock"
+      .init(
+        id: UUID(uuidString: "8D630A04-61B5-48E8-9D7E-F7E0BB8B9B16")!,
+        name: "test",
+        path: "/tmp/supaterm-test.sock",
+        pid: 1,
+        startedAt: .init(timeIntervalSince1970: 0)
+      )
     },
     stop: {}
   )

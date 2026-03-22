@@ -7,31 +7,42 @@ This document is a current map of Supaterm's socket control path. The source is 
 - `SupatermApp` creates a dedicated `StoreOf<SocketControlFeature>` during app initialization and starts socket observation by sending `.task` directly to that store. See `apps/mac/supaterm/App/supatermApp.swift`.
 - `SocketControlFeature` owns socket command semantics. It starts the socket runtime through `SocketControlClient`, consumes streamed requests, maps them to terminal operations, and sends structured responses. See `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift`.
 - `SocketControlClient` is the dependency boundary between the reducer and the runtime. The live implementation delegates to `SocketControlRuntime.shared`. See `apps/mac/supaterm/Features/Socket/SocketControlClient.swift`.
-- `SocketControlRuntime` owns the Unix domain socket transport: path resolution, directory creation, stale socket cleanup, `bind`, `listen`, `accept`, request decoding, buffering, and response writes. See `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`.
+- `SocketControlRuntime` owns the Unix domain socket transport: endpoint binding, directory creation, stale socket cleanup, `bind`, `listen`, `accept`, request decoding, buffering, and response writes. See `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`.
 - `TerminalWindowsClient` provides the app-side operations the socket feature can invoke today: debug snapshots, tree snapshots, and pane creation. See `apps/mac/supaterm/Features/Terminal/TerminalWindowsClient.swift`.
-- `SupatermCLIShared` owns the shared contract between the app and CLI: environment keys, pane context parsing, socket path resolution, method names, and typed request/response payloads. See `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`, `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`, and `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
-- The `sp` CLI resolves the socket path, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp ping`, `sp tree`, `sp debug`, and `sp new-pane`. See `apps/mac/sp/main.swift` and `apps/mac/sp/SPSocketClient.swift`.
+- `SupatermCLIShared` owns the shared contract between the app and CLI: environment keys, pane context parsing, endpoint discovery, method names, and typed request/response payloads. See `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`, `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`, and `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift`.
+- The `sp` CLI resolves a target endpoint, sends requests with `SPSocketClient`, and prints the reducer's response. Current socket-backed commands are `sp ping`, `sp tree`, `sp onboard`, `sp debug`, `sp instances`, and `sp new-pane`. See `apps/mac/sp/main.swift` and `apps/mac/sp/SPSocketClient.swift`.
 - `GhosttySurfaceView` injects pane context and the resolved socket path into the terminal process environment. See `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift`.
 
 ## Environment
 
 - `SUPATERM_SOCKET_PATH`: optional socket path override and pane-provided socket location
+- `SUPATERM_INSTANCE_NAME`: optional process display name for endpoint discovery
 - `SUPATERM_SURFACE_ID`: current pane surface identifier
 - `SUPATERM_TAB_ID`: current pane tab identifier
 
 Definitions live in `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`.
 
-## Socket Path Resolution
+## Endpoint Model
 
-- `SupatermSocketPath.resolve` prefers an explicit path first.
-- If no explicit path is provided, it uses `SUPATERM_SOCKET_PATH` from the environment.
-- If neither is set, it falls back to `Application Support/Supaterm/supaterm.sock`.
+- Each Supaterm app process computes one `SupatermSocketEndpoint` for its lifetime.
+- Managed endpoints live under `~/Library/Application Support/Supaterm/sockets/<endpoint-id>.sock`.
+- If `SUPATERM_SOCKET_PATH` is set, that explicit path replaces the managed path for the current process.
+- If `SUPATERM_INSTANCE_NAME` is set, it becomes the endpoint display name. Otherwise the name defaults to `pid-<pid>`.
+- `GhosttySurfaceView` injects the process endpoint path into every pane as `SUPATERM_SOCKET_PATH`, so pane-launched `sp` commands route back to the owning process without discovery.
 
-This logic is shared by the app runtime, the CLI, and pane-launched commands.
+## CLI Target Resolution
+
+- `--socket` wins first.
+- If `SUPATERM_SOCKET_PATH` is present in the current process environment, it wins next.
+- `--instance` matches an exact endpoint UUID first, then an exact endpoint name.
+- If neither explicit input is present, `sp` discovers managed sockets and auto-selects only when exactly one reachable endpoint exists.
+- If zero or multiple reachable endpoints are found, `sp` fails instead of guessing.
+- `sp instances` lists all reachable managed endpoints.
 
 ## Supported Methods
 
 - `system.ping`: health check, returns `{"pong": true}`
+- `system.identity`: returns the app process `SupatermSocketEndpoint`
 - `app.debug`: returns a typed `SupatermAppDebugSnapshot` with invocation-resolved current target, app build and update state, per-window space and pane diagnostics, and problem strings
 - `app.tree`: returns a typed `SupatermTreeSnapshot` with a `window -> space -> tab -> pane` hierarchy
 - `terminal.new_pane`: validates targeting rules, creates a pane through `TerminalWindowsClient`, and returns `SupatermNewPaneResult`
@@ -54,7 +65,7 @@ Method names and payload types live in `apps/mac/SupatermCLIShared/SupatermSocke
 
 - `app.debug` returns the same window, space, tab, and pane ordering as `app.tree`, but augments it with stable UUIDs and diagnostic fields.
 - The top-level payload also includes build metadata, update state, aggregate counts, current-target resolution from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`, and a `problems` array.
-- `sp debug` prints local invocation and socket diagnostics first, then the remote app snapshot when the socket request succeeds.
+- `sp debug` prints local invocation, discovery, and socket diagnostics first, then the remote app snapshot when the socket request succeeds.
 - `sp debug --json` wraps the remote snapshot in a local report so unresolved socket failures still return machine-readable diagnostics.
 
 ## Pane Targeting
@@ -103,7 +114,8 @@ Pane path
 
 - `SocketControlRuntime.start()` creates the socket directory with `0700` permissions.
 - The socket file is created with `0600` permissions after a successful bind.
-- If the path already contains a socket node, the runtime removes it and reuses the path.
+- If the path already contains a reachable socket node, startup fails.
+- If the path contains an unreachable socket node, the runtime treats it as stale, removes it, and reuses the path.
 - If the path is occupied by a non-socket file, startup fails.
 - Requests are newline-delimited JSON messages.
 - Replies are newline-delimited JSON responses.
@@ -115,7 +127,7 @@ Pane path
 - Socket feature semantics: `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift`
 - Dependency boundary: `apps/mac/supaterm/Features/Socket/SocketControlClient.swift`
 - Unix socket transport: `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift`
-- Socket target resolution: `apps/mac/supaterm/Features/Socket/SupatermDebugSnapshotResolver.swift`
+- Socket target resolution: `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`
 - Terminal operations exposed to the socket feature: `apps/mac/supaterm/Features/Terminal/TerminalWindowsClient.swift`
 - Shared pane environment contract: `apps/mac/SupatermCLIShared/SupatermCLIContext.swift`
 - Shared path resolution: `apps/mac/SupatermCLIShared/SupatermSocketPath.swift`

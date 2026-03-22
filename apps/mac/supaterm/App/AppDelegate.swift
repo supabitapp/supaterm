@@ -56,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     _ = showExistingWindowOrCreate()
   }
 
+  func applicationWillTerminate(_ notification: Notification) {
+    socketStore.send(.shutdown)
+  }
+
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     if flag { return true }
     return showExistingWindowOrCreate() ? false : true

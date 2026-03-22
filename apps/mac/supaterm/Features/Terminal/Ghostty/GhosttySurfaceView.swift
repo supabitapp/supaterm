@@ -170,7 +170,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: surfaceID,
       tabID: tabID
     ).environmentVariables
-    if let socketPath = SupatermSocketPath.resolve() {
+    if let socketPath = SupatermProcessSocketEndpoint.current()?.path {
       environmentVariables.append(
         .init(
           key: SupatermCLIEnvironment.socketPathKey,

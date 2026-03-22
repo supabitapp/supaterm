@@ -2,6 +2,7 @@ import Darwin
 import Foundation
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 struct SocketControlRuntimeTests {
@@ -15,7 +16,9 @@ struct SocketControlRuntimeTests {
     let created = FileManager.default.createFile(atPath: socketURL.path, contents: contents)
     #expect(created)
 
-    let runtime = SocketControlRuntime(pathProvider: { socketURL.path })
+    let runtime = SocketControlRuntime(endpointProvider: {
+      socketEndpoint(path: socketURL.path)
+    })
 
     do {
       _ = try await runtime.start()
@@ -39,14 +42,39 @@ struct SocketControlRuntimeTests {
     try createStaleSocket(at: socketURL)
     #expect(try existingNodeType(at: socketURL) == mode_t(S_IFSOCK))
 
-    let runtime = SocketControlRuntime(pathProvider: { socketURL.path })
-    let resolvedPath = try await runtime.start()
+    let endpoint = socketEndpoint(path: socketURL.path)
+    let runtime = SocketControlRuntime(endpointProvider: { endpoint })
+    let resolvedEndpoint = try await runtime.start()
 
-    #expect(resolvedPath == socketURL.path)
+    #expect(resolvedEndpoint == endpoint)
     #expect(try existingNodeType(at: socketURL) == mode_t(S_IFSOCK))
 
     await runtime.stop()
     #expect(!FileManager.default.fileExists(atPath: socketURL.path))
+  }
+
+  @Test
+  func startRejectsReachableSocketAtEndpointPath() async throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let socketURL = rootURL.appendingPathComponent("control.sock", isDirectory: false)
+    let endpoint = socketEndpoint(path: socketURL.path)
+    let firstRuntime = SocketControlRuntime(endpointProvider: { endpoint })
+    let secondRuntime = SocketControlRuntime(endpointProvider: { endpoint })
+
+    _ = try await firstRuntime.start()
+
+    do {
+      _ = try await secondRuntime.start()
+      Issue.record("Expected start() to reject a reachable socket path.")
+    } catch let error as SocketControlRuntime.RuntimeError {
+      #expect(error == .pathAlreadyInUse(socketURL.path))
+    } catch {
+      Issue.record("Unexpected error: \(error)")
+    }
+
+    await firstRuntime.stop()
   }
 }
 
@@ -102,4 +130,14 @@ private func createStaleSocket(at url: URL) throws {
   guard bindResult == 0 else {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
   }
+}
+
+nonisolated private func socketEndpoint(path: String) -> SupatermSocketEndpoint {
+  .init(
+    id: UUID(uuidString: "F46D3E0B-B0C0-46CC-B14F-7C32B433179A")!,
+    name: "test",
+    path: path,
+    pid: 1,
+    startedAt: .init(timeIntervalSince1970: 0)
+  )
 }
