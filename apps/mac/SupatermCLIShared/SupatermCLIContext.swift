@@ -1,6 +1,7 @@
 import Foundation
 
 public enum SupatermCLIEnvironment {
+  public static let cliPathKey = "SUPATERM_CLI_PATH"
   public static let instanceNameKey = "SUPATERM_INSTANCE_NAME"
   public static let surfaceIDKey = "SUPATERM_SURFACE_ID"
   public static let tabIDKey = "SUPATERM_TAB_ID"

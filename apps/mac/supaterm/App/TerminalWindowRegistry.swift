@@ -46,6 +46,12 @@ final class TerminalWindowRegistry {
     let windowReference: WindowReference
   }
 
+  private struct ClaudeHookSession {
+    var pendingQuestion: String?
+    var surfaceID: UUID
+  }
+
+  private var claudeHookSessions: [String: ClaudeHookSession] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
 
@@ -430,6 +436,48 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func handleClaudeHook(_ request: SupatermClaudeHookRequest) throws -> TerminalClaudeHookResult {
+    let event = try ClaudeHookEvent(eventObject: request.event)
+    if let sessionID = event.sessionID, let context = request.context {
+      claudeHookSessions[sessionID] = .init(
+        pendingQuestion: claudeHookSessions[sessionID]?.pendingQuestion,
+        surfaceID: context.surfaceID
+      )
+    }
+
+    switch event.name {
+    case .sessionStart, .unsupported:
+      return .init(desktopNotification: nil)
+
+    case .preToolUse:
+      guard let sessionID = event.sessionID else {
+        return .init(desktopNotification: nil)
+      }
+      if let pendingQuestion = event.pendingQuestion(), var session = claudeHookSessions[sessionID] {
+        session.pendingQuestion = pendingQuestion
+        claudeHookSessions[sessionID] = session
+      } else {
+        clearClaudeHookPendingQuestion(sessionID: sessionID)
+      }
+      return .init(desktopNotification: nil)
+
+    case .userPromptSubmit, .stop:
+      if let sessionID = event.sessionID {
+        clearClaudeHookPendingQuestion(sessionID: sessionID)
+      }
+      return .init(desktopNotification: nil)
+
+    case .sessionEnd:
+      if let sessionID = event.sessionID {
+        claudeHookSessions.removeValue(forKey: sessionID)
+      }
+      return .init(desktopNotification: nil)
+
+    case .notification:
+      return try handleClaudeNotification(event, context: request.context)
+    }
+  }
+
   private func createContextPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     for (offset, entry) in activeEntries().enumerated() {
       do {
@@ -458,6 +506,60 @@ final class TerminalWindowRegistry {
       }
     }
     throw TerminalCreatePaneError.contextPaneNotFound
+  }
+
+  private func handleClaudeNotification(
+    _ event: ClaudeHookEvent,
+    context: SupatermCLIContext?
+  ) throws -> TerminalClaudeHookResult {
+    let message = try event.notificationMessage()
+    let session = event.sessionID.flatMap { claudeHookSessions[$0] }
+    let subtitle = event.title ?? "Attention"
+    let body = ClaudeHookEvent.isGenericAttentionMessage(message)
+      ? (session?.pendingQuestion ?? message)
+      : message
+    let title = "Claude Code"
+    var candidateSurfaceIDs: [UUID] = []
+    if let surfaceID = context?.surfaceID {
+      candidateSurfaceIDs.append(surfaceID)
+    }
+    if let surfaceID = session?.surfaceID, !candidateSurfaceIDs.contains(surfaceID) {
+      candidateSurfaceIDs.append(surfaceID)
+    }
+
+    for surfaceID in candidateSurfaceIDs {
+      do {
+        let result = try notify(
+          .init(
+            body: body,
+            subtitle: subtitle,
+            target: .contextPane(surfaceID),
+            title: title
+          )
+        )
+        return .init(
+          desktopNotification: result.shouldDeliverDesktopNotification
+            ? .init(body: body, subtitle: subtitle, title: title)
+            : nil
+        )
+      } catch let error as TerminalCreatePaneError {
+        guard case .contextPaneNotFound = error else {
+          throw error
+        }
+        if event.sessionID.flatMap({ claudeHookSessions[$0]?.surfaceID }) == surfaceID {
+          claudeHookSessions.removeValue(forKey: event.sessionID ?? "")
+          return .init(desktopNotification: nil)
+        }
+      }
+    }
+
+    return .init(desktopNotification: nil)
+  }
+
+  private func clearClaudeHookPendingQuestion(sessionID: String) {
+    guard var session = claudeHookSessions[sessionID] else { return }
+    session.pendingQuestion = nil
+    claudeHookSessions[sessionID] = session
   }
 
   private func activeEntries() -> [Entry] {

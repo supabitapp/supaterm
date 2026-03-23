@@ -734,6 +734,22 @@ struct SupatermSocketProtocolTests {
         )
     )
   }
+
+  @Test
+  func claudeHookRequestRoundTripsNestedJSONPayload() throws {
+    let requestPayload = try SupatermClaudeHookRequest(
+      context: .init(
+        surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
+        tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
+      ),
+      event: ClaudeHookFixtures.object(ClaudeHookFixtures.preToolUse)
+    )
+
+    let request = try SupatermSocketRequest.claudeHook(requestPayload, id: "claude-hook-1")
+
+    #expect(request.method == SupatermSocketMethod.terminalClaudeHook)
+    #expect(try request.decodeParams(SupatermClaudeHookRequest.self) == requestPayload)
+  }
 }
 
 private func socketEndpoint(

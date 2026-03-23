@@ -8,7 +8,7 @@ public struct SP: ParsableCommand {
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
     discussion: SPHelp.rootDiscussion,
-    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self, Notify.self]
+    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self, Notify.self, ClaudeHook.self]
   )
 
   public init() {}
@@ -484,6 +484,37 @@ extension SP {
       )
     }
   }
+
+  struct ClaudeHook: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "claude-hook",
+      abstract: "Forward one Claude Code hook event to Supaterm.",
+      discussion: SPHelp.claudeHookDiscussion
+    )
+
+    @OptionGroup
+    var connection: SPConnectionOptions
+
+    mutating func run() throws {
+      let rawInput = FileHandle.standardInput.readDataToEndOfFile()
+      let event = try claudeHookEventObject(from: rawInput)
+      let client = try socketClient(
+        path: connection.explicitSocketPath,
+        instance: connection.instance
+      )
+      let response = try client.send(
+        .claudeHook(
+          .init(
+            context: SupatermCLIContext.current,
+            event: event
+          )
+        )
+      )
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+    }
+  }
 }
 
 private func jsonString<T: Encodable>(_ value: T) throws -> String {
@@ -535,6 +566,21 @@ private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   }
 
   return url.standardizedFileURL.path
+}
+
+private func claudeHookEventObject(from data: Data) throws -> JSONObject {
+  guard !data.isEmpty else {
+    throw ValidationError("Claude hook input must be a JSON object.")
+  }
+
+  let decoder = JSONDecoder()
+  guard let jsonValue = try? decoder.decode(JSONValue.self, from: data) else {
+    throw ValidationError("Claude hook input must be valid JSON.")
+  }
+  guard case .object(let object) = jsonValue else {
+    throw ValidationError("Claude hook input must be a JSON object.")
+  }
+  return object
 }
 
 private func shellEscapedToken(_ token: String) -> String {

@@ -9,6 +9,7 @@ struct SPHelpTests {
     let help = SP.helpMessage(for: SP.self, columns: 100)
 
     #expect(help.contains("Environment:"))
+    #expect(help.contains("SUPATERM_CLI_PATH"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
@@ -26,6 +27,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Instances.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
+      SP.helpMessage(for: SP.ClaudeHook.self, columns: 100),
     ]
 
     for help in helps {
