@@ -95,7 +95,7 @@ struct TerminalSidebarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
+      SidebarHeaderView(updateStore: updateStore)
       TerminalSidebarChromeView(store: store, palette: palette, terminal: terminal)
     }
     .padding(.top, sidebarTopPadding)
@@ -329,28 +329,12 @@ private struct FloatingSidebarView: View {
 }
 
 private struct SidebarHeaderView: View {
-  let store: StoreOf<TerminalWindowFeature>
-  let palette: TerminalPalette
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     HStack(spacing: 0) {
       WindowTrafficLights()
-
       Spacer(minLength: 0)
-
-      HStack(spacing: 4) {
-        ToolbarIconButton(
-          symbol: "sidebar.left",
-          palette: palette,
-          accessibilityLabel: "Hide sidebar",
-          action: {
-            withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
-              _ = store.send(.toggleSidebarButtonTapped)
-            }
-          }
-        )
-      }
     }
     .overlay(alignment: .leading) {
       UpdatePillView(store: updateStore)

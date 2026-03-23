@@ -12,10 +12,16 @@ struct TerminalDetailView: View {
       TerminalDetailTopBar(
         canEqualize: terminal.selectedTree?.isSplit ?? false,
         canSplit: terminal.selectedSurfaceView != nil,
+        isSidebarCollapsed: store.isSidebarCollapsed,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
         equalizePanes: {
           _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
+        },
+        toggleSidebar: {
+          withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+            _ = store.send(.toggleSidebarButtonTapped)
+          }
         },
         title: terminal.selectedPaneDisplayTitle,
         splitDown: {
@@ -39,20 +45,32 @@ struct TerminalDetailView: View {
 private struct TerminalDetailTopBar: View {
   let canEqualize: Bool
   let canSplit: Bool
+  let isSidebarCollapsed: Bool
   let palette: TerminalPalette
   let backgroundColor: Color
   let equalizePanes: () -> Void
+  let toggleSidebar: () -> Void
   let title: String
   let splitDown: () -> Void
   let splitRight: () -> Void
 
   var body: some View {
     HStack(spacing: 0) {
+      ToolbarIconButton(
+        symbol: "sidebar.left",
+        palette: palette,
+        accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
+        action: toggleSidebar
+      )
+      .help(isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar")
+
       Text(title)
         .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(palette.primaryText)
         .lineLimit(1)
         .truncationMode(.middle)
+        .padding(.leading, 8)
+
       Spacer(minLength: 8)
       HStack(spacing: 4) {
         ToolbarIconButton(
