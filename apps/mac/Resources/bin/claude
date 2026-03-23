@@ -1,0 +1,41 @@
+#!/bin/bash
+
+find_real_claude() {
+    local self_dir
+    self_dir="${BASH_SOURCE[0]}"
+    self_dir="${self_dir%/*}"
+    [[ "$self_dir" == "${BASH_SOURCE[0]}" ]] && self_dir="."
+    self_dir="$(cd "$self_dir" && pwd)"
+    local IFS=:
+    for d in $PATH; do
+        [[ "$d" == "$self_dir" ]] && continue
+        [[ -x "$d/claude" ]] && printf '%s' "$d/claude" && return 0
+    done
+    return 1
+}
+
+supaterm_socket_available() {
+    local socket="${SUPATERM_SOCKET_PATH:-}"
+    [[ -n "$socket" && -S "$socket" ]]
+}
+
+REAL_CLAUDE="$(find_real_claude)" || {
+    echo "Error: claude not found in PATH" >&2
+    exit 127
+}
+
+if [[ -z "${SUPATERM_SURFACE_ID:-}" || "${SUPATERM_CLAUDE_HOOKS_DISABLED:-}" == "1" ]] || ! supaterm_socket_available; then
+    unset CLAUDECODE
+    exec "$REAL_CLAUDE" "$@"
+fi
+
+case "${1:-}" in
+    update|auth|agents|mcp|remote-control) exec "$REAL_CLAUDE" "$@" ;;
+    --remote-control|--rc|--help|-h|--version|-v) exec "$REAL_CLAUDE" "$@" ;;
+esac
+
+unset CLAUDECODE
+
+HOOKS_JSON='{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"PreToolUse":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":5,"async":true}]}],"Notification":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"Stop":[{"hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"SessionEnd":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":1}]}]}}'
+
+exec "$REAL_CLAUDE" --settings "$HOOKS_JSON" "$@"

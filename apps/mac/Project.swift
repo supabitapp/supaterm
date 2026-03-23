@@ -5,6 +5,7 @@ let ghosttyXCFrameworkPath: Path = ".build/ghostty/GhosttyKit.xcframework"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+let claudeWrapperScriptPath: Path = "Resources/bin/claude"
 let ghosttyFingerprintInputScript = """
 "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
@@ -204,6 +205,26 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/sp",
+          ]
+        ),
+        .post(
+          script: """
+            set -eu
+
+            source_path="${SRCROOT}/\(claudeWrapperScriptPath.pathString)"
+            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
+            destination_path="${destination_dir}/claude"
+
+            mkdir -p "${destination_dir}"
+            /bin/cp -f "${source_path}" "${destination_path}"
+            /bin/chmod 755 "${destination_path}"
+            """,
+          name: "Embed Claude Wrapper",
+          inputPaths: [
+            "$(SRCROOT)/\(claudeWrapperScriptPath.pathString)",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/claude",
           ]
         ),
       ],
