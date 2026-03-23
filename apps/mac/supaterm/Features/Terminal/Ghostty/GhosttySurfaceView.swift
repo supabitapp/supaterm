@@ -6,6 +6,13 @@ import QuartzCore
 import SupatermCLIShared
 
 final class GhosttySurfaceView: NSView, Identifiable {
+  struct SupatermEnvironmentContext {
+    let claudeWrapperDirectory: String?
+    let cliPath: String?
+    let processEnvironment: [String: String]
+    let socketPath: String?
+  }
+
   private struct ScrollbarState {
     let total: UInt64
     let offset: UInt64
@@ -152,6 +159,76 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
+  static func bundledCLIPath(executableURL: URL?) -> String? {
+    executableURL?
+      .deletingLastPathComponent()
+      .appendingPathComponent("sp", isDirectory: false)
+      .path
+  }
+
+  static func bundledClaudeWrapperDirectory(resourcesURL: URL?) -> String? {
+    resourcesURL?
+      .appendingPathComponent("bin", isDirectory: true)
+      .path
+  }
+
+  static func prependedPath(
+    _ directory: String,
+    currentPath: String?
+  ) -> String {
+    let trimmedDirectory = directory.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedDirectory.isEmpty else {
+      return currentPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    var components =
+      currentPath?
+      .split(separator: ":")
+      .map(String.init)
+      .filter { !$0.isEmpty && $0 != trimmedDirectory } ?? []
+    components.insert(trimmedDirectory, at: 0)
+    return components.joined(separator: ":")
+  }
+
+  static func supatermEnvironmentVariables(
+    surfaceID: UUID,
+    tabID: UUID,
+    context: SupatermEnvironmentContext
+  ) -> [SupatermCLIEnvironmentVariable] {
+    var environmentVariables = SupatermCLIContext(
+      surfaceID: surfaceID,
+      tabID: tabID
+    ).environmentVariables
+    if let socketPath = context.socketPath {
+      environmentVariables.append(
+        .init(
+          key: SupatermCLIEnvironment.socketPathKey,
+          value: socketPath
+        )
+      )
+    }
+    if let cliPath = context.cliPath {
+      environmentVariables.append(
+        .init(
+          key: SupatermCLIEnvironment.cliPathKey,
+          value: cliPath
+        )
+      )
+    }
+    if let claudeWrapperDirectory = context.claudeWrapperDirectory {
+      environmentVariables.append(
+        .init(
+          key: "PATH",
+          value: prependedPath(
+            claudeWrapperDirectory,
+            currentPath: context.processEnvironment["PATH"]
+          )
+        )
+      )
+    }
+    return environmentVariables
+  }
+
   override var acceptsFirstResponder: Bool { true }
 
   init(
@@ -167,31 +244,16 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.runtime = runtime
     self.id = surfaceID
     self.bridge = GhosttySurfaceBridge()
-    var environmentVariables = SupatermCLIContext(
+    self.environmentVariables = Self.supatermEnvironmentVariables(
       surfaceID: surfaceID,
-      tabID: tabID
-    ).environmentVariables
-    if let socketPath = SupatermProcessSocketEndpoint.current()?.path {
-      environmentVariables.append(
-        .init(
-          key: SupatermCLIEnvironment.socketPathKey,
-          value: socketPath
-        )
+      tabID: tabID,
+      context: .init(
+        claudeWrapperDirectory: Self.bundledClaudeWrapperDirectory(resourcesURL: Bundle.main.resourceURL),
+        cliPath: Self.bundledCLIPath(executableURL: Bundle.main.executableURL),
+        processEnvironment: ProcessInfo.processInfo.environment,
+        socketPath: SupatermProcessSocketEndpoint.current()?.path
       )
-    }
-    if let cliPath = Bundle.main.executableURL?
-      .deletingLastPathComponent()
-      .appendingPathComponent("sp", isDirectory: false)
-      .path
-    {
-      environmentVariables.append(
-        .init(
-          key: SupatermCLIEnvironment.cliPathKey,
-          value: cliPath
-        )
-      )
-    }
-    self.environmentVariables = environmentVariables
+    )
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance

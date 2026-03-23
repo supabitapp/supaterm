@@ -10,6 +10,7 @@ struct SPHelpTests {
 
     #expect(help.contains("Environment:"))
     #expect(help.contains("SUPATERM_CLI_PATH"))
+    #expect(help.contains("SUPATERM_CLAUDE_HOOKS_DISABLED"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
@@ -50,5 +51,12 @@ struct SPHelpTests {
     #expect(
       !help.contains(
         "--tab <tab>                    Target a tab inside the specified space by its 1-based index. (default:"))
+  }
+
+  @Test
+  func claudeHookHelpMentionsAutomaticWrapperIntegration() {
+    let help = SP.helpMessage(for: SP.ClaudeHook.self, columns: 100)
+
+    #expect(help.contains("automatically injects Claude Code hooks"))
   }
 }
