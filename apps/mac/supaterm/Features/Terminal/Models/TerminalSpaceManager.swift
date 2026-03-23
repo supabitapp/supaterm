@@ -147,11 +147,11 @@ final class TerminalSpaceManager {
   }
 
   func nextDefaultSpaceName() -> String {
-    let existingNames = Set(spaces.map { $0.name.lowercased() })
-    var index = 0
+    let existingNames = Set(spaces.map(\.name))
+    var index = 1
     while true {
-      let candidate = Self.spreadsheetLabel(for: index)
-      if !existingNames.contains(candidate.lowercased()) {
+      let candidate = String(index)
+      if !existingNames.contains(candidate) {
         return candidate
       }
       index += 1
@@ -194,21 +194,5 @@ final class TerminalSpaceManager {
     _ catalog: TerminalSpaceCatalog
   ) -> TerminalSpaceCatalog {
     TerminalSpaceCatalog.sanitized(catalog)
-  }
-
-  private static func spreadsheetLabel(for index: Int) -> String {
-    precondition(index >= 0)
-
-    var value = index + 1
-    var label = ""
-
-    while value > 0 {
-      let remainder = (value - 1) % 26
-      let scalar = UnicodeScalar(65 + remainder)!
-      label.insert(Character(scalar), at: label.startIndex)
-      value = (value - 1) / 26
-    }
-
-    return label
   }
 }
