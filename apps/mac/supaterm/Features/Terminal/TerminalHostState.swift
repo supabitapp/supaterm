@@ -50,6 +50,20 @@ final class TerminalHostState {
     var title: String
   }
 
+  enum ClaudeActivity: Equatable, Sendable {
+    case needsInput
+    case running
+
+    var symbolName: String {
+      switch self {
+      case .needsInput:
+        return "bell.fill"
+      case .running:
+        return "bolt.fill"
+      }
+    }
+  }
+
   @ObservationIgnored
   private let runtime: GhosttyRuntime?
   @ObservationIgnored
@@ -70,6 +84,7 @@ final class TerminalHostState {
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: PaneNotification] = [:]
+  private var claudeActivityByTab: [TerminalTabID: ClaudeActivity] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
 
@@ -263,6 +278,24 @@ final class TerminalHostState {
         .filter(\.value.isUnread)
         .map(\.key)
     )
+  }
+
+  func claudeActivity(for tabID: TerminalTabID) -> ClaudeActivity? {
+    claudeActivityByTab[tabID]
+  }
+
+  @discardableResult
+  func setClaudeActivity(_ activity: ClaudeActivity, for surfaceID: UUID) -> Bool {
+    guard let tabID = tabID(containing: surfaceID) else { return false }
+    claudeActivityByTab[tabID] = activity
+    return true
+  }
+
+  @discardableResult
+  func clearClaudeActivity(for surfaceID: UUID) -> Bool {
+    guard let tabID = tabID(containing: surfaceID) else { return false }
+    claudeActivityByTab.removeValue(forKey: tabID)
+    return true
   }
   private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
@@ -1033,6 +1066,7 @@ final class TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
+      claudeActivityByTab.removeValue(forKey: tabID)
       tabTitleOverrides.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
@@ -1493,6 +1527,7 @@ final class TerminalHostState {
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
+    claudeActivityByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     tabTitleOverrides.removeValue(forKey: tabID)
   }
