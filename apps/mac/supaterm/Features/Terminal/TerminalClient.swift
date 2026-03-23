@@ -40,6 +40,14 @@ struct TerminalNotifyRequest: Equatable, Sendable {
   let title: String
 }
 
+struct TerminalNotificationEvent: Equatable, Sendable {
+  let body: String
+  let shouldDeliverDesktopNotification: Bool
+  let sourceSurfaceID: UUID
+  let subtitle: String
+  let title: String
+}
+
 enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)
@@ -103,6 +111,7 @@ struct TerminalClient: Sendable {
     case closeRequested(TerminalCloseRequest)
     case gotoTabRequested(TerminalGotoTabTarget)
     case newTabRequested(inheritingFromSurfaceID: UUID?)
+    case notificationReceived(TerminalNotificationEvent)
   }
 
   static func live(host: TerminalHostState) -> Self {

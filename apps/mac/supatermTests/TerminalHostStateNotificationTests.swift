@@ -1,6 +1,8 @@
 import Foundation
+import GhosttyKit
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 @MainActor
@@ -105,4 +107,94 @@ struct TerminalHostStateNotificationTests {
     #expect(TerminalHostState.notificationText(titleFallback) == "Deploy complete")
     #expect(TerminalHostState.notificationText(blank) == nil)
   }
+
+  @Test
+  func desktopNotificationCallbackUpdatesUnreadStateAndNormalizesTitle() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    let stream = host.eventStream()
+    var iterator = stream.makeAsyncIterator()
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("   ", "Build finished")
+
+    let event = try #require(await iterator.next())
+    guard case .notificationReceived(let notification) = event else {
+      Issue.record("Expected notificationReceived event.")
+      return
+    }
+
+    #expect(notification.body == "Build finished")
+    #expect(notification.shouldDeliverDesktopNotification == false)
+    #expect(notification.sourceSurfaceID == surface.id)
+    #expect(notification.subtitle == "")
+    #expect(notification.title == SupatermNotifyRequest.defaultTitle)
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+    #expect(host.latestNotificationText(for: tabID) == "Build finished")
+  }
+
+  @Test
+  func desktopNotificationCallbackRequestsDesktopDeliveryWhenWindowIsInactive() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .inactive
+    let stream = host.eventStream()
+    var iterator = stream.makeAsyncIterator()
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("Deploy complete", "")
+
+    let event = try #require(await iterator.next())
+    guard case .notificationReceived(let notification) = event else {
+      Issue.record("Expected notificationReceived event.")
+      return
+    }
+
+    #expect(notification.body == "")
+    #expect(notification.shouldDeliverDesktopNotification == true)
+    #expect(notification.sourceSurfaceID == surface.id)
+    #expect(notification.subtitle == "")
+    #expect(notification.title == "Deploy complete")
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+    #expect(host.latestNotificationText(for: tabID) == "Deploy complete")
+  }
+}
+
+private let ghosttyInitializedForTests: Void = {
+  let macRootURL =
+    URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+  let ghosttyResourcesURL = macRootURL.appendingPathComponent(".build/ghostty/share/ghostty", isDirectory: true)
+  let terminfoURL = macRootURL.appendingPathComponent(".build/ghostty/share/terminfo", isDirectory: true)
+  setenv("GHOSTTY_RESOURCES_DIR", ghosttyResourcesURL.path, 1)
+  setenv("TERMINFO_DIRS", terminfoURL.path, 1)
+
+  let argc = UInt(1)
+  let argv0 = strdup("supaterm-tests")
+  defer {
+    free(argv0)
+  }
+  let argv = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: 2)
+  argv.initialize(to: argv0)
+  argv.advanced(by: 1).initialize(to: nil)
+  defer {
+    argv.advanced(by: 1).deinitialize(count: 1)
+    argv.deinitialize(count: 1)
+    argv.deallocate()
+  }
+
+  let result = ghostty_init(argc, argv)
+  precondition(result == GHOSTTY_SUCCESS)
+}()
+
+private func initializeGhosttyForTests() {
+  _ = ghosttyInitializedForTests
 }

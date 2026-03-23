@@ -814,6 +814,38 @@ final class TerminalHostState {
     )
   }
 
+  private func handleDesktopNotification(
+    body: String,
+    surfaceID: UUID,
+    title: String
+  ) {
+    let subtitle = ""
+    let normalizedTitle = SupatermNotifyRequest(title: title).title
+    guard
+      let result = try? notify(
+        .init(
+          body: body,
+          subtitle: subtitle,
+          target: .contextPane(surfaceID),
+          title: normalizedTitle
+        )
+      )
+    else {
+      return
+    }
+    emit(
+      .notificationReceived(
+        .init(
+          body: body,
+          shouldDeliverDesktopNotification: result.shouldDeliverDesktopNotification,
+          sourceSurfaceID: surfaceID,
+          subtitle: subtitle,
+          title: normalizedTitle
+        )
+      )
+    )
+  }
+
   func handleKeyboardActivity(on surfaceID: UUID) {
     markNotificationRead(for: surfaceID)
   }
@@ -1091,6 +1123,14 @@ final class TerminalHostState {
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)
+    }
+    view.bridge.onDesktopNotification = { [weak self, weak view] title, body in
+      guard let self, let view else { return }
+      self.handleDesktopNotification(
+        body: body,
+        surfaceID: view.id,
+        title: title
+      )
     }
     view.onKeyboardActivity = { [weak self, weak view] in
       guard let self, let view else { return }

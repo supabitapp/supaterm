@@ -128,6 +128,57 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func notificationReceivedDeliversDesktopNotificationWhenRequested() async {
+    let recorder = TerminalDesktopNotificationRecorder()
+    let event = TerminalNotificationEvent(
+      body: "Build finished",
+      shouldDeliverDesktopNotification: true,
+      sourceSurfaceID: UUID(),
+      subtitle: "CI",
+      title: "Deploy complete"
+    )
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await recorder.record(request)
+      }
+    }
+
+    await store.send(.clientEvent(.notificationReceived(event)))
+
+    #expect(
+      await recorder.snapshot()
+        == [.init(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
+    )
+  }
+
+  @Test
+  func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async {
+    let recorder = TerminalDesktopNotificationRecorder()
+    let event = TerminalNotificationEvent(
+      body: "Build finished",
+      shouldDeliverDesktopNotification: false,
+      sourceSurfaceID: UUID(),
+      subtitle: "",
+      title: "Deploy complete"
+    )
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await recorder.record(request)
+      }
+    }
+
+    await store.send(.clientEvent(.notificationReceived(event)))
+
+    #expect(await recorder.snapshot().isEmpty)
+  }
+
+  @Test
   func bindingMenuItemSelectedSplitRightSendsFocusedSurfaceBindingCommand() async {
     let recorder = TerminalCommandRecorder()
 
@@ -369,4 +420,16 @@ private func makeEventStream() -> (
     capturedContinuation = continuation
   }
   return (stream, capturedContinuation!)
+}
+
+private actor TerminalDesktopNotificationRecorder {
+  private var requests: [DesktopNotificationRequest] = []
+
+  func record(_ request: DesktopNotificationRequest) {
+    requests.append(request)
+  }
+
+  func snapshot() -> [DesktopNotificationRequest] {
+    requests
+  }
 }
