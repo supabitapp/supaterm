@@ -1,5 +1,9 @@
 #!/bin/bash
 
+supaterm_cli_available() {
+    [[ -n "${SUPATERM_CLI_PATH:-}" && -x "${SUPATERM_CLI_PATH}" ]]
+}
+
 find_real_claude() {
     local self_dir
     self_dir="${BASH_SOURCE[0]}"
@@ -16,7 +20,9 @@ find_real_claude() {
 
 supaterm_socket_available() {
     local socket="${SUPATERM_SOCKET_PATH:-}"
-    [[ -n "$socket" && -S "$socket" ]]
+    [[ -n "$socket" && -S "$socket" ]] || return 1
+    supaterm_cli_available || return 1
+    "${SUPATERM_CLI_PATH}" ping --timeout 0.75 >/dev/null 2>&1
 }
 
 REAL_CLAUDE="$(find_real_claude)" || {
@@ -36,6 +42,6 @@ esac
 
 unset CLAUDECODE
 
-HOOKS_JSON='{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"PreToolUse":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":5,"async":true}]}],"Notification":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"Stop":[{"hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":10}]}],"SessionEnd":[{"matcher":"","hooks":[{"type":"command","command":"[ -n \"${SUPATERM_CLI_PATH:-}\" ] && \"$SUPATERM_CLI_PATH\" claude-hook || true","timeout":1}]}]}}'
+HOOKS_JSON="$("${SUPATERM_CLI_PATH}" claude-hook-settings 2>/dev/null)" || exec "$REAL_CLAUDE" "$@"
 
 exec "$REAL_CLAUDE" --settings "$HOOKS_JSON" "$@"

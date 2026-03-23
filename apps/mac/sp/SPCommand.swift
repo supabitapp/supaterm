@@ -8,7 +8,7 @@ public struct SP: ParsableCommand {
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
     discussion: SPHelp.rootDiscussion,
-    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self, Notify.self, ClaudeHook.self]
+    subcommands: [Tree.self, Onboard.self, Debug.self, Instances.self, NewTab.self, NewPane.self, Notify.self, ClaudeHook.self, Ping.self, ClaudeHookSettings.self]
   )
 
   public init() {}
@@ -515,6 +515,45 @@ extension SP {
       }
     }
   }
+
+  struct Ping: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "ping",
+      abstract: "Check Supaterm socket liveness.",
+      shouldDisplay: false
+    )
+
+    @Option(name: .long, help: "Socket response timeout in seconds.")
+    var timeout = 0.75
+
+    @OptionGroup
+    var connection: SPConnectionOptions
+
+    mutating func run() throws {
+      let client = try socketClient(
+        path: connection.explicitSocketPath,
+        instance: connection.instance,
+        responseTimeout: timeout
+      )
+      let response = try client.send(.ping())
+      guard response.ok else {
+        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+      }
+      print("pong")
+    }
+  }
+
+  struct ClaudeHookSettings: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "claude-hook-settings",
+      abstract: "Print the canonical Claude hook settings JSON.",
+      shouldDisplay: false
+    )
+
+    mutating func run() throws {
+      print(try SPClaudeHookSettings.jsonString())
+    }
+  }
 }
 
 private func jsonString<T: Encodable>(_ value: T) throws -> String {
@@ -595,14 +634,15 @@ private func shellEscapedToken(_ token: String) -> String {
 private func socketClient(
   path: String?,
   instance: String?,
-  alwaysDiscover: Bool = false
+  alwaysDiscover: Bool = false,
+  responseTimeout: TimeInterval = 5
 ) throws -> SPSocketClient {
   let resolvedTarget = try resolvedSocketTarget(
     explicitPath: path,
     instance: instance,
     alwaysDiscover: alwaysDiscover
   )
-  return try SPSocketClient(path: resolvedTarget.path)
+  return try SPSocketClient(path: resolvedTarget.path, responseTimeout: responseTimeout)
 }
 
 private func validateTargetSelection(

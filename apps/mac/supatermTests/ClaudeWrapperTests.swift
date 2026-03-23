@@ -14,6 +14,12 @@ struct ClaudeWrapperTests {
     let realBinURL = rootURL.appendingPathComponent("real-bin", isDirectory: true)
     try FileManager.default.createDirectory(at: realBinURL, withIntermediateDirectories: true)
     try writeFakeClaudeExecutable(at: realBinURL.appendingPathComponent("claude", isDirectory: false))
+    let spLogURL = rootURL.appendingPathComponent("sp.log", isDirectory: false)
+    let spURL = try writeFakeSPExecutable(
+      at: rootURL.appendingPathComponent("sp", isDirectory: false),
+      logURL: spLogURL,
+      settingsJSON: #"{"hooks":{"Notification":[{"hooks":[{"command":"fake","type":"command","timeout":10}]}]}}"#
+    )
 
     let socketURL = rootURL.appendingPathComponent("supaterm.sock", isDirectory: false)
     try createSocketNode(at: socketURL)
@@ -23,20 +29,22 @@ struct ClaudeWrapperTests {
       arguments: [],
       environment: [
         "PATH": "\(wrapperURL.deletingLastPathComponent().path):\(realBinURL.path)",
-        SupatermCLIEnvironment.cliPathKey: "/Applications/Supaterm.app/Contents/MacOS/sp",
+        SupatermCLIEnvironment.cliPathKey: spURL.path,
         SupatermCLIEnvironment.socketPathKey: socketURL.path,
         SupatermCLIEnvironment.surfaceIDKey: UUID().uuidString,
         "CLAUDECODE": "nested",
       ]
     )
+    let spLog = try String(contentsOf: spLogURL, encoding: .utf8)
 
     #expect(output.contains("ARG[0]=--settings"))
-    #expect(output.contains("\"SessionStart\""))
-    #expect(output.contains("\"Notification\""))
-    #expect(output.contains("\"SessionEnd\""))
-    #expect(output.contains("\\\"$SUPATERM_CLI_PATH\\\" claude-hook || true"))
+    #expect(
+      output.contains(
+        #"ARG[1]={"hooks":{"Notification":[{"hooks":[{"command":"fake","type":"command","timeout":10}]}]}}"#))
     #expect(output.contains("CLAUDECODE="))
     #expect(!output.contains("CLAUDECODE=nested"))
+    #expect(spLog.contains("ping --timeout 0.75"))
+    #expect(spLog.contains("claude-hook-settings"))
   }
 
   @Test
@@ -153,6 +161,33 @@ private func writeFakeClaudeExecutable(at url: URL) throws {
     """
   try script.write(to: url, atomically: true, encoding: .utf8)
   try setExecutablePermissions(at: url)
+}
+
+private func writeFakeSPExecutable(
+  at url: URL,
+  logURL: URL,
+  settingsJSON: String
+) throws -> URL {
+  let escapedLogPath = logURL.path.replacingOccurrences(of: "'", with: "'\"'\"'")
+  let escapedSettingsJSON = settingsJSON.replacingOccurrences(of: "'", with: "'\"'\"'")
+  let script = """
+    #!/bin/bash
+    printf '%s\\n' "$*" >> '\(escapedLogPath)'
+    case "${1:-}" in
+      ping)
+        printf 'pong\\n'
+        ;;
+      claude-hook-settings)
+        printf '%s' '\(escapedSettingsJSON)'
+        ;;
+      *)
+        exit 1
+        ;;
+    esac
+    """
+  try script.write(to: url, atomically: true, encoding: .utf8)
+  try setExecutablePermissions(at: url)
+  return url
 }
 
 private func setExecutablePermissions(at url: URL) throws {
