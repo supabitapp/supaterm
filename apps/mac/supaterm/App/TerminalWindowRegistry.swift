@@ -515,7 +515,8 @@ final class TerminalWindowRegistry {
     let message = try event.notificationMessage()
     let session = event.sessionID.flatMap { claudeHookSessions[$0] }
     let subtitle = event.title ?? "Attention"
-    let body = SupatermClaudeHookEvent.isGenericAttentionMessage(message)
+    let body =
+      SupatermClaudeHookEvent.isGenericAttentionMessage(message)
       ? (session?.pendingQuestion ?? message)
       : message
     let title = "Claude Code"
