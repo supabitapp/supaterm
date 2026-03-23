@@ -72,8 +72,8 @@ struct UpdatePillContent: Equatable, Sendable {
       badge: nil,
       helpText: AppBuild.developmentBuildMessage,
       maxText: AppBuild.developmentBuildMessage,
-      style: isHovered ? .capsule : .circle,
-      text: isHovered ? AppBuild.developmentBuildMessage : "",
+      style: .capsule,
+      text: AppBuild.developmentBuildMessage,
       tone: .accent
     )
   }
