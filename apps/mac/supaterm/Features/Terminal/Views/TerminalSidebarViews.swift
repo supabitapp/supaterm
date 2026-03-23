@@ -332,15 +332,13 @@ private struct SidebarHeaderView: View {
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
-    HStack(spacing: 0) {
+    ZStack(alignment: .topLeading) {
       WindowTrafficLights()
-      Spacer(minLength: 0)
-    }
-    .overlay(alignment: .leading) {
       UpdatePillView(store: updateStore)
         .padding(.leading, WindowTrafficLightMetrics.pillLeadingPadding)
+        .padding(.top, WindowTrafficLightMetrics.topPadding)
     }
-    .frame(height: 30)
+    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topLeading)
   }
 }
 

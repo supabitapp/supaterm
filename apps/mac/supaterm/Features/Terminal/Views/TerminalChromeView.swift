@@ -118,6 +118,7 @@ enum WindowTrafficLightMetrics {
 
   static let buttonSpacing: CGFloat = 9
   static let leadingPadding: CGFloat = 8
+  static let topPadding: CGFloat = 2
   static let symbolSize: CGFloat = 8
 
   static var pillLeadingPadding: CGFloat {
@@ -155,6 +156,7 @@ struct WindowTrafficLights: View {
       }
     }
     .padding(.leading, WindowTrafficLightMetrics.leadingPadding)
+    .padding(.top, WindowTrafficLightMetrics.topPadding)
     .onHover { hovering in
       withAnimation(.easeInOut(duration: 0.1)) {
         isHovering = hovering
