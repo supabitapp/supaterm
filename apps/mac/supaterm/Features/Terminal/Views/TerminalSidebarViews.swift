@@ -333,11 +333,13 @@ private struct SidebarHeaderView: View {
 
   var body: some View {
     HStack(spacing: 0) {
+      WindowTrafficLights()
       Spacer(minLength: 0)
       UpdatePillView(store: updateStore)
+        .padding(.top, WindowTrafficLightMetrics.topPadding)
         .padding(.trailing, TerminalChromeMetrics.paneInset)
     }
-    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topTrailing)
+    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topLeading)
   }
 }
 
