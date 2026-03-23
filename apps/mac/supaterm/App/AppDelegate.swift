@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   @discardableResult
   func performShowSettings(tab: SettingsFeature.Tab) -> Bool {
+    let sourceWindow = NSApp.keyWindow ?? NSApp.mainWindow
     let controller: SettingsWindowController
     if let settingsWindowController {
       controller = settingsWindowController
@@ -117,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       settingsWindowController = createdController
       controller = createdController
     }
-    controller.show(tab: tab)
+    controller.show(tab: tab, relativeTo: sourceWindow)
     return true
   }
 

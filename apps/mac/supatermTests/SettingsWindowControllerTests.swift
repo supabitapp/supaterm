@@ -6,14 +6,26 @@ import Testing
 @MainActor
 struct SettingsWindowControllerTests {
   @Test
-  func initialWindowCentersWhenNoSavedFrameExists() throws {
+  func initialWindowCentersRelativeToSourceWindowWhenNoSavedFrameExists() throws {
     NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
     defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
 
+    let sourceWindow = NSWindow(
+      contentRect: NSRect(x: 240, y: 180, width: 1_200, height: 800),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
     let controller = SettingsWindowController()
+    controller.show(tab: .general, relativeTo: sourceWindow)
+    defer { controller.window?.orderOut(nil) }
     let frame = try #require(controller.window?.frame)
+    let expectedOrigin = NSPoint(
+      x: sourceWindow.frame.midX - frame.width / 2,
+      y: sourceWindow.frame.midY - frame.height / 2
+    )
 
-    #expect(frame.origin != .zero)
+    #expect(frame.origin == expectedOrigin)
   }
 
   @Test
