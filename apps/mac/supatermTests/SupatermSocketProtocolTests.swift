@@ -736,13 +736,14 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func claudeHookRequestRoundTripsNestedJSONPayload() throws {
-    let requestPayload = try SupatermClaudeHookRequest(
+  func claudeHookRequestRoundTripsTypedPayload() throws {
+    let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
+    let requestPayload = SupatermClaudeHookRequest(
       context: .init(
         surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
       ),
-      event: ClaudeHookFixtures.object(ClaudeHookFixtures.preToolUse)
+      event: event
     )
 
     let request = try SupatermSocketRequest.claudeHook(requestPayload, id: "claude-hook-1")

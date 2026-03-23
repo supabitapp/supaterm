@@ -773,9 +773,10 @@ struct SocketControlFeatureTests {
     let handle = UUID(uuidString: "DCFBCE7F-6432-4DEA-A333-5D9A81E720B6")!
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: try .claudeHook(
-        .init(event: [:]),
-        id: "claude-hook-2"
+      payload: .init(
+        id: "claude-hook-2",
+        method: SupatermSocketMethod.terminalClaudeHook,
+        params: [:]
       )
     )
 
@@ -785,26 +786,19 @@ struct SocketControlFeatureTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.claudeHook = { _ in
-        throw ClaudeHookError.missingEventName
-      }
     }
 
     await store.send(.requestReceived(request))
 
     let records = await recorder.snapshot()
     #expect(records.count == 1)
-    #expect(
-      records.first
-        == .init(
-          handle: handle,
-          response: .error(
-            id: "claude-hook-2",
-            code: "invalid_request",
-            message: "Claude hook payload is missing hook_event_name."
-          )
-        )
-    )
+    let record = try #require(records.first)
+    let response = record.response
+    #expect(record.handle == handle)
+    #expect(response.id == "claude-hook-2")
+    #expect(response.ok == false)
+    #expect(response.error?.code == "invalid_request")
+    #expect(try #require(response.error?.message).isEmpty == false)
   }
 
   @Test

@@ -1,5 +1,4 @@
 import Foundation
-import Testing
 
 @testable import SupatermCLIShared
 
@@ -89,14 +88,8 @@ enum ClaudeHookFixtures {
     }
     """
 
-  static func object(_ json: String) throws -> JSONObject {
-    let data = Data(json.utf8)
-    let value = try JSONDecoder().decode(JSONValue.self, from: data)
-    guard case .object(let object) = value else {
-      Issue.record("Expected Claude hook fixture to decode to a JSON object.")
-      throw ClaudeHookFixtureError.notObject
-    }
-    return object
+  static func event(_ json: String) throws -> SupatermClaudeHookEvent {
+    try JSONDecoder().decode(SupatermClaudeHookEvent.self, from: Data(json.utf8))
   }
 
   static func request(
@@ -105,11 +98,7 @@ enum ClaudeHookFixtures {
   ) throws -> SupatermClaudeHookRequest {
     .init(
       context: context,
-      event: try object(json)
+      event: try event(json)
     )
   }
-}
-
-private enum ClaudeHookFixtureError: Error {
-  case notObject
 }

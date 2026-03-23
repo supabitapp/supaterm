@@ -497,7 +497,7 @@ extension SP {
 
     mutating func run() throws {
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
-      let event = try claudeHookEventObject(from: rawInput)
+      let event = try claudeHookEvent(from: rawInput)
       let client = try socketClient(
         path: connection.explicitSocketPath,
         instance: connection.instance
@@ -568,19 +568,16 @@ private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   return url.standardizedFileURL.path
 }
 
-private func claudeHookEventObject(from data: Data) throws -> JSONObject {
+private func claudeHookEvent(from data: Data) throws -> SupatermClaudeHookEvent {
   guard !data.isEmpty else {
-    throw ValidationError("Claude hook input must be a JSON object.")
+    throw ValidationError("Claude hook input must be valid Claude hook JSON.")
   }
 
-  let decoder = JSONDecoder()
-  guard let jsonValue = try? decoder.decode(JSONValue.self, from: data) else {
-    throw ValidationError("Claude hook input must be valid JSON.")
+  do {
+    return try JSONDecoder().decode(SupatermClaudeHookEvent.self, from: data)
+  } catch {
+    throw ValidationError("Claude hook input must be valid Claude hook JSON.")
   }
-  guard case .object(let object) = jsonValue else {
-    throw ValidationError("Claude hook input must be a JSON object.")
-  }
-  return object
 }
 
 private func shellEscapedToken(_ token: String) -> String {
