@@ -179,6 +179,18 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
+    if let cliPath = Bundle.main.executableURL?
+      .deletingLastPathComponent()
+      .appendingPathComponent("sp", isDirectory: false)
+      .path
+    {
+      environmentVariables.append(
+        .init(
+          key: SupatermCLIEnvironment.cliPathKey,
+          value: cliPath
+        )
+      )
+    }
     self.environmentVariables = environmentVariables
     self.fontSize = fontSize ?? 0
     self.context = context

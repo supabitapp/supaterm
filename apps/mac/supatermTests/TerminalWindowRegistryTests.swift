@@ -331,6 +331,129 @@ struct TerminalWindowRegistryTests {
     )
   }
 
+  @Test
+  func claudeNotificationUsesStoredSessionSurfaceWhenAmbientContextIsMissing() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+  }
+
+  @Test
+  func claudeNotificationUsesStoredPendingQuestionForGenericMessage() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(
+      harness.host.latestNotificationText(for: harness.tabID)
+        == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
+    )
+  }
+
+  @Test
+  func claudeUserPromptSubmitClearsPendingQuestion() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+  }
+
+  @Test
+  func claudeStopClearsPendingQuestion() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+  }
+
+  @Test
+  func claudeSessionEndRemovesStoredSessionRouting() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func staleStoredClaudeSessionIsClearedAfterContextPaneDisappears() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    harness.registry.unregister(windowControllerID: harness.windowControllerID)
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+    harness.registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: harness.windowControllerID,
+      store: harness.store,
+      terminal: harness.host,
+      requestConfirmedWindowClose: {}
+    )
+    harness.registry.updateWindow(makeWindow(), for: harness.windowControllerID)
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
   private func makeWindow() -> NSWindow {
     NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
@@ -344,5 +467,47 @@ struct TerminalWindowRegistryTests {
     for _ in 0..<5 {
       await Task.yield()
     }
+  }
+
+  private func makeClaudeHookHarness() throws -> ClaudeHookHarness {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let surfaceID = try #require(host.selectedSurfaceView?.id)
+    let tabID = try #require(host.selectedTabID)
+    return .init(
+      context: .init(surfaceID: surfaceID, tabID: tabID.rawValue),
+      host: host,
+      registry: registry,
+      store: store,
+      tabID: tabID,
+      windowControllerID: windowControllerID
+    )
+  }
+
+  private struct ClaudeHookHarness {
+    let context: SupatermCLIContext
+    let host: TerminalHostState
+    let registry: TerminalWindowRegistry
+    let store: StoreOf<AppFeature>
+    let tabID: TerminalTabID
+    let windowControllerID: UUID
   }
 }

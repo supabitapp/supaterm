@@ -48,6 +48,10 @@ struct TerminalNotificationEvent: Equatable, Sendable {
   let title: String
 }
 
+struct TerminalClaudeHookResult: Equatable, Sendable {
+  let desktopNotification: DesktopNotificationRequest?
+}
+
 enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)

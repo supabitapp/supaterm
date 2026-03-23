@@ -718,6 +718,96 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func claudeHookRequestRepliesWithOKAndDesktopNotification() async throws {
+    let recorder = SocketReplyRecorder()
+    let desktopNotificationRecorder = DesktopNotificationRecorder()
+    let handle = UUID(uuidString: "0BFA1E47-4704-4E8A-A33D-3D1742681A9E")!
+    let requestPayload = try ClaudeHookFixtures.request(
+      ClaudeHookFixtures.notification,
+      context: .init(
+        surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
+        tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
+      )
+    )
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .claudeHook(requestPayload, id: "claude-hook-1")
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.deliver = { request in
+        await desktopNotificationRecorder.record(request)
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.claudeHook = { payload in
+        #expect(payload == requestPayload)
+        return .init(
+          desktopNotification: .init(
+            body: "Claude needs your attention",
+            subtitle: "Needs input",
+            title: "Claude Code"
+          )
+        )
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(records.first?.response == .ok(id: "claude-hook-1"))
+    #expect(
+      await desktopNotificationRecorder.snapshot()
+        == [.init(body: "Claude needs your attention", subtitle: "Needs input", title: "Claude Code")]
+    )
+  }
+
+  @Test
+  func claudeHookRequestMapsValidationErrorsToInvalidRequest() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "DCFBCE7F-6432-4DEA-A333-5D9A81E720B6")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .claudeHook(
+        .init(event: [:]),
+        id: "claude-hook-2"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.claudeHook = { _ in
+        throw ClaudeHookError.missingEventName
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(
+      records.first
+        == .init(
+          handle: handle,
+          response: .error(
+            id: "claude-hook-2",
+            code: "invalid_request",
+            message: "Claude hook payload is missing hook_event_name."
+          )
+        )
+    )
+  }
+
+  @Test
   func newPaneRequestWithoutTargetRepliesWithStructuredError() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "EA06B587-72E5-4B21-8D1F-B4FD97E0C497")!

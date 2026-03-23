@@ -2,6 +2,7 @@ import ComposableArchitecture
 import SupatermCLIShared
 
 struct TerminalWindowsClient: Sendable {
+  var claudeHook: @MainActor @Sendable (SupatermClaudeHookRequest) async throws -> TerminalClaudeHookResult
   var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
   var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
   var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
@@ -13,6 +14,9 @@ struct TerminalWindowsClient: Sendable {
 
   static func live(registry: TerminalWindowRegistry) -> Self {
     Self(
+      claudeHook: { request in
+        try registry.handleClaudeHook(request)
+      },
       closeWindow: { windowID in
         registry.closeWindow(windowID)
       },
@@ -43,6 +47,9 @@ struct TerminalWindowsClient: Sendable {
 
 extension TerminalWindowsClient: DependencyKey {
   static let liveValue = Self(
+    claudeHook: { _ in
+      .init(desktopNotification: nil)
+    },
     closeWindow: { _ in },
     closeWindows: { _ in },
     createTab: { _ in
@@ -60,6 +67,9 @@ extension TerminalWindowsClient: DependencyKey {
   )
 
   static let testValue = Self(
+    claudeHook: { _ in
+      .init(desktopNotification: nil)
+    },
     closeWindow: { _ in },
     closeWindows: { _ in },
     createTab: { _ in

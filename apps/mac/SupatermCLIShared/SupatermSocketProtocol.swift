@@ -6,6 +6,7 @@ public enum SupatermSocketMethod {
   public static let appTree = "app.tree"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
+  public static let terminalClaudeHook = "terminal.claude_hook"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
   public static let terminalNotify = "terminal.notify"
@@ -131,6 +132,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalNotify,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func claudeHook(
+    _ payload: SupatermClaudeHookRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalClaudeHook,
       params: try JSONObject(payload)
     )
   }
@@ -665,6 +677,19 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   private static func normalizedTitle(_ title: String?) -> String {
     let title = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return title.isEmpty ? defaultTitle : title
+  }
+}
+
+public struct SupatermClaudeHookRequest: Equatable, Sendable, Codable {
+  public let context: SupatermCLIContext?
+  public let event: JSONObject
+
+  public init(
+    context: SupatermCLIContext? = nil,
+    event: JSONObject
+  ) {
+    self.context = context
+    self.event = event
   }
 }
 

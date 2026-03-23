@@ -126,6 +126,12 @@ struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
+    } catch let error as ClaudeHookError {
+      return .error(
+        id: request.id,
+        code: "invalid_request",
+        message: error.localizedDescription
+      )
     } catch let error as SupatermSocketProtocolError {
       return .error(
         id: request.id,
@@ -206,6 +212,14 @@ struct SocketControlFeature {
         )
       }
       return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalClaudeHook:
+      let payload = try request.decodeParams(SupatermClaudeHookRequest.self)
+      let result = try await terminalWindowsClient.claudeHook(payload)
+      if let desktopNotification = result.desktopNotification {
+        await desktopNotificationClient.deliver(desktopNotification)
+      }
+      return .ok(id: request.id)
 
     default:
       return .error(

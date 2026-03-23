@@ -6,6 +6,7 @@ enum SPHelp {
 
   static let rootDiscussion = """
     Environment:
+      \(SupatermCLIEnvironment.cliPathKey)  Auto-set in Supaterm panes. Path to the bundled sp CLI.
       \(SupatermCLIEnvironment.socketPathKey)  Auto-set in Supaterm panes. Default --socket.
       \(SupatermCLIEnvironment.surfaceIDKey)  Auto-set in Supaterm panes. Current pane ID.
       \(SupatermCLIEnvironment.tabIDKey)  Auto-set in Supaterm panes. Current tab ID.
@@ -71,6 +72,14 @@ enum SPHelp {
     Example:
       sp notify --body "All tests passed"
       sp notify --space 1 --tab 2 --pane 3 --body "Deploy complete"
+    """
+
+  static let claudeHookDiscussion = """
+    Reads one Claude Code hook event JSON object from stdin and forwards it to Supaterm.
+
+    Example:
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp claude-hook
+      [ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" claude-hook || true
     """
 }
 
