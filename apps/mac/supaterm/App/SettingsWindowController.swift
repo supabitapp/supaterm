@@ -25,6 +25,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     window.contentMinSize = NSSize(width: 520, height: 360)
     window.identifier = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.settings")
     window.isReleasedWhenClosed = false
+    if !window.setFrameUsingName("SupatermSettingsWindow") {
+      window.center()
+    }
     window.setFrameAutosaveName("SupatermSettingsWindow")
     window.title = "Settings"
     window.tabbingMode = .disallowed
