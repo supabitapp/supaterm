@@ -42,7 +42,8 @@ extension SupatermClaudeHookEvent {
   }
 
   static func isGenericAttentionMessage(_ value: String) -> Bool {
-    let normalized = value
+    let normalized =
+      value
       .lowercased()
       .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
       .trimmingCharacters(in: .whitespacesAndNewlines)

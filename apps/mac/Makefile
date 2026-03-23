@@ -87,8 +87,8 @@ export-archive: # Export archive for distribution
 test: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
 	bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-format: # Format code with swift-format (local only)
-	swift-format -p --in-place --recursive --configuration ./.swift-format.json supaterm supatermTests
+format: # Format code with swift format (local only)
+	swift format -p --in-place --recursive --configuration ./.swift-format.json supaterm supatermTests
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
