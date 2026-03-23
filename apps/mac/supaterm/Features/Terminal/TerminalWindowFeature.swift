@@ -111,6 +111,7 @@ struct TerminalWindowFeature {
     case windowCloseRequested(windowID: ObjectIdentifier)
   }
 
+  @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
@@ -140,6 +141,18 @@ struct TerminalWindowFeature {
 
         case .newTabRequested(let inheritingFromSurfaceID):
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
+
+        case .notificationReceived(let event):
+          guard event.shouldDeliverDesktopNotification else { return .none }
+          return .run { [desktopNotificationClient] _ in
+            await desktopNotificationClient.deliver(
+              .init(
+                body: event.body,
+                subtitle: event.subtitle,
+                title: event.title
+              )
+            )
+          }
         }
 
       case .bindingMenuItemSelected(let command):
