@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
   let store: StoreOf<SettingsFeature>
+  private let restoresSavedFrame: Bool
   private let tabViewController: SettingsTabViewController
 
   init() {
@@ -25,9 +26,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     window.contentMinSize = NSSize(width: 520, height: 360)
     window.identifier = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.settings")
     window.isReleasedWhenClosed = false
-    if !window.setFrameUsingName("SupatermSettingsWindow") {
-      window.center()
-    }
+    let restoresSavedFrame = window.setFrameUsingName("SupatermSettingsWindow")
+    self.restoresSavedFrame = restoresSavedFrame
     window.setFrameAutosaveName("SupatermSettingsWindow")
     window.title = "Settings"
     window.tabbingMode = .disallowed
@@ -43,17 +43,44 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func show(tab: SettingsFeature.Tab) {
+  func show(tab: SettingsFeature.Tab, relativeTo sourceWindow: NSWindow? = nil) {
     tabViewController.select(tab)
 
     guard let window else { return }
     if window.isMiniaturized {
       window.deminiaturize(nil)
     }
+    if !restoresSavedFrame && !window.isVisible {
+      position(window: window, relativeTo: sourceWindow)
+    }
 
     showWindow(nil)
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
+  }
+
+  private func position(window: NSWindow, relativeTo sourceWindow: NSWindow?) {
+    guard let sourceWindow else {
+      window.center()
+      return
+    }
+
+    let visibleFrame = sourceWindow.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? sourceWindow.frame
+    let frame = window.frame
+    let origin = NSPoint(
+      x: sourceWindow.frame.midX - frame.width / 2,
+      y: sourceWindow.frame.midY - frame.height / 2
+    )
+    let positionedFrame = NSRect(origin: origin, size: frame.size)
+    window.setFrame(positionedFrame.constrained(to: visibleFrame), display: false)
+  }
+}
+
+private extension NSRect {
+  func constrained(to bounds: NSRect) -> NSRect {
+    let x = min(max(origin.x, bounds.minX), bounds.maxX - width)
+    let y = min(max(origin.y, bounds.minY), bounds.maxY - height)
+    return NSRect(x: x, y: y, width: width, height: height)
   }
 }
 
