@@ -28,7 +28,7 @@ struct TerminalSpaceCatalogTests {
       )
     )
 
-    #expect(catalog.spaces.map(\.name) == ["A"])
+    #expect(catalog.spaces.map(\.name) == ["1"])
     #expect(catalog.defaultSelectedSpaceID == catalog.spaces[0].id)
   }
 

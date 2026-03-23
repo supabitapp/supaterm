@@ -27,13 +27,13 @@ struct TerminalSpaceManagerTests {
   }
 
   @Test
-  func nextDefaultSpaceNameUsesSpreadsheetSequence() {
+  func nextDefaultSpaceNameUsesNumericSequence() {
     let manager = TerminalSpaceManager()
-    let catalog = makeCatalog(["A", "B", "C"])
+    let catalog = makeCatalog(["1", "2", "3"])
 
     manager.bootstrap(from: catalog, initialSelectedSpaceID: nil)
 
-    #expect(manager.nextDefaultSpaceName() == "D")
+    #expect(manager.nextDefaultSpaceName() == "4")
   }
 
   @Test

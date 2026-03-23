@@ -83,7 +83,7 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
   private static func makeDefault() -> Self {
     let space = PersistedTerminalSpace(
       id: TerminalSpaceID(),
-      name: "A"
+      name: "1"
     )
     return Self(
       defaultSelectedSpaceID: space.id,
