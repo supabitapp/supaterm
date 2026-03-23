@@ -56,6 +56,7 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       sources: [
+        "sp/SPClaudeHookSettings.swift",
         "sp/SPCommand.swift",
         "sp/SPHelp.swift",
         "sp/SPSocketClient.swift",

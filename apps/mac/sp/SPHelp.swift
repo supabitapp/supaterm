@@ -82,7 +82,7 @@ enum SPHelp {
 
     Example:
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp claude-hook
-      [ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" claude-hook || true
+      \(SPClaudeHookSettings.command)
     """
 }
 
