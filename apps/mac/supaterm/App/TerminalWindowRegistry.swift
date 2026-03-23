@@ -437,7 +437,7 @@ final class TerminalWindowRegistry {
   }
 
   func handleClaudeHook(_ request: SupatermClaudeHookRequest) throws -> TerminalClaudeHookResult {
-    let event = try ClaudeHookEvent(eventObject: request.event)
+    let event = request.event
     if let sessionID = event.sessionID, let context = request.context {
       claudeHookSessions[sessionID] = .init(
         pendingQuestion: claudeHookSessions[sessionID]?.pendingQuestion,
@@ -445,7 +445,7 @@ final class TerminalWindowRegistry {
       )
     }
 
-    switch event.name {
+    switch event.hookEventName {
     case .sessionStart, .unsupported:
       return .init(desktopNotification: nil)
 
@@ -509,13 +509,13 @@ final class TerminalWindowRegistry {
   }
 
   private func handleClaudeNotification(
-    _ event: ClaudeHookEvent,
+    _ event: SupatermClaudeHookEvent,
     context: SupatermCLIContext?
   ) throws -> TerminalClaudeHookResult {
     let message = try event.notificationMessage()
     let session = event.sessionID.flatMap { claudeHookSessions[$0] }
     let subtitle = event.title ?? "Attention"
-    let body = ClaudeHookEvent.isGenericAttentionMessage(message)
+    let body = SupatermClaudeHookEvent.isGenericAttentionMessage(message)
       ? (session?.pendingQuestion ?? message)
       : message
     let title = "Claude Code"

@@ -680,19 +680,6 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermClaudeHookRequest: Equatable, Sendable, Codable {
-  public let context: SupatermCLIContext?
-  public let event: JSONObject
-
-  public init(
-    context: SupatermCLIContext? = nil,
-    event: JSONObject
-  ) {
-    self.context = context
-    self.event = event
-  }
-}
-
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let command: String?
   public let contextPaneID: UUID?

@@ -132,6 +132,12 @@ struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
+    } catch let error as DecodingError {
+      return .error(
+        id: request.id,
+        code: "invalid_request",
+        message: error.localizedDescription
+      )
     } catch let error as SupatermSocketProtocolError {
       return .error(
         id: request.id,
