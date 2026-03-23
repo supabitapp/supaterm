@@ -33,11 +33,11 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func cornerRadiiOnlyRoundCornersOnOuterEdges() {
+  func cornerRadiiKeepTopEdgeSquare() {
     let radii = TerminalSplitTreeView.OuterEdges([.top, .bottom, .leading])
       .cornerRadii(cornerRadius: 16)
 
-    #expect(radii.topLeading == 16)
+    #expect(radii.topLeading == 0)
     #expect(radii.bottomLeading == 16)
     #expect(radii.topTrailing == 0)
     #expect(radii.bottomTrailing == 0)
