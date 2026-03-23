@@ -20,8 +20,7 @@ struct ContentView: View {
   var body: some View {
     TerminalView(
       store: terminalStore,
-      terminal: terminal,
-      updateStore: store.scope(state: \.update, action: \.update)
+      terminal: terminal
     )
     .task {
       store.send(.update(.task))

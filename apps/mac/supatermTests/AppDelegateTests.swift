@@ -8,21 +8,7 @@ struct AppDelegateTests {
   @Test
   func terminateReplySkipsConfirmationWithoutVisibleTerminalWindows() {
     let reply = AppDelegate.terminateReply(
-      hasVisibleTerminalWindows: false,
-      bypassesQuitConfirmation: false
-    ) {
-      Issue.record("confirmation should not be shown")
-      return false
-    }
-
-    #expect(reply == .terminateNow)
-  }
-
-  @Test
-  func terminateReplySkipsConfirmationWhenUpdateBypassesQuit() {
-    let reply = AppDelegate.terminateReply(
-      hasVisibleTerminalWindows: true,
-      bypassesQuitConfirmation: true
+      hasVisibleTerminalWindows: false
     ) {
       Issue.record("confirmation should not be shown")
       return false
@@ -34,8 +20,7 @@ struct AppDelegateTests {
   @Test
   func terminateReplyCancelsWhenConfirmationIsDeclined() {
     let reply = AppDelegate.terminateReply(
-      hasVisibleTerminalWindows: true,
-      bypassesQuitConfirmation: false
+      hasVisibleTerminalWindows: true
     ) {
       false
     }
@@ -46,8 +31,7 @@ struct AppDelegateTests {
   @Test
   func terminateReplyTerminatesWhenConfirmationIsAccepted() {
     let reply = AppDelegate.terminateReply(
-      hasVisibleTerminalWindows: true,
-      bypassesQuitConfirmation: false
+      hasVisibleTerminalWindows: true
     ) {
       true
     }

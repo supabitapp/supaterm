@@ -12,7 +12,6 @@ struct TerminalSplitView: View {
   let minFraction: CGFloat
   let maxFraction: CGFloat
   let onHide: () -> Void
-  let updateStore: StoreOf<UpdateFeature>
 
   @State private var dragFraction: CGFloat?
 
@@ -47,8 +46,7 @@ struct TerminalSplitView: View {
         TerminalSidebarView(
           store: store,
           palette: palette,
-          terminal: terminal,
-          updateStore: updateStore
+          terminal: terminal
         )
         .frame(width: currentSidebarWidth)
         .frame(maxHeight: .infinity)
@@ -91,11 +89,10 @@ struct TerminalSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
-  let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      SidebarHeaderView(updateStore: updateStore)
+      SidebarHeaderView()
       TerminalSidebarChromeView(store: store, palette: palette, terminal: terminal)
     }
     .padding(.top, sidebarTopPadding)
@@ -113,7 +110,6 @@ struct FloatingSidebarOverlay: View {
   @Binding var isVisible: Bool
   let minFraction: CGFloat
   let maxFraction: CGFloat
-  let updateStore: StoreOf<UpdateFeature>
 
   @State private var dragFraction: CGFloat?
 
@@ -134,8 +130,7 @@ struct FloatingSidebarOverlay: View {
           store: store,
           palette: palette,
           terminal: terminal,
-          width: floatingWidth,
-          updateStore: updateStore
+          width: floatingWidth
         )
         .frame(width: floatingWidth)
         .transition(.move(edge: .leading))
@@ -309,14 +304,12 @@ private struct FloatingSidebarView: View {
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
-  let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     TerminalSidebarView(
       store: store,
       palette: palette,
-      terminal: terminal,
-      updateStore: updateStore
+      terminal: terminal
     )
     .frame(width: width)
     .background(palette.windowBackgroundTint)
@@ -329,15 +322,10 @@ private struct FloatingSidebarView: View {
 }
 
 private struct SidebarHeaderView: View {
-  let updateStore: StoreOf<UpdateFeature>
-
   var body: some View {
     HStack(spacing: 0) {
       WindowTrafficLights()
       Spacer(minLength: 0)
-      UpdatePillView(store: updateStore)
-        .padding(.top, WindowTrafficLightMetrics.topPadding)
-        .padding(.trailing, TerminalChromeMetrics.paneInset)
     }
     .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topLeading)
   }

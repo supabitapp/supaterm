@@ -5,7 +5,6 @@ import SwiftUI
 struct TerminalView: View {
   let store: StoreOf<TerminalWindowFeature>
   @Bindable var terminal: TerminalHostState
-  let updateStore: StoreOf<UpdateFeature>
   @Environment(\.colorScheme) private var colorScheme
 
   @State private var window: NSWindow?
@@ -15,13 +14,6 @@ struct TerminalView: View {
 
   private var palette: TerminalPalette {
     TerminalPalette(colorScheme: colorScheme)
-  }
-
-  private var updatePresentationContext: UpdatePresentationContext {
-    UpdatePresentationContext(
-      isFloatingSidebarVisible: store.isFloatingSidebarVisible,
-      isSidebarCollapsed: store.isSidebarCollapsed
-    )
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -94,15 +86,9 @@ struct TerminalView: View {
         }
       )
       .ignoresSafeArea()
-      .task(id: updatePresentationContext) {
-        guard resolvedWindowActivity.isKeyWindow else { return }
-        _ = updateStore.send(.presentationContextChanged(updatePresentationContext))
-      }
       .task(id: resolvedWindowActivity) {
         let activity = resolvedWindowActivity
         _ = store.send(.windowActivityChanged(activity))
-        guard activity.isKeyWindow else { return }
-        _ = updateStore.send(.presentationContextChanged(updatePresentationContext))
       }
       .overlay {
         if let confirmationRequest = store.confirmationRequest {
@@ -203,8 +189,7 @@ struct TerminalView: View {
         sidebarFraction: sidebarFractionBinding,
         minFraction: minSidebarFraction,
         maxFraction: maxSidebarFraction,
-        onHide: collapseSidebar,
-        updateStore: updateStore
+        onHide: collapseSidebar
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -217,8 +202,7 @@ struct TerminalView: View {
           sidebarFraction: sidebarFractionBinding,
           isVisible: floatingSidebarVisibilityBinding,
           minFraction: minSidebarFraction,
-          maxFraction: maxSidebarFraction,
-          updateStore: updateStore
+          maxFraction: maxSidebarFraction
         )
       }
     }
