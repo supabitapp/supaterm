@@ -64,7 +64,7 @@ final class TerminalWindowRegistry {
   }
 
   var bypassesQuitConfirmation: Bool {
-    visibleEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
+    false
   }
 
   func register(
@@ -781,25 +781,6 @@ final class TerminalWindowRegistry {
   }
 
   private func updatePhaseDescription(_ phase: UpdatePhase) -> String {
-    switch phase {
-    case .idle:
-      return "idle"
-    case .permissionRequest:
-      return "permission_request"
-    case .checking:
-      return "checking"
-    case .updateAvailable:
-      return "update_available"
-    case .downloading:
-      return "downloading"
-    case .extracting:
-      return "extracting"
-    case .installing:
-      return "installing"
-    case .notFound:
-      return "not_found"
-    case .error:
-      return "error"
-    }
+    "idle"
   }
 }
