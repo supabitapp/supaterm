@@ -459,21 +459,34 @@ final class TerminalWindowRegistry {
       } else {
         clearClaudeHookPendingQuestion(sessionID: sessionID)
       }
+      _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
       return .init(desktopNotification: nil)
 
-    case .userPromptSubmit, .stop:
+    case .userPromptSubmit:
       if let sessionID = event.sessionID {
         clearClaudeHookPendingQuestion(sessionID: sessionID)
+        _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
+      }
+      return .init(desktopNotification: nil)
+
+    case .stop:
+      if let sessionID = event.sessionID {
+        clearClaudeHookPendingQuestion(sessionID: sessionID)
+        _ = clearClaudeActivity(sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
 
     case .sessionEnd:
       if let sessionID = event.sessionID {
+        _ = clearClaudeActivity(sessionID: sessionID, context: request.context)
         claudeHookSessions.removeValue(forKey: sessionID)
       }
       return .init(desktopNotification: nil)
 
     case .notification:
+      if let sessionID = event.sessionID {
+        _ = setClaudeActivity(.needsInput, sessionID: sessionID, context: request.context)
+      }
       return try handleClaudeNotification(event, context: request.context)
     }
   }
@@ -561,6 +574,58 @@ final class TerminalWindowRegistry {
     guard var session = claudeHookSessions[sessionID] else { return }
     session.pendingQuestion = nil
     claudeHookSessions[sessionID] = session
+  }
+
+  @discardableResult
+  private func setClaudeActivity(
+    _ activity: TerminalHostState.ClaudeActivity,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    updateClaudeActivity(activity, sessionID: sessionID, context: context)
+  }
+
+  @discardableResult
+  private func clearClaudeActivity(
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    updateClaudeActivity(nil, sessionID: sessionID, context: context)
+  }
+
+  @discardableResult
+  private func updateClaudeActivity(
+    _ activity: TerminalHostState.ClaudeActivity?,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    let candidateSurfaceIDs = claudeCandidateSurfaceIDs(sessionID: sessionID, context: context)
+    for surfaceID in candidateSurfaceIDs {
+      for entry in activeEntries() {
+        if let activity {
+          if entry.terminal.setClaudeActivity(activity, for: surfaceID) {
+            return true
+          }
+        } else if entry.terminal.clearClaudeActivity(for: surfaceID) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  private func claudeCandidateSurfaceIDs(
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> [UUID] {
+    var candidateSurfaceIDs: [UUID] = []
+    if let surfaceID = context?.surfaceID {
+      candidateSurfaceIDs.append(surfaceID)
+    }
+    if let surfaceID = claudeHookSessions[sessionID]?.surfaceID, !candidateSurfaceIDs.contains(surfaceID) {
+      candidateSurfaceIDs.append(surfaceID)
+    }
+    return candidateSurfaceIDs
   }
 
   private func activeEntries() -> [Entry] {

@@ -517,7 +517,8 @@ private struct TerminalSidebarMorphingPreview: View {
       palette: palette,
       isSelected: false,
       latestNotificationText: latestNotificationText,
-      unreadCount: unreadCount
+      unreadCount: unreadCount,
+      claudeActivity: nil
     )
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)

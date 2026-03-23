@@ -373,15 +373,41 @@ struct TerminalSidebarChromeView: View {
 }
 
 struct TerminalSidebarTabSummaryView: View {
+  enum LeadingIndicator: Equatable {
+    case claudeActivity(TerminalHostState.ClaudeActivity)
+    case tabSymbol(String, TerminalTone)
+    case unreadCount(Int)
+  }
+
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
   let latestNotificationText: String?
   let unreadCount: Int
+  let claudeActivity: TerminalHostState.ClaudeActivity?
+
+  static func leadingIndicator(
+    tab: TerminalTabItem,
+    unreadCount: Int,
+    claudeActivity: TerminalHostState.ClaudeActivity?
+  ) -> LeadingIndicator {
+    if unreadCount > 0 {
+      return .unreadCount(unreadCount)
+    }
+    if let claudeActivity {
+      return .claudeActivity(claudeActivity)
+    }
+    return .tabSymbol(tab.symbol, tab.tone)
+  }
 
   var body: some View {
     HStack(spacing: 8) {
-      if unreadCount > 0 {
+      switch Self.leadingIndicator(
+        tab: tab,
+        unreadCount: unreadCount,
+        claudeActivity: claudeActivity
+      ) {
+      case .unreadCount(let unreadCount):
         Text(unreadCount.formatted())
           .font(.system(size: 10, weight: .bold))
           .foregroundStyle(isSelected ? palette.selectedText : Color.white)
@@ -391,12 +417,20 @@ struct TerminalSidebarTabSummaryView: View {
             isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
             in: Capsule(style: .continuous)
           )
-      } else {
+
+      case .claudeActivity(let activity):
+        TerminalSidebarClaudeActivityView(
+          activity: activity,
+          isSelected: isSelected,
+          palette: palette
+        )
+
+      case .tabSymbol(let symbol, let tone):
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(palette.fill(for: tab.tone))
+          .fill(palette.fill(for: tone))
           .frame(width: 18, height: 18)
           .overlay {
-            Image(systemName: tab.symbol)
+            Image(systemName: symbol)
               .font(.system(size: 10, weight: .semibold))
               .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
               .accessibilityHidden(true)
@@ -427,6 +461,71 @@ struct TerminalSidebarTabSummaryView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
+private struct TerminalSidebarClaudeActivityView: View {
+  let activity: TerminalHostState.ClaudeActivity
+  let isSelected: Bool
+  let palette: TerminalPalette
+
+  @State private var isAnimating = false
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 6, style: .continuous)
+      .fill(backgroundColor)
+      .frame(width: 18, height: 18)
+      .overlay {
+        Image(systemName: activity.symbolName)
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(Color.white)
+          .scaleEffect(scale)
+          .offset(y: verticalOffset)
+          .accessibilityHidden(true)
+      }
+      .onAppear {
+        withAnimation(animation) {
+          isAnimating = true
+        }
+      }
+      .onChange(of: activity) { _, _ in
+        isAnimating = false
+        withAnimation(animation) {
+          isAnimating = true
+        }
+      }
+  }
+
+  private var animation: Animation {
+    .easeInOut(duration: activity == .running ? 0.9 : 0.65)
+      .repeatForever(autoreverses: true)
+  }
+
+  private var backgroundColor: Color {
+    switch activity {
+    case .needsInput:
+      return Color.orange.opacity(isSelected ? 0.72 : 0.9)
+    case .running:
+      return Color.accentColor.opacity(isSelected ? 0.72 : 0.9)
+    }
+  }
+
+  private var scale: CGFloat {
+    switch activity {
+    case .needsInput:
+      return isAnimating ? 1.14 : 1
+    case .running:
+      return isAnimating ? 1.08 : 1
+    }
+  }
+
+  private var verticalOffset: CGFloat {
+    switch activity {
+    case .needsInput:
+      return isAnimating ? -1 : 0
+    case .running:
+      return 0
     }
   }
 }
@@ -490,7 +589,8 @@ struct TerminalSidebarTabRow: View {
           palette: palette,
           isSelected: isSelected,
           latestNotificationText: latestNotificationText,
-          unreadCount: unreadCount
+          unreadCount: unreadCount,
+          claudeActivity: terminal.claudeActivity(for: tab.id)
         )
 
         if isHovering {

@@ -343,7 +343,22 @@ struct TerminalWindowRegistryTests {
     )
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+  }
+
+  @Test
+  func claudePreToolUseMarksTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
   }
 
   @Test
@@ -380,6 +395,7 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit)
     )
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
@@ -401,6 +417,7 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
+    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
@@ -419,6 +436,7 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
     )
+    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
