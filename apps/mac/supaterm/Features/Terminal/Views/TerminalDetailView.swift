@@ -104,8 +104,8 @@ private struct TerminalDetailTopBar: View {
         .opacity(canEqualize ? 1 : 0.45)
       }
     }
-    .padding(.leading, 12)
-    .padding(.trailing, 8)
+    .padding(.leading, 8)
+    .padding(.trailing, 4)
     .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36, alignment: .leading)
     .background(backgroundColor)
     .overlay(alignment: .bottom) {
