@@ -71,7 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     Self.terminateReply(
-      hasVisibleTerminalWindows: terminalWindowRegistry.hasVisibleTerminalWindows
+      hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
+      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation
     ) {
       quitConfirmationPresenter.confirmQuit()
     }
@@ -139,10 +140,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   static func terminateReply(
-    hasVisibleTerminalWindows: Bool,
+    hasVisibleAppWindows: Bool,
+    needsQuitConfirmation: Bool,
     confirmQuit: () -> Bool
   ) -> NSApplication.TerminateReply {
-    guard hasVisibleTerminalWindows else { return .terminateNow }
+    guard hasVisibleAppWindows else { return .terminateNow }
+    guard needsQuitConfirmation else { return .terminateNow }
     return confirmQuit() ? .terminateNow : .terminateCancel
   }
 }
