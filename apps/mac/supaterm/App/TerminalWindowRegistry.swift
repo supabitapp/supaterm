@@ -548,7 +548,8 @@ final class TerminalWindowRegistry {
             body: body,
             subtitle: subtitle,
             target: .contextPane(surfaceID),
-            title: title
+            title: title,
+            allowDesktopNotificationWhenAgentActive: true
           )
         )
         return .init(

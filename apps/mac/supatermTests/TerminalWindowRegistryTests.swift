@@ -387,6 +387,37 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeNotificationDeliversDesktopNotificationWhenWindowIsInactive() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+    let result = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(
+      result.desktopNotification
+        == .init(
+          body: "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]",
+          subtitle: "Needs input",
+          title: "Claude Code"
+        )
+    )
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
+    #expect(
+      harness.host.latestNotificationText(for: harness.tabID)
+        == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
+    )
+  }
+
+  @Test
   func claudeUserPromptSubmitClearsPendingQuestion() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -497,12 +528,14 @@ struct TerminalWindowRegistryTests {
     }
   }
 
-  private func makeClaudeHookHarness() throws -> ClaudeHookHarness {
+  private func makeClaudeHookHarness(
+    windowActivity: WindowActivityState = .init(isKeyWindow: true, isVisible: true)
+  ) throws -> ClaudeHookHarness {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = windowActivity
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
     }
