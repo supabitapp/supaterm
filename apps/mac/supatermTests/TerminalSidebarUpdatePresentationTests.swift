@@ -4,53 +4,24 @@ import Testing
 
 struct TerminalSidebarUpdatePresentationTests {
   @Test
-  func permissionRequestUsesSelectedRowStyle() {
-    #expect(
-      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .permissionRequest
-      )
-    )
-  }
+  func allPhasesUseRegularRowStyle() {
+    let phases: [UpdatePhase] = [
+      .permissionRequest,
+      .checking,
+      .updateAvailable(.init(contentLength: nil, releaseDate: nil, version: "1.2.3")),
+      .downloading(.init(expectedLength: 400, progress: 100)),
+      .extracting(.init(progress: 0.72)),
+      .installing(.init(isAutoUpdate: false)),
+      .notFound,
+      .error(.init(message: "Network error")),
+    ]
 
-  @Test
-  func updateAvailableUsesSelectedRowStyle() {
-    #expect(
-      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .updateAvailable(.init(contentLength: nil, releaseDate: nil, version: "1.2.3"))
+    for phase in phases {
+      #expect(
+        !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+          for: phase
+        )
       )
-    )
-  }
-
-  @Test
-  func installingUsesSelectedRowStyle() {
-    #expect(
-      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .installing(.init(isAutoUpdate: false))
-      )
-    )
-  }
-
-  @Test
-  func transientAndResultPhasesUseRegularRowStyle() {
-    #expect(
-      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .checking
-      )
-    )
-    #expect(
-      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .downloading(.init(expectedLength: 400, progress: 100))
-      )
-    )
-    #expect(
-      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .error(.init(message: "Network error"))
-      )
-    )
-    #expect(
-      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
-        for: .notFound
-      )
-    )
+    }
   }
 }
