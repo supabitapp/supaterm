@@ -8,6 +8,48 @@ import Testing
 @MainActor
 struct GhosttyRuntimeTests {
   @Test
+  func notificationAttentionColorPrefersYellowWhenItQualifies() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      palette = 3=#D79921
+      palette = 11=#FABD2F
+      """
+    )
+
+    #expect(hexString(runtime.notificationAttentionColor()) == "#D79921")
+  }
+
+  @Test
+  func notificationAttentionColorUsesBrightYellowWhenYellowFails() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      palette = 3=#171717
+      palette = 11=#FABD2F
+      """
+    )
+
+    #expect(hexString(runtime.notificationAttentionColor()) == "#FABD2F")
+  }
+
+  @Test
+  func notificationAttentionColorFallsBackToForegroundWhenWarmCandidatesFail() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      palette = 3=#171717
+      palette = 11=#202020
+      """
+    )
+
+    #expect(hexString(runtime.notificationAttentionColor()) == "#E0E0E0")
+  }
+
+  @Test
   func dispatchAppActionRoutesSupportedActions() {
     let app = NSApplication.shared
     let previousDelegate = app.delegate
@@ -33,5 +75,13 @@ struct GhosttyRuntimeTests {
   @Test
   func dispatchAppActionReturnsFalseForUnsupportedActions() {
     #expect(!GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_PRESENT_TERMINAL, action: .init())))
+  }
+
+  private func hexString(_ color: NSColor) -> String {
+    let rgb = color.usingColorSpace(.sRGB) ?? color
+    let red = Int(round(rgb.redComponent * 255))
+    let green = Int(round(rgb.greenComponent * 255))
+    let blue = Int(round(rgb.blueComponent * 255))
+    return String(format: "#%02X%02X%02X", red, green, blue)
   }
 }

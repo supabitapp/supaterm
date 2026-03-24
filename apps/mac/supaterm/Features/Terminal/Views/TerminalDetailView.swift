@@ -33,7 +33,7 @@ struct TerminalDetailView: View {
       )
       TerminalDetailSurface(
         store: store,
-        notificationColor: palette.attention,
+        notificationColor: terminal.notificationAttentionColor,
         terminal: terminal,
         selectedTabID: selectedTabID
       )

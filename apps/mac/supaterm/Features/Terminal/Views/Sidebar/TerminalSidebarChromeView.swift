@@ -250,6 +250,7 @@ struct TerminalSidebarChromeView: View {
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
+      notificationColor: terminal.notificationAttentionColor,
       unreadCount: unreadCount
     )
 
@@ -393,6 +394,7 @@ struct TerminalSidebarTabSummaryView: View {
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
+  let notificationColor: Color
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let unreadCount: Int
@@ -445,7 +447,7 @@ struct TerminalSidebarTabSummaryView: View {
       case .focusedNotification:
         TerminalSidebarFocusedNotificationView(
           isSelected: isSelected,
-          palette: palette
+          notificationColor: notificationColor
         )
 
       case .tabSymbol(let symbol, let tone):
@@ -498,7 +500,7 @@ struct TerminalSidebarTabSummaryView: View {
 
 private struct TerminalSidebarFocusedNotificationView: View {
   let isSelected: Bool
-  let palette: TerminalPalette
+  let notificationColor: Color
 
   var body: some View {
     Circle()
@@ -512,7 +514,7 @@ private struct TerminalSidebarFocusedNotificationView: View {
   }
 
   private var color: Color {
-    palette.attention
+    notificationColor
   }
 }
 
@@ -708,6 +710,7 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
+          notificationColor: terminal.notificationAttentionColor,
           hasFocusedNotificationAttention: hasFocusedNotificationAttention,
           latestNotificationText: latestNotificationText,
           unreadCount: unreadCount,
