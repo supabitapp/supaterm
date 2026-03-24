@@ -172,6 +172,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
       .path
   }
 
+  static func cliDirectory(_ cliPath: String?) -> String? {
+    guard let cliPath else { return nil }
+    let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPath.isEmpty else { return nil }
+    return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
+  }
+
   static func prependedPath(
     _ directory: String,
     currentPath: String?
@@ -215,14 +222,18 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
-    if let claudeWrapperDirectory = context.claudeWrapperDirectory {
+    let path = prependedPath(
+      cliDirectory(context.cliPath) ?? "",
+      currentPath: prependedPath(
+        context.claudeWrapperDirectory ?? "",
+        currentPath: context.processEnvironment["PATH"]
+      )
+    )
+    if !path.isEmpty {
       environmentVariables.append(
         .init(
           key: "PATH",
-          value: prependedPath(
-            claudeWrapperDirectory,
-            currentPath: context.processEnvironment["PATH"]
-          )
+          value: path
         )
       )
     }
