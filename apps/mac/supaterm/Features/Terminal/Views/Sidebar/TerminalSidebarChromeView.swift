@@ -58,6 +58,7 @@ private struct TerminalSidebarContentHeightKey: PreferenceKey {
 
 struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
@@ -70,6 +71,12 @@ struct TerminalSidebarChromeView: View {
   var body: some View {
     VStack(spacing: 10) {
       tabList
+      if !updateStore.phase.isIdle {
+        TerminalSidebarUpdateSection(
+          store: updateStore,
+          palette: palette
+        )
+      }
       TerminalSidebarSpaceBar(
         store: store,
         palette: palette,

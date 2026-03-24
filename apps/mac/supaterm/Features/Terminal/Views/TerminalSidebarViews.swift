@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TerminalSplitView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -45,6 +46,7 @@ struct TerminalSplitView: View {
       HStack(spacing: 0) {
         TerminalSidebarView(
           store: store,
+          updateStore: updateStore,
           palette: palette,
           terminal: terminal
         )
@@ -87,13 +89,19 @@ struct TerminalSplitView: View {
 
 struct TerminalSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       SidebarHeaderView()
-      TerminalSidebarChromeView(store: store, palette: palette, terminal: terminal)
+      TerminalSidebarChromeView(
+        store: store,
+        updateStore: updateStore,
+        palette: palette,
+        terminal: terminal
+      )
     }
     .padding(.top, sidebarTopPadding)
     .padding(.bottom, sidebarBottomPadding)
@@ -103,6 +111,7 @@ struct TerminalSidebarView: View {
 
 struct FloatingSidebarOverlay: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -128,6 +137,7 @@ struct FloatingSidebarOverlay: View {
       if isVisible {
         FloatingSidebarView(
           store: store,
+          updateStore: updateStore,
           palette: palette,
           terminal: terminal,
           width: floatingWidth
@@ -301,6 +311,7 @@ private final class SidebarResizeInteractionNSView: NSView {
 
 private struct FloatingSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
@@ -308,6 +319,7 @@ private struct FloatingSidebarView: View {
   var body: some View {
     TerminalSidebarView(
       store: store,
+      updateStore: updateStore,
       palette: palette,
       terminal: terminal
     )

@@ -17,13 +17,18 @@ struct ContentView: View {
     store.scope(state: \.terminal, action: \.terminal)
   }
 
+  private var updateStore: StoreOf<UpdateFeature> {
+    store.scope(state: \.update, action: \.update)
+  }
+
   var body: some View {
     TerminalView(
       store: terminalStore,
+      updateStore: updateStore,
       terminal: terminal
     )
     .task {
-      store.send(.update(.task))
+      updateStore.send(.task)
       terminalStore.send(.task)
     }
   }

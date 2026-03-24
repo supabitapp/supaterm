@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import Sharing
 
 @MainActor
 protocol GhosttyAppActionPerforming: AnyObject {
@@ -11,12 +12,16 @@ protocol GhosttyAppActionPerforming: AnyObject {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
+  @Shared(.terminalSessionCatalog)
+  private var sessionCatalog = TerminalSessionCatalog.default
+
   private let menuController: SupatermMenuController
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
   private var settingsWindowController: SettingsWindowController?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
+  private var suppressesSessionSave = false
 
   override init() {
     GhosttyBootstrap.initialize()
@@ -48,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     NSWindow.allowsAutomaticWindowTabbing = false
     menuController.install()
     socketStore.send(.task)
-    _ = performNewWindow()
+    restoreWindowsAtLaunch()
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
@@ -57,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    saveSession()
     socketStore.send(.shutdown)
   }
 
@@ -72,7 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     Self.terminateReply(
       hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
-      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation
+      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation,
+      bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation
     ) {
       quitConfirmationPresenter.confirmQuit()
     }
@@ -80,12 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   @discardableResult
   func performNewWindow() -> Bool {
-    let controller = TerminalWindowController(registry: terminalWindowRegistry)
-    controller.onWindowWillClose = { [weak self] controller in
-      self?.windowControllers.removeValue(forKey: controller.windowControllerID)
-    }
-    windowControllers[controller.windowControllerID] = controller
-    controller.showWindow(nil)
+    let controller = createWindow()
     NSApp.activate(ignoringOtherApps: true)
     controller.window?.makeKeyAndOrderFront(nil)
     return true
@@ -127,6 +129,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     menuController.performGhosttyBindingMenuKeyEquivalent(with: event)
   }
 
+  private func restoreWindowsAtLaunch() {
+    suppressesSessionSave = true
+    let sessions = Self.initialWindowSessions(from: sessionCatalog)
+    var lastController: TerminalWindowController?
+    for session in sessions {
+      lastController = createWindow(session: session)
+    }
+    suppressesSessionSave = false
+    saveSession()
+    if let window = lastController?.window {
+      NSApp.activate(ignoringOtherApps: true)
+      window.makeKeyAndOrderFront(nil)
+    }
+  }
+
+  private func createWindow(
+    session: TerminalWindowSession? = nil
+  ) -> TerminalWindowController {
+    let controller = TerminalWindowController(
+      registry: terminalWindowRegistry,
+      session: session
+    ) { [weak self] in
+      self?.saveSession()
+    }
+    controller.onWindowWillClose = { [weak self] controller in
+      self?.windowControllers.removeValue(forKey: controller.windowControllerID)
+      self?.saveSession()
+    }
+    windowControllers[controller.windowControllerID] = controller
+    controller.showWindow(nil)
+    saveSession()
+    return controller
+  }
+
   private func showExistingWindowOrCreate() -> Bool {
     if let window = windowControllers.values.compactMap(\.window).first {
       if window.isMiniaturized {
@@ -139,12 +175,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     return performNewWindow()
   }
 
+  private func saveSession() {
+    guard !suppressesSessionSave else { return }
+    $sessionCatalog.withLock {
+      $0 = terminalWindowRegistry.restorationSnapshot()
+    }
+  }
+
+  static func initialWindowSessions(
+    from sessionCatalog: TerminalSessionCatalog
+  ) -> [TerminalWindowSession?] {
+    if sessionCatalog.windows.isEmpty {
+      return [nil]
+    }
+    return sessionCatalog.windows.map(Optional.some)
+  }
+
   static func terminateReply(
     hasVisibleAppWindows: Bool,
     needsQuitConfirmation: Bool,
+    bypassesQuitConfirmation: Bool,
     confirmQuit: () -> Bool
   ) -> NSApplication.TerminateReply {
     guard hasVisibleAppWindows else { return .terminateNow }
+    guard !bypassesQuitConfirmation else { return .terminateNow }
     guard needsQuitConfirmation else { return .terminateNow }
     return confirmQuit() ? .terminateNow : .terminateCancel
   }
