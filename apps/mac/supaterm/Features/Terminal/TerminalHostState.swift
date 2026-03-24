@@ -887,6 +887,7 @@ final class TerminalHostState {
     let attentionState: SupatermNotificationAttentionState =
       selectionState.isFocused ? .focused : .unread
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
+      allowDesktopNotificationWhenAgentActive: request.allowDesktopNotificationWhenAgentActive,
       isFocused: selectionState.isFocused,
       tabID: resolvedTarget.tabID
     )
@@ -1758,13 +1759,14 @@ final class TerminalHostState {
   }
 
   private func resolvedDesktopNotificationDisposition(
+    allowDesktopNotificationWhenAgentActive: Bool,
     isFocused: Bool,
     tabID: TerminalTabID
   ) -> SupatermDesktopNotificationDisposition {
     if isFocused {
       return .suppressFocused
     }
-    if hasActiveAgentAttention(for: tabID) {
+    if !allowDesktopNotificationWhenAgentActive && hasActiveAgentAttention(for: tabID) {
       return .suppressAgent
     }
     return .deliver

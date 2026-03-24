@@ -34,10 +34,25 @@ struct TerminalNotifyRequest: Equatable, Sendable {
     case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   }
 
+  let allowDesktopNotificationWhenAgentActive: Bool
   let body: String
   let subtitle: String
   let target: Target
   let title: String?
+
+  init(
+    body: String,
+    subtitle: String,
+    target: Target,
+    title: String?,
+    allowDesktopNotificationWhenAgentActive: Bool = false
+  ) {
+    self.allowDesktopNotificationWhenAgentActive = allowDesktopNotificationWhenAgentActive
+    self.body = body
+    self.subtitle = subtitle
+    self.target = target
+    self.title = title
+  }
 }
 
 struct TerminalNotificationEvent: Equatable, Sendable {
