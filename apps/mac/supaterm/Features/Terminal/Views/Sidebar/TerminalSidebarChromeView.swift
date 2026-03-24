@@ -489,7 +489,7 @@ struct TerminalSidebarTabSummaryView: View {
                 ? palette.selectedText.opacity(0.82)
                 : palette.secondaryText
             )
-            .lineLimit(2)
+            .lineLimit(3)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
         }
