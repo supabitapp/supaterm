@@ -59,8 +59,8 @@ final class TerminalWindowRegistry {
     !entries.isEmpty
   }
 
-  var hasVisibleTerminalWindows: Bool {
-    !visibleEntries().isEmpty
+  var needsQuitConfirmation: Bool {
+    activeEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
   }
 
   var bypassesQuitConfirmation: Bool {
@@ -630,10 +630,6 @@ final class TerminalWindowRegistry {
 
   private func activeEntries() -> [Entry] {
     entries.filter { $0.windowReference.value != nil }
-  }
-
-  private func visibleEntries() -> [Entry] {
-    activeEntries().filter { $0.windowReference.value?.isVisible == true }
   }
 
   private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
