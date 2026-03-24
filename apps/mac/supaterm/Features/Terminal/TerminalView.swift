@@ -134,6 +134,7 @@ struct TerminalView: View {
         Button("Close", role: .destructive) {
           _ = store.send(.closeConfirmationConfirmButtonTapped)
         }
+        .keyboardShortcut(.defaultAction)
       } message: {
         Text(store.pendingCloseRequest?.message ?? "")
       }
