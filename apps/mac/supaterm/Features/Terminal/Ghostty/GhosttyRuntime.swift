@@ -24,6 +24,10 @@ final class GhosttyRuntime {
   private var lastColorScheme: ghostty_color_scheme_e?
   var onConfigChange: (() -> Void)?
 
+  private static let notificationAttentionPaletteIndexes = [3, 11]
+  private static let minNotificationContrastRatio = 2.2
+  private static let minNotificationSaturation = 0.12
+
   convenience init() {
     guard let config = Self.loadConfig() else {
       preconditionFailure("ghostty_config_new failed")
@@ -570,6 +574,40 @@ final class GhosttyRuntime {
 
   func backgroundColor() -> NSColor {
     color(forKey: "background") ?? NSColor.windowBackgroundColor
+  }
+
+  func notificationAttentionColor() -> NSColor {
+    let fallbackColor = color(forKey: "foreground") ?? .controlAccentColor
+    guard
+      let config,
+      let background = color(forKey: "background")
+    else {
+      return fallbackColor
+    }
+
+    var palette = ghostty_config_palette_s()
+    let key = "palette"
+    guard ghostty_config_get(config, &palette, key, UInt(key.lengthOfBytes(using: .utf8))) else {
+      return fallbackColor
+    }
+
+    let colors = withUnsafeBytes(of: palette) { buffer in
+      Array(buffer.bindMemory(to: ghostty_config_color_s.self)).map { NSColor(ghostty: $0) }
+    }
+
+    for index in Self.notificationAttentionPaletteIndexes {
+      guard colors.indices.contains(index) else { continue }
+      let color = colors[index]
+      guard
+        color.saturation >= Self.minNotificationSaturation,
+        color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
+      else {
+        continue
+      }
+      return color
+    }
+
+    return fallbackColor
   }
 
   func scrollbarAppearanceName() -> NSAppearance.Name {
