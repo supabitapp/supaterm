@@ -394,7 +394,7 @@ struct TerminalSidebarTabSummaryView: View {
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
     }
-    if let claudeActivity {
+    if let claudeActivity, claudeActivity.showsLeadingIndicator {
       return .claudeActivity(claudeActivity)
     }
     return .tabSymbol(tab.symbol, tab.tone)
@@ -448,6 +448,14 @@ struct TerminalSidebarTabSummaryView: View {
           Spacer(minLength: 0)
         }
 
+        if let claudeActivity {
+          TerminalSidebarClaudeStatusRow(
+            activity: claudeActivity,
+            isSelected: isSelected,
+            palette: palette
+          )
+        }
+
         if let latestNotificationText {
           Text(latestNotificationText)
             .font(.system(size: 11, weight: .medium))
@@ -485,30 +493,37 @@ private struct TerminalSidebarClaudeActivityView: View {
           .accessibilityHidden(true)
       }
       .onAppear {
-        withAnimation(animation) {
-          isAnimating = true
+        if let animation {
+          withAnimation(animation) {
+            isAnimating = true
+          }
         }
       }
       .onChange(of: activity) { _, _ in
         isAnimating = false
-        withAnimation(animation) {
-          isAnimating = true
+        if let animation {
+          withAnimation(animation) {
+            isAnimating = true
+          }
         }
       }
   }
 
-  private var animation: Animation {
-    .easeInOut(duration: activity == .running ? 0.9 : 0.65)
-      .repeatForever(autoreverses: true)
+  private var animation: Animation? {
+    switch activity {
+    case .needsInput:
+      return .easeInOut(duration: 0.65)
+        .repeatForever(autoreverses: true)
+    case .running:
+      return .easeInOut(duration: 0.9)
+        .repeatForever(autoreverses: true)
+    case .idle:
+      return nil
+    }
   }
 
   private var backgroundColor: Color {
-    switch activity {
-    case .needsInput:
-      return Color.orange.opacity(isSelected ? 0.72 : 0.9)
-    case .running:
-      return Color.accentColor.opacity(isSelected ? 0.72 : 0.9)
-    }
+    color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
   }
 
   private var scale: CGFloat {
@@ -517,6 +532,8 @@ private struct TerminalSidebarClaudeActivityView: View {
       return isAnimating ? 1.14 : 1
     case .running:
       return isAnimating ? 1.08 : 1
+    case .idle:
+      return 1
     }
   }
 
@@ -526,6 +543,65 @@ private struct TerminalSidebarClaudeActivityView: View {
       return isAnimating ? -1 : 0
     case .running:
       return 0
+    case .idle:
+      return 0
+    }
+  }
+
+  private func color(for tone: TerminalHostState.ClaudeActivityTone) -> Color {
+    switch tone {
+    case .attention:
+      return Color.orange
+    case .active:
+      return Color.accentColor
+    case .muted:
+      return palette.secondaryText
+    }
+  }
+}
+
+private struct TerminalSidebarClaudeStatusRow: View {
+  let activity: TerminalHostState.ClaudeActivity
+  let isSelected: Bool
+  let palette: TerminalPalette
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Image(systemName: activity.symbolName)
+        .font(.system(size: 9, weight: .semibold))
+        .accessibilityHidden(true)
+
+      Text(activity.statusLabel)
+        .font(.system(size: 10, weight: .semibold))
+        .lineLimit(1)
+        .truncationMode(.tail)
+    }
+    .foregroundStyle(foregroundColor)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 3)
+    .background(backgroundColor, in: Capsule(style: .continuous))
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private var foregroundColor: Color {
+    switch activity.tone {
+    case .attention:
+      return Color.orange
+    case .active:
+      return Color.accentColor
+    case .muted:
+      return isSelected ? palette.selectedText.opacity(0.82) : palette.secondaryText
+    }
+  }
+
+  private var backgroundColor: Color {
+    switch activity.tone {
+    case .attention:
+      return Color.orange.opacity(isSelected ? 0.16 : 0.12)
+    case .active:
+      return Color.accentColor.opacity(isSelected ? 0.16 : 0.12)
+    case .muted:
+      return palette.secondaryText.opacity(isSelected ? 0.12 : 0.08)
     }
   }
 }
