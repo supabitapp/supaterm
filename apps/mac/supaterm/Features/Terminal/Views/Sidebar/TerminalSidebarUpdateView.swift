@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import Foundation
 import SwiftUI
@@ -25,6 +26,13 @@ struct TerminalSidebarUpdateSection: View {
 
   private var phase: UpdatePhase {
     store.phase
+  }
+
+  private var style: TerminalSidebarUpdateStyle {
+    .init(
+      phase: phase,
+      palette: palette
+    )
   }
 
   var body: some View {
@@ -275,32 +283,11 @@ struct TerminalSidebarUpdateSection: View {
   }
 
   private var borderColor: Color {
-    if case .updateAvailable = phase {
-      return Color.accentColor.opacity(0.24)
-    }
-    if case .notFound = phase {
-      return palette.mint.opacity(0.3)
-    }
-    if case .error = phase {
-      return Color.orange.opacity(0.32)
-    }
-    return palette.selectionStroke.opacity(0.48)
+    style.border
   }
 
   private var progressTint: Color {
-    if case .updateAvailable = phase {
-      return Color.accentColor
-    }
-    if case .installing = phase {
-      return Color.accentColor
-    }
-    if case .notFound = phase {
-      return palette.mint
-    }
-    if case .error = phase {
-      return Color.orange
-    }
-    return palette.primaryText
+    style.progress
   }
 
   private func actionButton(
@@ -330,9 +317,9 @@ struct TerminalSidebarUpdateSection: View {
     case .normal:
       return palette.clearFill
     case .prominent:
-      return Color.accentColor
+      return style.prominentFill
     case .destructive:
-      return Color.orange.opacity(0.16)
+      return style.warning.opacity(0.16)
     }
   }
 
@@ -343,9 +330,9 @@ struct TerminalSidebarUpdateSection: View {
     case .normal:
       return palette.primaryText
     case .prominent:
-      return palette.selectedText
+      return style.prominentForeground
     case .destructive:
-      return Color.orange
+      return style.warning
     }
   }
 
@@ -422,41 +409,111 @@ private enum TerminalSidebarUpdateButtonTone {
   case destructive
 }
 
+private struct TerminalSidebarUpdateStyle {
+  let phase: UpdatePhase
+  let palette: TerminalPalette
+
+  var border: Color {
+    switch phase {
+    case .notFound:
+      success.opacity(0.28)
+    case .error:
+      warning.opacity(0.3)
+    default:
+      separator
+    }
+  }
+
+  var progress: Color {
+    switch phase {
+    case .updateAvailable, .installing:
+      prominentFill
+    case .notFound:
+      success
+    case .error:
+      warning
+    default:
+      palette.primaryText
+    }
+  }
+
+  var prominentFill: Color {
+    palette.selectedFill
+  }
+
+  var prominentForeground: Color {
+    palette.selectedText
+  }
+
+  var warning: Color {
+    Color(nsColor: .systemOrange)
+  }
+
+  var indicator: Color {
+    switch phase {
+    case .updateAvailable, .installing:
+      prominentFill
+    case .notFound:
+      success
+    case .error:
+      warning
+    default:
+      palette.secondaryText
+    }
+  }
+
+  var badgeBackground: Color {
+    switch phase {
+    case .updateAvailable:
+      prominentFill
+    case .notFound:
+      success.opacity(0.16)
+    case .error:
+      warning.opacity(0.16)
+    default:
+      palette.clearFill
+    }
+  }
+
+  var badgeForeground: Color {
+    switch phase {
+    case .updateAvailable:
+      prominentForeground
+    case .error:
+      warning
+    default:
+      palette.primaryText
+    }
+  }
+
+  private var separator: Color {
+    Color(nsColor: .separatorColor)
+  }
+
+  private var success: Color {
+    Color(nsColor: .systemGreen)
+  }
+}
+
 private struct TerminalSidebarUpdateBadge: View {
   let text: String
   let phase: UpdatePhase
   let palette: TerminalPalette
 
+  private var style: TerminalSidebarUpdateStyle {
+    .init(
+      phase: phase,
+      palette: palette
+    )
+  }
+
   var body: some View {
     Text(text)
       .font(.system(size: 10, weight: .semibold))
-      .foregroundStyle(foregroundColor)
+      .foregroundStyle(style.badgeForeground)
       .padding(.horizontal, 7)
       .padding(.vertical, 4)
-      .background(backgroundColor, in: Capsule(style: .continuous))
-  }
-
-  private var backgroundColor: Color {
-    if case .updateAvailable = phase {
-      return Color.accentColor
-    }
-    if case .notFound = phase {
-      return palette.mint.opacity(0.18)
-    }
-    if case .error = phase {
-      return Color.orange.opacity(0.16)
-    }
-    return palette.clearFill
-  }
-
-  private var foregroundColor: Color {
-    if case .updateAvailable = phase {
-      return palette.selectedText
-    }
-    if case .error = phase {
-      return Color.orange
-    }
-    return palette.primaryText
+      .background(style.badgeBackground, in: Capsule(style: .continuous))
   }
 }
 
@@ -464,55 +521,28 @@ private struct TerminalSidebarUpdateIndicator: View {
   let phase: UpdatePhase
   let palette: TerminalPalette
 
-  @State private var rotation: Double = 0
+  private var style: TerminalSidebarUpdateStyle {
+    .init(
+      phase: phase,
+      palette: palette
+    )
+  }
 
   var body: some View {
     Group {
       if let progressValue = phase.progressValue {
         TerminalSidebarUpdateProgressRing(
           progress: progressValue,
-          tint: tintColor
+          tint: style.progress
         )
       } else {
         Image(systemName: phase.iconName)
           .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(tintColor)
-          .rotationEffect(.degrees(rotation))
+          .foregroundStyle(style.indicator)
           .accessibilityHidden(true)
       }
     }
     .frame(width: 18, height: 18)
-    .onAppear {
-      if case .checking = phase {
-        withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
-          rotation = 360
-        }
-      }
-    }
-    .onChange(of: phase) { _, newPhase in
-      rotation = 0
-      if case .checking = newPhase {
-        withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: false)) {
-          rotation = 360
-        }
-      }
-    }
-  }
-
-  private var tintColor: Color {
-    if case .updateAvailable = phase {
-      return Color.accentColor
-    }
-    if case .installing = phase {
-      return Color.accentColor
-    }
-    if case .notFound = phase {
-      return palette.mint
-    }
-    if case .error = phase {
-      return Color.orange
-    }
-    return palette.secondaryText
   }
 }
 
