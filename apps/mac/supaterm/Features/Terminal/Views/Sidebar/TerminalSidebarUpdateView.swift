@@ -148,17 +148,13 @@ struct TerminalSidebarUpdateSection: View {
           }
         }
 
-        VStack(alignment: .leading, spacing: 8) {
-          HStack(spacing: 8) {
-            actionButton("Skip") {
-              _ = store.send(.perform(.skipVersion))
-            }
+        HStack(spacing: 8) {
+          actionButton("Skip") {
+            _ = store.send(.perform(.skipVersion))
+          }
 
-            actionButton("Later") {
-              _ = store.send(.perform(.dismiss))
-            }
-
-            Spacer(minLength: 0)
+          actionButton("Later") {
+            _ = store.send(.perform(.dismiss))
           }
 
           actionButton("Install and Relaunch", tone: .prominent) {
@@ -184,7 +180,7 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .installing:
-      VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
         actionButton("Restart Later") {
           _ = store.send(.perform(.restartLater))
         }
@@ -271,6 +267,9 @@ struct TerminalSidebarUpdateSection: View {
       Text(title)
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(buttonForeground(tone: tone))
+        .lineLimit(1)
+        .minimumScaleFactor(0.9)
+        .allowsTightening(true)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
