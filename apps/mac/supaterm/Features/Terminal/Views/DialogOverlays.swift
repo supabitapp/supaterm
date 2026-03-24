@@ -38,7 +38,9 @@ struct ConfirmationOverlay: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 4)
 
-          HStack {
+          HStack(spacing: 12) {
+            Spacer()
+
             DialogActionButton(
               palette: palette,
               title: "Cancel",
@@ -47,8 +49,6 @@ struct ConfirmationOverlay: View {
               action: onCancel
             )
             .keyboardShortcut(.cancelAction)
-
-            Spacer()
 
             DialogActionButton(
               palette: palette,
