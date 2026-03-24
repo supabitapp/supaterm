@@ -116,7 +116,7 @@ final class TerminalHostState {
   @ObservationIgnored
   private var spaceCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
-  private var runtimeConfigObservationTask: Task<Void, Never>?
+  private var runtimeConfigObserver: NSObjectProtocol?
   @ObservationIgnored
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
   @ObservationIgnored
@@ -156,9 +156,11 @@ final class TerminalHostState {
     observeSpaceCatalog()
   }
 
-  deinit {
+  isolated deinit {
     spaceCatalogObservationTask?.cancel()
-    runtimeConfigObservationTask?.cancel()
+    if let runtimeConfigObserver {
+      NotificationCenter.default.removeObserver(runtimeConfigObserver)
+    }
   }
 
   func restorationSnapshot() -> TerminalWindowSession {
@@ -253,19 +255,16 @@ final class TerminalHostState {
 
   private func observeRuntimeConfig() {
     guard let runtime else { return }
-    runtimeConfigObservationTask = Task { @MainActor [weak self, weak runtime] in
-      for await notification in NotificationCenter.default.notifications(
-        named: .ghosttyRuntimeConfigDidChange
-      ) {
-        guard
-          let self,
-          let runtime,
-          let changedRuntime = notification.object as? GhosttyRuntime,
-          changedRuntime === runtime
-        else {
-          continue
-        }
-        self.runtimeConfigGeneration &+= 1
+    if let runtimeConfigObserver {
+      NotificationCenter.default.removeObserver(runtimeConfigObserver)
+    }
+    runtimeConfigObserver = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: runtime,
+      queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.runtimeConfigGeneration &+= 1
       }
     }
   }
