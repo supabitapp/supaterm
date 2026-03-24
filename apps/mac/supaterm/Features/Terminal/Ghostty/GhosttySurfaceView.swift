@@ -6,11 +6,6 @@ import QuartzCore
 import SupatermCLIShared
 
 final class GhosttySurfaceView: NSView, Identifiable {
-  struct SupatermEnvironmentContext {
-    let cliPath: String?
-    let socketPath: String?
-  }
-
   private struct ScrollbarState {
     let total: UInt64
     let offset: UInt64
@@ -157,20 +152,17 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  static func bundledCLIPath(resourcesURL: URL?) -> String? {
-    GhosttyBootstrap.bundledCLIPath(resourcesURL: resourcesURL)
-  }
-
   static func supatermEnvironmentVariables(
     surfaceID: UUID,
     tabID: UUID,
-    context: SupatermEnvironmentContext
+    socketPath: String?,
+    cliPath: String?
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
       surfaceID: surfaceID,
       tabID: tabID
     ).environmentVariables
-    if let socketPath = context.socketPath {
+    if let socketPath {
       environmentVariables.append(
         .init(
           key: SupatermCLIEnvironment.socketPathKey,
@@ -178,7 +170,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
-    if let cliPath = context.cliPath {
+    if let cliPath {
       environmentVariables.append(
         .init(
           key: SupatermCLIEnvironment.cliPathKey,
@@ -207,10 +199,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.environmentVariables = Self.supatermEnvironmentVariables(
       surfaceID: surfaceID,
       tabID: tabID,
-      context: .init(
-        cliPath: Self.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
-        socketPath: SupatermProcessSocketEndpoint.current()?.path
-      )
+      socketPath: SupatermProcessSocketEndpoint.current()?.path,
+      cliPath: GhosttyBootstrap.bundledCLIPath(resourcesURL: Bundle.main.resourceURL)
     )
     self.fontSize = fontSize ?? 0
     self.context = context

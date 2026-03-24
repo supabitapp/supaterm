@@ -6,7 +6,7 @@ supaterm_cli_available() {
 
 is_supaterm_bundled_claude() {
     case "$1" in
-        */supaterm.app/Contents/MacOS/claude|*/supaterm.app/Contents/Resources/bin/claude) return 0 ;;
+        */supaterm.app/Contents/Resources/bin/claude) return 0 ;;
         *) return 1 ;;
     esac
 }

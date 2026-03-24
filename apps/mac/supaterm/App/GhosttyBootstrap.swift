@@ -6,7 +6,6 @@ enum GhosttyBootstrap {
     let preferred: URL
   }
 
-  static let extraCLIArguments: [String] = []
   static let defaultConfigContents = """
     keybind = super+d=new_split:right
     keybind = chain=equalize_splits
@@ -23,14 +22,10 @@ enum GhosttyBootstrap {
     """
 
   private static let argv: [UnsafeMutablePointer<CChar>?] = {
-    var args: [UnsafeMutablePointer<CChar>?] = []
-    let executable = CommandLine.arguments.first ?? "supaterm"
-    args.append(strdup(executable))
-    for argument in extraCLIArguments {
-      args.append(strdup(argument))
-    }
-    args.append(nil)
-    return args
+    [
+      strdup(CommandLine.arguments.first ?? "supaterm"),
+      nil,
+    ]
   }()
 
   static func resourceDirectories(
