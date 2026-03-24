@@ -14,13 +14,21 @@ final class TerminalWindowController: NSWindowController {
   private let registry: TerminalWindowRegistry
   private var isPerformingConfirmedClose = false
 
-  init(registry: TerminalWindowRegistry) {
+  init(
+    registry: TerminalWindowRegistry,
+    session: TerminalWindowSession? = nil,
+    onSessionChange: @escaping @MainActor () -> Void = {}
+  ) {
     self.registry = registry
     let windowControllerID = UUID()
     self.windowControllerID = windowControllerID
 
     let ghostty = GhosttyRuntime()
     let terminal = TerminalHostState(runtime: ghostty)
+    terminal.onSessionChange = onSessionChange
+    if let session {
+      _ = terminal.restore(from: session)
+    }
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
         ._printChanges(.actionLabels)

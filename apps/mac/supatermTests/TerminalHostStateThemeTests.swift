@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -16,18 +17,18 @@ struct TerminalHostStateThemeTests {
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
-    var invalidationCount = 0
+    let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
       _ = host.notificationAttentionColor
     } onChange: {
-      invalidationCount += 1
+      invalidationCount.withLock { $0 += 1 }
     }
 
     NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: runtime)
     await flushObservation()
 
-    #expect(invalidationCount == 1)
+    #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   @Test
@@ -47,18 +48,18 @@ struct TerminalHostStateThemeTests {
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
-    var invalidationCount = 0
+    let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
       _ = host.notificationAttentionColor
     } onChange: {
-      invalidationCount += 1
+      invalidationCount.withLock { $0 += 1 }
     }
 
     NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: otherRuntime)
     await flushObservation()
 
-    #expect(invalidationCount == 0)
+    #expect(invalidationCount.withLock { $0 } == 0)
   }
 
   private func flushObservation() async {

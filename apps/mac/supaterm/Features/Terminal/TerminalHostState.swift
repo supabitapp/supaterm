@@ -119,6 +119,8 @@ final class TerminalHostState {
   private var runtimeConfigObservationTask: Task<Void, Never>?
   @ObservationIgnored
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
+  @ObservationIgnored
+  var onSessionChange: @MainActor () -> Void = {}
   let spaceManager = TerminalSpaceManager()
 
   private var pendingEvents: [TerminalClient.Event] = []
@@ -130,6 +132,7 @@ final class TerminalHostState {
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
+  private var suppressesSessionChanges = 0
 
   var windowActivity = WindowActivityState.inactive
 
@@ -156,6 +159,96 @@ final class TerminalHostState {
   deinit {
     spaceCatalogObservationTask?.cancel()
     runtimeConfigObservationTask?.cancel()
+  }
+
+  func restorationSnapshot() -> TerminalWindowSession {
+    let spaces = spaces.map { space in
+      let tabs = spaceManager.tabs(in: space.id).compactMap(restorationTabSession(for:))
+      let selectedTabID =
+        spaceManager.selectedTabID(in: space.id).flatMap { selectedTabID in
+          tabs.contains(where: { $0.id == selectedTabID }) ? selectedTabID : nil
+        }
+        ?? tabs.first?.id
+      return TerminalWindowSpaceSession(
+        id: space.id,
+        selectedTabID: selectedTabID,
+        tabs: tabs
+      )
+    }
+
+    let resolvedSelectedSpaceID =
+      self.selectedSpaceID.flatMap { selectedSpaceID in
+        spaces.contains(where: { $0.id == selectedSpaceID }) ? selectedSpaceID : nil
+      }
+      ?? spaces.first?.id
+      ?? spaceCatalog.defaultSelectedSpaceID
+
+    return TerminalWindowSession(
+      selectedSpaceID: resolvedSelectedSpaceID,
+      spaces: spaces
+    )
+  }
+
+  @discardableResult
+  func restore(from session: TerminalWindowSession) -> Bool {
+    guard managesTerminalSurfaces else { return false }
+    let validSpaceIDs = Set(spaces.map(\.id))
+    guard let session = session.pruned(validSpaceIDs: validSpaceIDs) else { return false }
+
+    return withSessionChangesSuppressed {
+      clearSessionState()
+
+      let sessionsBySpaceID = Dictionary(
+        uniqueKeysWithValues: session.spaces.map { ($0.id, $0) }
+      )
+
+      for space in spaces {
+        let restoredTabs = sessionsBySpaceID[space.id]?.tabs.map(restoredTabItem(for:)) ?? []
+        let selectedTabID = sessionsBySpaceID[space.id]?.selectedTabID
+        _ = spaceManager.restoreTabs(
+          restoredTabs,
+          selectedTabID: selectedTabID,
+          in: space.id
+        )
+      }
+
+      for spaceSession in session.spaces {
+        for tabSession in spaceSession.tabs {
+          restoreTabSession(tabSession, in: spaceSession.id)
+        }
+      }
+
+      guard spaces.contains(where: { !spaceManager.tabs(in: $0.id).isEmpty }) else {
+        clearSessionState()
+        return false
+      }
+
+      let selectedSpaceID =
+        spaces.contains(where: { $0.id == session.selectedSpaceID })
+        ? session.selectedSpaceID
+        : spaces.first?.id
+      guard let selectedSpaceID, spaceManager.selectSpace(selectedSpaceID) else {
+        clearSessionState()
+        return false
+      }
+
+      if spaceManager.tabs(in: selectedSpaceID).isEmpty {
+        _ = createTab(
+          in: selectedSpaceID,
+          focusing: false,
+          sessionChangesEnabled: false,
+          synchronizesFocus: false
+        )
+      }
+
+      if let selectedTabID {
+        focusSurface(in: selectedTabID)
+      } else {
+        lastEmittedFocusSurfaceID = nil
+      }
+      syncFocus(windowActivity)
+      return true
+    }
   }
 
   private func observeRuntimeConfig() {
@@ -326,12 +419,12 @@ final class TerminalHostState {
 
   var terminalBackgroundColor: Color {
     _ = runtimeConfigGeneration
-    Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
+    return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
   var notificationAttentionColor: Color {
     _ = runtimeConfigGeneration
-    Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
+    return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
   }
 
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
@@ -392,14 +485,16 @@ final class TerminalHostState {
   private func createTab(
     focusing: Bool = true,
     initialInput: String? = nil,
-    inheritingFromSurfaceID: UUID? = nil
+    inheritingFromSurfaceID: UUID? = nil,
+    sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
     guard let selectedSpaceID = spaceManager.selectedSpaceID else { return nil }
     return createTab(
       in: selectedSpaceID,
       focusing: focusing,
       initialInput: initialInput,
-      inheritingFromSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID()
+      inheritingFromSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
+      sessionChangesEnabled: sessionChangesEnabled
     )
   }
 
@@ -410,6 +505,7 @@ final class TerminalHostState {
     initialInput: String? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
+    sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
     guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
@@ -436,6 +532,9 @@ final class TerminalHostState {
     if synchronizesFocus {
       syncFocus(windowActivity)
     }
+    if sessionChangesEnabled {
+      sessionDidChange()
+    }
     return tabID
   }
 
@@ -449,6 +548,7 @@ final class TerminalHostState {
     spaceManager.tabManager(for: space.id)?.selectTab(tabID)
     focusSurface(in: tabID)
     syncFocus(windowActivity)
+    sessionDidChange()
   }
 
   private func selectTab(slot: Int) {
@@ -488,10 +588,12 @@ final class TerminalHostState {
 
   private func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     spaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
+    sessionDidChange()
   }
 
   private func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
     spaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
+    sessionDidChange()
   }
 
   private func moveSidebarTab(
@@ -502,10 +604,12 @@ final class TerminalHostState {
     spaceManager.space(for: tabID)
       .flatMap { spaceManager.tabManager(for: $0.id) }?
       .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
+    sessionDidChange()
   }
 
   private func togglePinned(_ tabID: TerminalTabID) {
     spaceManager.space(for: tabID).flatMap { spaceManager.tabManager(for: $0.id) }?.togglePinned(tabID)
+    sessionDidChange()
   }
 
   private func createSpace() {
@@ -519,6 +623,7 @@ final class TerminalHostState {
     _ = writeSpaceCatalog(updatedSpaceCatalog)
     guard spaceManager.selectSpace(space.id) else { return }
     finalizeSpaceSelectionChange()
+    sessionDidChange()
   }
 
   private func selectSpace(_ spaceID: TerminalSpaceID) {
@@ -534,6 +639,7 @@ final class TerminalHostState {
       persistDefaultSelectedSpaceID(spaceID)
     }
     finalizeSpaceSelectionChange()
+    sessionDidChange()
   }
 
   private func selectSpace(slot: Int) {
@@ -565,6 +671,7 @@ final class TerminalHostState {
     )
     _ = writeSpaceCatalog(updatedSpaceCatalog)
     finalizeSpaceSelectionChange()
+    sessionDidChange()
   }
 
   func isSpaceNameAvailable(
@@ -765,6 +872,7 @@ final class TerminalHostState {
       }
 
       syncFocus(windowActivity)
+      sessionDidChange()
 
       let paneLocation = try resolvedPaneLocation(
         spaceID: resolvedTarget.spaceID,
@@ -814,6 +922,7 @@ final class TerminalHostState {
           initialInput: request.command.map { "\($0)\n" },
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
+          sessionChangesEnabled: false,
           synchronizesFocus: Self.shouldSyncFocusDuringTabCreation(
             targetSpaceID: resolvedTarget.space.id,
             focusRequested: request.focus,
@@ -853,6 +962,7 @@ final class TerminalHostState {
       }
 
       syncFocus(windowActivity)
+      sessionDidChange()
 
       guard
         let spaceIndex = spaceManager.spaceIndex(for: resolvedTarget.space.id),
@@ -1027,6 +1137,7 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(newSurface, in: tabID)
+        sessionDidChange()
         return true
       } catch {
         newSurface.closeSurface()
@@ -1044,6 +1155,7 @@ final class TerminalHostState {
         trees[tabID] = tree
       }
       focusSurface(nextSurface, in: tabID)
+      sessionDidChange()
       return true
 
     case .resizeSplit(let direction, let amount):
@@ -1056,6 +1168,7 @@ final class TerminalHostState {
           with: CGRect(origin: .zero, size: tree.viewBounds())
         )
         trees[tabID] = newTree
+        sessionDidChange()
         return true
       } catch {
         return false
@@ -1063,6 +1176,7 @@ final class TerminalHostState {
 
     case .equalizeSplits:
       trees[tabID] = tree.equalized()
+      sessionDidChange()
       return true
 
     case .toggleSplitZoom:
@@ -1082,6 +1196,7 @@ final class TerminalHostState {
       do {
         tree = try tree.replacing(node: node, with: resizedNode)
         trees[tabID] = tree
+        sessionDidChange()
       } catch {
         return
       }
@@ -1101,12 +1216,14 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(payload, in: tabID)
+        sessionDidChange()
       } catch {
         return
       }
 
     case .equalize:
       trees[tabID] = tree.equalized()
+      sessionDidChange()
     }
   }
 
@@ -1132,7 +1249,8 @@ final class TerminalHostState {
       _ = spaceManager.selectSpace(space.id)
       _ = createTab(
         focusing: false,
-        inheritingFromSurfaceID: inheritedSurfaceID
+        inheritingFromSurfaceID: inheritedSurfaceID,
+        sessionChangesEnabled: false
       )
     }
 
@@ -1146,6 +1264,7 @@ final class TerminalHostState {
     }
 
     syncFocus(windowActivity)
+    sessionDidChange()
   }
 
   private func performCloseSurface(_ surfaceID: UUID) {
@@ -1170,11 +1289,12 @@ final class TerminalHostState {
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
       if tabs.isEmpty {
-        _ = createTab(focusing: false)
+        _ = createTab(focusing: false, sessionChangesEnabled: false)
       } else if let selectedTabID = selectedTabID {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
+      sessionDidChange()
       return
     }
 
@@ -1189,6 +1309,7 @@ final class TerminalHostState {
       }
     }
     syncFocus(windowActivity)
+    sessionDidChange()
   }
 
   private func createSurface(
@@ -1214,10 +1335,12 @@ final class TerminalHostState {
     view.bridge.onTitleChange = { [weak self] _ in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.sessionDidChange()
     }
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in
       guard let self else { return false }
@@ -1275,6 +1398,7 @@ final class TerminalHostState {
       self.updateRunningState(for: tabID)
       self.clearNotificationAttention(for: view.id)
       self.emitFocusChangedIfNeeded(view.id)
+      self.sessionDidChange()
     }
     surfaces[view.id] = view
     return view
@@ -1760,6 +1884,7 @@ final class TerminalHostState {
       tabTitleOverrides.removeValue(forKey: tabID)
     }
     updateTabTitle(for: tabID)
+    sessionDidChange()
   }
 
   private func copyTitleToClipboard(for tabID: TerminalTabID) -> Bool {
@@ -1818,6 +1943,168 @@ final class TerminalHostState {
     return trees[tabID]?.root?.leftmostLeaf()
   }
 
+  private func restorationTabSession(for tab: TerminalTabItem) -> TerminalTabSession? {
+    guard let tree = trees[tab.id], let root = tree.root.map(restorationNode(for:)) else {
+      return nil
+    }
+    let isTitleLocked = tab.isTitleLocked || tabTitleOverrides[tab.id] != nil
+    let focusedPaneID =
+      focusedSurfaceIDByTab[tab.id].flatMap { focusedPaneID in
+        root.containsLeaf(id: focusedPaneID) ? focusedPaneID : nil
+      }
+      ?? root.leftmostLeafID
+    return TerminalTabSession(
+      id: tab.id,
+      title: tab.title,
+      isPinned: tab.isPinned,
+      isTitleLocked: isTitleLocked,
+      focusedPaneID: focusedPaneID,
+      root: root
+    )
+  }
+
+  private func restorationNode(
+    for node: SplitTree<GhosttySurfaceView>.Node
+  ) -> TerminalPaneNodeSession {
+    switch node {
+    case .leaf(let surface):
+      return .leaf(
+        TerminalPaneLeafSession(
+          id: surface.id,
+          workingDirectoryPath: workingDirectoryPath(for: surface)
+        )
+      )
+    case .split(let split):
+      return .split(
+        TerminalPaneSplitSession(
+          direction: mapSessionSplitDirection(split.direction),
+          ratio: split.ratio,
+          left: restorationNode(for: split.left),
+          right: restorationNode(for: split.right)
+        )
+      )
+    }
+  }
+
+  private func restoredTabItem(for session: TerminalTabSession) -> TerminalTabItem {
+    TerminalTabItem(
+      id: session.id,
+      title: session.title,
+      icon: "terminal",
+      isPinned: session.isPinned,
+      isTitleLocked: session.isTitleLocked
+    )
+  }
+
+  private struct RestoredPaneNode {
+    let node: SplitTree<GhosttySurfaceView>.Node
+    let surfaceIDBySavedPaneID: [UUID: UUID]
+  }
+
+  private func restoreTabSession(
+    _ session: TerminalTabSession,
+    in spaceID: TerminalSpaceID
+  ) {
+    let context: ghostty_surface_context_e =
+      spaceManager.tabs(in: spaceID).first?.id == session.id
+      ? GHOSTTY_SURFACE_CONTEXT_WINDOW
+      : GHOSTTY_SURFACE_CONTEXT_TAB
+    let restoredRoot = restoreNode(
+      session.root,
+      in: session.id,
+      context: context
+    )
+    trees[session.id] = SplitTree(root: restoredRoot.node, zoomed: nil)
+    if session.isTitleLocked {
+      tabTitleOverrides[session.id] = session.title
+    } else {
+      tabTitleOverrides.removeValue(forKey: session.id)
+    }
+    focusedSurfaceIDByTab[session.id] =
+      session.focusedPaneID.flatMap { restoredRoot.surfaceIDBySavedPaneID[$0] }
+      ?? restoredRoot.node.leftmostLeaf().id
+    updateRunningState(for: session.id)
+    updateTabTitle(for: session.id)
+  }
+
+  private func restoreNode(
+    _ node: TerminalPaneNodeSession,
+    in tabID: TerminalTabID,
+    context: ghostty_surface_context_e
+  ) -> RestoredPaneNode {
+    switch node {
+    case .leaf(let leaf):
+      let surface = createSurface(
+        tabID: tabID,
+        initialInput: nil,
+        inheritingFromSurfaceID: nil,
+        workingDirectory: existingWorkingDirectoryURL(for: leaf.workingDirectoryPath),
+        context: context
+      )
+      return RestoredPaneNode(
+        node: .leaf(view: surface),
+        surfaceIDBySavedPaneID: [leaf.id: surface.id]
+      )
+
+    case .split(let split):
+      let left = restoreNode(split.left, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
+      let right = restoreNode(split.right, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
+      return RestoredPaneNode(
+        node: .split(
+          .init(
+            direction: mapSplitDirection(split.direction),
+            ratio: split.ratio,
+            left: left.node,
+            right: right.node
+          )
+        ),
+        surfaceIDBySavedPaneID: left.surfaceIDBySavedPaneID.merging(right.surfaceIDBySavedPaneID) {
+          current, _ in current
+        }
+      )
+    }
+  }
+
+  private func clearSessionState() {
+    let existingTabIDs = spaces.flatMap { spaceManager.tabs(in: $0.id).map(\.id) }
+    removeTrees(for: existingTabIDs)
+    for space in spaces {
+      _ = spaceManager.restoreTabs([], selectedTabID: nil, in: space.id)
+    }
+    lastEmittedFocusSurfaceID = nil
+  }
+
+  private func sessionDidChange() {
+    guard suppressesSessionChanges == 0 else { return }
+    onSessionChange()
+  }
+
+  private func withSessionChangesSuppressed<Result>(
+    _ body: () -> Result
+  ) -> Result {
+    suppressesSessionChanges += 1
+    defer {
+      suppressesSessionChanges -= 1
+    }
+    return body()
+  }
+
+  private func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {
+    guard let path = Self.trimmedNonEmpty(surface.bridge.state.pwd) else { return nil }
+    return GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+  }
+
+  private func existingWorkingDirectoryURL(for path: String?) -> URL? {
+    guard let path = Self.trimmedNonEmpty(path) else { return nil }
+    let normalizedPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+    var isDirectory = ObjCBool(false)
+    guard FileManager.default.fileExists(atPath: normalizedPath, isDirectory: &isDirectory) else {
+      return nil
+    }
+    guard isDirectory.boolValue else { return nil }
+    return URL(fileURLWithPath: normalizedPath, isDirectory: true)
+  }
+
   private func observeSpaceCatalog() {
     spaceCatalogObservationTask?.cancel()
     spaceCatalogObservationTask = Task { @MainActor [weak self] in
@@ -1842,8 +2129,10 @@ final class TerminalHostState {
 
     if previousSelectedSpaceID != selectedSpaceID {
       finalizeSpaceSelectionChange()
+      sessionDidChange()
     } else if !diff.removedTabIDs.isEmpty {
       syncFocus(windowActivity)
+      sessionDidChange()
     }
   }
 
@@ -1926,6 +2215,28 @@ final class TerminalHostState {
       return .top
     case .down:
       return .down
+    }
+  }
+
+  private func mapSplitDirection(_ direction: TerminalPaneSplitDirection)
+    -> SplitTree<GhosttySurfaceView>.Direction
+  {
+    switch direction {
+    case .horizontal:
+      return .horizontal
+    case .vertical:
+      return .vertical
+    }
+  }
+
+  private func mapSessionSplitDirection(
+    _ direction: SplitTree<GhosttySurfaceView>.Direction
+  ) -> TerminalPaneSplitDirection {
+    switch direction {
+    case .horizontal:
+      return .horizontal
+    case .vertical:
+      return .vertical
     }
   }
 

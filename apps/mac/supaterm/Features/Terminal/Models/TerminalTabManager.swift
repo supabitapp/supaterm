@@ -135,6 +135,18 @@ final class TerminalTabManager {
     selectedTabId = nil
   }
 
+  func restoreTabs(
+    _ tabs: [TerminalTabItem],
+    selectedTabID: TerminalTabID?
+  ) {
+    self.tabs = tabs
+    self.selectedTabId =
+      selectedTabID.flatMap { id in
+        tabs.contains(where: { $0.id == id }) ? id : nil
+      }
+      ?? tabs.first?.id
+  }
+
   private func setVisibleTabs(_ visibleTabs: [TerminalTabItem]) {
     tabs = visibleTabs
     if tabs.contains(where: { $0.id == selectedTabId }) {
