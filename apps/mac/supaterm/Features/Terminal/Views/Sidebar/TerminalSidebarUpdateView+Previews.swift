@@ -103,7 +103,6 @@ private struct TerminalSidebarUpdatePreviewGallery: View {
     .frame(width: 320, height: 980)
     .background(palette.windowBackgroundTint)
     .background(palette.detailBackground)
-    .preferredColorScheme(colorScheme)
   }
 
   private func previewStore(
@@ -121,10 +120,43 @@ private struct TerminalSidebarUpdatePreviewGallery: View {
   }
 }
 
-#Preview("Sidebar Update States - Light") {
-  TerminalSidebarUpdatePreviewGallery(colorScheme: .light)
+private struct TerminalSidebarUpdatePreviewColumn: View {
+  let title: String
+  let colorScheme: ColorScheme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(title)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(.secondary)
+
+      TerminalSidebarUpdatePreviewGallery(colorScheme: colorScheme)
+        .environment(\.colorScheme, colorScheme)
+    }
+    .frame(width: 320, alignment: .leading)
+  }
 }
 
-#Preview("Sidebar Update States - Dark") {
-  TerminalSidebarUpdatePreviewGallery(colorScheme: .dark)
+private struct TerminalSidebarUpdatePreviewComparison: View {
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(alignment: .top, spacing: 16) {
+        TerminalSidebarUpdatePreviewColumn(
+          title: "Light",
+          colorScheme: .light
+        )
+
+        TerminalSidebarUpdatePreviewColumn(
+          title: "Dark",
+          colorScheme: .dark
+        )
+      }
+      .padding(16)
+    }
+    .frame(width: 704, height: 1040)
+  }
+}
+
+#Preview("Sidebar Update States") {
+  TerminalSidebarUpdatePreviewComparison()
 }
