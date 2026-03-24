@@ -29,4 +29,17 @@ struct WindowChromeConfigurationTests {
     #expect(window.standardWindowButton(.miniaturizeButton)?.isHidden == true)
     #expect(window.standardWindowButton(.zoomButton)?.isHidden == true)
   }
+
+  @Test
+  func terminalWindowUsesFullHeightContentLayoutRect() {
+    let window = TerminalWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+
+    #expect(window.contentLayoutRect.origin.y == 0)
+    #expect(window.contentLayoutRect.height == window.frame.height)
+  }
 }
