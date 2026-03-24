@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TerminalView: View {
   let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
   @Bindable var terminal: TerminalHostState
   @Environment(\.colorScheme) private var colorScheme
 
@@ -182,6 +183,7 @@ struct TerminalView: View {
     ZStack(alignment: .leading) {
       TerminalSplitView(
         store: store,
+        updateStore: updateStore,
         palette: palette,
         terminal: terminal,
         totalWidth: geometry.size.width,
@@ -196,6 +198,7 @@ struct TerminalView: View {
       if store.isSidebarCollapsed {
         FloatingSidebarOverlay(
           store: store,
+          updateStore: updateStore,
           palette: palette,
           terminal: terminal,
           totalWidth: geometry.size.width,

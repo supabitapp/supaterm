@@ -44,6 +44,109 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func bypassesQuitConfirmationReflectsInstallingUpdatePhase() {
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    #expect(registry.bypassesQuitConfirmation)
+  }
+
+  @Test
+  func debugSnapshotUsesUpdatePhaseIdentifierAndDetail() {
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    var state = AppFeature.State()
+    state.update.canCheckForUpdates = true
+    state.update.phase = .checking
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    let snapshot = registry.debugSnapshot(.init())
+    #expect(snapshot.update.canCheckForUpdates)
+    #expect(snapshot.update.phase == "checking")
+    #expect(snapshot.update.detail == "Please wait while Supaterm checks for available updates.")
+  }
+
+  @Test
+  func restorationSnapshotPreservesActiveWindowOrder() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let firstHost = TerminalHostState()
+      firstHost.handleCommand(.ensureInitialTab(focusing: false))
+
+      let secondHost = TerminalHostState()
+      secondHost.handleCommand(.ensureInitialTab(focusing: false))
+      secondHost.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+
+      let firstStore = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let secondStore = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+
+      let firstWindowControllerID = UUID()
+      let secondWindowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: firstWindowControllerID,
+        store: firstStore,
+        terminal: firstHost,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: firstWindowControllerID)
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: secondWindowControllerID,
+        store: secondStore,
+        terminal: secondHost,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: secondWindowControllerID)
+
+      let snapshot = registry.restorationSnapshot()
+
+      #expect(snapshot.windows.count == 2)
+      #expect(snapshot.windows[0].spaces.first?.tabs.count == 1)
+      #expect(snapshot.windows[1].spaces.first?.tabs.count == 2)
+    }
+  }
+
+  @Test
   func requestCloseTabInKeyWindowDispatchesReducerCommand() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

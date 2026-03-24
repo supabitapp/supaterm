@@ -9,11 +9,11 @@ struct UpdateFeature {
   @ObservableState
   struct State: Equatable {
     var canCheckForUpdates = false
-    var phase = UpdatePhase()
+    var phase: UpdatePhase = .idle
   }
 
   enum Action {
-    case checkForUpdatesButtonTapped
+    case perform(UpdateUserAction)
     case task
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
   }
@@ -23,10 +23,12 @@ struct UpdateFeature {
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
-      case .checkForUpdatesButtonTapped:
-        guard state.canCheckForUpdates else { return .none }
+      case .perform(let action):
+        if action == .checkForUpdates && !state.canCheckForUpdates {
+          return .none
+        }
         return .run { [updateClient] _ in
-          await updateClient.checkForUpdates()
+          await updateClient.perform(action)
         }
 
       case .task:
@@ -41,6 +43,7 @@ struct UpdateFeature {
 
       case .updateClientSnapshotReceived(let snapshot):
         state.canCheckForUpdates = snapshot.canCheckForUpdates
+        state.phase = snapshot.phase
         return .none
       }
     }

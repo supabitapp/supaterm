@@ -6,37 +6,57 @@ import Testing
 @MainActor
 struct UpdateFeatureTests {
   @Test
-  func checkForUpdatesButtonTappedUsesClientWhenEnabled() async {
-    let recorder = CheckRecorder()
+  func performCheckForUpdatesUsesClientWhenEnabled() async {
+    let recorder = UpdateActionRecorder()
     var initialState = UpdateFeature.State()
     initialState.canCheckForUpdates = true
 
     let store = TestStore(initialState: initialState) {
       UpdateFeature()
     } withDependencies: {
-      $0.updateClient.checkForUpdates = {
-        await recorder.markChecked()
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
       }
     }
 
-    await store.send(.checkForUpdatesButtonTapped)
-    #expect(await recorder.wasChecked())
+    await store.send(.perform(.checkForUpdates))
+    #expect(await recorder.actions() == [.checkForUpdates])
   }
 
   @Test
-  func checkForUpdatesButtonTappedDoesNothingWhenDisabled() async {
-    let recorder = CheckRecorder()
+  func performCheckForUpdatesDoesNothingWhenDisabled() async {
+    let recorder = UpdateActionRecorder()
 
     let store = TestStore(initialState: UpdateFeature.State()) {
       UpdateFeature()
     } withDependencies: {
-      $0.updateClient.checkForUpdates = {
-        await recorder.markChecked()
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
       }
     }
 
-    await store.send(.checkForUpdatesButtonTapped)
-    #expect(!(await recorder.wasChecked()))
+    await store.send(.perform(.checkForUpdates))
+    #expect(await recorder.actions().isEmpty)
+  }
+
+  @Test
+  func performRoutesUpdateActionsThroughClient() async {
+    let recorder = UpdateActionRecorder()
+
+    let store = TestStore(initialState: UpdateFeature.State()) {
+      UpdateFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+
+    await store.send(.perform(.install))
+    await store.send(.perform(.cancel))
+    await store.send(.perform(.retry))
+    await store.send(.perform(.dismiss))
+
+    #expect(await recorder.actions() == [.install, .cancel, .retry, .dismiss])
   }
 
   @Test
@@ -51,10 +71,16 @@ struct UpdateFeatureTests {
     }
 
     await store.send(.task)
-    continuation.yield(.init(canCheckForUpdates: true))
+    continuation.yield(
+      .init(
+        canCheckForUpdates: true,
+        phase: .checking
+      )
+    )
 
     await store.receive(\.updateClientSnapshotReceived) {
       $0.canCheckForUpdates = true
+      $0.phase = .checking
     }
 
     continuation.finish()
@@ -62,15 +88,15 @@ struct UpdateFeatureTests {
   }
 }
 
-private actor CheckRecorder {
-  private var checked = false
+private actor UpdateActionRecorder {
+  private var recordedActions: [UpdateUserAction] = []
 
-  func markChecked() {
-    checked = true
+  func actions() -> [UpdateUserAction] {
+    recordedActions
   }
 
-  func wasChecked() -> Bool {
-    checked
+  func record(_ action: UpdateUserAction) {
+    recordedActions.append(action)
   }
 }
 

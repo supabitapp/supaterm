@@ -116,7 +116,7 @@ final class TerminalHostState {
   @ObservationIgnored
   private var spaceCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
-  private var runtimeConfigObserver: NSObjectProtocol?
+  private var runtimeConfigObservationTask: Task<Void, Never>?
   @ObservationIgnored
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
   let spaceManager = TerminalSpaceManager()
@@ -155,34 +155,24 @@ final class TerminalHostState {
 
   deinit {
     spaceCatalogObservationTask?.cancel()
-    if let runtimeConfigObserver {
-      NotificationCenter.default.removeObserver(runtimeConfigObserver)
-    }
+    runtimeConfigObservationTask?.cancel()
   }
 
   private func observeRuntimeConfig() {
     guard let runtime else { return }
-    runtimeConfigObserver = NotificationCenter.default.addObserver(
-      forName: .ghosttyRuntimeConfigDidChange,
-      object: nil,
-      queue: nil
-    ) { [weak self, weak runtime] notification in
-      guard
-        let self,
-        let runtime,
-        let changedRuntime = notification.object as? GhosttyRuntime,
-        changedRuntime === runtime
-      else {
-        return
-      }
-      if Thread.isMainThread {
-        MainActor.assumeIsolated {
-          self.runtimeConfigGeneration &+= 1
+    runtimeConfigObservationTask = Task { @MainActor [weak self, weak runtime] in
+      for await notification in NotificationCenter.default.notifications(
+        named: .ghosttyRuntimeConfigDidChange
+      ) {
+        guard
+          let self,
+          let runtime,
+          let changedRuntime = notification.object as? GhosttyRuntime,
+          changedRuntime === runtime
+        else {
+          continue
         }
-      } else {
-        Task { @MainActor [weak self] in
-          self?.runtimeConfigGeneration &+= 1
-        }
+        self.runtimeConfigGeneration &+= 1
       }
     }
   }

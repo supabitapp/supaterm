@@ -64,7 +64,7 @@ final class TerminalWindowRegistry {
   }
 
   var bypassesQuitConfirmation: Bool {
-    false
+    activeEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
   }
 
   func register(
@@ -133,7 +133,7 @@ final class TerminalWindowRegistry {
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
-      updateMenuItemText: entry.store.update.phase.menuItemText,
+      updateMenuItemText: "Check for Updates...",
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
       canCheckForUpdates: entry.store.update.canCheckForUpdates
@@ -192,7 +192,7 @@ final class TerminalWindowRegistry {
   @discardableResult
   func requestCheckForUpdatesInKeyWindow() -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
-    entry.store.send(.update(.checkForUpdatesButtonTapped))
+    entry.store.send(.update(.perform(.checkForUpdates)))
     return true
   }
 
@@ -276,6 +276,12 @@ final class TerminalWindowRegistry {
       )
     }
     return .init(windows: windows)
+  }
+
+  func restorationSnapshot() -> TerminalSessionCatalog {
+    TerminalSessionCatalog(
+      windows: activeEntries().map { $0.terminal.restorationSnapshot() }
+    )
   }
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
@@ -779,6 +785,6 @@ final class TerminalWindowRegistry {
   }
 
   private func updatePhaseDescription(_ phase: UpdatePhase) -> String {
-    "idle"
+    phase.debugIdentifier
   }
 }

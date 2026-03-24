@@ -17,7 +17,8 @@ struct AppFeatureTests {
   @Test
   func updateActionsRouteToChildFeature() async {
     let snapshot = UpdateClient.Snapshot(
-      canCheckForUpdates: true
+      canCheckForUpdates: true,
+      phase: .checking
     )
 
     let store = TestStore(initialState: AppFeature.State()) {
@@ -26,6 +27,7 @@ struct AppFeatureTests {
 
     await store.send(.update(.updateClientSnapshotReceived(snapshot))) {
       $0.update.canCheckForUpdates = true
+      $0.update.phase = .checking
     }
   }
 }

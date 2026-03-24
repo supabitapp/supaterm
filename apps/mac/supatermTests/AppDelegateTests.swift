@@ -9,7 +9,8 @@ struct AppDelegateTests {
   func terminateReplySkipsConfirmationWithoutVisibleAppWindows() {
     let reply = AppDelegate.terminateReply(
       hasVisibleAppWindows: false,
-      needsQuitConfirmation: true
+      needsQuitConfirmation: true,
+      bypassesQuitConfirmation: false
     ) {
       Issue.record("confirmation should not be shown")
       return false
@@ -22,7 +23,8 @@ struct AppDelegateTests {
   func terminateReplySkipsConfirmationWhenNoTerminalNeedsIt() {
     let reply = AppDelegate.terminateReply(
       hasVisibleAppWindows: true,
-      needsQuitConfirmation: false
+      needsQuitConfirmation: false,
+      bypassesQuitConfirmation: false
     ) {
       Issue.record("confirmation should not be shown")
       return false
@@ -35,7 +37,8 @@ struct AppDelegateTests {
   func terminateReplyCancelsWhenConfirmationIsDeclined() {
     let reply = AppDelegate.terminateReply(
       hasVisibleAppWindows: true,
-      needsQuitConfirmation: true
+      needsQuitConfirmation: true,
+      bypassesQuitConfirmation: false
     ) {
       false
     }
@@ -47,11 +50,54 @@ struct AppDelegateTests {
   func terminateReplyTerminatesWhenConfirmationIsAccepted() {
     let reply = AppDelegate.terminateReply(
       hasVisibleAppWindows: true,
-      needsQuitConfirmation: true
+      needsQuitConfirmation: true,
+      bypassesQuitConfirmation: false
     ) {
       true
     }
 
     #expect(reply == .terminateNow)
+  }
+
+  @Test
+  func terminateReplySkipsConfirmationWhenUpdateBypassesQuitConfirmation() {
+    let reply = AppDelegate.terminateReply(
+      hasVisibleAppWindows: true,
+      needsQuitConfirmation: true,
+      bypassesQuitConfirmation: true
+    ) {
+      Issue.record("confirmation should not be shown")
+      return false
+    }
+
+    #expect(reply == .terminateNow)
+  }
+
+  @Test
+  func initialWindowSessionsFallsBackToSingleBlankWindow() {
+    let sessions = AppDelegate.initialWindowSessions(
+      from: TerminalSessionCatalog(windows: [])
+    )
+
+    #expect(sessions.count == 1)
+    #expect(sessions[0] == nil)
+  }
+
+  @Test
+  func initialWindowSessionsPreservesSavedWindowOrder() {
+    let first = TerminalWindowSession(
+      selectedSpaceID: TerminalSpaceID(),
+      spaces: []
+    )
+    let second = TerminalWindowSession(
+      selectedSpaceID: TerminalSpaceID(),
+      spaces: []
+    )
+
+    let sessions = AppDelegate.initialWindowSessions(
+      from: TerminalSessionCatalog(windows: [first, second])
+    )
+
+    #expect(sessions == [first, second])
   }
 }
