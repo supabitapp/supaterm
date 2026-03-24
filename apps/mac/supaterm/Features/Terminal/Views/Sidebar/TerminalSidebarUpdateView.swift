@@ -103,12 +103,10 @@ struct TerminalSidebarUpdateSection: View {
       EmptyView()
 
     case .permissionRequest:
-      HStack(spacing: 8) {
+      trailingActionRow {
         actionButton("Not Now") {
           _ = store.send(.perform(.declineAutomaticChecks))
         }
-
-        Spacer(minLength: 0)
 
         actionButton("Allow", tone: .prominent) {
           _ = store.send(.perform(.allowAutomaticChecks))
@@ -137,7 +135,7 @@ struct TerminalSidebarUpdateSection: View {
           }
         }
 
-        HStack(spacing: 8) {
+        trailingActionRow {
           actionButton("Skip") {
             _ = store.send(.perform(.skipVersion))
           }
@@ -155,8 +153,7 @@ struct TerminalSidebarUpdateSection: View {
     case .downloading:
       VStack(alignment: .leading, spacing: 10) {
         progressContent
-        HStack {
-          Spacer(minLength: 0)
+        trailingActionRow {
           actionButton("Cancel") {
             _ = store.send(.perform(.cancel))
           }
@@ -169,7 +166,7 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .installing:
-      HStack(spacing: 8) {
+      trailingActionRow {
         actionButton("Restart Later") {
           _ = store.send(.perform(.restartLater))
         }
@@ -180,20 +177,17 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .notFound:
-      HStack {
-        Spacer(minLength: 0)
+      trailingActionRow {
         actionButton("OK") {
           _ = store.send(.perform(.dismiss))
         }
       }
 
     case .error:
-      HStack(spacing: 8) {
+      trailingActionRow {
         actionButton("OK") {
           _ = store.send(.perform(.dismiss))
         }
-
-        Spacer(minLength: 0)
 
         actionButton("Retry", tone: .prominent) {
           _ = store.send(.perform(.retry))
@@ -268,6 +262,15 @@ struct TerminalSidebarUpdateSection: View {
         .contentShape(Capsule(style: .continuous))
     }
     .buttonStyle(.plain)
+  }
+
+  private func trailingActionRow<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    HStack(spacing: 8) {
+      Spacer(minLength: 0)
+      content()
+    }
   }
 
   private func buttonBackground(
