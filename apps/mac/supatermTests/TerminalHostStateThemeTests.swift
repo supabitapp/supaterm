@@ -8,19 +8,17 @@ import Testing
 @MainActor
 struct TerminalHostStateThemeTests {
   @Test
-  func notificationAttentionColorInvalidatesWhenMatchingRuntimeChanges() async throws {
+  func terminalBackgroundColorInvalidatesWhenMatchingRuntimeChanges() async throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
-      foreground = #E0E0E0
-      palette = 12=#3366FF
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
-      _ = host.notificationAttentionColor
+      _ = host.terminalBackgroundColor
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }
@@ -32,26 +30,22 @@ struct TerminalHostStateThemeTests {
   }
 
   @Test
-  func notificationAttentionColorIgnoresOtherRuntimeChanges() async throws {
+  func terminalBackgroundColorIgnoresOtherRuntimeChanges() async throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
-      foreground = #E0E0E0
-      palette = 12=#3366FF
       """
     )
     let otherRuntime = try makeGhosttyRuntime(
       """
-      background = #101010
-      foreground = #E0E0E0
-      palette = 12=#00AACC
+      background = #202020
       """
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
     let invalidationCount = Mutex<Int>(0)
 
     withObservationTracking {
-      _ = host.notificationAttentionColor
+      _ = host.terminalBackgroundColor
     } onChange: {
       invalidationCount.withLock { $0 += 1 }
     }

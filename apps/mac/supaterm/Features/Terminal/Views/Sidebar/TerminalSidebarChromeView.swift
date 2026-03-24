@@ -512,7 +512,7 @@ private struct TerminalSidebarFocusedNotificationView: View {
   }
 
   private var color: Color {
-    isSelected ? palette.selectedText : Color.accentColor
+    palette.attention
   }
 }
 
@@ -594,7 +594,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   private func color(for tone: TerminalHostState.ClaudeActivityTone) -> Color {
     switch tone {
     case .attention:
-      return Color.orange
+      return palette.attention
     case .active:
       return Color.accentColor
     case .muted:
@@ -629,7 +629,7 @@ private struct TerminalSidebarClaudeStatusRow: View {
   private var foregroundColor: Color {
     switch activity.tone {
     case .attention:
-      return Color.orange
+      return palette.attention
     case .active:
       return Color.accentColor
     case .muted:
@@ -640,7 +640,7 @@ private struct TerminalSidebarClaudeStatusRow: View {
   private var backgroundColor: Color {
     switch activity.tone {
     case .attention:
-      return Color.orange.opacity(isSelected ? 0.16 : 0.12)
+      return palette.attention.opacity(isSelected ? 0.16 : 0.12)
     case .active:
       return Color.accentColor.opacity(isSelected ? 0.16 : 0.12)
     case .muted:
