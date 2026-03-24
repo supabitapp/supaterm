@@ -595,19 +595,22 @@ final class GhosttyRuntime {
       Array(buffer.bindMemory(to: ghostty_config_color_s.self)).map { NSColor(ghostty: $0) }
     }
 
-    for index in Self.notificationAttentionPaletteIndexes {
-      guard colors.indices.contains(index) else { continue }
-      let color = colors[index]
-      guard
-        color.saturation >= Self.minNotificationSaturation,
-        color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
-      else {
-        continue
+    return Self.notificationAttentionPaletteIndexes
+      .compactMap { index -> NSColor? in
+        guard colors.indices.contains(index) else { return nil }
+        let color = colors[index]
+        guard
+          color.saturation >= Self.minNotificationSaturation,
+          color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
+        else {
+          return nil
+        }
+        return color
       }
-      return color
-    }
-
-    return fallbackColor
+      .max { lhs, rhs in
+        lhs.relativeLuminance < rhs.relativeLuminance
+      }
+      ?? fallbackColor
   }
 
   func scrollbarAppearanceName() -> NSAppearance.Name {

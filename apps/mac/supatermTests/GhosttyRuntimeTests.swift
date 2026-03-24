@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct GhosttyRuntimeTests {
   @Test
-  func notificationAttentionColorPrefersYellowWhenItQualifies() throws {
+  func notificationAttentionColorPrefersBrightestWarmCandidate() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
@@ -18,7 +18,7 @@ struct GhosttyRuntimeTests {
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#D79921")
+    #expect(hexString(runtime.notificationAttentionColor()) == "#FABD2F")
   }
 
   @Test
@@ -33,6 +33,20 @@ struct GhosttyRuntimeTests {
     )
 
     #expect(hexString(runtime.notificationAttentionColor()) == "#FABD2F")
+  }
+
+  @Test
+  func notificationAttentionColorUsesYellowWhenBrightYellowFails() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      palette = 3=#D79921
+      palette = 11=#1F1F1F
+      """
+    )
+
+    #expect(hexString(runtime.notificationAttentionColor()) == "#D79921")
   }
 
   @Test
