@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct SettingsWindowControllerTests {
   @Test
-  func initialWindowCentersRelativeToSourceWindowWhenNoSavedFrameExists() throws {
+  func initialWindowCentersRelativeToSourceWindowAndConstrainsToVisibleFrameWhenNoSavedFrameExists() throws {
     NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
     defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
 
@@ -20,9 +20,14 @@ struct SettingsWindowControllerTests {
     controller.show(tab: .general, relativeTo: sourceWindow)
     defer { controller.window?.orderOut(nil) }
     let frame = try #require(controller.window?.frame)
-    let expectedOrigin = NSPoint(
+    let visibleFrame = sourceWindow.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? sourceWindow.frame
+    let centeredOrigin = NSPoint(
       x: sourceWindow.frame.midX - frame.width / 2,
       y: sourceWindow.frame.midY - frame.height / 2
+    )
+    let expectedOrigin = NSPoint(
+      x: min(max(centeredOrigin.x, visibleFrame.minX), visibleFrame.maxX - frame.width),
+      y: min(max(centeredOrigin.y, visibleFrame.minY), visibleFrame.maxY - frame.height)
     )
 
     #expect(frame.origin == expectedOrigin)
