@@ -227,6 +227,21 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func bindingMenuItemSelectedToggleSplitZoomSendsFocusedSurfaceBindingCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.bindingMenuItemSelected(.toggleSplitZoom))
+
+    #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.toggleSplitZoom)])
+  }
+
+  @Test
   func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true
