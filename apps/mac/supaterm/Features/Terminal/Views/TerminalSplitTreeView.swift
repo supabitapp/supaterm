@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct TerminalSplitTreeView: View {
+  let focusedSurfaceIDs: Set<UUID>
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
@@ -65,6 +66,7 @@ struct TerminalSplitTreeView: View {
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
       SubtreeView(
+        focusedSurfaceIDs: focusedSurfaceIDs,
         node: node,
         unreadSurfaceIDs: unreadSurfaceIDs,
         outerEdges: .all,
@@ -82,6 +84,7 @@ struct TerminalSplitTreeView: View {
   }
 
   struct SubtreeView: View {
+    let focusedSurfaceIDs: Set<UUID>
     let node: SplitTree<GhosttySurfaceView>.Node
     let unreadSurfaceIDs: Set<UUID>
     let outerEdges: OuterEdges
@@ -92,6 +95,7 @@ struct TerminalSplitTreeView: View {
       switch node {
       case .leaf(let leafView):
         LeafView(
+          hasFocusedNotification: focusedSurfaceIDs.contains(leafView.id),
           surfaceView: leafView,
           isSplit: !isRoot,
           isUnread: unreadSurfaceIDs.contains(leafView.id),
@@ -117,6 +121,7 @@ struct TerminalSplitTreeView: View {
           resizeIncrements: .init(width: 1, height: 1),
           left: {
             SubtreeView(
+              focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.left,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.left, in: split.direction),
@@ -125,6 +130,7 @@ struct TerminalSplitTreeView: View {
           },
           right: {
             SubtreeView(
+              focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.right,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.right, in: split.direction),
@@ -140,6 +146,7 @@ struct TerminalSplitTreeView: View {
   }
 
   struct LeafView: View {
+    let hasFocusedNotification: Bool
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
     let isUnread: Bool
@@ -150,7 +157,7 @@ struct TerminalSplitTreeView: View {
     @State private var dropState: DropState = .idle
     @State private var isPaneHovering = false
 
-    private var unreadGlowAnimation: Animation? {
+    private var notificationGlowAnimation: Animation? {
       reduceMotion ? nil : .easeInOut(duration: 0.2)
     }
 
@@ -198,18 +205,18 @@ struct TerminalSplitTreeView: View {
           }
           .background {
             unreadGlowShape
-              .fill(Color.accentColor.opacity(0.08))
-              .opacity(isUnread ? 1 : 0)
-              .animation(unreadGlowAnimation, value: isUnread)
+              .fill(Color.accentColor.opacity(backgroundOpacity))
+              .opacity(hasVisibleAttention ? 1 : 0)
+              .animation(notificationGlowAnimation, value: attentionAnimationValue)
               .allowsHitTesting(false)
           }
           .overlay {
             unreadGlowShape
-              .strokeBorder(Color.accentColor.opacity(0.95), lineWidth: 2)
-              .shadow(color: Color.accentColor.opacity(0.5), radius: 12)
+              .strokeBorder(Color.accentColor.opacity(strokeOpacity), lineWidth: lineWidth)
+              .shadow(color: Color.accentColor.opacity(shadowOpacity), radius: shadowRadius)
               .compositingGroup()
-              .opacity(isUnread ? 1 : 0)
-              .animation(unreadGlowAnimation, value: isUnread)
+              .opacity(hasVisibleAttention ? 1 : 0)
+              .animation(notificationGlowAnimation, value: attentionAnimationValue)
               .allowsHitTesting(false)
           }
           .overlay {
@@ -221,6 +228,45 @@ struct TerminalSplitTreeView: View {
       }
     }
 
+    private var backgroundOpacity: Double {
+      if isUnread {
+        return 0.08
+      }
+      if hasFocusedNotification {
+        return 0.04
+      }
+      return 0
+    }
+
+    private var attentionAnimationValue: Int {
+      if isUnread {
+        return 2
+      }
+      if hasFocusedNotification {
+        return 1
+      }
+      return 0
+    }
+
+    private var hasVisibleAttention: Bool {
+      isUnread || hasFocusedNotification
+    }
+
+    private var lineWidth: CGFloat {
+      isUnread ? 2 : 1.5
+    }
+
+    private var shadowOpacity: Double {
+      isUnread ? 0.5 : 0.18
+    }
+
+    private var shadowRadius: CGFloat {
+      isUnread ? 12 : 8
+    }
+
+    private var strokeOpacity: Double {
+      isUnread ? 0.95 : 0.45
+    }
   }
 
   struct DragHandle: View {
@@ -386,6 +432,7 @@ extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 /// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
+  let focusedSurfaceIDs: Set<UUID>
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
@@ -400,6 +447,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
     nsView.update(
       rootView: AnyView(
         TerminalSplitTreeView(
+          focusedSurfaceIDs: focusedSurfaceIDs,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,
           action: action

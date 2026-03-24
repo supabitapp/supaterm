@@ -208,12 +208,12 @@ struct SocketControlFeature {
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
-      if result.shouldDeliverDesktopNotification {
+      if result.desktopNotificationDisposition.shouldDeliver {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
             subtitle: payload.subtitle,
-            title: payload.title
+            title: result.resolvedTitle
           )
         )
       }

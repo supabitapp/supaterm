@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import CoreGraphics
 import Foundation
+import SupatermCLIShared
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
@@ -143,13 +144,13 @@ struct TerminalWindowFeature {
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
 
         case .notificationReceived(let event):
-          guard event.shouldDeliverDesktopNotification else { return .none }
+          guard event.desktopNotificationDisposition.shouldDeliver else { return .none }
           return .run { [desktopNotificationClient] _ in
             await desktopNotificationClient.deliver(
               .init(
                 body: event.body,
                 subtitle: event.subtitle,
-                title: event.title
+                title: event.resolvedTitle
               )
             )
           }

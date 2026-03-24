@@ -236,9 +236,11 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
+    let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
+      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
       unreadCount: unreadCount
@@ -257,6 +259,7 @@ struct TerminalSidebarChromeView: View {
         store: store,
         terminal: terminal,
         tab: tab,
+        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         latestNotificationText: latestNotificationText,
         unreadCount: unreadCount,
         palette: palette
@@ -375,6 +378,7 @@ struct TerminalSidebarChromeView: View {
 struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
     case claudeActivity(TerminalHostState.ClaudeActivity)
+    case focusedNotification
     case tabSymbol(String, TerminalTone)
     case unreadCount(Int)
   }
@@ -382,11 +386,13 @@ struct TerminalSidebarTabSummaryView: View {
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
+  let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let unreadCount: Int
   let claudeActivity: TerminalHostState.ClaudeActivity?
 
   static func leadingIndicator(
+    hasFocusedNotificationAttention: Bool,
     tab: TerminalTabItem,
     unreadCount: Int,
     claudeActivity: TerminalHostState.ClaudeActivity?
@@ -397,12 +403,16 @@ struct TerminalSidebarTabSummaryView: View {
     if let claudeActivity, claudeActivity.showsLeadingIndicator {
       return .claudeActivity(claudeActivity)
     }
+    if hasFocusedNotificationAttention {
+      return .focusedNotification
+    }
     return .tabSymbol(tab.symbol, tab.tone)
   }
 
   var body: some View {
     HStack(spacing: 8) {
       switch Self.leadingIndicator(
+        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         tab: tab,
         unreadCount: unreadCount,
         claudeActivity: claudeActivity
@@ -421,6 +431,12 @@ struct TerminalSidebarTabSummaryView: View {
       case .claudeActivity(let activity):
         TerminalSidebarClaudeActivityView(
           activity: activity,
+          isSelected: isSelected,
+          palette: palette
+        )
+
+      case .focusedNotification:
+        TerminalSidebarFocusedNotificationView(
           isSelected: isSelected,
           palette: palette
         )
@@ -470,6 +486,26 @@ struct TerminalSidebarTabSummaryView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+}
+
+private struct TerminalSidebarFocusedNotificationView: View {
+  let isSelected: Bool
+  let palette: TerminalPalette
+
+  var body: some View {
+    Circle()
+      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 1.5)
+      .frame(width: 18, height: 18)
+      .overlay {
+        Circle()
+          .fill(color.opacity(isSelected ? 0.95 : 0.82))
+          .frame(width: 5, height: 5)
+      }
+  }
+
+  private var color: Color {
+    isSelected ? palette.selectedText : Color.accentColor
   }
 }
 
@@ -646,6 +682,7 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let unreadCount: Int
   let palette: TerminalPalette
@@ -664,6 +701,7 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
+          hasFocusedNotificationAttention: hasFocusedNotificationAttention,
           latestNotificationText: latestNotificationText,
           unreadCount: unreadCount,
           claudeActivity: terminal.claudeActivity(for: tab.id)

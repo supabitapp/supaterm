@@ -408,7 +408,7 @@ extension SP {
       discussion: SPHelp.notifyDiscussion
     )
 
-    @Option(name: .long, help: "Notification title. Defaults to \"Notification\".")
+    @Option(name: .long, help: "Notification title. Defaults to the target tab title.")
     var title: String?
 
     @Option(name: .long, help: "Notification subtitle.")

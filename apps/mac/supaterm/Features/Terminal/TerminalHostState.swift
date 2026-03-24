@@ -43,9 +43,9 @@ final class TerminalHostState {
   }
 
   struct PaneNotification: Equatable, Sendable {
+    var attentionState: SupatermNotificationAttentionState?
     var body: String
     let createdAt: Date
-    var isUnread: Bool
     var subtitle: String
     var title: String
   }
@@ -123,7 +123,7 @@ final class TerminalHostState {
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
-  private var paneNotifications: [UUID: PaneNotification] = [:]
+  private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var claudeActivityByTab: [TerminalTabID: ClaudeActivity] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
@@ -309,15 +309,31 @@ final class TerminalHostState {
   }
 
   func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
-    Self.unreadNotificationCount(in: Array(notifications(for: tabID).values))
+    Self.unreadNotificationCount(in: notifications(for: tabID).values.flatMap { $0 })
   }
 
   func unreadNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
     Set(
       notifications(for: tabID)
-        .filter(\.value.isUnread)
-        .map(\.key)
+        .compactMap { surfaceID, notifications in
+          Self.surfaceAttentionState(in: notifications) == .unread ? surfaceID : nil
+        }
     )
+  }
+
+  func focusedNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
+    Set(
+      notifications(for: tabID)
+        .compactMap { surfaceID, notifications in
+          Self.surfaceAttentionState(in: notifications) == .focused ? surfaceID : nil
+        }
+    )
+  }
+
+  func hasFocusedNotificationAttention(for tabID: TerminalTabID) -> Bool {
+    notifications(for: tabID)
+      .values
+      .contains { Self.surfaceAttentionState(in: $0) == .focused }
   }
 
   func claudeActivity(for tabID: TerminalTabID) -> ClaudeActivity? {
@@ -868,19 +884,30 @@ final class TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[resolvedTarget.tabID],
       surfaceID: resolvedTarget.anchorSurface.id
     )
-    let shouldDeliverDesktopNotification = !selectionState.isFocused
-    paneNotifications[resolvedTarget.anchorSurface.id] = .init(
-      body: request.body,
-      createdAt: Date(),
-      isUnread: true,
-      subtitle: request.subtitle,
-      title: request.title
+    let attentionState: SupatermNotificationAttentionState =
+      selectionState.isFocused ? .focused : .unread
+    let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
+      isFocused: selectionState.isFocused,
+      tabID: resolvedTarget.tabID
     )
+    let resolvedTitle = resolvedNotificationTitle(
+      request.title,
+      for: resolvedTarget.tabID
+    )
+    paneNotifications[resolvedTarget.anchorSurface.id, default: []].append(
+      .init(
+        attentionState: attentionState,
+        body: request.body,
+        createdAt: Date(),
+        subtitle: request.subtitle,
+        title: resolvedTitle
+      ))
 
     return .init(
-      isUnread: true,
-      shouldDeliverDesktopNotification: shouldDeliverDesktopNotification,
+      attentionState: attentionState,
+      desktopNotificationDisposition: desktopNotificationDisposition,
       paneIndex: paneLocation.paneIndex,
+      resolvedTitle: resolvedTitle,
       spaceIndex: paneLocation.spaceIndex,
       tabIndex: paneLocation.tabIndex,
       windowIndex: 1
@@ -893,14 +920,13 @@ final class TerminalHostState {
     title: String
   ) {
     let subtitle = ""
-    let normalizedTitle = SupatermNotifyRequest(title: title).title
     guard
       let result = try? notify(
         .init(
           body: body,
           subtitle: subtitle,
           target: .contextPane(surfaceID),
-          title: normalizedTitle
+          title: Self.trimmedNonEmpty(title)
         )
       )
     else {
@@ -909,18 +935,19 @@ final class TerminalHostState {
     emit(
       .notificationReceived(
         .init(
+          attentionState: result.attentionState,
           body: body,
-          shouldDeliverDesktopNotification: result.shouldDeliverDesktopNotification,
+          desktopNotificationDisposition: result.desktopNotificationDisposition,
+          resolvedTitle: result.resolvedTitle,
           sourceSurfaceID: surfaceID,
-          subtitle: subtitle,
-          title: normalizedTitle
+          subtitle: subtitle
         )
       )
     )
   }
 
   func handleKeyboardActivity(on surfaceID: UUID) {
-    markNotificationRead(for: surfaceID)
+    clearNotificationAttention(for: surfaceID)
   }
 
   func splitTree(
@@ -1215,7 +1242,7 @@ final class TerminalHostState {
       self.focusedSurfaceIDByTab[tabID] = view.id
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
-      self.markNotificationRead(for: view.id)
+      self.clearNotificationAttention(for: view.id)
       self.emitFocusChangedIfNeeded(view.id)
     }
     surfaces[view.id] = view
@@ -1487,7 +1514,7 @@ final class TerminalHostState {
     let previousSurface = focusedSurfaceIDByTab[tabID].flatMap { surfaces[$0] }
     focusedSurfaceIDByTab[tabID] = surface.id
     updateTabTitle(for: tabID)
-    markNotificationRead(for: surface.id)
+    clearNotificationAttention(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
@@ -1572,7 +1599,7 @@ final class TerminalHostState {
     tabTitleOverrides.removeValue(forKey: tabID)
   }
 
-  private func notifications(for tabID: TerminalTabID) -> [UUID: PaneNotification] {
+  private func notifications(for tabID: TerminalTabID) -> [UUID: [PaneNotification]] {
     guard let tree = trees[tabID] else { return [:] }
     return Dictionary(
       uniqueKeysWithValues: tree.leaves().compactMap { surface in
@@ -1582,7 +1609,7 @@ final class TerminalHostState {
   }
 
   private func latestNotification(for tabID: TerminalTabID) -> PaneNotification? {
-    Self.latestNotification(in: Array(notifications(for: tabID).values))
+    Self.latestNotification(in: notifications(for: tabID).values.flatMap { $0 })
   }
 
   private func clearUnreadOnFocusedSurfaceIfNeeded() {
@@ -1592,10 +1619,10 @@ final class TerminalHostState {
     else {
       return
     }
-    markNotificationRead(for: surfaceID)
+    clearNotificationAttention(for: surfaceID)
   }
 
-  private func markNotificationRead(for surfaceID: UUID) {
+  private func clearNotificationAttention(for surfaceID: UUID) {
     guard let tabID = tabID(containing: surfaceID) else { return }
     let activity = Self.surfaceActivity(
       isSelectedTab: tabID == spaceManager.selectedTabID,
@@ -1604,15 +1631,15 @@ final class TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[tabID],
       surfaceID: surfaceID
     )
-    guard
-      let updatedNotification = Self.notificationAfterKeyboardActivity(
-        paneNotifications[surfaceID],
-        activity: activity
-      )
-    else {
+    guard let notifications = paneNotifications[surfaceID] else {
       return
     }
-    paneNotifications[surfaceID] = updatedNotification
+    let updatedNotifications = Self.notificationsAfterDirectInteraction(
+      notifications,
+      activity: activity
+    )
+    guard updatedNotifications != notifications else { return }
+    paneNotifications[surfaceID] = updatedNotifications
   }
 
   private func updateRunningState(for tabID: TerminalTabID) {
@@ -1721,6 +1748,35 @@ final class TerminalHostState {
       return fallbackTitle
     }
     return surface.resolvedDisplayTitle(defaultValue: fallbackTitle)
+  }
+
+  private func resolvedNotificationTitle(
+    _ title: String?,
+    for tabID: TerminalTabID
+  ) -> String {
+    Self.trimmedNonEmpty(title) ?? currentTabTitle(for: tabID)
+  }
+
+  private func resolvedDesktopNotificationDisposition(
+    isFocused: Bool,
+    tabID: TerminalTabID
+  ) -> SupatermDesktopNotificationDisposition {
+    if isFocused {
+      return .suppressFocused
+    }
+    if hasActiveAgentAttention(for: tabID) {
+      return .suppressAgent
+    }
+    return .deliver
+  }
+
+  private func hasActiveAgentAttention(for tabID: TerminalTabID) -> Bool {
+    switch claudeActivityByTab[tabID] {
+    case .some(.needsInput), .some(.running):
+      return true
+    case .some(.idle), .none:
+      return false
+    }
   }
 
   private func titleSurface(for tabID: TerminalTabID) -> GhosttySurfaceView? {
@@ -2015,17 +2071,32 @@ final class TerminalHostState {
   }
 
   static func unreadNotificationCount(in notifications: [PaneNotification]) -> Int {
-    notifications.filter(\.isUnread).count
+    notifications.filter { $0.attentionState == .unread }.count
   }
 
-  static func notificationAfterKeyboardActivity(
-    _ notification: PaneNotification?,
+  static func surfaceAttentionState(
+    in notifications: [PaneNotification]
+  ) -> SupatermNotificationAttentionState? {
+    if notifications.contains(where: { $0.attentionState == .unread }) {
+      return .unread
+    }
+    if notifications.contains(where: { $0.attentionState == .focused }) {
+      return .focused
+    }
+    return nil
+  }
+
+  static func notificationsAfterDirectInteraction(
+    _ notifications: [PaneNotification],
     activity: SurfaceActivity
-  ) -> PaneNotification? {
-    guard activity.isFocused else { return notification }
-    guard var notification, notification.isUnread else { return notification }
-    notification.isUnread = false
-    return notification
+  ) -> [PaneNotification] {
+    guard activity.isFocused else { return notifications }
+    return notifications.map { notification in
+      guard notification.attentionState != nil else { return notification }
+      var updatedNotification = notification
+      updatedNotification.attentionState = nil
+      return updatedNotification
+    }
   }
 
   static func notificationText(_ notification: PaneNotification?) -> String? {

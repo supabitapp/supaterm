@@ -515,9 +515,10 @@ struct SocketControlFeatureTests {
       payload: try .notify(requestPayload, id: "notify-1")
     )
     let expectedResult = SupatermNotifyResult(
-      isUnread: true,
-      shouldDeliverDesktopNotification: true,
+      attentionState: .unread,
+      desktopNotificationDisposition: .deliver,
       paneIndex: 2,
+      resolvedTitle: "Deploy complete",
       spaceIndex: 2,
       tabIndex: 1,
       windowIndex: 1
@@ -578,9 +579,10 @@ struct SocketControlFeatureTests {
       )
     )
     let expectedResult = SupatermNotifyResult(
-      isUnread: true,
-      shouldDeliverDesktopNotification: false,
+      attentionState: .focused,
+      desktopNotificationDisposition: .suppressFocused,
       paneIndex: 1,
+      resolvedTitle: "Deploy complete",
       spaceIndex: 1,
       tabIndex: 1,
       windowIndex: 1
@@ -656,7 +658,7 @@ struct SocketControlFeatureTests {
   }
 
   @Test
-  func notifyRequestWithoutTitleDefaultsTitle() async throws {
+  func notifyRequestWithoutTitleUsesResolvedTitleForDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()
     let handle = UUID(uuidString: "EE8E0D84-181A-4A80-B3E7-2E3615969478")!
@@ -672,9 +674,10 @@ struct SocketControlFeatureTests {
       )
     )
     let expectedResult = SupatermNotifyResult(
-      isUnread: true,
-      shouldDeliverDesktopNotification: true,
+      attentionState: .unread,
+      desktopNotificationDisposition: .deliver,
       paneIndex: 1,
+      resolvedTitle: "Build",
       spaceIndex: 1,
       tabIndex: 1,
       windowIndex: 1
@@ -696,7 +699,7 @@ struct SocketControlFeatureTests {
               body: "Build finished",
               subtitle: "",
               target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
-              title: SupatermNotifyRequest.defaultTitle
+              title: nil
             )
         )
         return expectedResult
@@ -713,7 +716,7 @@ struct SocketControlFeatureTests {
     )
     #expect(
       await desktopNotificationRecorder.snapshot()
-        == [.init(body: "Build finished", subtitle: "", title: SupatermNotifyRequest.defaultTitle)]
+        == [.init(body: "Build finished", subtitle: "", title: "Build")]
     )
   }
 

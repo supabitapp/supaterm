@@ -696,9 +696,10 @@ struct SupatermSocketProtocolTests {
       title: "Deploy complete"
     )
     let result = SupatermNotifyResult(
-      isUnread: true,
-      shouldDeliverDesktopNotification: true,
+      attentionState: .unread,
+      desktopNotificationDisposition: .deliver,
       paneIndex: 2,
+      resolvedTitle: "Deploy complete",
       spaceIndex: 2,
       tabIndex: 1,
       windowIndex: 1
@@ -713,7 +714,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func notifyRequestDecodingDefaultsMissingTitle() throws {
+  func notifyRequestDecodingPreservesMissingTitle() throws {
     let request = SupatermSocketRequest(
       id: "notify-default-title",
       method: SupatermSocketMethod.terminalNotify,
@@ -729,8 +730,7 @@ struct SupatermSocketProtocolTests {
         == .init(
           body: "Build finished",
           targetSpaceIndex: 1,
-          targetTabIndex: 2,
-          title: SupatermNotifyRequest.defaultTitle
+          targetTabIndex: 2
         )
     )
   }

@@ -617,9 +617,26 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
-  public static let defaultTitle = "Notification"
+public enum SupatermNotificationAttentionState: String, Equatable, Sendable, Codable {
+  case focused
+  case unread
 
+  public var isUnread: Bool {
+    self == .unread
+  }
+}
+
+public enum SupatermDesktopNotificationDisposition: String, Equatable, Sendable, Codable {
+  case deliver
+  case suppressAgent
+  case suppressFocused
+
+  public var shouldDeliver: Bool {
+    self == .deliver
+  }
+}
+
+public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   public let body: String
   public let contextPaneID: UUID?
   public let subtitle: String
@@ -627,7 +644,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   public let targetSpaceIndex: Int?
   public let targetTabIndex: Int?
   public let targetWindowIndex: Int?
-  public let title: String
+  public let title: String?
 
   public init(
     body: String = "",
@@ -674,9 +691,9 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
     case title
   }
 
-  private static func normalizedTitle(_ title: String?) -> String {
+  private static func normalizedTitle(_ title: String?) -> String? {
     let title = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return title.isEmpty ? defaultTitle : title
+    return title.isEmpty ? nil : title
   }
 }
 
@@ -712,24 +729,27 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermNotifyResult: Equatable, Sendable, Codable {
-  public let isUnread: Bool
-  public let shouldDeliverDesktopNotification: Bool
+  public let attentionState: SupatermNotificationAttentionState
+  public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
   public let paneIndex: Int
+  public let resolvedTitle: String
   public let spaceIndex: Int
   public let tabIndex: Int
   public let windowIndex: Int
 
   public init(
-    isUnread: Bool,
-    shouldDeliverDesktopNotification: Bool,
+    attentionState: SupatermNotificationAttentionState,
+    desktopNotificationDisposition: SupatermDesktopNotificationDisposition,
     paneIndex: Int,
+    resolvedTitle: String,
     spaceIndex: Int,
     tabIndex: Int,
     windowIndex: Int
   ) {
-    self.isUnread = isUnread
-    self.shouldDeliverDesktopNotification = shouldDeliverDesktopNotification
+    self.attentionState = attentionState
+    self.desktopNotificationDisposition = desktopNotificationDisposition
     self.paneIndex = paneIndex
+    self.resolvedTitle = resolvedTitle
     self.spaceIndex = spaceIndex
     self.tabIndex = tabIndex
     self.windowIndex = windowIndex

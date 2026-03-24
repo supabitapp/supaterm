@@ -552,8 +552,8 @@ final class TerminalWindowRegistry {
           )
         )
         return .init(
-          desktopNotification: result.shouldDeliverDesktopNotification
-            ? .init(body: body, subtitle: subtitle, title: title)
+          desktopNotification: result.desktopNotificationDisposition.shouldDeliver
+            ? .init(body: body, subtitle: subtitle, title: result.resolvedTitle)
             : nil
         )
       } catch let error as TerminalCreatePaneError {
@@ -723,9 +723,10 @@ final class TerminalWindowRegistry {
     windowIndex: Int
   ) -> SupatermNotifyResult {
     .init(
-      isUnread: result.isUnread,
-      shouldDeliverDesktopNotification: result.shouldDeliverDesktopNotification,
+      attentionState: result.attentionState,
+      desktopNotificationDisposition: result.desktopNotificationDisposition,
       paneIndex: result.paneIndex,
+      resolvedTitle: result.resolvedTitle,
       spaceIndex: result.spaceIndex,
       tabIndex: result.tabIndex,
       windowIndex: windowIndex
