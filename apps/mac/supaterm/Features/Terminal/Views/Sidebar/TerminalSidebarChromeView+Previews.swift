@@ -134,6 +134,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
+      notificationColor: palette.attention,
       hasFocusedNotificationAttention: item.hasFocusedNotificationAttention,
       latestNotificationText: item.latestNotificationText,
       unreadCount: item.unreadCount,
