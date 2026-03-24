@@ -177,11 +177,7 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .notFound:
-      trailingActionRow {
-        actionButton("OK") {
-          _ = store.send(.perform(.dismiss))
-        }
-      }
+      EmptyView()
 
     case .error:
       trailingActionRow {
