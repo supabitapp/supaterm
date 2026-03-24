@@ -64,27 +64,28 @@ enum GhosttyBootstrap {
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> ConfigFileLocations? {
-    guard let bundleIdentifier else { return nil }
-
-    let appSupportDirectoryURL =
-      homeDirectoryURL
-      .appendingPathComponent("Library", isDirectory: true)
-      .appendingPathComponent("Application Support", isDirectory: true)
-      .appendingPathComponent(bundleIdentifier, isDirectory: true)
-    let preferredURL = appSupportDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false)
     let xdgDirectoryURL = xdgConfigHomeURL(
       homeDirectoryURL: homeDirectoryURL,
       environment: environment
     ).appendingPathComponent("ghostty", isDirectory: true)
+    var candidates = [
+      xdgDirectoryURL.appendingPathComponent("config", isDirectory: false),
+      xdgDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
+    ]
+
+    if let bundleIdentifier {
+      let appSupportDirectoryURL =
+        homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent(bundleIdentifier, isDirectory: true)
+      candidates.append(appSupportDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false))
+      candidates.append(appSupportDirectoryURL.appendingPathComponent("config", isDirectory: false))
+    }
 
     return ConfigFileLocations(
-      preferred: preferredURL,
-      candidates: [
-        preferredURL,
-        appSupportDirectoryURL.appendingPathComponent("config", isDirectory: false),
-        xdgDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
-        xdgDirectoryURL.appendingPathComponent("config", isDirectory: false),
-      ]
+      preferred: candidates[0],
+      candidates: candidates
     )
   }
 
