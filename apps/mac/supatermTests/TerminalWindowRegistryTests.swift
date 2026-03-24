@@ -417,7 +417,7 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
-    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .idle)
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
@@ -433,6 +433,10 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
+    )
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .idle)
     _ = try harness.registry.handleClaudeHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
     )

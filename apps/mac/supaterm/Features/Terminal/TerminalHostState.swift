@@ -50,9 +50,16 @@ final class TerminalHostState {
     var title: String
   }
 
+  enum ClaudeActivityTone: Equatable, Sendable {
+    case attention
+    case active
+    case muted
+  }
+
   enum ClaudeActivity: Equatable, Sendable {
     case needsInput
     case running
+    case idle
 
     var symbolName: String {
       switch self {
@@ -60,6 +67,39 @@ final class TerminalHostState {
         return "bell.fill"
       case .running:
         return "bolt.fill"
+      case .idle:
+        return "pause.circle.fill"
+      }
+    }
+
+    var statusLabel: String {
+      switch self {
+      case .needsInput:
+        return "Claude needs input"
+      case .running:
+        return "Claude running"
+      case .idle:
+        return "Claude idle"
+      }
+    }
+
+    var tone: ClaudeActivityTone {
+      switch self {
+      case .needsInput:
+        return .attention
+      case .running:
+        return .active
+      case .idle:
+        return .muted
+      }
+    }
+
+    var showsLeadingIndicator: Bool {
+      switch self {
+      case .needsInput, .running:
+        return true
+      case .idle:
+        return false
       }
     }
   }

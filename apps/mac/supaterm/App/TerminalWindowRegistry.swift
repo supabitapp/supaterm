@@ -472,7 +472,7 @@ final class TerminalWindowRegistry {
     case .stop:
       if let sessionID = event.sessionID {
         clearClaudeHookPendingQuestion(sessionID: sessionID)
-        _ = clearClaudeActivity(sessionID: sessionID, context: request.context)
+        _ = setClaudeActivity(.idle, sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
 
