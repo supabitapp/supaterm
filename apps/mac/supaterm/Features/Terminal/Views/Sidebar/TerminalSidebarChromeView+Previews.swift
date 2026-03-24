@@ -18,8 +18,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 private enum TerminalSidebarTabPreviewFixtures {
   static let items: [TerminalSidebarTabPreviewItem] = [
     .init(
-      title: "Default",
-      tab: tab("~ / khoi", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01"),
+      title: "Repo Root Cwd",
+      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
@@ -27,8 +27,11 @@ private enum TerminalSidebarTabPreviewFixtures {
       claudeActivity: nil
     ),
     .init(
-      title: "Selected",
-      tab: tab("server logs", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02"),
+      title: "Selected Deep Cwd",
+      tab: tab(
+        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02"
+      ),
       isSelected: true,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
@@ -37,73 +40,82 @@ private enum TerminalSidebarTabPreviewFixtures {
     ),
     .init(
       title: "Focused Notification",
-      tab: tab("build output", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03"),
+      tab: tab(
+        cwd("apps", "supaterm.com"),
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03"
+      ),
       isSelected: false,
       hasFocusedNotificationAttention: true,
-      latestNotificationText: nil,
+      latestNotificationText: "Preview build finished in 18.4s",
       unreadCount: 0,
       claudeActivity: nil
     ),
     .init(
-      title: "Unread Count",
-      tab: tab("deploy", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04"),
+      title: "Unread Notification",
+      tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: "Deployment finished successfully",
+      latestNotificationText: "make mac-test failed: 1 failure in TerminalWindowFeatureTests",
       unreadCount: 3,
       claudeActivity: nil
     ),
     .init(
       title: "Unread Count Double Digits",
-      tab: tab("queue workers", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05"),
+      tab: tab("/var/log", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: "12 background tasks completed",
+      latestNotificationText: "12 new lines matched 'ERROR' in app.log",
       unreadCount: 12,
       claudeActivity: nil
     ),
     .init(
       title: "Notification Text",
-      tab: tab("payments", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06"),
+      tab: tab(
+        cwd("docs"),
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06"
+      ),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: "Invoice export is ready",
+      latestNotificationText: "Socket server restarted on ~/.local/state/supaterm.sock",
       unreadCount: 0,
       claudeActivity: nil
     ),
     .init(
       title: "Claude Running",
-      tab: tab("agent", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07"),
+      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: nil,
+      latestNotificationText: "Applying patch to TerminalSidebarChromeView+Previews.swift",
       unreadCount: 0,
       claudeActivity: .running
     ),
     .init(
       title: "Claude Needs Input",
-      tab: tab("agent", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08"),
+      tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: nil,
+      latestNotificationText: "Need approval to run xcodebuild test for supaterm.xcworkspace",
       unreadCount: 0,
       claudeActivity: .needsInput
     ),
     .init(
       title: "Claude Idle",
-      tab: tab("agent", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09"),
+      tab: tab(
+        cwd("apps", "supaterm.com"),
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09"
+      ),
       isSelected: false,
       hasFocusedNotificationAttention: false,
-      latestNotificationText: nil,
+      latestNotificationText: "Review complete: no further changes needed",
       unreadCount: 0,
       claudeActivity: .idle
     ),
     .init(
       title: "Unread Overrides Claude",
-      tab: tab("agent", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A0A"),
+      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A0A"),
       isSelected: false,
       hasFocusedNotificationAttention: true,
-      latestNotificationText: "Build finished successfully",
+      latestNotificationText: "Review ready: 3 findings in TerminalSidebarChromeView.swift",
       unreadCount: 4,
       claudeActivity: .needsInput
     ),
@@ -122,6 +134,12 @@ private enum TerminalSidebarTabPreviewFixtures {
       fatalError("Invalid preview UUID: \(id)")
     }
     return value
+  }
+
+  private static func cwd(_ components: String...) -> String {
+    let root = "~/code/github.com/supabitapp/supaterm"
+    guard !components.isEmpty else { return root }
+    return ([root] + components).joined(separator: "/")
   }
 }
 
