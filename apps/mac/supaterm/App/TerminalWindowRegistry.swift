@@ -452,13 +452,7 @@ final class TerminalWindowRegistry {
     }
 
     switch event.hookEventName {
-    case .sessionStart:
-      if let sessionID = event.sessionID {
-        _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
-      }
-      return .init(desktopNotification: nil)
-
-    case .unsupported:
+    case .sessionStart, .unsupported:
       return .init(desktopNotification: nil)
 
     case .preToolUse:
