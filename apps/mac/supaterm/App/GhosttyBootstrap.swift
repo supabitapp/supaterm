@@ -59,10 +59,9 @@ enum GhosttyBootstrap {
   }
 
   static func configFileLocations(
-    bundleIdentifier _: String?,
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment
-  ) -> ConfigFileLocations? {
+  ) -> ConfigFileLocations {
     let preferredURL = xdgConfigHomeURL(
       homeDirectoryURL: homeDirectoryURL,
       environment: environment
@@ -76,20 +75,14 @@ enum GhosttyBootstrap {
   }
 
   static func seedDefaultConfigIfNeeded(
-    bundleIdentifier: String? = Bundle.main.bundleIdentifier,
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default
   ) throws {
-    guard
-      let locations = configFileLocations(
-        bundleIdentifier: bundleIdentifier,
-        homeDirectoryURL: homeDirectoryURL,
-        environment: environment
-      )
-    else {
-      return
-    }
+    let locations = configFileLocations(
+      homeDirectoryURL: homeDirectoryURL,
+      environment: environment
+    )
     guard !fileManager.fileExists(atPath: locations.preferred.path) else {
       return
     }

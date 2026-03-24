@@ -47,12 +47,9 @@ struct GhosttyBootstrapTests {
     let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
     let xdgConfigHomeURL = URL(fileURLWithPath: "/tmp/supaterm-xdg", isDirectory: true)
 
-    let locations = try #require(
-      GhosttyBootstrap.configFileLocations(
-        bundleIdentifier: "app.supabit.supaterm",
-        homeDirectoryURL: homeDirectoryURL,
-        environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
-      )
+    let locations = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: homeDirectoryURL,
+      environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
     let xdgDirectoryURL = xdgConfigHomeURL.appendingPathComponent("ghostty", isDirectory: true)
@@ -68,12 +65,9 @@ struct GhosttyBootstrapTests {
   func configFileLocationsFallBackToDotConfigWhenXdgConfigHomeIsMissing() throws {
     let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
 
-    let locations = try #require(
-      GhosttyBootstrap.configFileLocations(
-        bundleIdentifier: "app.supabit.supaterm",
-        homeDirectoryURL: homeDirectoryURL,
-        environment: [:]
-      )
+    let locations = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: homeDirectoryURL,
+      environment: [:]
     )
 
     #expect(
@@ -91,16 +85,12 @@ struct GhosttyBootstrapTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let xdgConfigHomeURL = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let locations = try #require(
-      GhosttyBootstrap.configFileLocations(
-        bundleIdentifier: "app.supabit.supaterm",
-        homeDirectoryURL: rootURL,
-        environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
-      )
+    let locations = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
     try GhosttyBootstrap.seedDefaultConfigIfNeeded(
-      bundleIdentifier: "app.supabit.supaterm",
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
@@ -116,18 +106,14 @@ struct GhosttyBootstrapTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let xdgConfigHomeURL = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let locations = try #require(
-      GhosttyBootstrap.configFileLocations(
-        bundleIdentifier: "app.supabit.supaterm",
-        homeDirectoryURL: rootURL,
-        environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
-      )
+    let locations = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
     try writeGhosttyBootstrapFile(at: locations.preferred, contents: "existing")
 
     try GhosttyBootstrap.seedDefaultConfigIfNeeded(
-      bundleIdentifier: "app.supabit.supaterm",
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
