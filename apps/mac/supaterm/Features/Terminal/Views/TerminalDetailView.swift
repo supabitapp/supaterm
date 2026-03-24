@@ -136,7 +136,7 @@ private struct SplitZoomIndicatorButton: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: "arrow.down.right.and.arrow.up.left")
-        .font(.system(size: 14, weight: .semibold))
+        .font(.system(size: 13, weight: .medium))
         .foregroundStyle(Color.accentColor)
         .frame(width: 30, height: 30)
         .background(
