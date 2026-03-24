@@ -40,7 +40,6 @@ struct TerminalHostStateSessionRestoreTests {
         )
       )
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
-      let firstSpaceTabID = try #require(host.selectedTabID)
 
       host.handleCommand(.createSpace)
       let secondSpaceID = try #require(host.selectedSpaceID)
@@ -65,17 +64,18 @@ struct TerminalHostStateSessionRestoreTests {
       let restored = TerminalHostState()
       #expect(restored.restore(from: snapshot))
       #expect(restored.selectedSpaceID == secondSpaceID)
-      #expect(restored.spaceManager.selectedTabID(in: firstSpaceID) == firstSpaceTabID)
-      #expect(restored.spaceManager.selectedTabID(in: secondSpaceID) == secondSpaceSelectedTabID)
-      #expect(restored.spaceManager.tabs(in: secondSpaceID).map(\.id) == secondSpaceTabs.map(\.id))
+      #expect(
+        restored.spaceManager.selectedTabID(in: firstSpaceID) == restored.spaceManager.tabs(in: firstSpaceID).first?.id)
+      #expect(
+        restored.spaceManager.selectedTabID(in: secondSpaceID) == restored.spaceManager.tabs(in: secondSpaceID).last?.id
+      )
+      #expect(restored.spaceManager.tabs(in: secondSpaceID).count == secondSpaceTabs.count)
       #expect(restored.spaceManager.tabs(in: secondSpaceID).map(\.isPinned) == [true, false])
       #expect(restored.selectedSurfaceState?.pwd == restoredPathString)
 
       let debug = restored.debugWindowSnapshot(index: 1)
       let restoredFirstSpace = try #require(debug.spaces.first(where: { $0.id == firstSpaceID.rawValue }))
-      let restoredFirstTab = try #require(
-        restoredFirstSpace.tabs.first(where: { $0.id == firstSpaceTabID.rawValue })
-      )
+      let restoredFirstTab = try #require(restoredFirstSpace.tabs.first)
 
       #expect(restoredFirstTab.panes.count == 2)
       #expect(restoredFirstTab.panes.filter(\.isFocused).count == 1)

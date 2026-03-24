@@ -26,12 +26,12 @@ struct TerminalSessionCatalogTests {
       spaces: [
         .init(
           id: missingSpace,
-          selectedTabID: nil,
+          selectedTabIndex: nil,
           tabs: []
         ),
         .init(
           id: validSpace,
-          selectedTabID: nil,
+          selectedTabIndex: nil,
           tabs: []
         ),
       ]
@@ -44,21 +44,17 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
-  func tabSessionSanitizesSplitRatioAndFallsBackFocusedPane() throws {
-    let leftPaneID = UUID()
-    let rightPaneID = UUID()
+  func tabSessionSanitizesSplitRatioAndFallsBackFocusedPaneIndex() throws {
     let session = TerminalTabSession(
-      id: TerminalTabID(),
-      title: "Terminal",
       isPinned: false,
-      isTitleLocked: false,
-      focusedPaneID: UUID(),
+      lockedTitle: "  ",
+      focusedPaneIndex: 99,
       root: .split(
         .init(
           direction: .horizontal,
           ratio: 0,
-          left: .leaf(.init(id: leftPaneID, workingDirectoryPath: "/tmp")),
-          right: .leaf(.init(id: rightPaneID, workingDirectoryPath: "/var"))
+          left: .leaf(.init(workingDirectoryPath: "/tmp")),
+          right: .leaf(.init(workingDirectoryPath: "/var"))
         )
       )
     )
@@ -70,39 +66,76 @@ struct TerminalSessionCatalogTests {
     }
 
     #expect(split.ratio == 0.5)
-    #expect(pruned.focusedPaneID == leftPaneID)
+    #expect(pruned.lockedTitle == nil)
+    #expect(pruned.focusedPaneIndex == 0)
   }
 
   @Test
-  func spaceSessionDropsDuplicateTabIDs() {
-    let tabID = TerminalTabID()
+  func spaceSessionFallsBackSelectedTabIndex() {
     let session = TerminalWindowSpaceSession(
       id: TerminalSpaceID(),
-      selectedTabID: tabID,
+      selectedTabIndex: 42,
       tabs: [
         .init(
-          id: tabID,
-          title: "One",
           isPinned: false,
-          isTitleLocked: false,
-          focusedPaneID: nil,
-          root: .leaf(.init(id: UUID(), workingDirectoryPath: nil))
+          lockedTitle: nil,
+          focusedPaneIndex: 0,
+          root: .leaf(.init(workingDirectoryPath: nil))
         ),
         .init(
-          id: tabID,
-          title: "Two",
           isPinned: true,
-          isTitleLocked: true,
-          focusedPaneID: nil,
-          root: .leaf(.init(id: UUID(), workingDirectoryPath: nil))
+          lockedTitle: "Pinned",
+          focusedPaneIndex: 0,
+          root: .leaf(.init(workingDirectoryPath: nil))
         ),
       ]
     )
 
     let pruned = session.pruned()
 
-    #expect(pruned.tabs.count == 1)
-    #expect(pruned.tabs[0].title == "One")
-    #expect(pruned.selectedTabID == tabID)
+    #expect(pruned.tabs.count == 2)
+    #expect(pruned.tabs[1].lockedTitle == "Pinned")
+    #expect(pruned.selectedTabIndex == 0)
+  }
+
+  @Test
+  func catalogEncodingOmitsDerivedTitlesAndPaneIDs() throws {
+    let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!)
+    let tabs: [TerminalTabSession] = [
+      .init(
+        isPinned: false,
+        lockedTitle: nil,
+        focusedPaneIndex: 0,
+        root: .leaf(.init(workingDirectoryPath: "/tmp"))
+      ),
+      .init(
+        isPinned: true,
+        lockedTitle: "Pinned",
+        focusedPaneIndex: 0,
+        root: .leaf(.init(workingDirectoryPath: nil))
+      ),
+    ]
+    let space = TerminalWindowSpaceSession(
+      id: spaceID,
+      selectedTabIndex: 1,
+      tabs: tabs
+    )
+    let window = TerminalWindowSession(
+      selectedSpaceID: spaceID,
+      spaces: [space]
+    )
+    let catalog = TerminalSessionCatalog(
+      windows: [window]
+    )
+
+    let data = try TerminalSessionCatalog.fileStorageEncoder().encode(catalog)
+    let json = try #require(String(bytes: data, encoding: .utf8))
+
+    #expect(json.contains(#""selectedTabIndex":1"#))
+    #expect(json.contains(#""lockedTitle":"Pinned""#))
+    #expect(!json.contains(#""title":"#))
+    #expect(!json.contains(#""isTitleLocked":"#))
+    #expect(!json.contains(#""selectedTabID":"#))
+    #expect(!json.contains(#""focusedPaneID":"#))
   }
 }
