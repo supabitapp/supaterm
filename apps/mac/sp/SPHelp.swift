@@ -84,6 +84,62 @@ enum SPHelp {
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp claude-hook
       \(SPClaudeHookSettings.command)
     """
+
+  static let developmentDiscussion = """
+    These commands require the connected Supaterm instance to report a development build.
+
+    Example:
+      sp development claude session-start
+      sp development claude pre-tool-use
+      sp development claude notification
+    """
+
+  static let developmentClaudeDiscussion = """
+    Run these commands inside the Supaterm pane you want to verify.
+
+    These commands require the connected Supaterm instance to report a development build.
+
+    Verification flow:
+      sp development claude session-start
+      sp development claude pre-tool-use
+      sp development claude notification
+      sp development claude stop
+      sp development claude session-end
+
+    Example:
+      sp development claude session-start
+      sp development claude notification
+    """
+
+  static let developmentClaudeSessionStartDiscussion = """
+    Example:
+      sp development claude session-start
+    """
+
+  static let developmentClaudePreToolUseDiscussion = """
+    Example:
+      sp development claude pre-tool-use
+    """
+
+  static let developmentClaudeNotificationDiscussion = """
+    Example:
+      sp development claude notification
+    """
+
+  static let developmentClaudeUserPromptSubmitDiscussion = """
+    Example:
+      sp development claude user-prompt-submit
+    """
+
+  static let developmentClaudeStopDiscussion = """
+    Example:
+      sp development claude stop
+    """
+
+  static let developmentClaudeSessionEndDiscussion = """
+    Example:
+      sp development claude session-end
+    """
 }
 
 enum SPSocketOption: ExpressibleByArgument {
