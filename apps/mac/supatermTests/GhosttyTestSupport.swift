@@ -1,6 +1,8 @@
 import Foundation
 import GhosttyKit
 
+@testable import supaterm
+
 private let ghosttyInitializedForTests: Void = {
   let macRootURL =
     URL(fileURLWithPath: #filePath)
@@ -31,4 +33,16 @@ private let ghosttyInitializedForTests: Void = {
 
 func initializeGhosttyForTests() {
   _ = ghosttyInitializedForTests
+}
+
+func makeGhosttyRuntime(_ config: String) throws -> GhosttyRuntime {
+  initializeGhosttyForTests()
+  let url = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString)
+    .appendingPathExtension("ghostty")
+  try config.write(to: url, atomically: true, encoding: .utf8)
+  defer {
+    try? FileManager.default.removeItem(at: url)
+  }
+  return GhosttyRuntime(configPath: url.path)
 }

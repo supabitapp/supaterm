@@ -116,6 +116,8 @@ final class TerminalHostState {
   @ObservationIgnored
   private var spaceCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
+  private var runtimeConfigObserver: NSObjectProtocol?
+  @ObservationIgnored
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
   let spaceManager = TerminalSpaceManager()
 
@@ -127,6 +129,7 @@ final class TerminalHostState {
   private var claudeActivityByTab: [TerminalTabID: ClaudeActivity] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
+  private var runtimeConfigGeneration = 0
 
   var windowActivity = WindowActivityState.inactive
 
@@ -146,11 +149,42 @@ final class TerminalHostState {
       from: initialSpaceCatalog,
       initialSelectedSpaceID: initialSpaceCatalog.defaultSelectedSpaceID
     )
+    observeRuntimeConfig()
     observeSpaceCatalog()
   }
 
   deinit {
     spaceCatalogObservationTask?.cancel()
+    if let runtimeConfigObserver {
+      NotificationCenter.default.removeObserver(runtimeConfigObserver)
+    }
+  }
+
+  private func observeRuntimeConfig() {
+    guard let runtime else { return }
+    runtimeConfigObserver = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: nil,
+      queue: nil
+    ) { [weak self, weak runtime] notification in
+      guard
+        let self,
+        let runtime,
+        let changedRuntime = notification.object as? GhosttyRuntime,
+        changedRuntime === runtime
+      else {
+        return
+      }
+      if Thread.isMainThread {
+        MainActor.assumeIsolated {
+          self.runtimeConfigGeneration &+= 1
+        }
+      } else {
+        Task { @MainActor [weak self] in
+          self?.runtimeConfigGeneration &+= 1
+        }
+      }
+    }
   }
 
   func eventStream() -> AsyncStream<TerminalClient.Event> {
@@ -301,7 +335,13 @@ final class TerminalHostState {
   }
 
   var terminalBackgroundColor: Color {
+    _ = runtimeConfigGeneration
     Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
+  }
+
+  var notificationAttentionColor: Color {
+    _ = runtimeConfigGeneration
+    Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
   }
 
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
