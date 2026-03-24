@@ -4,7 +4,6 @@ import GhosttyKit
 enum GhosttyBootstrap {
   struct ConfigFileLocations: Equatable {
     let preferred: URL
-    let candidates: [URL]
   }
 
   static let extraCLIArguments: [String] = []
@@ -60,32 +59,19 @@ enum GhosttyBootstrap {
   }
 
   static func configFileLocations(
-    bundleIdentifier: String?,
+    bundleIdentifier _: String?,
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> ConfigFileLocations? {
-    let xdgDirectoryURL = xdgConfigHomeURL(
+    let preferredURL = xdgConfigHomeURL(
       homeDirectoryURL: homeDirectoryURL,
       environment: environment
-    ).appendingPathComponent("ghostty", isDirectory: true)
-    var candidates = [
-      xdgDirectoryURL.appendingPathComponent("config", isDirectory: false),
-      xdgDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
-    ]
-
-    if let bundleIdentifier {
-      let appSupportDirectoryURL =
-        homeDirectoryURL
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent(bundleIdentifier, isDirectory: true)
-      candidates.append(appSupportDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false))
-      candidates.append(appSupportDirectoryURL.appendingPathComponent("config", isDirectory: false))
-    }
+    )
+    .appendingPathComponent("ghostty", isDirectory: true)
+    .appendingPathComponent("config", isDirectory: false)
 
     return ConfigFileLocations(
-      preferred: candidates[0],
-      candidates: candidates
+      preferred: preferredURL
     )
   }
 
@@ -104,7 +90,7 @@ enum GhosttyBootstrap {
     else {
       return
     }
-    guard existingConfigFileURL(in: locations.candidates, fileManager: fileManager) == nil else {
+    guard !fileManager.fileExists(atPath: locations.preferred.path) else {
       return
     }
 
@@ -113,21 +99,6 @@ enum GhosttyBootstrap {
       withIntermediateDirectories: true
     )
     try defaultConfigContents.write(to: locations.preferred, atomically: true, encoding: .utf8)
-  }
-
-  static func existingConfigFileURL(
-    in candidates: [URL],
-    fileManager: FileManager = .default
-  ) -> URL? {
-    for candidate in candidates {
-      var isDirectory = ObjCBool(false)
-      if fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
-        !isDirectory.boolValue
-      {
-        return candidate
-      }
-    }
-    return nil
   }
 
   static func initialize() {
