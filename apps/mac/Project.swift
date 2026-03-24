@@ -213,12 +213,16 @@ let project = Project(
             set -eu
 
             source_path="${SRCROOT}/\(claudeWrapperScriptPath.pathString)"
-            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
-            destination_path="${destination_dir}/claude"
+            resources_destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
+            resources_destination_path="${resources_destination_dir}/claude"
+            executable_destination_path="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/claude"
+            signing_identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 
-            mkdir -p "${destination_dir}"
-            /bin/cp -f "${source_path}" "${destination_path}"
-            /bin/chmod 755 "${destination_path}"
+            mkdir -p "${resources_destination_dir}"
+            /bin/cp -f "${source_path}" "${resources_destination_path}"
+            /bin/cp -f "${source_path}" "${executable_destination_path}"
+            /bin/chmod 755 "${resources_destination_path}" "${executable_destination_path}"
+            /usr/bin/codesign --force --sign "${signing_identity}" --timestamp=none "${executable_destination_path}"
             """,
           name: "Embed Claude Wrapper",
           inputPaths: [
@@ -226,6 +230,7 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/claude",
+            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/claude",
           ]
         ),
       ],

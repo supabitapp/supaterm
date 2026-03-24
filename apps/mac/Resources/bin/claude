@@ -4,6 +4,13 @@ supaterm_cli_available() {
     [[ -n "${SUPATERM_CLI_PATH:-}" && -x "${SUPATERM_CLI_PATH}" ]]
 }
 
+is_supaterm_bundled_claude() {
+    case "$1" in
+        */supaterm.app/Contents/MacOS/claude|*/supaterm.app/Contents/Resources/bin/claude) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 find_real_claude() {
     local self_dir
     self_dir="${BASH_SOURCE[0]}"
@@ -11,9 +18,12 @@ find_real_claude() {
     [[ "$self_dir" == "${BASH_SOURCE[0]}" ]] && self_dir="."
     self_dir="$(cd "$self_dir" && pwd)"
     local IFS=:
+    local candidate
     for d in $PATH; do
         [[ "$d" == "$self_dir" ]] && continue
-        [[ -x "$d/claude" ]] && printf '%s' "$d/claude" && return 0
+        candidate="$d/claude"
+        is_supaterm_bundled_claude "$candidate" && continue
+        [[ -x "$candidate" ]] && printf '%s' "$candidate" && return 0
     done
     return 1
 }

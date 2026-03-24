@@ -134,12 +134,59 @@ struct ClaudeWrapperTests {
       #expect(!output.contains("ARG[0]=--settings"))
     }
   }
+
+  @Test
+  func wrapperSkipsSupatermBundledClaudeCandidatesWhenResolvingRealBinary() throws {
+    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let wrapperURL = try copyClaudeWrapper(
+      to: rootURL.appendingPathComponent("Debug/supaterm.app/Contents/MacOS/claude", isDirectory: false)
+    )
+    let siblingWrapperURL = rootURL.appendingPathComponent(
+      "Installed/supaterm.app/Contents/Resources/bin/claude",
+      isDirectory: false
+    )
+    try writeExecutable(
+      at: siblingWrapperURL,
+      script: """
+        #!/bin/bash
+        printf 'WRONG_WRAPPER\\n'
+        """
+    )
+    let realBinURL = rootURL.appendingPathComponent("real-bin", isDirectory: true)
+    try FileManager.default.createDirectory(at: realBinURL, withIntermediateDirectories: true)
+    try writeFakeClaudeExecutable(at: realBinURL.appendingPathComponent("claude", isDirectory: false))
+    let path = [
+      wrapperURL.deletingLastPathComponent().path,
+      siblingWrapperURL.deletingLastPathComponent().path,
+      realBinURL.path,
+    ].joined(separator: ":")
+
+    let output = try runClaudeWrapper(
+      wrapperURL: wrapperURL,
+      arguments: ["hello"],
+      environment: [
+        "PATH": path
+      ],
+    )
+
+    #expect(output.contains("ARG[0]=hello"))
+    #expect(!output.contains("WRONG_WRAPPER"))
+  }
 }
 
 private func installClaudeWrapper(at rootURL: URL) throws -> URL {
   let wrapperDirectory = rootURL.appendingPathComponent("wrapper-bin", isDirectory: true)
-  try FileManager.default.createDirectory(at: wrapperDirectory, withIntermediateDirectories: true)
   let wrapperURL = wrapperDirectory.appendingPathComponent("claude", isDirectory: false)
+  return try copyClaudeWrapper(to: wrapperURL)
+}
+
+private func copyClaudeWrapper(to wrapperURL: URL) throws -> URL {
+  try FileManager.default.createDirectory(
+    at: wrapperURL.deletingLastPathComponent(),
+    withIntermediateDirectories: true
+  )
   let sourceURL = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
@@ -150,17 +197,18 @@ private func installClaudeWrapper(at rootURL: URL) throws -> URL {
 }
 
 private func writeFakeClaudeExecutable(at url: URL) throws {
-  let script = """
-    #!/bin/bash
-    i=0
-    for arg in "$@"; do
-      printf 'ARG[%d]=%s\n' "$i" "$arg"
-      i=$((i + 1))
-    done
-    printf 'CLAUDECODE=%s\n' "${CLAUDECODE:-}"
-    """
-  try script.write(to: url, atomically: true, encoding: .utf8)
-  try setExecutablePermissions(at: url)
+  try writeExecutable(
+    at: url,
+    script: """
+      #!/bin/bash
+      i=0
+      for arg in "$@"; do
+        printf 'ARG[%d]=%s\n' "$i" "$arg"
+        i=$((i + 1))
+      done
+      printf 'CLAUDECODE=%s\n' "${CLAUDECODE:-}"
+      """
+  )
 }
 
 private func writeFakeSPExecutable(
@@ -188,6 +236,18 @@ private func writeFakeSPExecutable(
   try script.write(to: url, atomically: true, encoding: .utf8)
   try setExecutablePermissions(at: url)
   return url
+}
+
+private func writeExecutable(
+  at url: URL,
+  script: String
+) throws {
+  try FileManager.default.createDirectory(
+    at: url.deletingLastPathComponent(),
+    withIntermediateDirectories: true
+  )
+  try script.write(to: url, atomically: true, encoding: .utf8)
+  try setExecutablePermissions(at: url)
 }
 
 private func setExecutablePermissions(at url: URL) throws {
