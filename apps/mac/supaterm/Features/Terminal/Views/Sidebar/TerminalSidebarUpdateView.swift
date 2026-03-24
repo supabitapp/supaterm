@@ -51,7 +51,7 @@ struct TerminalSidebarUpdateSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
 
-        if let badgeText = phase.badgeText {
+        if let badgeText = headerBadgeText {
           TerminalSidebarUpdateBadge(
             text: badgeText,
             phase: phase,
@@ -223,6 +223,15 @@ struct TerminalSidebarUpdateSection: View {
 
   private var progressTint: Color {
     style.progress
+  }
+
+  private var headerBadgeText: String? {
+    switch phase {
+    case .updateAvailable:
+      nil
+    default:
+      phase.badgeText
+    }
   }
 
   private var summaryDetailText: String {
