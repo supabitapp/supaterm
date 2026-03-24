@@ -4,15 +4,15 @@ import Foundation
 import SwiftUI
 
 enum TerminalSidebarUpdatePresentation {
-  static func shouldAutoExpand(
-    from oldPhase: UpdatePhase,
-    to newPhase: UpdatePhase
+  static func usesSelectedRowStyle(
+    for phase: UpdatePhase
   ) -> Bool {
-    guard !newPhase.isIdle else { return false }
-    if case .error = newPhase {
-      return true
+    switch phase {
+    case .permissionRequest, .updateAvailable, .installing:
+      true
+    default:
+      false
     }
-    return oldPhase.isIdle
   }
 }
 
@@ -20,7 +20,6 @@ struct TerminalSidebarUpdateSection: View {
   let store: StoreOf<UpdateFeature>
   let palette: TerminalPalette
 
-  @State private var isExpanded = false
   @State private var isHovering = false
   @State private var resetTask: Task<Void, Never>?
 
@@ -36,59 +35,42 @@ struct TerminalSidebarUpdateSection: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
-      Button(action: toggleExpansion) {
-        HStack(spacing: 8) {
-          TerminalSidebarUpdateIndicator(
-            phase: phase,
-            palette: palette
-          )
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 8) {
+        TerminalSidebarUpdateIndicator(
+          phase: phase,
+          palette: palette
+        )
 
+        VStack(alignment: .leading, spacing: 2) {
           Text(phase.summaryText)
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(palette.primaryText)
+            .foregroundStyle(style.primaryText)
             .lineLimit(1)
             .truncationMode(.tail)
 
-          Spacer(minLength: 0)
-
-          if let badgeText = phase.badgeText {
-            TerminalSidebarUpdateBadge(
-              text: badgeText,
-              phase: phase,
-              palette: palette
-            )
-          }
-
-          Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(palette.secondaryText)
-            .accessibilityHidden(true)
+          Text(summaryDetailText)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(style.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-        .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-        .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-        .frame(maxWidth: .infinity)
-        .contentShape(
-          RoundedRectangle(
-            cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-            style: .continuous
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        if let badgeText = phase.badgeText {
+          TerminalSidebarUpdateBadge(
+            text: badgeText,
+            phase: phase,
+            palette: palette
           )
-        )
+        }
       }
-      .buttonStyle(.plain)
 
-      if isExpanded {
-        Rectangle()
-          .fill(borderColor)
-          .frame(height: 1)
-          .padding(.horizontal, 10)
-
-        expandedContent
-          .padding(.horizontal, 12)
-          .padding(.vertical, 12)
-      }
+      content
     }
+    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight, alignment: .topLeading)
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(
       RoundedRectangle(
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
@@ -96,24 +78,23 @@ struct TerminalSidebarUpdateSection: View {
       )
       .fill(backgroundColor)
     )
-    .overlay {
+    .shadow(
+      color: style.usesSelectedRowStyle ? palette.shadow : .clear,
+      radius: style.usesSelectedRowStyle ? 2 : 0,
+      y: 1.5
+    )
+    .contentShape(
       RoundedRectangle(
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
         style: .continuous
       )
-      .stroke(borderColor, lineWidth: 1)
-    }
-    .shadow(
-      color: isExpanded ? palette.shadow.opacity(0.35) : .clear,
-      radius: isExpanded ? 5 : 0,
-      y: 1.5
     )
     .onHover { isHovering = $0 }
     .onAppear {
-      handlePhaseChange(from: .idle, to: phase)
+      handlePhaseChange(to: phase)
     }
-    .onChange(of: phase) { oldPhase, newPhase in
-      handlePhaseChange(from: oldPhase, to: newPhase)
+    .onChange(of: phase) { _, newPhase in
+      handlePhaseChange(to: newPhase)
     }
     .onDisappear {
       resetTask?.cancel()
@@ -121,43 +102,39 @@ struct TerminalSidebarUpdateSection: View {
   }
 
   @ViewBuilder
-  private var expandedContent: some View {
+  private var content: some View {
     switch phase {
     case .idle:
       EmptyView()
 
     case .permissionRequest:
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
-        HStack(spacing: 8) {
-          actionButton("Not Now") {
-            _ = store.send(.perform(.declineAutomaticChecks))
-          }
+      HStack(spacing: 8) {
+        actionButton("Not Now") {
+          _ = store.send(.perform(.declineAutomaticChecks))
+        }
 
-          Spacer(minLength: 0)
+        Spacer(minLength: 0)
 
-          actionButton("Allow", tone: .prominent) {
-            _ = store.send(.perform(.allowAutomaticChecks))
-          }
+        actionButton("Allow", tone: .prominent) {
+          _ = store.send(.perform(.allowAutomaticChecks))
         }
       }
 
     case .checking:
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
-        HStack {
-          Spacer(minLength: 0)
-          actionButton("Cancel") {
-            _ = store.send(.perform(.cancel))
-          }
+      HStack {
+        Spacer(minLength: 0)
+        actionButton("Cancel") {
+          _ = store.send(.perform(.cancel))
         }
       }
 
     case .updateAvailable(let available):
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
+      let version = available.version.trimmingCharacters(in: .whitespacesAndNewlines)
+      VStack(alignment: .leading, spacing: 10) {
         VStack(alignment: .leading, spacing: 6) {
-          metadataRow("Version", value: available.version)
+          if phase.badgeText == nil, !version.isEmpty {
+            metadataRow("Version", value: version)
+          }
 
           if let contentLength = available.contentLength {
             metadataRow("Size", value: Self.byteCountString(contentLength))
@@ -170,6 +147,7 @@ struct TerminalSidebarUpdateSection: View {
             )
           }
         }
+
         VStack(alignment: .leading, spacing: 8) {
           HStack(spacing: 8) {
             actionButton("Skip") {
@@ -190,8 +168,7 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .downloading:
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
+      VStack(alignment: .leading, spacing: 10) {
         progressContent
         HStack {
           Spacer(minLength: 0)
@@ -202,52 +179,39 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .extracting:
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
+      VStack(alignment: .leading, spacing: 10) {
         progressContent
       }
 
-    case .installing(let installing):
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(
-          installing.isAutoUpdate
-            ? phase.detailMessage
-            : "The update is ready. Restart Supaterm to complete installation.")
-        VStack(alignment: .leading, spacing: 8) {
-          actionButton("Restart Later") {
-            _ = store.send(.perform(.restartLater))
-          }
+    case .installing:
+      VStack(alignment: .leading, spacing: 8) {
+        actionButton("Restart Later") {
+          _ = store.send(.perform(.restartLater))
+        }
 
-          actionButton("Restart Now", tone: .prominent) {
-            _ = store.send(.perform(.restartNow))
-          }
+        actionButton("Restart Now", tone: .prominent) {
+          _ = store.send(.perform(.restartNow))
         }
       }
 
     case .notFound:
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(phase.detailMessage)
-        HStack {
-          Spacer(minLength: 0)
-          actionButton("OK") {
-            _ = store.send(.perform(.dismiss))
-          }
+      HStack {
+        Spacer(minLength: 0)
+        actionButton("OK") {
+          _ = store.send(.perform(.dismiss))
         }
       }
 
-    case .error(let failure):
-      VStack(alignment: .leading, spacing: 12) {
-        detailText(failure.message)
-        HStack(spacing: 8) {
-          actionButton("OK") {
-            _ = store.send(.perform(.dismiss))
-          }
+    case .error:
+      HStack(spacing: 8) {
+        actionButton("OK") {
+          _ = store.send(.perform(.dismiss))
+        }
 
-          Spacer(minLength: 0)
+        Spacer(minLength: 0)
 
-          actionButton("Retry", tone: .prominent) {
-            _ = store.send(.perform(.retry))
-          }
+        actionButton("Retry", tone: .prominent) {
+          _ = store.send(.perform(.retry))
         }
       }
     }
@@ -262,28 +226,40 @@ struct TerminalSidebarUpdateSection: View {
         if let badgeText = phase.badgeText {
           Text(badgeText)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(palette.secondaryText)
+            .foregroundStyle(style.secondaryText)
         }
       }
+    } else {
+      ProgressView()
+        .controlSize(.small)
+        .tint(progressTint)
     }
   }
 
   private var backgroundColor: Color {
-    if isExpanded {
-      return palette.pillFill
+    if style.usesSelectedRowStyle {
+      return palette.selectedFill
     }
     if isHovering {
-      return palette.pillFill.opacity(0.94)
+      return palette.rowFill
     }
-    return palette.pillFill.opacity(0.82)
-  }
-
-  private var borderColor: Color {
-    style.border
+    return palette.rowFill.opacity(0.84)
   }
 
   private var progressTint: Color {
     style.progress
+  }
+
+  private var summaryDetailText: String {
+    switch phase {
+    case .installing(let installing):
+      if installing.isAutoUpdate {
+        return phase.detailMessage
+      }
+      return "The update is ready. Restart Supaterm to complete installation."
+    default:
+      return phase.detailMessage
+    }
   }
 
   private func actionButton(
@@ -311,11 +287,11 @@ struct TerminalSidebarUpdateSection: View {
   ) -> Color {
     switch tone {
     case .normal:
-      return palette.clearFill
+      return style.buttonFill
     case .prominent:
       return style.prominentFill
     case .destructive:
-      return style.warning.opacity(0.16)
+      return style.warning.opacity(style.usesSelectedRowStyle ? 0.22 : 0.16)
     }
   }
 
@@ -324,7 +300,7 @@ struct TerminalSidebarUpdateSection: View {
   ) -> Color {
     switch tone {
     case .normal:
-      return palette.primaryText
+      return style.primaryText
     case .prominent:
       return style.prominentForeground
     case .destructive:
@@ -332,33 +308,9 @@ struct TerminalSidebarUpdateSection: View {
     }
   }
 
-  private func detailText(_ text: String) -> some View {
-    Text(text)
-      .font(.system(size: 11, weight: .medium))
-      .foregroundStyle(palette.secondaryText)
-      .fixedSize(horizontal: false, vertical: true)
-  }
-
-  private func handlePhaseChange(
-    from oldPhase: UpdatePhase,
-    to newPhase: UpdatePhase
-  ) {
+  private func handlePhaseChange(to newPhase: UpdatePhase) {
     resetTask?.cancel()
     resetTask = nil
-
-    if newPhase.isIdle {
-      isExpanded = false
-      return
-    }
-
-    if TerminalSidebarUpdatePresentation.shouldAutoExpand(
-      from: oldPhase,
-      to: newPhase
-    ) {
-      withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-        isExpanded = true
-      }
-    }
 
     if case .notFound = newPhase {
       resetTask = Task { @MainActor in
@@ -375,20 +327,14 @@ struct TerminalSidebarUpdateSection: View {
   ) -> some View {
     HStack(spacing: 6) {
       Text("\(title):")
-        .foregroundStyle(palette.secondaryText)
+        .foregroundStyle(style.secondaryText)
         .frame(width: 56, alignment: .trailing)
 
       Text(value)
-        .foregroundStyle(palette.primaryText)
+        .foregroundStyle(style.primaryText)
         .textSelection(.enabled)
     }
     .font(.system(size: 11, weight: .medium))
-  }
-
-  private func toggleExpansion() {
-    withAnimation(.spring(response: 0.24, dampingFraction: 0.86)) {
-      isExpanded.toggle()
-    }
   }
 
   private static func byteCountString(_ value: UInt64) -> String {
@@ -409,36 +355,39 @@ private struct TerminalSidebarUpdateStyle {
   let phase: UpdatePhase
   let palette: TerminalPalette
 
-  var border: Color {
-    switch phase {
-    case .notFound:
-      success.opacity(0.28)
-    case .error:
-      warning.opacity(0.3)
-    default:
-      separator
-    }
+  var usesSelectedRowStyle: Bool {
+    TerminalSidebarUpdatePresentation.usesSelectedRowStyle(for: phase)
+  }
+
+  var primaryText: Color {
+    usesSelectedRowStyle ? palette.selectedText : palette.primaryText
+  }
+
+  var secondaryText: Color {
+    usesSelectedRowStyle ? palette.selectedText.opacity(0.72) : palette.secondaryText
   }
 
   var progress: Color {
     switch phase {
-    case .updateAvailable, .installing:
-      prominentFill
     case .notFound:
       success
     case .error:
       warning
     default:
-      palette.primaryText
+      primaryText
     }
   }
 
   var prominentFill: Color {
-    palette.selectedFill
+    usesSelectedRowStyle ? primaryText.opacity(0.12) : palette.selectedFill
   }
 
   var prominentForeground: Color {
-    palette.selectedText
+    usesSelectedRowStyle ? primaryText : palette.selectedText
+  }
+
+  var buttonFill: Color {
+    usesSelectedRowStyle ? primaryText.opacity(0.08) : palette.clearFill
   }
 
   var warning: Color {
@@ -447,43 +396,35 @@ private struct TerminalSidebarUpdateStyle {
 
   var indicator: Color {
     switch phase {
-    case .updateAvailable, .installing:
-      prominentFill
     case .notFound:
       success
     case .error:
       warning
     default:
-      palette.secondaryText
+      usesSelectedRowStyle ? primaryText : secondaryText
     }
   }
 
   var badgeBackground: Color {
     switch phase {
-    case .updateAvailable:
-      prominentFill
+    case .updateAvailable where usesSelectedRowStyle:
+      primaryText.opacity(0.12)
     case .notFound:
       success.opacity(0.16)
     case .error:
       warning.opacity(0.16)
     default:
-      palette.clearFill
+      buttonFill
     }
   }
 
   var badgeForeground: Color {
     switch phase {
-    case .updateAvailable:
-      prominentForeground
     case .error:
       warning
     default:
-      palette.primaryText
+      primaryText
     }
-  }
-
-  private var separator: Color {
-    Color(nsColor: .separatorColor)
   }
 
   private var success: Color {

@@ -4,41 +4,52 @@ import Testing
 
 struct TerminalSidebarUpdatePresentationTests {
   @Test
-  func enteringNonIdlePhaseAutoExpands() {
+  func permissionRequestUsesSelectedRowStyle() {
     #expect(
-      TerminalSidebarUpdatePresentation.shouldAutoExpand(
-        from: .idle,
-        to: .checking
+      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .permissionRequest
       )
     )
   }
 
   @Test
-  func enteringErrorAutoExpandsEvenFromAnotherVisiblePhase() {
+  func updateAvailableUsesSelectedRowStyle() {
     #expect(
-      TerminalSidebarUpdatePresentation.shouldAutoExpand(
-        from: .downloading(.init(expectedLength: 400, progress: 100)),
-        to: .error(.init(message: "Network error"))
+      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .updateAvailable(.init(contentLength: nil, releaseDate: nil, version: "1.2.3"))
       )
     )
   }
 
   @Test
-  func visiblePhaseTransitionDoesNotReexpandByDefault() {
+  func installingUsesSelectedRowStyle() {
     #expect(
-      !TerminalSidebarUpdatePresentation.shouldAutoExpand(
-        from: .checking,
-        to: .updateAvailable(.init(contentLength: nil, releaseDate: nil, version: "1.2.3"))
+      TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .installing(.init(isAutoUpdate: false))
       )
     )
   }
 
   @Test
-  func idleTargetNeverAutoExpands() {
+  func transientAndResultPhasesUseRegularRowStyle() {
     #expect(
-      !TerminalSidebarUpdatePresentation.shouldAutoExpand(
-        from: .checking,
-        to: .idle
+      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .checking
+      )
+    )
+    #expect(
+      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .downloading(.init(expectedLength: 400, progress: 100))
+      )
+    )
+    #expect(
+      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .error(.init(message: "Network error"))
+      )
+    )
+    #expect(
+      !TerminalSidebarUpdatePresentation.usesSelectedRowStyle(
+        for: .notFound
       )
     )
   }
