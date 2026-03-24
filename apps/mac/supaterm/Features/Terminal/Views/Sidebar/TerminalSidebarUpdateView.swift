@@ -124,10 +124,9 @@ struct TerminalSidebarUpdateSection: View {
       EmptyView()
 
     case .updateAvailable(let available):
-      let version = available.version.trimmingCharacters(in: .whitespacesAndNewlines)
       VStack(alignment: .leading, spacing: 10) {
         VStack(alignment: .leading, spacing: 6) {
-          if phase.badgeText == nil, !version.isEmpty {
+          if phase.badgeText == nil, let version = available.formattedVersion {
             metadataRow("Version", value: version)
           }
 

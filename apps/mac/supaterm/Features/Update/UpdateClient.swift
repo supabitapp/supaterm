@@ -18,9 +18,36 @@ enum UpdateUserAction: Equatable, Sendable {
 
 enum UpdatePhase: Equatable, Sendable {
   struct Available: Equatable, Sendable {
+    var buildVersion: String?
     var contentLength: UInt64?
     var releaseDate: Date?
     var version: String
+
+    init(
+      buildVersion: String? = nil,
+      contentLength: UInt64?,
+      releaseDate: Date?,
+      version: String
+    ) {
+      self.buildVersion = buildVersion
+      self.contentLength = contentLength
+      self.releaseDate = releaseDate
+      self.version = version
+    }
+
+    var formattedVersion: String? {
+      let version = self.version.trimmingCharacters(in: .whitespacesAndNewlines)
+      let buildVersion = self.buildVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+      if let buildVersion, !buildVersion.isEmpty, buildVersion != version {
+        if version.isEmpty {
+          return buildVersion
+        }
+        return "\(version) (\(buildVersion))"
+      }
+
+      return version.isEmpty ? nil : version
+    }
   }
 
   struct Downloading: Equatable, Sendable {
@@ -53,8 +80,7 @@ enum UpdatePhase: Equatable, Sendable {
   var badgeText: String? {
     switch self {
     case .updateAvailable(let available):
-      let version = available.version.trimmingCharacters(in: .whitespacesAndNewlines)
-      return version.isEmpty ? nil : version
+      return available.formattedVersion
     case .downloading(let downloading):
       return Self.progressText(
         progress: Double(downloading.progress),
@@ -85,8 +111,7 @@ enum UpdatePhase: Equatable, Sendable {
     case .checking:
       return "Please wait while Supaterm checks for available updates."
     case .updateAvailable(let available):
-      let version = available.version.trimmingCharacters(in: .whitespacesAndNewlines)
-      if version.isEmpty {
+      guard let version = available.formattedVersion else {
         return "A Supaterm update is ready to download and install."
       }
       return "Supaterm \(version) is ready to download and install."
@@ -506,20 +531,12 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   fileprivate func showUpdateAvailable(
-    version: String,
-    contentLength: UInt64?,
-    releaseDate: Date?,
+    _ available: UpdatePhase.Available,
     reply: @escaping (SPUUserUpdateChoice) -> Void,
     fallback: (() -> Void)?
   ) {
     interaction = .updateAvailable(reply)
-    phase = .updateAvailable(
-      .init(
-        contentLength: contentLength,
-        releaseDate: releaseDate,
-        version: version
-      )
-    )
+    phase = .updateAvailable(available)
     publish()
     fallback?()
   }
@@ -819,9 +836,12 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   ) {
     let contentLength = appcastItem.contentLength > 0 ? appcastItem.contentLength : nil
     runtime?.showUpdateAvailable(
-      version: appcastItem.displayVersionString,
-      contentLength: contentLength,
-      releaseDate: appcastItem.date,
+      .init(
+        buildVersion: appcastItem.versionString,
+        contentLength: contentLength,
+        releaseDate: appcastItem.date,
+        version: appcastItem.displayVersionString
+      ),
       reply: reply,
       fallback: fallbackAction {
         self.standard.showUpdateFound(with: appcastItem, state: state, reply: reply)
