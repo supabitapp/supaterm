@@ -59,6 +59,23 @@ enum GhosttyBootstrap {
     return (ghosttyURL, terminfoURL)
   }
 
+  static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
+    resourcesURL?.appendingPathComponent("bin", isDirectory: true)
+  }
+
+  static func bundledCLIPath(resourcesURL: URL?) -> String? {
+    bundledCommandDirectory(resourcesURL: resourcesURL)?
+      .appendingPathComponent("sp", isDirectory: false)
+      .path
+  }
+
+  static func hostedConfigOverride(resourcesURL: URL?) -> String? {
+    guard let bundledCommandDirectory = bundledCommandDirectory(resourcesURL: resourcesURL) else {
+      return nil
+    }
+    return #"shell-integration-preferred-bin-dir = \#(configStringLiteral(bundledCommandDirectory.path))"#
+  }
+
   static func configFileLocations(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment
@@ -125,5 +142,13 @@ enum GhosttyBootstrap {
       return URL(fileURLWithPath: xdgConfigHome, isDirectory: true)
     }
     return homeDirectoryURL.appendingPathComponent(".config", isDirectory: true)
+  }
+
+  private static func configStringLiteral(_ value: String) -> String {
+    let escaped =
+      value
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\"", with: "\\\"")
+    return "\"\(escaped)\""
   }
 }

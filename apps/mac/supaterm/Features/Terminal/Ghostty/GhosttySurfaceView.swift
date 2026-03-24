@@ -7,9 +7,7 @@ import SupatermCLIShared
 
 final class GhosttySurfaceView: NSView, Identifiable {
   struct SupatermEnvironmentContext {
-    let claudeWrapperDirectory: String?
     let cliPath: String?
-    let processEnvironment: [String: String]
     let socketPath: String?
   }
 
@@ -159,42 +157,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  static func bundledCLIPath(executableURL: URL?) -> String? {
-    executableURL?
-      .deletingLastPathComponent()
-      .appendingPathComponent("sp", isDirectory: false)
-      .path
-  }
-
-  static func bundledClaudeWrapperDirectory(resourcesURL: URL?) -> String? {
-    resourcesURL?
-      .appendingPathComponent("bin", isDirectory: true)
-      .path
-  }
-
-  static func cliDirectory(_ cliPath: String?) -> String? {
-    guard let cliPath else { return nil }
-    let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedPath.isEmpty else { return nil }
-    return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
-  }
-
-  static func prependedPath(
-    _ directory: String,
-    currentPath: String?
-  ) -> String {
-    let trimmedDirectory = directory.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedDirectory.isEmpty else {
-      return currentPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    var components =
-      currentPath?
-      .split(separator: ":")
-      .map(String.init)
-      .filter { !$0.isEmpty && $0 != trimmedDirectory } ?? []
-    components.insert(trimmedDirectory, at: 0)
-    return components.joined(separator: ":")
+  static func bundledCLIPath(resourcesURL: URL?) -> String? {
+    GhosttyBootstrap.bundledCLIPath(resourcesURL: resourcesURL)
   }
 
   static func supatermEnvironmentVariables(
@@ -222,21 +186,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
-    let path = prependedPath(
-      cliDirectory(context.cliPath) ?? "",
-      currentPath: prependedPath(
-        context.claudeWrapperDirectory ?? "",
-        currentPath: context.processEnvironment["PATH"]
-      )
-    )
-    if !path.isEmpty {
-      environmentVariables.append(
-        .init(
-          key: "PATH",
-          value: path
-        )
-      )
-    }
     return environmentVariables
   }
 
@@ -259,9 +208,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: surfaceID,
       tabID: tabID,
       context: .init(
-        claudeWrapperDirectory: Self.bundledClaudeWrapperDirectory(resourcesURL: Bundle.main.resourceURL),
-        cliPath: Self.bundledCLIPath(executableURL: Bundle.main.executableURL),
-        processEnvironment: ProcessInfo.processInfo.environment,
+        cliPath: Self.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
         socketPath: SupatermProcessSocketEndpoint.current()?.path
       )
     )

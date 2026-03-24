@@ -141,7 +141,7 @@ struct ClaudeWrapperTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try copyClaudeWrapper(
-      to: rootURL.appendingPathComponent("Debug/supaterm.app/Contents/MacOS/claude", isDirectory: false)
+      to: rootURL.appendingPathComponent("Debug/supaterm.app/Contents/Resources/bin/claude", isDirectory: false)
     )
     let siblingWrapperURL = rootURL.appendingPathComponent(
       "Installed/supaterm.app/Contents/Resources/bin/claude",
@@ -176,18 +176,18 @@ struct ClaudeWrapperTests {
   }
 }
 
-struct ShellIntegrationCommandResolutionTests {
+struct ShellIntegrationPreferredBinDirTests {
   @Test
-  func zshIntegrationResolvesBundledCommandsAfterRcPathRewrite() throws {
+  func zshIntegrationResolvesPreferredBinDirectoryAfterRcPathRewrite() throws {
     let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let integrationURL = try installGhosttyZshIntegration(at: rootURL)
     let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
     let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
-    let appBinURL = rootURL.appendingPathComponent("app/Contents/MacOS", isDirectory: true)
+    let preferredBinURL = rootURL.appendingPathComponent("app/Contents/Resources/bin", isDirectory: true)
     try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: appBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: preferredBinURL, withIntermediateDirectories: true)
 
     try """
     path=("$HOME/.local/bin" $path)
@@ -204,14 +204,14 @@ struct ShellIntegrationCommandResolutionTests {
         """
     )
     try writeExecutable(
-      at: appBinURL.appendingPathComponent("sp", isDirectory: false),
+      at: preferredBinURL.appendingPathComponent("sp", isDirectory: false),
       script: """
         #!/bin/bash
         printf 'BUNDLED_SP\\n'
         """
     )
     try writeExecutable(
-      at: appBinURL.appendingPathComponent("claude", isDirectory: false),
+      at: preferredBinURL.appendingPathComponent("claude", isDirectory: false),
       script: """
         #!/bin/bash
         printf 'BUNDLED_CLAUDE\\n'
@@ -224,7 +224,7 @@ struct ShellIntegrationCommandResolutionTests {
       environment: [
         "HOME": homeURL.path,
         "PATH": "/usr/bin:/bin",
-        "SUPATERM_CLI_PATH": appBinURL.appendingPathComponent("sp", isDirectory: false).path,
+        "GHOSTTY_PREFERRED_BIN_DIR": preferredBinURL.path,
         "ZDOTDIR": integrationURL.path,
         "GHOSTTY_ZSH_ZDOTDIR": homeURL.path,
       ]
@@ -236,16 +236,16 @@ struct ShellIntegrationCommandResolutionTests {
   }
 
   @Test
-  func bashIntegrationResolvesBundledCommandsAfterRcPathRewrite() throws {
+  func bashIntegrationResolvesPreferredBinDirectoryAfterRcPathRewrite() throws {
     let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let resourcesURL = try installGhosttyBashIntegration(at: rootURL)
     let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
     let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
-    let appBinURL = rootURL.appendingPathComponent("app/Contents/MacOS", isDirectory: true)
+    let preferredBinURL = rootURL.appendingPathComponent("app/Contents/Resources/bin", isDirectory: true)
     try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: appBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: preferredBinURL, withIntermediateDirectories: true)
 
     try """
     PATH="$HOME/.local/bin:$PATH"
@@ -263,14 +263,14 @@ struct ShellIntegrationCommandResolutionTests {
         """
     )
     try writeExecutable(
-      at: appBinURL.appendingPathComponent("sp", isDirectory: false),
+      at: preferredBinURL.appendingPathComponent("sp", isDirectory: false),
       script: """
         #!/bin/bash
         printf 'BUNDLED_SP\\n'
         """
     )
     try writeExecutable(
-      at: appBinURL.appendingPathComponent("claude", isDirectory: false),
+      at: preferredBinURL.appendingPathComponent("claude", isDirectory: false),
       script: """
         #!/bin/bash
         printf 'BUNDLED_CLAUDE\\n'
@@ -290,7 +290,7 @@ struct ShellIntegrationCommandResolutionTests {
       environment: [
         "HOME": homeURL.path,
         "PATH": "/usr/bin:/bin",
-        "SUPATERM_CLI_PATH": appBinURL.appendingPathComponent("sp", isDirectory: false).path,
+        "GHOSTTY_PREFERRED_BIN_DIR": preferredBinURL.path,
         "GHOSTTY_RESOURCES_DIR": resourcesURL.path,
       ]
     )
