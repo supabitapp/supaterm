@@ -37,15 +37,16 @@ struct TerminalNotifyRequest: Equatable, Sendable {
   let body: String
   let subtitle: String
   let target: Target
-  let title: String
+  let title: String?
 }
 
 struct TerminalNotificationEvent: Equatable, Sendable {
+  let attentionState: SupatermNotificationAttentionState
   let body: String
-  let shouldDeliverDesktopNotification: Bool
+  let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
+  let resolvedTitle: String
   let sourceSurfaceID: UUID
   let subtitle: String
-  let title: String
 }
 
 struct TerminalClaudeHookResult: Equatable, Sendable {

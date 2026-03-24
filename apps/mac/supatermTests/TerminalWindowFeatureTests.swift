@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 @MainActor
@@ -131,11 +132,12 @@ struct TerminalWindowFeatureTests {
   func notificationReceivedDeliversDesktopNotificationWhenRequested() async {
     let recorder = TerminalDesktopNotificationRecorder()
     let event = TerminalNotificationEvent(
+      attentionState: .unread,
       body: "Build finished",
-      shouldDeliverDesktopNotification: true,
+      desktopNotificationDisposition: .deliver,
+      resolvedTitle: "Deploy complete",
       sourceSurfaceID: UUID(),
-      subtitle: "CI",
-      title: "Deploy complete"
+      subtitle: "CI"
     )
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -158,11 +160,12 @@ struct TerminalWindowFeatureTests {
   func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async {
     let recorder = TerminalDesktopNotificationRecorder()
     let event = TerminalNotificationEvent(
+      attentionState: .focused,
       body: "Build finished",
-      shouldDeliverDesktopNotification: false,
+      desktopNotificationDisposition: .suppressFocused,
+      resolvedTitle: "Deploy complete",
       sourceSurfaceID: UUID(),
-      subtitle: "",
-      title: "Deploy complete"
+      subtitle: ""
     )
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {

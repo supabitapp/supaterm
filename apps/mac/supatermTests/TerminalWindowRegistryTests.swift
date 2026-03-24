@@ -295,9 +295,10 @@ struct TerminalWindowRegistryTests {
   @Test
   func rewriteNotifyResultPreservesSpaceIndexAndUpdatesWindowIndex() {
     let result = SupatermNotifyResult(
-      isUnread: true,
-      shouldDeliverDesktopNotification: true,
+      attentionState: .unread,
+      desktopNotificationDisposition: .deliver,
       paneIndex: 4,
+      resolvedTitle: "Deploy complete",
       spaceIndex: 3,
       tabIndex: 2,
       windowIndex: 1
@@ -306,9 +307,10 @@ struct TerminalWindowRegistryTests {
     #expect(
       TerminalWindowRegistry.rewrite(result, windowIndex: 2)
         == .init(
-          isUnread: true,
-          shouldDeliverDesktopNotification: true,
+          attentionState: .unread,
+          desktopNotificationDisposition: .deliver,
           paneIndex: 4,
+          resolvedTitle: "Deploy complete",
           spaceIndex: 3,
           tabIndex: 2,
           windowIndex: 2
@@ -342,7 +344,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
@@ -375,7 +378,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(
       harness.host.latestNotificationText(for: harness.tabID)
         == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
@@ -400,7 +404,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
@@ -422,7 +427,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 

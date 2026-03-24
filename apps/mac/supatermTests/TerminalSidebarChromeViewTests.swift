@@ -9,6 +9,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 3,
         claudeActivity: .needsInput
@@ -22,6 +23,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
         claudeActivity: .running
@@ -30,15 +32,16 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func idleClaudeActivityFallsBackToDefaultTabSymbol() {
+  func focusedNotificationTakesPrecedenceOverDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
         claudeActivity: .idle
-      ) == .tabSymbol("hammer", tab.tone)
+      ) == .focusedNotification
     )
   }
 
@@ -66,6 +69,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
         claudeActivity: nil
