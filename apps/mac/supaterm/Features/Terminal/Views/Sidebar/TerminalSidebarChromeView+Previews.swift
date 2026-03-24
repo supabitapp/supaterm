@@ -205,14 +205,46 @@ private struct TerminalSidebarTabPreviewGallery: View {
     .frame(width: 320, height: 980)
     .background(palette.windowBackgroundTint)
     .background(palette.detailBackground)
-    .preferredColorScheme(colorScheme)
   }
 }
 
-#Preview("Sidebar Row States - Light") {
-  TerminalSidebarTabPreviewGallery(colorScheme: .light)
+private struct TerminalSidebarTabPreviewColumn: View {
+  let title: String
+  let colorScheme: ColorScheme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(title)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(.secondary)
+
+      TerminalSidebarTabPreviewGallery(colorScheme: colorScheme)
+        .environment(\.colorScheme, colorScheme)
+    }
+    .frame(width: 320, alignment: .leading)
+  }
 }
 
-#Preview("Sidebar Row States - Dark") {
-  TerminalSidebarTabPreviewGallery(colorScheme: .dark)
+private struct TerminalSidebarTabPreviewComparison: View {
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(alignment: .top, spacing: 16) {
+        TerminalSidebarTabPreviewColumn(
+          title: "Light",
+          colorScheme: .light
+        )
+
+        TerminalSidebarTabPreviewColumn(
+          title: "Dark",
+          colorScheme: .dark
+        )
+      }
+      .padding(16)
+    }
+    .frame(width: 704, height: 1040)
+  }
+}
+
+#Preview("Sidebar Row States") {
+  TerminalSidebarTabPreviewComparison()
 }
