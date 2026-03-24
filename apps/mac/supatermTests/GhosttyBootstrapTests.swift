@@ -43,7 +43,7 @@ struct GhosttyBootstrapTests {
   }
 
   @Test
-  func configFileLocationsPreferAppSupportConfigGhosttyTarget() throws {
+  func configFileLocationsPreferLegacyXdgConfigTarget() throws {
     let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
     let xdgConfigHomeURL = URL(fileURLWithPath: "/tmp/supaterm-xdg", isDirectory: true)
 
@@ -64,21 +64,21 @@ struct GhosttyBootstrapTests {
 
     #expect(
       locations.preferred
-        == appSupportDirectoryURL
-        .appendingPathComponent("config.ghostty", isDirectory: false)
+        == xdgDirectoryURL
+        .appendingPathComponent("config", isDirectory: false)
     )
     #expect(
       locations.candidates == [
+        xdgDirectoryURL.appendingPathComponent("config", isDirectory: false),
+        xdgDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
         appSupportDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
         appSupportDirectoryURL.appendingPathComponent("config", isDirectory: false),
-        xdgDirectoryURL.appendingPathComponent("config.ghostty", isDirectory: false),
-        xdgDirectoryURL.appendingPathComponent("config", isDirectory: false),
       ]
     )
   }
 
   @Test
-  func seedDefaultConfigCreatesAppSupportConfigWhenNoConfigExists() throws {
+  func seedDefaultConfigCreatesLegacyXdgConfigWhenNoConfigExists() throws {
     let rootURL = try makeGhosttyBootstrapTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
