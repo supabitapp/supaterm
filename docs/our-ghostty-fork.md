@@ -31,30 +31,6 @@ All supported shell integrations now follow the same rule:
 
 That keeps the new behavior additive. The existing Ghostty `path` feature still means "make the Ghostty bin dir available". The fork adds a second host-controlled concept: "this one bin directory should win".
 
-## How Supaterm Uses The Fork
-
-Supaterm does not ask users to add new keys to their Ghostty config files.
-
-Instead, the host app injects the config at runtime:
-
-- `apps/mac/supaterm/App/GhosttyBootstrap.swift` computes the bundled command directory and emits a config snippet for `shell-integration-preferred-bin-dir`.
-- `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttyRuntime.swift` loads that snippet through `ghostty_config_load_string`.
-- `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift` only injects pane context and the bundled CLI path. It no longer rewrites PATH.
-
-Because the preferred directory is `Contents/Resources/bin`, Supaterm can keep its bundled command ownership narrow. The shell integration gives precedence to a directory that contains only commands Supaterm intends to own.
-
-## What We Removed From Supaterm
-
-This fork exists so the host app can stay simpler.
-
-Supaterm no longer needs:
-
-- shell-specific wrapper functions for command names
-- pane-level PATH mutation
-- compatibility branches for old bundled command locations
-
-The host now declares one preferred directory and lets Ghostty's shell integration enforce it consistently.
-
 ## Maintenance Rules
 
 - Keep the fork generic. Do not add behavior that names Supaterm commands.
