@@ -187,6 +187,70 @@ struct ShellIntegrationPreferredBinDirTests {
     #expect(output.contains("BUNDLED_CLAUDE"))
     #expect(!output.contains("USER_CLAUDE"))
   }
+
+  @Test
+  func fishIntegrationResolvesPreferredBinDirectoryAfterRcPathRewrite() throws {
+    guard let fishURL = executableURL(named: "fish") else { return }
+
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let resourcesURL = try installGhosttyFishIntegration(at: rootURL)
+    let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
+    let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
+    let preferredBinURL = rootURL.appendingPathComponent("app/Contents/Resources/bin", isDirectory: true)
+    let configURL = rootURL.appendingPathComponent("config/fish", isDirectory: true)
+    try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: preferredBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: configURL, withIntermediateDirectories: true)
+
+    try """
+    set -gx PATH "$HOME/.local/bin" $PATH
+    """.write(
+      to: configURL.appendingPathComponent("config.fish", isDirectory: false),
+      atomically: true,
+      encoding: .utf8
+    )
+    try writeExecutable(
+      at: userBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'USER_CLAUDE\\n'
+        """
+    )
+    try writeExecutable(
+      at: preferredBinURL.appendingPathComponent("sp", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_SP\\n'
+        """
+    )
+    try writeExecutable(
+      at: preferredBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_CLAUDE\\n'
+        """
+    )
+
+    let shellIntegrationURL = resourcesURL.appendingPathComponent("shell-integration", isDirectory: true)
+    let output = try runExecutable(
+      at: fishURL,
+      arguments: ["-i", "-c", "emit fish_prompt; sp; claude"],
+      environment: [
+        "HOME": homeURL.path,
+        "PATH": "/usr/bin:/bin",
+        "GHOSTTY_PREFERRED_BIN_DIR": preferredBinURL.path,
+        "GHOSTTY_SHELL_INTEGRATION_XDG_DIR": shellIntegrationURL.path,
+        "XDG_CONFIG_HOME": rootURL.appendingPathComponent("config", isDirectory: true).path,
+        "XDG_DATA_DIRS": shellIntegrationURL.path,
+      ]
+    )
+
+    #expect(output.contains("BUNDLED_SP"))
+    #expect(output.contains("BUNDLED_CLAUDE"))
+    #expect(!output.contains("USER_CLAUDE"))
+  }
 }
 
 private func installGhosttyZshIntegration(at rootURL: URL) throws -> URL {
@@ -236,6 +300,24 @@ private func installGhosttyElvishIntegration(at rootURL: URL) throws -> URL {
   try FileManager.default.copyItem(
     at: sourceURL,
     to: integrationURL.appendingPathComponent("ghostty-integration.elv", isDirectory: false)
+  )
+  return resourcesURL
+}
+
+private func installGhosttyFishIntegration(at rootURL: URL) throws -> URL {
+  let resourcesURL = rootURL.appendingPathComponent("resources", isDirectory: true)
+  let integrationURL = resourcesURL.appendingPathComponent("shell-integration/fish/vendor_conf.d", isDirectory: true)
+  try FileManager.default.createDirectory(at: integrationURL, withIntermediateDirectories: true)
+  let sourceURL = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent(
+      "ThirdParty/ghostty/src/shell-integration/fish/vendor_conf.d/ghostty-shell-integration.fish",
+      isDirectory: false
+    )
+  try FileManager.default.copyItem(
+    at: sourceURL,
+    to: integrationURL.appendingPathComponent("ghostty-shell-integration.fish", isDirectory: false)
   )
   return resourcesURL
 }
