@@ -12,10 +12,8 @@ struct GhosttySurfaceViewEnvironmentTests {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
       surfaceID: surfaceID,
       tabID: tabID,
-      context: .init(
-        cliPath: "/Applications/Supaterm.app/Contents/Resources/bin/sp",
-        socketPath: "/tmp/supaterm.sock"
-      )
+      socketPath: "/tmp/supaterm.sock",
+      cliPath: "/Applications/Supaterm.app/Contents/Resources/bin/sp"
     )
 
     #expect(
@@ -25,15 +23,6 @@ struct GhosttySurfaceViewEnvironmentTests {
         .init(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
         .init(key: SupatermCLIEnvironment.cliPathKey, value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"),
       ]
-    )
-  }
-
-  @Test
-  func bundledCLIPathUsesResourcesBinDirectory() {
-    #expect(
-      GhosttySurfaceView.bundledCLIPath(
-        resourcesURL: URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/Resources", isDirectory: true))
-        == "/Applications/Supaterm.app/Contents/Resources/bin/sp"
     )
   }
 }

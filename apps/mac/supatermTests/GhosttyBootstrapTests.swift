@@ -5,11 +5,6 @@ import Testing
 
 struct GhosttyBootstrapTests {
   @Test
-  func bootstrapDoesNotOverrideGhosttyTerminalShortcuts() {
-    #expect(GhosttyBootstrap.extraCLIArguments.isEmpty)
-  }
-
-  @Test
   func bundledCommandDirectoryUsesResourcesBin() {
     let resourcesURL = URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/Resources", isDirectory: true)
 

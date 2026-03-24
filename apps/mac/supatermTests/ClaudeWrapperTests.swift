@@ -7,7 +7,7 @@ import Testing
 struct ClaudeWrapperTests {
   @Test
   func wrapperInjectsSettingsInsideSupatermPane() throws {
-    let rootURL = try makeTemporaryDirectory()
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -49,7 +49,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughOutsideSupaterm() throws {
-    let rootURL = try makeTemporaryDirectory()
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -72,7 +72,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughWhenSocketIsUnavailableOrHooksDisabled() throws {
-    let rootURL = try makeTemporaryDirectory()
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -108,7 +108,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughNonInteractiveClaudeCommands() throws {
-    let rootURL = try makeTemporaryDirectory()
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -136,8 +136,8 @@ struct ClaudeWrapperTests {
   }
 
   @Test
-  func wrapperSkipsSupatermBundledClaudeCandidatesWhenResolvingRealBinary() throws {
-    let rootURL = try makeTemporaryDirectory()
+  func wrapperSkipsBundledResourceWrappersWhenResolvingRealBinary() throws {
+    let rootURL = try makeCommandExecutionTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try copyClaudeWrapper(
@@ -173,131 +173,6 @@ struct ClaudeWrapperTests {
 
     #expect(output.contains("ARG[0]=hello"))
     #expect(!output.contains("WRONG_WRAPPER"))
-  }
-}
-
-struct ShellIntegrationPreferredBinDirTests {
-  @Test
-  func zshIntegrationResolvesPreferredBinDirectoryAfterRcPathRewrite() throws {
-    let rootURL = try makeTemporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: rootURL) }
-
-    let integrationURL = try installGhosttyZshIntegration(at: rootURL)
-    let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
-    let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
-    let preferredBinURL = rootURL.appendingPathComponent("app/Contents/Resources/bin", isDirectory: true)
-    try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: preferredBinURL, withIntermediateDirectories: true)
-
-    try """
-    path=("$HOME/.local/bin" $path)
-    """.write(
-      to: homeURL.appendingPathComponent(".zshrc", isDirectory: false),
-      atomically: true,
-      encoding: .utf8
-    )
-    try writeExecutable(
-      at: userBinURL.appendingPathComponent("claude", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'USER_CLAUDE\\n'
-        """
-    )
-    try writeExecutable(
-      at: preferredBinURL.appendingPathComponent("sp", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'BUNDLED_SP\\n'
-        """
-    )
-    try writeExecutable(
-      at: preferredBinURL.appendingPathComponent("claude", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'BUNDLED_CLAUDE\\n'
-        """
-    )
-
-    let output = try runExecutable(
-      at: URL(fileURLWithPath: "/bin/zsh", isDirectory: false),
-      arguments: ["-i", "-c", "_ghostty_deferred_init >/dev/null 2>&1; sp; claude"],
-      environment: [
-        "HOME": homeURL.path,
-        "PATH": "/usr/bin:/bin",
-        "GHOSTTY_PREFERRED_BIN_DIR": preferredBinURL.path,
-        "ZDOTDIR": integrationURL.path,
-        "GHOSTTY_ZSH_ZDOTDIR": homeURL.path,
-      ]
-    )
-
-    #expect(output.contains("BUNDLED_SP"))
-    #expect(output.contains("BUNDLED_CLAUDE"))
-    #expect(!output.contains("USER_CLAUDE"))
-  }
-
-  @Test
-  func bashIntegrationResolvesPreferredBinDirectoryAfterRcPathRewrite() throws {
-    let rootURL = try makeTemporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: rootURL) }
-
-    let resourcesURL = try installGhosttyBashIntegration(at: rootURL)
-    let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
-    let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
-    let preferredBinURL = rootURL.appendingPathComponent("app/Contents/Resources/bin", isDirectory: true)
-    try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: preferredBinURL, withIntermediateDirectories: true)
-
-    try """
-    PATH="$HOME/.local/bin:$PATH"
-    source "$GHOSTTY_RESOURCES_DIR/shell-integration/bash/ghostty.bash"
-    """.write(
-      to: homeURL.appendingPathComponent(".bashrc", isDirectory: false),
-      atomically: true,
-      encoding: .utf8
-    )
-    try writeExecutable(
-      at: userBinURL.appendingPathComponent("claude", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'USER_CLAUDE\\n'
-        """
-    )
-    try writeExecutable(
-      at: preferredBinURL.appendingPathComponent("sp", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'BUNDLED_SP\\n'
-        """
-    )
-    try writeExecutable(
-      at: preferredBinURL.appendingPathComponent("claude", isDirectory: false),
-      script: """
-        #!/bin/bash
-        printf 'BUNDLED_CLAUDE\\n'
-        """
-    )
-
-    let output = try runExecutable(
-      at: URL(fileURLWithPath: "/bin/bash", isDirectory: false),
-      arguments: [
-        "--noprofile",
-        "--rcfile",
-        homeURL.appendingPathComponent(".bashrc", isDirectory: false).path,
-        "-i",
-        "-c",
-        "sp; claude",
-      ],
-      environment: [
-        "HOME": homeURL.path,
-        "PATH": "/usr/bin:/bin",
-        "GHOSTTY_PREFERRED_BIN_DIR": preferredBinURL.path,
-        "GHOSTTY_RESOURCES_DIR": resourcesURL.path,
-      ]
-    )
-
-    #expect(output.contains("BUNDLED_SP"))
-    #expect(output.contains("BUNDLED_CLAUDE"))
-    #expect(!output.contains("USER_CLAUDE"))
   }
 }
 
@@ -361,108 +236,6 @@ private func writeFakeSPExecutable(
   try script.write(to: url, atomically: true, encoding: .utf8)
   try setExecutablePermissions(at: url)
   return url
-}
-
-private func writeExecutable(
-  at url: URL,
-  script: String
-) throws {
-  try FileManager.default.createDirectory(
-    at: url.deletingLastPathComponent(),
-    withIntermediateDirectories: true
-  )
-  try script.write(to: url, atomically: true, encoding: .utf8)
-  try setExecutablePermissions(at: url)
-}
-
-private func setExecutablePermissions(at url: URL) throws {
-  let result = url.path.withCString { pointer in
-    chmod(pointer, mode_t(0o755))
-  }
-  guard result == 0 else {
-    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-  }
-}
-
-private func installGhosttyZshIntegration(at rootURL: URL) throws -> URL {
-  let integrationURL = rootURL.appendingPathComponent("integration/zsh", isDirectory: true)
-  try FileManager.default.createDirectory(at: integrationURL, withIntermediateDirectories: true)
-  let sourceRoot = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
-    .deletingLastPathComponent()
-    .appendingPathComponent("ThirdParty/ghostty/src/shell-integration/zsh", isDirectory: true)
-  try FileManager.default.copyItem(
-    at: sourceRoot.appendingPathComponent(".zshenv", isDirectory: false),
-    to: integrationURL.appendingPathComponent(".zshenv", isDirectory: false)
-  )
-  try FileManager.default.copyItem(
-    at: sourceRoot.appendingPathComponent("ghostty-integration", isDirectory: false),
-    to: integrationURL.appendingPathComponent("ghostty-integration", isDirectory: false)
-  )
-  return integrationURL
-}
-
-private func installGhosttyBashIntegration(at rootURL: URL) throws -> URL {
-  let resourcesURL = rootURL.appendingPathComponent("resources", isDirectory: true)
-  let integrationURL = resourcesURL.appendingPathComponent("shell-integration/bash", isDirectory: true)
-  try FileManager.default.createDirectory(at: integrationURL, withIntermediateDirectories: true)
-  let sourceURL = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent()
-    .deletingLastPathComponent()
-    .appendingPathComponent("ThirdParty/ghostty/src/shell-integration/bash/ghostty.bash", isDirectory: false)
-  try FileManager.default.copyItem(
-    at: sourceURL,
-    to: integrationURL.appendingPathComponent("ghostty.bash", isDirectory: false)
-  )
-  return resourcesURL
-}
-
-private func runExecutable(
-  at executableURL: URL,
-  arguments: [String],
-  environment: [String: String]
-) throws -> String {
-  let process = Process()
-  process.executableURL = executableURL
-  process.arguments = arguments
-  var processEnvironment = ProcessInfo.processInfo.environment
-  for (key, value) in environment {
-    processEnvironment[key] = value
-  }
-  process.environment = processEnvironment
-
-  let stdoutPipe = Pipe()
-  let stderrPipe = Pipe()
-  process.standardOutput = stdoutPipe
-  process.standardError = stderrPipe
-
-  try process.run()
-  process.waitUntilExit()
-
-  let stdout =
-    String(
-      data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
-      encoding: .utf8
-    ) ?? ""
-  let stderr =
-    String(
-      data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
-      encoding: .utf8
-    ) ?? ""
-
-  if process.terminationStatus != 0 {
-    Issue.record("Wrapper failed with status \(process.terminationStatus): \(stderr)")
-  }
-  return stdout
-}
-
-private func makeTemporaryDirectory() throws -> URL {
-  var template = Array("/tmp/stm.XXXXXX".utf8CString)
-  guard let pointer = mkdtemp(&template) else {
-    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
-  }
-  let path = SupatermSocketPath.canonicalized(String(cString: pointer)) ?? String(cString: pointer)
-  return URL(fileURLWithPath: path, isDirectory: true)
 }
 
 private func createSocketNode(at url: URL) throws {
