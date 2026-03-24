@@ -265,10 +265,6 @@ struct TerminalSidebarUpdateSection: View {
             .foregroundStyle(palette.secondaryText)
         }
       }
-    } else {
-      ProgressView()
-        .controlSize(.small)
-        .tint(progressTint)
     }
   }
 
