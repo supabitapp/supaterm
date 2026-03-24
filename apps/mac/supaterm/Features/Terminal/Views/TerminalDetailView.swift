@@ -80,11 +80,6 @@ private struct TerminalDetailTopBar: View {
 
       Spacer(minLength: 8)
       HStack(spacing: 4) {
-        if isPaneZoomed {
-          SplitZoomIndicatorButton(action: togglePaneZoom)
-            .help("Reset Split Zoom")
-        }
-
         ToolbarIconButton(
           symbol: "square.split.2x1",
           palette: palette,
@@ -114,6 +109,14 @@ private struct TerminalDetailTopBar: View {
         .help("Equalize Panes")
         .disabled(!canEqualize)
         .opacity(canEqualize ? 1 : 0.45)
+
+        if canEqualize {
+          SplitZoomButton(
+            isPaneZoomed: isPaneZoomed,
+            palette: palette,
+            action: togglePaneZoom
+          )
+        }
       }
     }
     .padding(.leading, 8)
@@ -128,29 +131,52 @@ private struct TerminalDetailTopBar: View {
   }
 }
 
-private struct SplitZoomIndicatorButton: View {
+private struct SplitZoomButton: View {
+  let isPaneZoomed: Bool
+  let palette: TerminalPalette
   let action: () -> Void
 
   @State private var isHovering = false
 
+  private var symbol: String {
+    isPaneZoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+  }
+
+  private var helpText: String {
+    isPaneZoomed ? "Reset Split Zoom" : "Zoom Split"
+  }
+
+  private var accessibilityLabel: String {
+    isPaneZoomed ? "Reset split zoom" : "Zoom split"
+  }
+
   var body: some View {
     Button(action: action) {
-      Image(systemName: "arrow.down.right.and.arrow.up.left")
+      Image(systemName: symbol)
         .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(Color.accentColor)
+        .foregroundStyle(
+          isPaneZoomed
+            ? Color.accentColor
+            : isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
+        )
         .frame(width: 30, height: 30)
         .background(
-          Color.accentColor.opacity(isHovering ? 0.18 : 0.12),
+          isPaneZoomed
+            ? Color.accentColor.opacity(isHovering ? 0.18 : 0.12)
+            : isHovering ? palette.secondaryText.opacity(0.2) : .clear,
           in: .rect(cornerRadius: 6)
         )
         .overlay {
-          RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .stroke(Color.accentColor.opacity(isHovering ? 0.32 : 0.22), lineWidth: 1)
+          if isPaneZoomed {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .stroke(Color.accentColor.opacity(isHovering ? 0.32 : 0.22), lineWidth: 1)
+          }
         }
         .accessibilityHidden(true)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Reset split zoom")
+    .help(helpText)
+    .accessibilityLabel(accessibilityLabel)
     .onHover { isHovering = $0 }
   }
 }
