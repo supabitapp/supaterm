@@ -121,12 +121,7 @@ struct TerminalSidebarUpdateSection: View {
       }
 
     case .checking:
-      HStack {
-        Spacer(minLength: 0)
-        actionButton("Cancel") {
-          _ = store.send(.perform(.cancel))
-        }
-      }
+      EmptyView()
 
     case .updateAvailable(let available):
       let version = available.version.trimmingCharacters(in: .whitespacesAndNewlines)
