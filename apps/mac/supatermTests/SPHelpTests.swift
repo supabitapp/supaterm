@@ -17,6 +17,7 @@ struct SPHelpTests {
     #expect(help.contains("Example:"))
     #expect(help.contains("sp tree"))
     #expect(help.contains("sp new-pane --space 1 --tab 1 down"))
+    #expect(help.contains("development"))
   }
 
   @Test
@@ -29,6 +30,9 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.ClaudeHook.self, columns: 100),
+      SP.helpMessage(for: SP.Development.self, columns: 100),
+      SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
+      SP.helpMessage(for: SP.Development.Claude.SessionStart.self, columns: 100),
     ]
 
     for help in helps {
@@ -58,5 +62,16 @@ struct SPHelpTests {
     let help = SP.helpMessage(for: SP.ClaudeHook.self, columns: 100)
 
     #expect(help.contains("automatically injects Claude Code hooks"))
+  }
+
+  @Test
+  func developmentClaudeHelpShowsRuntimeGateAndVerificationFlow() {
+    let help = SP.helpMessage(for: SP.Development.Claude.self, columns: 100)
+
+    #expect(help.contains("development build"))
+    #expect(help.contains("Run these commands inside the Supaterm pane"))
+    #expect(help.contains("sp development claude session-start"))
+    #expect(help.contains("sp development claude notification"))
+    #expect(help.contains("sp development claude session-end"))
   }
 }
