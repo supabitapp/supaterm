@@ -1,14 +1,8 @@
 # Our Ghostty Fork
 
-This document captures the deliberate delta between upstream Ghostty and the fork we vendor in Supaterm.
+This document captures what the Ghostty fork is responsible for inside Supaterm.
 
-## Base
-
-- The fork branch is `supaterm-v1.3.1`.
-- It is based on upstream `v1.3.1`.
-- The current fork delta is intentionally small and lives entirely in Ghostty's config bridge, exec path, and shell integration layer.
-
-## Why The Fork Exists
+## Purpose
 
 Supaterm ships its own command wrappers in the app bundle under `Contents/Resources/bin`.
 
@@ -18,7 +12,7 @@ The host app cannot solve that cleanly after the shell has already started. The 
 
 We keep the fork generic. The fork does not know about `sp`, `claude`, or any other Supaterm-specific command names. It only provides a way for a host application to declare one preferred bin directory that should take precedence inside shell integration.
 
-## Fork Delta
+## Capability
 
 Our fork adds one generic capability: a preferred shell-integration bin directory.
 
@@ -67,12 +61,3 @@ The host now declares one preferred directory and lets Ghostty's shell integrati
 - Keep the delta confined to config loading, exec plumbing, and shell integration unless there is a stronger reason.
 - Prefer host-owned runtime config overrides over asking users to edit Ghostty config.
 - If upstream Ghostty grows an equivalent generic capability, drop this delta and converge back to upstream behavior.
-
-## Current Commit Shape
-
-At the time of writing, the fork is upstream `v1.3.1` plus two commits:
-
-- `feat(shell): add preferred bin dir override`
-- `feat(shell): honor preferred bin dir in elvish`
-
-If this document and the fork diverge, the code in `apps/mac/ThirdParty/ghostty` is the source of truth.
