@@ -2,9 +2,43 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum TerminalNotificationFlashCurve: Equatable {
+  case easeIn
+  case easeOut
+}
+
+struct TerminalNotificationFlashSegment: Equatable {
+  let delay: TimeInterval
+  let duration: TimeInterval
+  let targetOpacity: Double
+  let curve: TerminalNotificationFlashCurve
+}
+
+enum TerminalNotificationFlashPattern {
+  static let values: [Double] = [0, 1, 0, 1, 0]
+  static let keyTimes: [Double] = [0, 0.25, 0.5, 0.75, 1]
+  static let duration: TimeInterval = 0.9
+  static let curves: [TerminalNotificationFlashCurve] = [.easeOut, .easeIn, .easeOut, .easeIn]
+
+  static var segments: [TerminalNotificationFlashSegment] {
+    let stepCount = min(curves.count, values.count - 1, keyTimes.count - 1)
+    return (0..<stepCount).map { index in
+      let startTime = keyTimes[index]
+      let endTime = keyTimes[index + 1]
+      return .init(
+        delay: startTime * duration,
+        duration: (endTime - startTime) * duration,
+        targetOpacity: values[index + 1],
+        curve: curves[index]
+      )
+    }
+  }
+}
+
 struct TerminalSplitTreeView: View {
   let focusedSurfaceIDs: Set<UUID>
   let notificationColor: Color
+  let notificationFlashTokens: [UUID: UInt64]
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
@@ -70,6 +104,7 @@ struct TerminalSplitTreeView: View {
         focusedSurfaceIDs: focusedSurfaceIDs,
         node: node,
         notificationColor: notificationColor,
+        notificationFlashTokens: notificationFlashTokens,
         unreadSurfaceIDs: unreadSurfaceIDs,
         outerEdges: .all,
         isRoot: node == tree.root,
@@ -89,6 +124,7 @@ struct TerminalSplitTreeView: View {
     let focusedSurfaceIDs: Set<UUID>
     let node: SplitTree<GhosttySurfaceView>.Node
     let notificationColor: Color
+    let notificationFlashTokens: [UUID: UInt64]
     let unreadSurfaceIDs: Set<UUID>
     let outerEdges: OuterEdges
     var isRoot: Bool = false
@@ -100,6 +136,7 @@ struct TerminalSplitTreeView: View {
         LeafView(
           hasFocusedNotification: focusedSurfaceIDs.contains(leafView.id),
           notificationColor: notificationColor,
+          notificationFlashToken: notificationFlashTokens[leafView.id] ?? 0,
           surfaceView: leafView,
           isSplit: !isRoot,
           isUnread: unreadSurfaceIDs.contains(leafView.id),
@@ -128,6 +165,7 @@ struct TerminalSplitTreeView: View {
               focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.left,
               notificationColor: notificationColor,
+              notificationFlashTokens: notificationFlashTokens,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.left, in: split.direction),
               action: action
@@ -138,6 +176,7 @@ struct TerminalSplitTreeView: View {
               focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.right,
               notificationColor: notificationColor,
+              notificationFlashTokens: notificationFlashTokens,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.right, in: split.direction),
               action: action
@@ -154,6 +193,7 @@ struct TerminalSplitTreeView: View {
   struct LeafView: View {
     let hasFocusedNotification: Bool
     let notificationColor: Color
+    let notificationFlashToken: UInt64
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
     let isUnread: Bool
@@ -163,6 +203,8 @@ struct TerminalSplitTreeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dropState: DropState = .idle
     @State private var isPaneHovering = false
+    @State private var notificationFlashAnimationGeneration = 0
+    @State private var notificationFlashOpacity = 0.0
 
     private var notificationGlowAnimation: Animation? {
       reduceMotion ? nil : .easeInOut(duration: 0.2)
@@ -227,10 +269,31 @@ struct TerminalSplitTreeView: View {
               .allowsHitTesting(false)
           }
           .overlay {
+            unreadGlowShape
+              .strokeBorder(
+                notificationColor.opacity(notificationFlashOpacity),
+                lineWidth: notificationFlashLineWidth
+              )
+              .shadow(
+                color: notificationColor.opacity(notificationFlashOpacity * 0.6),
+                radius: notificationFlashShadowRadius
+              )
+              .compositingGroup()
+              .allowsHitTesting(false)
+          }
+          .overlay {
             if case .dropping(let zone) = dropState {
               DropOverlayView(zone: zone, size: geometry.size)
                 .allowsHitTesting(false)
             }
+          }
+          .onChange(of: notificationFlashToken) { _, token in
+            guard token > 0 else { return }
+            triggerNotificationFlash()
+          }
+          .onDisappear {
+            notificationFlashAnimationGeneration &+= 1
+            notificationFlashOpacity = 0
           }
       }
     }
@@ -263,6 +326,14 @@ struct TerminalSplitTreeView: View {
       isUnread ? 3 : 2.25
     }
 
+    private var notificationFlashLineWidth: CGFloat {
+      max(lineWidth, 3)
+    }
+
+    private var notificationFlashShadowRadius: CGFloat {
+      max(shadowRadius, 12)
+    }
+
     private var shadowOpacity: Double {
       isUnread ? 0.58 : 0.22
     }
@@ -273,6 +344,34 @@ struct TerminalSplitTreeView: View {
 
     private var strokeOpacity: Double {
       isUnread ? 1 : 0.6
+    }
+
+    private func triggerNotificationFlash() {
+      guard !reduceMotion else { return }
+      notificationFlashAnimationGeneration &+= 1
+      let generation = notificationFlashAnimationGeneration
+      notificationFlashOpacity = TerminalNotificationFlashPattern.values.first ?? 0
+
+      for segment in TerminalNotificationFlashPattern.segments {
+        DispatchQueue.main.asyncAfter(deadline: .now() + segment.delay) {
+          guard notificationFlashAnimationGeneration == generation else { return }
+          withAnimation(notificationFlashAnimation(for: segment.curve, duration: segment.duration)) {
+            notificationFlashOpacity = segment.targetOpacity
+          }
+        }
+      }
+    }
+
+    private func notificationFlashAnimation(
+      for curve: TerminalNotificationFlashCurve,
+      duration: TimeInterval
+    ) -> Animation {
+      switch curve {
+      case .easeIn:
+        .easeIn(duration: duration)
+      case .easeOut:
+        .easeOut(duration: duration)
+      }
     }
   }
 
@@ -441,6 +540,7 @@ extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let focusedSurfaceIDs: Set<UUID>
   let notificationColor: Color
+  let notificationFlashTokens: [UUID: UInt64]
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
@@ -457,6 +557,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
         TerminalSplitTreeView(
           focusedSurfaceIDs: focusedSurfaceIDs,
           notificationColor: notificationColor,
+          notificationFlashTokens: notificationFlashTokens,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,
           action: action
