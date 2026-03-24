@@ -427,6 +427,13 @@ final class TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
+  var selectedPaneIsZoomed: Bool {
+    Self.isPaneZoomed(
+      focusedSurfaceID: currentFocusedSurfaceID(),
+      in: selectedTree
+    )
+  }
+
   var selectedPaneDisplayTitle: String {
     Self.selectedPaneDisplayTitle(
       focusedSurfaceID: currentFocusedSurfaceID(),
@@ -2375,6 +2382,19 @@ final class TerminalHostState {
       pwd: pwd(surface),
       defaultValue: paneFallbackTitle(for: surface.id, in: tree)
     )
+  }
+
+  static func isPaneZoomed<Surface: NSView & Identifiable>(
+    focusedSurfaceID: UUID?,
+    in tree: SplitTree<Surface>?
+  ) -> Bool where Surface.ID == UUID {
+    guard
+      let focusedSurfaceID,
+      let zoomedSurfaceID = tree?.zoomed?.leftmostLeaf().id
+    else {
+      return false
+    }
+    return focusedSurfaceID == zoomedSurfaceID
   }
 
   static func resolvedPaneDisplayTitle(

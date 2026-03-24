@@ -12,6 +12,7 @@ struct TerminalDetailView: View {
       TerminalDetailTopBar(
         canEqualize: terminal.selectedTree?.isSplit ?? false,
         canSplit: terminal.selectedSurfaceView != nil,
+        isPaneZoomed: terminal.selectedPaneIsZoomed,
         isSidebarCollapsed: store.isSidebarCollapsed,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
@@ -29,6 +30,9 @@ struct TerminalDetailView: View {
         },
         splitRight: {
           _ = store.send(.bindingMenuItemSelected(.newSplit(.right)))
+        },
+        togglePaneZoom: {
+          _ = store.send(.bindingMenuItemSelected(.toggleSplitZoom))
         }
       )
       TerminalDetailSurface(
@@ -46,6 +50,7 @@ struct TerminalDetailView: View {
 private struct TerminalDetailTopBar: View {
   let canEqualize: Bool
   let canSplit: Bool
+  let isPaneZoomed: Bool
   let isSidebarCollapsed: Bool
   let palette: TerminalPalette
   let backgroundColor: Color
@@ -54,6 +59,7 @@ private struct TerminalDetailTopBar: View {
   let title: String
   let splitDown: () -> Void
   let splitRight: () -> Void
+  let togglePaneZoom: () -> Void
 
   var body: some View {
     HStack(spacing: 0) {
@@ -74,6 +80,11 @@ private struct TerminalDetailTopBar: View {
 
       Spacer(minLength: 8)
       HStack(spacing: 4) {
+        if isPaneZoomed {
+          SplitZoomIndicatorButton(action: togglePaneZoom)
+            .help("Reset Split Zoom")
+        }
+
         ToolbarIconButton(
           symbol: "square.split.2x1",
           palette: palette,
@@ -114,6 +125,33 @@ private struct TerminalDetailTopBar: View {
         .fill(palette.detailStroke)
         .frame(height: 1)
     }
+  }
+}
+
+private struct SplitZoomIndicatorButton: View {
+  let action: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: "arrow.down.right.and.arrow.up.left")
+        .font(.system(size: 14, weight: .semibold))
+        .foregroundStyle(Color.accentColor)
+        .frame(width: 30, height: 30)
+        .background(
+          Color.accentColor.opacity(isHovering ? 0.18 : 0.12),
+          in: .rect(cornerRadius: 6)
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .stroke(Color.accentColor.opacity(isHovering ? 0.32 : 0.22), lineWidth: 1)
+        }
+        .accessibilityHidden(true)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Reset split zoom")
+    .onHover { isHovering = $0 }
   }
 }
 
