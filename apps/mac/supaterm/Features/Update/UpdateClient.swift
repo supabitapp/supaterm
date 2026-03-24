@@ -58,7 +58,7 @@ enum UpdatePhase: Equatable, Sendable {
     case .downloading(let downloading):
       return Self.progressText(
         progress: Double(downloading.progress),
-        total: downloading.expectedLength.map(Double.init)
+        total: downloading.expectedLength.map { Double($0) }
       )
     case .extracting(let extracting):
       return Self.percentText(Self.clampedProgress(extracting.progress))

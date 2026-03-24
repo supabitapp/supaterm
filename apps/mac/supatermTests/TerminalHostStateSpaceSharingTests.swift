@@ -109,8 +109,8 @@ struct TerminalHostStateSpaceSharingTests {
       await flushSpaceCatalogObservation()
 
       let newSpace = try #require(firstHost.spaces.last)
-      #expect(firstHost.spaces.map(\.name) == ["A", "B"])
-      #expect(secondHost.spaces.map(\.name) == ["A", "B"])
+      #expect(firstHost.spaces.map(\.name) == ["A", "1"])
+      #expect(secondHost.spaces.map(\.name) == ["A", "1"])
       #expect(firstHost.selectedSpaceID == newSpace.id)
       #expect(secondHost.selectedSpaceID == catalog.spaces[0].id)
       #expect(secondHost.spaceManager.tabs(in: newSpace.id).isEmpty)
