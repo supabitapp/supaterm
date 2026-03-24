@@ -18,6 +18,7 @@ enum GhosttyBootstrap {
     keybind = opt+k=goto_split:top
     keybind = opt+l=goto_split:right
 
+    font-size = 15
     theme = light:Zenbones Light,dark:Zenbones Dark
     """
 
