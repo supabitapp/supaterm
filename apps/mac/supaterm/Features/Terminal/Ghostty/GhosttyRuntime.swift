@@ -4,12 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 final class GhosttyRuntime {
-  private struct NotificationAttentionCandidate {
-    let color: NSColor
-    let priority: Int
-    let saturation: Double
-  }
-
   final class SurfaceReference {
     let surface: ghostty_surface_t
     var isValid = true
@@ -29,10 +23,6 @@ final class GhosttyRuntime {
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
   var onConfigChange: (() -> Void)?
-
-  private static let notificationAttentionPaletteIndexes = [12, 14, 13, 4, 6, 5]
-  private static let minNotificationContrastRatio = 2.2
-  private static let minNotificationSaturation = 0.12
 
   convenience init() {
     guard let config = Self.loadConfig() else {
@@ -580,59 +570,6 @@ final class GhosttyRuntime {
 
   func backgroundColor() -> NSColor {
     color(forKey: "background") ?? NSColor.windowBackgroundColor
-  }
-
-  func foregroundColor() -> NSColor {
-    color(forKey: "foreground") ?? NSColor.labelColor
-  }
-
-  func paletteColors() -> [NSColor] {
-    guard let config else { return [] }
-    var palette = ghostty_config_palette_s()
-    let key = "palette"
-    guard ghostty_config_get(config, &palette, key, UInt(key.lengthOfBytes(using: .utf8))) else {
-      return []
-    }
-    return withUnsafeBytes(of: palette) { buffer -> [NSColor] in
-      Array(buffer.bindMemory(to: ghostty_config_color_s.self)).map {
-        NSColor(ghostty: $0)
-      }
-    }
-  }
-
-  func notificationAttentionColor() -> NSColor {
-    guard let background = color(forKey: "background") else {
-      return color(forKey: "foreground") ?? .controlAccentColor
-    }
-    let palette = paletteColors()
-    let prioritizedPaletteIndexes = Self.notificationAttentionPaletteIndexes.enumerated()
-    let candidates: [NotificationAttentionCandidate] = prioritizedPaletteIndexes.compactMap { offset, index in
-      guard palette.indices.contains(index) else { return nil }
-      let color = palette[index]
-      let saturation = color.saturation
-      guard
-        saturation >= Self.minNotificationSaturation,
-        color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
-      else {
-        return nil
-      }
-      return NotificationAttentionCandidate(
-        color: color,
-        priority: offset,
-        saturation: saturation
-      )
-    }
-    if let candidate = candidates.max(
-      by: { lhs, rhs in
-        if lhs.saturation != rhs.saturation {
-          return lhs.saturation < rhs.saturation
-        }
-        return lhs.priority > rhs.priority
-      })
-    {
-      return candidate.color
-    }
-    return color(forKey: "foreground") ?? .controlAccentColor
   }
 
   func scrollbarAppearanceName() -> NSAppearance.Name {

@@ -439,11 +439,6 @@ final class TerminalHostState {
     return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
-  var notificationAttentionColor: Color {
-    _ = runtimeConfigGeneration
-    return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
-  }
-
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
     Self.notificationText(latestNotification(for: tabID))
   }

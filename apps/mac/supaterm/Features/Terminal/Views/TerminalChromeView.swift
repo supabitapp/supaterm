@@ -320,6 +320,7 @@ struct TerminalPalette {
   let secondaryText: Color
   let selectedText: Color
   let selectedIcon: Color
+  let attention: Color
   let shadow: Color
   let amber: Color
   let mint: Color
@@ -375,6 +376,7 @@ struct TerminalPalette {
       shadow = .black.opacity(0.08)
     }
 
+    attention = Color(nsColor: .systemOrange)
     amber = Color(red: 0.89, green: 0.64, blue: 0.28)
     mint = Color(red: 0.3, green: 0.72, blue: 0.58)
     sky = Color(red: 0.31, green: 0.59, blue: 0.94)
