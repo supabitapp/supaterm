@@ -505,7 +505,7 @@ private struct TerminalSidebarFocusedNotificationView: View {
 
   var body: some View {
     Circle()
-      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 1.5)
+      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 2.5)
       .frame(width: 18, height: 18)
       .overlay {
         Circle()
