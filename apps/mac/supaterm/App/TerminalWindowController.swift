@@ -51,7 +51,7 @@ final class TerminalWindowController: NSWindowController {
       }
     )
 
-    let window = NSWindow(
+    let window = TerminalWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
