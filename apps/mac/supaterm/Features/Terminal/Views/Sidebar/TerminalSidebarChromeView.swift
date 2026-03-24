@@ -707,7 +707,7 @@ struct TerminalSidebarTabRow: View {
   var body: some View {
     Button(action: select) {
       HStack(spacing: 8) {
-        TerminalSidebarTabSummaryView(
+        let summary = TerminalSidebarTabSummaryView(
           tab: tab,
           palette: palette,
           isSelected: isSelected,
@@ -717,6 +717,11 @@ struct TerminalSidebarTabRow: View {
           unreadCount: unreadCount,
           claudeActivity: terminal.claudeActivity(for: tab.id)
         )
+        if let latestNotificationText {
+          summary.help(latestNotificationText)
+        } else {
+          summary
+        }
 
         if isHovering {
           Button(action: close) {
