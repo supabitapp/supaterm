@@ -165,15 +165,19 @@ final class TerminalHostState {
 
   func restorationSnapshot() -> TerminalWindowSession {
     let spaces = spaces.map { space in
-      let tabs = spaceManager.tabs(in: space.id).compactMap(restorationTabSession(for:))
-      let selectedTabID =
+      let tabSnapshots = spaceManager.tabs(in: space.id).compactMap { tab -> (TerminalTabID, TerminalTabSession)? in
+        guard let session = restorationTabSession(for: tab) else { return nil }
+        return (tab.id, session)
+      }
+      let tabs = tabSnapshots.map(\.1)
+      let selectedTabIndex =
         spaceManager.selectedTabID(in: space.id).flatMap { selectedTabID in
-          tabs.contains(where: { $0.id == selectedTabID }) ? selectedTabID : nil
+          tabSnapshots.firstIndex { $0.0 == selectedTabID }
         }
-        ?? tabs.first?.id
+        ?? (tabs.isEmpty ? nil : 0)
       return TerminalWindowSpaceSession(
         id: space.id,
-        selectedTabID: selectedTabID,
+        selectedTabIndex: selectedTabIndex,
         tabs: tabs
       )
     }
@@ -203,10 +207,18 @@ final class TerminalHostState {
       let sessionsBySpaceID = Dictionary(
         uniqueKeysWithValues: session.spaces.map { ($0.id, $0) }
       )
+      var restoredTabIDsBySpaceID: [TerminalSpaceID: [TerminalTabID]] = [:]
 
       for space in spaces {
-        let restoredTabs = sessionsBySpaceID[space.id]?.tabs.map(restoredTabItem(for:)) ?? []
-        let selectedTabID = sessionsBySpaceID[space.id]?.selectedTabID
+        let restoredTabs =
+          sessionsBySpaceID[space.id]?.tabs.enumerated().map { index, session in
+            restoredTabItem(for: session, at: index)
+          } ?? []
+        restoredTabIDsBySpaceID[space.id] = restoredTabs.map(\.id)
+        let selectedTabID =
+          sessionsBySpaceID[space.id]?.selectedTabIndex.flatMap { index in
+            restoredTabs.indices.contains(index) ? restoredTabs[index].id : nil
+          }
         _ = spaceManager.restoreTabs(
           restoredTabs,
           selectedTabID: selectedTabID,
@@ -215,8 +227,14 @@ final class TerminalHostState {
       }
 
       for spaceSession in session.spaces {
-        for tabSession in spaceSession.tabs {
-          restoreTabSession(tabSession, in: spaceSession.id)
+        let restoredTabIDs = restoredTabIDsBySpaceID[spaceSession.id] ?? []
+        for (index, tabSession) in spaceSession.tabs.enumerated() {
+          guard restoredTabIDs.indices.contains(index) else { continue }
+          restoreTabSession(
+            tabSession,
+            tabID: restoredTabIDs[index],
+            in: spaceSession.id
+          )
         }
       }
 
@@ -1946,18 +1964,15 @@ final class TerminalHostState {
     guard let tree = trees[tab.id], let root = tree.root.map(restorationNode(for:)) else {
       return nil
     }
-    let isTitleLocked = tab.isTitleLocked || tabTitleOverrides[tab.id] != nil
-    let focusedPaneID =
+    let focusedPaneIndex =
       focusedSurfaceIDByTab[tab.id].flatMap { focusedPaneID in
-        root.containsLeaf(id: focusedPaneID) ? focusedPaneID : nil
+        tree.leaves().firstIndex(where: { $0.id == focusedPaneID })
       }
-      ?? root.leftmostLeafID
+      ?? 0
     return TerminalTabSession(
-      id: tab.id,
-      title: tab.title,
       isPinned: tab.isPinned,
-      isTitleLocked: isTitleLocked,
-      focusedPaneID: focusedPaneID,
+      lockedTitle: Self.trimmedNonEmpty(tabTitleOverrides[tab.id]),
+      focusedPaneIndex: focusedPaneIndex,
       root: root
     )
   }
@@ -1969,7 +1984,6 @@ final class TerminalHostState {
     case .leaf(let surface):
       return .leaf(
         TerminalPaneLeafSession(
-          id: surface.id,
           workingDirectoryPath: workingDirectoryPath(for: surface)
         )
       )
@@ -1985,52 +1999,57 @@ final class TerminalHostState {
     }
   }
 
-  private func restoredTabItem(for session: TerminalTabSession) -> TerminalTabItem {
+  private func restoredTabItem(
+    for session: TerminalTabSession,
+    at index: Int
+  ) -> TerminalTabItem {
     TerminalTabItem(
-      id: session.id,
-      title: session.title,
+      title: session.lockedTitle ?? restoredTabTitle(at: index),
       icon: "terminal",
       isPinned: session.isPinned,
-      isTitleLocked: session.isTitleLocked
+      isTitleLocked: session.lockedTitle != nil
     )
   }
 
-  private struct RestoredPaneNode {
-    let node: SplitTree<GhosttySurfaceView>.Node
-    let surfaceIDBySavedPaneID: [UUID: UUID]
+  private func restoredTabTitle(at index: Int) -> String {
+    index == 0 ? "Terminal" : "Terminal \(index + 1)"
   }
 
   private func restoreTabSession(
     _ session: TerminalTabSession,
+    tabID: TerminalTabID,
     in spaceID: TerminalSpaceID
   ) {
     let context: ghostty_surface_context_e =
-      spaceManager.tabs(in: spaceID).first?.id == session.id
+      spaceManager.tabs(in: spaceID).first?.id == tabID
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
     let restoredRoot = restoreNode(
       session.root,
-      in: session.id,
+      in: tabID,
       context: context
     )
-    trees[session.id] = SplitTree(root: restoredRoot.node, zoomed: nil)
-    if session.isTitleLocked {
-      tabTitleOverrides[session.id] = session.title
+    trees[tabID] = SplitTree(root: restoredRoot, zoomed: nil)
+    if let lockedTitle = session.lockedTitle {
+      tabTitleOverrides[tabID] = lockedTitle
     } else {
-      tabTitleOverrides.removeValue(forKey: session.id)
+      tabTitleOverrides.removeValue(forKey: tabID)
     }
-    focusedSurfaceIDByTab[session.id] =
-      session.focusedPaneID.flatMap { restoredRoot.surfaceIDBySavedPaneID[$0] }
-      ?? restoredRoot.node.leftmostLeaf().id
-    updateRunningState(for: session.id)
-    updateTabTitle(for: session.id)
+    let leaves = restoredRoot.leaves()
+    let focusedPaneIndex =
+      leaves.indices.contains(session.focusedPaneIndex)
+      ? session.focusedPaneIndex
+      : 0
+    focusedSurfaceIDByTab[tabID] = leaves[focusedPaneIndex].id
+    updateRunningState(for: tabID)
+    updateTabTitle(for: tabID)
   }
 
   private func restoreNode(
     _ node: TerminalPaneNodeSession,
     in tabID: TerminalTabID,
     context: ghostty_surface_context_e
-  ) -> RestoredPaneNode {
+  ) -> SplitTree<GhosttySurfaceView>.Node {
     switch node {
     case .leaf(let leaf):
       let surface = createSurface(
@@ -2040,26 +2059,18 @@ final class TerminalHostState {
         workingDirectory: existingWorkingDirectoryURL(for: leaf.workingDirectoryPath),
         context: context
       )
-      return RestoredPaneNode(
-        node: .leaf(view: surface),
-        surfaceIDBySavedPaneID: [leaf.id: surface.id]
-      )
+      return .leaf(view: surface)
 
     case .split(let split):
       let left = restoreNode(split.left, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
       let right = restoreNode(split.right, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
-      return RestoredPaneNode(
-        node: .split(
-          .init(
-            direction: mapSplitDirection(split.direction),
-            ratio: split.ratio,
-            left: left.node,
-            right: right.node
-          )
-        ),
-        surfaceIDBySavedPaneID: left.surfaceIDBySavedPaneID.merging(right.surfaceIDBySavedPaneID) {
-          current, _ in current
-        }
+      return .split(
+        .init(
+          direction: mapSplitDirection(split.direction),
+          ratio: split.ratio,
+          left: left,
+          right: right
+        )
       )
     }
   }

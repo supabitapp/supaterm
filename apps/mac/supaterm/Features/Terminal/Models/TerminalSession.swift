@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 1
+  static let currentVersion = 2
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -68,47 +68,62 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
 
 nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
   var id: TerminalSpaceID
-  var selectedTabID: TerminalTabID?
+  var selectedTabIndex: Int?
   var tabs: [TerminalTabSession]
 
   func pruned() -> TerminalWindowSpaceSession {
-    var seenTabIDs: Set<TerminalTabID> = []
-    let tabs = tabs.compactMap { tab -> TerminalTabSession? in
-      guard seenTabIDs.insert(tab.id).inserted else { return nil }
-      return tab.pruned()
-    }
-    let resolvedSelectedTabID =
-      self.selectedTabID.flatMap { id in
-        tabs.contains(where: { $0.id == id }) ? id : nil
-      }
-      ?? tabs.first?.id
+    let tabs = tabs.compactMap { $0.pruned() }
+    let resolvedSelectedTabIndex = Self.resolvedSelectedTabIndex(
+      selectedTabIndex,
+      tabCount: tabs.count
+    )
     return TerminalWindowSpaceSession(
       id: id,
-      selectedTabID: resolvedSelectedTabID,
+      selectedTabIndex: resolvedSelectedTabIndex,
       tabs: tabs
     )
+  }
+
+  private static func resolvedSelectedTabIndex(
+    _ selectedTabIndex: Int?,
+    tabCount: Int
+  ) -> Int? {
+    guard tabCount > 0 else { return nil }
+    guard let selectedTabIndex, (0..<tabCount).contains(selectedTabIndex) else {
+      return 0
+    }
+    return selectedTabIndex
   }
 }
 
 nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
-  var id: TerminalTabID
-  var title: String
   var isPinned: Bool
-  var isTitleLocked: Bool
-  var focusedPaneID: UUID?
+  var lockedTitle: String?
+  var focusedPaneIndex: Int
   var root: TerminalPaneNodeSession
 
   func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
-    let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lockedTitle =
+      lockedTitle?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalTabSession(
-      id: id,
-      title: title.isEmpty ? "Terminal" : title,
       isPinned: isPinned,
-      isTitleLocked: isTitleLocked,
-      focusedPaneID: root.containsLeaf(id: focusedPaneID) ? focusedPaneID : root.leftmostLeafID,
+      lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
+      focusedPaneIndex: Self.resolvedFocusedPaneIndex(
+        focusedPaneIndex,
+        leafCount: root.leafCount
+      ),
       root: root
     )
+  }
+
+  private static func resolvedFocusedPaneIndex(
+    _ focusedPaneIndex: Int,
+    leafCount: Int
+  ) -> Int {
+    guard (0..<leafCount).contains(focusedPaneIndex) else { return 0 }
+    return focusedPaneIndex
   }
 }
 
@@ -149,22 +164,12 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  var leftmostLeafID: UUID {
+  var leafCount: Int {
     switch self {
-    case .leaf(let leaf):
-      return leaf.id
+    case .leaf:
+      return 1
     case .split(let split):
-      return split.left.leftmostLeafID
-    }
-  }
-
-  func containsLeaf(id: UUID?) -> Bool {
-    guard let id else { return false }
-    switch self {
-    case .leaf(let leaf):
-      return leaf.id == id
-    case .split(let split):
-      return split.left.containsLeaf(id: id) || split.right.containsLeaf(id: id)
+      return split.left.leafCount + split.right.leafCount
     }
   }
 
@@ -179,7 +184,6 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
 }
 
 nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
-  var id: UUID
   var workingDirectoryPath: String?
 
   func pruned() -> TerminalPaneLeafSession {
@@ -187,7 +191,6 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
       workingDirectoryPath?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalPaneLeafSession(
-      id: id,
       workingDirectoryPath: workingDirectoryPath?.isEmpty == true ? nil : workingDirectoryPath
     )
   }
