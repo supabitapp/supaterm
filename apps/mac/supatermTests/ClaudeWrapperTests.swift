@@ -7,7 +7,7 @@ import Testing
 struct ClaudeWrapperTests {
   @Test
   func wrapperInjectsSettingsInsideSupatermPane() throws {
-    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -24,8 +24,8 @@ struct ClaudeWrapperTests {
     let socketURL = rootURL.appendingPathComponent("supaterm.sock", isDirectory: false)
     try createSocketNode(at: socketURL)
 
-    let output = try runClaudeWrapper(
-      wrapperURL: wrapperURL,
+    let output = try runExecutable(
+      at: wrapperURL,
       arguments: [],
       environment: [
         "PATH": "\(wrapperURL.deletingLastPathComponent().path):\(realBinURL.path)",
@@ -49,7 +49,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughOutsideSupaterm() throws {
-    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -57,8 +57,8 @@ struct ClaudeWrapperTests {
     try FileManager.default.createDirectory(at: realBinURL, withIntermediateDirectories: true)
     try writeFakeClaudeExecutable(at: realBinURL.appendingPathComponent("claude", isDirectory: false))
 
-    let output = try runClaudeWrapper(
-      wrapperURL: wrapperURL,
+    let output = try runExecutable(
+      at: wrapperURL,
       arguments: ["hello", "world"],
       environment: [
         "PATH": "\(wrapperURL.deletingLastPathComponent().path):\(realBinURL.path)"
@@ -72,7 +72,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughWhenSocketIsUnavailableOrHooksDisabled() throws {
-    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -81,8 +81,8 @@ struct ClaudeWrapperTests {
     try writeFakeClaudeExecutable(at: realBinURL.appendingPathComponent("claude", isDirectory: false))
 
     let basePath = "\(wrapperURL.deletingLastPathComponent().path):\(realBinURL.path)"
-    let unavailableSocketOutput = try runClaudeWrapper(
-      wrapperURL: wrapperURL,
+    let unavailableSocketOutput = try runExecutable(
+      at: wrapperURL,
       arguments: ["hello"],
       environment: [
         "PATH": basePath,
@@ -93,8 +93,8 @@ struct ClaudeWrapperTests {
     #expect(unavailableSocketOutput.contains("ARG[0]=hello"))
     #expect(!unavailableSocketOutput.contains("ARG[0]=--settings"))
 
-    let disabledOutput = try runClaudeWrapper(
-      wrapperURL: wrapperURL,
+    let disabledOutput = try runExecutable(
+      at: wrapperURL,
       arguments: ["hello"],
       environment: [
         "PATH": basePath,
@@ -108,7 +108,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperPassesThroughNonInteractiveClaudeCommands() throws {
-    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try installClaudeWrapper(at: rootURL)
@@ -125,8 +125,8 @@ struct ClaudeWrapperTests {
     ]
 
     for arguments in [["auth", "status"], ["update"], ["agents"], ["mcp"], ["remote-control"], ["--remote-control"]] {
-      let output = try runClaudeWrapper(
-        wrapperURL: wrapperURL,
+      let output = try runExecutable(
+        at: wrapperURL,
         arguments: arguments,
         environment: baseEnvironment
       )
@@ -137,7 +137,7 @@ struct ClaudeWrapperTests {
 
   @Test
   func wrapperSkipsSupatermBundledClaudeCandidatesWhenResolvingRealBinary() throws {
-    let rootURL = try makeClaudeWrapperTemporaryDirectory()
+    let rootURL = try makeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let wrapperURL = try copyClaudeWrapper(
@@ -163,8 +163,8 @@ struct ClaudeWrapperTests {
       realBinURL.path,
     ].joined(separator: ":")
 
-    let output = try runClaudeWrapper(
-      wrapperURL: wrapperURL,
+    let output = try runExecutable(
+      at: wrapperURL,
       arguments: ["hello"],
       environment: [
         "PATH": path
@@ -173,6 +173,131 @@ struct ClaudeWrapperTests {
 
     #expect(output.contains("ARG[0]=hello"))
     #expect(!output.contains("WRONG_WRAPPER"))
+  }
+}
+
+struct ShellIntegrationCommandResolutionTests {
+  @Test
+  func zshIntegrationResolvesBundledCommandsAfterRcPathRewrite() throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let integrationURL = try installGhosttyZshIntegration(at: rootURL)
+    let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
+    let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
+    let appBinURL = rootURL.appendingPathComponent("app/Contents/MacOS", isDirectory: true)
+    try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: appBinURL, withIntermediateDirectories: true)
+
+    try """
+    path=("$HOME/.local/bin" $path)
+    """.write(
+      to: homeURL.appendingPathComponent(".zshrc", isDirectory: false),
+      atomically: true,
+      encoding: .utf8
+    )
+    try writeExecutable(
+      at: userBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'USER_CLAUDE\\n'
+        """
+    )
+    try writeExecutable(
+      at: appBinURL.appendingPathComponent("sp", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_SP\\n'
+        """
+    )
+    try writeExecutable(
+      at: appBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_CLAUDE\\n'
+        """
+    )
+
+    let output = try runExecutable(
+      at: URL(fileURLWithPath: "/bin/zsh", isDirectory: false),
+      arguments: ["-i", "-c", "_ghostty_deferred_init >/dev/null 2>&1; sp; claude"],
+      environment: [
+        "HOME": homeURL.path,
+        "PATH": "/usr/bin:/bin",
+        "SUPATERM_CLI_PATH": appBinURL.appendingPathComponent("sp", isDirectory: false).path,
+        "ZDOTDIR": integrationURL.path,
+        "GHOSTTY_ZSH_ZDOTDIR": homeURL.path,
+      ]
+    )
+
+    #expect(output.contains("BUNDLED_SP"))
+    #expect(output.contains("BUNDLED_CLAUDE"))
+    #expect(!output.contains("USER_CLAUDE"))
+  }
+
+  @Test
+  func bashIntegrationResolvesBundledCommandsAfterRcPathRewrite() throws {
+    let rootURL = try makeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let resourcesURL = try installGhosttyBashIntegration(at: rootURL)
+    let homeURL = rootURL.appendingPathComponent("home", isDirectory: true)
+    let userBinURL = homeURL.appendingPathComponent(".local/bin", isDirectory: true)
+    let appBinURL = rootURL.appendingPathComponent("app/Contents/MacOS", isDirectory: true)
+    try FileManager.default.createDirectory(at: userBinURL, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: appBinURL, withIntermediateDirectories: true)
+
+    try """
+    PATH="$HOME/.local/bin:$PATH"
+    source "$GHOSTTY_RESOURCES_DIR/shell-integration/bash/ghostty.bash"
+    """.write(
+      to: homeURL.appendingPathComponent(".bashrc", isDirectory: false),
+      atomically: true,
+      encoding: .utf8
+    )
+    try writeExecutable(
+      at: userBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'USER_CLAUDE\\n'
+        """
+    )
+    try writeExecutable(
+      at: appBinURL.appendingPathComponent("sp", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_SP\\n'
+        """
+    )
+    try writeExecutable(
+      at: appBinURL.appendingPathComponent("claude", isDirectory: false),
+      script: """
+        #!/bin/bash
+        printf 'BUNDLED_CLAUDE\\n'
+        """
+    )
+
+    let output = try runExecutable(
+      at: URL(fileURLWithPath: "/bin/bash", isDirectory: false),
+      arguments: [
+        "--noprofile",
+        "--rcfile",
+        homeURL.appendingPathComponent(".bashrc", isDirectory: false).path,
+        "-i",
+        "-c",
+        "sp; claude",
+      ],
+      environment: [
+        "HOME": homeURL.path,
+        "PATH": "/usr/bin:/bin",
+        "SUPATERM_CLI_PATH": appBinURL.appendingPathComponent("sp", isDirectory: false).path,
+        "GHOSTTY_RESOURCES_DIR": resourcesURL.path,
+      ]
+    )
+
+    #expect(output.contains("BUNDLED_SP"))
+    #expect(output.contains("BUNDLED_CLAUDE"))
+    #expect(!output.contains("USER_CLAUDE"))
   }
 }
 
@@ -259,13 +384,46 @@ private func setExecutablePermissions(at url: URL) throws {
   }
 }
 
-private func runClaudeWrapper(
-  wrapperURL: URL,
+private func installGhosttyZshIntegration(at rootURL: URL) throws -> URL {
+  let integrationURL = rootURL.appendingPathComponent("integration/zsh", isDirectory: true)
+  try FileManager.default.createDirectory(at: integrationURL, withIntermediateDirectories: true)
+  let sourceRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("ThirdParty/ghostty/src/shell-integration/zsh", isDirectory: true)
+  try FileManager.default.copyItem(
+    at: sourceRoot.appendingPathComponent(".zshenv", isDirectory: false),
+    to: integrationURL.appendingPathComponent(".zshenv", isDirectory: false)
+  )
+  try FileManager.default.copyItem(
+    at: sourceRoot.appendingPathComponent("ghostty-integration", isDirectory: false),
+    to: integrationURL.appendingPathComponent("ghostty-integration", isDirectory: false)
+  )
+  return integrationURL
+}
+
+private func installGhosttyBashIntegration(at rootURL: URL) throws -> URL {
+  let resourcesURL = rootURL.appendingPathComponent("resources", isDirectory: true)
+  let integrationURL = resourcesURL.appendingPathComponent("shell-integration/bash", isDirectory: true)
+  try FileManager.default.createDirectory(at: integrationURL, withIntermediateDirectories: true)
+  let sourceURL = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("ThirdParty/ghostty/src/shell-integration/bash/ghostty.bash", isDirectory: false)
+  try FileManager.default.copyItem(
+    at: sourceURL,
+    to: integrationURL.appendingPathComponent("ghostty.bash", isDirectory: false)
+  )
+  return resourcesURL
+}
+
+private func runExecutable(
+  at executableURL: URL,
   arguments: [String],
   environment: [String: String]
 ) throws -> String {
   let process = Process()
-  process.executableURL = wrapperURL
+  process.executableURL = executableURL
   process.arguments = arguments
   var processEnvironment = ProcessInfo.processInfo.environment
   for (key, value) in environment {
@@ -298,7 +456,7 @@ private func runClaudeWrapper(
   return stdout
 }
 
-private func makeClaudeWrapperTemporaryDirectory() throws -> URL {
+private func makeTemporaryDirectory() throws -> URL {
   var template = Array("/tmp/stm.XXXXXX".utf8CString)
   guard let pointer = mkdtemp(&template) else {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
