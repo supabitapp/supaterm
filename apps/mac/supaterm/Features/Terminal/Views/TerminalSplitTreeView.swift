@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct TerminalSplitTreeView: View {
   let focusedSurfaceIDs: Set<UUID>
+  let notificationColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
@@ -68,6 +69,7 @@ struct TerminalSplitTreeView: View {
       SubtreeView(
         focusedSurfaceIDs: focusedSurfaceIDs,
         node: node,
+        notificationColor: notificationColor,
         unreadSurfaceIDs: unreadSurfaceIDs,
         outerEdges: .all,
         isRoot: node == tree.root,
@@ -86,6 +88,7 @@ struct TerminalSplitTreeView: View {
   struct SubtreeView: View {
     let focusedSurfaceIDs: Set<UUID>
     let node: SplitTree<GhosttySurfaceView>.Node
+    let notificationColor: Color
     let unreadSurfaceIDs: Set<UUID>
     let outerEdges: OuterEdges
     var isRoot: Bool = false
@@ -96,6 +99,7 @@ struct TerminalSplitTreeView: View {
       case .leaf(let leafView):
         LeafView(
           hasFocusedNotification: focusedSurfaceIDs.contains(leafView.id),
+          notificationColor: notificationColor,
           surfaceView: leafView,
           isSplit: !isRoot,
           isUnread: unreadSurfaceIDs.contains(leafView.id),
@@ -123,6 +127,7 @@ struct TerminalSplitTreeView: View {
             SubtreeView(
               focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.left,
+              notificationColor: notificationColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.left, in: split.direction),
               action: action
@@ -132,6 +137,7 @@ struct TerminalSplitTreeView: View {
             SubtreeView(
               focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.right,
+              notificationColor: notificationColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.right, in: split.direction),
               action: action
@@ -147,6 +153,7 @@ struct TerminalSplitTreeView: View {
 
   struct LeafView: View {
     let hasFocusedNotification: Bool
+    let notificationColor: Color
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
     let isUnread: Bool
@@ -205,15 +212,15 @@ struct TerminalSplitTreeView: View {
           }
           .background {
             unreadGlowShape
-              .fill(Color.accentColor.opacity(backgroundOpacity))
+              .fill(notificationColor.opacity(backgroundOpacity))
               .opacity(hasVisibleAttention ? 1 : 0)
               .animation(notificationGlowAnimation, value: attentionAnimationValue)
               .allowsHitTesting(false)
           }
           .overlay {
             unreadGlowShape
-              .strokeBorder(Color.accentColor.opacity(strokeOpacity), lineWidth: lineWidth)
-              .shadow(color: Color.accentColor.opacity(shadowOpacity), radius: shadowRadius)
+              .strokeBorder(notificationColor.opacity(strokeOpacity), lineWidth: lineWidth)
+              .shadow(color: notificationColor.opacity(shadowOpacity), radius: shadowRadius)
               .compositingGroup()
               .opacity(hasVisibleAttention ? 1 : 0)
               .animation(notificationGlowAnimation, value: attentionAnimationValue)
@@ -433,6 +440,7 @@ extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let focusedSurfaceIDs: Set<UUID>
+  let notificationColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
@@ -448,6 +456,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
       rootView: AnyView(
         TerminalSplitTreeView(
           focusedSurfaceIDs: focusedSurfaceIDs,
+          notificationColor: notificationColor,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,
           action: action

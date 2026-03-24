@@ -33,6 +33,7 @@ struct TerminalDetailView: View {
       )
       TerminalDetailSurface(
         store: store,
+        notificationColor: terminal.notificationAttentionColor,
         terminal: terminal,
         selectedTabID: selectedTabID
       )
@@ -118,12 +119,14 @@ private struct TerminalDetailTopBar: View {
 
 private struct TerminalDetailSurface: View {
   let store: StoreOf<TerminalWindowFeature>
+  let notificationColor: Color
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
   var body: some View {
     TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
       TerminalSurfacePaneView(
+        notificationColor: notificationColor,
         store: store,
         terminal: terminal,
         tabID: tabID
@@ -134,6 +137,7 @@ private struct TerminalDetailSurface: View {
 }
 
 private struct TerminalSurfacePaneView: View {
+  let notificationColor: Color
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
@@ -141,6 +145,7 @@ private struct TerminalSurfacePaneView: View {
   var body: some View {
     TerminalSplitTreeAXContainer(
       focusedSurfaceIDs: terminal.focusedNotifiedSurfaceIDs(in: tabID),
+      notificationColor: notificationColor,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in

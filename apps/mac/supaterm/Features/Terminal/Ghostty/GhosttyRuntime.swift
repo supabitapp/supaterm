@@ -4,6 +4,12 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 final class GhosttyRuntime {
+  private struct NotificationAttentionCandidate {
+    let color: NSColor
+    let priority: Int
+    let saturation: Double
+  }
+
   final class SurfaceReference {
     let surface: ghostty_surface_t
     var isValid = true
@@ -24,10 +30,25 @@ final class GhosttyRuntime {
   private var lastColorScheme: ghostty_color_scheme_e?
   var onConfigChange: (() -> Void)?
 
-  init() {
+  private static let notificationAttentionPaletteIndexes = [12, 14, 13, 4, 6, 5]
+  private static let minNotificationContrastRatio = 2.2
+  private static let minNotificationSaturation = 0.12
+
+  convenience init() {
     guard let config = Self.loadConfig() else {
       preconditionFailure("ghostty_config_new failed")
     }
+    self.init(loadedConfig: config)
+  }
+
+  convenience init(configPath: String) {
+    guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
+      preconditionFailure("ghostty_config_new failed")
+    }
+    self.init(loadedConfig: config)
+  }
+
+  private init(loadedConfig config: ghostty_config_t) {
     self.config = config
 
     var runtimeConfig = ghostty_runtime_config_s(
@@ -458,11 +479,20 @@ final class GhosttyRuntime {
     self.config = config
   }
 
-  private static func loadConfig() -> ghostty_config_t? {
+  private static func loadConfig(
+    at path: String? = nil,
+    includeCLIArgs: Bool = true
+  ) -> ghostty_config_t? {
     guard let config = ghostty_config_new() else { return nil }
-    ghostty_config_load_default_files(config)
+    if let path {
+      ghostty_config_load_file(config, path)
+    } else {
+      ghostty_config_load_default_files(config)
+    }
     ghostty_config_load_recursive_files(config)
-    ghostty_config_load_cli_args(config)
+    if includeCLIArgs {
+      ghostty_config_load_cli_args(config)
+    }
     ghostty_config_finalize(config)
     return config
   }
@@ -549,17 +579,69 @@ final class GhosttyRuntime {
   }
 
   func backgroundColor() -> NSColor {
-    backgroundColorFromConfig() ?? NSColor.windowBackgroundColor
+    color(forKey: "background") ?? NSColor.windowBackgroundColor
+  }
+
+  func foregroundColor() -> NSColor {
+    color(forKey: "foreground") ?? NSColor.labelColor
+  }
+
+  func paletteColors() -> [NSColor] {
+    guard let config else { return [] }
+    var palette = ghostty_config_palette_s()
+    let key = "palette"
+    guard ghostty_config_get(config, &palette, key, UInt(key.lengthOfBytes(using: .utf8))) else {
+      return []
+    }
+    return withUnsafeBytes(of: palette) { buffer -> [NSColor] in
+      Array(buffer.bindMemory(to: ghostty_config_color_s.self)).map {
+        NSColor(ghostty: $0)
+      }
+    }
+  }
+
+  func notificationAttentionColor() -> NSColor {
+    guard let background = color(forKey: "background") else {
+      return color(forKey: "foreground") ?? .controlAccentColor
+    }
+    let palette = paletteColors()
+    let prioritizedPaletteIndexes = Self.notificationAttentionPaletteIndexes.enumerated()
+    let candidates: [NotificationAttentionCandidate] = prioritizedPaletteIndexes.compactMap { offset, index in
+      guard palette.indices.contains(index) else { return nil }
+      let color = palette[index]
+      let saturation = color.saturation
+      guard
+        saturation >= Self.minNotificationSaturation,
+        color.contrastRatio(with: background) >= Self.minNotificationContrastRatio
+      else {
+        return nil
+      }
+      return NotificationAttentionCandidate(
+        color: color,
+        priority: offset,
+        saturation: saturation
+      )
+    }
+    if let candidate = candidates.max(
+      by: { lhs, rhs in
+        if lhs.saturation != rhs.saturation {
+          return lhs.saturation < rhs.saturation
+        }
+        return lhs.priority > rhs.priority
+      })
+    {
+      return candidate.color
+    }
+    return color(forKey: "foreground") ?? .controlAccentColor
   }
 
   func scrollbarAppearanceName() -> NSAppearance.Name {
     backgroundColor().isLightColor ? .aqua : .darkAqua
   }
 
-  private func backgroundColorFromConfig() -> NSColor? {
+  private func color(forKey key: String) -> NSColor? {
     guard let config else { return nil }
     var color: ghostty_config_color_s = .init()
-    let key = "background"
     if !ghostty_config_get(config, &color, key, UInt(key.lengthOfBytes(using: .utf8))) {
       return nil
     }
@@ -627,6 +709,44 @@ extension NSColor {
     guard let rgb = usingColorSpace(.sRGB) else { return 0 }
     rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
     return (0.299 * red) + (0.587 * green) + (0.114 * blue)
+  }
+
+  fileprivate var relativeLuminance: Double {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard let rgb = usingColorSpace(.sRGB) else { return 0 }
+    rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+    func channel(_ value: CGFloat) -> Double {
+      let component = Double(value)
+      if component <= 0.03928 {
+        return component / 12.92
+      }
+      return pow((component + 0.055) / 1.055, 2.4)
+    }
+
+    return (0.2126 * channel(red)) + (0.7152 * channel(green)) + (0.0722 * channel(blue))
+  }
+
+  fileprivate var saturation: Double {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard let rgb = usingColorSpace(.sRGB) else { return 0 }
+    rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    let maximum = max(red, green, blue)
+    let minimum = min(red, green, blue)
+    guard maximum > 0 else { return 0 }
+    return Double((maximum - minimum) / maximum)
+  }
+
+  fileprivate func contrastRatio(with other: NSColor) -> Double {
+    let lighter = max(relativeLuminance, other.relativeLuminance)
+    let darker = min(relativeLuminance, other.relativeLuminance)
+    return (lighter + 0.05) / (darker + 0.05)
   }
 
   fileprivate convenience init(ghostty: ghostty_config_color_s) {
