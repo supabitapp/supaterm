@@ -8,6 +8,7 @@ struct UpdatePhaseTests {
   func updateAvailableUsesVersionBadgeAndDetail() {
     let phase = UpdatePhase.updateAvailable(
       .init(
+        buildVersion: "1000",
         contentLength: 1024,
         releaseDate: Date(timeIntervalSince1970: 0),
         version: "1.2.3"
@@ -15,8 +16,8 @@ struct UpdatePhaseTests {
     )
 
     #expect(phase.summaryText == "Update Available")
-    #expect(phase.badgeText == "1.2.3")
-    #expect(phase.detailMessage == "Supaterm 1.2.3 is ready to download and install.")
+    #expect(phase.badgeText == "1.2.3 (1000)")
+    #expect(phase.detailMessage == "Supaterm 1.2.3 (1000) is ready to download and install.")
     #expect(phase.debugIdentifier == "update_available")
   }
 

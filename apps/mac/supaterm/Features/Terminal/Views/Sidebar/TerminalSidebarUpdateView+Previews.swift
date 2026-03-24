@@ -25,6 +25,7 @@ private enum TerminalSidebarUpdatePreviewFixtures {
       title: "Update Available",
       phase: .updateAvailable(
         .init(
+          buildVersion: "1000",
           contentLength: 82_300_000,
           releaseDate: Date(timeIntervalSince1970: 1_742_582_400),
           version: "0.18.0"
