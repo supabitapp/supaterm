@@ -5,14 +5,9 @@ import SwiftUI
 
 enum TerminalSidebarUpdatePresentation {
   static func usesSelectedRowStyle(
-    for phase: UpdatePhase
+    for _: UpdatePhase
   ) -> Bool {
-    switch phase {
-    case .permissionRequest, .updateAvailable, .installing:
-      true
-    default:
-      false
-    }
+    false
   }
 }
 
