@@ -178,7 +178,8 @@ let project = Project(
           script: """
             set -eu
 
-            destination_path="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/sp"
+            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
+            destination_path="${destination_dir}/sp"
             source_candidates=(
               "${BUILT_PRODUCTS_DIR}/sp"
               "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
@@ -197,6 +198,7 @@ let project = Project(
               exit 1
             fi
 
+            mkdir -p "${destination_dir}"
             /bin/cp -f "${source_path}" "${destination_path}"
             """,
           name: "Embed sp CLI",
@@ -205,7 +207,7 @@ let project = Project(
             "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
           ],
           outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/sp",
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
           ]
         ),
         .post(
@@ -215,14 +217,10 @@ let project = Project(
             source_path="${SRCROOT}/\(claudeWrapperScriptPath.pathString)"
             resources_destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
             resources_destination_path="${resources_destination_dir}/claude"
-            executable_destination_path="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/claude"
-            signing_identity="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 
             mkdir -p "${resources_destination_dir}"
             /bin/cp -f "${source_path}" "${resources_destination_path}"
-            /bin/cp -f "${source_path}" "${executable_destination_path}"
-            /bin/chmod 755 "${resources_destination_path}" "${executable_destination_path}"
-            /usr/bin/codesign --force --sign "${signing_identity}" --timestamp=none "${executable_destination_path}"
+            /bin/chmod 755 "${resources_destination_path}"
             """,
           name: "Embed Claude Wrapper",
           inputPaths: [
@@ -230,7 +228,6 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/claude",
-            "$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/claude",
           ]
         ),
       ],
