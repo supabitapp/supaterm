@@ -158,6 +158,17 @@ final class TerminalSpaceManager {
     }
   }
 
+  @discardableResult
+  func restoreTabs(
+    _ tabs: [TerminalTabItem],
+    selectedTabID: TerminalTabID?,
+    in spaceID: TerminalSpaceID
+  ) -> Bool {
+    guard let tabManager = tabManagers[spaceID] else { return false }
+    tabManager.restoreTabs(tabs, selectedTabID: selectedTabID)
+    return true
+  }
+
   private func normalizedName(_ name: String) -> String? {
     let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed

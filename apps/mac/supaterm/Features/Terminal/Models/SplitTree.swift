@@ -308,7 +308,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     }
   }
 
-  private init(root: Node?, zoomed: Node?) {
+  init(root: Node?, zoomed: Node?) {
     self.root = root
     self.zoomed = zoomed
   }

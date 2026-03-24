@@ -257,12 +257,15 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
+    let initialWorkingDirectoryPath: String?
     if let workingDirectory {
       let path = Self.normalizedWorkingDirectoryPath(
         workingDirectory.path(percentEncoded: false)
       )
+      initialWorkingDirectoryPath = path
       workingDirectoryCString = path.withCString { strdup($0) }
     } else {
+      initialWorkingDirectoryPath = nil
       workingDirectoryCString = nil
     }
     if let initialInput {
@@ -272,6 +275,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
     wantsLayer = true
+    bridge.state.pwd = initialWorkingDirectoryPath
     bridge.surfaceView = self
     createSurface()
     if let surface {
