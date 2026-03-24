@@ -454,6 +454,17 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeSessionStartMarksTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+  }
+
+  @Test
   func claudePreToolUseMarksTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
