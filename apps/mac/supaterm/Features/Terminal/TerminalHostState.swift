@@ -128,9 +128,11 @@ final class TerminalHostState {
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
+  private var notificationFlashTokensBySurfaceID: [UUID: UInt64] = [:]
   private var claudeActivityByTab: [TerminalTabID: ClaudeActivity] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
+  private var nextNotificationFlashToken: UInt64 = 0
   private var runtimeConfigGeneration = 0
   private var suppressesSessionChanges = 0
 
@@ -442,6 +444,19 @@ final class TerminalHostState {
   var notificationAttentionColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
+  }
+
+  func notificationFlashToken(for surfaceID: UUID) -> UInt64 {
+    notificationFlashTokensBySurfaceID[surfaceID] ?? 0
+  }
+
+  func notificationFlashTokens(in tabID: TerminalTabID) -> [UUID: UInt64] {
+    guard let tree = trees[tabID] else { return [:] }
+    return Dictionary(
+      uniqueKeysWithValues: tree.leaves().map { surface in
+        (surface.id, notificationFlashToken(for: surface.id))
+      }
+    )
   }
 
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
@@ -1060,6 +1075,8 @@ final class TerminalHostState {
         subtitle: request.subtitle,
         title: resolvedTitle
       ))
+    nextNotificationFlashToken &+= 1
+    notificationFlashTokensBySurfaceID[resolvedTarget.anchorSurface.id] = nextNotificationFlashToken
 
     return .init(
       attentionState: attentionState,
@@ -1296,6 +1313,7 @@ final class TerminalHostState {
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
+    notificationFlashTokensBySurfaceID.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
@@ -1763,6 +1781,7 @@ final class TerminalHostState {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
       paneNotifications.removeValue(forKey: surface.id)
+      notificationFlashTokensBySurfaceID.removeValue(forKey: surface.id)
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
