@@ -237,10 +237,10 @@ struct TerminalSplitTreeView: View {
 
     private var backgroundOpacity: Double {
       if isUnread {
-        return 0.08
+        return 0.1
       }
       if hasFocusedNotification {
-        return 0.04
+        return 0.05
       }
       return 0
     }
@@ -260,19 +260,19 @@ struct TerminalSplitTreeView: View {
     }
 
     private var lineWidth: CGFloat {
-      isUnread ? 2 : 1.5
+      isUnread ? 3 : 2.25
     }
 
     private var shadowOpacity: Double {
-      isUnread ? 0.5 : 0.18
+      isUnread ? 0.58 : 0.22
     }
 
     private var shadowRadius: CGFloat {
-      isUnread ? 12 : 8
+      isUnread ? 14 : 10
     }
 
     private var strokeOpacity: Double {
-      isUnread ? 0.95 : 0.45
+      isUnread ? 1 : 0.6
     }
   }
 
