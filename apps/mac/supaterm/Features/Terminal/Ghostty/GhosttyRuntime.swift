@@ -24,7 +24,7 @@ final class GhosttyRuntime {
   private var lastColorScheme: ghostty_color_scheme_e?
   var onConfigChange: (() -> Void)?
 
-  private static let notificationAttentionPaletteIndexes = [3, 11]
+  private static let notificationAttentionPaletteIndexes = [4, 12]
   private static let minNotificationContrastRatio = 2.2
   private static let minNotificationSaturation = 0.12
 

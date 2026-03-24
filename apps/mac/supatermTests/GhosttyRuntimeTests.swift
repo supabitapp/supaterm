@@ -8,55 +8,55 @@ import Testing
 @MainActor
 struct GhosttyRuntimeTests {
   @Test
-  func notificationAttentionColorPrefersBrightestWarmCandidate() throws {
+  func notificationAttentionColorPrefersBrightestBlueCandidate() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
       foreground = #E0E0E0
-      palette = 3=#D79921
-      palette = 11=#FABD2F
+      palette = 4=#458588
+      palette = 12=#83A598
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#FABD2F")
+    #expect(hexString(runtime.notificationAttentionColor()) == "#83A598")
   }
 
   @Test
-  func notificationAttentionColorUsesBrightYellowWhenYellowFails() throws {
+  func notificationAttentionColorUsesBrightBlueWhenBlueFails() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
       foreground = #E0E0E0
-      palette = 3=#171717
-      palette = 11=#FABD2F
+      palette = 4=#171717
+      palette = 12=#83A598
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#FABD2F")
+    #expect(hexString(runtime.notificationAttentionColor()) == "#83A598")
   }
 
   @Test
-  func notificationAttentionColorUsesYellowWhenBrightYellowFails() throws {
+  func notificationAttentionColorUsesBlueWhenBrightBlueFails() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
       foreground = #E0E0E0
-      palette = 3=#D79921
-      palette = 11=#1F1F1F
+      palette = 4=#458588
+      palette = 12=#1F1F1F
       """
     )
 
-    #expect(hexString(runtime.notificationAttentionColor()) == "#D79921")
+    #expect(hexString(runtime.notificationAttentionColor()) == "#458588")
   }
 
   @Test
-  func notificationAttentionColorFallsBackToForegroundWhenWarmCandidatesFail() throws {
+  func notificationAttentionColorFallsBackToForegroundWhenBlueCandidatesFail() throws {
     let runtime = try makeGhosttyRuntime(
       """
       background = #101010
       foreground = #E0E0E0
-      palette = 3=#171717
-      palette = 11=#202020
+      palette = 4=#171717
+      palette = 12=#202020
       """
     )
 
