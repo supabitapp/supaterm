@@ -50,14 +50,6 @@ struct TerminalSidebarUpdateSection: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-
-        if let badgeText = headerBadgeText {
-          TerminalSidebarUpdateBadge(
-            text: badgeText,
-            phase: phase,
-            palette: palette
-          )
-        }
       }
 
       content
@@ -223,15 +215,6 @@ struct TerminalSidebarUpdateSection: View {
 
   private var progressTint: Color {
     style.progress
-  }
-
-  private var headerBadgeText: String? {
-    switch phase {
-    case .updateAvailable:
-      nil
-    default:
-      phase.badgeText
-    }
   }
 
   private var summaryDetailText: String {
@@ -401,52 +384,8 @@ private struct TerminalSidebarUpdateStyle {
     }
   }
 
-  var badgeBackground: Color {
-    switch phase {
-    case .updateAvailable where usesSelectedRowStyle:
-      primaryText.opacity(0.12)
-    case .notFound:
-      success.opacity(0.16)
-    case .error:
-      warning.opacity(0.16)
-    default:
-      buttonFill
-    }
-  }
-
-  var badgeForeground: Color {
-    switch phase {
-    case .error:
-      warning
-    default:
-      primaryText
-    }
-  }
-
   private var success: Color {
     Color(nsColor: .systemGreen)
-  }
-}
-
-private struct TerminalSidebarUpdateBadge: View {
-  let text: String
-  let phase: UpdatePhase
-  let palette: TerminalPalette
-
-  private var style: TerminalSidebarUpdateStyle {
-    .init(
-      phase: phase,
-      palette: palette
-    )
-  }
-
-  var body: some View {
-    Text(text)
-      .font(.system(size: 10, weight: .semibold))
-      .foregroundStyle(style.badgeForeground)
-      .padding(.horizontal, 7)
-      .padding(.vertical, 4)
-      .background(style.badgeBackground, in: Capsule(style: .continuous))
   }
 }
 
