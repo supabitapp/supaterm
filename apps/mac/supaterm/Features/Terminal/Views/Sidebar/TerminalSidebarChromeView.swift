@@ -111,6 +111,7 @@ struct TerminalSidebarChromeView: View {
       ) {
         TerminalSidebarPageView(
           selection: pageSelectionBinding(fallback: resolvedSelection),
+          contentVersion: colorScheme == .dark ? 1 : 0,
           next: { TerminalSidebarPageNavigation.next(after: $0, in: orderedSpaceIDs) },
           previous: { TerminalSidebarPageNavigation.previous(before: $0, in: orderedSpaceIDs) },
           swipeEnabled: !dragSession.isDragging,
