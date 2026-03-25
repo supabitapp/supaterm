@@ -64,11 +64,13 @@ struct TerminalSidebarChromeView: View {
 
   @Environment(\.colorScheme) private var colorScheme
   @StateObject private var dragSession = TerminalSidebarDragSession()
-  @State private var pageSelection: TerminalSpaceID?
+  @State private var scrollOffset: CGFloat = 0
+  @State private var contentHeight: CGFloat = 0
+  @State private var tabFrames: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
 
   var body: some View {
     VStack(spacing: 10) {
-      spacePages
+      tabList
       if !updateStore.phase.isIdle {
         TerminalSidebarUpdateSection(
           store: updateStore,
@@ -85,7 +87,6 @@ struct TerminalSidebarChromeView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       dragSession.colorScheme = colorScheme
-      syncPageSelection()
     }
     .onChange(of: colorScheme) { _, newValue in
       dragSession.colorScheme = newValue
@@ -93,77 +94,230 @@ struct TerminalSidebarChromeView: View {
     .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
       handle(pendingReorder)
     }
-    .onChange(of: terminal.selectedSpaceID) { _, _ in
-      syncPageSelection()
-    }
-    .onChange(of: terminal.spaces.map(\.id)) { _, _ in
-      syncPageSelection()
-    }
   }
 
-  private var spacePages: some View {
-    let orderedSpaceIDs = terminal.spaces.map(\.id)
+  private var tabList: some View {
+    GeometryReader { geometry in
+      ScrollViewReader { proxy in
+        ZStack {
+          ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 8) {
+              Color.clear
+                .frame(height: 0)
+                .background {
+                  GeometryReader { geometry in
+                    Color.clear.preference(
+                      key: TerminalSidebarScrollOffsetPreferenceKey.self,
+                      value: max(0, -geometry.frame(in: .named(terminalSidebarScrollSpace)).minY)
+                    )
+                  }
+                }
+                .id(terminalSidebarScrollTopID)
 
-    return Group {
-      if let resolvedSelection = TerminalSidebarPageNavigation.resolvedSelection(
-        preferred: pageSelection ?? terminal.selectedSpaceID,
-        orderedValues: orderedSpaceIDs
-      ) {
-        TerminalSidebarPageView(
-          selection: pageSelectionBinding(fallback: resolvedSelection),
-          contentVersion: colorScheme == .dark ? 1 : 0,
-          next: { TerminalSidebarPageNavigation.next(after: $0, in: orderedSpaceIDs) },
-          previous: { TerminalSidebarPageNavigation.previous(before: $0, in: orderedSpaceIDs) },
-          swipeEnabled: !dragSession.isDragging,
-          onSwipeSelectionChange: selectSpaceFromSwipe,
-          content: { spaceID, isActive in
-            TerminalSidebarSpacePage(
-              spaceID: spaceID,
-              isActive: isActive,
-              store: store,
-              palette: palette,
-              terminal: terminal,
-              dragSession: dragSession
-            )
+              pinnedSection
+
+              if !terminal.pinnedTabs.isEmpty {
+                TerminalSidebarSectionDivider(palette: palette)
+              }
+
+              regularSection
+
+              TerminalSidebarRegularSectionHeader(
+                palette: palette,
+                action: newTab
+              )
+
+              Color.clear
+                .frame(height: 1)
+                .id(terminalSidebarScrollBottomID)
+            }
+            .background {
+              GeometryReader { geometry in
+                Color.clear.preference(
+                  key: TerminalSidebarContentHeightKey.self,
+                  value: geometry.size.height
+                )
+              }
+            }
+            .padding(.bottom, 8)
           }
-        )
-      } else {
-        Color.clear
+          .coordinateSpace(name: terminalSidebarScrollSpace)
+          .onPreferenceChange(TerminalSidebarScrollOffsetPreferenceKey.self) { scrollOffset in
+            self.scrollOffset = scrollOffset
+          }
+          .onPreferenceChange(TerminalSidebarContentHeightKey.self) { contentHeight in
+            self.contentHeight = contentHeight
+          }
+          .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
+            self.tabFrames = tabFrames
+            dragSession.updateMeasuredTabFrames(tabFrames)
+          }
+
+          if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
+            TerminalSidebarScrollIndicatorButton(
+              symbol: "chevron.up",
+              palette: palette
+            ) {
+              withAnimation(.easeInOut(duration: 0.3)) {
+                proxy.scrollTo(terminalSidebarScrollTopID, anchor: .top)
+              }
+            }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, 4)
+          }
+
+          if TerminalSidebarLayout.showsBottomIndicator(
+            scrollOffset: scrollOffset,
+            viewportHeight: geometry.size.height,
+            contentHeight: contentHeight,
+            selectedFrame: selectedTabFrame
+          ) {
+            TerminalSidebarScrollIndicatorButton(
+              symbol: "chevron.down",
+              palette: palette
+            ) {
+              scrollToBottom(using: proxy)
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, 4)
+          }
+        }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private func pageSelectionBinding(
-    fallback: TerminalSpaceID
-  ) -> Binding<TerminalSpaceID> {
-    Binding(
-      get: {
-        TerminalSidebarPageNavigation.resolvedSelection(
-          preferred: pageSelection ?? terminal.selectedSpaceID,
-          orderedValues: terminal.spaces.map(\.id)
-        ) ?? fallback
-      },
-      set: { pageSelection = $0 }
-    )
+  private var pinnedSection: some View {
+    TerminalSidebarDropZoneHostView(
+      zoneID: .pinned,
+      manager: dragSession
+    ) {
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
+        ForEach(Array(terminal.pinnedTabs.enumerated()), id: \.element.id) { index, tab in
+          draggableRow(
+            tab: tab,
+            index: index,
+            zoneID: .pinned
+          )
+        }
+      }
+      .coordinateSpace(name: TerminalSidebarDropZoneID.pinned.coordinateSpaceID)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .onAppear {
+      dragSession.updateTabIDs(terminal.pinnedTabs.map(\.id), for: .pinned)
+    }
+    .onChange(of: terminal.pinnedTabs.map(\.id)) { _, tabIDs in
+      dragSession.updateTabIDs(tabIDs, for: .pinned)
+    }
   }
 
-  private func syncPageSelection() {
-    let resolvedSelection = TerminalSidebarPageNavigation.resolvedSelection(
-      preferred: terminal.selectedSpaceID,
-      orderedValues: terminal.spaces.map(\.id)
-    )
-
-    guard pageSelection != resolvedSelection else { return }
-
-    pageSelection = resolvedSelection
-    dragSession.cancelDrag()
-    dragSession.resetLayoutState()
+  private var regularSection: some View {
+    TerminalSidebarDropZoneHostView(
+      zoneID: .regular,
+      manager: dragSession
+    ) {
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
+        ForEach(Array(terminal.regularTabs.enumerated()), id: \.element.id) { index, tab in
+          draggableRow(
+            tab: tab,
+            index: index,
+            zoneID: .regular
+          )
+        }
+      }
+      .coordinateSpace(name: TerminalSidebarDropZoneID.regular.coordinateSpaceID)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .onAppear {
+      dragSession.updateTabIDs(terminal.regularTabs.map(\.id), for: .regular)
+    }
+    .onChange(of: terminal.regularTabs.map(\.id)) { _, tabIDs in
+      dragSession.updateTabIDs(tabIDs, for: .regular)
+    }
   }
 
-  private func selectSpaceFromSwipe(_ spaceID: TerminalSpaceID) {
-    guard terminal.selectedSpaceID != spaceID else { return }
-    _ = store.send(.selectSpaceButtonTapped(spaceID))
+  @ViewBuilder
+  private func draggableRow(
+    tab: TerminalTabItem,
+    index: Int,
+    zoneID: TerminalSidebarDropZoneID
+  ) -> some View {
+    let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
+    let latestNotificationText = terminal.latestNotificationText(for: tab.id)
+    let unreadCount = terminal.unreadNotificationCount(for: tab.id)
+    let preview = TerminalSidebarDragPreviewItem(
+      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
+      tab: tab,
+      latestNotificationText: latestNotificationText,
+      notificationColor: terminal.notificationAttentionColor,
+      unreadCount: unreadCount
+    )
+
+    TerminalSidebarDragSourceView(
+      item: TerminalSidebarDragItem(
+        tabID: tab.id
+      ),
+      preview: preview,
+      zoneID: zoneID,
+      index: index,
+      manager: dragSession
+    ) {
+      TerminalSidebarTabRow(
+        store: store,
+        terminal: terminal,
+        tab: tab,
+        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
+        latestNotificationText: latestNotificationText,
+        unreadCount: unreadCount,
+        palette: palette
+      )
+      .id(tab.id)
+      .background {
+        GeometryReader { geometry in
+          let measuredFrame = TerminalSidebarMeasuredTabFrame(
+            zoneID: zoneID,
+            scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
+            zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
+          )
+          Color.clear.preference(
+            key: TerminalSidebarTabFramePreferenceKey.self,
+            value: [tab.id: measuredFrame]
+          )
+        }
+      }
+      .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
+      .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
+      .animation(
+        .spring(response: 0.3, dampingFraction: 0.8),
+        value: dragSession.insertionIndex[zoneID]
+      )
+    }
+  }
+
+  private var selectedTabFrame: CGRect? {
+    guard let selectedTabID = terminal.selectedTabID else { return nil }
+    return tabFrames[selectedTabID]?.scrollFrame
+  }
+
+  private func newTab() {
+    withAnimation(.easeInOut(duration: 0.2)) {
+      _ = store.send(
+        .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+      )
+    }
+  }
+
+  private func scrollToBottom(
+    using proxy: ScrollViewProxy
+  ) {
+    withAnimation(.easeInOut(duration: 0.3)) {
+      if let selectedTabID = terminal.selectedTabID {
+        proxy.scrollTo(selectedTabID, anchor: .bottom)
+      } else {
+        proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
+      }
+    }
   }
 
   private func handle(
@@ -226,309 +380,6 @@ struct TerminalSidebarChromeView: View {
     }
 
     dragSession.pendingReorder = nil
-  }
-}
-
-private struct TerminalSidebarSpacePage: View {
-  let spaceID: TerminalSpaceID
-  let isActive: Bool
-  let store: StoreOf<TerminalWindowFeature>
-  let palette: TerminalPalette
-  let terminal: TerminalHostState
-  @ObservedObject var dragSession: TerminalSidebarDragSession
-
-  @State private var scrollOffset: CGFloat = 0
-  @State private var contentHeight: CGFloat = 0
-  @State private var tabFrames: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
-
-  private var tabs: [TerminalTabItem] {
-    terminal.tabs(in: spaceID)
-  }
-
-  private var pinnedTabs: [TerminalTabItem] {
-    tabs.filter(\.isPinned)
-  }
-
-  private var regularTabs: [TerminalTabItem] {
-    tabs.filter { !$0.isPinned }
-  }
-
-  private var selectedTabID: TerminalTabID? {
-    terminal.selectedTabID(in: spaceID)
-  }
-
-  var body: some View {
-    GeometryReader { geometry in
-      ScrollViewReader { proxy in
-        ZStack {
-          ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 8) {
-              Color.clear
-                .frame(height: 0)
-                .background {
-                  GeometryReader { geometry in
-                    Color.clear.preference(
-                      key: TerminalSidebarScrollOffsetPreferenceKey.self,
-                      value: max(0, -geometry.frame(in: .named(terminalSidebarScrollSpace)).minY)
-                    )
-                  }
-                }
-                .id(terminalSidebarScrollTopID)
-
-              pinnedSection
-
-              if !pinnedTabs.isEmpty {
-                TerminalSidebarSectionDivider(palette: palette)
-              }
-
-              regularSection
-
-              TerminalSidebarRegularSectionHeader(
-                palette: palette,
-                action: newTab
-              )
-              .allowsHitTesting(isActive)
-
-              Color.clear
-                .frame(height: 1)
-                .id(terminalSidebarScrollBottomID)
-            }
-            .background {
-              GeometryReader { geometry in
-                Color.clear.preference(
-                  key: TerminalSidebarContentHeightKey.self,
-                  value: geometry.size.height
-                )
-              }
-            }
-            .padding(.bottom, 8)
-          }
-          .coordinateSpace(name: terminalSidebarScrollSpace)
-          .onPreferenceChange(TerminalSidebarScrollOffsetPreferenceKey.self) { scrollOffset in
-            self.scrollOffset = scrollOffset
-          }
-          .onPreferenceChange(TerminalSidebarContentHeightKey.self) { contentHeight in
-            self.contentHeight = contentHeight
-          }
-          .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
-            guard isActive else { return }
-            self.tabFrames = tabFrames
-            dragSession.updateMeasuredTabFrames(tabFrames)
-          }
-
-          if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
-            TerminalSidebarScrollIndicatorButton(
-              symbol: "chevron.up",
-              palette: palette
-            ) {
-              withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(terminalSidebarScrollTopID, anchor: .top)
-              }
-            }
-            .frame(maxHeight: .infinity, alignment: .top)
-            .padding(.top, 4)
-          }
-
-          if TerminalSidebarLayout.showsBottomIndicator(
-            scrollOffset: scrollOffset,
-            viewportHeight: geometry.size.height,
-            contentHeight: contentHeight,
-            selectedFrame: selectedTabFrame
-          ) {
-            TerminalSidebarScrollIndicatorButton(
-              symbol: "chevron.down",
-              palette: palette
-            ) {
-              scrollToBottom(using: proxy)
-            }
-            .frame(maxHeight: .infinity, alignment: .bottom)
-            .padding(.bottom, 4)
-          }
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .allowsHitTesting(isActive)
-    .onAppear {
-      syncActiveDragState()
-    }
-    .onChange(of: isActive) { _, _ in
-      syncActiveDragState()
-    }
-    .onChange(of: pinnedTabs.map(\.id)) { _, _ in
-      syncActiveDragState()
-    }
-    .onChange(of: regularTabs.map(\.id)) { _, _ in
-      syncActiveDragState()
-    }
-  }
-
-  @ViewBuilder
-  private var pinnedSection: some View {
-    if isActive {
-      TerminalSidebarDropZoneHostView(
-        zoneID: .pinned,
-        manager: dragSession
-      ) {
-        VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-          ForEach(Array(pinnedTabs.enumerated()), id: \.element.id) { index, tab in
-            draggableRow(
-              tab: tab,
-              index: index,
-              zoneID: .pinned
-            )
-          }
-        }
-        .coordinateSpace(name: TerminalSidebarDropZoneID.pinned.coordinateSpaceID)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-    } else {
-      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-        ForEach(pinnedTabs, id: \.id) { tab in
-          tabRow(tab: tab)
-            .allowsHitTesting(false)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-  }
-
-  @ViewBuilder
-  private var regularSection: some View {
-    if isActive {
-      TerminalSidebarDropZoneHostView(
-        zoneID: .regular,
-        manager: dragSession
-      ) {
-        VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-          ForEach(Array(regularTabs.enumerated()), id: \.element.id) { index, tab in
-            draggableRow(
-              tab: tab,
-              index: index,
-              zoneID: .regular
-            )
-          }
-        }
-        .coordinateSpace(name: TerminalSidebarDropZoneID.regular.coordinateSpaceID)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-    } else {
-      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-        ForEach(regularTabs, id: \.id) { tab in
-          tabRow(tab: tab)
-            .allowsHitTesting(false)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-  }
-
-  @ViewBuilder
-  private func draggableRow(
-    tab: TerminalTabItem,
-    index: Int,
-    zoneID: TerminalSidebarDropZoneID
-  ) -> some View {
-    let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
-    let latestNotificationText = terminal.latestNotificationText(for: tab.id)
-    let unreadCount = terminal.unreadNotificationCount(for: tab.id)
-    let preview = TerminalSidebarDragPreviewItem(
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
-      tab: tab,
-      latestNotificationText: latestNotificationText,
-      notificationColor: terminal.notificationAttentionColor,
-      unreadCount: unreadCount
-    )
-
-    TerminalSidebarDragSourceView(
-      item: TerminalSidebarDragItem(
-        tabID: tab.id
-      ),
-      preview: preview,
-      zoneID: zoneID,
-      index: index,
-      manager: dragSession
-    ) {
-      tabRow(
-        tab: tab,
-        isSelected: selectedTabID == tab.id,
-        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
-        latestNotificationText: latestNotificationText,
-        unreadCount: unreadCount
-      )
-      .id(tab.id)
-      .background {
-        GeometryReader { geometry in
-          let measuredFrame = TerminalSidebarMeasuredTabFrame(
-            zoneID: zoneID,
-            scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
-            zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
-          )
-          Color.clear.preference(
-            key: TerminalSidebarTabFramePreferenceKey.self,
-            value: [tab.id: measuredFrame]
-          )
-        }
-      }
-      .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
-      .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
-      .animation(
-        .spring(response: 0.3, dampingFraction: 0.8),
-        value: dragSession.insertionIndex[zoneID]
-      )
-    }
-  }
-
-  private func tabRow(
-    tab: TerminalTabItem,
-    isSelected: Bool? = nil,
-    hasFocusedNotificationAttention: Bool? = nil,
-    latestNotificationText: String? = nil,
-    unreadCount: Int? = nil
-  ) -> some View {
-    TerminalSidebarTabRow(
-      store: store,
-      terminal: terminal,
-      tab: tab,
-      isSelected: isSelected ?? (selectedTabID == tab.id),
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention
-        ?? terminal.hasFocusedNotificationAttention(for: tab.id),
-      latestNotificationText: latestNotificationText
-        ?? terminal.latestNotificationText(for: tab.id),
-      unreadCount: unreadCount ?? terminal.unreadNotificationCount(for: tab.id),
-      palette: palette
-    )
-  }
-
-  private var selectedTabFrame: CGRect? {
-    guard let selectedTabID else { return nil }
-    return tabFrames[selectedTabID]?.scrollFrame
-  }
-
-  private func newTab() {
-    withAnimation(.easeInOut(duration: 0.2)) {
-      _ = store.send(
-        .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
-      )
-    }
-  }
-
-  private func scrollToBottom(
-    using proxy: ScrollViewProxy
-  ) {
-    withAnimation(.easeInOut(duration: 0.3)) {
-      if let selectedTabID {
-        proxy.scrollTo(selectedTabID, anchor: .bottom)
-      } else {
-        proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
-      }
-    }
-  }
-
-  private func syncActiveDragState() {
-    guard isActive else { return }
-    dragSession.updateTabIDs(pinnedTabs.map(\.id), for: .pinned)
-    dragSession.updateTabIDs(regularTabs.map(\.id), for: .regular)
   }
 }
 
@@ -841,7 +692,6 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
-  let isSelected: Bool
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let unreadCount: Int
@@ -849,6 +699,10 @@ struct TerminalSidebarTabRow: View {
 
   @State private var isHovering = false
   @State private var isCloseHovering = false
+
+  private var isSelected: Bool {
+    terminal.selectedTabID == tab.id
+  }
 
   var body: some View {
     Button(action: select) {
@@ -923,10 +777,7 @@ struct TerminalSidebarTabRow: View {
       Button {
         _ = store.send(.togglePinned(tab.id))
       } label: {
-        Label(
-          tab.isPinned ? "Unpin Tab" : "Pin Tab",
-          systemImage: tab.isPinned ? "pin.slash" : "pin"
-        )
+        Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
       }
 
       Divider()

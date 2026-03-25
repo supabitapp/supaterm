@@ -276,17 +276,6 @@ final class TerminalSidebarDragSession: ObservableObject {
     measuredTabFrames = grouped
   }
 
-  func resetLayoutState() {
-    activeZone = nil
-    insertionIndex = [:]
-    pendingReorder = nil
-    zoneFrames = [:]
-    zoneScreenFrames = [:]
-    orderedTabIDs = [:]
-    measuredTabFrames = [:]
-    sidebarScreenFrame = .zero
-  }
-
   private func clearDrag() {
     draggedItem = nil
     draggedPreview = nil
