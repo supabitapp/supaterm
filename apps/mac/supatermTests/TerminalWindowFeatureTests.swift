@@ -285,6 +285,36 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func nextSpaceRequestedSendsNextSpaceCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.nextSpaceRequested)
+
+    #expect(recorder.commands == [.nextSpace])
+  }
+
+  @Test
+  func previousSpaceRequestedSendsPreviousSpaceCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.previousSpaceRequested)
+
+    #expect(recorder.commands == [.previousSpace])
+  }
+
+  @Test
   func sidebarTabMoveCommittedSendsAtomicMoveCommand() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()

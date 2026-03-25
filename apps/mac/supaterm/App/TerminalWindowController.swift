@@ -3,6 +3,42 @@ import ComposableArchitecture
 import SwiftUI
 
 @MainActor
+private final class TerminalGestureWindow: NSWindow {
+  var onSwipeLeft: (() -> Void)?
+  var onSwipeRight: (() -> Void)?
+
+  override func sendEvent(_ event: NSEvent) {
+    guard event.type == .swipe else {
+      super.sendEvent(event)
+      return
+    }
+    if handleSwipe(event) {
+      return
+    }
+    super.sendEvent(event)
+  }
+
+  private func handleSwipe(_ event: NSEvent) -> Bool {
+    let deltaX = resolvedDeltaX(for: event)
+    guard abs(deltaX) > abs(event.deltaY) else { return false }
+    if deltaX > 0, let onSwipeLeft {
+      onSwipeLeft()
+      return true
+    }
+    if deltaX < 0, let onSwipeRight {
+      onSwipeRight()
+      return true
+    }
+    return false
+  }
+
+  private func resolvedDeltaX(for event: NSEvent) -> CGFloat {
+    let deltaX = event.deltaX
+    return event.isDirectionInvertedFromDevice ? -deltaX : deltaX
+  }
+}
+
+@MainActor
 final class TerminalWindowController: NSWindowController {
   let ghostty: GhosttyRuntime
   let ghosttyShortcuts: GhosttyShortcutManager
@@ -51,7 +87,7 @@ final class TerminalWindowController: NSWindowController {
       }
     )
 
-    let window = NSWindow(
+    let window = TerminalGestureWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
@@ -66,6 +102,12 @@ final class TerminalWindowController: NSWindowController {
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
+    window.onSwipeLeft = { [store] in
+      _ = store.send(.terminal(.nextSpaceRequested))
+    }
+    window.onSwipeRight = { [store] in
+      _ = store.send(.terminal(.previousSpaceRequested))
+    }
 
     super.init(window: window)
 
