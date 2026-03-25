@@ -8,7 +8,7 @@ struct TerminalSplitTreeViewTests {
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
     #expect(TerminalNotificationPulsePattern.lowOpacity == 0.32)
-    #expect(TerminalNotificationPulsePattern.totalDuration == 2)
+    #expect(TerminalNotificationPulsePattern.totalDuration == 1)
     #expect(
       TerminalNotificationPulsePattern.targetOpacities == [
         0.32,
@@ -20,16 +20,16 @@ struct TerminalSplitTreeViewTests {
         0,
       ]
     )
-    #expect(TerminalNotificationPulsePattern.stepDuration == 2.0 / 7.0)
+    #expect(TerminalNotificationPulsePattern.stepDuration == 1.0 / 7.0)
     #expect(TerminalNotificationPulsePattern.segments.count == 7)
     #expect(
       TerminalNotificationPulsePattern.segments.map(\.targetOpacity) == TerminalNotificationPulsePattern.targetOpacities
     )
-    #expect(TerminalNotificationPulsePattern.segments.map(\.duration) == Array(repeating: 2.0 / 7.0, count: 7))
+    #expect(TerminalNotificationPulsePattern.segments.map(\.duration) == Array(repeating: 1.0 / 7.0, count: 7))
     #expect(
-      TerminalNotificationPulsePattern.segments.first == .init(delay: 0, duration: 2.0 / 7.0, targetOpacity: 0.32))
+      TerminalNotificationPulsePattern.segments.first == .init(delay: 0, duration: 1.0 / 7.0, targetOpacity: 0.32))
     #expect(
-      TerminalNotificationPulsePattern.segments.last == .init(delay: 12.0 / 7.0, duration: 2.0 / 7.0, targetOpacity: 0))
+      TerminalNotificationPulsePattern.segments.last == .init(delay: 6.0 / 7.0, duration: 1.0 / 7.0, targetOpacity: 0))
   }
 
   @Test
