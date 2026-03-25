@@ -5,23 +5,20 @@ import Testing
 
 struct TerminalSplitTreeViewTests {
   @Test
-  func notificationFlashPatternMatchesDismissBlinkShape() {
-    #expect(TerminalNotificationFlashPattern.initialOpacity == 1)
-    #expect(
-      TerminalNotificationFlashPattern.segments == [
-        .init(delay: 0, duration: 0.225, targetOpacity: 0, curve: .easeIn),
-        .init(delay: 0.225, duration: 0.225, targetOpacity: 1, curve: .easeOut),
-        .init(delay: 0.45, duration: 0.225, targetOpacity: 0, curve: .easeIn),
-      ]
-    )
+  func notificationPulsePatternMatchesDismissPulseShape() {
+    #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
+    #expect(TerminalNotificationPulsePattern.initialScale == 1)
+    #expect(TerminalNotificationPulsePattern.targetOpacity == 0)
+    #expect(TerminalNotificationPulsePattern.targetScale == 1.02)
+    #expect(TerminalNotificationPulsePattern.duration == 0.28)
   }
 
   @Test
-  func notificationFlashTriggersOnlyWhenAttentionDismisses() {
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationFlash(from: false, to: false))
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationFlash(from: false, to: true))
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationFlash(from: true, to: true))
-    #expect(TerminalSplitTreeView.LeafView.shouldTriggerNotificationFlash(from: true, to: false))
+  func notificationPulseTriggersOnlyWhenAttentionDismisses() {
+    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: false, to: false))
+    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: false, to: true))
+    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: true, to: true))
+    #expect(TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: true, to: false))
   }
 
   @Test
