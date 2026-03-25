@@ -4,37 +4,36 @@ import SwiftUI
 
 @MainActor
 private final class TerminalGestureWindow: NSWindow {
-  var onSwipeLeft: (() -> Void)?
-  var onSwipeRight: (() -> Void)?
+  var onNextSpace: (() -> Void)?
+  var onPreviousSpace: (() -> Void)?
+  private var horizontalSwipeRecognizer = HorizontalSwipeGestureRecognizer()
 
   override func sendEvent(_ event: NSEvent) {
-    guard event.type == .swipe else {
+    guard event.type == .scrollWheel else {
       super.sendEvent(event)
       return
     }
-    if handleSwipe(event) {
+    if handleScrollWheel(event) {
       return
     }
     super.sendEvent(event)
   }
 
-  private func handleSwipe(_ event: NSEvent) -> Bool {
-    let deltaX = resolvedDeltaX(for: event)
-    guard abs(deltaX) > abs(event.deltaY) else { return false }
-    if deltaX > 0, let onSwipeLeft {
-      onSwipeLeft()
+  private func handleScrollWheel(_ event: NSEvent) -> Bool {
+    switch horizontalSwipeRecognizer.handleScrollWheel(event) {
+    case .ignored:
+      return false
+    case .consumed:
+      return true
+    case .next:
+      guard let onNextSpace else { return false }
+      onNextSpace()
+      return true
+    case .previous:
+      guard let onPreviousSpace else { return false }
+      onPreviousSpace()
       return true
     }
-    if deltaX < 0, let onSwipeRight {
-      onSwipeRight()
-      return true
-    }
-    return false
-  }
-
-  private func resolvedDeltaX(for event: NSEvent) -> CGFloat {
-    let deltaX = event.deltaX
-    return event.isDirectionInvertedFromDevice ? -deltaX : deltaX
   }
 }
 
@@ -102,10 +101,10 @@ final class TerminalWindowController: NSWindowController {
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    window.onSwipeLeft = { [store] in
+    window.onNextSpace = { [store] in
       _ = store.send(.terminal(.nextSpaceRequested))
     }
-    window.onSwipeRight = { [store] in
+    window.onPreviousSpace = { [store] in
       _ = store.send(.terminal(.previousSpaceRequested))
     }
 
