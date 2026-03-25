@@ -3,41 +3,6 @@ import ComposableArchitecture
 import SwiftUI
 
 @MainActor
-private final class TerminalGestureWindow: NSWindow {
-  var onNextSpace: (() -> Void)?
-  var onPreviousSpace: (() -> Void)?
-  private var horizontalSwipeRecognizer = HorizontalSwipeGestureRecognizer()
-
-  override func sendEvent(_ event: NSEvent) {
-    guard event.type == .scrollWheel else {
-      super.sendEvent(event)
-      return
-    }
-    if handleScrollWheel(event) {
-      return
-    }
-    super.sendEvent(event)
-  }
-
-  private func handleScrollWheel(_ event: NSEvent) -> Bool {
-    switch horizontalSwipeRecognizer.handleScrollWheel(event) {
-    case .ignored:
-      return false
-    case .consumed:
-      return true
-    case .next:
-      guard let onNextSpace else { return false }
-      onNextSpace()
-      return true
-    case .previous:
-      guard let onPreviousSpace else { return false }
-      onPreviousSpace()
-      return true
-    }
-  }
-}
-
-@MainActor
 final class TerminalWindowController: NSWindowController {
   let ghostty: GhosttyRuntime
   let ghosttyShortcuts: GhosttyShortcutManager
@@ -86,7 +51,7 @@ final class TerminalWindowController: NSWindowController {
       }
     )
 
-    let window = TerminalGestureWindow(
+    let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
@@ -101,12 +66,6 @@ final class TerminalWindowController: NSWindowController {
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    window.onNextSpace = { [store] in
-      _ = store.send(.terminal(.nextSpaceRequested))
-    }
-    window.onPreviousSpace = { [store] in
-      _ = store.send(.terminal(.previousSpaceRequested))
-    }
 
     super.init(window: window)
 
