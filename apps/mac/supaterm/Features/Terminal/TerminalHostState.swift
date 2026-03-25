@@ -403,6 +403,14 @@ final class TerminalHostState {
     spaceManager.visibleTabs
   }
 
+  func tabs(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
+    spaceManager.tabs(in: spaceID)
+  }
+
+  func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
+    spaceManager.selectedTabID(in: spaceID)
+  }
+
   var selectedTabID: TerminalTabID? {
     spaceManager.selectedTabID
   }
