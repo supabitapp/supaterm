@@ -11,7 +11,7 @@ struct TerminalNotificationPulseSegment: Equatable {
 enum TerminalNotificationPulsePattern {
   static let initialOpacity = 1.0
   static let lowOpacity = 0.32
-  static let totalDuration: TimeInterval = 2.0
+  static let totalDuration: TimeInterval = 1.0
   static let targetOpacities: [Double] = [
     lowOpacity,
     initialOpacity,
