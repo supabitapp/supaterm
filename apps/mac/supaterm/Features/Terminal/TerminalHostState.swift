@@ -46,7 +46,6 @@ final class TerminalHostState {
     var attentionState: SupatermNotificationAttentionState?
     var body: String
     let createdAt: Date
-    var source: TerminalNotificationSource = .generic
     var subtitle: String
     var title: String
   }
@@ -511,51 +510,11 @@ final class TerminalHostState {
   }
 
   @discardableResult
-  func setClaudeActivity(_ activity: ClaudeActivity, for tabID: TerminalTabID) -> Bool {
-    guard trees[tabID] != nil else { return false }
-    claudeActivityByTab[tabID] = activity
-    return true
-  }
-
-  @discardableResult
   func clearClaudeActivity(for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID) else { return false }
     claudeActivityByTab.removeValue(forKey: tabID)
     return true
   }
-
-  @discardableResult
-  func clearClaudeActivity(for tabID: TerminalTabID) -> Bool {
-    guard trees[tabID] != nil || claudeActivityByTab[tabID] != nil else { return false }
-    claudeActivityByTab.removeValue(forKey: tabID)
-    return true
-  }
-
-  @discardableResult
-  func clearClaudeNotifications(
-    sessionID: String?,
-    for tabID: TerminalTabID
-  ) -> Bool {
-    guard let tree = trees[tabID] else { return false }
-    var didChange = false
-
-    for surface in tree.leaves() {
-      guard let notifications = paneNotifications[surface.id] else { continue }
-      let updatedNotifications = notifications.filter { notification in
-        !Self.matchesClaudeNotificationSource(notification.source, sessionID: sessionID)
-      }
-      guard updatedNotifications.count != notifications.count else { continue }
-      didChange = true
-      if updatedNotifications.isEmpty {
-        paneNotifications.removeValue(forKey: surface.id)
-      } else {
-        paneNotifications[surface.id] = updatedNotifications
-      }
-    }
-
-    return didChange
-  }
-
   private func ensureInitialTab(focusing: Bool) {
     guard tabs.isEmpty else { return }
     _ = createTab(focusing: focusing)
@@ -1120,7 +1079,6 @@ final class TerminalHostState {
         attentionState: attentionState,
         body: request.body,
         createdAt: Date(),
-        source: request.source,
         subtitle: request.subtitle,
         title: resolvedTitle
       ))
@@ -2546,19 +2504,6 @@ final class TerminalHostState {
   private static func trimmedNonEmpty(_ value: String?) -> String? {
     let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
-  }
-
-  private static func matchesClaudeNotificationSource(
-    _ source: TerminalNotificationSource,
-    sessionID: String?
-  ) -> Bool {
-    switch source {
-    case .generic:
-      return false
-    case .claude(let notificationSessionID):
-      guard let sessionID else { return true }
-      return notificationSessionID == sessionID
-    }
   }
 }
 

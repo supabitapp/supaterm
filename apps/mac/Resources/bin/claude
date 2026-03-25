@@ -52,8 +52,6 @@ esac
 
 unset CLAUDECODE
 
-export SUPATERM_CLAUDE_PID=$$
-
 HOOKS_JSON="$("${SUPATERM_CLI_PATH}" claude-hook-settings 2>/dev/null)" || exec "$REAL_CLAUDE" "$@"
 
 exec "$REAL_CLAUDE" --settings "$HOOKS_JSON" "$@"

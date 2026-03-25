@@ -43,7 +43,6 @@ struct ClaudeWrapperTests {
         #"ARG[1]={"hooks":{"Notification":[{"hooks":[{"command":"fake","type":"command","timeout":10}]}]}}"#))
     #expect(output.contains("CLAUDECODE="))
     #expect(!output.contains("CLAUDECODE=nested"))
-    #expect(output.contains("SUPATERM_CLAUDE_PID="))
     #expect(spLog.contains("ping --timeout 0.75"))
     #expect(spLog.contains("claude-hook-settings"))
   }
@@ -208,7 +207,6 @@ private func writeFakeClaudeExecutable(at url: URL) throws {
         i=$((i + 1))
       done
       printf 'CLAUDECODE=%s\n' "${CLAUDECODE:-}"
-      printf 'SUPATERM_CLAUDE_PID=%s\n' "${SUPATERM_CLAUDE_PID:-}"
       """
   )
 }

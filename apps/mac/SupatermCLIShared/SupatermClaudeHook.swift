@@ -238,22 +238,13 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
 public struct SupatermClaudeHookRequest: Equatable, Sendable, Codable {
   public let context: SupatermCLIContext?
   public let event: SupatermClaudeHookEvent
-  public let processID: Int32?
 
   public init(
     context: SupatermCLIContext? = nil,
-    event: SupatermClaudeHookEvent,
-    processID: Int32? = nil
+    event: SupatermClaudeHookEvent
   ) {
     self.context = context
     self.event = event
-    self.processID = processID
-  }
-
-  enum CodingKeys: String, CodingKey {
-    case context
-    case event
-    case processID = "process_id"
   }
 }
 
