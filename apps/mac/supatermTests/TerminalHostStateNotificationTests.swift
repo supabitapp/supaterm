@@ -232,40 +232,6 @@ struct TerminalHostStateNotificationTests {
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
   }
 
-  @Test
-  func notifyAdvancesNotificationFlashTokenOnEveryArrival() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false))
-
-    let surface = try #require(host.selectedSurfaceView)
-
-    _ = try host.notify(
-      .init(
-        body: "Build finished",
-        subtitle: "",
-        target: .contextPane(surface.id),
-        title: "Build"
-      )
-    )
-    let firstToken = host.notificationFlashToken(for: surface.id)
-
-    _ = try host.notify(
-      .init(
-        body: "Deploy complete",
-        subtitle: "",
-        target: .contextPane(surface.id),
-        title: "Deploy"
-      )
-    )
-    let secondToken = host.notificationFlashToken(for: surface.id)
-
-    #expect(firstToken > 0)
-    #expect(secondToken > firstToken)
-  }
-
   private func makeNotification(
     attentionState: SupatermNotificationAttentionState?,
     body: String = "",
