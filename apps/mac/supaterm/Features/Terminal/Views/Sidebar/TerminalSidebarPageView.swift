@@ -38,6 +38,7 @@ enum TerminalSidebarPageNavigation {
 struct TerminalSidebarPageView<SelectionValue, Content>: NSViewControllerRepresentable
 where SelectionValue: Hashable & Sendable, Content: View {
   @Binding var selection: SelectionValue
+  let contentVersion: Int
   let next: (SelectionValue) -> SelectionValue?
   let previous: (SelectionValue) -> SelectionValue?
   let swipeEnabled: Bool
@@ -46,6 +47,7 @@ where SelectionValue: Hashable & Sendable, Content: View {
 
   init(
     selection: Binding<SelectionValue>,
+    contentVersion: Int,
     next: @escaping (SelectionValue) -> SelectionValue?,
     previous: @escaping (SelectionValue) -> SelectionValue?,
     swipeEnabled: Bool,
@@ -53,6 +55,7 @@ where SelectionValue: Hashable & Sendable, Content: View {
     @ViewBuilder content: @escaping (SelectionValue, Bool) -> Content
   ) {
     _selection = selection
+    self.contentVersion = contentVersion
     self.next = next
     self.previous = previous
     self.swipeEnabled = swipeEnabled
@@ -71,7 +74,6 @@ where SelectionValue: Hashable & Sendable, Content: View {
     pageController.transitionStyle = .horizontalStrip
     context.coordinator.pageController = pageController
     context.coordinator.swipeEnabled = swipeEnabled
-    context.coordinator.updateCachedViews(selectedValue: selection)
     return pageController
   }
 
@@ -82,6 +84,8 @@ where SelectionValue: Hashable & Sendable, Content: View {
     context.coordinator.parent = self
     context.coordinator.pageController = pageController
     context.coordinator.swipeEnabled = swipeEnabled
+    let contentVersionChanged = context.coordinator.contentVersion != contentVersion
+    context.coordinator.contentVersion = contentVersion
 
     if context.coordinator.selectedValue(in: pageController) != selection {
       context.coordinator.go(
@@ -90,8 +94,13 @@ where SelectionValue: Hashable & Sendable, Content: View {
         animated: context.transaction.animation != nil
       )
     } else {
-      context.coordinator.refreshArrangedObjectsIfNeeded(in: pageController)
-      context.coordinator.updateCachedViews(selectedValue: selection)
+      context.coordinator.syncArrangedObjects(
+        in: pageController,
+        selectedValue: selection
+      )
+      if contentVersionChanged {
+        context.coordinator.updateCachedViews(selectedValue: selection)
+      }
     }
   }
 
@@ -102,7 +111,7 @@ where SelectionValue: Hashable & Sendable, Content: View {
   private func arrangedObjects(
     around value: SelectionValue,
     limit: Int = 1
-  ) -> ([Any], Int) {
+  ) -> ([SelectionValue], Int) {
     var currentValue = value
     var previousObjects = [SelectionValue]()
     while let previousValue = previous(currentValue), previousObjects.count < limit {
@@ -126,6 +135,7 @@ extension TerminalSidebarPageView {
     var parent: TerminalSidebarPageView
     var viewCache: [SelectionValue: HostingView] = [:]
     weak var pageController: NSPageController?
+    var contentVersion: Int
     var swipeEnabled = true
     private var horizontalSwipeRecognizer = HorizontalSwipeGestureRecognizer()
     private var isAnimating = false
@@ -133,6 +143,7 @@ extension TerminalSidebarPageView {
 
     init(_ parent: TerminalSidebarPageView) {
       self.parent = parent
+      contentVersion = parent.contentVersion
     }
 
     func handleScrollWheel(_ event: NSEvent) -> Bool {
@@ -243,6 +254,23 @@ extension TerminalSidebarPageView {
       pageController.arrangedObjects = newObjects
       pageController.selectedIndex = selectedIndex
       flushViewCache(in: pageController)
+    }
+
+    func syncArrangedObjects(
+      in pageController: NSPageController,
+      selectedValue: SelectionValue
+    ) {
+      let (newObjects, selectedIndex) = parent.arrangedObjects(around: selectedValue)
+      guard
+        let currentValues = pageController.arrangedObjects as? [SelectionValue],
+        currentValues == newObjects,
+        pageController.selectedIndex == selectedIndex
+      else {
+        pageController.arrangedObjects = newObjects
+        pageController.selectedIndex = selectedIndex
+        flushViewCache(in: pageController)
+        return
+      }
     }
 
     func updateCachedViews(selectedValue: SelectionValue) {
