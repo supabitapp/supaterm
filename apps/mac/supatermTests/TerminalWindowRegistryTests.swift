@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import Darwin
 import Testing
 
 @testable import SupatermCLIShared
@@ -555,6 +556,58 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeUserPromptSubmitClearsExistingClaudeNotification() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+  }
+
+  @Test
+  func claudePreToolUseWithoutQuestionClearsExistingClaudeNotification() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    let event = SupatermClaudeHookEvent(
+      cwd: ClaudeHookFixtures.cwd,
+      hookEventName: .preToolUse,
+      sessionID: ClaudeHookFixtures.sessionID,
+      toolName: "Read",
+      toolUseID: "toolu_456"
+    )
+    _ = try harness.registry.handleClaudeHook(
+      .init(
+        context: harness.context,
+        event: event
+      )
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+  }
+
+  @Test
   func claudeStopClearsPendingQuestion() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -601,6 +654,36 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeSessionEndClearsClaudeNotificationsButKeepsGenericNotifications() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.host.notify(
+      .init(
+        body: "Build finished",
+        subtitle: "",
+        target: .contextPane(harness.context.surfaceID),
+        title: "Build"
+      )
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Build finished")
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+  }
+
+  @Test
   func staleStoredClaudeSessionIsClearedAfterContextPaneDisappears() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -627,6 +710,31 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
   }
 
+  @Test
+  func sweepClaudeHookSessionsClearsStaleClaudeState() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(
+        ClaudeHookFixtures.sessionStart,
+        context: harness.context,
+        processID: staleProcessID()
+      )
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+
+    harness.registry.sweepClaudeHookSessions()
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+  }
+
   private func makeWindow() -> NSWindow {
     NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
@@ -640,6 +748,18 @@ struct TerminalWindowRegistryTests {
     for _ in 0..<5 {
       await Task.yield()
     }
+  }
+
+  private func staleProcessID() -> Int32 {
+    var processID = Int32.max
+    while processID > 0 {
+      errno = 0
+      if kill(processID, 0) == -1, POSIXErrorCode(rawValue: errno) == .ESRCH {
+        return processID
+      }
+      processID -= 1
+    }
+    return 999_999
   }
 
   private func makeClaudeHookHarness(

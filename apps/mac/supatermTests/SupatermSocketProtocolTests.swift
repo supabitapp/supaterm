@@ -743,7 +743,8 @@ struct SupatermSocketProtocolTests {
         surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
       ),
-      event: event
+      event: event,
+      processID: 321
     )
 
     let request = try SupatermSocketRequest.claudeHook(requestPayload, id: "claude-hook-1")
