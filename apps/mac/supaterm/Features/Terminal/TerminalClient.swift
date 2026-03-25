@@ -27,11 +27,6 @@ struct TerminalCreatePaneRequest: Equatable, Sendable {
   let target: Target
 }
 
-enum TerminalNotificationSource: Equatable, Sendable {
-  case generic
-  case claude(sessionID: String?)
-}
-
 struct TerminalNotifyRequest: Equatable, Sendable {
   enum Target: Equatable, Sendable {
     case contextPane(UUID)
@@ -41,7 +36,6 @@ struct TerminalNotifyRequest: Equatable, Sendable {
 
   let allowDesktopNotificationWhenAgentActive: Bool
   let body: String
-  let source: TerminalNotificationSource
   let subtitle: String
   let target: Target
   let title: String?
@@ -51,12 +45,10 @@ struct TerminalNotifyRequest: Equatable, Sendable {
     subtitle: String,
     target: Target,
     title: String?,
-    allowDesktopNotificationWhenAgentActive: Bool = false,
-    source: TerminalNotificationSource = .generic
+    allowDesktopNotificationWhenAgentActive: Bool = false
   ) {
     self.allowDesktopNotificationWhenAgentActive = allowDesktopNotificationWhenAgentActive
     self.body = body
-    self.source = source
     self.subtitle = subtitle
     self.target = target
     self.title = title

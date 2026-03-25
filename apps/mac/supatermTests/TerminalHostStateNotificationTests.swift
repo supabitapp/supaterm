@@ -266,54 +266,16 @@ struct TerminalHostStateNotificationTests {
     #expect(secondToken > firstToken)
   }
 
-  @Test
-  func clearClaudeNotificationsPreservesGenericNotifications() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false))
-
-    let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
-
-    _ = try host.notify(
-      .init(
-        body: "Build finished",
-        subtitle: "",
-        target: .contextPane(surface.id),
-        title: "Build"
-      )
-    )
-    _ = try host.notify(
-      .init(
-        body: "Agent needs input",
-        subtitle: "",
-        target: .contextPane(surface.id),
-        title: "Agent",
-        source: .claude(sessionID: "session-123")
-      )
-    )
-
-    #expect(host.latestNotificationText(for: tabID) == "Agent needs input")
-    #expect(host.unreadNotificationCount(for: tabID) == 2)
-    #expect(host.clearClaudeNotifications(sessionID: "session-123", for: tabID))
-    #expect(host.latestNotificationText(for: tabID) == "Build finished")
-    #expect(host.unreadNotificationCount(for: tabID) == 1)
-  }
-
   private func makeNotification(
     attentionState: SupatermNotificationAttentionState?,
     body: String = "",
     createdAt: TimeInterval,
-    title: String,
-    source: TerminalNotificationSource = .generic
+    title: String
   ) -> TerminalHostState.PaneNotification {
     .init(
       attentionState: attentionState,
       body: body,
       createdAt: .init(timeIntervalSince1970: createdAt),
-      source: source,
       subtitle: "",
       title: title
     )
