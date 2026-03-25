@@ -2,12 +2,39 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct TerminalNotificationPulseSegment: Equatable {
+  let delay: TimeInterval
+  let duration: TimeInterval
+  let targetOpacity: Double
+}
+
 enum TerminalNotificationPulsePattern {
   static let initialOpacity = 1.0
-  static let initialScale: CGFloat = 1
-  static let targetOpacity = 0.0
-  static let targetScale: CGFloat = 1.02
-  static let duration: TimeInterval = 0.28
+  static let lowOpacity = 0.32
+  static let totalDuration: TimeInterval = 2.0
+  static let targetOpacities: [Double] = [
+    lowOpacity,
+    initialOpacity,
+    lowOpacity,
+    initialOpacity,
+    lowOpacity,
+    initialOpacity,
+    0,
+  ]
+
+  static var stepDuration: TimeInterval {
+    totalDuration / Double(targetOpacities.count)
+  }
+
+  static var segments: [TerminalNotificationPulseSegment] {
+    targetOpacities.enumerated().map { index, targetOpacity in
+      .init(
+        delay: Double(index) * stepDuration,
+        duration: stepDuration,
+        targetOpacity: targetOpacity
+      )
+    }
+  }
 }
 
 struct TerminalSplitTreeView: View {
@@ -171,8 +198,8 @@ struct TerminalSplitTreeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dropState: DropState = .idle
     @State private var isPaneHovering = false
+    @State private var notificationPulseAnimationGeneration = 0
     @State private var notificationPulseOpacity = 0.0
-    @State private var notificationPulseScale = TerminalNotificationPulsePattern.initialScale
 
     private var unreadGlowShape: UnevenRoundedRectangle {
       UnevenRoundedRectangle(
@@ -234,14 +261,13 @@ struct TerminalSplitTreeView: View {
             unreadGlowShape
               .strokeBorder(
                 notificationColor.opacity(notificationPulseOpacity),
-                lineWidth: notificationFlashLineWidth
+                lineWidth: notificationPulseLineWidth
               )
               .shadow(
                 color: notificationColor.opacity(notificationPulseOpacity * 0.6),
-                radius: notificationFlashShadowRadius
+                radius: notificationPulseShadowRadius
               )
               .compositingGroup()
-              .scaleEffect(notificationPulseScale)
               .allowsHitTesting(false)
           }
           .overlay {
@@ -252,14 +278,14 @@ struct TerminalSplitTreeView: View {
           }
           .onChange(of: hasVisibleAttention) { oldValue, newValue in
             guard oldValue != newValue else { return }
+            notificationPulseAnimationGeneration &+= 1
             notificationPulseOpacity = 0
-            notificationPulseScale = TerminalNotificationPulsePattern.initialScale
             guard Self.shouldTriggerNotificationPulse(from: oldValue, to: newValue) else { return }
             triggerNotificationPulse()
           }
           .onDisappear {
+            notificationPulseAnimationGeneration &+= 1
             notificationPulseOpacity = 0
-            notificationPulseScale = TerminalNotificationPulsePattern.initialScale
           }
       }
     }
@@ -282,11 +308,11 @@ struct TerminalSplitTreeView: View {
       isUnread ? 3 : 2.25
     }
 
-    private var notificationFlashLineWidth: CGFloat {
+    private var notificationPulseLineWidth: CGFloat {
       max(lineWidth, 3)
     }
 
-    private var notificationFlashShadowRadius: CGFloat {
+    private var notificationPulseShadowRadius: CGFloat {
       max(shadowRadius, 12)
     }
 
@@ -309,10 +335,16 @@ struct TerminalSplitTreeView: View {
     private func triggerNotificationPulse() {
       guard !reduceMotion else { return }
       notificationPulseOpacity = TerminalNotificationPulsePattern.initialOpacity
-      notificationPulseScale = TerminalNotificationPulsePattern.initialScale
-      withAnimation(.easeOut(duration: TerminalNotificationPulsePattern.duration)) {
-        notificationPulseOpacity = TerminalNotificationPulsePattern.targetOpacity
-        notificationPulseScale = TerminalNotificationPulsePattern.targetScale
+      notificationPulseAnimationGeneration &+= 1
+      let generation = notificationPulseAnimationGeneration
+
+      for segment in TerminalNotificationPulsePattern.segments {
+        DispatchQueue.main.asyncAfter(deadline: .now() + segment.delay) {
+          guard notificationPulseAnimationGeneration == generation else { return }
+          withAnimation(.easeInOut(duration: segment.duration)) {
+            notificationPulseOpacity = segment.targetOpacity
+          }
+        }
       }
     }
   }

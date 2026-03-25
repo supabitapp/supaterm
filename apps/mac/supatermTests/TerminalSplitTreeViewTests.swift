@@ -5,12 +5,31 @@ import Testing
 
 struct TerminalSplitTreeViewTests {
   @Test
-  func notificationPulsePatternMatchesDismissPulseShape() {
+  func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
-    #expect(TerminalNotificationPulsePattern.initialScale == 1)
-    #expect(TerminalNotificationPulsePattern.targetOpacity == 0)
-    #expect(TerminalNotificationPulsePattern.targetScale == 1.02)
-    #expect(TerminalNotificationPulsePattern.duration == 0.28)
+    #expect(TerminalNotificationPulsePattern.lowOpacity == 0.32)
+    #expect(TerminalNotificationPulsePattern.totalDuration == 2)
+    #expect(
+      TerminalNotificationPulsePattern.targetOpacities == [
+        0.32,
+        1,
+        0.32,
+        1,
+        0.32,
+        1,
+        0,
+      ]
+    )
+    #expect(TerminalNotificationPulsePattern.stepDuration == 2.0 / 7.0)
+    #expect(TerminalNotificationPulsePattern.segments.count == 7)
+    #expect(
+      TerminalNotificationPulsePattern.segments.map(\.targetOpacity) == TerminalNotificationPulsePattern.targetOpacities
+    )
+    #expect(TerminalNotificationPulsePattern.segments.map(\.duration) == Array(repeating: 2.0 / 7.0, count: 7))
+    #expect(
+      TerminalNotificationPulsePattern.segments.first == .init(delay: 0, duration: 2.0 / 7.0, targetOpacity: 0.32))
+    #expect(
+      TerminalNotificationPulsePattern.segments.last == .init(delay: 12.0 / 7.0, duration: 2.0 / 7.0, targetOpacity: 0))
   }
 
   @Test
