@@ -94,11 +94,13 @@ enum ClaudeHookFixtures {
 
   static func request(
     _ json: String,
-    context: SupatermCLIContext? = nil
+    context: SupatermCLIContext? = nil,
+    processID: Int32? = nil
   ) throws -> SupatermClaudeHookRequest {
     .init(
       context: context,
-      event: try event(json)
+      event: try event(json),
+      processID: processID
     )
   }
 }

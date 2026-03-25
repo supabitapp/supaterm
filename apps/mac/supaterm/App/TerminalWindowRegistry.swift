@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import Darwin
 import Foundation
 import SupatermCLIShared
 import SwiftUI
@@ -48,12 +49,31 @@ final class TerminalWindowRegistry {
 
   private struct ClaudeHookSession {
     var pendingQuestion: String?
+    var processID: Int32?
     var surfaceID: UUID
+    var tabID: TerminalTabID
   }
 
   private var claudeHookSessions: [String: ClaudeHookSession] = [:]
+  private var claudeHookSessionSweepTimer: DispatchSourceTimer?
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
+
+  init() {
+    let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+    timer.schedule(deadline: .now() + 30, repeating: 30)
+    timer.setEventHandler { [weak self] in
+      Task { @MainActor [weak self] in
+        self?.sweepClaudeHookSessions()
+      }
+    }
+    timer.resume()
+    claudeHookSessionSweepTimer = timer
+  }
+
+  deinit {
+    claudeHookSessionSweepTimer?.cancel()
+  }
 
   var hasShortcutSource: Bool {
     !entries.isEmpty
@@ -444,10 +464,11 @@ final class TerminalWindowRegistry {
 
   func handleClaudeHook(_ request: SupatermClaudeHookRequest) throws -> TerminalClaudeHookResult {
     let event = request.event
-    if let sessionID = event.sessionID, let context = request.context {
-      claudeHookSessions[sessionID] = .init(
-        pendingQuestion: claudeHookSessions[sessionID]?.pendingQuestion,
-        surfaceID: context.surfaceID
+    if let sessionID = event.sessionID {
+      upsertClaudeHookSession(
+        sessionID: sessionID,
+        context: request.context,
+        processID: request.processID
       )
     }
 
@@ -464,6 +485,7 @@ final class TerminalWindowRegistry {
         claudeHookSessions[sessionID] = session
       } else {
         clearClaudeHookPendingQuestion(sessionID: sessionID)
+        _ = clearClaudeNotifications(sessionID: sessionID, context: request.context)
       }
       _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
       return .init(desktopNotification: nil)
@@ -471,6 +493,7 @@ final class TerminalWindowRegistry {
     case .userPromptSubmit:
       if let sessionID = event.sessionID {
         clearClaudeHookPendingQuestion(sessionID: sessionID)
+        _ = clearClaudeNotifications(sessionID: sessionID, context: request.context)
         _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
@@ -484,8 +507,7 @@ final class TerminalWindowRegistry {
 
     case .sessionEnd:
       if let sessionID = event.sessionID {
-        _ = clearClaudeActivity(sessionID: sessionID, context: request.context)
-        claudeHookSessions.removeValue(forKey: sessionID)
+        _ = cleanupClaudeSession(sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
 
@@ -555,7 +577,8 @@ final class TerminalWindowRegistry {
             subtitle: subtitle,
             target: .contextPane(surfaceID),
             title: title,
-            allowDesktopNotificationWhenAgentActive: true
+            allowDesktopNotificationWhenAgentActive: true,
+            source: .claude(sessionID: event.sessionID)
           )
         )
         return .init(
@@ -568,7 +591,9 @@ final class TerminalWindowRegistry {
           throw error
         }
         if event.sessionID.flatMap({ claudeHookSessions[$0]?.surfaceID }) == surfaceID {
-          claudeHookSessions.removeValue(forKey: event.sessionID ?? "")
+          if let sessionID = event.sessionID {
+            _ = cleanupClaudeSession(sessionID: sessionID, context: context)
+          }
           return .init(desktopNotification: nil)
         }
       }
@@ -580,6 +605,30 @@ final class TerminalWindowRegistry {
   private func clearClaudeHookPendingQuestion(sessionID: String) {
     guard var session = claudeHookSessions[sessionID] else { return }
     session.pendingQuestion = nil
+    claudeHookSessions[sessionID] = session
+  }
+
+  private func upsertClaudeHookSession(
+    sessionID: String,
+    context: SupatermCLIContext?,
+    processID: Int32?
+  ) {
+    guard context != nil || claudeHookSessions[sessionID] != nil else { return }
+    var session =
+      claudeHookSessions[sessionID]
+      ?? .init(
+        pendingQuestion: nil,
+        processID: nil,
+        surfaceID: context?.surfaceID ?? UUID(),
+        tabID: .init(rawValue: context?.tabID ?? UUID())
+      )
+    if let context {
+      session.surfaceID = context.surfaceID
+      session.tabID = .init(rawValue: context.tabID)
+    }
+    if let processID, processID > 0 {
+      session.processID = processID
+    }
     claudeHookSessions[sessionID] = session
   }
 
@@ -618,7 +667,45 @@ final class TerminalWindowRegistry {
         }
       }
     }
+    let candidateTabIDs = claudeCandidateTabIDs(sessionID: sessionID, context: context)
+    for tabID in candidateTabIDs {
+      for entry in activeEntries() {
+        if let activity {
+          if entry.terminal.setClaudeActivity(activity, for: tabID) {
+            return true
+          }
+        } else if entry.terminal.clearClaudeActivity(for: tabID) {
+          return true
+        }
+      }
+    }
     return false
+  }
+
+  @discardableResult
+  private func clearClaudeNotifications(
+    sessionID: String?,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    var didClear = false
+    let candidateTabIDs = claudeCandidateTabIDs(sessionID: sessionID, context: context)
+    for tabID in candidateTabIDs {
+      for entry in activeEntries() {
+        didClear = entry.terminal.clearClaudeNotifications(sessionID: sessionID, for: tabID) || didClear
+      }
+    }
+    return didClear
+  }
+
+  @discardableResult
+  private func cleanupClaudeSession(
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    let didClearNotifications = clearClaudeNotifications(sessionID: sessionID, context: context)
+    let didClearActivity = clearClaudeActivity(sessionID: sessionID, context: context)
+    claudeHookSessions.removeValue(forKey: sessionID)
+    return didClearNotifications || didClearActivity
   }
 
   private func claudeCandidateSurfaceIDs(
@@ -633,6 +720,34 @@ final class TerminalWindowRegistry {
       candidateSurfaceIDs.append(surfaceID)
     }
     return candidateSurfaceIDs
+  }
+
+  private func claudeCandidateTabIDs(
+    sessionID: String?,
+    context: SupatermCLIContext?
+  ) -> [TerminalTabID] {
+    var candidateTabIDs: [TerminalTabID] = []
+    if let context {
+      candidateTabIDs.append(.init(rawValue: context.tabID))
+    }
+    if let sessionID, let tabID = claudeHookSessions[sessionID]?.tabID, !candidateTabIDs.contains(tabID) {
+      candidateTabIDs.append(tabID)
+    }
+    return candidateTabIDs
+  }
+
+  func sweepClaudeHookSessions() {
+    let staleSessionIDs = claudeHookSessions.compactMap { sessionID, session -> String? in
+      guard let processID = session.processID, processID > 0 else { return nil }
+      errno = 0
+      guard kill(processID, 0) == -1 else { return nil }
+      guard POSIXErrorCode(rawValue: errno) == .ESRCH else { return nil }
+      return sessionID
+    }
+
+    for sessionID in staleSessionIDs {
+      _ = cleanupClaudeSession(sessionID: sessionID, context: nil)
+    }
   }
 
   private func activeEntries() -> [Entry] {

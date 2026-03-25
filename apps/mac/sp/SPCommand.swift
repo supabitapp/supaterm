@@ -512,6 +512,9 @@ extension SP {
     mutating func run() throws {
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
       let event = try claudeHookEvent(from: rawInput)
+      let processID =
+        ProcessInfo.processInfo.environment[SupatermCLIEnvironment.claudeProcessIDKey]
+        .flatMap(Int32.init)
       let client = try socketClient(
         path: connection.explicitSocketPath,
         instance: connection.instance
@@ -520,7 +523,8 @@ extension SP {
         .claudeHook(
           .init(
             context: SupatermCLIContext.current,
-            event: event
+            event: event,
+            processID: processID
           )
         )
       )
