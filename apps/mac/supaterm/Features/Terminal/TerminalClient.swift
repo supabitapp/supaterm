@@ -109,9 +109,11 @@ struct TerminalClient: Sendable {
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
     case moveSidebarTab(tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
+    case nextSpace
     case nextTab
     case performBindingActionOnFocusedSurface(SupatermCommand)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
+    case previousSpace
     case previousTab
     case requestCloseSurface(UUID)
     case requestCloseTab(TerminalTabID)

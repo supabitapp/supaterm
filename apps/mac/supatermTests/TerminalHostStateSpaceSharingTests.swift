@@ -94,6 +94,29 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
+  func adjacentSpaceCommandsWrapAndPersistDefaultSelection() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A", "B", "C"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+
+      host.handleCommand(.previousSpace)
+
+      #expect(host.selectedSpaceID == catalog.spaces[2].id)
+      #expect(sharedCatalog.defaultSelectedSpaceID == catalog.spaces[2].id)
+
+      host.handleCommand(.nextSpace)
+
+      #expect(host.selectedSpaceID == catalog.spaces[0].id)
+      #expect(sharedCatalog.defaultSelectedSpaceID == catalog.spaces[0].id)
+    }
+  }
+
+  @Test
   func createSpaceCommandPropagatesCatalogWithoutSelectingOtherHosts() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

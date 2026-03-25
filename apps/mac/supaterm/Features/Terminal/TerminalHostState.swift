@@ -331,7 +331,9 @@ final class TerminalHostState {
       requestCloseTab(tabID)
     case .renameSpace(let spaceID, let name):
       renameSpace(spaceID, to: name)
-    case .selectLastTab,
+    case .nextSpace,
+      .previousSpace,
+      .selectLastTab,
       .moveSidebarTab,
       .selectTab,
       .selectTabSlot,
@@ -350,6 +352,8 @@ final class TerminalHostState {
     switch command {
     case .selectLastTab:
       selectLastTab()
+    case .nextSpace:
+      nextSpace()
     case .selectTab(let tabID):
       selectTab(tabID)
     case .selectTabSlot(let slot):
@@ -362,6 +366,8 @@ final class TerminalHostState {
       moveSidebarTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
     case .setPinnedTabOrder(let orderedIDs):
       setPinnedTabOrder(orderedIDs)
+    case .previousSpace:
+      previousSpace()
     case .setRegularTabOrder(let orderedIDs):
       setRegularTabOrder(orderedIDs)
     case .togglePinned(let tabID):
@@ -608,6 +614,10 @@ final class TerminalHostState {
     selectTab(tabs[nextIndex].id)
   }
 
+  private func nextSpace() {
+    selectAdjacentSpace(step: 1)
+  }
+
   private func previousTab() {
     guard
       let selectedTabID,
@@ -618,6 +628,10 @@ final class TerminalHostState {
     }
     let previousIndex = (selectedIndex - 1 + tabs.count) % tabs.count
     selectTab(tabs[previousIndex].id)
+  }
+
+  private func previousSpace() {
+    selectAdjacentSpace(step: -1)
   }
 
   private func selectLastTab() {
@@ -685,6 +699,17 @@ final class TerminalHostState {
     let index = slot == 0 ? 9 : slot - 1
     guard spaces.indices.contains(index) else { return }
     selectSpace(spaces[index].id)
+  }
+
+  private func selectAdjacentSpace(step: Int) {
+    guard
+      spaces.count > 1,
+      let selectedSpaceID,
+      let currentIndex = spaces.firstIndex(where: { $0.id == selectedSpaceID })
+    else { return }
+
+    let targetIndex = (currentIndex + step + spaces.count) % spaces.count
+    selectSpace(spaces[targetIndex].id)
   }
 
   private func renameSpace(_ spaceID: TerminalSpaceID, to name: String) {
