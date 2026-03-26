@@ -1,6 +1,13 @@
 import Foundation
 
+enum TerminalTabIconStyle: Equatable, Sendable {
+  case accent(TerminalTone)
+  case neutral
+}
+
 struct TerminalTabItem: Identifiable, Equatable, Sendable {
+  static let genericSymbol = "terminal"
+
   let id: TerminalTabID
   let defaultTitle: String
   var title: String
@@ -10,7 +17,14 @@ struct TerminalTabItem: Identifiable, Equatable, Sendable {
   var isTitleLocked: Bool
 
   var symbol: String {
-    icon ?? "terminal"
+    icon ?? Self.genericSymbol
+  }
+
+  var iconStyle: TerminalTabIconStyle {
+    if symbol == Self.genericSymbol {
+      return .neutral
+    }
+    return .accent(tone)
   }
 
   var tone: TerminalTone {
