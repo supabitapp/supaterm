@@ -20,8 +20,6 @@ struct TerminalSidebarDragItem: Equatable {
 struct TerminalSidebarDragPreviewItem {
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
-  let title: String
-  let workingDirectory: String?
   let latestNotificationText: String?
   let notificationColor: Color
   let unreadCount: Int
@@ -493,8 +491,6 @@ private struct TerminalSidebarDragPreviewContent: View {
         TerminalSidebarMorphingPreview(
           hasFocusedNotificationAttention: preview.hasFocusedNotificationAttention,
           tab: preview.tab,
-          title: preview.title,
-          workingDirectory: preview.workingDirectory,
           latestNotificationText: preview.latestNotificationText,
           notificationColor: preview.notificationColor,
           unreadCount: preview.unreadCount,
@@ -515,8 +511,6 @@ private struct TerminalSidebarDragPreviewContent: View {
 private struct TerminalSidebarMorphingPreview: View {
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
-  let title: String
-  let workingDirectory: String?
   let latestNotificationText: String?
   let notificationColor: Color
   let unreadCount: Int
@@ -526,8 +520,6 @@ private struct TerminalSidebarMorphingPreview: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: tab,
-      title: title,
-      workingDirectory: workingDirectory,
       palette: palette,
       isSelected: false,
       notificationColor: notificationColor,

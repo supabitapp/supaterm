@@ -50,11 +50,6 @@ final class TerminalHostState {
     var title: String
   }
 
-  struct SidebarTabRowContent: Equatable {
-    let title: String
-    let workingDirectory: String?
-  }
-
   enum ClaudeActivityTone: Equatable, Sendable {
     case attention
     case active
@@ -492,26 +487,6 @@ final class TerminalHostState {
 
   func claudeActivity(for tabID: TerminalTabID) -> ClaudeActivity? {
     claudeActivityByTab[tabID]
-  }
-
-  func sidebarTabRowContent(for tab: TerminalTabItem) -> SidebarTabRowContent {
-    guard let surface = titleSurface(for: tab.id) else {
-      return .init(
-        title: tab.title,
-        workingDirectory: nil
-      )
-    }
-
-    return .init(
-      title: tab.isTitleLocked
-        ? tab.title
-        : Self.sidebarTabTitle(
-          runtimeTitle: surface.bridge.state.title,
-          workingDirectory: surface.bridge.state.pwd,
-          fallbackTitle: tab.defaultTitle
-        ),
-      workingDirectory: Self.sidebarWorkingDirectoryText(surface.bridge.state.pwd)
-    )
   }
 
   @discardableResult
@@ -2526,59 +2501,6 @@ final class TerminalHostState {
     }
     let title = notification.title.trimmingCharacters(in: .whitespacesAndNewlines)
     return title.isEmpty ? nil : title
-  }
-
-  static func sidebarTabTitle(
-    runtimeTitle: String?,
-    workingDirectory: String?,
-    fallbackTitle: String
-  ) -> String {
-    guard let runtimeTitle = trimmedNonEmpty(runtimeTitle) else {
-      return fallbackTitle
-    }
-    return representsWorkingDirectoryTitle(
-      runtimeTitle,
-      workingDirectory: workingDirectory
-    )
-      ? fallbackTitle
-      : runtimeTitle
-  }
-
-  static func sidebarWorkingDirectoryText(_ workingDirectory: String?) -> String? {
-    guard let workingDirectory = trimmedNonEmpty(workingDirectory) else { return nil }
-    return NSString(string: workingDirectory).abbreviatingWithTildeInPath
-  }
-
-  private static func representsWorkingDirectoryTitle(
-    _ title: String,
-    workingDirectory: String?
-  ) -> Bool {
-    guard let workingDirectory = trimmedNonEmpty(workingDirectory) else { return false }
-    let abbreviatedWorkingDirectory = NSString(string: workingDirectory).abbreviatingWithTildeInPath
-    if title == workingDirectory || title == abbreviatedWorkingDirectory {
-      return true
-    }
-
-    let pathComponents = workingDirectory.split(separator: "/")
-    if !pathComponents.isEmpty {
-      for depth in 1...min(4, pathComponents.count)
-      where title == "\u{2026}/" + pathComponents.suffix(depth).joined(separator: "/") {
-        return true
-      }
-    }
-
-    let abbreviatedComponents =
-      abbreviatedWorkingDirectory.hasPrefix("~/")
-      ? String(abbreviatedWorkingDirectory.dropFirst(2)).split(separator: "/")
-      : []
-    if !abbreviatedComponents.isEmpty {
-      for depth in 1...min(4, abbreviatedComponents.count)
-      where title == "~/" + abbreviatedComponents.suffix(depth).joined(separator: "/") {
-        return true
-      }
-    }
-
-    return false
   }
 
   private static func trimmedNonEmpty(_ value: String?) -> String? {
