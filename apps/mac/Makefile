@@ -15,7 +15,7 @@ TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-st
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development-release
-TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
+TUIST_GENERATION_INPUTS := Project.swift Workspace.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= development
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
@@ -56,9 +56,9 @@ build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 
 run-app: build-app # Build then launch (Debug) with log streaming
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
-	build_dir="$$(echo "$$settings" | jq -r '.[0].buildSettings.BUILT_PRODUCTS_DIR')"; \
-	product="$$(echo "$$settings" | jq -r '.[0].buildSettings.FULL_PRODUCT_NAME')"; \
-	exec_name="$$(echo "$$settings" | jq -r '.[0].buildSettings.EXECUTABLE_NAME')"; \
+	build_dir="$$(echo "$$settings" | jq -r '.[] | select(.target == "$(APP_SCHEME)") | .buildSettings.BUILT_PRODUCTS_DIR' | head -n 1)"; \
+	product="$$(echo "$$settings" | jq -r '.[] | select(.target == "$(APP_SCHEME)") | .buildSettings.FULL_PRODUCT_NAME' | head -n 1)"; \
+	exec_name="$$(echo "$$settings" | jq -r '.[] | select(.target == "$(APP_SCHEME)") | .buildSettings.EXECUTABLE_NAME' | head -n 1)"; \
 	SUPATERM_PRINT_SOCKET=1 "$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 install-tip: # Install tip build from github
