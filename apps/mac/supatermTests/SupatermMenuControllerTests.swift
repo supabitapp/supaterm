@@ -22,100 +22,11 @@ struct SupatermMenuControllerTests {
     #expect(titles.count == 8)
     #expect(Array(titles.suffix(7)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window", "Help"])
 
-    let appMenu = try #require(app.mainMenu?.items.first?.submenu)
-    #expect(appMenu.items[0].title.hasPrefix("About "))
-    #expect(appMenu.items[0].action == #selector(SupatermMenuController.about(_:)))
-    #expect(appMenu.items[1].title == "Settings...")
-    #expect(appMenu.items[1].action == #selector(SupatermMenuController.showSettings(_:)))
-    #expect(appMenu.items[1].keyEquivalent == ",")
-    #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
-    #expect(appMenu.items[2].isSeparatorItem)
-    #expect(appMenu.items[3].title == "Check for Updates...")
-    #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
-    #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
-    #expect(appMenu.items.last?.keyEquivalent == "q")
-    #expect(appMenu.items.last?.keyEquivalentModifierMask == [.command])
-
-    let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
-    #expect(
-      fileMenu.items.map(\.title) == [
-        "New Window",
-        "New Tab",
-        "",
-        "Split Right",
-        "Split Left",
-        "Split Down",
-        "Split Up",
-        "",
-        "Close",
-        "Close Tab",
-        "Close Window",
-        "Close All Windows",
-      ])
-    #expect(fileMenu.items[0].keyEquivalent == "n")
-    #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
-    #expect(fileMenu.items[0].image != nil)
-    #expect(fileMenu.items[2].isSeparatorItem)
-    #expect(fileMenu.items[8].keyEquivalent == "w")
-    #expect(fileMenu.items[8].keyEquivalentModifierMask == [.command])
-    #expect(fileMenu.items[8].image != nil)
-
-    let tabsMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Tabs" })?.submenu)
-    #expect(
-      tabsMenu.items.map(\.title) == [
-        "Next Tab",
-        "Previous Tab",
-        "",
-        "Tab 1",
-        "Tab 2",
-        "Tab 3",
-        "Tab 4",
-        "Tab 5",
-        "Tab 6",
-        "Tab 7",
-        "Tab 8",
-        "Last Tab",
-      ])
-
-    let spacesMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Spaces" })?.submenu)
-    #expect(spacesMenu.items.count == 10)
-    #expect(spacesMenu.items[0].keyEquivalent == "1")
-    #expect(spacesMenu.items[0].keyEquivalentModifierMask == [.control])
-    #expect(spacesMenu.items[9].keyEquivalent == "0")
-    #expect(spacesMenu.items[9].keyEquivalentModifierMask == [.control])
-
-    let windowMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "Window" })?.submenu)
-    #expect(
-      windowMenu.items.map(\.title) == [
-        "Minimize",
-        "Zoom",
-        "",
-        "Zoom Split",
-        "Select Previous Split",
-        "Select Next Split",
-        "Select Split",
-        "Resize Split",
-        "",
-        "Bring All to Front",
-      ])
-    let selectSplitMenu = try #require(windowMenu.items[6].submenu)
-    #expect(
-      selectSplitMenu.items.map(\.title) == [
-        "Select Split Above",
-        "Select Split Below",
-        "Select Split Left",
-        "Select Split Right",
-      ])
-    let resizeSplitMenu = try #require(windowMenu.items[7].submenu)
-    #expect(
-      resizeSplitMenu.items.map(\.title) == [
-        "Equalize Splits",
-        "",
-        "Move Divider Up",
-        "Move Divider Down",
-        "Move Divider Left",
-        "Move Divider Right",
-      ])
+    try assertAppMenu(app.mainMenu)
+    try assertFileMenu(app.mainMenu)
+    try assertTabsMenu(app.mainMenu)
+    try assertSpacesMenu(app.mainMenu)
+    try assertWindowMenu(app.mainMenu)
   }
 
   @Test
@@ -364,6 +275,55 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func performGhosttyBindingMenuKeyEquivalentRoutesCommandPaletteShortcut() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(NSWindow(), for: windowControllerID)
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let event = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "k",
+          charactersIgnoringModifiers: "k",
+          isARepeat: false,
+          keyCode: 40
+        )
+      )
+
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+      #expect(store.terminal.commandPalette != nil)
+    }
+  }
+
+  @Test
   func refreshClearsQuitShortcutWhenGhosttyLeavesQuitUnbound() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -450,6 +410,41 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func validateCheckForUpdatesMenuItemShowsRestartToUpdateWhenInstallIsPending() throws {
+    let app = NSApplication.shared
+    let previousMainMenu = app.mainMenu
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(NSWindow(), for: windowControllerID)
+    let controller = SupatermMenuController(registry: registry)
+    defer {
+      app.mainMenu = previousMainMenu
+    }
+
+    controller.install()
+
+    let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+    let item = try #require(
+      appMenu.items.first(where: { $0.identifier == .init("app.supabit.supaterm.app.checkForUpdates") }))
+
+    #expect(controller.validateMenuItem(item))
+    #expect(item.title == "Restart to Update...")
+  }
+
+  @Test
   func performGhosttyBindingMenuKeyEquivalentRoutesReboundQuit() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -521,6 +516,115 @@ struct SupatermMenuControllerTests {
       #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: defaultEvent))
       #expect(delegate.quitCount == 1)
     }
+  }
+
+  private func assertAppMenu(_ menu: NSMenu?) throws {
+    let appMenu = try #require(menu?.items.first?.submenu)
+    #expect(appMenu.items[0].title.hasPrefix("About "))
+    #expect(appMenu.items[0].action == #selector(SupatermMenuController.about(_:)))
+    #expect(appMenu.items[1].title == "Settings...")
+    #expect(appMenu.items[1].action == #selector(SupatermMenuController.showSettings(_:)))
+    #expect(appMenu.items[1].keyEquivalent == ",")
+    #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
+    #expect(appMenu.items[2].isSeparatorItem)
+    #expect(appMenu.items[3].title == "Check for Updates...")
+    #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
+    #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
+    #expect(appMenu.items.last?.keyEquivalent == "q")
+    #expect(appMenu.items.last?.keyEquivalentModifierMask == [.command])
+  }
+
+  private func assertFileMenu(_ menu: NSMenu?) throws {
+    let fileMenu = try #require(menu?.items.first(where: { $0.title == "File" })?.submenu)
+    #expect(
+      fileMenu.items.map(\.title) == [
+        "New Window",
+        "New Tab",
+        "Open Command Palette",
+        "",
+        "Split Right",
+        "Split Left",
+        "Split Down",
+        "Split Up",
+        "",
+        "Close",
+        "Close Tab",
+        "Close Window",
+        "Close All Windows",
+      ])
+    #expect(fileMenu.items[0].keyEquivalent == "n")
+    #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[0].image != nil)
+    #expect(fileMenu.items[2].keyEquivalent == "k")
+    #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[2].image != nil)
+    #expect(fileMenu.items[3].isSeparatorItem)
+    #expect(fileMenu.items[9].keyEquivalent == "w")
+    #expect(fileMenu.items[9].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[9].image != nil)
+  }
+
+  private func assertTabsMenu(_ menu: NSMenu?) throws {
+    let tabsMenu = try #require(menu?.items.first(where: { $0.title == "Tabs" })?.submenu)
+    #expect(
+      tabsMenu.items.map(\.title) == [
+        "Next Tab",
+        "Previous Tab",
+        "",
+        "Tab 1",
+        "Tab 2",
+        "Tab 3",
+        "Tab 4",
+        "Tab 5",
+        "Tab 6",
+        "Tab 7",
+        "Tab 8",
+        "Last Tab",
+      ])
+  }
+
+  private func assertSpacesMenu(_ menu: NSMenu?) throws {
+    let spacesMenu = try #require(menu?.items.first(where: { $0.title == "Spaces" })?.submenu)
+    #expect(spacesMenu.items.count == 10)
+    #expect(spacesMenu.items[0].keyEquivalent == "1")
+    #expect(spacesMenu.items[0].keyEquivalentModifierMask == [.control])
+    #expect(spacesMenu.items[9].keyEquivalent == "0")
+    #expect(spacesMenu.items[9].keyEquivalentModifierMask == [.control])
+  }
+
+  private func assertWindowMenu(_ menu: NSMenu?) throws {
+    let windowMenu = try #require(menu?.items.first(where: { $0.title == "Window" })?.submenu)
+    #expect(
+      windowMenu.items.map(\.title) == [
+        "Minimize",
+        "Zoom",
+        "",
+        "Zoom Split",
+        "Select Previous Split",
+        "Select Next Split",
+        "Select Split",
+        "Resize Split",
+        "",
+        "Bring All to Front",
+      ])
+    let selectSplitMenu = try #require(windowMenu.items[6].submenu)
+    #expect(
+      selectSplitMenu.items.map(\.title) == [
+        "Select Split Above",
+        "Select Split Below",
+        "Select Split Left",
+        "Select Split Right",
+      ])
+    let resizeSplitMenu = try #require(windowMenu.items[7].submenu)
+    #expect(
+      resizeSplitMenu.items.map(\.title) == [
+        "Equalize Splits",
+        "",
+        "Move Divider Up",
+        "Move Divider Down",
+        "Move Divider Left",
+        "Move Divider Right",
+      ])
   }
 }
 
