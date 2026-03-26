@@ -446,10 +446,10 @@ struct TerminalSidebarTabSummaryView: View {
       ) {
       case .unreadCount(let unreadCount):
         Text(unreadCount.formatted())
-          .font(.system(size: 10, weight: .bold))
+          .font(.system(size: 9, weight: .bold))
           .foregroundStyle(isSelected ? palette.selectedText : Color.white)
-          .padding(.horizontal, unreadCount > 9 ? 7 : 6)
-          .frame(minWidth: 18, minHeight: 18)
+          .padding(.horizontal, unreadCount > 9 ? 6 : 5)
+          .frame(minWidth: 16, minHeight: 16)
           .background(
             isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
             in: Capsule(style: .continuous)
@@ -469,12 +469,12 @@ struct TerminalSidebarTabSummaryView: View {
         )
 
       case .tabSymbol(let symbol, let tone):
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
           .fill(palette.fill(for: tone))
-          .frame(width: 18, height: 18)
+          .frame(width: 16, height: 16)
           .overlay {
             Image(systemName: symbol)
-              .font(.system(size: 10, weight: .semibold))
+              .font(.system(size: 9, weight: .semibold))
               .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
               .accessibilityHidden(true)
           }
@@ -527,12 +527,12 @@ private struct TerminalSidebarFocusedNotificationView: View {
 
   var body: some View {
     Circle()
-      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 2.5)
-      .frame(width: 18, height: 18)
+      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 2.25)
+      .frame(width: 16, height: 16)
       .overlay {
         Circle()
           .fill(color.opacity(isSelected ? 0.95 : 0.82))
-          .frame(width: 5, height: 5)
+          .frame(width: 4, height: 4)
       }
   }
 
@@ -549,12 +549,12 @@ private struct TerminalSidebarClaudeActivityView: View {
   @State private var isAnimating = false
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 6, style: .continuous)
+    RoundedRectangle(cornerRadius: 5, style: .continuous)
       .fill(backgroundColor)
-      .frame(width: 18, height: 18)
+      .frame(width: 16, height: 16)
       .overlay {
         Image(systemName: activity.symbolName)
-          .font(.system(size: 10, weight: .semibold))
+          .font(.system(size: 9, weight: .semibold))
           .foregroundStyle(Color.white)
           .scaleEffect(scale)
           .offset(y: verticalOffset)
