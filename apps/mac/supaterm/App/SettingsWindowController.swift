@@ -138,7 +138,11 @@ private final class SettingsTabViewController: NSTabViewController {
   }
 
   private func makeTabViewItem(for tab: SettingsFeature.Tab) -> NSTabViewItem {
-    let viewController = NSHostingController(rootView: SettingsTabContentView(tab: tab))
+    let viewController = NSHostingController(
+      rootView: AppAppearanceView {
+        SettingsTabContentView(tab: tab)
+      }
+    )
     viewController.title = tab.title
 
     let tabViewItem = NSTabViewItem(identifier: tab.rawValue)
