@@ -8,7 +8,7 @@ struct SupatermClaudeHookSettingsTests {
   func commandStaysStable() {
     #expect(
       SPClaudeHookSettings.command
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" claude-hook || true"#
+        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook || true"#
     )
   }
 

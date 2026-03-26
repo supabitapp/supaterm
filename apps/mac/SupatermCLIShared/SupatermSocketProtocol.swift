@@ -6,7 +6,7 @@ public enum SupatermSocketMethod {
   public static let appTree = "app.tree"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
-  public static let terminalClaudeHook = "terminal.claude_hook"
+  public static let terminalAgentHook = "terminal.agent_hook"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
   public static let terminalNotify = "terminal.notify"
@@ -136,13 +136,13 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     )
   }
 
-  public static func claudeHook(
+  public static func agentHook(
     _ payload: SupatermClaudeHookRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
     Self(
       id: id,
-      method: SupatermSocketMethod.terminalClaudeHook,
+      method: SupatermSocketMethod.terminalAgentHook,
       params: try JSONObject(payload)
     )
   }

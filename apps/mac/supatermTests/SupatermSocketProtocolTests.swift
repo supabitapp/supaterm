@@ -746,9 +746,9 @@ struct SupatermSocketProtocolTests {
       event: event
     )
 
-    let request = try SupatermSocketRequest.claudeHook(requestPayload, id: "claude-hook-1")
+    let request = try SupatermSocketRequest.agentHook(requestPayload, id: "agent-hook-1")
 
-    #expect(request.method == SupatermSocketMethod.terminalClaudeHook)
+    #expect(request.method == SupatermSocketMethod.terminalAgentHook)
     #expect(try request.decodeParams(SupatermClaudeHookRequest.self) == requestPayload)
   }
 }

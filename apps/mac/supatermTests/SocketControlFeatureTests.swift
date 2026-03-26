@@ -734,7 +734,7 @@ struct SocketControlFeatureTests {
     )
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: try .claudeHook(requestPayload, id: "claude-hook-1")
+      payload: try .agentHook(requestPayload, id: "agent-hook-1")
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -763,7 +763,7 @@ struct SocketControlFeatureTests {
     let records = await recorder.snapshot()
     #expect(records.count == 1)
     #expect(records.first?.handle == handle)
-    #expect(records.first?.response == .ok(id: "claude-hook-1"))
+    #expect(records.first?.response == .ok(id: "agent-hook-1"))
     #expect(
       await desktopNotificationRecorder.snapshot()
         == [.init(body: "Claude needs your attention", subtitle: "Needs input", title: "Claude Code")]
@@ -777,8 +777,8 @@ struct SocketControlFeatureTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: .init(
-        id: "claude-hook-2",
-        method: SupatermSocketMethod.terminalClaudeHook,
+        id: "agent-hook-2",
+        method: SupatermSocketMethod.terminalAgentHook,
         params: [:]
       )
     )
@@ -798,7 +798,7 @@ struct SocketControlFeatureTests {
     let record = try #require(records.first)
     let response = record.response
     #expect(record.handle == handle)
-    #expect(response.id == "claude-hook-2")
+    #expect(response.id == "agent-hook-2")
     #expect(response.ok == false)
     #expect(response.error?.code == "invalid_request")
     #expect(try #require(response.error?.message).isEmpty == false)

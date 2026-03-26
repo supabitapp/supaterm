@@ -60,7 +60,7 @@ Claude is the current first-class coding agent integration.
 - For an interactive Claude session inside Supaterm, the wrapper runs `sp claude-hook-settings`.
 - That command prints the canonical hook settings JSON.
 - Claude is then launched with `--settings <json>`.
-- Those settings tell Claude to invoke `sp claude-hook` for:
+- Those settings tell Claude to invoke `sp agent-hook` for:
   - `SessionStart`
   - `PreToolUse`
   - `Notification`
@@ -70,8 +70,8 @@ Claude is the current first-class coding agent integration.
 
 ### Event Forwarding
 
-- `sp claude-hook` reads one Claude hook event JSON object from stdin.
-- It forwards that payload to the app over the socket method `terminal.claude_hook`.
+- `sp agent-hook` reads one agent hook event JSON object from stdin.
+- It forwards that payload to the app over the socket method `terminal.agent_hook`.
 - The forwarded request carries both the decoded event and the ambient `SupatermCLIContext` from the current pane.
 
 ### App Behavior
