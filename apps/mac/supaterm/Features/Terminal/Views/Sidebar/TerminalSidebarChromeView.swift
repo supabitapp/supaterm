@@ -483,7 +483,7 @@ struct TerminalSidebarTabSummaryView: View {
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
           Text(tab.title)
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 12, weight: .medium))
             .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
             .truncationMode(.tail)
