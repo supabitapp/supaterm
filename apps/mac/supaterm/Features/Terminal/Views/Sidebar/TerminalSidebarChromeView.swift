@@ -437,7 +437,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   var body: some View {
-    HStack(spacing: 8) {
+    HStack(alignment: .top, spacing: 8) {
       switch Self.leadingIndicator(
         hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         tab: tab,
