@@ -184,6 +184,24 @@ enum UpdatePhase: Equatable, Sendable {
     return false
   }
 
+  var menuItemAction: UpdateUserAction? {
+    switch self {
+    case .installing:
+      return .restartNow
+    default:
+      return nil
+    }
+  }
+
+  var menuItemTitle: String {
+    switch self {
+    case .installing:
+      return "Restart to Update..."
+    default:
+      return "Check for Updates..."
+    }
+  }
+
   var progressValue: Double? {
     switch self {
     case .downloading(let downloading):
