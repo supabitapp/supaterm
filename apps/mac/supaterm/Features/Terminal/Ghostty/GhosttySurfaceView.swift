@@ -98,7 +98,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
   var onFocusChange: ((Bool) -> Void)?
-  var onKeyboardActivity: (() -> Void)?
+  var onDirectInteraction: (() -> Void)?
 
   private var accessibilityPaneIndexHelp: String?
 
@@ -575,7 +575,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       return
     }
     if focused {
-      onKeyboardActivity?()
+      onDirectInteraction?()
     }
     bridge.state.bellCount = 0
     let (translationEvent, translationMods) = translationState(event, surface: surface)
@@ -673,6 +673,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func mouseDown(with event: NSEvent) {
+    if focused {
+      onDirectInteraction?()
+    }
     sendMouseButton(event, state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT)
   }
 
@@ -1010,7 +1013,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       if shouldAttemptMenu(for: bindingFlags),
         (NSApp.delegate as? AppDelegate)?.performGhosttyBindingMenuKeyEquivalent(with: event) == true
       {
-        onKeyboardActivity?()
+        onDirectInteraction?()
         return true
       }
       keyDown(with: event)
