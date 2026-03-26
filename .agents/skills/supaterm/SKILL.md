@@ -7,38 +7,28 @@ description: Inspect and control a running Supaterm app through the supported `s
 
 Use `sp` for normal interaction. Avoid hand-writing socket JSON unless the task is specifically about debugging the protocol or the CLI itself.
 
-## Resolve a runnable CLI
-
-Run `scripts/resolve_sp.sh` and store the result in `SP`.
-
-```bash
-SP="$(scripts/resolve_sp.sh)"
-```
-
-Prefer the resolved path over guessing. Inside Supaterm panes, the app usually sets `SUPATERM_CLI_PATH` and `SUPATERM_SOCKET_PATH` already.
-
 ## Inspect the app first
 
-- Run `"$SP" debug --json` to inspect socket selection, pane context, reachable instances, and the live topology.
-- Run `"$SP" tree --json` to inspect the window, space, tab, and pane hierarchy.
-- Run `"$SP" instances --json` when you are outside Supaterm or the target app process is unclear.
-- Run `"$SP" onboard` when the user wants the built-in onboarding shortcuts.
-- Run `"$SP" ping` for a narrow liveness check.
+- Run `sp debug --json` to inspect socket selection, pane context, reachable instances, and the live topology.
+- Run `sp tree --json` to inspect the window, space, tab, and pane hierarchy.
+- Run `sp instances --json` when you are outside Supaterm or the target app process is unclear.
+- Run `sp onboard` when the user wants the built-in onboarding shortcuts.
+- Run `sp ping` for a narrow liveness check.
 
 ## Target the right instance
 
 - Prefer ambient pane targeting when the command is already running inside a Supaterm pane.
 - Pass `--instance <name-or-endpoint-id>` when more than one reachable instance exists.
 - Pass `--socket <path>` only when the user gives an explicit socket path or when debugging routing.
-- Do not guess when discovery is ambiguous. Run `"$SP" instances --json`, pick the instance, and retry with `--instance`.
+- Do not guess when discovery is ambiguous. Run `sp instances --json`, pick the instance, and retry with `--instance`.
 
 ## Change the app through `sp`
 
-- Create a tab with `"$SP" new-tab --json --focus ...`.
-- Create a pane with `"$SP" new-pane --json right|left|up|down ...`.
-- Send an in-app notification with `"$SP" notify --json --body ...`.
-- Forward one Claude hook payload with `printf '%s\n' '<json>' | "$SP" claude-hook`.
-- Use `"$SP" development claude ...` only when the connected app reports a development build.
+- Create a tab with `sp new-tab --json --focus ...`.
+- Create a pane with `sp new-pane --json right|left|up|down ...`.
+- Send an in-app notification with `sp notify --json --body ...`.
+- Forward one Claude hook payload with `printf '%s\n' '<json>' | sp claude-hook`.
+- Use `sp development claude ...` only when the connected app reports a development build.
 
 ## Respect the targeting rules
 

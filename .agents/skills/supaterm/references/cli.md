@@ -50,35 +50,30 @@ Use `sp` for normal interaction with the app. The CLI already handles socket dis
 - Inspect the live app:
 
 ```bash
-SP="$(scripts/resolve_sp.sh)"
-"$SP" debug --json
+sp debug --json
 ```
 
 - Disambiguate a target outside Supaterm:
 
 ```bash
-SP="$(scripts/resolve_sp.sh)"
-"$SP" instances --json
-"$SP" tree --json --instance <name-or-id>
+sp instances --json
+sp tree --json --instance <name-or-id>
 ```
 
 - Open a new tab in the selected space from inside Supaterm:
 
 ```bash
-SP="$(scripts/resolve_sp.sh)"
-"$SP" new-tab --focus zsh
+sp new-tab --focus zsh
 ```
 
 - Split the current pane to the right:
 
 ```bash
-SP="$(scripts/resolve_sp.sh)"
-"$SP" new-pane --json right
+sp new-pane --json right
 ```
 
 - Send a notification to a specific pane from outside Supaterm:
 
 ```bash
-SP="$(scripts/resolve_sp.sh)"
-"$SP" notify --json --instance <name-or-id> --space 1 --tab 2 --pane 1 --body "Done"
+sp notify --json --instance <name-or-id> --space 1 --tab 2 --pane 1 --body "Done"
 ```
