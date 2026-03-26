@@ -9,7 +9,7 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 GIT_HOOKS_DIR := .git-hooks
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks mac-generate mac-generate-sources mac-build mac-run mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks mac-generate mac-generate-sources mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -30,6 +30,9 @@ mac-build:  # Build the macOS app in Debug.
 
 mac-run:  # Build and run the macOS app in Debug.
 	@$(MAKE) -C "$(MAC_APP_DIR)" run-app
+
+mac-xcode-open:  # Open the macOS Xcode workspace.
+	@open "$(MAC_APP_DIR)/supaterm.xcworkspace"
 
 mac-install-tip:  # Install the latest tip release for the macOS app.
 	@$(MAKE) -C "$(MAC_APP_DIR)" install-tip
