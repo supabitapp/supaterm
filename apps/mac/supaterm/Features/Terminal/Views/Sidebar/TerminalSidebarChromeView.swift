@@ -390,6 +390,7 @@ struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
     case claudeActivity(TerminalHostState.ClaudeActivity)
     case focusedNotification
+    case terminalProgress
     case tabSymbol(String, TerminalTabIconStyle)
     case unreadCount(Int)
   }
@@ -415,6 +416,9 @@ struct TerminalSidebarTabSummaryView: View {
     }
     if let claudeActivity, claudeActivity.showsLeadingIndicator {
       return .claudeActivity(claudeActivity)
+    }
+    if tab.isDirty {
+      return .terminalProgress
     }
     if hasFocusedNotificationAttention {
       return .focusedNotification
@@ -458,6 +462,12 @@ struct TerminalSidebarTabSummaryView: View {
       case .claudeActivity(let activity):
         TerminalSidebarClaudeActivityView(
           activity: activity,
+          isSelected: isSelected,
+          palette: palette
+        )
+
+      case .terminalProgress:
+        TerminalSidebarProgressRingView(
           isSelected: isSelected,
           palette: palette
         )
@@ -540,6 +550,43 @@ struct TerminalSidebarTabSummaryView: View {
     case .neutral:
       return isSelected ? palette.selectedText.opacity(0.72) : palette.secondaryText
     }
+  }
+}
+
+private struct TerminalSidebarProgressRingView: View {
+  let isSelected: Bool
+  let palette: TerminalPalette
+
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+  @State private var rotation = Angle.zero
+
+  var body: some View {
+    Circle()
+      .trim(from: 0.14, to: 0.86)
+      .stroke(
+        color,
+        style: StrokeStyle(lineWidth: 1.8, lineCap: .round)
+      )
+      .frame(width: 16, height: 16)
+      .rotationEffect(rotation)
+      .onAppear {
+        guard !accessibilityReduceMotion else { return }
+        withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+          rotation = .degrees(360)
+        }
+      }
+      .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
+        rotation = .zero
+        guard !reduceMotion else { return }
+        withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+          rotation = .degrees(360)
+        }
+      }
+      .accessibilityHidden(true)
+  }
+
+  private var color: Color {
+    isSelected ? palette.selectedText.opacity(0.78) : Color.accentColor
   }
 }
 
