@@ -29,7 +29,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Instances.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
-      SP.helpMessage(for: SP.ClaudeHook.self, columns: 100),
+      SP.helpMessage(for: SP.AgentHook.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.SessionStart.self, columns: 100),
@@ -59,7 +59,7 @@ struct SPHelpTests {
 
   @Test
   func claudeHookHelpMentionsAutomaticWrapperIntegration() {
-    let help = SP.helpMessage(for: SP.ClaudeHook.self, columns: 100)
+    let help = SP.helpMessage(for: SP.AgentHook.self, columns: 100)
 
     #expect(help.contains("automatically injects Claude Code hooks"))
   }

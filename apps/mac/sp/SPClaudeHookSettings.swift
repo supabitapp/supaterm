@@ -1,7 +1,7 @@
 import Foundation
 
 enum SPClaudeHookSettings {
-  static let command = #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" claude-hook || true"#
+  static let command = #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook || true"#
 
   static func jsonString() throws -> String {
     let encoder = JSONEncoder()

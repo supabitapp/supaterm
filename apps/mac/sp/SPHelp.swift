@@ -77,13 +77,13 @@ enum SPHelp {
       sp notify --space 1 --tab 2 --pane 3 --body "Deploy complete"
     """
 
-  static let claudeHookDiscussion = """
-    Reads one Claude Code hook event JSON object from stdin and forwards it to Supaterm.
+  static let agentHookDiscussion = """
+    Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
     Inside Supaterm panes, launching `claude` automatically injects Claude Code hooks through the bundled wrapper.
 
     Example:
-      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp claude-hook
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent-hook
       \(SPClaudeHookSettings.command)
     """
 

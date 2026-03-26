@@ -19,7 +19,7 @@ public struct SP: ParsableCommand {
     NewTab.self,
     NewPane.self,
     Notify.self,
-    ClaudeHook.self,
+    AgentHook.self,
     Ping.self,
     ClaudeHookSettings.self,
     Development.self,
@@ -511,11 +511,11 @@ extension SP {
     }
   }
 
-  struct ClaudeHook: ParsableCommand {
+  struct AgentHook: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "claude-hook",
-      abstract: "Forward one Claude Code hook event to Supaterm.",
-      discussion: SPHelp.claudeHookDiscussion
+      commandName: "agent-hook",
+      abstract: "Forward one agent hook event to Supaterm.",
+      discussion: SPHelp.agentHookDiscussion
     )
 
     @OptionGroup
@@ -523,13 +523,13 @@ extension SP {
 
     mutating func run() throws {
       let rawInput = FileHandle.standardInput.readDataToEndOfFile()
-      let event = try claudeHookEvent(from: rawInput)
+      let event = try agentHookEvent(from: rawInput)
       let client = try socketClient(
         path: connection.explicitSocketPath,
         instance: connection.instance
       )
       let response = try client.send(
-        .claudeHook(
+        .agentHook(
           .init(
             context: SupatermCLIContext.current,
             event: event
@@ -772,15 +772,15 @@ private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   return url.standardizedFileURL.path
 }
 
-private func claudeHookEvent(from data: Data) throws -> SupatermClaudeHookEvent {
+private func agentHookEvent(from data: Data) throws -> SupatermClaudeHookEvent {
   guard !data.isEmpty else {
-    throw ValidationError("Claude hook input must be valid Claude hook JSON.")
+    throw ValidationError("Agent hook input must be valid hook JSON.")
   }
 
   do {
     return try JSONDecoder().decode(SupatermClaudeHookEvent.self, from: data)
   } catch {
-    throw ValidationError("Claude hook input must be valid Claude hook JSON.")
+    throw ValidationError("Agent hook input must be valid hook JSON.")
   }
 }
 
@@ -936,7 +936,7 @@ private func sendDevelopmentClaudeEvent(
     instance: invocation.connection.instance
   )
   let response = try client.send(
-    .claudeHook(
+    .agentHook(
       .init(
         context: context,
         event: event

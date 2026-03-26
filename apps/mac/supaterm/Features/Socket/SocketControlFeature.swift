@@ -219,7 +219,7 @@ struct SocketControlFeature {
       }
       return try .ok(id: request.id, encodableResult: result)
 
-    case SupatermSocketMethod.terminalClaudeHook:
+    case SupatermSocketMethod.terminalAgentHook:
       let payload = try request.decodeParams(SupatermClaudeHookRequest.self)
       let result = try await terminalWindowsClient.claudeHook(payload)
       if let desktopNotification = result.desktopNotification {
