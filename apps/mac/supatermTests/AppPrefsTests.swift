@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -17,5 +18,12 @@ struct AppPrefsTests {
     #expect(AppearanceMode.system.colorScheme == nil)
     #expect(AppearanceMode.light.colorScheme == .light)
     #expect(AppearanceMode.dark.colorScheme == .dark)
+  }
+
+  @Test
+  func appearanceModeResolvesAppKitAppearance() {
+    #expect(AppearanceMode.system.appearance == nil)
+    #expect(AppearanceMode.light.appearance?.name == .aqua)
+    #expect(AppearanceMode.dark.appearance?.name == .darkAqua)
   }
 }
