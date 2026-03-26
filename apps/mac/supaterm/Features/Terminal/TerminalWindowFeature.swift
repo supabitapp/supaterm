@@ -24,6 +24,7 @@ struct TerminalSpaceRenameState: Equatable, Identifiable {
 struct TerminalWindowFeature {
   @ObservableState
   struct State: Equatable {
+    var commandPalette: TerminalCommandPaletteState?
     var confirmationRequest: ConfirmationRequest?
     var isFloatingSidebarVisible = false
     var isSidebarCollapsed = false
@@ -69,6 +70,12 @@ struct TerminalWindowFeature {
   enum Action {
     case bindingMenuItemSelected(SupatermCommand)
     case clientEvent(TerminalClient.Event)
+    case commandPaletteActivateSelection
+    case commandPaletteCloseRequested
+    case commandPaletteQueryChanged(String)
+    case commandPaletteSelectionChanged(Int)
+    case commandPaletteSelectionMoved(Int)
+    case commandPaletteToggleRequested
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
     case closeAllWindowsRequested([ObjectIdentifier])
@@ -160,6 +167,36 @@ struct TerminalWindowFeature {
 
       case .bindingMenuItemSelected(let command):
         return sendCommand(.performBindingActionOnFocusedSurface(command))
+
+      case .commandPaletteActivateSelection:
+        state.commandPalette = nil
+        return .none
+
+      case .commandPaletteCloseRequested:
+        state.commandPalette = nil
+        return .none
+
+      case .commandPaletteQueryChanged(let query):
+        guard state.commandPalette != nil else { return .none }
+        state.commandPalette?.query = query
+        state.commandPalette?.selectedIndex = 0
+        return .none
+
+      case .commandPaletteSelectionChanged(let index):
+        state.commandPalette?.select(index)
+        return .none
+
+      case .commandPaletteSelectionMoved(let offset):
+        state.commandPalette?.moveSelection(by: offset)
+        return .none
+
+      case .commandPaletteToggleRequested:
+        if state.commandPalette == nil {
+          state.commandPalette = .init()
+        } else {
+          state.commandPalette = nil
+        }
+        return .none
 
       case .closeConfirmationCancelButtonTapped:
         state.pendingCloseRequest = nil

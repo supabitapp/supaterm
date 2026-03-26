@@ -30,7 +30,7 @@ final class TerminalWindowRegistry {
     let updateMenuItemText: String
     let visibleTabCount: Int
     let spaceCount: Int
-    let canCheckForUpdates: Bool
+    let isUpdateMenuItemEnabled: Bool
   }
 
   private final class WindowReference {
@@ -120,9 +120,11 @@ final class TerminalWindowRegistry {
         updateMenuItemText: "Check for Updates...",
         visibleTabCount: 0,
         spaceCount: 0,
-        canCheckForUpdates: false
+        isUpdateMenuItemEnabled: false
       )
     }
+
+    let updateMenuItemAction = Self.updateMenuItemAction(for: entry.store.update)
 
     return .init(
       availability: .init(
@@ -132,10 +134,10 @@ final class TerminalWindowRegistry {
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
-      updateMenuItemText: "Check for Updates...",
+      updateMenuItemText: entry.store.update.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
-      canCheckForUpdates: entry.store.update.canCheckForUpdates
+      isUpdateMenuItemEnabled: updateMenuItemAction != nil
     )
   }
 
@@ -180,6 +182,10 @@ final class TerminalWindowRegistry {
     preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
   }
 
+  func requestToggleCommandPaletteInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.commandPaletteToggleRequested))
+  }
+
   func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
     preferredActiveEntry()?.store.send(.terminal(.bindingMenuItemSelected(command)))
   }
@@ -189,9 +195,10 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func requestCheckForUpdatesInKeyWindow() -> Bool {
+  func requestUpdateMenuActionInKeyWindow() -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
-    entry.store.send(.update(.perform(.checkForUpdates)))
+    guard let action = Self.updateMenuItemAction(for: entry.store.update) else { return false }
+    entry.store.send(.update(.perform(action)))
     return true
   }
 
@@ -404,6 +411,13 @@ final class TerminalWindowRegistry {
       }
     }
     throw TerminalCreateTabError.contextPaneNotFound
+  }
+
+  private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {
+    if let action = state.phase.menuItemAction {
+      return action
+    }
+    return state.canCheckForUpdates ? .checkForUpdates : nil
   }
 
   func notify(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {

@@ -40,6 +40,7 @@ final class SupatermMenuController: NSObject {
     static let closeTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.closeTab")
     static let closeWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.closeWindow")
     static let closeAllWindows = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.closeAllWindows")
+    static let openCommandPalette = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.openCommandPalette")
     static let find = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.find")
     static let findNext = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.findNext")
     static let findPrevious = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.findPrevious")
@@ -130,6 +131,7 @@ final class SupatermMenuController: NSObject {
     let menu = NSMenu(title: "File")
     menu.addItem(newWindowItem)
     menu.addItem(newTabItem)
+    menu.addItem(openCommandPaletteItem)
     menu.addItem(.separator())
     menu.addItem(splitRightItem)
     menu.addItem(splitLeftItem)
@@ -325,6 +327,12 @@ final class SupatermMenuController: NSObject {
     action: #selector(closeAllWindows(_:)),
     identifier: MenuItemIdentifier.closeAllWindows
   )
+  private lazy var openCommandPaletteItem = makeItem(
+    title: "Open Command Palette",
+    action: #selector(openCommandPalette(_:)),
+    identifier: MenuItemIdentifier.openCommandPalette,
+    symbol: "magnifyingglass"
+  )
   private lazy var findItem = makeItem(
     title: "Find...",
     action: #selector(find(_:)),
@@ -518,6 +526,7 @@ final class SupatermMenuController: NSObject {
     )
     syncShortcut(command: .newWindow, item: newWindowItem)
     syncShortcut(command: .newTab, item: newTabItem)
+    syncLocalShortcut(KeyboardShortcut("k", modifiers: .command), item: openCommandPaletteItem)
     syncShortcut(command: .newSplit(.right), item: splitRightItem)
     syncShortcut(command: .newSplit(.left), item: splitLeftItem)
     syncShortcut(command: .newSplit(.down), item: splitDownItem)
@@ -580,8 +589,13 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
+  func performUpdateMenuAction() -> Bool {
+    registry.requestUpdateMenuActionInKeyWindow()
+  }
+
+  @discardableResult
   func performCheckForUpdates() -> Bool {
-    registry.requestCheckForUpdatesInKeyWindow()
+    performUpdateMenuAction()
   }
 
   @discardableResult
@@ -603,7 +617,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func checkForUpdates(_ sender: Any?) {
-    _ = performCheckForUpdates()
+    _ = performUpdateMenuAction()
   }
 
   @objc func quit(_ sender: Any?) {
@@ -653,6 +667,10 @@ final class SupatermMenuController: NSObject {
 
   @objc func closeAllWindows(_ sender: Any?) {
     _ = registry.requestCloseAllWindows()
+  }
+
+  @objc func openCommandPalette(_ sender: Any?) {
+    registry.requestToggleCommandPaletteInKeyWindow()
   }
 
   @objc func find(_ sender: Any?) {
@@ -755,6 +773,12 @@ final class SupatermMenuController: NSObject {
       item: item,
       defaultShortcut: command.defaultKeyboardShortcut
     )
+  }
+
+  private func syncLocalShortcut(_ shortcut: KeyboardShortcut?, item: NSMenuItem?) {
+    guard let item else { return }
+    SupatermMenuShortcut.apply(shortcut, to: item)
+    syncGhosttyBindingItem(item, shortcut: shortcut)
   }
 
   private func syncShortcut(
@@ -875,8 +899,10 @@ extension SupatermMenuController: NSMenuItemValidation {
     switch item.identifier {
     case MenuItemIdentifier.checkForUpdates:
       item.title = context.updateMenuItemText
-      return context.canCheckForUpdates
+      return context.isUpdateMenuItemEnabled
     case MenuItemIdentifier.newTab:
+      return context.availability.hasWindow
+    case MenuItemIdentifier.openCommandPalette:
       return context.availability.hasWindow
     case MenuItemIdentifier.splitRight,
       MenuItemIdentifier.splitLeft,

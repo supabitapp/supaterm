@@ -242,6 +242,80 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func commandPaletteTogglePresentsPalette() async {
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteToggleRequested) {
+      $0.commandPalette = .init()
+    }
+  }
+
+  @Test
+  func commandPaletteToggleDismissesPalette() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init()
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteToggleRequested) {
+      $0.commandPalette = nil
+    }
+  }
+
+  @Test
+  func commandPaletteQueryChangedUpdatesDraftAndResetsSelection() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(query: "", selectedIndex: 3)
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteQueryChanged("split")) {
+      $0.commandPalette?.query = "split"
+      $0.commandPalette?.selectedIndex = 0
+    }
+  }
+
+  @Test
+  func commandPaletteSelectionMovedClampsToAvailableRows() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(query: "", selectedIndex: 0)
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteSelectionMoved(2)) {
+      $0.commandPalette?.selectedIndex = 2
+    }
+    await store.send(.commandPaletteSelectionMoved(99)) {
+      $0.commandPalette?.selectedIndex = TerminalCommandPaletteRow.samples.count - 1
+    }
+    await store.send(.commandPaletteSelectionMoved(-99)) {
+      $0.commandPalette?.selectedIndex = 0
+    }
+  }
+
+  @Test
+  func commandPaletteActivateSelectionClosesPalette() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init()
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+  }
+
+  @Test
   func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true

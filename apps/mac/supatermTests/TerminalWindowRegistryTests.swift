@@ -96,6 +96,94 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func menuContextShowsRestartToUpdateWhenInstallIsPending() {
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    let context = registry.menuContext()
+    #expect(context.updateMenuItemText == "Restart to Update...")
+    #expect(context.isUpdateMenuItemEnabled)
+  }
+
+  @Test
+  func requestUpdateMenuActionInKeyWindowDispatchesCheckForUpdatesWhenEnabled() async {
+    let registry = TerminalWindowRegistry()
+    let recorder = UpdateMenuActionRecorder()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.canCheckForUpdates = true
+    let store = Store(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    #expect(registry.requestUpdateMenuActionInKeyWindow())
+    await flushEffects()
+
+    #expect(await recorder.actions() == [.checkForUpdates])
+  }
+
+  @Test
+  func requestUpdateMenuActionInKeyWindowDispatchesRestartNowWhenInstallIsPending() async {
+    let registry = TerminalWindowRegistry()
+    let recorder = UpdateMenuActionRecorder()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true))
+    let store = Store(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    #expect(registry.requestUpdateMenuActionInKeyWindow())
+    await flushEffects()
+
+    #expect(await recorder.actions() == [.restartNow])
+  }
+
+  @Test
   func restorationSnapshotPreservesActiveWindowOrder() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -240,6 +328,34 @@ struct TerminalWindowRegistryTests {
       await flushEffects()
 
       #expect(recorder.commands == [.performBindingActionOnFocusedSurface(.newSplit(.left))])
+    }
+  }
+
+  @Test
+  func requestToggleCommandPaletteInKeyWindowDispatchesReducerCommand() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      registry.requestToggleCommandPaletteInKeyWindow()
+      await flushEffects()
+
+      #expect(store.terminal.commandPalette != nil)
     }
   }
 
@@ -671,5 +787,17 @@ struct TerminalWindowRegistryTests {
     let store: StoreOf<AppFeature>
     let tabID: TerminalTabID
     let windowControllerID: UUID
+  }
+}
+
+private actor UpdateMenuActionRecorder {
+  private var recordedActions: [UpdateUserAction] = []
+
+  func actions() -> [UpdateUserAction] {
+    recordedActions
+  }
+
+  func record(_ action: UpdateUserAction) {
+    recordedActions.append(action)
   }
 }
