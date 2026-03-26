@@ -311,10 +311,10 @@ struct SupatermMenuControllerTests {
           timestamp: 0,
           windowNumber: 0,
           context: nil,
-          characters: "k",
-          charactersIgnoringModifiers: "k",
+          characters: "p",
+          charactersIgnoringModifiers: "p",
           isARepeat: false,
-          keyCode: 40
+          keyCode: 35
         )
       )
 
@@ -555,7 +555,7 @@ struct SupatermMenuControllerTests {
     #expect(fileMenu.items[0].keyEquivalent == "n")
     #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
     #expect(fileMenu.items[0].image != nil)
-    #expect(fileMenu.items[2].keyEquivalent == "k")
+    #expect(fileMenu.items[2].keyEquivalent == "p")
     #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command])
     #expect(fileMenu.items[2].image != nil)
     #expect(fileMenu.items[3].isSeparatorItem)

@@ -526,7 +526,7 @@ final class SupatermMenuController: NSObject {
     )
     syncShortcut(command: .newWindow, item: newWindowItem)
     syncShortcut(command: .newTab, item: newTabItem)
-    syncLocalShortcut(KeyboardShortcut("k", modifiers: .command), item: openCommandPaletteItem)
+    syncLocalShortcut(KeyboardShortcut("p", modifiers: .command), item: openCommandPaletteItem)
     syncShortcut(command: .newSplit(.right), item: splitRightItem)
     syncShortcut(command: .newSplit(.left), item: splitLeftItem)
     syncShortcut(command: .newSplit(.down), item: splitDownItem)
