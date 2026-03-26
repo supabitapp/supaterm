@@ -200,6 +200,23 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func commandFinishedClearsClaudeActivity() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    #expect(host.setClaudeActivity(.running, for: surface.id))
+
+    surface.bridge.onCommandFinished?()
+
+    #expect(host.claudeActivity(for: tabID) == nil)
+  }
+
+  @Test
   func notifyTracksMultipleNotificationsOnSameSurface() throws {
     initializeGhosttyForTests()
 

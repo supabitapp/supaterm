@@ -99,6 +99,8 @@ final class TerminalHostState {
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
+  @ObservationIgnored
+  var onCommandFinished: @MainActor (UUID) -> Void = { _ in }
   let spaceManager = TerminalSpaceManager()
 
   private var pendingEvents: [TerminalClient.Event] = []
@@ -1373,6 +1375,16 @@ final class TerminalHostState {
       context: context,
       managesWindowAppearance: false
     )
+    configureBridgeCallbacks(for: view, tabID: tabID)
+    configureSurfaceCallbacks(for: view, tabID: tabID)
+    surfaces[view.id] = view
+    return view
+  }
+
+  private func configureBridgeCallbacks(
+    for view: GhosttySurfaceView,
+    tabID: TerminalTabID
+  ) {
     view.bridge.onTitleChange = { [weak self] _ in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
@@ -1416,6 +1428,11 @@ final class TerminalHostState {
       guard let self else { return }
       self.updateRunningState(for: tabID)
     }
+    view.bridge.onCommandFinished = { [weak self, weak view] in
+      guard let self, let view else { return }
+      _ = self.clearClaudeActivity(for: view.id)
+      self.onCommandFinished(view.id)
+    }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)
@@ -1428,6 +1445,12 @@ final class TerminalHostState {
         title: title
       )
     }
+  }
+
+  private func configureSurfaceCallbacks(
+    for view: GhosttySurfaceView,
+    tabID: TerminalTabID
+  ) {
     view.onDirectInteraction = { [weak self, weak view] in
       guard let self, let view else { return }
       self.handleDirectInteraction(on: view.id)
@@ -1441,8 +1464,6 @@ final class TerminalHostState {
       self.emitFocusChangedIfNeeded(view.id)
       self.sessionDidChange()
     }
-    surfaces[view.id] = view
-    return view
   }
 
   private struct InheritedSurfaceConfig: Equatable {

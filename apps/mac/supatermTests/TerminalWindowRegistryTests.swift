@@ -595,6 +595,31 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func commandFinishedClearsClaudeActivityAndStoredSessionRouting() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onCommandFinished?()
+
+    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+
+    _ = try harness.registry.handleClaudeHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
+  @Test
   func claudeNotificationUsesGenericMessage() throws {
     let harness = try makeClaudeHookHarness()
 
