@@ -32,6 +32,34 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func claudeActivityTakesPrecedenceOverTerminalProgress() {
+    let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
+
+    #expect(
+      TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: false,
+        tab: tab,
+        unreadCount: 0,
+        claudeActivity: .running
+      ) == .claudeActivity(.running)
+    )
+  }
+
+  @Test
+  func terminalProgressTakesPrecedenceOverFocusedNotification() {
+    let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
+
+    #expect(
+      TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: true,
+        tab: tab,
+        unreadCount: 0,
+        claudeActivity: nil
+      ) == .terminalProgress
+    )
+  }
+
+  @Test
   func focusedNotificationTakesPrecedenceOverDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
