@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supaterm"
+  short_description: "Inspect and control the running Supaterm app"
+  default_prompt: "Use $supaterm to inspect the running app and carry out a pane, tab, or notification action."
