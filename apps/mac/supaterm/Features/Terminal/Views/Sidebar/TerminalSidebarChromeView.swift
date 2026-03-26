@@ -246,9 +246,12 @@ struct TerminalSidebarChromeView: View {
     let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
+    let rowContent = terminal.sidebarTabRowContent(for: tab)
     let preview = TerminalSidebarDragPreviewItem(
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
+      title: rowContent.title,
+      workingDirectory: rowContent.workingDirectory,
       latestNotificationText: latestNotificationText,
       notificationColor: terminal.notificationAttentionColor,
       unreadCount: unreadCount
@@ -392,6 +395,8 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
+  let title: String
+  let workingDirectory: String?
   let palette: TerminalPalette
   let isSelected: Bool
   let notificationColor: Color
@@ -464,8 +469,8 @@ struct TerminalSidebarTabSummaryView: View {
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
-          Text(tab.title)
-            .font(.system(size: 13, weight: .medium))
+          Text(title)
+            .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -492,6 +497,16 @@ struct TerminalSidebarTabSummaryView: View {
             .lineLimit(3)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
+        } else if let workingDirectory {
+          Text(workingDirectory)
+            .font(.system(size: 11, weight: .regular))
+            .foregroundStyle(
+              isSelected
+                ? palette.selectedText.opacity(0.78)
+                : palette.secondaryText
+            )
+            .lineLimit(1)
+            .truncationMode(.middle)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -705,10 +720,14 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
+    let rowContent = terminal.sidebarTabRowContent(for: tab)
+
     Button(action: select) {
       HStack(spacing: 8) {
         let summary = TerminalSidebarTabSummaryView(
           tab: tab,
+          title: rowContent.title,
+          workingDirectory: rowContent.workingDirectory,
           palette: palette,
           isSelected: isSelected,
           notificationColor: terminal.notificationAttentionColor,
