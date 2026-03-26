@@ -70,7 +70,21 @@ struct TerminalSidebarChromeViewTests {
         tab: tab,
         unreadCount: 0,
         claudeActivity: nil
-      ) == .tabSymbol("hammer", tab.tone)
+      ) == .tabSymbol("hammer", .accent(tab.tone))
+    )
+  }
+
+  @Test
+  func genericTerminalSymbolUsesNeutralStyle() {
+    let tab = TerminalTabItem(title: "Build", icon: "terminal")
+
+    #expect(
+      TerminalSidebarTabSummaryView.leadingIndicator(
+        hasFocusedNotificationAttention: false,
+        tab: tab,
+        unreadCount: 0,
+        claudeActivity: nil
+      ) == .tabSymbol("terminal", .neutral)
     )
   }
 

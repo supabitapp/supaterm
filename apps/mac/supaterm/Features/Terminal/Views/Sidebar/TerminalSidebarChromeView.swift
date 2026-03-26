@@ -390,7 +390,7 @@ struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
     case claudeActivity(TerminalHostState.ClaudeActivity)
     case focusedNotification
-    case tabSymbol(String, TerminalTone)
+    case tabSymbol(String, TerminalTabIconStyle)
     case unreadCount(Int)
   }
 
@@ -419,7 +419,7 @@ struct TerminalSidebarTabSummaryView: View {
     if hasFocusedNotificationAttention {
       return .focusedNotification
     }
-    return .tabSymbol(tab.symbol, tab.tone)
+    return .tabSymbol(tab.symbol, tab.iconStyle)
   }
 
   static func helpText(
@@ -468,14 +468,14 @@ struct TerminalSidebarTabSummaryView: View {
           notificationColor: notificationColor
         )
 
-      case .tabSymbol(let symbol, let tone):
+      case .tabSymbol(let symbol, let style):
         RoundedRectangle(cornerRadius: 5, style: .continuous)
-          .fill(palette.fill(for: tone))
+          .fill(symbolFill(for: style))
           .frame(width: 16, height: 16)
           .overlay {
             Image(systemName: symbol)
               .font(.system(size: 9, weight: .semibold))
-              .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+              .foregroundStyle(symbolForeground(for: style))
               .accessibilityHidden(true)
           }
       }
@@ -517,6 +517,28 @@ struct TerminalSidebarTabSummaryView: View {
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private func symbolFill(
+    for style: TerminalTabIconStyle
+  ) -> Color {
+    switch style {
+    case .accent(let tone):
+      return palette.fill(for: tone)
+    case .neutral:
+      return isSelected ? palette.selectedText.opacity(0.12) : palette.secondaryText.opacity(0.14)
+    }
+  }
+
+  private func symbolForeground(
+    for style: TerminalTabIconStyle
+  ) -> Color {
+    switch style {
+    case .accent:
+      return isSelected ? palette.selectedIcon : palette.primaryText
+    case .neutral:
+      return isSelected ? palette.selectedText.opacity(0.72) : palette.secondaryText
     }
   }
 }
