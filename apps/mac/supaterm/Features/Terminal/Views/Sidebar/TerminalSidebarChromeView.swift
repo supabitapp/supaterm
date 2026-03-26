@@ -646,7 +646,17 @@ private struct TerminalSidebarClaudeActivityView: View {
   }
 
   private var backgroundColor: Color {
-    color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+    switch activity {
+    case .needsInput:
+      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+    case .running:
+      if isSelected {
+        return palette.selectedText.opacity(0.12)
+      }
+      return palette.secondaryText.opacity(0.14)
+    case .idle:
+      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+    }
   }
 
   private var scale: CGFloat {
@@ -679,7 +689,7 @@ private struct TerminalSidebarClaudeActivityView: View {
     HStack(spacing: 2) {
       ForEach(0..<3, id: \.self) { index in
         Circle()
-          .fill(Color.white)
+          .fill(runningIndicatorColor)
           .frame(width: 3, height: 3)
           .scaleEffect(runningDotScale(for: index, phase: phase))
           .opacity(runningDotOpacity(for: index, phase: phase))
@@ -687,6 +697,13 @@ private struct TerminalSidebarClaudeActivityView: View {
     }
     .animation(.smooth(duration: 0.16), value: phase)
     .accessibilityHidden(true)
+  }
+
+  private var runningIndicatorColor: Color {
+    if isSelected {
+      return palette.selectedText.opacity(0.72)
+    }
+    return palette.secondaryText
   }
 
   private func runningDotScale(for index: Int, phase: Int) -> CGFloat {
