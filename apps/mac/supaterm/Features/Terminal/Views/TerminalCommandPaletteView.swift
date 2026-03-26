@@ -14,6 +14,7 @@ struct TerminalCommandPaletteOverlay: View {
   @State private var hoveredRowID: TerminalCommandPaletteRow.ID?
 
   private let cardHeight: CGFloat = 328
+  private let cardCornerRadius: CGFloat = 26
   private let maxWidth: CGFloat = 765
   private let minWidth: CGFloat = 200
 
@@ -40,38 +41,51 @@ struct TerminalCommandPaletteOverlay: View {
               .fill(palette.secondaryText.opacity(0.24))
               .frame(height: 0.5)
 
-            LazyVStack(spacing: 5) {
-              ForEach(Array(state.rows.enumerated()), id: \.element.id) { index, row in
-                CommandPaletteRowButton(
-                  palette: palette,
-                  row: row,
-                  isHovered: hoveredRowID == row.id,
-                  isSelected: state.selectedIndex == index,
-                  action: {
-                    onSelectionChange(index)
-                    onActivate()
-                  }
-                )
-                .onHover { isHovering in
-                  hoveredRowID = isHovering ? row.id : nil
-                  if isHovering {
-                    onSelectionChange(index)
+            ScrollViewReader { proxy in
+              ScrollView {
+                LazyVStack(spacing: 5) {
+                  ForEach(Array(state.rows.enumerated()), id: \.element.id) { index, row in
+                    CommandPaletteRowButton(
+                      palette: palette,
+                      row: row,
+                      isHovered: hoveredRowID == row.id,
+                      isSelected: state.selectedIndex == index,
+                      action: {
+                        onSelectionChange(index)
+                        onActivate()
+                      }
+                    )
+                    .id(row.id)
+                    .onHover { isHovering in
+                      hoveredRowID = isHovering ? row.id : nil
+                      if isHovering {
+                        onSelectionChange(index)
+                      }
+                    }
                   }
                 }
               }
+              .scrollIndicators(.hidden)
+              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+              .onAppear {
+                scrollSelection(into: proxy)
+              }
+              .onChange(of: state.selectedIndex) { _, _ in
+                scrollSelection(into: proxy)
+              }
             }
-
-            Spacer(minLength: 0)
           }
           .padding(10)
           .frame(width: cardWidth, height: cardHeight, alignment: .top)
-          .background(palette.dialogOuterBackground.opacity(0.44), in: .rect(cornerRadius: 26))
+          .background(palette.dialogOuterBackground.opacity(0.44), in: .rect(cornerRadius: cardCornerRadius))
           .background {
             BlurEffectView(material: .hudWindow, blendingMode: .withinWindow)
-              .clipShape(.rect(cornerRadius: 26))
+              .clipShape(.rect(cornerRadius: cardCornerRadius))
           }
+          .compositingGroup()
+          .clipShape(.rect(cornerRadius: cardCornerRadius))
           .overlay {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
               .stroke(palette.detailStroke, lineWidth: 0.5)
           }
           .shadow(color: palette.shadow, radius: 24, y: 14)
@@ -136,6 +150,13 @@ struct TerminalCommandPaletteOverlay: View {
       isQueryFocused = true
       await Task.yield()
       NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+    }
+  }
+
+  private func scrollSelection(into proxy: ScrollViewProxy) {
+    guard state.rows.indices.contains(state.selectedIndex) else { return }
+    withAnimation(.easeOut(duration: 0.12)) {
+      proxy.scrollTo(state.rows[state.selectedIndex].id, anchor: .center)
     }
   }
 }
