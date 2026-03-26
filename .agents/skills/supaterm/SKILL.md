@@ -14,11 +14,13 @@ Before any command, run `sp ping` to see if the socket is live first.
 - Outside Supaterm, pass `--space <n>`.
 - Pass `--window <n>` only together with `--space <n>`.
 - Pass `--cwd <path>` to start the tab in a specific working directory.
+- Pass `--script <script>` to run a raw shell script, including multiple commands.
 - Append a command to run immediately in the new tab.
 
 ```bash
 sp new-tab --json
 sp new-tab --json --space 1 ping 1.1.1.1
+sp new-tab --json --script $'echo 1\necho 2'
 sp new-tab --json --space 1 --window 1 --cwd ~/tmp git status
 ```
 
@@ -29,11 +31,13 @@ sp new-tab --json --space 1 --window 1 --cwd ~/tmp git status
 - Outside Supaterm, pass `--space <n>` and `--tab <n>`.
 - Pass `--pane <n>` only together with `--tab <n>`.
 - Pass `--window <n>` only together with `--space <n>`.
+- Pass `--script <script>` to run a raw shell script, including multiple commands.
 - Append a command to run immediately in the new pane.
 
 ```bash
 sp new-pane --json right
 sp new-pane --json down htop
+sp new-pane --json down --script $'echo 1\necho 2'
 sp new-pane --json --space 1 --tab 2 left
 sp new-pane --json --space 1 --tab 2 --pane 1 down tail -f /tmp/server.log
 ```

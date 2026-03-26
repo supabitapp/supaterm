@@ -240,6 +240,9 @@ extension SP {
     @OptionGroup
     var connection: SPConnectionOptions
 
+    @Option(name: .long, help: "Raw shell script to run immediately in the new tab.")
+    var script: String?
+
     @Argument(help: "Optional shell command to run immediately in the new tab.")
     var command: [String] = []
 
@@ -275,13 +278,16 @@ extension SP {
       if window != nil && space == nil {
         throw ValidationError("--window requires --space.")
       }
+      if script != nil && !command.isEmpty {
+        throw ValidationError("--script cannot be used with a trailing command.")
+      }
       if space == nil && SupatermCLIContext.current == nil {
         throw ValidationError("Run this command inside a Supaterm pane or provide --space.")
       }
     }
 
     private func requestPayload() throws -> SupatermNewTabRequest {
-      let command = shellCommandInput(command)
+      let command = try shellInput(script: script, tokens: command)
       let cwd = try resolvedWorkingDirectory(cwd)
 
       if let space {
@@ -358,6 +364,9 @@ extension SP {
     @OptionGroup
     var connection: SPConnectionOptions
 
+    @Option(name: .long, help: "Raw shell script to run immediately in the new pane.")
+    var script: String?
+
     @Argument(help: "Optional shell command to run immediately in the new pane.")
     var command: [String] = []
 
@@ -384,11 +393,14 @@ extension SP {
     }
 
     func validate() throws {
+      if script != nil && !command.isEmpty {
+        throw ValidationError("--script cannot be used with a trailing command.")
+      }
       try validateTargetSelection(window: window, space: space, tab: tab, pane: pane)
     }
 
     private func requestPayload() throws -> SupatermNewPaneRequest {
-      let command = shellCommandInput(command)
+      let command = try shellInput(script: script, tokens: command)
 
       if let tab {
         return SupatermNewPaneRequest(
@@ -727,6 +739,16 @@ private func resolvedSocketTarget(
 private func shellCommandInput(_ tokens: [String]) -> String? {
   guard !tokens.isEmpty else { return nil }
   return tokens.map(shellEscapedToken).joined(separator: " ")
+}
+
+func shellInput(script: String?, tokens: [String]) throws -> String? {
+  if let script {
+    if script.isEmpty {
+      throw ValidationError("--script must not be empty.")
+    }
+    return script
+  }
+  return shellCommandInput(tokens)
 }
 
 private func resolvedWorkingDirectory(_ path: String?) throws -> String? {

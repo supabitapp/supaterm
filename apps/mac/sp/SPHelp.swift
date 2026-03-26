@@ -54,6 +54,7 @@ enum SPHelp {
     Example:
       sp new-pane right
       sp new-pane down htop
+      sp new-pane down --script $'echo 1\necho 2'
       sp new-pane --space 1 --tab 2 left
       sp new-pane --space 1 --tab 2 --pane 3 down tail -f /tmp/server.log
     """
@@ -65,6 +66,7 @@ enum SPHelp {
 
     Example:
       sp new-tab ping 1.1.1.1
+      sp new-tab --script $'echo 1\necho 2'
       sp new-tab --focus ping 1.1.1.1
       sp new-tab --space 1 --cwd ~/tmp ping 1.1.1.1
     """
