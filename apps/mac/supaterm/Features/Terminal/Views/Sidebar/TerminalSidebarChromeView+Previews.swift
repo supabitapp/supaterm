@@ -1,8 +1,20 @@
 import Foundation
 import SwiftUI
 
+private enum TerminalSidebarTabPreviewSection: String, CaseIterable, Identifiable {
+  case shellTitles = "Shell Titles"
+  case splitPanes = "Split Panes"
+  case codingAgents = "Coding Agent States"
+  case attention = "Attention States"
+
+  var id: String {
+    rawValue
+  }
+}
+
 private struct TerminalSidebarTabPreviewItem: Identifiable {
-  let title: String
+  let section: TerminalSidebarTabPreviewSection
+  let scenario: String
   let tab: TerminalTabItem
   let isSelected: Bool
   let hasFocusedNotificationAttention: Bool
@@ -12,134 +24,177 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let claudeActivity: TerminalHostState.ClaudeActivity?
 
   var id: String {
-    title
+    "\(section.rawValue)-\(scenario)"
   }
 }
 
 private enum TerminalSidebarTabPreviewFixtures {
   static let items: [TerminalSidebarTabPreviewItem] = [
     .init(
-      title: "Repo Root Cwd",
-      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01"),
+      section: .shellTitles,
+      scenario: "Prompt title from fish, one pane",
+      tab: tab(
+        "\(cwd()) - fish",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01"
+      ),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
-      paneWorkingDirectories: cwdList(cwd(), cwd("docs")),
+      paneWorkingDirectories: cwdList(cwd()),
       unreadCount: 0,
       claudeActivity: nil
     ),
     .init(
-      title: "Selected Deep Cwd",
+      section: .shellTitles,
+      scenario: "Selected manual title for focused work",
       tab: tab(
-        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
-        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02"
+        "Sidebar polish",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02",
+        icon: "pencil.and.scribble"
       ),
       isSelected: true,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
       paneWorkingDirectories: cwdList(
-        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
+        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar")
+      ),
+      unreadCount: 0,
+      claudeActivity: nil
+    ),
+    .init(
+      section: .splitPanes,
+      scenario: "Three panes with distinct working trees",
+      tab: tab(
+        "Socket routing",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03",
+        icon: "square.split.2x2"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: nil,
+      paneWorkingDirectories: cwdList(
+        cwd(),
+        cwd("apps", "mac", "supaterm"),
+        cwd("apps", "mac", "supatermTests")
+      ),
+      unreadCount: 0,
+      claudeActivity: nil
+    ),
+    .init(
+      section: .splitPanes,
+      scenario: "Four panes with duplicate roots collapsed",
+      tab: tab(
+        "mac-check",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04",
+        icon: "hammer"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: nil,
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "mac"),
+        cwd("apps", "mac", "supatermTests")
+      ),
+      unreadCount: 0,
+      claudeActivity: nil
+    ),
+    .init(
+      section: .codingAgents,
+      scenario: "Running agent inside a split coding tab",
+      tab: tab(
+        "Socket cleanup",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: "Applying patch to socket notification routing",
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "mac"),
+        cwd("docs")
+      ),
+      unreadCount: 0,
+      claudeActivity: .running
+    ),
+    .init(
+      section: .codingAgents,
+      scenario: "Agent is waiting for input",
+      tab: tab(
+        "Release note pass",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06",
+        icon: "doc.text"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: "Need input on wording before publish",
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "supaterm.com"),
+        cwd("docs")
+      ),
+      unreadCount: 0,
+      claudeActivity: .needsInput
+    ),
+    .init(
+      section: .codingAgents,
+      scenario: "Agent finished and the leading indicator is hidden",
+      tab: tab(
+        "Docs audit",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
+        icon: "doc.text.magnifyingglass"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: "Review complete: no further changes needed",
+      paneWorkingDirectories: cwdList(cwd("docs")),
+      unreadCount: 0,
+      claudeActivity: .idle
+    ),
+    .init(
+      section: .attention,
+      scenario: "Focused notification without unread count",
+      tab: tab(
+        "Deploy smoke test",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
+        icon: "shippingbox"
+      ),
+      isSelected: false,
+      hasFocusedNotificationAttention: true,
+      latestNotificationText: "Local preview server is ready",
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "supaterm.com"),
         cwd("docs")
       ),
       unreadCount: 0,
       claudeActivity: nil
     ),
     .init(
-      title: "Focused Notification",
+      section: .attention,
+      scenario: "Unread count overrides agent attention",
       tab: tab(
-        cwd("apps", "supaterm.com"),
-        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03"
+        "Build failures",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
+        icon: "hammer"
       ),
       isSelected: false,
       hasFocusedNotificationAttention: true,
-      latestNotificationText: "Preview build finished in 18.4s",
-      paneWorkingDirectories: cwdList(cwd("apps", "supaterm.com"), cwd("docs")),
-      unreadCount: 0,
-      claudeActivity: nil
-    ),
-    .init(
-      title: "Unread Notification",
-      tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04"),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "make mac-test failed: 1 failure in TerminalWindowFeatureTests",
-      paneWorkingDirectories: cwdList(cwd("apps", "mac"), cwd("apps", "mac", "supatermTests")),
-      unreadCount: 3,
-      claudeActivity: nil
-    ),
-    .init(
-      title: "Unread Count Double Digits",
-      tab: tab("/var/log", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05"),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "12 new lines matched 'ERROR' in app.log",
-      paneWorkingDirectories: cwdList("/var/log", "/tmp"),
+      latestNotificationText: "2 failures in TerminalSidebarChromeViewTests",
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "mac"),
+        cwd("apps", "mac", "supatermTests")
+      ),
       unreadCount: 12,
-      claudeActivity: nil
-    ),
-    .init(
-      title: "Notification Text",
-      tab: tab(
-        cwd("docs"),
-        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06"
-      ),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "Socket server restarted on ~/.local/state/supaterm.sock",
-      paneWorkingDirectories: cwdList(cwd("docs")),
-      unreadCount: 0,
-      claudeActivity: nil
-    ),
-    .init(
-      title: "Claude Running",
-      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07"),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "Applying patch to TerminalSidebarChromeView+Previews.swift",
-      paneWorkingDirectories: cwdList(cwd(), cwd("apps", "mac")),
-      unreadCount: 0,
-      claudeActivity: .running
-    ),
-    .init(
-      title: "Claude Needs Input",
-      tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08"),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "Need approval to run xcodebuild test for supaterm.xcworkspace",
-      paneWorkingDirectories: cwdList(cwd("apps", "mac"), cwd("apps", "mac", "supatermTests")),
-      unreadCount: 0,
-      claudeActivity: .needsInput
-    ),
-    .init(
-      title: "Claude Idle",
-      tab: tab(
-        cwd("apps", "supaterm.com"),
-        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09"
-      ),
-      isSelected: false,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: "Review complete: no further changes needed",
-      paneWorkingDirectories: cwdList(cwd("apps", "supaterm.com")),
-      unreadCount: 0,
-      claudeActivity: .idle
-    ),
-    .init(
-      title: "Unread Overrides Claude",
-      tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A0A"),
-      isSelected: false,
-      hasFocusedNotificationAttention: true,
-      latestNotificationText: "Review ready: 3 findings in TerminalSidebarChromeView.swift",
-      paneWorkingDirectories: cwdList(cwd(), cwd("docs"), cwd("apps", "mac")),
-      unreadCount: 4,
       claudeActivity: .needsInput
     ),
   ]
 
-  private static func tab(_ title: String, id: String) -> TerminalTabItem {
+  private static func tab(
+    _ title: String,
+    id: String,
+    icon: String? = nil
+  ) -> TerminalTabItem {
     TerminalTabItem(
       id: .init(rawValue: uuid(id)),
       title: title,
-      icon: nil
+      icon: icon
     )
   }
 
@@ -202,17 +257,25 @@ private struct TerminalSidebarTabPreviewGallery: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 12) {
-        ForEach(TerminalSidebarTabPreviewFixtures.items) { item in
-          VStack(alignment: .leading, spacing: 6) {
-            Text(item.title)
+      VStack(alignment: .leading, spacing: 16) {
+        ForEach(TerminalSidebarTabPreviewSection.allCases) { section in
+          VStack(alignment: .leading, spacing: 10) {
+            Text(section.rawValue)
               .font(.system(size: 11, weight: .semibold))
               .foregroundStyle(palette.secondaryText)
 
-            TerminalSidebarTabPreviewRow(
-              item: item,
-              palette: palette
-            )
+            ForEach(items(in: section)) { item in
+              VStack(alignment: .leading, spacing: 6) {
+                Text(item.scenario)
+                  .font(.system(size: 11, weight: .medium))
+                  .foregroundStyle(palette.secondaryText)
+
+                TerminalSidebarTabPreviewRow(
+                  item: item,
+                  palette: palette
+                )
+              }
+            }
           }
         }
       }
@@ -221,9 +284,15 @@ private struct TerminalSidebarTabPreviewGallery: View {
       .padding(.bottom, 8)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .frame(width: 320, height: 980)
+    .frame(width: 320, height: 1100)
     .background(palette.windowBackgroundTint)
     .background(palette.detailBackground)
+  }
+
+  private func items(
+    in section: TerminalSidebarTabPreviewSection
+  ) -> [TerminalSidebarTabPreviewItem] {
+    TerminalSidebarTabPreviewFixtures.items.filter { $0.section == section }
   }
 }
 
@@ -260,7 +329,7 @@ private struct TerminalSidebarTabPreviewComparison: View {
       }
       .padding(16)
     }
-    .frame(width: 704, height: 1040)
+    .frame(width: 704, height: 1160)
   }
 }
 
