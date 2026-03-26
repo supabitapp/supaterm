@@ -232,6 +232,35 @@ struct TerminalHostStateNotificationTests {
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
   }
 
+  @Test
+  func readNotificationClearsSidebarNotificationText() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    _ = try host.notify(
+      .init(
+        body: "Claude needs your attention",
+        subtitle: "Needs input",
+        target: .contextPane(surface.id),
+        title: "Claude Code"
+      )
+    )
+
+    #expect(host.latestNotificationText(for: tabID) == "Claude needs your attention")
+
+    host.handleKeyboardActivity(on: surface.id)
+
+    #expect(host.latestNotificationText(for: tabID) == nil)
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.focusedNotifiedSurfaceIDs(in: tabID).isEmpty)
+  }
+
   private func makeNotification(
     attentionState: SupatermNotificationAttentionState?,
     body: String = "",

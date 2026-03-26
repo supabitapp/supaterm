@@ -458,7 +458,14 @@ final class TerminalHostState {
   }
 
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
-    Self.notificationText(latestNotification(for: tabID))
+    Self.notificationText(
+      Self.latestNotification(
+        in: notifications(for: tabID)
+          .values
+          .flatMap { $0 }
+          .filter { $0.attentionState != nil }
+      )
+    )
   }
 
   func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
