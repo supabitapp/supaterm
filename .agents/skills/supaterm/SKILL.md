@@ -9,7 +9,7 @@ Before any command, run `sp ping` to see if the socket is live first.
 
 ## `new-tab`
 
-- Use `sp new-tab --json --focus ...` to create a tab.
+- Use `sp new-tab --json ...` to create a tab.
 - Inside Supaterm, omit `--space` to create the tab in the current space.
 - Outside Supaterm, pass `--space <n>`.
 - Pass `--window <n>` only together with `--space <n>`.
@@ -17,8 +17,8 @@ Before any command, run `sp ping` to see if the socket is live first.
 - Append a command to run immediately in the new tab.
 
 ```bash
-sp new-tab --json --focus
-sp new-tab --json --space 1 --focus zsh
+sp new-tab --json
+sp new-tab --json --space 1 ping 1.1.1.1
 sp new-tab --json --space 1 --window 1 --cwd ~/tmp git status
 ```
 
@@ -29,7 +29,6 @@ sp new-tab --json --space 1 --window 1 --cwd ~/tmp git status
 - Outside Supaterm, pass `--space <n>` and `--tab <n>`.
 - Pass `--pane <n>` only together with `--tab <n>`.
 - Pass `--window <n>` only together with `--space <n>`.
-- Keep `--focus` when the new pane should become active.
 - Append a command to run immediately in the new pane.
 
 ```bash
