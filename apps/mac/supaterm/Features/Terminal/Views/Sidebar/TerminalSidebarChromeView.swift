@@ -245,11 +245,13 @@ struct TerminalSidebarChromeView: View {
   ) -> some View {
     let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
+    let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
+      paneWorkingDirectories: paneWorkingDirectories,
       notificationColor: terminal.notificationAttentionColor,
       unreadCount: unreadCount
     )
@@ -269,6 +271,7 @@ struct TerminalSidebarChromeView: View {
         tab: tab,
         hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         latestNotificationText: latestNotificationText,
+        paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
         palette: palette
       )
@@ -397,6 +400,7 @@ struct TerminalSidebarTabSummaryView: View {
   let notificationColor: Color
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
   let unreadCount: Int
   let claudeActivity: TerminalHostState.ClaudeActivity?
 
@@ -416,6 +420,20 @@ struct TerminalSidebarTabSummaryView: View {
       return .focusedNotification
     }
     return .tabSymbol(tab.symbol, tab.tone)
+  }
+
+  static func helpText(
+    latestNotificationText: String?,
+    paneWorkingDirectories: [String]
+  ) -> String? {
+    let details =
+      [latestNotificationText]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      + paneWorkingDirectories
+
+    guard !details.isEmpty else { return nil }
+    return details.joined(separator: "\n")
   }
 
   var body: some View {
@@ -484,6 +502,18 @@ struct TerminalSidebarTabSummaryView: View {
             .lineLimit(4)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
+        }
+
+        ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
+          Text(workingDirectory)
+            .font(.system(size: 11, weight: .regular, design: .monospaced))
+            .foregroundStyle(
+              isSelected
+                ? palette.selectedText.opacity(0.72)
+                : palette.secondaryText
+            )
+            .lineLimit(1)
+            .truncationMode(.middle)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -640,6 +670,7 @@ struct TerminalSidebarTabRow: View {
   let tab: TerminalTabItem
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
   let unreadCount: Int
   let palette: TerminalPalette
 
@@ -660,11 +691,15 @@ struct TerminalSidebarTabRow: View {
           notificationColor: terminal.notificationAttentionColor,
           hasFocusedNotificationAttention: hasFocusedNotificationAttention,
           latestNotificationText: latestNotificationText,
+          paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           claudeActivity: terminal.claudeActivity(for: tab.id)
         )
-        if let latestNotificationText {
-          summary.help(latestNotificationText)
+        if let helpText = TerminalSidebarTabSummaryView.helpText(
+          latestNotificationText: latestNotificationText,
+          paneWorkingDirectories: paneWorkingDirectories
+        ) {
+          summary.help(helpText)
         } else {
           summary
         }

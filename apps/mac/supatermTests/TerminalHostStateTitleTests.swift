@@ -76,6 +76,24 @@ struct TerminalHostStateTitleTests {
 
     #expect(title == "shell")
   }
+
+  @Test
+  func paneWorkingDirectoriesDedupeNormalizedPathsInPaneOrder() throws {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let first = PaneTitleTestView(workingDirectory: "\(home)/Downloads/")
+    let second = PaneTitleTestView(workingDirectory: "\(home)/Downloads")
+    let third = PaneTitleTestView(workingDirectory: "\(home)/Downloads/abc/")
+    let tree = try SplitTree(view: first)
+      .inserting(view: second, at: first, direction: .right)
+      .inserting(view: third, at: second, direction: .down)
+
+    let directories = TerminalHostState.paneWorkingDirectories(
+      in: tree,
+      pwd: \.workingDirectory
+    )
+
+    #expect(directories == ["~/Downloads", "~/Downloads/abc"])
+  }
 }
 
 private final class PaneTitleTestView: NSView, Identifiable {

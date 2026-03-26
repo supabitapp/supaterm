@@ -436,6 +436,13 @@ final class TerminalHostState {
     )
   }
 
+  func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
+    Self.paneWorkingDirectories(
+      in: splitTree(for: tabID),
+      pwd: { $0.bridge.state.pwd }
+    )
+  }
+
   var terminalBackgroundColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
@@ -2384,6 +2391,19 @@ final class TerminalHostState {
       pwd: pwd(surface),
       defaultValue: paneFallbackTitle(for: surface.id, in: tree)
     )
+  }
+
+  static func paneWorkingDirectories<Surface: NSView & Identifiable>(
+    in tree: SplitTree<Surface>?,
+    pwd: (Surface) -> String?
+  ) -> [String] where Surface.ID == UUID {
+    var seen = Set<String>()
+    return (tree?.leaves() ?? []).compactMap { surface in
+      guard let path = trimmedNonEmpty(pwd(surface)) else { return nil }
+      let normalized = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
+      guard seen.insert(normalized).inserted else { return nil }
+      return (normalized as NSString).abbreviatingWithTildeInPath
+    }
   }
 
   static func isPaneZoomed<Surface: NSView & Identifiable>(

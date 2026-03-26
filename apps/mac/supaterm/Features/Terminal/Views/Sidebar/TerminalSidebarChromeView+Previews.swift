@@ -7,6 +7,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let isSelected: Bool
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
   let unreadCount: Int
   let claudeActivity: TerminalHostState.ClaudeActivity?
 
@@ -23,6 +24,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
+      paneWorkingDirectories: cwdList(cwd(), cwd("docs")),
       unreadCount: 0,
       claudeActivity: nil
     ),
@@ -35,6 +37,10 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: true,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
+      paneWorkingDirectories: cwdList(
+        cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
+        cwd("docs")
+      ),
       unreadCount: 0,
       claudeActivity: nil
     ),
@@ -47,6 +53,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: true,
       latestNotificationText: "Preview build finished in 18.4s",
+      paneWorkingDirectories: cwdList(cwd("apps", "supaterm.com"), cwd("docs")),
       unreadCount: 0,
       claudeActivity: nil
     ),
@@ -56,6 +63,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "make mac-test failed: 1 failure in TerminalWindowFeatureTests",
+      paneWorkingDirectories: cwdList(cwd("apps", "mac"), cwd("apps", "mac", "supatermTests")),
       unreadCount: 3,
       claudeActivity: nil
     ),
@@ -65,6 +73,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "12 new lines matched 'ERROR' in app.log",
+      paneWorkingDirectories: cwdList("/var/log", "/tmp"),
       unreadCount: 12,
       claudeActivity: nil
     ),
@@ -77,6 +86,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Socket server restarted on ~/.local/state/supaterm.sock",
+      paneWorkingDirectories: cwdList(cwd("docs")),
       unreadCount: 0,
       claudeActivity: nil
     ),
@@ -86,6 +96,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Applying patch to TerminalSidebarChromeView+Previews.swift",
+      paneWorkingDirectories: cwdList(cwd(), cwd("apps", "mac")),
       unreadCount: 0,
       claudeActivity: .running
     ),
@@ -95,6 +106,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Need approval to run xcodebuild test for supaterm.xcworkspace",
+      paneWorkingDirectories: cwdList(cwd("apps", "mac"), cwd("apps", "mac", "supatermTests")),
       unreadCount: 0,
       claudeActivity: .needsInput
     ),
@@ -107,6 +119,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Review complete: no further changes needed",
+      paneWorkingDirectories: cwdList(cwd("apps", "supaterm.com")),
       unreadCount: 0,
       claudeActivity: .idle
     ),
@@ -116,6 +129,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       isSelected: false,
       hasFocusedNotificationAttention: true,
       latestNotificationText: "Review ready: 3 findings in TerminalSidebarChromeView.swift",
+      paneWorkingDirectories: cwdList(cwd(), cwd("docs"), cwd("apps", "mac")),
       unreadCount: 4,
       claudeActivity: .needsInput
     ),
@@ -141,6 +155,10 @@ private enum TerminalSidebarTabPreviewFixtures {
     guard !components.isEmpty else { return root }
     return ([root] + components).joined(separator: "/")
   }
+
+  private static func cwdList(_ values: String...) -> [String] {
+    values
+  }
 }
 
 private struct TerminalSidebarTabPreviewRow: View {
@@ -155,6 +173,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       notificationColor: palette.attention,
       hasFocusedNotificationAttention: item.hasFocusedNotificationAttention,
       latestNotificationText: item.latestNotificationText,
+      paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       claudeActivity: item.claudeActivity
     )
