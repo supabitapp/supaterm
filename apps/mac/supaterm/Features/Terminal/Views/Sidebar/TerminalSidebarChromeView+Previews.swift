@@ -4,8 +4,6 @@ import SwiftUI
 private struct TerminalSidebarTabPreviewItem: Identifiable {
   let title: String
   let tab: TerminalTabItem
-  let tabTitle: String
-  let workingDirectory: String?
   let isSelected: Bool
   let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
@@ -22,8 +20,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Repo Root Cwd",
       tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01"),
-      tabTitle: "zsh",
-      workingDirectory: cwd(),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
@@ -36,8 +32,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A02"
       ),
-      tabTitle: "nvim",
-      workingDirectory: cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar"),
       isSelected: true,
       hasFocusedNotificationAttention: false,
       latestNotificationText: nil,
@@ -50,8 +44,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A03"
       ),
-      tabTitle: "pnpm dev",
-      workingDirectory: cwd("apps", "supaterm.com"),
       isSelected: false,
       hasFocusedNotificationAttention: true,
       latestNotificationText: "Preview build finished in 18.4s",
@@ -61,8 +53,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Unread Notification",
       tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A04"),
-      tabTitle: "swift test",
-      workingDirectory: cwd("apps", "mac"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "make mac-test failed: 1 failure in TerminalWindowFeatureTests",
@@ -72,8 +62,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Unread Count Double Digits",
       tab: tab("/var/log", id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05"),
-      tabTitle: "tail -f app.log",
-      workingDirectory: "/var/log",
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "12 new lines matched 'ERROR' in app.log",
@@ -86,8 +74,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("docs"),
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06"
       ),
-      tabTitle: "less how-socket-works.md",
-      workingDirectory: cwd("docs"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Socket server restarted on ~/.local/state/supaterm.sock",
@@ -97,8 +83,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Claude Running",
       tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07"),
-      tabTitle: "codex",
-      workingDirectory: cwd(),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Applying patch to TerminalSidebarChromeView+Previews.swift",
@@ -108,8 +92,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Claude Needs Input",
       tab: tab(cwd("apps", "mac"), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08"),
-      tabTitle: "codex",
-      workingDirectory: cwd("apps", "mac"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Need approval to run xcodebuild test for supaterm.xcworkspace",
@@ -122,8 +104,6 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09"
       ),
-      tabTitle: "codex",
-      workingDirectory: cwd("apps", "supaterm.com"),
       isSelected: false,
       hasFocusedNotificationAttention: false,
       latestNotificationText: "Review complete: no further changes needed",
@@ -133,8 +113,6 @@ private enum TerminalSidebarTabPreviewFixtures {
     .init(
       title: "Unread Overrides Claude",
       tab: tab(cwd(), id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A0A"),
-      tabTitle: "codex",
-      workingDirectory: cwd(),
       isSelected: false,
       hasFocusedNotificationAttention: true,
       latestNotificationText: "Review ready: 3 findings in TerminalSidebarChromeView.swift",
@@ -172,8 +150,6 @@ private struct TerminalSidebarTabPreviewRow: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: item.tab,
-      title: item.tabTitle,
-      workingDirectory: item.workingDirectory,
       palette: palette,
       isSelected: item.isSelected,
       notificationColor: palette.attention,
