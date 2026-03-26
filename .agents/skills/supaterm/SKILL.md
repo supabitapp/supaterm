@@ -1,11 +1,11 @@
 ---
 name: supaterm
-description: Use to create tabs and panes in Supaterm through `sp new-tab` and `sp new-pane`. Trigger this skill when Codex needs to open a new tab in a space or split an existing pane in a direction.
+description: Use to create terminal tabs and panes if running within Supaterm through `sp new-tab` and `sp new-pane`. Trigger this skill you need to open a new tab in a space or split an existing pane in a direction.
 ---
 
-# Supaterm
+## `ping`
 
-Use `sp` for normal interaction. Avoid hand-writing socket JSON unless the task is specifically about debugging the protocol or the CLI itself.
+Before any command, run `sp ping` to see if the socket is live first.
 
 ## `new-tab`
 
