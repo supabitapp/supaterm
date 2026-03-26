@@ -48,21 +48,7 @@ enum ClaudeHookFixtures {
       "transcript_path": "\(transcriptPath)",
       "cwd": "\(cwd)",
       "permission_mode": "acceptEdits",
-      "hook_event_name": "PreToolUse",
-      "tool_name": "AskUserQuestion",
-      "tool_use_id": "toolu_123",
-      "tool_input": {
-        "questions": [
-          {
-            "header": "Storage",
-            "question": "Which storage strategy should the plan lock in for sp claude-hook?",
-            "options": [
-              { "label": "File-backed" },
-              { "label": "App memory" }
-            ]
-          }
-        ]
-      }
+      "hook_event_name": "PreToolUse"
     }
     """
 

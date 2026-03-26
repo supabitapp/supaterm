@@ -38,17 +38,14 @@ struct ClaudeHookEventTests {
   }
 
   @Test
-  func officialPreToolUseFixtureDecodesAndExtractsPendingQuestion() throws {
+  func officialPreToolUseFixtureDecodes() throws {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
 
     #expect(event.hookEventName == .preToolUse)
     #expect(event.permissionMode == "acceptEdits")
-    #expect(event.toolName == "AskUserQuestion")
-    #expect(event.toolUseID == "toolu_123")
-    #expect(
-      event.pendingQuestion()
-        == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
-    )
+    #expect(event.toolName == nil)
+    #expect(event.toolUseID == nil)
+    #expect(event.toolInput == nil)
   }
 
   @Test

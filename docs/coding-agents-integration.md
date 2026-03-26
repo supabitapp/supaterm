@@ -79,11 +79,10 @@ Claude is the current first-class coding agent integration.
 The app binds Claude sessions to pane surfaces and turns Claude hook events into tab activity.
 
 - `SessionStart` binds the session to the current pane surface.
-- `PreToolUse` stores a pending question when the tool payload contains one and marks the tab as `running`.
+- `PreToolUse` marks the tab as `running`.
 - `Notification` marks the tab as `needs input` and may trigger a notification.
-- If the notification message is generic attention text, Supaterm replaces it with the stored pending question when one exists.
-- `UserPromptSubmit` clears the pending question and marks the tab as `running`.
-- `Stop` clears any pending question and marks the tab as `idle`.
+- `UserPromptSubmit` marks the tab as `running`.
+- `Stop` marks the tab as `idle`.
 - `SessionEnd` clears the tab activity and drops the stored session state.
 
 The sidebar renders the Claude activity at tab level with three states:

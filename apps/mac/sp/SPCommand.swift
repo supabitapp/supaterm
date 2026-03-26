@@ -626,7 +626,7 @@ extension SP.Development.Claude {
   struct PreToolUse: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "pre-tool-use",
-      abstract: "Stage a synthetic AskUserQuestion payload for the current Claude session.",
+      abstract: "Emit a synthetic pre-tool-use hook for the current Claude session.",
       discussion: SPHelp.developmentClaudePreToolUseDiscussion
     )
 
@@ -656,7 +656,7 @@ extension SP.Development.Claude {
   struct UserPromptSubmit: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "user-prompt-submit",
-      abstract: "Clear any pending synthetic question and return the session to running.",
+      abstract: "Return the current Claude session to running after synthetic input.",
       discussion: SPHelp.developmentClaudeUserPromptSubmitDiscussion
     )
 
@@ -829,21 +829,7 @@ struct SPDevelopmentClaudeEventBuilder {
         cwd: currentDirectoryPath,
         hookEventName: .preToolUse,
         permissionMode: "acceptEdits",
-        sessionID: sessionID,
-        toolInput: .init(
-          questions: [
-            .init(
-              header: "Verification",
-              options: [
-                .init(label: "Yes"),
-                .init(label: "No"),
-              ],
-              question: "Is the Claude integration visible in the sidebar?"
-            )
-          ]
-        ),
-        toolName: "AskUserQuestion",
-        toolUseID: "sp-development-question"
+        sessionID: sessionID
       )
 
     case .notification:

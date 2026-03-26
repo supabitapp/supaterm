@@ -22,7 +22,7 @@ struct SPDevelopmentClaudeTests {
   }
 
   @Test
-  func preToolUseBuildsAskUserQuestionPayload() throws {
+  func preToolUseBuildsGenericPayload() throws {
     let builder = SPDevelopmentClaudeEventBuilder(currentDirectoryPath: "/tmp/supaterm")
     let event = try builder.event(.preToolUse, context: context)
 
@@ -30,13 +30,9 @@ struct SPDevelopmentClaudeTests {
     #expect(event.hookEventName == .preToolUse)
     #expect(event.permissionMode == "acceptEdits")
     #expect(event.sessionID == builder.defaultSessionID(for: context))
-    #expect(event.toolName == "AskUserQuestion")
-    #expect(event.toolUseID == "sp-development-question")
-
-    let question = try #require(event.toolInput?.questions.first)
-    #expect(question.header == "Verification")
-    #expect(question.question == "Is the Claude integration visible in the sidebar?")
-    #expect(question.options.compactMap(\.label) == ["Yes", "No"])
+    #expect(event.toolName == nil)
+    #expect(event.toolUseID == nil)
+    #expect(event.toolInput == nil)
   }
 
   @Test
