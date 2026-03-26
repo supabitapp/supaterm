@@ -21,6 +21,7 @@ struct TerminalSidebarDragPreviewItem {
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
   let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
   let notificationColor: Color
   let unreadCount: Int
 }
@@ -492,6 +493,7 @@ private struct TerminalSidebarDragPreviewContent: View {
           hasFocusedNotificationAttention: preview.hasFocusedNotificationAttention,
           tab: preview.tab,
           latestNotificationText: preview.latestNotificationText,
+          paneWorkingDirectories: preview.paneWorkingDirectories,
           notificationColor: preview.notificationColor,
           unreadCount: preview.unreadCount,
           rowWidth: manager.previewRowWidth,
@@ -512,6 +514,7 @@ private struct TerminalSidebarMorphingPreview: View {
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
   let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
   let notificationColor: Color
   let unreadCount: Int
   let rowWidth: CGFloat
@@ -525,6 +528,7 @@ private struct TerminalSidebarMorphingPreview: View {
       notificationColor: notificationColor,
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       latestNotificationText: latestNotificationText,
+      paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       claudeActivity: nil
     )

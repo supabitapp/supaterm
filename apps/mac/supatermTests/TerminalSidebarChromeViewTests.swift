@@ -73,4 +73,14 @@ struct TerminalSidebarChromeViewTests {
       ) == .tabSymbol("hammer", tab.tone)
     )
   }
+
+  @Test
+  func helpTextIncludesNotificationAndPaneDirectories() {
+    #expect(
+      TerminalSidebarTabSummaryView.helpText(
+        latestNotificationText: "Build finished",
+        paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
+      ) == "Build finished\n~/Downloads\n~/Downloads/abc"
+    )
+  }
 }
