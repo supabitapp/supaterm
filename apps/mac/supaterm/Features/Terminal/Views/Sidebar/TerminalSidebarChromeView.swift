@@ -512,6 +512,10 @@ struct TerminalSidebarTabSummaryView: View {
             .lineLimit(4)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
+            .contentTransition(.opacity)
+            .transition(
+              .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+            )
         }
 
         ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
@@ -824,6 +828,14 @@ private struct TerminalSidebarRegularSectionHeader: View {
 }
 
 struct TerminalSidebarTabRow: View {
+  private struct AnimatedPresentation: Equatable {
+    let claudeActivity: TerminalHostState.ClaudeActivity?
+    let hasFocusedNotificationAttention: Bool
+    let latestNotificationText: String?
+    let paneWorkingDirectories: [String]
+    let unreadCount: Int
+  }
+
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
@@ -833,6 +845,7 @@ struct TerminalSidebarTabRow: View {
   let unreadCount: Int
   let palette: TerminalPalette
 
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var isHovering = false
   @State private var isCloseHovering = false
 
@@ -895,6 +908,7 @@ struct TerminalSidebarTabRow: View {
       )
     }
     .buttonStyle(.plain)
+    .animation(rowAnimation, value: animatedPresentation)
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
@@ -938,6 +952,20 @@ struct TerminalSidebarTabRow: View {
       return palette.rowFill
     }
     return .clear
+  }
+
+  private var animatedPresentation: AnimatedPresentation {
+    .init(
+      claudeActivity: terminal.claudeActivity(for: tab.id),
+      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
+      latestNotificationText: latestNotificationText,
+      paneWorkingDirectories: paneWorkingDirectories,
+      unreadCount: unreadCount
+    )
+  }
+
+  private var rowAnimation: Animation? {
+    accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
   }
 
   private func select() {
