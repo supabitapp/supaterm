@@ -478,14 +478,6 @@ struct TerminalSidebarTabSummaryView: View {
           Spacer(minLength: 0)
         }
 
-        if let claudeActivity {
-          TerminalSidebarClaudeStatusRow(
-            activity: claudeActivity,
-            isSelected: isSelected,
-            palette: palette
-          )
-        }
-
         if let latestNotificationText {
           Text(latestNotificationText)
             .font(.system(size: 11, weight: .medium))
@@ -494,7 +486,7 @@ struct TerminalSidebarTabSummaryView: View {
                 ? palette.selectedText.opacity(0.82)
                 : palette.secondaryText
             )
-            .lineLimit(3)
+            .lineLimit(4)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
         } else if let workingDirectory {
@@ -617,52 +609,6 @@ private struct TerminalSidebarClaudeActivityView: View {
       return Color.accentColor
     case .muted:
       return palette.secondaryText
-    }
-  }
-}
-
-private struct TerminalSidebarClaudeStatusRow: View {
-  let activity: TerminalHostState.ClaudeActivity
-  let isSelected: Bool
-  let palette: TerminalPalette
-
-  var body: some View {
-    HStack(spacing: 4) {
-      Image(systemName: activity.symbolName)
-        .font(.system(size: 9, weight: .semibold))
-        .accessibilityHidden(true)
-
-      Text(activity.statusLabel)
-        .font(.system(size: 10, weight: .semibold))
-        .lineLimit(1)
-        .truncationMode(.tail)
-    }
-    .foregroundStyle(foregroundColor)
-    .padding(.horizontal, 6)
-    .padding(.vertical, 3)
-    .background(backgroundColor, in: Capsule(style: .continuous))
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-
-  private var foregroundColor: Color {
-    switch activity.tone {
-    case .attention:
-      return palette.attention
-    case .active:
-      return Color.accentColor
-    case .muted:
-      return isSelected ? palette.selectedText.opacity(0.82) : palette.secondaryText
-    }
-  }
-
-  private var backgroundColor: Color {
-    switch activity.tone {
-    case .attention:
-      return palette.attention.opacity(isSelected ? 0.16 : 0.12)
-    case .active:
-      return Color.accentColor.opacity(isSelected ? 0.16 : 0.12)
-    case .muted:
-      return palette.secondaryText.opacity(isSelected ? 0.12 : 0.08)
     }
   }
 }
