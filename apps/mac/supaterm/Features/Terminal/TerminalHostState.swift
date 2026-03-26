@@ -61,17 +61,6 @@ final class TerminalHostState {
     case running
     case idle
 
-    var symbolName: String {
-      switch self {
-      case .needsInput:
-        return "bell.fill"
-      case .running:
-        return "bolt.fill"
-      case .idle:
-        return "pause.circle.fill"
-      }
-    }
-
     var tone: ClaudeActivityTone {
       switch self {
       case .needsInput:

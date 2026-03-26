@@ -46,16 +46,13 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func claudeActivityPresentationUsesExpectedSymbolsAndTones() {
-    #expect(TerminalHostState.ClaudeActivity.running.symbolName == "bolt.fill")
+  func claudeActivityPresentationUsesExpectedTonesAndVisibility() {
     #expect(TerminalHostState.ClaudeActivity.running.tone == .active)
     #expect(TerminalHostState.ClaudeActivity.running.showsLeadingIndicator)
 
-    #expect(TerminalHostState.ClaudeActivity.needsInput.symbolName == "bell.fill")
     #expect(TerminalHostState.ClaudeActivity.needsInput.tone == .attention)
     #expect(TerminalHostState.ClaudeActivity.needsInput.showsLeadingIndicator)
 
-    #expect(TerminalHostState.ClaudeActivity.idle.symbolName == "pause.circle.fill")
     #expect(TerminalHostState.ClaudeActivity.idle.tone == .muted)
     #expect(!TerminalHostState.ClaudeActivity.idle.showsLeadingIndicator)
   }

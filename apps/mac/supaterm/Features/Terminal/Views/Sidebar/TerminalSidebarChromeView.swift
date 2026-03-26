@@ -568,6 +568,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   let isSelected: Bool
   let palette: TerminalPalette
 
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var isAnimating = false
 
   var body: some View {
@@ -575,14 +576,24 @@ private struct TerminalSidebarClaudeActivityView: View {
       .fill(backgroundColor)
       .frame(width: 16, height: 16)
       .overlay {
-        Image(systemName: activity.symbolName)
-          .font(.system(size: 9, weight: .semibold))
-          .foregroundStyle(Color.white)
-          .scaleEffect(scale)
-          .offset(y: verticalOffset)
-          .accessibilityHidden(true)
+        switch activity {
+        case .needsInput:
+          Image(systemName: "bell.fill")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .scaleEffect(scale)
+            .offset(y: verticalOffset)
+            .accessibilityHidden(true)
+
+        case .running:
+          runningIndicator
+
+        case .idle:
+          EmptyView()
+        }
       }
       .onAppear {
+        guard !accessibilityReduceMotion else { return }
         if let animation {
           withAnimation(animation) {
             isAnimating = true
@@ -591,6 +602,16 @@ private struct TerminalSidebarClaudeActivityView: View {
       }
       .onChange(of: activity) { _, _ in
         isAnimating = false
+        guard !accessibilityReduceMotion else { return }
+        if let animation {
+          withAnimation(animation) {
+            isAnimating = true
+          }
+        }
+      }
+      .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
+        isAnimating = false
+        guard !reduceMotion else { return }
         if let animation {
           withAnimation(animation) {
             isAnimating = true
@@ -612,6 +633,18 @@ private struct TerminalSidebarClaudeActivityView: View {
     }
   }
 
+  private var runningIndicator: some View {
+    Group {
+      if accessibilityReduceMotion {
+        runningDots(phase: 0)
+      } else {
+        TimelineView(.periodic(from: .now, by: 0.24)) { context in
+          runningDots(phase: runningPhase(at: context.date))
+        }
+      }
+    }
+  }
+
   private var backgroundColor: Color {
     color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
   }
@@ -621,7 +654,7 @@ private struct TerminalSidebarClaudeActivityView: View {
     case .needsInput:
       return isAnimating ? 1.14 : 1
     case .running:
-      return isAnimating ? 1.08 : 1
+      return 1
     case .idle:
       return 1
     }
@@ -635,6 +668,46 @@ private struct TerminalSidebarClaudeActivityView: View {
       return 0
     case .idle:
       return 0
+    }
+  }
+
+  private func runningPhase(at date: Date) -> Int {
+    Int(date.timeIntervalSinceReferenceDate / 0.24) % 3
+  }
+
+  private func runningDots(phase: Int) -> some View {
+    HStack(spacing: 2) {
+      ForEach(0..<3, id: \.self) { index in
+        Circle()
+          .fill(Color.white)
+          .frame(width: 3, height: 3)
+          .scaleEffect(runningDotScale(for: index, phase: phase))
+          .opacity(runningDotOpacity(for: index, phase: phase))
+      }
+    }
+    .animation(.smooth(duration: 0.16), value: phase)
+    .accessibilityHidden(true)
+  }
+
+  private func runningDotScale(for index: Int, phase: Int) -> CGFloat {
+    switch (phase - index + 3) % 3 {
+    case 0:
+      return 1.15
+    case 1:
+      return 1
+    default:
+      return 0.82
+    }
+  }
+
+  private func runningDotOpacity(for index: Int, phase: Int) -> Double {
+    switch (phase - index + 3) % 3 {
+    case 0:
+      return 1
+    case 1:
+      return 0.62
+    default:
+      return 0.32
     }
   }
 
