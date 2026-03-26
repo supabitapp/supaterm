@@ -6,8 +6,8 @@ import ProjectDescription
 
 let packageSettings = PackageSettings(
   productTypes: [
-    "ComposableArchitecture": .framework,
-    "Sharing": .framework,
+    "ComposableArchitecture": .staticFramework,
+    "Sharing": .staticFramework,
     "Sparkle": .framework,
   ]
 )
