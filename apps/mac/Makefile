@@ -51,7 +51,7 @@ $(TUIST_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS)
 	mise exec -- tuist generate --no-open --cache-profile development --configuration Release
 	touch "$@"
 
-build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
+build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) warm-cache # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
