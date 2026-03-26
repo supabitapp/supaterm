@@ -14,27 +14,27 @@ struct AppAppearanceView<Content: View>: View {
     content
       .preferredColorScheme(appPrefs.appearanceMode.colorScheme)
       .background {
-        WindowAppearanceSetter(colorScheme: appPrefs.appearanceMode.colorScheme)
+        WindowAppearanceSetter(appearanceMode: appPrefs.appearanceMode)
       }
   }
 }
 
 private struct WindowAppearanceSetter: NSViewRepresentable {
-  let colorScheme: ColorScheme?
+  let appearanceMode: AppearanceMode
 
   func makeNSView(context: Context) -> WindowAppearanceView {
     let view = WindowAppearanceView()
-    view.colorScheme = colorScheme
+    view.appearanceMode = appearanceMode
     return view
   }
 
   func updateNSView(_ nsView: WindowAppearanceView, context: Context) {
-    nsView.colorScheme = colorScheme
+    nsView.appearanceMode = appearanceMode
   }
 }
 
 private final class WindowAppearanceView: NSView {
-  var colorScheme: ColorScheme? {
+  var appearanceMode: AppearanceMode = .system {
     didSet {
       applyAppearance()
     }
@@ -46,19 +46,15 @@ private final class WindowAppearanceView: NSView {
   }
 
   private func applyAppearance() {
-    guard let window else { return }
-    switch colorScheme {
-    case .none:
-      window.appearance = nil
-    case .some(let colorScheme):
-      switch colorScheme {
-      case .light:
-        window.appearance = NSAppearance(named: .aqua)
-      case .dark:
-        window.appearance = NSAppearance(named: .darkAqua)
-      @unknown default:
-        window.appearance = nil
-      }
+    guard window != nil else { return }
+    let appearance = appearanceMode.appearance
+    NSApp.appearance = appearance
+    for window in NSApp.windows {
+      window.appearance = appearance
+      window.contentView?.needsLayout = true
+      window.contentView?.needsDisplay = true
+      window.contentView?.displayIfNeeded()
+      window.invalidateShadow()
     }
   }
 }
