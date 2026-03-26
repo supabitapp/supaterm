@@ -233,7 +233,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func readNotificationClearsSidebarNotificationText() throws {
+  func directKeyboardInteractionClearsSidebarNotificationText() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -254,10 +254,56 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.latestNotificationText(for: tabID) == "Claude needs your attention")
 
-    host.handleKeyboardActivity(on: surface.id)
+    host.handleDirectInteraction(on: surface.id)
 
     #expect(host.latestNotificationText(for: tabID) == nil)
     #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.focusedNotifiedSurfaceIDs(in: tabID).isEmpty)
+  }
+
+  @Test
+  func directMouseInteractionClearsUnreadAttentionOnFocusedPane() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    _ = try host.notify(
+      .init(
+        body: "Claude needs your attention",
+        subtitle: "Needs input",
+        target: .contextPane(surface.id),
+        title: "Claude Code"
+      )
+    )
+
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.focusedNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
+
+    host.windowActivity = .inactive
+
+    _ = try host.notify(
+      .init(
+        body: "Build finished",
+        subtitle: "",
+        target: .contextPane(surface.id),
+        title: "Build"
+      )
+    )
+
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
+
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleDirectInteraction(on: surface.id)
+
+    #expect(host.latestNotificationText(for: tabID) == nil)
+    #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID).isEmpty)
     #expect(host.focusedNotifiedSurfaceIDs(in: tabID).isEmpty)
   }
 

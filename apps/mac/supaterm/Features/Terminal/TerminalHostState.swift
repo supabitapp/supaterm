@@ -1128,7 +1128,7 @@ final class TerminalHostState {
     )
   }
 
-  func handleKeyboardActivity(on surfaceID: UUID) {
+  func handleDirectInteraction(on surfaceID: UUID) {
     clearNotificationAttention(for: surfaceID)
   }
 
@@ -1428,9 +1428,9 @@ final class TerminalHostState {
         title: title
       )
     }
-    view.onKeyboardActivity = { [weak self, weak view] in
+    view.onDirectInteraction = { [weak self, weak view] in
       guard let self, let view else { return }
-      self.handleKeyboardActivity(on: view.id)
+      self.handleDirectInteraction(on: view.id)
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
