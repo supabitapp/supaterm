@@ -27,6 +27,48 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func sidebarTabTitleUsesRuntimeTitleWhenItDoesNotDescribeWorkingDirectory() {
+    let title = TerminalHostState.sidebarTabTitle(
+      runtimeTitle: "nvim",
+      workingDirectory: "/tmp/project",
+      fallbackTitle: "Terminal"
+    )
+
+    #expect(title == "nvim")
+  }
+
+  @Test
+  func sidebarTabTitleFallsBackWhenRuntimeTitleMatchesAbbreviatedWorkingDirectory() {
+    let title = TerminalHostState.sidebarTabTitle(
+      runtimeTitle: "~/code/github.com/supabitapp/supaterm",
+      workingDirectory: "/Users/Developer/code/github.com/supabitapp/supaterm",
+      fallbackTitle: "Terminal"
+    )
+
+    #expect(title == "Terminal")
+  }
+
+  @Test
+  func sidebarTabTitleFallsBackWhenRuntimeTitleMatchesEllipsizedWorkingDirectory() {
+    let title = TerminalHostState.sidebarTabTitle(
+      runtimeTitle: "\u{2026}/Terminal/Views/Sidebar",
+      workingDirectory: "/Users/Developer/code/github.com/supabitapp/supaterm/Features/Terminal/Views/Sidebar",
+      fallbackTitle: "Terminal 2"
+    )
+
+    #expect(title == "Terminal 2")
+  }
+
+  @Test
+  func sidebarWorkingDirectoryTextAbbreviatesHomeDirectory() {
+    let text = TerminalHostState.sidebarWorkingDirectoryText(
+      "/Users/Developer/code/github.com/supabitapp/supaterm"
+    )
+
+    #expect(text == "~/code/github.com/supabitapp/supaterm")
+  }
+
+  @Test
   func selectedPaneDisplayTitleFallsBackToFocusedPaneOrdinal() throws {
     let first = PaneTitleTestView()
     let second = PaneTitleTestView()
