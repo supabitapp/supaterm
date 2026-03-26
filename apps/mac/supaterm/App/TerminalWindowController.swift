@@ -79,11 +79,13 @@ final class TerminalWindowController: NSWindowController {
     self.store = store
 
     let hostingController = NSHostingController(
-      rootView: GhosttyColorSchemeSyncView(ghostty: ghostty) {
-        ContentView(
-          store: store,
-          terminal: terminal
-        )
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: ghostty) {
+          ContentView(
+            store: store,
+            terminal: terminal
+          )
+        }
       }
     )
 
