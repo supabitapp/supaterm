@@ -47,7 +47,6 @@ final class TerminalWindowRegistry {
   }
 
   private struct ClaudeHookSession {
-    var pendingQuestion: String?
     var surfaceID: UUID
   }
 
@@ -446,7 +445,6 @@ final class TerminalWindowRegistry {
     let event = request.event
     if let sessionID = event.sessionID, let context = request.context {
       claudeHookSessions[sessionID] = .init(
-        pendingQuestion: claudeHookSessions[sessionID]?.pendingQuestion,
         surfaceID: context.surfaceID
       )
     }
@@ -459,25 +457,17 @@ final class TerminalWindowRegistry {
       guard let sessionID = event.sessionID else {
         return .init(desktopNotification: nil)
       }
-      if let pendingQuestion = event.pendingQuestion(), var session = claudeHookSessions[sessionID] {
-        session.pendingQuestion = pendingQuestion
-        claudeHookSessions[sessionID] = session
-      } else {
-        clearClaudeHookPendingQuestion(sessionID: sessionID)
-      }
       _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
       return .init(desktopNotification: nil)
 
     case .userPromptSubmit:
       if let sessionID = event.sessionID {
-        clearClaudeHookPendingQuestion(sessionID: sessionID)
         _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
 
     case .stop:
       if let sessionID = event.sessionID {
-        clearClaudeHookPendingQuestion(sessionID: sessionID)
         _ = setClaudeActivity(.idle, sessionID: sessionID, context: request.context)
       }
       return .init(desktopNotification: nil)
@@ -534,10 +524,7 @@ final class TerminalWindowRegistry {
     let message = try event.notificationMessage()
     let session = event.sessionID.flatMap { claudeHookSessions[$0] }
     let subtitle = event.title ?? "Attention"
-    let body =
-      SupatermClaudeHookEvent.isGenericAttentionMessage(message)
-      ? (session?.pendingQuestion ?? message)
-      : message
+    let body = message
     let title = "Claude Code"
     var candidateSurfaceIDs: [UUID] = []
     if let surfaceID = context?.surfaceID {
@@ -575,12 +562,6 @@ final class TerminalWindowRegistry {
     }
 
     return .init(desktopNotification: nil)
-  }
-
-  private func clearClaudeHookPendingQuestion(sessionID: String) {
-    guard var session = claudeHookSessions[sessionID] else { return }
-    session.pendingQuestion = nil
-    claudeHookSessions[sessionID] = session
   }
 
   @discardableResult

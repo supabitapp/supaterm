@@ -479,7 +479,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func claudeNotificationUsesStoredPendingQuestionForGenericMessage() throws {
+  func claudeNotificationUsesGenericMessage() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.registry.handleClaudeHook(
@@ -494,10 +494,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(
-      harness.host.latestNotificationText(for: harness.tabID)
-        == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
-    )
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
   @Test
@@ -517,7 +514,7 @@ struct TerminalWindowRegistryTests {
     #expect(
       result.desktopNotification
         == .init(
-          body: "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]",
+          body: "Claude needs your attention",
           subtitle: "Needs input",
           title: "Claude Code"
         )
@@ -525,14 +522,11 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
     #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
-    #expect(
-      harness.host.latestNotificationText(for: harness.tabID)
-        == "Which storage strategy should the plan lock in for sp claude-hook?\n[File-backed] [App memory]"
-    )
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
   @Test
-  func claudeUserPromptSubmitClearsPendingQuestion() throws {
+  func claudeUserPromptSubmitReturnsTabToRunning() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.registry.handleClaudeHook(
@@ -555,7 +549,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func claudeStopClearsPendingQuestion() throws {
+  func claudeStopMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.registry.handleClaudeHook(
@@ -568,13 +562,6 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
     #expect(harness.host.claudeActivity(for: harness.tabID) == .idle)
-    _ = try harness.registry.handleClaudeHook(
-      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
-    )
-
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
   @Test
