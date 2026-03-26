@@ -77,17 +77,6 @@ final class TerminalHostState {
       }
     }
 
-    var statusLabel: String {
-      switch self {
-      case .needsInput:
-        return "Claude needs input"
-      case .running:
-        return "Claude running"
-      case .idle:
-        return "Claude idle"
-      }
-    }
-
     var tone: ClaudeActivityTone {
       switch self {
       case .needsInput:
