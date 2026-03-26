@@ -1,4 +1,4 @@
 interface:
   display_name: "Supaterm"
-  short_description: "Inspect and control the running Supaterm app"
-  default_prompt: "Use $supaterm to inspect the running app and carry out a pane, tab, or notification action."
+  short_description: "Create tabs and panes in Supaterm"
+  default_prompt: "Use $supaterm to create a Supaterm tab or split a Supaterm pane with `sp new-tab` or `sp new-pane`."
