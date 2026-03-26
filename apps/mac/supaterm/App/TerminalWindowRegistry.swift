@@ -74,6 +74,9 @@ final class TerminalWindowRegistry {
     requestConfirmedWindowClose: @escaping @MainActor () -> Void
   ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
+    terminal.onCommandFinished = { [weak self] surfaceID in
+      self?.clearClaudeHookSessions(for: surfaceID)
+    }
     entries.append(
       .init(
         keyboardShortcutForAction: keyboardShortcutForAction,
@@ -628,6 +631,10 @@ final class TerminalWindowRegistry {
       candidateSurfaceIDs.append(surfaceID)
     }
     return candidateSurfaceIDs
+  }
+
+  private func clearClaudeHookSessions(for surfaceID: UUID) {
+    claudeHookSessions = claudeHookSessions.filter { $0.value.surfaceID != surfaceID }
   }
 
   private func activeEntries() -> [Entry] {

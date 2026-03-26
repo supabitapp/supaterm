@@ -18,6 +18,7 @@ final class GhosttySurfaceBridge {
   var onGotoTab: ((ghostty_action_goto_tab_e) -> Bool)?
   var onMoveTab: ((ghostty_action_move_tab_s) -> Bool)?
   var onCommandPaletteToggle: (() -> Bool)?
+  var onCommandFinished: (() -> Void)?
   var onProgressReport: ((ghostty_action_progress_report_state_e) -> Void)?
   var onDesktopNotification: ((String, String) -> Void)?
   var onStateChange: (() -> Void)?
@@ -281,6 +282,7 @@ final class GhosttySurfaceBridge {
       let info = action.action.command_finished
       state.commandExitCode = info.exit_code == -1 ? nil : Int(info.exit_code)
       state.commandDuration = info.duration
+      onCommandFinished?()
       return true
 
     case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
