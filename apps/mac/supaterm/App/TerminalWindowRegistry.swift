@@ -63,7 +63,7 @@ final class TerminalWindowRegistry {
   }
 
   var bypassesQuitConfirmation: Bool {
-    activeEntries().contains { $0.store.update.phase.bypassesQuitConfirmation }
+    activeEntries().contains { $0.store.withState(\.update.phase.bypassesQuitConfirmation) }
   }
 
   func register(
@@ -127,7 +127,8 @@ final class TerminalWindowRegistry {
       )
     }
 
-    let updateMenuItemAction = Self.updateMenuItemAction(for: entry.store.update)
+    let updateState = entry.store.withState(\.update)
+    let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
 
     return .init(
       availability: .init(
@@ -137,7 +138,7 @@ final class TerminalWindowRegistry {
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
-      updateMenuItemText: entry.store.update.phase.menuItemTitle,
+      updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
       isUpdateMenuItemEnabled: updateMenuItemAction != nil
@@ -200,7 +201,7 @@ final class TerminalWindowRegistry {
   @discardableResult
   func requestUpdateMenuActionInKeyWindow() -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
-    guard let action = Self.updateMenuItemAction(for: entry.store.update) else { return false }
+    guard let action = Self.updateMenuItemAction(for: entry.store.withState(\.update)) else { return false }
     entry.store.send(.update(.perform(action)))
     return true
   }
@@ -324,7 +325,7 @@ final class TerminalWindowRegistry {
         isDevelopmentBuild: AppBuild.isDevelopmentBuild,
         usesStubUpdateChecks: AppBuild.usesStubUpdateChecks
       ),
-      update: updateSnapshot(updateEntry?.store.update),
+      update: updateSnapshot(updateEntry.map { $0.store.withState(\.update) }),
       summary: .init(
         windowCount: windows.count,
         spaceCount: windows.reduce(0) { $0 + $1.spaces.count },

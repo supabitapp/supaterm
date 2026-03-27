@@ -355,7 +355,7 @@ struct TerminalWindowRegistryTests {
       registry.requestToggleCommandPaletteInKeyWindow()
       await flushEffects()
 
-      #expect(store.terminal.commandPalette != nil)
+      #expect(store.withState(\.terminal.commandPalette) != nil)
     }
   }
 
