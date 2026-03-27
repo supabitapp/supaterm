@@ -16,7 +16,6 @@ struct SettingsTabContentView: View {
 
 private struct SettingsGeneralView: View {
   @Shared(.appPrefs) private var appPrefs = .default
-  @Environment(\.colorScheme) private var colorScheme
 
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
@@ -30,11 +29,8 @@ private struct SettingsGeneralView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 22) {
-      Text("Appearance")
-        .font(.title2.weight(.semibold))
-
-      VStack(alignment: .leading, spacing: 20) {
+    Form {
+      Section("Appearance") {
         HStack(spacing: 16) {
           let selectedMode = appearanceMode.wrappedValue
           ForEach(AppearanceMode.allCases) { mode in
@@ -48,38 +44,22 @@ private struct SettingsGeneralView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
 
-        Rectangle()
-          .fill(dividerColor)
-          .frame(height: 1)
-
         VStack(alignment: .leading, spacing: 8) {
           Text("Terminal theming follows Ghostty config")
           Text("For example, add the following line to `~/.config/ghostty/config`")
-          Text("theme = light:Monokai Pro Light Sun,dark:Dimmed Monokai")
+          Text("theme = light:Monokai Pro Light Sun,\ndark:Dimmed Monokai")
             .monospaced()
         }
         .font(.body.weight(.semibold))
         .foregroundStyle(.secondary)
         .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(20)
-      .background(sectionBackground)
-      .clipShape(.rect(cornerRadius: 24))
     }
+    .formStyle(.grouped)
+    .scrollContentBackground(.hidden)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .padding(24)
-  }
-
-  private var dividerColor: Color {
-    colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
-  }
-
-  private var sectionBackground: Color {
-    colorScheme == .dark
-      ? Color(red: 0.18, green: 0.19, blue: 0.2)
-      : Color.white
   }
 }
 
