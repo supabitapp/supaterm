@@ -5,12 +5,30 @@ struct SettingsTabContentView: View {
   let tab: SettingsFeature.Tab
 
   var body: some View {
-    switch tab {
-    case .general:
-      SettingsGeneralView()
-    case .updates, .about:
-      SettingsPlaceholderView(tab: tab)
+    SettingsDetailContainer {
+      switch tab {
+      case .general:
+        SettingsGeneralView()
+      case .updates, .about:
+        SettingsPlaceholderView(tab: tab)
+      }
     }
+  }
+}
+
+private struct SettingsDetailContainer<Content: View>: View {
+  let content: Content
+
+  init(@ViewBuilder content: () -> Content) {
+    self.content = content()
+  }
+
+  var body: some View {
+    content
+      .scenePadding(.top)
+      .scenePadding(.horizontal)
+      .scenePadding(.bottom)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -151,6 +169,5 @@ private struct SettingsPlaceholderView: View {
         .foregroundStyle(.secondary)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(24)
   }
 }
