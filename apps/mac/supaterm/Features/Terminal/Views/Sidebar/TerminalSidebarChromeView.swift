@@ -390,7 +390,7 @@ struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
     case claudeActivity(TerminalHostState.ClaudeActivity)
     case focusedNotification
-    case terminalProgress
+    case terminalProgress(TerminalSidebarTerminalProgress)
     case tabSymbol(String, TerminalTabIconStyle)
     case unreadCount(Int)
   }
@@ -404,12 +404,14 @@ struct TerminalSidebarTabSummaryView: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let claudeActivity: TerminalHostState.ClaudeActivity?
+  let terminalProgress: TerminalSidebarTerminalProgress?
 
   static func leadingIndicator(
     hasFocusedNotificationAttention: Bool,
     tab: TerminalTabItem,
     unreadCount: Int,
-    claudeActivity: TerminalHostState.ClaudeActivity?
+    claudeActivity: TerminalHostState.ClaudeActivity?,
+    terminalProgress: TerminalSidebarTerminalProgress?
   ) -> LeadingIndicator {
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
@@ -417,8 +419,8 @@ struct TerminalSidebarTabSummaryView: View {
     if let claudeActivity, claudeActivity.showsLeadingIndicator {
       return .claudeActivity(claudeActivity)
     }
-    if tab.isDirty {
-      return .terminalProgress
+    if let terminalProgress {
+      return .terminalProgress(terminalProgress)
     }
     if hasFocusedNotificationAttention {
       return .focusedNotification
@@ -446,7 +448,8 @@ struct TerminalSidebarTabSummaryView: View {
         hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         tab: tab,
         unreadCount: unreadCount,
-        claudeActivity: claudeActivity
+        claudeActivity: claudeActivity,
+        terminalProgress: terminalProgress
       ) {
       case .unreadCount(let unreadCount):
         Text(unreadCount.formatted())
@@ -466,8 +469,9 @@ struct TerminalSidebarTabSummaryView: View {
           palette: palette
         )
 
-      case .terminalProgress:
+      case .terminalProgress(let terminalProgress):
         TerminalSidebarProgressRingView(
+          progress: terminalProgress,
           isSelected: isSelected,
           palette: palette
         )
@@ -557,7 +561,19 @@ struct TerminalSidebarTabSummaryView: View {
   }
 }
 
+struct TerminalSidebarTerminalProgress: Equatable {
+  enum Tone: Equatable {
+    case active
+    case paused
+    case error
+  }
+
+  let fraction: Double?
+  let tone: Tone
+}
+
 private struct TerminalSidebarProgressRingView: View {
+  let progress: TerminalSidebarTerminalProgress
   let isSelected: Bool
   let palette: TerminalPalette
 
@@ -565,32 +581,222 @@ private struct TerminalSidebarProgressRingView: View {
   @State private var rotation = Angle.zero
 
   var body: some View {
-    Circle()
-      .trim(from: 0.14, to: 0.86)
-      .stroke(
-        color,
-        style: StrokeStyle(lineWidth: 1.8, lineCap: .round)
-      )
-      .frame(width: 16, height: 16)
-      .rotationEffect(rotation)
-      .onAppear {
-        guard !accessibilityReduceMotion else { return }
-        withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-          rotation = .degrees(360)
-        }
+    ZStack {
+      Circle()
+        .stroke(trackColor, lineWidth: 2)
+
+      if let fraction = progress.fraction {
+        Circle()
+          .trim(from: 0, to: fraction)
+          .stroke(
+            color,
+            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+          )
+          .rotationEffect(.degrees(-90))
+          .animation(.easeInOut(duration: 0.2), value: fraction)
+      } else {
+        Circle()
+          .trim(from: 0.14, to: 0.64)
+          .stroke(
+            color,
+            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+          )
+          .rotationEffect(rotation)
       }
-      .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
-        rotation = .zero
-        guard !reduceMotion else { return }
-        withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-          rotation = .degrees(360)
-        }
+    }
+    .frame(width: 16, height: 16)
+    .onAppear {
+      guard progress.fraction == nil, !accessibilityReduceMotion else { return }
+      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+        rotation = .degrees(360)
       }
-      .accessibilityHidden(true)
+    }
+    .onChange(of: progress.fraction == nil) { _, isIndeterminate in
+      rotation = .zero
+      guard isIndeterminate, !accessibilityReduceMotion else { return }
+      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+        rotation = .degrees(360)
+      }
+    }
+    .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
+      rotation = .zero
+      guard progress.fraction == nil, !reduceMotion else { return }
+      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+        rotation = .degrees(360)
+      }
+    }
+    .accessibilityHidden(true)
+  }
+
+  private var trackColor: Color {
+    color.opacity(isSelected ? 0.24 : 0.18)
   }
 
   private var color: Color {
-    isSelected ? palette.selectedText.opacity(0.78) : Color.accentColor
+    switch progress.tone {
+    case .active:
+      return isSelected ? palette.selectedIcon : Color.accentColor
+    case .paused:
+      return .orange
+    case .error:
+      return .red
+    }
+  }
+}
+
+struct TerminalSidebarTabRow: View {
+  private struct AnimatedPresentation: Equatable {
+    let claudeActivity: TerminalHostState.ClaudeActivity?
+    let hasFocusedNotificationAttention: Bool
+    let latestNotificationText: String?
+    let paneWorkingDirectories: [String]
+    let terminalProgress: TerminalSidebarTerminalProgress?
+    let unreadCount: Int
+  }
+
+  let store: StoreOf<TerminalWindowFeature>
+  let terminal: TerminalHostState
+  let tab: TerminalTabItem
+  let hasFocusedNotificationAttention: Bool
+  let latestNotificationText: String?
+  let paneWorkingDirectories: [String]
+  let unreadCount: Int
+  let terminalProgress: TerminalSidebarTerminalProgress?
+  let palette: TerminalPalette
+
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+  @State private var isHovering = false
+  @State private var isCloseHovering = false
+
+  private var isSelected: Bool {
+    terminal.selectedTabID == tab.id
+  }
+
+  var body: some View {
+    Button(action: select) {
+      HStack(spacing: 8) {
+        let summary = TerminalSidebarTabSummaryView(
+          tab: tab,
+          palette: palette,
+          isSelected: isSelected,
+          notificationColor: terminal.notificationAttentionColor,
+          hasFocusedNotificationAttention: hasFocusedNotificationAttention,
+          latestNotificationText: latestNotificationText,
+          paneWorkingDirectories: paneWorkingDirectories,
+          unreadCount: unreadCount,
+          claudeActivity: terminal.claudeActivity(for: tab.id),
+          terminalProgress: terminalProgress
+        )
+        if let helpText = TerminalSidebarTabSummaryView.helpText(
+          latestNotificationText: latestNotificationText,
+          paneWorkingDirectories: paneWorkingDirectories
+        ) {
+          summary.help(helpText)
+        } else {
+          summary
+        }
+
+        if isHovering {
+          Button(action: close) {
+            Image(systemName: "xmark")
+              .font(.system(size: 12, weight: .heavy))
+              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+              .frame(width: 24, height: 24)
+              .accessibilityHidden(true)
+              .background(
+                isCloseHovering
+                  ? (isSelected ? palette.clearFill : palette.rowFill)
+                  : .clear,
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+              )
+          }
+          .buttonStyle(.plain)
+          .onHover { isCloseHovering = $0 }
+        }
+      }
+      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+      .frame(maxWidth: .infinity)
+      .background(backgroundColor)
+      .clipShape(
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+      )
+      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
+      .contentShape(
+        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+      )
+    }
+    .buttonStyle(.plain)
+    .animation(rowAnimation, value: animatedPresentation)
+    .overlay(
+      TerminalSidebarMiddleClickActionView(action: close)
+    )
+    .onHover { isHovering in
+      withAnimation(.easeInOut(duration: 0.05)) {
+        self.isHovering = isHovering
+      }
+    }
+    .contextMenu {
+      Button {
+        _ = store.send(
+          .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+        )
+      } label: {
+        Label("New Tab", systemImage: "plus")
+      }
+
+      Divider()
+
+      Button {
+        _ = store.send(.togglePinned(tab.id))
+      } label: {
+        Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
+      }
+
+      Divider()
+
+      Button(role: .destructive) {
+        _ = store.send(.closeTabRequested(tab.id))
+      } label: {
+        Label("Close", systemImage: "xmark")
+      }
+    }
+  }
+
+  private var backgroundColor: Color {
+    if isSelected {
+      return palette.selectedFill
+    }
+    if isHovering {
+      return palette.rowFill
+    }
+    return .clear
+  }
+
+  private var animatedPresentation: AnimatedPresentation {
+    .init(
+      claudeActivity: terminal.claudeActivity(for: tab.id),
+      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
+      latestNotificationText: latestNotificationText,
+      paneWorkingDirectories: paneWorkingDirectories,
+      terminalProgress: terminalProgress,
+      unreadCount: unreadCount
+    )
+  }
+
+  private var rowAnimation: Animation? {
+    accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
+  }
+
+  private func select() {
+    _ = store.send(.tabSelected(tab.id))
+  }
+
+  private func close() {
+    withAnimation(.easeInOut(duration: 0.15)) {
+      _ = store.send(.closeTabRequested(tab.id))
+    }
   }
 }
 
@@ -833,6 +1039,7 @@ struct TerminalSidebarTabRow: View {
     let hasFocusedNotificationAttention: Bool
     let latestNotificationText: String?
     let paneWorkingDirectories: [String]
+    let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
   }
 
@@ -843,6 +1050,7 @@ struct TerminalSidebarTabRow: View {
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
+  let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: TerminalPalette
 
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
@@ -865,7 +1073,8 @@ struct TerminalSidebarTabRow: View {
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
-          claudeActivity: terminal.claudeActivity(for: tab.id)
+          claudeActivity: terminal.claudeActivity(for: tab.id),
+          terminalProgress: terminalProgress
         )
         if let helpText = TerminalSidebarTabSummaryView.helpText(
           latestNotificationText: latestNotificationText,
@@ -960,6 +1169,7 @@ struct TerminalSidebarTabRow: View {
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       latestNotificationText: latestNotificationText,
       paneWorkingDirectories: paneWorkingDirectories,
+      terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )
   }
