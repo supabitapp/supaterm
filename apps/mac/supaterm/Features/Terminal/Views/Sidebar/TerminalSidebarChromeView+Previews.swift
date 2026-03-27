@@ -27,6 +27,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let claudeActivity: TerminalHostState.ClaudeActivity?
+  let terminalProgress: TerminalSidebarTerminalProgress?
 
   var id: String {
     previewID
@@ -84,7 +85,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       unreadCount: unreadCount,
-      claudeActivity: claudeActivity
+      claudeActivity: claudeActivity,
+      terminalProgress: terminalProgress
     )
   }
 
@@ -99,7 +101,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     latestNotificationText: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
-    claudeActivity: TerminalHostState.ClaudeActivity? = nil
+    claudeActivity: TerminalHostState.ClaudeActivity? = nil,
+    terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
     tabID = .init(rawValue: Self.uuid(id))
@@ -113,6 +116,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.claudeActivity = claudeActivity
+    self.terminalProgress = terminalProgress
   }
 
   private static func uuid(_ id: String) -> UUID {
@@ -210,7 +214,8 @@ private enum TerminalSidebarTabPreviewFixtures {
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("docs")
-      )
+      ),
+      terminalProgress: .init(fraction: 0.68, tone: .active)
     ),
     .init(
       section: .attention,
@@ -260,6 +265,7 @@ private struct TerminalSidebarTabPreviewRow: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: item.tab,
+      displayTitle: item.title,
       palette: palette,
       isSelected: item.isSelected,
       notificationColor: palette.attention,
@@ -267,7 +273,8 @@ private struct TerminalSidebarTabPreviewRow: View {
       latestNotificationText: item.latestNotificationText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
-      claudeActivity: item.claudeActivity
+      claudeActivity: item.claudeActivity,
+      terminalProgress: item.terminalProgress
     )
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)

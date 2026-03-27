@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -12,7 +13,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 3,
-        claudeActivity: .needsInput
+        claudeActivity: .needsInput,
+        terminalProgress: nil
       ) == .unreadCount(3)
     )
   }
@@ -26,7 +28,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .running
+        claudeActivity: .running,
+        terminalProgress: nil
       ) == .claudeActivity(.running)
     )
   }
@@ -40,7 +43,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .running
+        claudeActivity: .running,
+        terminalProgress: .init(fraction: 0.5, tone: .active)
       ) == .claudeActivity(.running)
     )
   }
@@ -48,14 +52,16 @@ struct TerminalSidebarChromeViewTests {
   @Test
   func terminalProgressTakesPrecedenceOverFocusedNotification() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil
-      ) == .terminalProgress
+        claudeActivity: nil,
+        terminalProgress: progress
+      ) == .terminalProgress(progress)
     )
   }
 
@@ -68,7 +74,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .idle
+        claudeActivity: .idle,
+        terminalProgress: nil
       ) == .focusedNotification
     )
   }
@@ -94,7 +101,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil
+        claudeActivity: nil,
+        terminalProgress: nil
       ) == .tabSymbol("hammer", .accent(tab.tone))
     )
   }
@@ -108,7 +116,8 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil
+        claudeActivity: nil,
+        terminalProgress: nil
       ) == .tabSymbol("terminal", .neutral)
     )
   }
@@ -121,5 +130,26 @@ struct TerminalSidebarChromeViewTests {
         paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
       ) == "Build finished\n~/Downloads\n~/Downloads/abc"
     )
+  }
+
+  @Test
+  func summaryViewUsesExplicitDisplayTitle() {
+    let tab = TerminalTabItem(title: "⠋ Build", icon: "hammer")
+    let view = TerminalSidebarTabSummaryView(
+      tab: tab,
+      displayTitle: "Build",
+      palette: .init(colorScheme: .dark),
+      isSelected: false,
+      notificationColor: .red,
+      hasFocusedNotificationAttention: false,
+      latestNotificationText: nil,
+      paneWorkingDirectories: [],
+      unreadCount: 0,
+      claudeActivity: nil,
+      terminalProgress: nil
+    )
+
+    #expect(view.displayTitle == "Build")
+    #expect(view.tab.title == "⠋ Build")
   }
 }

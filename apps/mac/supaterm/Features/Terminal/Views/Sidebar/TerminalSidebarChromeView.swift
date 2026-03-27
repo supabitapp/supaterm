@@ -243,11 +243,13 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
+    let displayTitle = terminal.sidebarDisplayTitle(for: tab.id)
     let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
+      displayTitle: displayTitle,
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
@@ -273,6 +275,7 @@ struct TerminalSidebarChromeView: View {
         latestNotificationText: latestNotificationText,
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
+        terminalProgress: nil,
         palette: palette
       )
       .id(tab.id)
@@ -396,6 +399,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
+  let displayTitle: String
   let palette: TerminalPalette
   let isSelected: Bool
   let notificationColor: Color
@@ -496,7 +500,7 @@ struct TerminalSidebarTabSummaryView: View {
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
-          Text(tab.title)
+          Text(displayTitle)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
@@ -677,6 +681,7 @@ struct TerminalSidebarTabRow: View {
       HStack(spacing: 8) {
         let summary = TerminalSidebarTabSummaryView(
           tab: tab,
+          displayTitle: terminal.sidebarDisplayTitle(for: tab.id),
           palette: palette,
           isSelected: isSelected,
           notificationColor: terminal.notificationAttentionColor,
@@ -1030,162 +1035,6 @@ private struct TerminalSidebarRegularSectionHeader: View {
       .frame(height: 36)
     }
     .buttonStyle(TerminalSidebarRectButtonStyle())
-  }
-}
-
-struct TerminalSidebarTabRow: View {
-  private struct AnimatedPresentation: Equatable {
-    let claudeActivity: TerminalHostState.ClaudeActivity?
-    let hasFocusedNotificationAttention: Bool
-    let latestNotificationText: String?
-    let paneWorkingDirectories: [String]
-    let terminalProgress: TerminalSidebarTerminalProgress?
-    let unreadCount: Int
-  }
-
-  let store: StoreOf<TerminalWindowFeature>
-  let terminal: TerminalHostState
-  let tab: TerminalTabItem
-  let hasFocusedNotificationAttention: Bool
-  let latestNotificationText: String?
-  let paneWorkingDirectories: [String]
-  let unreadCount: Int
-  let terminalProgress: TerminalSidebarTerminalProgress?
-  let palette: TerminalPalette
-
-  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-  @State private var isHovering = false
-  @State private var isCloseHovering = false
-
-  private var isSelected: Bool {
-    terminal.selectedTabID == tab.id
-  }
-
-  var body: some View {
-    Button(action: select) {
-      HStack(spacing: 8) {
-        let summary = TerminalSidebarTabSummaryView(
-          tab: tab,
-          palette: palette,
-          isSelected: isSelected,
-          notificationColor: terminal.notificationAttentionColor,
-          hasFocusedNotificationAttention: hasFocusedNotificationAttention,
-          latestNotificationText: latestNotificationText,
-          paneWorkingDirectories: paneWorkingDirectories,
-          unreadCount: unreadCount,
-          claudeActivity: terminal.claudeActivity(for: tab.id),
-          terminalProgress: terminalProgress
-        )
-        if let helpText = TerminalSidebarTabSummaryView.helpText(
-          latestNotificationText: latestNotificationText,
-          paneWorkingDirectories: paneWorkingDirectories
-        ) {
-          summary.help(helpText)
-        } else {
-          summary
-        }
-
-        if isHovering {
-          Button(action: close) {
-            Image(systemName: "xmark")
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-              .frame(width: 24, height: 24)
-              .accessibilityHidden(true)
-              .background(
-                isCloseHovering
-                  ? (isSelected ? palette.clearFill : palette.rowFill)
-                  : .clear,
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-              )
-          }
-          .buttonStyle(.plain)
-          .onHover { isCloseHovering = $0 }
-        }
-      }
-      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-      .frame(maxWidth: .infinity)
-      .background(backgroundColor)
-      .clipShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
-      .contentShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-    }
-    .buttonStyle(.plain)
-    .animation(rowAnimation, value: animatedPresentation)
-    .overlay(
-      TerminalSidebarMiddleClickActionView(action: close)
-    )
-    .onHover { isHovering in
-      withAnimation(.easeInOut(duration: 0.05)) {
-        self.isHovering = isHovering
-      }
-    }
-    .contextMenu {
-      Button {
-        _ = store.send(
-          .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
-        )
-      } label: {
-        Label("New Tab", systemImage: "plus")
-      }
-
-      Divider()
-
-      Button {
-        _ = store.send(.togglePinned(tab.id))
-      } label: {
-        Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
-      }
-
-      Divider()
-
-      Button(role: .destructive) {
-        _ = store.send(.closeTabRequested(tab.id))
-      } label: {
-        Label("Close", systemImage: "xmark")
-      }
-    }
-  }
-
-  private var backgroundColor: Color {
-    if isSelected {
-      return palette.selectedFill
-    }
-    if isHovering {
-      return palette.rowFill
-    }
-    return .clear
-  }
-
-  private var animatedPresentation: AnimatedPresentation {
-    .init(
-      claudeActivity: terminal.claudeActivity(for: tab.id),
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
-      latestNotificationText: latestNotificationText,
-      paneWorkingDirectories: paneWorkingDirectories,
-      terminalProgress: terminalProgress,
-      unreadCount: unreadCount
-    )
-  }
-
-  private var rowAnimation: Animation? {
-    accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
-  }
-
-  private func select() {
-    _ = store.send(.tabSelected(tab.id))
-  }
-
-  private func close() {
-    withAnimation(.easeInOut(duration: 0.15)) {
-      _ = store.send(.closeTabRequested(tab.id))
-    }
   }
 }
 
