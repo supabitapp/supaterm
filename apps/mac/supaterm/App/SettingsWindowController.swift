@@ -4,6 +4,9 @@ import SwiftUI
 
 @MainActor
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+  static let defaultContentSize = NSSize(width: 760, height: 560)
+  static let minimumContentSize = NSSize(width: defaultContentSize.width, height: 360)
+
   let store: StoreOf<SettingsFeature>
   private let restoresSavedFrame: Bool
   private let tabViewController: SettingsTabViewController
@@ -17,13 +20,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     self.tabViewController = tabViewController
 
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+      contentRect: NSRect(origin: .zero, size: Self.defaultContentSize),
       styleMask: [.closable, .miniaturizable, .resizable, .titled],
       backing: .buffered,
       defer: false
     )
     window.contentViewController = tabViewController
-    window.contentMinSize = NSSize(width: 520, height: 360)
+    window.contentMinSize = Self.minimumContentSize
     window.identifier = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.settings")
     window.isReleasedWhenClosed = false
     let restoresSavedFrame = window.setFrameUsingName("SupatermSettingsWindow")

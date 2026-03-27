@@ -49,4 +49,33 @@ struct SettingsWindowControllerTests {
 
     #expect(frame == savedFrame)
   }
+
+  @Test
+  func windowUsesSupportedMinimumContentSize() throws {
+    NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
+    defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
+
+    let controller = SettingsWindowController()
+    let window = try #require(controller.window)
+
+    #expect(window.contentMinSize == SettingsWindowController.minimumContentSize)
+  }
+
+  @Test
+  func restoredFrameClampsToMinimumContentSizeWhenSavedFrameIsTooNarrow() throws {
+    NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
+    defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
+
+    let seedController = SettingsWindowController()
+    let seedWindow = try #require(seedController.window)
+    let savedFrame = NSRect(x: 111, y: 222, width: 520, height: 690)
+    seedWindow.setFrame(savedFrame, display: false)
+    seedWindow.saveFrame(usingName: "SupatermSettingsWindow")
+
+    let controller = SettingsWindowController()
+    let window = try #require(controller.window)
+    let restoredContentWidth = window.contentRect(forFrameRect: window.frame).width
+
+    #expect(restoredContentWidth >= SettingsWindowController.minimumContentSize.width)
+  }
 }
