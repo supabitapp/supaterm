@@ -2,6 +2,12 @@
 
 - Issues are tracked on: https://linear.app/supaterm
 
+Example command of getting issues using linear-cli
+
+```
+linear issue list --team SUP --state backlog --state unstarted --sort manual --assignee @me --limit 100
+```
+
 ## Layout
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
