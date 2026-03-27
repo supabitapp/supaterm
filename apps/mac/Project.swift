@@ -6,6 +6,7 @@ let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
 let claudeWrapperScriptPath: Path = "Resources/bin/claude"
+let minimumMacOSVersion = "15.0"
 let ghosttyFingerprintInputScript = """
 "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
@@ -35,7 +36,7 @@ let project = Project(
       destinations: .macOS,
       product: .staticLibrary,
       bundleId: "app.supabit.supaterm.cli-shared",
-      deploymentTargets: .macOS("26.0"),
+      deploymentTargets: .macOS(minimumMacOSVersion),
       infoPlist: .default,
       sources: [
         "SupatermCLIShared/**",
@@ -53,7 +54,7 @@ let project = Project(
       destinations: .macOS,
       product: .staticLibrary,
       bundleId: "app.supabit.sp-cli",
-      deploymentTargets: .macOS("26.0"),
+      deploymentTargets: .macOS(minimumMacOSVersion),
       infoPlist: .default,
       sources: [
         "sp/SPClaudeHookSettings.swift",
@@ -79,7 +80,7 @@ let project = Project(
       destinations: .macOS,
       product: .commandLineTool,
       bundleId: "app.supabit.sp",
-      deploymentTargets: .macOS("26.0"),
+      deploymentTargets: .macOS(minimumMacOSVersion),
       infoPlist: .default,
       sources: [
         "sp/main.swift",
@@ -116,7 +117,7 @@ let project = Project(
       destinations: .macOS,
       product: .app,
       bundleId: "app.supabit.supaterm",
-      deploymentTargets: .macOS("26.0"),
+      deploymentTargets: .macOS(minimumMacOSVersion),
       infoPlist: .extendingDefault(with: [
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
@@ -260,7 +261,7 @@ let project = Project(
       destinations: .macOS,
       product: .unitTests,
       bundleId: "app.supabit.supatermTests",
-      deploymentTargets: .macOS("26.0"),
+      deploymentTargets: .macOS(minimumMacOSVersion),
       infoPlist: .default,
       buildableFolders: [
         "supatermTests",
