@@ -265,6 +265,7 @@ private struct TerminalSidebarTabPreviewRow: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: item.tab,
+      displayTitle: item.title,
       palette: palette,
       isSelected: item.isSelected,
       notificationColor: palette.attention,

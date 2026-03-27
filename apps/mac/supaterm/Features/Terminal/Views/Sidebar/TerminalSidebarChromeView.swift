@@ -243,11 +243,13 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
+    let displayTitle = terminal.sidebarDisplayTitle(for: tab.id)
     let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
+      displayTitle: displayTitle,
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
@@ -397,6 +399,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
+  let displayTitle: String
   let palette: TerminalPalette
   let isSelected: Bool
   let notificationColor: Color
@@ -497,7 +500,7 @@ struct TerminalSidebarTabSummaryView: View {
 
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
-          Text(tab.title)
+          Text(displayTitle)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
             .lineLimit(1)
@@ -678,6 +681,7 @@ struct TerminalSidebarTabRow: View {
       HStack(spacing: 8) {
         let summary = TerminalSidebarTabSummaryView(
           tab: tab,
+          displayTitle: terminal.sidebarDisplayTitle(for: tab.id),
           palette: palette,
           isSelected: isSelected,
           notificationColor: terminal.notificationAttentionColor,
