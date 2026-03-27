@@ -46,6 +46,7 @@ private struct SettingsGeneralView: View {
             }
           }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
 
         Rectangle()
           .fill(dividerColor)
@@ -60,7 +61,9 @@ private struct SettingsGeneralView: View {
         .font(.body.weight(.semibold))
         .foregroundStyle(.secondary)
         .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
       .padding(20)
       .background(sectionBackground)
       .clipShape(.rect(cornerRadius: 24))
@@ -116,7 +119,7 @@ private struct AppearanceOptionCardView: View {
 
             RoundedRectangle(cornerRadius: 6)
               .fill(mode.previewAccent)
-              .frame(width: 128, height: 14)
+              .frame(maxWidth: 128, minHeight: 14, maxHeight: 14, alignment: .leading)
           }
           .padding(32)
         }
