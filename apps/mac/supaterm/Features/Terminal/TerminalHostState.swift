@@ -427,15 +427,6 @@ final class TerminalHostState {
     )
   }
 
-  func sidebarDisplayTitle(for tabID: TerminalTabID) -> String {
-    let surface = titleSurface(for: tabID)
-    return Self.resolvedSidebarDisplayTitle(
-      title: rawTitle(for: tabID),
-      pwd: surface?.bridge.state.pwd,
-      defaultValue: fallbackTitle(for: tabID)
-    )
-  }
-
   func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
     Self.paneWorkingDirectories(
       in: splitTree(for: tabID),
@@ -1966,13 +1957,6 @@ final class TerminalHostState {
     return pasteboard.setString(title, forType: .string)
   }
 
-  private func rawTitle(for tabID: TerminalTabID) -> String? {
-    if let title = tabTitleOverrides[tabID] {
-      return Self.trimmedNonEmpty(title)
-    }
-    return Self.trimmedNonEmpty(titleSurface(for: tabID)?.bridge.state.title)
-  }
-
   private func currentTabTitle(for tabID: TerminalTabID) -> String {
     if let title = tabTitleOverrides[tabID] {
       return title
@@ -2457,36 +2441,6 @@ final class TerminalHostState {
       return pwd
     }
     return defaultValue
-  }
-
-  static func resolvedSidebarDisplayTitle(
-    title: String?,
-    pwd: String?,
-    defaultValue: String
-  ) -> String {
-    if let title = normalizedSidebarDisplayTitle(title) {
-      return title
-    }
-    if let pwd = trimmedNonEmpty(pwd) {
-      return pwd
-    }
-    return defaultValue
-  }
-
-  private static func normalizedSidebarDisplayTitle(_ title: String?) -> String? {
-    guard let title = trimmedNonEmpty(title) else { return nil }
-    let tokens = title.split(whereSeparator: \.isWhitespace).filter { !isSidebarSpinnerToken($0) }
-    guard !tokens.isEmpty else { return nil }
-    return tokens.map(String.init).joined(separator: " ")
-  }
-
-  private static func isSidebarSpinnerToken(_ token: Substring) -> Bool {
-    switch token {
-    case "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏":
-      return true
-    default:
-      return false
-    }
   }
 
   static func paneFallbackTitle<Surface: NSView & Identifiable>(
