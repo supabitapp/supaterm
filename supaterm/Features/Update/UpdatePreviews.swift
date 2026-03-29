@@ -116,7 +116,16 @@ private enum UpdatePreviewStore {
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
 
-          UpdatePopoverView(store: UpdatePreviewStore.make(phase: scenario.phase))
+          UpdatePopoverView(
+            phase: scenario.phase,
+            onAllowAutomaticUpdates: {},
+            onDismiss: {},
+            onInstallAndRelaunch: {},
+            onLater: {},
+            onRestartNow: {},
+            onRetry: {},
+            onSkip: {}
+          )
             .background(Color(nsColor: .windowBackgroundColor))
             .clipShape(.rect(cornerRadius: 12))
             .overlay {

@@ -14,14 +14,10 @@ function getCommands(): Command[] {
   const send = useConnectionStore.getState().send;
   const getState = useWorkspaceStore.getState;
   const settings = useSettingsStore.getState();
+  const workspaceState = getState();
+  const isSharedTabMode = workspaceState.workspaces.length === 0;
 
-  return [
-    {
-      id: "new_tab",
-      label: "New Tab",
-      shortcut: "Cmd+T",
-      action: () => send({ type: "create_tab" }),
-    },
+  const commands: Command[] = [
     {
       id: "close_pane",
       label: "Close Pane",
@@ -129,12 +125,26 @@ function getCommands(): Command[] {
       label: "New Workspace",
       action: () => send({ type: "create_workspace" }),
     },
-    ...getState().workspaces.map((ws) => ({
+    ...workspaceState.workspaces.map((ws) => ({
       id: `switch_workspace_${ws.id}`,
       label: `Switch to Workspace: ${ws.name}`,
       action: () => send({ type: "select_workspace", workspaceId: ws.id }),
     })),
   ];
+
+  if (!isSharedTabMode) {
+    commands.unshift({
+      id: "new_tab",
+      label: "New Tab",
+      shortcut: "Cmd+T",
+      action: () => send({ type: "create_tab" }),
+    });
+  }
+
+  return isSharedTabMode
+    ? commands.filter((command) =>
+        !["next_tab", "prev_tab", "new_workspace"].includes(command.id))
+    : commands;
 }
 
 function fuzzyMatch(query: string, text: string): boolean {

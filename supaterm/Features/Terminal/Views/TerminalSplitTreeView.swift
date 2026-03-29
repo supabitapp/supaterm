@@ -301,9 +301,9 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
 
 @MainActor
 private final class TerminalSplitHostingView: NSHostingView<AnyView> {
-  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
+  nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
-  override var mouseDownCanMoveWindow: Bool { false }
+  nonisolated override var mouseDownCanMoveWindow: Bool { false }
 }
 
 @MainActor
@@ -313,7 +313,7 @@ final class TerminalSplitAXContainerView: NSView {
   private var panesLabel: String = "Terminal split: 0 panes"
   private var lastPaneIDs: [UUID] = []
 
-  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
+  nonisolated override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
 
   func update(rootView: AnyView, panes: [GhosttySurfaceView]) {
     if let hostingView {
@@ -348,20 +348,24 @@ final class TerminalSplitAXContainerView: NSView {
     }
   }
 
-  override func isAccessibilityElement() -> Bool {
+  nonisolated override func isAccessibilityElement() -> Bool {
     true
   }
 
-  override func accessibilityRole() -> NSAccessibility.Role? {
+  nonisolated override func accessibilityRole() -> NSAccessibility.Role? {
     // AppKit doesn't provide a named constant for this role.
     NSAccessibility.Role(rawValue: "AXSplitGroup")
   }
 
-  override func accessibilityLabel() -> String? {
-    panesLabel
+  nonisolated override func accessibilityLabel() -> String? {
+    MainActor.assumeIsolated {
+      panesLabel
+    }
   }
 
-  override func accessibilityChildren() -> [Any]? {
-    panes
+  nonisolated override func accessibilityChildren() -> [Any]? {
+    MainActor.assumeIsolated {
+      panes
+    }
   }
 }

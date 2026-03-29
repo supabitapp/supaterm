@@ -38,6 +38,7 @@ export function Sidebar() {
   const send = useConnectionStore((s) => s.send);
   const isCollapsed = useSettingsStore((s) => s.isSidebarCollapsed);
   const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
+  const isSharedTabMode = workspaces.length === 0;
 
   const tabs = selectedWorkspaceId
     ? allTabs.filter((t) => t.workspaceId === selectedWorkspaceId)
@@ -76,70 +77,78 @@ export function Sidebar() {
               </button>
             );
           })}
-          <button
-            onClick={() => send({ type: "create_tab" })}
-            className="flex h-6 w-6 items-center justify-center rounded text-zinc-600 transition-colors hover:bg-zinc-800/50 hover:text-zinc-400"
-            title="New Tab"
-          >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
+          {selectedTabId && (
+            <button
+              onClick={() =>
+                send({
+                  type: "create_pane",
+                  tabId: selectedTabId,
+                  direction: "right",
+                })}
+              className="flex h-6 w-6 items-center justify-center rounded text-zinc-600 transition-colors hover:bg-zinc-800/50 hover:text-zinc-400"
+              title={isSharedTabMode ? "New Pane" : "Split Right"}
             >
-              <path d="M5 1v8M1 5h8" />
-            </svg>
-          </button>
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M5 1v8M1 5h8" />
+              </svg>
+            </button>
+          )}
         </div>
 
-        <div className="mt-auto flex flex-col items-center gap-1">
-          {workspaces.map((ws) => (
-            <div key={ws.id} className="group relative">
-              <button
-                onClick={() =>
-                  send({
-                    type: "select_workspace",
-                    workspaceId: ws.id,
-                  })
-                }
-                className={`flex h-6 w-6 items-center justify-center rounded text-[10px] font-medium transition-colors ${
-                  ws.id === selectedWorkspaceId
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-600 hover:bg-zinc-800 hover:text-zinc-400"
-                }`}
-                title={ws.name}
-              >
-                {ws.name.charAt(0)}
-              </button>
-              {workspaces.length > 1 && (
+        {!isSharedTabMode && (
+          <div className="mt-auto flex flex-col items-center gap-1">
+            {workspaces.map((ws) => (
+              <div key={ws.id} className="group relative">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() =>
                     send({
-                      type: "delete_workspace",
+                      type: "select_workspace",
                       workspaceId: ws.id,
-                    });
-                  }}
-                  className="absolute -top-1 -right-1 hidden h-3 w-3 items-center justify-center rounded-full bg-zinc-600 text-zinc-200 hover:bg-red-500 group-hover:flex"
-                  title={`Delete workspace ${ws.name}`}
+                    })}
+                  className={`flex h-6 w-6 items-center justify-center rounded text-[10px] font-medium transition-colors ${
+                    ws.id === selectedWorkspaceId
+                      ? "bg-zinc-700 text-zinc-100"
+                      : "text-zinc-600 hover:bg-zinc-800 hover:text-zinc-400"
+                  }`}
+                  title={ws.name}
                 >
-                  <svg
-                    width="5"
-                    height="5"
-                    viewBox="0 0 6 6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M1 1l4 4M5 1l-4 4" />
-                  </svg>
+                  {ws.name.charAt(0)}
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
+                {workspaces.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      send({
+                        type: "delete_workspace",
+                        workspaceId: ws.id,
+                      });
+                    }}
+                    className="absolute -top-1 -right-1 hidden h-3 w-3 items-center justify-center rounded-full bg-zinc-600 text-zinc-200 hover:bg-red-500 group-hover:flex"
+                    title={`Delete workspace ${ws.name}`}
+                  >
+                    <svg
+                      width="5"
+                      height="5"
+                      viewBox="0 0 6 6"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M1 1l4 4M5 1l-4 4" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -171,70 +180,76 @@ export function Sidebar() {
             }}
           />
         ))}
-        <button
-          onClick={() => send({ type: "create_tab" })}
-          className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
+        {selectedTabId && (
+          <button
+            onClick={() =>
+              send({
+                type: "create_pane",
+                tabId: selectedTabId,
+                direction: "right",
+              })}
+            className="mx-1 mt-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-zinc-800/50 hover:text-zinc-300"
           >
-            <path d="M6 2v8M2 6h8" />
-          </svg>
-          <span>New Tab</span>
-        </button>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M6 2v8M2 6h8" />
+            </svg>
+            <span>{isSharedTabMode ? "New Pane" : "Split Right"}</span>
+          </button>
+        )}
       </div>
 
-      <div className="flex items-center gap-1 border-t border-zinc-800 px-2 py-2">
-        {workspaces.map((ws) => (
-          <WorkspacePill
-            key={ws.id}
-            id={ws.id}
-            name={ws.name}
-            isSelected={ws.id === selectedWorkspaceId}
-            canDelete={workspaces.length > 1}
-            onSelect={() =>
-              send({
-                type: "select_workspace",
-                workspaceId: ws.id,
-              })
-            }
-            onRename={(name) =>
-              send({
-                type: "rename_workspace",
-                workspaceId: ws.id,
-                name,
-              })
-            }
-            onDelete={() =>
-              send({
-                type: "delete_workspace",
-                workspaceId: ws.id,
-              })
-            }
-          />
-        ))}
-        <button
-          onClick={() => send({ type: "create_workspace" })}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-          title="New workspace"
-        >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
+      {!isSharedTabMode && (
+        <div className="flex items-center gap-1 border-t border-zinc-800 px-2 py-2">
+          {workspaces.map((ws) => (
+            <WorkspacePill
+              key={ws.id}
+              id={ws.id}
+              name={ws.name}
+              isSelected={ws.id === selectedWorkspaceId}
+              canDelete={workspaces.length > 1}
+              onSelect={() =>
+                send({
+                  type: "select_workspace",
+                  workspaceId: ws.id,
+                })}
+              onRename={(name) =>
+                send({
+                  type: "rename_workspace",
+                  workspaceId: ws.id,
+                  name,
+                })}
+              onDelete={() =>
+                send({
+                  type: "delete_workspace",
+                  workspaceId: ws.id,
+                })}
+            />
+          ))}
+          <button
+            onClick={() => send({ type: "create_workspace" })}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            title="New workspace"
           >
-            <path d="M5 1v8M1 5h8" />
-          </svg>
-        </button>
-      </div>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M5 1v8M1 5h8" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

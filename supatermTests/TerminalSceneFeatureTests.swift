@@ -230,24 +230,17 @@ struct TerminalSceneFeatureTests {
   }
 
   @Test
-  func quitConfirmationConfirmRepliesTrue() async {
-    var terminationReplies: [Bool] = []
+  func quitConfirmationConfirmDismissesPrompt() async {
     var initialState = TerminalSceneFeature.State()
     initialState.isQuitConfirmationPresented = true
 
     let store = TestStore(initialState: initialState) {
       TerminalSceneFeature()
-    } withDependencies: {
-      $0.appTerminationClient.reply = { shouldTerminate in
-        terminationReplies.append(shouldTerminate)
-      }
     }
 
     await store.send(TerminalSceneFeature.Action.quitConfirmationConfirmButtonTapped) {
       $0.isQuitConfirmationPresented = false
     }
-
-    #expect(terminationReplies == [true])
   }
 
   @Test

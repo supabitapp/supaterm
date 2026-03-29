@@ -9,6 +9,11 @@ import SwiftUI
 @MainActor
 @Observable
 final class TerminalHostState {
+  enum SessionDisposal {
+    case detach
+    case kill
+  }
+
   struct NewPaneSelectionState: Equatable {
     let isFocused: Bool
     let isSelectedTab: Bool
@@ -31,12 +36,19 @@ final class TerminalHostState {
   @ObservationIgnored
   private let managesTerminalSurfaces: Bool
   @ObservationIgnored
+  private let zmxClient: ZMXClient
+  @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   @ObservationIgnored
   @Shared(.terminalWorkspaceCatalog)
   private var workspaceCatalog = TerminalWorkspaceCatalog.default
   @ObservationIgnored
+  @Shared(.terminalSessionCatalog)
+  private var sessionCatalog = PersistedTerminalSessionCatalog.default
+  @ObservationIgnored
   private var workspaceCatalogObservationTask: Task<Void, Never>?
+  @ObservationIgnored
+  private var sessionCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
   private var lastAppliedWorkspaceCatalog = TerminalWorkspaceCatalog.default
   let workspaceManager = TerminalWorkspaceManager()
@@ -44,6 +56,8 @@ final class TerminalHostState {
   private var pendingEvents: [TerminalClient.Event] = []
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
+  private var paneSessionNames: [UUID: String] = [:]
+  private var closeRequestedSurfaceIDs: Set<UUID> = []
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
 
@@ -51,25 +65,35 @@ final class TerminalHostState {
 
   init(
     runtime: GhosttyRuntime? = nil,
-    managesTerminalSurfaces: Bool = true
+    managesTerminalSurfaces: Bool = true,
+    zmxClient: ZMXClient = .live
   ) {
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
+    self.zmxClient = zmxClient
 
-    let initialWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
+    let persistedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
+    let initialWorkspaceCatalog = persistedWorkspaceCatalog
     if initialWorkspaceCatalog != workspaceCatalog {
       replaceWorkspaceCatalog(initialWorkspaceCatalog)
+    }
+    let effectiveSessionCatalog = Self.sessionCatalog(from: initialWorkspaceCatalog)
+    if effectiveSessionCatalog != sessionCatalog {
+      replaceSessionCatalog(effectiveSessionCatalog)
     }
     lastAppliedWorkspaceCatalog = initialWorkspaceCatalog
     workspaceManager.bootstrap(
       from: initialWorkspaceCatalog,
       initialSelectedWorkspaceID: initialWorkspaceCatalog.defaultSelectedWorkspaceID
     )
+    restoreSessionState(from: effectiveSessionCatalog)
     observeWorkspaceCatalog()
+    observeSessionCatalog()
   }
 
   deinit {
     workspaceCatalogObservationTask?.cancel()
+    sessionCatalogObservationTask?.cancel()
   }
 
   func eventStream() -> AsyncStream<TerminalClient.Event> {
@@ -235,6 +259,7 @@ final class TerminalHostState {
     )
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
+    persistSessionCatalogSnapshot()
     if focusing, let surface = tree.root?.leftmostLeaf() {
       focusSurface(surface, in: tabID)
     }
@@ -250,6 +275,7 @@ final class TerminalHostState {
       persistDefaultSelectedWorkspaceID(workspace.id)
     }
     workspaceManager.tabManager(for: workspace.id)?.selectTab(tabID)
+    persistSessionCatalogSnapshot()
     focusSurface(in: tabID)
     syncFocus(windowActivity)
   }
@@ -309,7 +335,10 @@ final class TerminalHostState {
       defaultSelectedWorkspaceID: updatedWorkspaceCatalog.defaultSelectedWorkspaceID,
       workspaces: updatedWorkspaceCatalog.workspaces + [workspace]
     )
-    _ = writeWorkspaceCatalog(updatedWorkspaceCatalog)
+    _ = writeWorkspaceCatalog(
+      updatedWorkspaceCatalog,
+      removedTabSessionDisposal: .kill
+    )
     guard workspaceManager.selectWorkspace(workspace.id) else { return }
     finalizeWorkspaceSelectionChange()
   }
@@ -326,6 +355,7 @@ final class TerminalHostState {
     if persistDefaultSelection {
       persistDefaultSelectedWorkspaceID(workspaceID)
     }
+    persistSessionCatalogSnapshot()
     finalizeWorkspaceSelectionChange()
   }
 
@@ -357,6 +387,7 @@ final class TerminalHostState {
       workspaces: remainingWorkspaces
     )
     _ = writeWorkspaceCatalog(updatedWorkspaceCatalog)
+    persistSessionCatalogSnapshot()
     finalizeWorkspaceSelectionChange()
   }
 
@@ -377,11 +408,15 @@ final class TerminalHostState {
 
   private func requestCloseSurface(_ surfaceID: UUID, needsConfirmation: Bool? = nil) {
     guard surfaces[surfaceID] != nil else { return }
+    let resolvedNeedsConfirmation = needsConfirmation ?? surfaceNeedsCloseConfirmation(surfaceID)
+    if !resolvedNeedsConfirmation {
+      guard closeRequestedSurfaceIDs.insert(surfaceID).inserted else { return }
+    }
     emit(
       .closeRequested(
         .init(
           target: .surface(surfaceID),
-          needsConfirmation: needsConfirmation ?? surfaceNeedsCloseConfirmation(surfaceID)
+          needsConfirmation: resolvedNeedsConfirmation
         )
       )
     )
@@ -479,6 +514,228 @@ final class TerminalHostState {
     return SupatermTreeSnapshot(windows: [window])
   }
 
+  func shareWorkspaceStateSnapshot() -> ShareWorkspaceState {
+    guard let sharedWorkspaceID = resolvedSharedWorkspaceID() else {
+      return ShareWorkspaceState(
+        workspaces: [],
+        selectedWorkspaceId: nil,
+        tabs: [],
+        selectedTabId: nil,
+        trees: [:],
+        focusedPaneByTab: [:],
+        panes: [:]
+      )
+    }
+
+    guard let workspace = workspaceManager.workspaces.first(where: { $0.id == sharedWorkspaceID }) else {
+      return ShareWorkspaceState(
+        workspaces: [],
+        selectedWorkspaceId: nil,
+        tabs: [],
+        selectedTabId: nil,
+        trees: [:],
+        focusedPaneByTab: [:],
+        panes: [:]
+      )
+    }
+
+    let sharedTabs = workspaceManager.tabs(in: sharedWorkspaceID)
+    var treesByTabID: [String: ShareWorkspaceState.SplitTree] = [:]
+    var focusedPaneByTab: [String: String] = [:]
+    var panes: [String: ShareWorkspaceState.Pane] = [:]
+    let shareTabs = sharedTabs.map { tab in
+      let shareTab = ShareWorkspaceState.Tab(
+        id: tab.id.rawValue.uuidString,
+        workspaceId: sharedWorkspaceID.rawValue.uuidString,
+        title: tab.title,
+        icon: tab.icon,
+        isDirty: tab.isDirty,
+        isPinned: tab.isPinned,
+        isTitleLocked: tab.isTitleLocked,
+        tone: tab.tone.shareValue
+      )
+
+      if let tree = trees[tab.id] {
+        treesByTabID[shareTab.id] = Self.shareSplitTree(from: tree)
+        for surface in tree.leaves() {
+          let paneID = surface.id
+          let gridSize = surface.currentGridSize()
+          panes[paneID.uuidString] = ShareWorkspaceState.Pane(
+            id: paneID.uuidString,
+            tabId: shareTab.id,
+            sessionName: paneSessionNames[paneID] ?? Self.paneSessionName(tabID: tab.id, paneID: paneID),
+            title: surface.bridge.state.title ?? fallbackTitle(for: tab.id),
+            pwd: surface.bridge.state.pwd,
+            isRunning: surface.bridge.state.progressState != nil,
+            cols: gridSize?.cols ?? 80,
+            rows: gridSize?.rows ?? 24
+          )
+        }
+      }
+
+      if let focusedSurfaceID = focusedSurfaceIDByTab[tab.id] {
+        focusedPaneByTab[shareTab.id] = focusedSurfaceID.uuidString
+      }
+
+      return shareTab
+    }
+
+    return ShareWorkspaceState(
+      workspaces: [
+        .init(
+          id: sharedWorkspaceID.rawValue.uuidString,
+          name: workspace.name
+        )
+      ],
+      selectedWorkspaceId: sharedWorkspaceID.rawValue.uuidString,
+      tabs: shareTabs,
+      selectedTabId: workspaceManager.selectedTabID(in: sharedWorkspaceID)?.rawValue.uuidString,
+      trees: treesByTabID,
+      focusedPaneByTab: focusedPaneByTab,
+      panes: panes
+    )
+  }
+
+  func sharePaneRuntime(for paneId: UUID) -> SharePaneRuntime? {
+    guard let sharedWorkspaceID = resolvedSharedWorkspaceID() else { return nil }
+    guard paneIsWithinSharedWorkspace(paneId, sharedWorkspaceID: sharedWorkspaceID) else { return nil }
+    guard let tabID = tabID(containing: paneId) else { return nil }
+    guard let surface = surfaces[paneId] else { return nil }
+    let gridSize = surface.currentGridSize()
+    return SharePaneRuntime(
+      paneId: paneId,
+      sessionName: paneSessionNames[paneId] ?? Self.paneSessionName(tabID: tabID, paneID: paneId),
+      cols: gridSize?.cols ?? 80,
+      rows: gridSize?.rows ?? 24
+    )
+  }
+
+  func prepareShareSessions() -> [String] {
+    guard let sharedWorkspaceID = resolvedSharedWorkspaceID() else {
+      return []
+    }
+
+    let sessionNames = workspaceManager.tabs(in: sharedWorkspaceID).flatMap { tab in
+      (trees[tab.id]?.leaves() ?? []).map { surface in
+        paneSessionNames[surface.id] ?? Self.paneSessionName(tabID: tab.id, paneID: surface.id)
+      }
+    }
+
+    return Array(Set(sessionNames)).sorted()
+  }
+
+  func handleShareMessage(_ message: ShareClientMessage) throws {
+    let sharedWorkspaceID = resolvedSharedWorkspaceID()
+
+    switch message {
+    case .sync, .resume, .resizePane:
+      return
+
+    case .createWorkspace,
+      .deleteWorkspace,
+      .renameWorkspace,
+      .selectWorkspace,
+      .setTabOrder,
+      .togglePinned:
+      return
+
+    case .createTab(let inheritFromPaneId):
+      if let inheritFromPaneId {
+        guard paneIsWithinSharedWorkspace(inheritFromPaneId, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      }
+      _ = createTab(inheritingFromSurfaceID: inheritFromPaneId)
+
+    case .closeTab(let tabId):
+      let tabID = TerminalTabID(rawValue: tabId)
+      guard tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      closeTab(tabID)
+
+    case .selectTab(let tabId):
+      let tabID = TerminalTabID(rawValue: tabId)
+      guard tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      selectTab(tabID)
+
+    case .selectTabSlot(let slot):
+      guard sharedWorkspaceID != nil else { return }
+      selectTab(slot: slot)
+
+    case .nextTab:
+      guard sharedWorkspaceID != nil else { return }
+      nextTab()
+
+    case .previousTab:
+      guard sharedWorkspaceID != nil else { return }
+      previousTab()
+
+    case .createPane(let tabId, let direction, let targetPaneId, let command, let focus):
+      let tabID = TerminalTabID(rawValue: tabId)
+      guard tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      try shareCreatePane(
+        tabID: tabID,
+        direction: direction,
+        targetPaneID: targetPaneId.flatMap {
+          paneIsWithinSharedWorkspace($0, sharedWorkspaceID: sharedWorkspaceID) ? $0 : nil
+        },
+        command: command,
+        focus: focus
+      )
+
+    case .closePane(let paneId):
+      guard paneIsWithinSharedWorkspace(paneId, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      closeSurface(paneId)
+
+    case .focusPane(let paneId):
+      guard paneIsWithinSharedWorkspace(paneId, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      try focusPaneForShare(paneId)
+
+    case .splitResize(let paneId, let delta, let axis):
+      guard paneIsWithinSharedWorkspace(paneId, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      try resizeSplitForShare(paneId: paneId, delta: delta, axis: axis)
+
+    case .equalizePanes(let tabId):
+      let tabID = TerminalTabID(rawValue: tabId)
+      guard tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      performSplitOperation(.equalize, in: tabID)
+
+    case .toggleZoom(let tabId):
+      let tabID = TerminalTabID(rawValue: tabId)
+      guard tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID) else { return }
+      try toggleZoomForShare(tabId: tabID)
+    }
+  }
+
+  private func resolvedSharedWorkspaceID() -> TerminalWorkspaceID? {
+    if let selectedWorkspaceID,
+      workspaceManager.tabs(in: selectedWorkspaceID).contains(where: { trees[$0.id] != nil })
+    {
+      return selectedWorkspaceID
+    }
+    if let selectedTabID,
+      let workspaceID = workspaceManager.workspace(for: selectedTabID)?.id
+    {
+      return workspaceID
+    }
+    return workspaces.first(where: { workspace in
+      workspaceManager.tabs(in: workspace.id).contains(where: { trees[$0.id] != nil })
+    })?.id
+  }
+
+  private func tabIsWithinSharedWorkspace(
+    _ tabID: TerminalTabID,
+    sharedWorkspaceID: TerminalWorkspaceID?
+  ) -> Bool {
+    guard let sharedWorkspaceID else { return false }
+    return workspaceManager.workspace(for: tabID)?.id == sharedWorkspaceID
+  }
+
+  private func paneIsWithinSharedWorkspace(
+    _ paneID: UUID,
+    sharedWorkspaceID: TerminalWorkspaceID?
+  ) -> Bool {
+    guard let tabID = tabID(containing: paneID) else { return false }
+    return tabIsWithinSharedWorkspace(tabID, sharedWorkspaceID: sharedWorkspaceID)
+  }
+
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
     let resolvedTarget = try resolveCreatePaneTarget(request.target)
     let newSurface = createSurface(
@@ -514,6 +771,7 @@ final class TerminalHostState {
       }
 
       syncFocus(windowActivity)
+      persistSessionCatalogSnapshot()
 
       guard
         let workspace = workspaceManager.workspace(for: resolvedTarget.tabID),
@@ -541,12 +799,43 @@ final class TerminalHostState {
     } catch let error as TerminalCreatePaneError {
       newSurface.closeSurface()
       surfaces.removeValue(forKey: newSurface.id)
+      paneSessionNames.removeValue(forKey: newSurface.id)
       throw error
     } catch {
       newSurface.closeSurface()
       surfaces.removeValue(forKey: newSurface.id)
+      paneSessionNames.removeValue(forKey: newSurface.id)
       throw TerminalCreatePaneError.creationFailed
     }
+  }
+
+  private func shareCreatePane(
+    tabID: TerminalTabID,
+    direction: SupatermPaneDirection,
+    targetPaneID: UUID?,
+    command: String?,
+    focus: Bool
+  ) throws {
+    let target: TerminalCreatePaneRequest.Target
+    if let targetPaneID {
+      target = .contextPane(targetPaneID)
+    } else {
+      guard let workspace = workspaceManager.workspace(for: tabID),
+        let tabIndex = workspaceManager.tabs(in: workspace.id).firstIndex(where: { $0.id == tabID })
+      else {
+        throw TerminalCreatePaneError.tabNotFound(windowIndex: 1, tabIndex: 1)
+      }
+      target = .tab(windowIndex: 1, tabIndex: tabIndex + 1)
+    }
+
+    _ = try createPane(
+      .init(
+        command: command,
+        direction: direction,
+        focus: focus,
+        target: target
+      )
+    )
   }
 
   func splitTree(
@@ -592,6 +881,7 @@ final class TerminalHostState {
           direction: mapSplitDirection(direction)
         )
         trees[tabID] = newTree
+        persistSessionCatalogSnapshot()
         focusSurface(newSurface, in: tabID)
         return true
       } catch {
@@ -608,6 +898,7 @@ final class TerminalHostState {
       if tree.zoomed != nil {
         tree = tree.settingZoomed(nil)
         trees[tabID] = tree
+        persistSessionCatalogSnapshot()
       }
       focusSurface(nextSurface, in: tabID)
       return true
@@ -622,6 +913,7 @@ final class TerminalHostState {
           with: CGRect(origin: .zero, size: tree.viewBounds())
         )
         trees[tabID] = newTree
+        persistSessionCatalogSnapshot()
         return true
       } catch {
         return false
@@ -629,12 +921,14 @@ final class TerminalHostState {
 
     case .equalizeSplits:
       trees[tabID] = tree.equalized()
+      persistSessionCatalogSnapshot()
       return true
 
     case .toggleSplitZoom:
       guard tree.isSplit else { return false }
       let newZoomed = tree.zoomed == targetNode ? nil : targetNode
       trees[tabID] = tree.settingZoomed(newZoomed)
+      persistSessionCatalogSnapshot()
       return true
     }
   }
@@ -648,6 +942,7 @@ final class TerminalHostState {
       do {
         tree = try tree.replacing(node: node, with: resizedNode)
         trees[tabID] = tree
+        persistSessionCatalogSnapshot()
       } catch {
         return
       }
@@ -666,6 +961,7 @@ final class TerminalHostState {
           direction: mapDropZone(zone)
         )
         trees[tabID] = newTree
+        persistSessionCatalogSnapshot()
         focusSurface(payload, in: tabID)
       } catch {
         return
@@ -673,6 +969,7 @@ final class TerminalHostState {
 
     case .equalize:
       trees[tabID] = tree.equalized()
+      persistSessionCatalogSnapshot()
     }
   }
 
@@ -702,8 +999,9 @@ final class TerminalHostState {
       )
     }
 
-    removeTree(for: tabID)
+    removeTree(for: tabID, sessionDisposal: .kill)
     tabManager.closeTab(tabID)
+    persistSessionCatalogSnapshot()
 
     if let selectedTabID = tabManager.selectedTabId {
       focusSurface(in: selectedTabID)
@@ -723,8 +1021,13 @@ final class TerminalHostState {
       ? tree.focusTargetAfterClosing(node)
       : nil
     let newTree = tree.removing(node)
+    if let sessionName = paneSessionNames[surfaceID] {
+      zmxClient.killSession(sessionName)
+    }
     surface.closeSurface()
+    closeRequestedSurfaceIDs.remove(surfaceID)
     surfaces.removeValue(forKey: surfaceID)
+    paneSessionNames.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
@@ -732,6 +1035,7 @@ final class TerminalHostState {
       workspaceManager.workspace(for: tabID)
         .flatMap { workspaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
+      persistSessionCatalogSnapshot()
       if tabs.isEmpty {
         _ = createTab(focusing: false)
       } else if let selectedTabID = selectedTabID {
@@ -744,6 +1048,7 @@ final class TerminalHostState {
     trees[tabID] = newTree
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
+    persistSessionCatalogSnapshot()
     if focusedSurfaceIDByTab[tabID] == surfaceID {
       if let nextSurface {
         focusSurface(nextSurface, in: tabID)
@@ -758,22 +1063,31 @@ final class TerminalHostState {
     tabID: TerminalTabID,
     initialInput: String?,
     inheritingFromSurfaceID: UUID?,
-    context: ghostty_surface_context_e
+    context: ghostty_surface_context_e,
+    persistedPane: PersistedTerminalPane? = nil
   ) -> GhosttySurfaceView {
     guard let runtime else {
       preconditionFailure("TerminalHostState cannot create surfaces without a GhosttyRuntime")
     }
     let inherited = inheritedSurfaceConfig(fromSurfaceID: inheritingFromSurfaceID, context: context)
+    let paneID = persistedPane?.id ?? UUID()
+    let sessionName = persistedPane?.sessionName ?? Self.paneSessionName(tabID: tabID, paneID: paneID)
+    let workingDirectory =
+      persistedPane?.workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) }
+      ?? inherited.workingDirectory
     let view = GhosttySurfaceView(
       runtime: runtime,
+      surfaceID: paneID,
       tabID: tabID.rawValue,
-      workingDirectory: inherited.workingDirectory,
-      initialInput: initialInput,
+      workingDirectory: workingDirectory,
+      command: nil,
+      initialInput: Self.zmxBootstrapInput(sessionName: sessionName, trailingInput: initialInput),
+      additionalEnvironmentVariables: Self.zmxEnvironmentVariables(sessionName: sessionName),
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false
     )
-    view.bridge.onTitleChange = { [weak self] _ in
+    view.bridge.onTitleChange = { [weak self] (_: String) in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
     }
@@ -790,7 +1104,7 @@ final class TerminalHostState {
       self.emit(.newTabRequested(inheritingFromSurfaceID: view?.id))
       return true
     }
-    view.bridge.onCloseTab = { [weak self] _ in
+    view.bridge.onCloseTab = { [weak self] (_: ghostty_action_close_tab_mode_e) in
       guard let self else { return false }
       self.requestCloseTab(tabID)
       return true
@@ -801,15 +1115,15 @@ final class TerminalHostState {
       self.emit(.gotoTabRequested(mappedTarget))
       return true
     }
-    view.bridge.onProgressReport = { [weak self] _ in
+    view.bridge.onProgressReport = { [weak self] (_: ghostty_action_progress_report_state_e) in
       guard let self else { return }
       self.updateRunningState(for: tabID)
     }
-    view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
+    view.bridge.onCloseRequest = { [weak self, weak view] (processAlive: Bool) in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)
     }
-    view.onFocusChange = { [weak self, weak view] focused in
+    view.onFocusChange = { [weak self, weak view] (focused: Bool) in
       guard let self, let view, focused else { return }
       self.focusedSurfaceIDByTab[tabID] = view.id
       self.updateTabTitle(for: tabID)
@@ -817,6 +1131,8 @@ final class TerminalHostState {
       self.emitFocusChangedIfNeeded(view.id)
     }
     surfaces[view.id] = view
+    paneSessionNames[view.id] = sessionName
+    closeRequestedSurfaceIDs.remove(view.id)
     return view
   }
 
@@ -850,6 +1166,146 @@ final class TerminalHostState {
   private func currentFocusedSurfaceID() -> UUID? {
     guard let selectedTabID = workspaceManager.selectedTabID else { return nil }
     return focusedSurfaceIDByTab[selectedTabID]
+  }
+
+  private func focusPaneForShare(_ paneID: UUID) throws {
+    guard let tabID = tabID(containing: paneID), let surface = surfaces[paneID] else {
+      throw TerminalCreatePaneError.contextPaneNotFound
+    }
+    if let workspace = workspaceManager.workspace(for: tabID) {
+      _ = workspaceManager.selectWorkspace(workspace.id)
+      workspaceManager.tabManager(for: workspace.id)?.selectTab(tabID)
+    }
+    focusSurface(surface, in: tabID)
+    persistSessionCatalogSnapshot()
+  }
+
+  private func resizeSplitForShare(
+    paneId: UUID,
+    delta: Double,
+    axis: String
+  ) throws {
+    guard let tabID = tabID(containing: paneId), var tree = trees[tabID] else {
+      throw TerminalCreatePaneError.contextPaneNotFound
+    }
+    guard let targetNode = tree.find(id: paneId) else {
+      throw TerminalCreatePaneError.contextPaneNotFound
+    }
+    let spatialDirection: SplitTree<GhosttySurfaceView>.SpatialDirection =
+      switch axis {
+      case "horizontal":
+        delta >= 0 ? .right : .left
+      case "vertical":
+        delta >= 0 ? .down : .top
+      default:
+        throw ShareServerError.invalidField("axis")
+      }
+    do {
+      let newTree = try tree.resizing(
+        node: targetNode,
+        by: UInt16(max(1, min(100, Int(abs(delta) * 100)))),
+        in: spatialDirection,
+        with: CGRect(origin: .zero, size: tree.viewBounds())
+      )
+      tree = newTree
+      trees[tabID] = tree
+      persistSessionCatalogSnapshot()
+    } catch {
+      throw TerminalCreatePaneError.creationFailed
+    }
+  }
+
+  private func toggleZoomForShare(tabId: TerminalTabID) throws {
+    guard var tree = trees[tabId], tree.isSplit else { return }
+    guard let focusedPaneID = focusedSurfaceIDByTab[tabId], let targetNode = tree.find(id: focusedPaneID) else {
+      throw TerminalCreatePaneError.contextPaneNotFound
+    }
+    let newZoomed = tree.zoomed == targetNode ? nil : targetNode
+    tree = tree.settingZoomed(newZoomed)
+    trees[tabId] = tree
+    persistSessionCatalogSnapshot()
+  }
+
+  private static func shareSplitTree(
+    from tree: SplitTree<GhosttySurfaceView>
+  ) -> ShareWorkspaceState.SplitTree {
+    .init(
+      root: tree.root.map(shareSplitTreeNode),
+      zoomed: tree.zoomed.map(shareSplitTreeNode)
+    )
+  }
+
+  private static func shareSplitTreeNode(
+    from node: SplitTree<GhosttySurfaceView>.Node
+  ) -> ShareWorkspaceState.Node {
+    switch node {
+    case .leaf(let view):
+      return .leaf(id: view.id.uuidString)
+    case .split(let split):
+      return .split(
+        direction: split.direction == .horizontal ? "horizontal" : "vertical",
+        ratio: split.ratio,
+        left: shareSplitTreeNode(from: split.left),
+        right: shareSplitTreeNode(from: split.right)
+      )
+    }
+  }
+
+  static func paneSessionName(tabID: TerminalTabID, paneID: UUID) -> String {
+    "sp.\(compactSessionComponent(tabID.rawValue.uuidString)).\(compactSessionComponent(paneID.uuidString))"
+  }
+
+  private static func compactSessionComponent(_ value: String) -> String {
+    value
+      .lowercased()
+      .replacingOccurrences(of: "-", with: "")
+      .prefix(12)
+      .description
+  }
+
+  static func zmxBootstrapInput(
+    sessionName: String,
+    trailingInput: String? = nil
+  ) -> String {
+    let attachCommand = zmxBootstrapCommand(sessionName: sessionName)
+    guard let trailingInput, !trailingInput.isEmpty else {
+      return "\(attachCommand)\n"
+    }
+    return "\(attachCommand)\n\(trailingInput)"
+  }
+
+  static func zmxBootstrapCommand(sessionName: String) -> String {
+    let zmxRef = bundledZMXCommandReference()
+    return "exec \(zmxRef) attach \(shellQuoted(sessionName))"
+  }
+
+  private static func shellQuoted(_ value: String) -> String {
+    "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+  }
+
+  private static func bundledZMXCommandReference(
+    executableURL: URL? = Bundle.main.executableURL
+  ) -> String {
+    if let executableDirectory = executableURL?.deletingLastPathComponent() {
+      return shellQuoted(
+        executableDirectory
+          .appendingPathComponent("zmx", isDirectory: false)
+          .path(percentEncoded: false)
+      )
+    }
+
+    return "\"zmx\""
+  }
+
+  static func zmxEnvironmentVariables(
+    sessionName: String
+  ) -> [SupatermCLIEnvironmentVariable] {
+    [
+      SupatermCLIEnvironmentVariable(
+        key: SupatermCLIEnvironment.paneSessionNameKey,
+        value: sessionName
+      )
+    ]
   }
 
   private struct ResolvedCreatePaneTarget {
@@ -948,6 +1404,7 @@ final class TerminalHostState {
     workspaceManager.workspace(for: tabID)
       .flatMap { workspaceManager.tabManager(for: $0.id) }?
       .updateTitle(tabID, title: resolvedTitle)
+    persistSessionCatalogSnapshot()
   }
 
   private func focusSurface(in tabID: TerminalTabID) {
@@ -965,6 +1422,7 @@ final class TerminalHostState {
     let previousSurface = focusedSurfaceIDByTab[tabID].flatMap { surfaces[$0] }
     focusedSurfaceIDByTab[tabID] = surface.id
     updateTabTitle(for: tabID)
+    persistSessionCatalogSnapshot()
     guard tabID == workspaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
@@ -998,13 +1456,352 @@ final class TerminalHostState {
     return NewPaneSelectionState(isFocused: activity.isFocused, isSelectedTab: isSelectedTab)
   }
 
-  private func removeTree(for tabID: TerminalTabID) {
+  func paneSessionName(for paneID: UUID) -> String? {
+    paneSessionNames[paneID]
+  }
+
+  private func restoreSessionState(from catalog: PersistedTerminalSessionCatalog) {
+    for workspace in catalog.workspaces {
+      guard let tabManager = workspaceManager.tabManager(for: workspace.id) else { continue }
+      let restoredTabs = workspace.tabs.map {
+        TerminalTabItem(
+          id: $0.id,
+          title: $0.title,
+          icon: $0.icon,
+          isPinned: $0.isPinned,
+          isTitleLocked: $0.isTitleLocked
+        )
+      }
+      tabManager.restoreTabs(restoredTabs, selectedTabID: workspace.selectedTabID)
+
+      guard managesTerminalSurfaces else { continue }
+      for persistedTab in workspace.tabs {
+        restoreTree(for: persistedTab)
+      }
+    }
+  }
+
+  private func restoreTree(for persistedTab: PersistedTerminalTab) {
+    let panesByID = Dictionary(uniqueKeysWithValues: persistedTab.panes.map { ($0.id, $0) })
+    var orderedPaneIDs = persistedTab.panes.map(\.id)
+    if let rootPaneID = persistedTab.splitTree.root.leftmostPaneID,
+      let rootIndex = orderedPaneIDs.firstIndex(of: rootPaneID)
+    {
+      orderedPaneIDs.swapAt(0, rootIndex)
+    }
+
+    var viewsByID: [UUID: GhosttySurfaceView] = [:]
+    for (index, paneID) in orderedPaneIDs.enumerated() {
+      guard let persistedPane = panesByID[paneID] else { continue }
+      let view = createSurface(
+        tabID: persistedTab.id,
+        initialInput: nil,
+        inheritingFromSurfaceID: nil,
+        context: index == 0 ? GHOSTTY_SURFACE_CONTEXT_TAB : GHOSTTY_SURFACE_CONTEXT_SPLIT,
+        persistedPane: persistedPane
+      )
+      viewsByID[paneID] = view
+    }
+
+    guard
+      let root = splitTreeNode(from: persistedTab.splitTree.root, viewsByID: viewsByID)
+    else {
+      return
+    }
+    let zoomed = persistedTab.splitTree.zoomedPaneID.flatMap {
+      splitTreeNode(from: .leaf($0), viewsByID: viewsByID)
+    }
+    trees[persistedTab.id] = SplitTree(root: root, zoomed: zoomed)
+    if viewsByID[persistedTab.selectedPaneID] != nil {
+      focusedSurfaceIDByTab[persistedTab.id] = persistedTab.selectedPaneID
+    } else {
+      focusedSurfaceIDByTab[persistedTab.id] = orderedPaneIDs.first
+    }
+  }
+
+  private func splitTreeNode(
+    from node: PersistedTerminalSplitTree.Node,
+    viewsByID: [UUID: GhosttySurfaceView]
+  ) -> SplitTree<GhosttySurfaceView>.Node? {
+    switch node {
+    case .leaf(let paneID):
+      guard let view = viewsByID[paneID] else { return nil }
+      return .leaf(view: view)
+    case .split(let split):
+      guard
+        let left = splitTreeNode(from: split.left, viewsByID: viewsByID),
+        let right = splitTreeNode(from: split.right, viewsByID: viewsByID)
+      else {
+        return nil
+      }
+      return .split(
+        .init(
+          direction: split.direction == .horizontal ? .horizontal : .vertical,
+          ratio: split.ratio,
+          left: left,
+          right: right
+        )
+      )
+    }
+  }
+
+  private func removeTree(
+    for tabID: TerminalTabID,
+    sessionDisposal: SessionDisposal = .detach
+  ) {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
+      if sessionDisposal == .kill,
+        let sessionName = paneSessionNames[surface.id]
+      {
+        zmxClient.killSession(sessionName)
+      }
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
+      paneSessionNames.removeValue(forKey: surface.id)
     }
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
+  }
+
+  private func persistSessionCatalogSnapshot() {
+    let snapshot = sessionCatalogSnapshot()
+    replaceSessionCatalog(
+      PersistedTerminalSessionCatalog.merged(
+        base: PersistedTerminalSessionCatalog.sanitized(sessionCatalog),
+        incoming: snapshot
+      )
+    )
+  }
+
+  private func sessionCatalogSnapshot() -> PersistedTerminalSessionCatalog {
+    let currentTimestamp = PersistedTerminalSessionCatalog.currentTimestamp()
+    let previousCatalog = PersistedTerminalSessionCatalog.sanitized(sessionCatalog)
+    let previousWorkspacesByID = Dictionary(
+      uniqueKeysWithValues: previousCatalog.workspaces.map { ($0.id, $0) }
+    )
+    let workspaceIDs = Set(workspaces.map(\.id))
+    let tabIDs = Set(workspaces.flatMap { workspaceManager.tabs(in: $0.id).map(\.id) })
+    let paneIDs = Set(surfaces.keys)
+    let workspaceSnapshots: [PersistedTerminalWorkspaceState] = workspaces.map { workspace in
+      let previousWorkspace = previousWorkspacesByID[workspace.id]
+      let tabs = persistedTabs(
+        in: workspace.id,
+        previousWorkspace: previousWorkspace,
+        currentTimestamp: currentTimestamp
+      )
+      let selectedTabID = workspaceManager.selectedTabID(in: workspace.id)
+      return PersistedTerminalWorkspaceState(
+        id: workspace.id,
+        updatedAt:
+          previousWorkspace.map {
+            let candidate = PersistedTerminalWorkspaceState(
+              id: workspace.id,
+              updatedAt: $0.updatedAt,
+              name: workspace.name,
+              tabs: tabs,
+              selectedTabID: selectedTabID
+            )
+            return candidate == $0 ? $0.updatedAt : currentTimestamp
+          } ?? currentTimestamp,
+        name: workspace.name,
+        tabs: tabs,
+        selectedTabID: selectedTabID
+      )
+    }
+    return PersistedTerminalSessionCatalog.sanitized(
+      PersistedTerminalSessionCatalog(
+        defaultSelectedWorkspaceID: workspaceCatalog.defaultSelectedWorkspaceID,
+        selectionUpdatedAt:
+          workspaceCatalog.defaultSelectedWorkspaceID == previousCatalog.defaultSelectedWorkspaceID
+          ? previousCatalog.selectionUpdatedAt
+          : currentTimestamp,
+        workspaces: workspaceSnapshots,
+        workspaceTombstones: updatedTombstones(
+          previousCatalog.workspaceTombstones,
+          previousIDs: Set(previousCatalog.workspaces.map(\.id)),
+          currentIDs: workspaceIDs,
+          currentTimestamp: currentTimestamp,
+          activeUpdatedAtByID: Dictionary(uniqueKeysWithValues: workspaceSnapshots.map { ($0.id, $0.updatedAt) })
+        ),
+        tabTombstones: updatedTombstones(
+          previousCatalog.tabTombstones,
+          previousIDs: Set(previousCatalog.workspaces.flatMap { $0.tabs.map(\.id) }),
+          currentIDs: tabIDs,
+          currentTimestamp: currentTimestamp,
+          activeUpdatedAtByID: Dictionary(
+            uniqueKeysWithValues: workspaceSnapshots.flatMap { $0.tabs.map { ($0.id, $0.updatedAt) } }
+          )
+        ),
+        paneTombstones: updatedTombstones(
+          previousCatalog.paneTombstones,
+          previousIDs: Set(previousCatalog.workspaces.flatMap { $0.tabs.flatMap { $0.panes.map(\.id) } }),
+          currentIDs: paneIDs,
+          currentTimestamp: currentTimestamp,
+          activeUpdatedAtByID: Dictionary(
+            uniqueKeysWithValues: workspaceSnapshots.flatMap { $0.tabs.flatMap { $0.panes.map { ($0.id, $0.updatedAt) } } }
+          )
+        )
+      )
+    )
+  }
+
+  private func persistedTabs(
+    in workspaceID: TerminalWorkspaceID,
+    previousWorkspace: PersistedTerminalWorkspaceState?,
+    currentTimestamp: UInt64
+  ) -> [PersistedTerminalTab] {
+    let previousTabsByID = Dictionary(
+      uniqueKeysWithValues: previousWorkspace?.tabs.map { ($0.id, $0) } ?? []
+    )
+    return workspaceManager.tabs(in: workspaceID).compactMap { tab in
+      guard let tree = trees[tab.id] else { return nil }
+      let previousTab = previousTabsByID[tab.id]
+      let previousPanesByID = Dictionary(
+        uniqueKeysWithValues: previousTab?.panes.map { ($0.id, $0) } ?? []
+      )
+      let panes = tree.leaves().map { surface -> PersistedTerminalPane in
+        let previousPane = previousPanesByID[surface.id]
+        let candidate = PersistedTerminalPane(
+          id: surface.id,
+          sessionName: paneSessionNames[surface.id] ?? Self.paneSessionName(tabID: tab.id, paneID: surface.id),
+          updatedAt: previousPane?.updatedAt ?? currentTimestamp,
+          title: surface.bridge.state.title,
+          workingDirectoryPath: surface.bridge.state.pwd,
+          lastKnownRunning: surface.bridge.state.progressState != nil
+        )
+        if let previousPane, candidate == previousPane {
+          return previousPane
+        }
+        var updated = candidate
+        updated.updatedAt = currentTimestamp
+        return updated
+      }
+      guard
+        let root = tree.root.map(Self.persistedSplitTreeNode(from:)),
+        let selectedPaneID = focusedSurfaceIDByTab[tab.id] ?? panes.first?.id
+      else {
+        return nil
+      }
+      let candidate = PersistedTerminalTab(
+        id: tab.id,
+        updatedAt: previousTab?.updatedAt ?? currentTimestamp,
+        title: tab.title,
+        icon: tab.icon,
+        isPinned: tab.isPinned,
+        isTitleLocked: tab.isTitleLocked,
+        selectedPaneID: selectedPaneID,
+        panes: panes,
+        splitTree: PersistedTerminalSplitTree(
+          root: root,
+          zoomedPaneID: tree.zoomed?.leftmostLeaf().id
+        )
+      )
+      if let previousTab, candidate == previousTab {
+        return previousTab
+      }
+      var updated = candidate
+      updated.updatedAt = currentTimestamp
+      return updated
+    }
+  }
+
+  private func updatedTombstones(
+    _ existingTombstones: [PersistedTerminalWorkspaceTombstone],
+    previousIDs: Set<TerminalWorkspaceID>,
+    currentIDs: Set<TerminalWorkspaceID>,
+    currentTimestamp: UInt64,
+    activeUpdatedAtByID: [TerminalWorkspaceID: UInt64]
+  ) -> [PersistedTerminalWorkspaceTombstone] {
+    let removedIDs = previousIDs.subtracting(currentIDs)
+    let merged = Dictionary(
+      uniqueKeysWithValues: existingTombstones.map { ($0.id, $0) }
+    ).merging(
+      Dictionary(
+        uniqueKeysWithValues: removedIDs.map { id in
+          (id, PersistedTerminalWorkspaceTombstone(id: id, deletedAt: currentTimestamp))
+        }
+      ),
+      uniquingKeysWith: { lhs, rhs in lhs.deletedAt >= rhs.deletedAt ? lhs : rhs }
+    )
+
+    return merged.values
+      .filter { tombstone in
+        guard let activeUpdatedAt = activeUpdatedAtByID[tombstone.id] else { return true }
+        return tombstone.deletedAt >= activeUpdatedAt
+      }
+      .sorted { $0.deletedAt < $1.deletedAt }
+  }
+
+  private func updatedTombstones(
+    _ existingTombstones: [PersistedTerminalTabTombstone],
+    previousIDs: Set<TerminalTabID>,
+    currentIDs: Set<TerminalTabID>,
+    currentTimestamp: UInt64,
+    activeUpdatedAtByID: [TerminalTabID: UInt64]
+  ) -> [PersistedTerminalTabTombstone] {
+    let removedIDs = previousIDs.subtracting(currentIDs)
+    let merged = Dictionary(
+      uniqueKeysWithValues: existingTombstones.map { ($0.id, $0) }
+    ).merging(
+      Dictionary(
+        uniqueKeysWithValues: removedIDs.map { id in
+          (id, PersistedTerminalTabTombstone(id: id, deletedAt: currentTimestamp))
+        }
+      ),
+      uniquingKeysWith: { lhs, rhs in lhs.deletedAt >= rhs.deletedAt ? lhs : rhs }
+    )
+
+    return merged.values
+      .filter { tombstone in
+        guard let activeUpdatedAt = activeUpdatedAtByID[tombstone.id] else { return true }
+        return tombstone.deletedAt >= activeUpdatedAt
+      }
+      .sorted { $0.deletedAt < $1.deletedAt }
+  }
+
+  private func updatedTombstones(
+    _ existingTombstones: [PersistedTerminalPaneTombstone],
+    previousIDs: Set<UUID>,
+    currentIDs: Set<UUID>,
+    currentTimestamp: UInt64,
+    activeUpdatedAtByID: [UUID: UInt64]
+  ) -> [PersistedTerminalPaneTombstone] {
+    let removedIDs = previousIDs.subtracting(currentIDs)
+    let merged = Dictionary(
+      uniqueKeysWithValues: existingTombstones.map { ($0.id, $0) }
+    ).merging(
+      Dictionary(
+        uniqueKeysWithValues: removedIDs.map { id in
+          (id, PersistedTerminalPaneTombstone(id: id, deletedAt: currentTimestamp))
+        }
+      ),
+      uniquingKeysWith: { lhs, rhs in lhs.deletedAt >= rhs.deletedAt ? lhs : rhs }
+    )
+
+    return merged.values
+      .filter { tombstone in
+        guard let activeUpdatedAt = activeUpdatedAtByID[tombstone.id] else { return true }
+        return tombstone.deletedAt >= activeUpdatedAt
+      }
+      .sorted { $0.deletedAt < $1.deletedAt }
+  }
+
+  private static func persistedSplitTreeNode(
+    from node: SplitTree<GhosttySurfaceView>.Node
+  ) -> PersistedTerminalSplitTree.Node {
+    switch node {
+    case .leaf(let view):
+      return .leaf(view.id)
+    case .split(let split):
+      return .split(
+        .init(
+          direction: split.direction == .horizontal ? .horizontal : .vertical,
+          ratio: split.ratio,
+          left: persistedSplitTreeNode(from: split.left),
+          right: persistedSplitTreeNode(from: split.right)
+        )
+      )
+    }
   }
 
   private func updateRunningState(for tabID: TerminalTabID) {
@@ -1099,6 +1896,19 @@ final class TerminalHostState {
     }
   }
 
+  private func observeSessionCatalog() {
+    sessionCatalogObservationTask?.cancel()
+    sessionCatalogObservationTask = Task { @MainActor [weak self] in
+      let observations = Observations { [weak self] in
+        self?.sessionCatalog ?? .default
+      }
+      for await sessionCatalog in observations {
+        guard let self else { return }
+        self.applyObservedSessionCatalog(sessionCatalog)
+      }
+    }
+  }
+
   private func applyObservedWorkspaceCatalog(_ workspaceCatalog: TerminalWorkspaceCatalog) {
     let resolvedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
     guard resolvedWorkspaceCatalog != lastAppliedWorkspaceCatalog else { return }
@@ -1106,7 +1916,7 @@ final class TerminalHostState {
     let previousSelectedWorkspaceID = selectedWorkspaceID
     lastAppliedWorkspaceCatalog = resolvedWorkspaceCatalog
     let diff = workspaceManager.applyCatalog(resolvedWorkspaceCatalog)
-    removeTrees(for: diff.removedTabIDs)
+    removeTrees(for: diff.removedTabIDs, sessionDisposal: .detach)
 
     if previousSelectedWorkspaceID != selectedWorkspaceID {
       finalizeWorkspaceSelectionChange()
@@ -1115,16 +1925,37 @@ final class TerminalHostState {
     }
   }
 
+  private func applyObservedSessionCatalog(_ sessionCatalog: PersistedTerminalSessionCatalog) {
+    let resolvedSessionCatalog = PersistedTerminalSessionCatalog.sanitized(sessionCatalog)
+    guard resolvedSessionCatalog != sessionCatalogSnapshot() else { return }
+
+    let projectedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(
+      Self.workspaceCatalog(from: resolvedSessionCatalog)
+    )
+    replaceWorkspaceCatalog(projectedWorkspaceCatalog)
+    lastAppliedWorkspaceCatalog = projectedWorkspaceCatalog
+
+    let existingTabIDs = Array(trees.keys)
+    removeTrees(for: existingTabIDs, sessionDisposal: .detach)
+    workspaceManager.bootstrap(
+      from: projectedWorkspaceCatalog,
+      initialSelectedWorkspaceID: projectedWorkspaceCatalog.defaultSelectedWorkspaceID
+    )
+    restoreSessionState(from: resolvedSessionCatalog)
+    finalizeWorkspaceSelectionChange()
+  }
+
   @discardableResult
   private func writeWorkspaceCatalog(
-    _ workspaceCatalog: TerminalWorkspaceCatalog
+    _ workspaceCatalog: TerminalWorkspaceCatalog,
+    removedTabSessionDisposal: SessionDisposal = .detach
   ) -> TerminalWorkspaceManager.WorkspaceCatalogDiff {
     let resolvedWorkspaceCatalog = TerminalWorkspaceCatalog.sanitized(workspaceCatalog)
     replaceWorkspaceCatalog(resolvedWorkspaceCatalog)
     lastAppliedWorkspaceCatalog = resolvedWorkspaceCatalog
 
     let diff = workspaceManager.applyCatalog(resolvedWorkspaceCatalog)
-    removeTrees(for: diff.removedTabIDs)
+    removeTrees(for: diff.removedTabIDs, sessionDisposal: removedTabSessionDisposal)
     return diff
   }
 
@@ -1139,6 +1970,31 @@ final class TerminalHostState {
 
   private func replaceWorkspaceCatalog(_ workspaceCatalog: TerminalWorkspaceCatalog) {
     $workspaceCatalog.withLock { $0 = workspaceCatalog }
+  }
+
+  private func replaceSessionCatalog(_ sessionCatalog: PersistedTerminalSessionCatalog) {
+    $sessionCatalog.withLock { $0 = sessionCatalog }
+  }
+
+  func prepareForTermination(killSessions: Bool) {
+    let sessionNames = Array(Set(paneSessionNames.values)).sorted()
+    replaceSessionCatalog(
+      Self.sessionCatalog(from: TerminalWorkspaceCatalog.sanitized(workspaceCatalog))
+    )
+
+    for surface in surfaces.values {
+      surface.closeSurface()
+    }
+
+    trees.removeAll()
+    surfaces.removeAll()
+    paneSessionNames.removeAll()
+    focusedSurfaceIDByTab.removeAll()
+    lastEmittedFocusSurfaceID = nil
+
+    if killSessions {
+      zmxClient.killSessions(sessionNames)
+    }
   }
 
   private func nextSelectedWorkspaceID(afterDeleting workspaceID: TerminalWorkspaceID) -> TerminalWorkspaceID {
@@ -1176,9 +2032,12 @@ final class TerminalHostState {
     syncFocus(windowActivity)
   }
 
-  private func removeTrees(for tabIDs: [TerminalTabID]) {
+  private func removeTrees(
+    for tabIDs: [TerminalTabID],
+    sessionDisposal: SessionDisposal = .detach
+  ) {
     for tabID in tabIDs {
-      removeTree(for: tabID)
+      removeTree(for: tabID, sessionDisposal: sessionDisposal)
     }
   }
 
@@ -1259,6 +2118,29 @@ final class TerminalHostState {
     case .right:
       return .right
     }
+  }
+}
+
+extension TerminalHostState {
+  private static func workspaceCatalog(
+    from sessionCatalog: PersistedTerminalSessionCatalog
+  ) -> TerminalWorkspaceCatalog {
+    TerminalWorkspaceCatalog(
+      defaultSelectedWorkspaceID: sessionCatalog.defaultSelectedWorkspaceID,
+      workspaces: sessionCatalog.workspaces.map(\.catalogWorkspace)
+    )
+  }
+
+  private static func sessionCatalog(
+    from workspaceCatalog: TerminalWorkspaceCatalog
+  ) -> PersistedTerminalSessionCatalog {
+    PersistedTerminalSessionCatalog(
+      defaultSelectedWorkspaceID: workspaceCatalog.defaultSelectedWorkspaceID,
+      selectionUpdatedAt: PersistedTerminalSessionCatalog.currentTimestamp(),
+      workspaces: workspaceCatalog.workspaces.map {
+        PersistedTerminalWorkspaceState(id: $0.id, name: $0.name)
+      }
+    )
   }
 }
 

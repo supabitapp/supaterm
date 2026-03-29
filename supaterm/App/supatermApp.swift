@@ -35,7 +35,7 @@ struct SupatermApp: App {
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .commands {
-      TerminalCommands()
+      TerminalCommands(registry: terminalWindowRegistry)
     }
   }
 }

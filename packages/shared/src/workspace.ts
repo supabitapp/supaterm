@@ -39,6 +39,7 @@ export interface TabState {
 export interface PaneState {
   id: string;
   tabId: string;
+  sessionName: string;
   title: string;
   pwd?: string;
   isRunning: boolean;

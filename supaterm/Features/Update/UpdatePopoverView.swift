@@ -1,13 +1,19 @@
 import AppKit
-import ComposableArchitecture
 import SwiftUI
 
 struct UpdatePopoverView: View {
-  let store: StoreOf<UpdateFeature>
+  let phase: UpdatePhase
+  let onAllowAutomaticUpdates: () -> Void
+  let onDismiss: () -> Void
+  let onInstallAndRelaunch: () -> Void
+  let onLater: () -> Void
+  let onRestartNow: () -> Void
+  let onRetry: () -> Void
+  let onSkip: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      switch store.phase {
+      switch phase {
       case .idle:
         EmptyView()
 
@@ -46,7 +52,7 @@ struct UpdatePopoverView: View {
           Image(systemName: "exclamationmark.triangle.fill")
             .accessibilityHidden(true)
             .foregroundStyle(.orange)
-          Text(store.phase.title)
+          Text(phase.title)
             .font(.system(size: 13, weight: .semibold))
         }
 
@@ -58,7 +64,7 @@ struct UpdatePopoverView: View {
 
       HStack(spacing: 8) {
         Button("OK") {
-          store.send(.dismissButtonTapped)
+          onDismiss()
         }
         .keyboardShortcut(.cancelAction)
         .controlSize(.small)
@@ -66,7 +72,7 @@ struct UpdatePopoverView: View {
         Spacer()
 
         Button("Retry") {
-          store.send(.retryButtonTapped)
+          onRetry()
         }
         .keyboardShortcut(.defaultAction)
         .controlSize(.small)
@@ -78,10 +84,10 @@ struct UpdatePopoverView: View {
   private func installingView(_ installing: UpdateInstallingState) -> some View {
     VStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 8) {
-        Text(store.phase.title)
+        Text(phase.title)
           .font(.system(size: 13, weight: .semibold))
 
-        Text(store.phase.detailMessage)
+        Text(phase.detailMessage)
           .font(.system(size: 11))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -89,7 +95,7 @@ struct UpdatePopoverView: View {
 
       HStack {
         Button("Restart Later") {
-          store.send(.dismissButtonTapped)
+          onDismiss()
         }
         .keyboardShortcut(.cancelAction)
         .controlSize(.small)
@@ -97,7 +103,7 @@ struct UpdatePopoverView: View {
         Spacer()
 
         Button("Restart Now") {
-          store.send(.restartNowButtonTapped)
+          onRestartNow()
         }
         .keyboardShortcut(.defaultAction)
         .buttonStyle(.borderedProminent)
@@ -111,10 +117,10 @@ struct UpdatePopoverView: View {
   private var notFoundView: some View {
     VStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 8) {
-        Text(store.phase.title)
+        Text(phase.title)
           .font(.system(size: 13, weight: .semibold))
 
-        Text(store.phase.detailMessage)
+        Text(phase.detailMessage)
           .font(.system(size: 11))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -123,7 +129,7 @@ struct UpdatePopoverView: View {
       HStack {
         Spacer()
         Button("OK") {
-          store.send(.dismissButtonTapped)
+          onDismiss()
         }
         .keyboardShortcut(.defaultAction)
         .controlSize(.small)
@@ -135,10 +141,10 @@ struct UpdatePopoverView: View {
   private var permissionRequestView: some View {
     VStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 8) {
-        Text(store.phase.title)
+        Text(phase.title)
           .font(.system(size: 13, weight: .semibold))
 
-        Text(store.phase.detailMessage)
+        Text(phase.detailMessage)
           .font(.system(size: 11))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -146,14 +152,14 @@ struct UpdatePopoverView: View {
 
       HStack(spacing: 8) {
         Button("Not Now") {
-          store.send(.dismissButtonTapped)
+          onDismiss()
         }
         .keyboardShortcut(.cancelAction)
 
         Spacer()
 
         Button("Allow") {
-          store.send(.allowAutomaticUpdatesButtonTapped)
+          onAllowAutomaticUpdates()
         }
         .keyboardShortcut(.defaultAction)
         .buttonStyle(.borderedProminent)
@@ -166,7 +172,7 @@ struct UpdatePopoverView: View {
     VStack(alignment: .leading, spacing: 0) {
       VStack(alignment: .leading, spacing: 12) {
         VStack(alignment: .leading, spacing: 8) {
-          Text(store.phase.title)
+          Text(phase.title)
             .font(.system(size: 13, weight: .semibold))
 
           VStack(alignment: .leading, spacing: 4) {
@@ -194,12 +200,12 @@ struct UpdatePopoverView: View {
 
         HStack(spacing: 8) {
           Button("Skip") {
-            store.send(.skipButtonTapped)
+            onSkip()
           }
           .controlSize(.small)
 
           Button("Later") {
-            store.send(.laterButtonTapped)
+            onLater()
           }
           .controlSize(.small)
           .keyboardShortcut(.cancelAction)
@@ -207,7 +213,7 @@ struct UpdatePopoverView: View {
           Spacer()
 
           Button("Install and Relaunch") {
-            store.send(.installAndRelaunchButtonTapped)
+            onInstallAndRelaunch()
           }
           .keyboardShortcut(.defaultAction)
           .buttonStyle(.borderedProminent)

@@ -8,6 +8,9 @@ let packageSettings = PackageSettings(
   productTypes: [
     "ComposableArchitecture": .framework,
     "Sharing": .framework,
+    "Dependencies": .framework,
+    "IssueReporting": .framework,
+    "PerceptionCore": .framework,
     "Sparkle": .framework,
   ]
 )

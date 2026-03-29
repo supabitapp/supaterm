@@ -3,12 +3,16 @@ import SupatermCLIShared
 
 struct TerminalWindowsClient: Sendable {
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var prepareForTermination: @MainActor @Sendable (Bool) async -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
 
   static func live(registry: TerminalWindowRegistry) -> Self {
     Self(
       createPane: { request in
         try registry.createPane(request)
+      },
+      prepareForTermination: { killSessions in
+        registry.prepareForTermination(killSessions: killSessions)
       },
       treeSnapshot: {
         registry.treeSnapshot()
@@ -22,6 +26,7 @@ extension TerminalWindowsClient: DependencyKey {
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
+    prepareForTermination: { _ in },
     treeSnapshot: { .init(windows: []) }
   )
 
@@ -29,6 +34,7 @@ extension TerminalWindowsClient: DependencyKey {
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
+    prepareForTermination: { _ in },
     treeSnapshot: { .init(windows: []) }
   )
 }

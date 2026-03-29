@@ -11,6 +11,7 @@ struct WindowSceneRootView: View {
     GhosttyColorSchemeSyncView(ghostty: controller.ghostty) {
       ContentView(
         store: controller.store,
+        shareServerClient: controller.shareServerClient,
         terminal: controller.terminal,
         ghosttyShortcuts: controller.ghosttyShortcuts,
         onWindowChanged: controller.updateWindow

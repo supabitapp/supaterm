@@ -196,9 +196,7 @@ struct TerminalSceneFeature {
 
       case .quitConfirmationConfirmButtonTapped:
         state.isQuitConfirmationPresented = false
-        return .run { [appTerminationClient] _ in
-          await appTerminationClient.reply(true)
-        }
+        return .none
 
       case .quitRequested(let windowID):
         if let currentWindowID = state.windowID, currentWindowID != windowID {

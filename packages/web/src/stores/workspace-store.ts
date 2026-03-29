@@ -146,6 +146,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
 
       case "pane_created":
         set((s) => ({
+          panes: { ...s.panes, [msg.paneId]: msg.pane },
           ptyUrls: { ...s.ptyUrls, [msg.paneId]: buildPtyWsUrl(msg.paneId) },
         }));
         break;
@@ -180,6 +181,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         });
         break;
       }
+
+      case "pane_resized":
+        set((s) => {
+          const existing = s.panes[msg.paneId];
+          if (!existing) return s;
+          if (existing.cols === msg.cols && existing.rows === msg.rows) return s;
+          return {
+            panes: {
+              ...s.panes,
+              [msg.paneId]: { ...existing, cols: msg.cols, rows: msg.rows },
+            },
+          };
+        });
+        break;
 
       case "split_tree_updated":
         set((s) => {

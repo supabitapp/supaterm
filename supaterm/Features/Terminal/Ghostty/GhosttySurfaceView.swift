@@ -52,6 +52,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
+  private let commandCString: UnsafeMutablePointer<CChar>?
   private let initialInputCString: UnsafeMutablePointer<CChar>?
   private let environmentVariables: [SupatermCLIEnvironmentVariable]
   private let fontSize: Float32
@@ -68,7 +69,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var lastScrollbar: ScrollbarState?
   private var lastOcclusion: Bool?
   private var lastSurfaceFocus: Bool?
-  private var eventMonitor: Any?
   private var notificationObservers: [NSObjectProtocol] = []
   private var prevPressureStage: Int = 0
   private lazy var cachedScreenContents = CachedValue<String>(duration: .milliseconds(500)) {
@@ -151,18 +151,21 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  override var acceptsFirstResponder: Bool { true }
+  nonisolated override var acceptsFirstResponder: Bool { true }
+  nonisolated override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
   init(
     runtime: GhosttyRuntime,
+    surfaceID: UUID = UUID(),
     tabID: UUID,
     workingDirectory: URL?,
+    command: String? = nil,
     initialInput: String? = nil,
+    additionalEnvironmentVariables: [SupatermCLIEnvironmentVariable] = [],
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false
   ) {
-    let surfaceID = UUID()
     self.runtime = runtime
     self.id = surfaceID
     self.bridge = GhosttySurfaceBridge()
@@ -170,6 +173,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: surfaceID,
       tabID: tabID
     ).environmentVariables
+    environmentVariables.append(contentsOf: additionalEnvironmentVariables)
     if let socketPath = SupatermSocketPath.resolve() {
       environmentVariables.append(
         .init(
@@ -190,6 +194,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     } else {
       workingDirectoryCString = nil
     }
+    if let command {
+      commandCString = command.withCString { strdup($0) }
+    } else {
+      commandCString = nil
+    }
     if let initialInput {
       initialInputCString = initialInput.withCString { strdup($0) }
     } else {
@@ -204,10 +213,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     registerForDraggedTypes(Array(Self.dropTypes))
 
-    eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyUp, .leftMouseDown]) {
-      [weak self] event in
-      self?.localEventHandler(event)
-    }
   }
 
   required init?(coder: NSCoder) {
@@ -215,9 +220,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   isolated deinit {
-    if let eventMonitor {
-      NSEvent.removeMonitor(eventMonitor)
-    }
     clearNotificationObservers()
     let id = ObjectIdentifier(self)
     MainActor.assumeIsolated {
@@ -226,6 +228,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     closeSurface()
     if let workingDirectoryCString {
       free(workingDirectoryCString)
+    }
+    if let commandCString {
+      free(commandCString)
     }
     if let initialInputCString {
       free(initialInputCString)
@@ -245,6 +250,27 @@ final class GhosttySurfaceView: NSView, Identifiable {
       lastOcclusion = nil
       lastSurfaceFocus = nil
     }
+  }
+
+  func currentGridSize() -> (cols: Int, rows: Int)? {
+    guard let surface else { return nil }
+    let currentSize = ghostty_surface_size(surface)
+    guard currentSize.cell_width_px > 0, currentSize.cell_height_px > 0 else { return nil }
+    let alignedBounds = backingAlignedRect(
+      bounds,
+      options: [
+        .alignMinXOutward,
+        .alignMaxXOutward,
+        .alignMinYOutward,
+        .alignMaxYOutward,
+      ]
+    )
+    let width = alignedBounds.size.width
+    let height = alignedBounds.size.height
+    let columns = Int(width) / Int(currentSize.cell_width_px)
+    let rows = Int(height) / Int(currentSize.cell_height_px)
+    guard columns >= 1, rows >= 1 else { return nil }
+    return (cols: columns, rows: rows)
   }
 
   private func updateScreenObservers() {
@@ -417,64 +443,83 @@ final class GhosttySurfaceView: NSView, Identifiable {
     accessibilityPaneIndexHelp = "Pane \(index) of \(total)"
   }
 
-  override func isAccessibilityElement() -> Bool {
-    // Avoid interacting with panes after teardown.
-    surface != nil
+  nonisolated override func isAccessibilityElement() -> Bool {
+    MainActor.assumeIsolated {
+      // Avoid interacting with panes after teardown.
+      surface != nil
+    }
   }
 
-  override func accessibilityRole() -> NSAccessibility.Role? {
-    // Match Ghostty.app so speech/input tools can treat the surface as editable text.
+  nonisolated override func accessibilityRole() -> NSAccessibility.Role? {
     .textArea
   }
 
-  override func accessibilityLabel() -> String? {
-    let title = bridge.state.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !title.isEmpty {
-      return title
+  nonisolated override func accessibilityLabel() -> String? {
+    MainActor.assumeIsolated {
+      let title = bridge.state.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if !title.isEmpty {
+        return title
+      }
+      let pwd = bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if !pwd.isEmpty {
+        return pwd
+      }
+      return "Terminal pane"
     }
-    let pwd = bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !pwd.isEmpty {
-      return pwd
+  }
+
+  nonisolated override func accessibilityValue() -> Any? {
+    MainActor.assumeIsolated {
+      cachedScreenContents.get()
     }
-    return "Terminal pane"
   }
 
-  override func accessibilityValue() -> Any? {
-    cachedScreenContents.get()
+  nonisolated override func accessibilityHelp() -> String? {
+    MainActor.assumeIsolated {
+      accessibilityPaneIndexHelp
+    }
   }
 
-  override func accessibilityHelp() -> String? {
-    accessibilityPaneIndexHelp
+  nonisolated override func accessibilitySelectedTextRange() -> NSRange {
+    MainActor.assumeIsolated {
+      selectedRange()
+    }
   }
 
-  override func accessibilitySelectedTextRange() -> NSRange {
-    selectedRange()
+  nonisolated override func accessibilitySelectedText() -> String? {
+    MainActor.assumeIsolated {
+      guard let surface else { return nil }
+      var text = ghostty_text_s()
+      guard ghostty_surface_read_selection(surface, &text) else { return nil }
+      defer { ghostty_surface_free_text(surface, &text) }
+      let value = String(cString: text.text)
+      return value.isEmpty ? nil : value
+    }
   }
 
-  override func accessibilitySelectedText() -> String? {
-    guard let surface else { return nil }
-    var text = ghostty_text_s()
-    guard ghostty_surface_read_selection(surface, &text) else { return nil }
-    defer { ghostty_surface_free_text(surface, &text) }
-    let value = String(cString: text.text)
-    return value.isEmpty ? nil : value
+  nonisolated override func accessibilityNumberOfCharacters() -> Int {
+    MainActor.assumeIsolated {
+      cachedScreenContents.get().count
+    }
   }
 
-  override func accessibilityNumberOfCharacters() -> Int {
-    cachedScreenContents.get().count
+  nonisolated override func accessibilityVisibleCharacterRange() -> NSRange {
+    MainActor.assumeIsolated {
+      let content = cachedScreenContents.get()
+      return NSRange(location: 0, length: content.count)
+    }
   }
 
-  override func accessibilityVisibleCharacterRange() -> NSRange {
-    let content = cachedScreenContents.get()
-    return NSRange(location: 0, length: content.count)
+  nonisolated override func accessibilityLine(for index: Int) -> Int {
+    MainActor.assumeIsolated {
+      Self.accessibilityLine(for: index, in: cachedScreenContents.get())
+    }
   }
 
-  override func accessibilityLine(for index: Int) -> Int {
-    Self.accessibilityLine(for: index, in: cachedScreenContents.get())
-  }
-
-  override func accessibilityString(for range: NSRange) -> String? {
-    Self.accessibilityString(for: range, in: cachedScreenContents.get())
+  nonisolated override func accessibilityString(for range: NSRange) -> String? {
+    MainActor.assumeIsolated {
+      Self.accessibilityString(for: range, in: cachedScreenContents.get())
+    }
   }
 
   override func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
@@ -491,19 +536,25 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return NSAttributedString(string: plainString, attributes: attributes)
   }
 
-  override func becomeFirstResponder() -> Bool {
+  nonisolated override func becomeFirstResponder() -> Bool {
     let result = super.becomeFirstResponder()
     if result {
-      focusDidChange(true)
-      postAccessibilityFocusChanged()
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        focusDidChange(true)
+        postAccessibilityFocusChanged()
+      }
     }
     return result
   }
 
-  override func resignFirstResponder() -> Bool {
+  nonisolated override func resignFirstResponder() -> Bool {
     let result = super.resignFirstResponder()
     if result {
-      focusDidChange(false)
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        focusDidChange(false)
+      }
     }
     return result
   }
@@ -620,25 +671,36 @@ final class GhosttySurfaceView: NSView, Identifiable {
     sendKey(action: action, event: event)
   }
 
-  override func mouseMoved(with event: NSEvent) {
-    sendMousePosition(event)
-    if let window, window.isKeyWindow, !focused, runtime.focusFollowsMouse() {
-      requestFocus()
+  nonisolated override func mouseMoved(with event: NSEvent) {
+    let locationInWindow = event.locationInWindow
+    let modifierFlags = event.modifierFlags
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      sendMousePosition(locationInWindow: locationInWindow, modifierFlags: modifierFlags)
+      if let window, window.isKeyWindow, !focused, runtime.focusFollowsMouse() {
+        requestFocus()
+      }
     }
   }
 
-  override func mouseEntered(with event: NSEvent) {
-    super.mouseEntered(with: event)
-    sendMousePosition(event)
+  nonisolated override func mouseEntered(with event: NSEvent) {
+    let locationInWindow = event.locationInWindow
+    let modifierFlags = event.modifierFlags
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      sendMousePosition(locationInWindow: locationInWindow, modifierFlags: modifierFlags)
+    }
   }
 
-  override func mouseExited(with event: NSEvent) {
-    if NSEvent.pressedMouseButtons != 0 {
-      return
+  nonisolated override func mouseExited(with event: NSEvent) {
+    let pressedMouseButtons = NSEvent.pressedMouseButtons
+    let modifierFlags = event.modifierFlags
+    Task { @MainActor [weak self] in
+      guard let self, pressedMouseButtons == 0 else { return }
+      guard let surface else { return }
+      let mods = ghosttyMods(modifierFlags)
+      ghostty_surface_mouse_pos(surface, -1, -1, mods)
     }
-    guard let surface else { return }
-    let mods = ghosttyMods(event.modifierFlags)
-    ghostty_surface_mouse_pos(surface, -1, -1, mods)
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -703,15 +765,15 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    sendMousePosition(event)
+    sendMousePosition(locationInWindow: event.locationInWindow, modifierFlags: event.modifierFlags)
   }
 
   override func rightMouseDragged(with event: NSEvent) {
-    sendMousePosition(event)
+    sendMousePosition(locationInWindow: event.locationInWindow, modifierFlags: event.modifierFlags)
   }
 
   override func otherMouseDragged(with event: NSEvent) {
-    sendMousePosition(event)
+    sendMousePosition(locationInWindow: event.locationInWindow, modifierFlags: event.modifierFlags)
   }
 
   override func scrollWheel(with event: NSEvent) {
@@ -752,34 +814,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     let str = NSAttributedString(string: String(cString: text.text), attributes: attributes)
     let point = NSPoint(x: text.tl_px_x, y: frame.size.height - text.tl_px_y)
     showDefinition(for: str, at: point)
-  }
-
-  private func localEventHandler(_ event: NSEvent) -> NSEvent? {
-    switch event.type {
-    case .keyUp:
-      localEventKeyUp(event)
-    case .leftMouseDown:
-      localEventLeftMouseDown(event)
-    default:
-      event
-    }
-  }
-
-  private func localEventKeyUp(_ event: NSEvent) -> NSEvent? {
-    if !event.modifierFlags.contains(.command) { return event }
-    guard focused else { return event }
-    keyUp(with: event)
-    return nil
-  }
-
-  private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
-    guard let window, event.window != nil, window == event.window else { return event }
-    let location = convert(event.locationInWindow, from: nil)
-    guard hitTest(location) == self else { return event }
-    guard !NSApp.isActive || !window.isKeyWindow else { return event }
-    guard !focused else { return event }
-    window.makeFirstResponder(self)
-    return event
   }
 
   func updateSurfaceSize() {
@@ -861,6 +895,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     config.scale_factor = backingScaleFactor()
     config.font_size = fontSize
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
+    config.command = commandCString.map { UnsafePointer($0) }
     config.initial_input = initialInputCString.map { UnsafePointer($0) }
     config.context = context
     Self.withEnvironmentVariables(environmentVariables) { envVars, count in
@@ -1296,6 +1331,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func ghosttyCharacters(_ event: NSEvent) -> String? {
+    guard event.type == .keyDown || event.type == .keyUp else { return nil }
     guard let characters = event.characters else { return nil }
     if characters.count == 1,
       let scalar = characters.unicodeScalars.first
@@ -1362,11 +1398,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return value as String
   }
 
-  private func sendMousePosition(_ event: NSEvent) {
+  private func sendMousePosition(locationInWindow: CGPoint, modifierFlags: NSEvent.ModifierFlags) {
     guard let surface else { return }
-    let point = convert(event.locationInWindow, from: nil)
+    let point = convert(locationInWindow, from: nil)
     let yPosition = bounds.height - point.y
-    let mods = ghosttyMods(event.modifierFlags)
+    let mods = ghosttyMods(modifierFlags)
     ghostty_surface_mouse_pos(surface, point.x, yPosition, mods)
   }
 
@@ -1440,16 +1476,16 @@ extension GhosttySurfaceView {
 }
 
 extension GhosttySurfaceView: NSTextInputClient {
-  func hasMarkedText() -> Bool {
+  nonisolated func hasMarkedText() -> Bool {
     markedText.length > 0
   }
 
-  func markedRange() -> NSRange {
+  nonisolated func markedRange() -> NSRange {
     guard markedText.length > 0 else { return NSRange() }
     return NSRange(location: 0, length: markedText.length)
   }
 
-  func selectedRange() -> NSRange {
+  nonisolated func selectedRange() -> NSRange {
     guard let surface else { return NSRange() }
     var text = ghostty_text_s()
     guard ghostty_surface_read_selection(surface, &text) else { return NSRange() }
@@ -1457,7 +1493,11 @@ extension GhosttySurfaceView: NSTextInputClient {
     return NSRange(location: Int(text.offset_start), length: Int(text.offset_len))
   }
 
-  func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+  nonisolated func setMarkedText(
+    _ string: Any,
+    selectedRange: NSRange,
+    replacementRange: NSRange
+  ) {
     switch string {
     case let attributedText as NSAttributedString:
       markedText = NSMutableAttributedString(attributedString: attributedText)
@@ -1471,18 +1511,18 @@ extension GhosttySurfaceView: NSTextInputClient {
     }
   }
 
-  func unmarkText() {
+  nonisolated func unmarkText() {
     if markedText.length > 0 {
       markedText.mutableString.setString("")
       syncPreedit()
     }
   }
 
-  func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+  nonisolated func validAttributesForMarkedText() -> [NSAttributedString.Key] {
     []
   }
 
-  func attributedSubstring(
+  nonisolated func attributedSubstring(
     forProposedRange range: NSRange,
     actualRange: NSRangePointer?
   ) -> NSAttributedString? {
@@ -1500,11 +1540,14 @@ extension GhosttySurfaceView: NSTextInputClient {
     return NSAttributedString(string: String(cString: text.text), attributes: attributes)
   }
 
-  func characterIndex(for point: NSPoint) -> Int {
+  nonisolated func characterIndex(for point: NSPoint) -> Int {
     0
   }
 
-  func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+  nonisolated func firstRect(
+    forCharacterRange range: NSRange,
+    actualRange: NSRangePointer?
+  ) -> NSRect {
     guard let surface else {
       return NSRect(x: frame.origin.x, y: frame.origin.y, width: 0, height: 0)
     }
@@ -1539,7 +1582,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     return window.convertToScreen(winRect)
   }
 
-  func insertText(_ string: Any, replacementRange: NSRange) {
+  nonisolated func insertText(_ string: Any, replacementRange: NSRange) {
     guard NSApp.currentEvent != nil else { return }
     guard let surface else { return }
     var chars = ""
@@ -1794,9 +1837,11 @@ final class GhosttySurfaceScrollView: NSView {
     return contentHeight
   }
 
-  override func mouseMoved(with event: NSEvent) {
-    guard NSScroller.preferredScrollerStyle == .legacy else { return }
-    scrollView.flashScrollers()
+  nonisolated override func mouseMoved(with event: NSEvent) {
+    MainActor.assumeIsolated {
+      guard NSScroller.preferredScrollerStyle == .legacy else { return }
+      scrollView.flashScrollers()
+    }
   }
 
   override func updateTrackingAreas() {

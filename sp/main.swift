@@ -6,7 +6,7 @@ struct SP: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "sp",
     abstract: "Supaterm pane command-line interface.",
-    subcommands: [Ping.self, Tree.self, NewPane.self]
+    subcommands: [Ping.self, Tree.self, NewPane.self, AttachSession.self, KillSession.self]
   )
 
   mutating func run() throws {

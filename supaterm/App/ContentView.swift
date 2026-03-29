@@ -4,20 +4,27 @@ import SwiftUI
 
 struct ContentView: View {
   let store: StoreOf<AppFeature>
+  let shareServerClient: ShareServerClient
   let ghosttyShortcuts: GhosttyShortcutManager
   let onWindowChanged: (NSWindow?) -> Void
   @Bindable var terminal: TerminalHostState
+  @StateObject private var shareController: ShareServerStatusController
 
   init(
     store: StoreOf<AppFeature>,
+    shareServerClient: ShareServerClient,
     terminal: TerminalHostState,
     ghosttyShortcuts: GhosttyShortcutManager,
     onWindowChanged: @escaping (NSWindow?) -> Void
   ) {
     self.store = store
+    self.shareServerClient = shareServerClient
     self._terminal = Bindable(terminal)
     self.ghosttyShortcuts = ghosttyShortcuts
     self.onWindowChanged = onWindowChanged
+    _shareController = StateObject(
+      wrappedValue: ShareServerStatusController(shareServerClient: shareServerClient)
+    )
   }
 
   private var terminalStore: StoreOf<TerminalSceneFeature> {
@@ -25,160 +32,17 @@ struct ContentView: View {
   }
 
   var body: some View {
-    applyFocusedActions(
-      content: TerminalView(
-        store: terminalStore,
-        terminal: terminal,
-        onWindowChanged: onWindowChanged,
-        updateStore: store.scope(state: \.update, action: \.update)
-      )
-      .task {
-        store.send(.update(.task))
-        terminalStore.send(.task)
-      },
-      actions: makeFocusedActions()
+    TerminalView(
+      store: terminalStore,
+      shareController: shareController,
+      terminal: terminal,
+      onWindowChanged: onWindowChanged,
+      updateStore: store.scope(state: \.update, action: \.update)
     )
-  }
-
-  private func applyFocusedActions<Content: View>(
-    content: Content,
-    actions: FocusedActions
-  ) -> some View {
-    content
-      .focusedSceneValue(\.newTerminalAction, actions.newTerminal)
-      .focusedSceneValue(\.closeSurfaceAction, actions.closeSurface)
-      .focusedSceneValue(\.closeTabAction, actions.closeTab)
-      .focusedSceneValue(\.nextTabAction, actions.nextTab)
-      .focusedSceneValue(\.previousTabAction, actions.previousTab)
-      .focusedSceneValue(\.selectTabAction, actions.selectTab)
-      .focusedSceneValue(\.selectLastTabAction, actions.selectLastTab)
-      .focusedSceneValue(\.selectWorkspaceAction, actions.selectWorkspace)
-      .focusedSceneValue(\.toggleSidebarAction, actions.toggleSidebar)
-      .focusedSceneValue(\.startSearchAction, actions.startSearch)
-      .focusedSceneValue(\.searchSelectionAction, actions.searchSelection)
-      .focusedSceneValue(\.navigateSearchNextAction, actions.navigateSearchNext)
-      .focusedSceneValue(\.navigateSearchPreviousAction, actions.navigateSearchPrevious)
-      .focusedSceneValue(\.endSearchAction, actions.endSearch)
-      .focusedSceneValue(\.splitBelowAction, actions.splitBelow)
-      .focusedSceneValue(\.splitRightAction, actions.splitRight)
-      .focusedSceneValue(\.equalizePanesAction, actions.equalizePanes)
-      .focusedSceneValue(\.togglePaneZoomAction, actions.togglePaneZoom)
-      .focusedSceneValue(\.checkForUpdatesAction, actions.checkForUpdates)
-      .focusedSceneValue(\.updatePhase, actions.updatePhase)
-      .focusedSceneValue(\.ghosttyKeyboardShortcutProvider, actions.keyboardShortcutProvider)
-  }
-
-  private func makeFocusedActions() -> FocusedActions {
-    let hasTab = terminal.selectedTabID != nil
-    let hasSurface = terminal.selectedSurfaceView != nil
-    let hasVisibleTabs = !terminal.visibleTabs.isEmpty
-    let hasWorkspaces = !terminal.workspaces.isEmpty
-
-    return FocusedActions(
-      newTerminal: {
-        terminalStore.send(.newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id))
-      },
-      closeSurface: hasSurface
-        ? {
-          guard let selectedSurfaceID = terminal.selectedSurfaceView?.id else { return }
-          terminalStore.send(.closeSurfaceRequested(selectedSurfaceID))
-        } : nil,
-      closeTab: hasTab
-        ? {
-          guard let selectedTabID = terminal.selectedTabID else { return }
-          terminalStore.send(.closeTabRequested(selectedTabID))
-        } : nil,
-      nextTab: hasTab
-        ? {
-          terminalStore.send(.nextTabMenuItemSelected)
-        } : nil,
-      previousTab: hasTab
-        ? {
-          terminalStore.send(.previousTabMenuItemSelected)
-        } : nil,
-      selectTab: hasVisibleTabs
-        ? {
-          terminalStore.send(.selectTabMenuItemSelected($0))
-        } : nil,
-      selectLastTab: hasVisibleTabs
-        ? {
-          terminalStore.send(.selectLastTabMenuItemSelected)
-        } : nil,
-      selectWorkspace: hasWorkspaces
-        ? {
-          terminalStore.send(.selectWorkspaceMenuItemSelected($0))
-        } : nil,
-      toggleSidebar: {
-        terminalStore.send(.toggleSidebarButtonTapped)
-      },
-      startSearch: hasSurface
-        ? {
-          terminalStore.send(.startSearchMenuItemSelected)
-        } : nil,
-      searchSelection: hasSurface
-        ? {
-          terminalStore.send(.searchSelectionMenuItemSelected)
-        } : nil,
-      navigateSearchNext: hasSurface
-        ? {
-          terminalStore.send(.navigateSearchNextMenuItemSelected)
-        } : nil,
-      navigateSearchPrevious: hasSurface
-        ? {
-          terminalStore.send(.navigateSearchPreviousMenuItemSelected)
-        } : nil,
-      endSearch: hasSurface
-        ? {
-          terminalStore.send(.endSearchMenuItemSelected)
-        } : nil,
-      splitBelow: hasSurface
-        ? {
-          terminalStore.send(.splitBelowMenuItemSelected)
-        } : nil,
-      splitRight: hasSurface
-        ? {
-          terminalStore.send(.splitRightMenuItemSelected)
-        } : nil,
-      equalizePanes: hasSurface
-        ? {
-          terminalStore.send(.equalizePanesMenuItemSelected)
-        } : nil,
-      togglePaneZoom: hasSurface
-        ? {
-          terminalStore.send(.togglePaneZoomMenuItemSelected)
-        } : nil,
-      checkForUpdates: store.update.canCheckForUpdates
-        ? {
-          store.send(.update(.checkForUpdatesButtonTapped))
-        } : nil,
-      updatePhase: store.update.phase,
-      keyboardShortcutProvider: { action in
-        ghosttyShortcuts.keyboardShortcut(for: action)
-      }
-    )
-  }
-
-  private struct FocusedActions {
-    let newTerminal: (() -> Void)?
-    let closeSurface: (() -> Void)?
-    let closeTab: (() -> Void)?
-    let nextTab: (() -> Void)?
-    let previousTab: (() -> Void)?
-    let selectTab: ((Int) -> Void)?
-    let selectLastTab: (() -> Void)?
-    let selectWorkspace: ((Int) -> Void)?
-    let toggleSidebar: (() -> Void)?
-    let startSearch: (() -> Void)?
-    let searchSelection: (() -> Void)?
-    let navigateSearchNext: (() -> Void)?
-    let navigateSearchPrevious: (() -> Void)?
-    let endSearch: (() -> Void)?
-    let splitBelow: (() -> Void)?
-    let splitRight: (() -> Void)?
-    let equalizePanes: (() -> Void)?
-    let togglePaneZoom: (() -> Void)?
-    let checkForUpdates: (() -> Void)?
-    let updatePhase: UpdatePhase
-    let keyboardShortcutProvider: (String) -> KeyboardShortcut?
+    .task {
+      shareController.startObservingIfNeeded()
+      store.send(.update(.task))
+      terminalStore.send(.task)
+    }
   }
 }

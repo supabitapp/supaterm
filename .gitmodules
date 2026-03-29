@@ -1,3 +1,6 @@
 [submodule "ThirdParty/ghostty"]
 	path = ThirdParty/ghostty
 	url = https://github.com/ghostty-org/ghostty
+[submodule "ThirdParty/zmx"]
+	path = ThirdParty/zmx
+	url = https://github.com/neurosnap/zmx

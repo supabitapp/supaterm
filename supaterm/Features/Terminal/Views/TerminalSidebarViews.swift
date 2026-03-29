@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TerminalSplitView: View {
   let store: StoreOf<TerminalSceneFeature>
+  let shareController: ShareServerStatusController
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -46,6 +47,7 @@ struct TerminalSplitView: View {
       HStack(spacing: 0) {
         TerminalSidebarView(
           store: store,
+          shareController: shareController,
           palette: palette,
           terminal: terminal,
           updateStore: updateStore
@@ -90,15 +92,27 @@ struct TerminalSplitView: View {
 
 struct TerminalSidebarView: View {
   let store: StoreOf<TerminalSceneFeature>
+  let shareController: ShareServerStatusController
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      SidebarHeaderView(store: store, palette: palette, updateStore: updateStore)
+      SidebarHeaderView(
+        store: store,
+        shareController: shareController,
+        palette: palette,
+        selectedTabID: terminal.selectedTabID,
+        updateStore: updateStore
+      )
       SidebarContainerView(store: store, palette: palette, terminal: terminal)
-      SidebarFooterView(store: store, palette: palette, terminal: terminal)
+      SidebarFooterView(
+        store: store,
+        shareController: shareController,
+        palette: palette,
+        terminal: terminal
+      )
     }
     .padding(.horizontal, 10)
     .padding(.top, 8)
@@ -209,6 +223,7 @@ private struct SidebarContainerView: View {
 
 struct FloatingSidebarOverlay: View {
   let store: StoreOf<TerminalSceneFeature>
+  let shareController: ShareServerStatusController
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
@@ -235,6 +250,7 @@ struct FloatingSidebarOverlay: View {
       if isVisible {
         FloatingSidebarView(
           store: store,
+          shareController: shareController,
           palette: palette,
           terminal: terminal,
           width: floatingWidth,
@@ -294,13 +310,6 @@ private struct SidebarResizeHandle: View {
       .fill(Color.clear)
       .frame(width: TerminalSplitMetrics.resizeHandleWidth)
       .contentShape(Rectangle())
-      .onHover { hovering in
-        if hovering {
-          NSCursor.resizeLeftRight.push()
-        } else {
-          NSCursor.pop()
-        }
-      }
       .gesture(
         DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpaceName))
           .onChanged { value in
@@ -331,6 +340,7 @@ private struct SidebarResizeHandle: View {
 
 private struct FloatingSidebarView: View {
   let store: StoreOf<TerminalSceneFeature>
+  let shareController: ShareServerStatusController
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
@@ -339,6 +349,7 @@ private struct FloatingSidebarView: View {
   var body: some View {
     TerminalSidebarView(
       store: store,
+      shareController: shareController,
       palette: palette,
       terminal: terminal,
       updateStore: updateStore
@@ -355,7 +366,9 @@ private struct FloatingSidebarView: View {
 
 private struct SidebarHeaderView: View {
   let store: StoreOf<TerminalSceneFeature>
+  @ObservedObject var shareController: ShareServerStatusController
   let palette: TerminalPalette
+  let selectedTabID: TerminalTabID?
   let updateStore: StoreOf<UpdateFeature>
 
   var body: some View {
@@ -365,6 +378,11 @@ private struct SidebarHeaderView: View {
       Spacer(minLength: 0)
 
       HStack(spacing: 4) {
+        ShareServerToolbarButton(
+          controller: shareController,
+          palette: palette
+        )
+
         ToolbarIconButton(
           symbol: "sidebar.left",
           palette: palette,
@@ -382,6 +400,264 @@ private struct SidebarHeaderView: View {
         .padding(.leading, WindowTrafficLightMetrics.pillLeadingPadding)
     }
     .frame(height: 30)
+  }
+}
+
+private struct ShareServerToolbarButton: View {
+  @ObservedObject var controller: ShareServerStatusController
+  let palette: TerminalPalette
+
+  var body: some View {
+    ShareServerToolbarButtonContent(
+      snapshot: controller.snapshot,
+      palette: palette,
+      onStart: { controller.startSharing(port: $0) },
+      onStop: controller.stopSharing
+    )
+  }
+}
+
+private struct ShareServerToolbarButtonContent: View {
+  let snapshot: ShareServerSnapshot
+  let palette: TerminalPalette
+  let onStart: (Int) -> Void
+  let onStop: () -> Void
+  @State private var isPopoverPresented = false
+
+  var body: some View {
+    Button {
+      isPopoverPresented.toggle()
+    } label: {
+      Image(systemName: symbol(for: snapshot.phase))
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(iconColor(for: snapshot.phase))
+        .frame(width: 30, height: 30)
+        .background(backgroundColor(for: snapshot.phase), in: .rect(cornerRadius: 6))
+        .accessibilityHidden(true)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Share terminal on local network")
+    .popover(isPresented: $isPopoverPresented, arrowEdge: .top) {
+      ShareServerPopoverView(
+        snapshot: snapshot,
+        onStart: { port in
+          onStart(port)
+          isPopoverPresented = false
+        },
+        onStop: {
+          onStop()
+          isPopoverPresented = false
+        }
+      )
+      .frame(width: 420)
+      .padding(16)
+    }
+    .onChange(of: snapshot.phase) { _, phase in
+      if case .failed = phase {
+        isPopoverPresented = true
+      }
+    }
+  }
+
+  private func symbol(for phase: ShareServerPhase) -> String {
+    switch phase {
+    case .running:
+      return "dot.radiowaves.left.and.right"
+    default:
+      return "square.and.arrow.up"
+    }
+  }
+
+  private func iconColor(for phase: ShareServerPhase) -> Color {
+    switch phase {
+    case .running:
+      return palette.mint
+    case .failed:
+      return palette.coral
+    default:
+      return palette.secondaryText
+    }
+  }
+
+  private func backgroundColor(for phase: ShareServerPhase) -> Color {
+    switch phase {
+    case .running:
+      return palette.mint.opacity(0.16)
+    case .failed:
+      return palette.coral.opacity(0.14)
+    default:
+      return .clear
+    }
+  }
+}
+
+private struct ShareServerPopoverView: View {
+  let snapshot: ShareServerSnapshot
+  let onStart: (Int) -> Void
+  let onStop: () -> Void
+  @State private var portText = "7681"
+  @State private var validationMessage: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Share Supaterm")
+        .font(.system(size: 15, weight: .semibold))
+
+      Text("Expose the current tab and its panes on `0.0.0.0` so it can be opened from another device.")
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Port")
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(.secondary)
+
+        TextField(
+          "7681",
+          text: $portText
+        )
+        .textFieldStyle(.roundedBorder)
+      }
+
+      if let validationMessage {
+        Text(validationMessage)
+          .font(.system(size: 11))
+          .foregroundStyle(.red)
+      }
+
+      statusSection
+
+      HStack {
+        Spacer(minLength: 0)
+
+        Button(primaryButtonTitle) {
+          validationMessage = nil
+
+          if case .running(let connection) = snapshot.phase, normalizedPort == connection.port {
+            onStop()
+            return
+          }
+
+          guard let port = normalizedPort else {
+            validationMessage = "Port must be between 1 and 65535."
+            return
+          }
+
+          onStart(port)
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(isPrimaryButtonDisabled)
+      }
+    }
+    .onAppear {
+      syncPortTextFromSnapshot()
+    }
+    .onChange(of: snapshot.phase) { _, phase in
+      if case .running = phase {
+        syncPortTextFromSnapshot()
+      }
+      if case .failed(let message) = phase {
+        validationMessage = message
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var statusSection: some View {
+    switch snapshot.phase {
+    case .stopped:
+      Text("Server is stopped.")
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+
+    case .starting(let port):
+      Text("Starting server on `0.0.0.0:\(port)`…")
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+
+    case .failed(let message):
+      Text(message)
+        .font(.system(size: 12))
+        .foregroundStyle(.red)
+
+    case .running(let connection):
+      VStack(alignment: .leading, spacing: 10) {
+        Text("Listening on `\(connection.listenAddress):\(connection.port)`")
+          .font(.system(size: 12))
+
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Share URLs")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+
+          ForEach(connection.accessURLs) { accessURL in
+            ShareServerAccessRow(title: accessURL.label, value: accessURL.urlString)
+          }
+        }
+      }
+    }
+  }
+
+  private var primaryButtonTitle: String {
+    switch snapshot.phase {
+    case .running(let connection):
+      let currentPort = normalizedPort
+      return currentPort == connection.port ? "Stop Sharing" : "Restart Sharing"
+    case .starting:
+      return "Starting…"
+    default:
+      return "Start Sharing"
+    }
+  }
+
+  private var isPrimaryButtonDisabled: Bool {
+    if case .starting = snapshot.phase {
+      return true
+    }
+    return false
+  }
+
+  private var normalizedPort: Int? {
+    guard
+      let port = Int(portText.trimmingCharacters(in: .whitespacesAndNewlines)),
+      (1...65_535).contains(port)
+    else {
+      return nil
+    }
+    return port
+  }
+
+  private func syncPortTextFromSnapshot() {
+    if case .running(let connection) = snapshot.phase {
+      portText = String(connection.port)
+    }
+  }
+}
+
+private struct ShareServerAccessRow: View {
+  let title: String
+  let value: String
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Text(title)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .frame(width: 70, alignment: .leading)
+
+      Text(value)
+        .font(.system(size: 11, design: .monospaced))
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+      Button("Copy") {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(value, forType: .string)
+      }
+      .buttonStyle(.borderless)
+      .font(.system(size: 11))
+    }
   }
 }
 
@@ -531,11 +807,17 @@ private struct SidebarTabRow: View {
 
 private struct SidebarFooterView: View {
   let store: StoreOf<TerminalSceneFeature>
+  @ObservedObject var shareController: ShareServerStatusController
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
   var body: some View {
-    HStack {
+    HStack(spacing: 8) {
+      ShareServerFooterButton(
+        controller: shareController,
+        palette: palette
+      )
+
       if terminal.workspaces.count > 1 {
         Spacer(minLength: 0)
 
@@ -565,6 +847,114 @@ private struct SidebarFooterView: View {
       )
     }
     .frame(height: 30)
+  }
+}
+
+private struct ShareServerFooterButton: View {
+  @ObservedObject var controller: ShareServerStatusController
+  let palette: TerminalPalette
+
+  var body: some View {
+    ShareServerFooterButtonContent(
+      snapshot: controller.snapshot,
+      palette: palette,
+      onStart: { controller.startSharing(port: $0) },
+      onStop: controller.stopSharing
+    )
+  }
+}
+
+private struct ShareServerFooterButtonContent: View {
+  let snapshot: ShareServerSnapshot
+  let palette: TerminalPalette
+  let onStart: (Int) -> Void
+  let onStop: () -> Void
+  @State private var isPopoverPresented = false
+
+  var body: some View {
+    Button {
+      isPopoverPresented.toggle()
+    } label: {
+      HStack(spacing: 6) {
+        Image(systemName: symbol(for: snapshot.phase))
+          .font(.system(size: 11, weight: .semibold))
+          .accessibilityHidden(true)
+
+        Text(title(for: snapshot.phase))
+          .font(.system(size: 11, weight: .medium))
+      }
+      .foregroundStyle(foregroundStyle(for: snapshot.phase))
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(backgroundStyle(for: snapshot.phase), in: Capsule())
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Share terminal on local network")
+    .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+      ShareServerPopoverView(
+        snapshot: snapshot,
+        onStart: { port in
+          onStart(port)
+          isPopoverPresented = false
+        },
+        onStop: {
+          onStop()
+          isPopoverPresented = false
+        }
+      )
+      .frame(width: 420)
+      .padding(16)
+    }
+    .onChange(of: snapshot.phase) { _, phase in
+      if case .failed = phase {
+        isPopoverPresented = true
+      }
+    }
+  }
+
+  private func symbol(for phase: ShareServerPhase) -> String {
+    switch phase {
+    case .running:
+      return "dot.radiowaves.left.and.right"
+    default:
+      return "square.and.arrow.up"
+    }
+  }
+
+  private func title(for phase: ShareServerPhase) -> String {
+    switch phase {
+    case .running:
+      return "Sharing"
+    case .starting:
+      return "Starting"
+    case .failed:
+      return "Share Error"
+    default:
+      return "Share"
+    }
+  }
+
+  private func foregroundStyle(for phase: ShareServerPhase) -> Color {
+    switch phase {
+    case .running:
+      return palette.mint
+    case .failed:
+      return palette.coral
+    default:
+      return palette.secondaryText
+    }
+  }
+
+  private func backgroundStyle(for phase: ShareServerPhase) -> Color {
+    switch phase {
+    case .running:
+      return palette.mint.opacity(0.16)
+    case .failed:
+      return palette.coral.opacity(0.14)
+    default:
+      return palette.rowFill
+    }
   }
 }
 

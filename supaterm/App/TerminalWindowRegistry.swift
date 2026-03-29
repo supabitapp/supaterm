@@ -9,6 +9,7 @@ final class TerminalWindowRegistry {
     let sceneID: UUID
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
+    let ghosttyShortcuts: GhosttyShortcutManager
     var windowID: ObjectIdentifier?
   }
 
@@ -17,7 +18,8 @@ final class TerminalWindowRegistry {
   func register(
     sceneID: UUID,
     store: StoreOf<AppFeature>,
-    terminal: TerminalHostState
+    terminal: TerminalHostState,
+    ghosttyShortcuts: GhosttyShortcutManager
   ) {
     guard !entries.contains(where: { $0.sceneID == sceneID }) else { return }
     entries.append(
@@ -25,6 +27,7 @@ final class TerminalWindowRegistry {
         sceneID: sceneID,
         store: store,
         terminal: terminal,
+        ghosttyShortcuts: ghosttyShortcuts,
         windowID: nil
       )
     )
@@ -59,6 +62,12 @@ final class TerminalWindowRegistry {
       )
     }
     return .init(windows: windows)
+  }
+
+  func prepareForTermination(killSessions: Bool) {
+    for entry in entries {
+      entry.terminal.prepareForTermination(killSessions: killSessions)
+    }
   }
 
   func createPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
@@ -105,6 +114,134 @@ final class TerminalWindowRegistry {
 
   private func activeEntries() -> [Entry] {
     entries.filter { $0.windowID != nil }
+  }
+
+  func shareWorkspaceState() -> ShareWorkspaceState {
+    activeShareEntry()?.terminal.shareWorkspaceStateSnapshot()
+      ?? .init(
+        workspaces: [],
+        selectedWorkspaceId: nil,
+        tabs: [],
+        selectedTabId: nil,
+        trees: [:],
+        focusedPaneByTab: [:],
+        panes: [:]
+      )
+  }
+
+  func handleShareMessage(_ message: ShareClientMessage) throws {
+    guard let entry = activeShareEntry() else { return }
+    try entry.terminal.handleShareMessage(message)
+  }
+
+  func sharePaneRuntime(for paneId: UUID) -> SharePaneRuntime? {
+    activeShareEntry()?.terminal.sharePaneRuntime(for: paneId)
+  }
+
+  func prepareShareSessions() -> [String] {
+    activeShareEntry()?.terminal.prepareShareSessions() ?? []
+  }
+
+  private func activeShareEntry() -> Entry? {
+    let active = activeEntries()
+    if let keyWindowEntry = active.first(where: { $0.terminal.windowActivity.isKeyWindow }) {
+      return keyWindowEntry
+    }
+    return active.first
+  }
+
+  func terminalCommandSnapshot() -> TerminalCommandSnapshot {
+    guard let entry = activeShareEntry() else { return .empty }
+
+    let terminal = entry.terminal
+    let store = entry.store
+    let hasTab = terminal.selectedTabID != nil
+    let hasSurface = terminal.selectedSurfaceView != nil
+    let hasVisibleTabs = !terminal.visibleTabs.isEmpty
+    let hasWorkspaces = !terminal.workspaces.isEmpty
+
+    return TerminalCommandSnapshot(
+      newTerminal: {
+        store.send(.terminal(.newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)))
+      },
+      closeSurface: hasSurface
+        ? {
+          guard let selectedSurfaceID = terminal.selectedSurfaceView?.id else { return }
+          store.send(.terminal(.closeSurfaceRequested(selectedSurfaceID)))
+        } : nil,
+      closeTab: hasTab
+        ? {
+          guard let selectedTabID = terminal.selectedTabID else { return }
+          store.send(.terminal(.closeTabRequested(selectedTabID)))
+        } : nil,
+      nextTab: hasTab
+        ? {
+          store.send(.terminal(.nextTabMenuItemSelected))
+        } : nil,
+      previousTab: hasTab
+        ? {
+          store.send(.terminal(.previousTabMenuItemSelected))
+        } : nil,
+      selectTab: hasVisibleTabs
+        ? {
+          store.send(.terminal(.selectTabMenuItemSelected($0)))
+        } : nil,
+      selectLastTab: hasVisibleTabs
+        ? {
+          store.send(.terminal(.selectLastTabMenuItemSelected))
+        } : nil,
+      selectWorkspace: hasWorkspaces
+        ? {
+          store.send(.terminal(.selectWorkspaceMenuItemSelected($0)))
+        } : nil,
+      toggleSidebar: {
+        store.send(.terminal(.toggleSidebarButtonTapped))
+      },
+      startSearch: hasSurface
+        ? {
+          store.send(.terminal(.startSearchMenuItemSelected))
+        } : nil,
+      searchSelection: hasSurface
+        ? {
+          store.send(.terminal(.searchSelectionMenuItemSelected))
+        } : nil,
+      navigateSearchNext: hasSurface
+        ? {
+          store.send(.terminal(.navigateSearchNextMenuItemSelected))
+        } : nil,
+      navigateSearchPrevious: hasSurface
+        ? {
+          store.send(.terminal(.navigateSearchPreviousMenuItemSelected))
+        } : nil,
+      endSearch: hasSurface
+        ? {
+          store.send(.terminal(.endSearchMenuItemSelected))
+        } : nil,
+      splitBelow: hasSurface
+        ? {
+          store.send(.terminal(.splitBelowMenuItemSelected))
+        } : nil,
+      splitRight: hasSurface
+        ? {
+          store.send(.terminal(.splitRightMenuItemSelected))
+        } : nil,
+      equalizePanes: hasSurface
+        ? {
+          store.send(.terminal(.equalizePanesMenuItemSelected))
+        } : nil,
+      togglePaneZoom: hasSurface
+        ? {
+          store.send(.terminal(.togglePaneZoomMenuItemSelected))
+        } : nil,
+      checkForUpdates: store.update.canCheckForUpdates
+        ? {
+          store.send(.update(.checkForUpdatesButtonTapped))
+        } : nil,
+      updateMenuItemText: store.update.phase.menuItemText,
+      keyboardShortcutProvider: { action in
+        entry.ghosttyShortcuts.keyboardShortcut(for: action)
+      }
+    )
   }
 
   private func entry(for windowIndex: Int) throws -> Entry {

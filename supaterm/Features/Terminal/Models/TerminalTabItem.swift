@@ -46,4 +46,21 @@ enum TerminalTone: CaseIterable, Equatable, Sendable {
   case sky
   case slate
   case violet
+
+  var shareValue: String {
+    switch self {
+    case .amber:
+      return "amber"
+    case .coral:
+      return "coral"
+    case .mint:
+      return "mint"
+    case .sky:
+      return "sky"
+    case .slate:
+      return "slate"
+    case .violet:
+      return "violet"
+    }
+  }
 }

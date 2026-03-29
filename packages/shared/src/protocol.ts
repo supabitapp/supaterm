@@ -1,6 +1,7 @@
 import type { Direction } from "./split-tree.js";
 import type {
   PaneDirection,
+  PaneState,
   TabState,
   WorkspaceItemState,
   WorkspaceState,
@@ -58,6 +59,7 @@ export type ServerMessage =
       paneId: string;
       tabId: string;
       ptyUrl: string;
+      pane: PaneState;
     }
   | {
       type: "pane_closed";

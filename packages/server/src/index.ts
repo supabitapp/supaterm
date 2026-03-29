@@ -7,6 +7,7 @@ import type { ClientMessage } from "@supaterm/shared";
 import { resolve, join } from "path";
 import { startSpSocket } from "./sp-socket.js";
 import { initAuth, validateToken, isAuthEnabled } from "./auth.js";
+import type { ControlClient, PtyClient } from "./transport.js";
 
 const PORT = parseInt(process.env.PORT ?? "7681", 10);
 const WEB_DIST = resolve(
@@ -26,6 +27,14 @@ const authToken = initAuth();
 const ptyManager = new PtyManager();
 const workspaceState = new WorkspaceStateManager(ptyManager);
 workspaceState.bootstrap();
+
+function asPtyClient(ws: Bun.ServerWebSocket<PtyWsData>): PtyClient {
+  return ws;
+}
+
+function asControlClient(ws: Bun.ServerWebSocket<ControlWsData>): ControlClient {
+  return ws;
+}
 
 // --- Handle control messages ---
 
@@ -201,12 +210,12 @@ const server = Bun.serve<PtyWsData | ControlWsData>({
       if (data.type === "pty") {
         ptyManager.addClient(
           data.paneId,
-          ws as Bun.ServerWebSocket<PtyWsData>,
+          asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
         );
       }
       if (data.type === "control") {
         const controlWs = ws as Bun.ServerWebSocket<ControlWsData>;
-        workspaceState.registerControlClient(controlWs);
+        workspaceState.registerControlClient(asControlClient(controlWs));
         controlWs.sendText(
           JSON.stringify({
             type: "sync",
@@ -220,20 +229,41 @@ const server = Bun.serve<PtyWsData | ControlWsData>({
       const data = ws.data;
       if (data.type === "pty") {
         if (message instanceof ArrayBuffer) {
-          ptyManager.write(data.paneId, new Uint8Array(message));
+          ptyManager.write(
+            data.paneId,
+            new Uint8Array(message),
+            asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
+          );
         } else if (typeof message === "string") {
           try {
             const parsed = JSON.parse(message);
             if (parsed.type === "input" && typeof parsed.data === "string") {
-              ptyManager.write(data.paneId, parsed.data);
+              ptyManager.write(
+                data.paneId,
+                parsed.data,
+                asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
+              );
             } else if (parsed.type === "resize") {
-              ptyManager.resize(data.paneId, parsed.cols, parsed.rows);
+              ptyManager.resize(
+                data.paneId,
+                parsed.cols,
+                parsed.rows,
+                asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
+              );
             }
           } catch {
-            ptyManager.write(data.paneId, message);
+            ptyManager.write(
+              data.paneId,
+              message,
+              asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
+            );
           }
         } else if (Buffer.isBuffer(message)) {
-          ptyManager.write(data.paneId, message);
+          ptyManager.write(
+            data.paneId,
+            message,
+            asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
+          );
         }
       }
       if (data.type === "control") {
@@ -261,12 +291,12 @@ const server = Bun.serve<PtyWsData | ControlWsData>({
       if (data.type === "pty") {
         ptyManager.removeClient(
           data.paneId,
-          ws as Bun.ServerWebSocket<PtyWsData>,
+          asPtyClient(ws as Bun.ServerWebSocket<PtyWsData>),
         );
       }
       if (data.type === "control") {
         workspaceState.unregisterControlClient(
-          ws as Bun.ServerWebSocket<ControlWsData>,
+          asControlClient(ws as Bun.ServerWebSocket<ControlWsData>),
         );
       }
     },

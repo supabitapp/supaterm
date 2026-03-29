@@ -3,8 +3,14 @@ import ComposableArchitecture
 import SwiftUI
 
 struct UpdatePillView: View {
+  private struct ViewState: Equatable {
+    let phase: UpdatePhase
+    let isDevelopmentBuild: Bool
+  }
+
   let store: StoreOf<UpdateFeature>
   @State private var isHovering = false
+  @State private var isPopoverPresented = false
 
   private let badgeSize: CGFloat = 14
   private let compactPillDiameter: CGFloat = 14
@@ -16,37 +22,59 @@ struct UpdatePillView: View {
   private let textFont = NSFont.systemFont(ofSize: 11, weight: .medium)
 
   var body: some View {
-    if let pill = pillContent {
-      Button {
-        guard pill.allowsPopover else { return }
-        store.send(.pillButtonTapped)
-      } label: {
-        morphingLabel(for: pill)
-      }
-      .buttonStyle(.plain)
-      .popover(isPresented: popoverBinding, arrowEdge: .bottom) {
-        UpdatePopoverView(store: store)
-      }
-      .help(pill.helpText)
-      .accessibilityLabel(pill.helpText)
-      .animation(pillTransitionAnimation, value: pill.style)
-      .animation(pillTransitionAnimation, value: pill.text)
-      .animation(pillTransitionAnimation, value: pill.tone)
-      .onHover { isHovering in
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
-          self.isHovering = isHovering
+    WithViewStore(self.store, observe: { ViewState(phase: $0.phase, isDevelopmentBuild: $0.isDevelopmentBuild) }) { viewStore in
+      if let pill = pillContent(
+        phase: viewStore.phase,
+        isDevelopmentBuild: viewStore.isDevelopmentBuild
+      ) {
+        Button {
+          guard pill.allowsPopover else { return }
+          isPopoverPresented.toggle()
+        } label: {
+          morphingLabel(for: pill)
         }
-      }
-      .onDisappear {
-        isHovering = false
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
+          UpdatePopoverView(
+            phase: viewStore.phase,
+            onAllowAutomaticUpdates: { store.send(.allowAutomaticUpdatesButtonTapped) },
+            onDismiss: { store.send(.dismissButtonTapped) },
+            onInstallAndRelaunch: { store.send(.installAndRelaunchButtonTapped) },
+            onLater: { store.send(.laterButtonTapped) },
+            onRestartNow: { store.send(.restartNowButtonTapped) },
+            onRetry: { store.send(.retryButtonTapped) },
+            onSkip: { store.send(.skipButtonTapped) }
+          )
+        }
+        .help(pill.helpText)
+        .accessibilityLabel(pill.helpText)
+        .animation(pillTransitionAnimation, value: pill.style)
+        .animation(pillTransitionAnimation, value: pill.text)
+        .animation(pillTransitionAnimation, value: pill.tone)
+        .onHover { isHovering in
+          withAnimation(.spring(response: 0.22, dampingFraction: 0.88)) {
+            self.isHovering = isHovering
+          }
+        }
+        .onDisappear {
+          isHovering = false
+        }
+        .onChange(of: viewStore.phase) { _, phase in
+          if !phase.allowsPopover {
+            isPopoverPresented = false
+          }
+        }
       }
     }
   }
 
-  private var pillContent: UpdatePillContent? {
+  private func pillContent(
+    phase: UpdatePhase,
+    isDevelopmentBuild: Bool
+  ) -> UpdatePillContent? {
     UpdatePillContent(
-      phase: store.phase,
-      isDevelopmentBuild: store.isDevelopmentBuild,
+      phase: phase,
+      isDevelopmentBuild: isDevelopmentBuild,
       isHovering: isHovering
     )
   }
@@ -89,13 +117,6 @@ struct UpdatePillView: View {
     case .warning:
       Color(red: 0.87, green: 0.46, blue: 0.16)
     }
-  }
-
-  private var popoverBinding: Binding<Bool> {
-    Binding(
-      get: { store.isPopoverPresented },
-      set: { store.send(.popoverPresentedChanged($0)) }
-    )
   }
 
   private func textWidth(for pill: UpdatePillContent) -> CGFloat? {

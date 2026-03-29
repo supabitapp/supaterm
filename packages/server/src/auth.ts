@@ -3,7 +3,10 @@ const AUTH_ENABLED = process.env.SUPATERM_NO_AUTH !== "1";
 let serverToken: string | null = null;
 
 export function initAuth(): string {
-  serverToken = crypto.randomUUID();
+  const configuredToken = process.env.SUPATERM_AUTH_TOKEN?.trim();
+  serverToken = configuredToken && configuredToken.length > 0
+    ? configuredToken
+    : crypto.randomUUID();
   return serverToken;
 }
 

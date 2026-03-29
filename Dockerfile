@@ -13,15 +13,8 @@ COPY packages/web/package.json packages/web/
 COPY packages/bridge/package.json packages/bridge/
 RUN bun install --frozen-lockfile || bun install
 
-# --- Build pty-helper ---
-FROM base AS pty-helper
-RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
-COPY packages/server/src/pty-helper.c /tmp/
-RUN gcc -O2 -o /tmp/pty-helper /tmp/pty-helper.c -lutil
-
 # --- Server dev (source-mounted, hot reload) ---
 FROM deps AS server-dev
-COPY --from=pty-helper /tmp/pty-helper packages/server/pty-helper
 COPY packages/shared/ packages/shared/
 COPY packages/server/ packages/server/
 ENV PORT=7681
@@ -46,7 +39,6 @@ RUN cd packages/web && bunx vite build
 FROM base AS production
 COPY --from=deps /app/node_modules node_modules
 COPY --from=deps /app/package.json package.json
-COPY --from=pty-helper /tmp/pty-helper packages/server/pty-helper
 COPY --from=web-build /app/packages/web/dist packages/web/dist
 COPY packages/shared/ packages/shared/
 COPY packages/server/ packages/server/

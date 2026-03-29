@@ -6,11 +6,6 @@
       "inputs": ["src/**", "tsconfig.json", "package.json", "vite.config.ts"],
       "outputs": ["dist/**"]
     },
-    "build:pty": {
-      "inputs": ["src/pty-helper.c"],
-      "outputs": ["pty-helper"],
-      "cache": true
-    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "inputs": ["src/**", "tsconfig.json"],

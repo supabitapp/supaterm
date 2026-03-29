@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TerminalView: View {
   let store: StoreOf<TerminalSceneFeature>
+  let shareController: ShareServerStatusController
   @Bindable var terminal: TerminalHostState
   let onWindowChanged: (NSWindow?) -> Void
   let updateStore: StoreOf<UpdateFeature>
@@ -80,10 +81,6 @@ struct TerminalView: View {
     GeometryReader(content: terminalLayout)
       .frame(minWidth: 1_080, minHeight: 720)
       .background(palette.windowBackgroundTint)
-      .background {
-        BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-          .ignoresSafeArea()
-      }
       .overlay {
         WindowChromeConfigurator()
           .frame(width: 0, height: 0)
@@ -196,11 +193,12 @@ struct TerminalView: View {
   @ViewBuilder
   private func terminalLayout(geometry: GeometryProxy) -> some View {
     ZStack(alignment: .leading) {
-      TerminalSplitView(
-        store: store,
-        palette: palette,
-        terminal: terminal,
-        totalWidth: geometry.size.width,
+        TerminalSplitView(
+          store: store,
+          shareController: shareController,
+          palette: palette,
+          terminal: terminal,
+          totalWidth: geometry.size.width,
         isSidebarCollapsed: store.isSidebarCollapsed,
         sidebarFraction: sidebarFractionBinding,
         minFraction: minSidebarFraction,
@@ -213,6 +211,7 @@ struct TerminalView: View {
       if store.isSidebarCollapsed {
         FloatingSidebarOverlay(
           store: store,
+          shareController: shareController,
           palette: palette,
           terminal: terminal,
           totalWidth: geometry.size.width,

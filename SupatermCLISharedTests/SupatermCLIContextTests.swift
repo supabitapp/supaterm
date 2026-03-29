@@ -8,6 +8,7 @@ struct SupatermCLIContextTests {
   func environmentKeysStayStable() {
     #expect(SupatermCLIEnvironment.surfaceIDKey == "SUPATERM_SURFACE_ID")
     #expect(SupatermCLIEnvironment.tabIDKey == "SUPATERM_TAB_ID")
+    #expect(SupatermCLIEnvironment.paneSessionNameKey == "SUPATERM_PANE_SESSION")
     #expect(SupatermCLIEnvironment.socketPathKey == "SUPATERM_SOCKET_PATH")
   }
 
@@ -15,12 +16,17 @@ struct SupatermCLIContextTests {
   func environmentVariablesExportCurrentPaneIdentifiers() {
     let surfaceID = UUID(uuidString: "A72F7A7D-B5E8-497E-A5D5-D26A77A0A4C7")!
     let tabID = UUID(uuidString: "9F4EB4BE-9216-4DCA-A866-C8276D9EF2AA")!
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: tabID)
+    let context = SupatermCLIContext(
+      surfaceID: surfaceID,
+      tabID: tabID,
+      paneSessionName: "supaterm.session"
+    )
 
     #expect(
       context.environmentVariables == [
         .init(key: "SUPATERM_SURFACE_ID", value: surfaceID.uuidString),
         .init(key: "SUPATERM_TAB_ID", value: tabID.uuidString),
+        .init(key: "SUPATERM_PANE_SESSION", value: "supaterm.session"),
       ]
     )
   }
@@ -32,9 +38,16 @@ struct SupatermCLIContextTests {
     let environment = [
       SupatermCLIEnvironment.surfaceIDKey: surfaceID.uuidString,
       SupatermCLIEnvironment.tabIDKey: tabID.uuidString,
+      SupatermCLIEnvironment.paneSessionNameKey: "supaterm.session",
     ]
 
-    #expect(SupatermCLIContext(environment: environment) == .init(surfaceID: surfaceID, tabID: tabID))
+    #expect(
+      SupatermCLIContext(environment: environment) == .init(
+        surfaceID: surfaceID,
+        tabID: tabID,
+        paneSessionName: "supaterm.session"
+      )
+    )
   }
 
   @Test

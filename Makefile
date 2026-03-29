@@ -30,7 +30,7 @@ TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/P
 TUIST_GENERATE_CACHE_PROFILE ?= development
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache
+.PHONY: build-ghostty-xcframework build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache setup-xcode-cache apply-zmx-patches build-zmx check-zmx
 
 ifeq ($(CI),)
 TUIST_INSTALL_FLAGS :=
@@ -50,6 +50,15 @@ generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages an
 setup-xcode-cache: $(TUIST_XCODE_CACHE_SETUP_STAMP) # Install Tuist Xcode cache service for this machine
 
 build-ghostty-xcframework: $(GHOSTTY_BUILD_OUTPUTS_STAMP)
+
+apply-zmx-patches: # Apply local patches to the vendored zmx submodule
+	bash "$(CURRENT_MAKEFILE_DIR)/scripts/apply-zmx-patches.sh"
+
+build-zmx: apply-zmx-patches # Build vendored zmx against the local Ghostty package
+	cd "$(CURRENT_MAKEFILE_DIR)/ThirdParty/zmx" && mise exec -- zig build
+
+check-zmx: apply-zmx-patches # Compile-check vendored zmx against the local Ghostty package
+	cd "$(CURRENT_MAKEFILE_DIR)/ThirdParty/zmx" && mise exec -- zig build check
 
 $(TUIST_XCODE_CACHE_SETUP_STAMP): $(TUIST_XCODE_CACHE_SETUP_INPUTS)
 	mkdir -p "$(dir $@)"
@@ -83,7 +92,7 @@ $(TUIST_GENERATION_STAMP_DIR)/%: $(GHOSTTY_BUILD_OUTPUTS_STAMP) $(TUIST_GENERATI
 	mise exec -- tuist generate --no-open --cache-profile "$*"
 	touch "$@"
 
-build-app: $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
+build-app: build-zmx $(TUIST_XCODE_CACHE_SETUP_STAMP) $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
@@ -139,12 +148,8 @@ check: format lint # Format and lint
 
 WEB_DIR := $(CURRENT_MAKEFILE_DIR)/packages/web
 SERVER_DIR := $(CURRENT_MAKEFILE_DIR)/packages/server
-PTY_HELPER := $(SERVER_DIR)/pty-helper
-
-$(PTY_HELPER): $(SERVER_DIR)/src/pty-helper.c
-	cc -O2 -o "$@" "$<" -lutil
-
-build-server: $(PTY_HELPER) # Build the server (compile pty-helper)
+build-server: build-zmx # Build the server binary
+	cd "$(SERVER_DIR)" && bun build --compile src/index.ts --outfile supaterm-server
 
 build-bridge: # Build the bridge binary (standalone, no bun needed)
 	cd "$(CURRENT_MAKEFILE_DIR)/packages/bridge" && bun build --compile src/index.ts --outfile supaterm-bridge
@@ -165,13 +170,13 @@ lint-web: # Lint all TS packages via oxlint
 
 check-web: typecheck-web lint-web # Type-check + lint
 
-dev-server: $(PTY_HELPER) # Run server in dev mode (watch)
+dev-server: build-zmx # Run server in dev mode (watch)
 	cd "$(SERVER_DIR)" && bun run --watch src/index.ts
 
 dev-web: # Run web dev server (Vite + HMR)
 	cd "$(WEB_DIR)" && bunx vite
 
-dev: $(PTY_HELPER) # Run server + web dev concurrently (native macOS)
+dev: build-zmx # Run server + web dev concurrently (native macOS)
 	@trap 'kill 0' EXIT; \
 	cd "$(SERVER_DIR)" && bun run --watch src/index.ts & \
 	cd "$(WEB_DIR)" && bunx vite & \

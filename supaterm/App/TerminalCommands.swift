@@ -1,443 +1,217 @@
 import SwiftUI
 
 struct TerminalCommands: Commands {
-  @FocusedValue(\.newTerminalAction) private var newTerminalAction
-  @FocusedValue(\.closeSurfaceAction) private var closeSurfaceAction
-  @FocusedValue(\.closeTabAction) private var closeTabAction
-  @FocusedValue(\.nextTabAction) private var nextTabAction
-  @FocusedValue(\.previousTabAction) private var previousTabAction
-  @FocusedValue(\.selectTabAction) private var selectTabAction
-  @FocusedValue(\.selectLastTabAction) private var selectLastTabAction
-  @FocusedValue(\.selectWorkspaceAction) private var selectWorkspaceAction
-  @FocusedValue(\.toggleSidebarAction) private var toggleSidebarAction
-  @FocusedValue(\.startSearchAction) private var startSearchAction
-  @FocusedValue(\.searchSelectionAction) private var searchSelectionAction
-  @FocusedValue(\.navigateSearchNextAction) private var navigateSearchNextAction
-  @FocusedValue(\.navigateSearchPreviousAction) private var navigateSearchPreviousAction
-  @FocusedValue(\.endSearchAction) private var endSearchAction
-  @FocusedValue(\.splitBelowAction) private var splitBelowAction
-  @FocusedValue(\.splitRightAction) private var splitRightAction
-  @FocusedValue(\.equalizePanesAction) private var equalizePanesAction
-  @FocusedValue(\.togglePaneZoomAction) private var togglePaneZoomAction
-  @FocusedValue(\.checkForUpdatesAction) private var checkForUpdatesAction
-  @FocusedValue(\.updatePhase) private var updatePhase
-  @FocusedValue(\.ghosttyKeyboardShortcutProvider) private var ghosttyKeyboardShortcutProvider
+  let registry: TerminalWindowRegistry
 
   var body: some Commands {
+    let snapshot = registry.terminalCommandSnapshot()
+    let shortcut: (String) -> KeyboardShortcut? = { action in
+      snapshot.keyboardShortcutProvider(action)
+    }
+
     CommandGroup(replacing: .sidebar) {
       Button("Toggle Sidebar") {
-        toggleSidebarAction?()
+        snapshot.toggleSidebar?()
       }
       .keyboardShortcut("s", modifiers: .command)
-      .disabled(toggleSidebarAction == nil)
+      .disabled(snapshot.toggleSidebar == nil)
     }
 
     CommandGroup(after: .newItem) {
       Button("New Tab") {
-        newTerminalAction?()
+        snapshot.newTerminal?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "new_tab")))
-      .disabled(newTerminalAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("new_tab")))
+      .disabled(snapshot.newTerminal == nil)
 
       Button("Close") {
-        closeSurfaceAction?()
+        snapshot.closeSurface?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "close_surface"))
-      )
-      .disabled(closeSurfaceAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("close_surface")))
+      .disabled(snapshot.closeSurface == nil)
 
       Button("Close Tab") {
-        closeTabAction?()
+        snapshot.closeTab?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "close_tab"))
-      )
-      .disabled(closeTabAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("close_tab")))
+      .disabled(snapshot.closeTab == nil)
     }
 
     CommandMenu("Tabs") {
       Button("Next Tab") {
-        nextTabAction?()
+        snapshot.nextTab?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "next_tab")))
-      .disabled(nextTabAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("next_tab")))
+      .disabled(snapshot.nextTab == nil)
 
       Button("Previous Tab") {
-        previousTabAction?()
+        snapshot.previousTab?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "previous_tab"))
-      )
-      .disabled(previousTabAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("previous_tab")))
+      .disabled(snapshot.previousTab == nil)
 
       Divider()
 
       ForEach(1...8, id: \.self) { slot in
         Button("Tab \(slot)") {
-          selectTabAction?(slot)
+          snapshot.selectTab?(slot)
         }
         .modifier(
-          KeyboardShortcutModifier(shortcut: shortcut(for: "goto_tab:\(slot)"))
+          KeyboardShortcutModifier(shortcut: shortcut("goto_tab:\(slot)"))
         )
-        .disabled(selectTabAction == nil)
+        .disabled(snapshot.selectTab == nil)
       }
 
       Button("Last Tab") {
-        selectLastTabAction?()
+        snapshot.selectLastTab?()
       }
-      .modifier(KeyboardShortcutModifier(shortcut: shortcut(for: "last_tab")))
-      .disabled(selectLastTabAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("last_tab")))
+      .disabled(snapshot.selectLastTab == nil)
     }
 
     CommandMenu("Spaces") {
       ForEach(1...9, id: \.self) { slot in
         Button("Space \(slot)") {
-          selectWorkspaceAction?(slot)
+          snapshot.selectWorkspace?(slot)
         }
         .keyboardShortcut(KeyEquivalent(Character(String(slot))), modifiers: .control)
-        .disabled(selectWorkspaceAction == nil)
+        .disabled(snapshot.selectWorkspace == nil)
       }
 
       Button("Space 10") {
-        selectWorkspaceAction?(0)
+        snapshot.selectWorkspace?(0)
       }
       .keyboardShortcut("0", modifiers: .control)
-      .disabled(selectWorkspaceAction == nil)
+      .disabled(snapshot.selectWorkspace == nil)
     }
 
     CommandMenu("Pane") {
       Button("Split Below") {
-        splitBelowAction?()
+        snapshot.splitBelow?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:down"))
-      )
-      .disabled(splitBelowAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("new_split:down")))
+      .disabled(snapshot.splitBelow == nil)
 
       Button("Split Right") {
-        splitRightAction?()
+        snapshot.splitRight?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "new_split:right"))
-      )
-      .disabled(splitRightAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("new_split:right")))
+      .disabled(snapshot.splitRight == nil)
 
       Divider()
 
       Button("Equalize Panes") {
-        equalizePanesAction?()
+        snapshot.equalizePanes?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "equalize_splits"))
-      )
-      .disabled(equalizePanesAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("equalize_splits")))
+      .disabled(snapshot.equalizePanes == nil)
 
       Button("Toggle Pane Zoom") {
-        togglePaneZoomAction?()
+        snapshot.togglePaneZoom?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "toggle_split_zoom"))
-      )
-      .disabled(togglePaneZoomAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("toggle_split_zoom")))
+      .disabled(snapshot.togglePaneZoom == nil)
     }
 
     CommandGroup(after: .textEditing) {
       Button("Find...") {
-        startSearchAction?()
+        snapshot.startSearch?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "start_search"))
-      )
-      .disabled(startSearchAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("start_search")))
+      .disabled(snapshot.startSearch == nil)
 
       Button("Find Next") {
-        navigateSearchNextAction?()
+        snapshot.navigateSearchNext?()
       }
       .modifier(
         KeyboardShortcutModifier(
-          shortcut: shortcut(
-            for: GhosttySearchDirection.next.bindingAction
-          )
+          shortcut: shortcut(GhosttySearchDirection.next.bindingAction)
         )
       )
-      .disabled(navigateSearchNextAction == nil)
+      .disabled(snapshot.navigateSearchNext == nil)
 
       Button("Find Previous") {
-        navigateSearchPreviousAction?()
+        snapshot.navigateSearchPrevious?()
       }
       .modifier(
         KeyboardShortcutModifier(
-          shortcut: shortcut(
-            for: GhosttySearchDirection.previous.bindingAction
-          )
+          shortcut: shortcut(GhosttySearchDirection.previous.bindingAction)
         )
       )
-      .disabled(navigateSearchPreviousAction == nil)
+      .disabled(snapshot.navigateSearchPrevious == nil)
 
       Divider()
 
       Button("Hide Find Bar") {
-        endSearchAction?()
+        snapshot.endSearch?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "end_search"))
-      )
-      .disabled(endSearchAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("end_search")))
+      .disabled(snapshot.endSearch == nil)
 
       Divider()
 
       Button("Use Selection for Find") {
-        searchSelectionAction?()
+        snapshot.searchSelection?()
       }
-      .modifier(
-        KeyboardShortcutModifier(shortcut: shortcut(for: "search_selection"))
-      )
-      .disabled(searchSelectionAction == nil)
+      .modifier(KeyboardShortcutModifier(shortcut: shortcut("search_selection")))
+      .disabled(snapshot.searchSelection == nil)
     }
 
     CommandGroup(after: .appInfo) {
-      Button(updatePhase?.menuItemText ?? "Check for Updates...") {
-        checkForUpdatesAction?()
+      Button(snapshot.updateMenuItemText) {
+        snapshot.checkForUpdates?()
       }
-      .disabled(checkForUpdatesAction == nil)
+      .disabled(snapshot.checkForUpdates == nil)
     }
   }
-
-  private func shortcut(for action: String) -> KeyboardShortcut? {
-    ghosttyKeyboardShortcutProvider?(action)
-  }
 }
 
-private struct NewTerminalActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
+struct TerminalCommandSnapshot {
+  let newTerminal: (() -> Void)?
+  let closeSurface: (() -> Void)?
+  let closeTab: (() -> Void)?
+  let nextTab: (() -> Void)?
+  let previousTab: (() -> Void)?
+  let selectTab: ((Int) -> Void)?
+  let selectLastTab: (() -> Void)?
+  let selectWorkspace: ((Int) -> Void)?
+  let toggleSidebar: (() -> Void)?
+  let startSearch: (() -> Void)?
+  let searchSelection: (() -> Void)?
+  let navigateSearchNext: (() -> Void)?
+  let navigateSearchPrevious: (() -> Void)?
+  let endSearch: (() -> Void)?
+  let splitBelow: (() -> Void)?
+  let splitRight: (() -> Void)?
+  let equalizePanes: (() -> Void)?
+  let togglePaneZoom: (() -> Void)?
+  let checkForUpdates: (() -> Void)?
+  let updateMenuItemText: String
+  let keyboardShortcutProvider: (String) -> KeyboardShortcut?
 
-extension FocusedValues {
-  var newTerminalAction: (() -> Void)? {
-    get { self[NewTerminalActionKey.self] }
-    set { self[NewTerminalActionKey.self] = newValue }
-  }
-}
-
-private struct CloseSurfaceActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var closeSurfaceAction: (() -> Void)? {
-    get { self[CloseSurfaceActionKey.self] }
-    set { self[CloseSurfaceActionKey.self] = newValue }
-  }
-}
-
-private struct CloseTabActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var closeTabAction: (() -> Void)? {
-    get { self[CloseTabActionKey.self] }
-    set { self[CloseTabActionKey.self] = newValue }
-  }
-}
-
-private struct NextTabActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var nextTabAction: (() -> Void)? {
-    get { self[NextTabActionKey.self] }
-    set { self[NextTabActionKey.self] = newValue }
-  }
-}
-
-private struct PreviousTabActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var previousTabAction: (() -> Void)? {
-    get { self[PreviousTabActionKey.self] }
-    set { self[PreviousTabActionKey.self] = newValue }
-  }
-}
-
-private struct SelectTabActionKey: FocusedValueKey {
-  typealias Value = (Int) -> Void
-}
-
-extension FocusedValues {
-  var selectTabAction: ((Int) -> Void)? {
-    get { self[SelectTabActionKey.self] }
-    set { self[SelectTabActionKey.self] = newValue }
-  }
-}
-
-private struct SelectLastTabActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var selectLastTabAction: (() -> Void)? {
-    get { self[SelectLastTabActionKey.self] }
-    set { self[SelectLastTabActionKey.self] = newValue }
-  }
-}
-
-private struct SelectWorkspaceActionKey: FocusedValueKey {
-  typealias Value = (Int) -> Void
-}
-
-extension FocusedValues {
-  var selectWorkspaceAction: ((Int) -> Void)? {
-    get { self[SelectWorkspaceActionKey.self] }
-    set { self[SelectWorkspaceActionKey.self] = newValue }
-  }
-}
-
-private struct ToggleSidebarActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var toggleSidebarAction: (() -> Void)? {
-    get { self[ToggleSidebarActionKey.self] }
-    set { self[ToggleSidebarActionKey.self] = newValue }
-  }
-}
-
-private struct StartSearchActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var startSearchAction: (() -> Void)? {
-    get { self[StartSearchActionKey.self] }
-    set { self[StartSearchActionKey.self] = newValue }
-  }
-}
-
-private struct SearchSelectionActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var searchSelectionAction: (() -> Void)? {
-    get { self[SearchSelectionActionKey.self] }
-    set { self[SearchSelectionActionKey.self] = newValue }
-  }
-}
-
-private struct NavigateSearchNextActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var navigateSearchNextAction: (() -> Void)? {
-    get { self[NavigateSearchNextActionKey.self] }
-    set { self[NavigateSearchNextActionKey.self] = newValue }
-  }
-}
-
-private struct NavigateSearchPreviousActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var navigateSearchPreviousAction: (() -> Void)? {
-    get { self[NavigateSearchPreviousActionKey.self] }
-    set { self[NavigateSearchPreviousActionKey.self] = newValue }
-  }
-}
-
-private struct EndSearchActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var endSearchAction: (() -> Void)? {
-    get { self[EndSearchActionKey.self] }
-    set { self[EndSearchActionKey.self] = newValue }
-  }
-}
-
-private struct SplitBelowActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var splitBelowAction: (() -> Void)? {
-    get { self[SplitBelowActionKey.self] }
-    set { self[SplitBelowActionKey.self] = newValue }
-  }
-}
-
-private struct SplitRightActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var splitRightAction: (() -> Void)? {
-    get { self[SplitRightActionKey.self] }
-    set { self[SplitRightActionKey.self] = newValue }
-  }
-}
-
-private struct EqualizePanesActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var equalizePanesAction: (() -> Void)? {
-    get { self[EqualizePanesActionKey.self] }
-    set { self[EqualizePanesActionKey.self] = newValue }
-  }
-}
-
-private struct TogglePaneZoomActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var togglePaneZoomAction: (() -> Void)? {
-    get { self[TogglePaneZoomActionKey.self] }
-    set { self[TogglePaneZoomActionKey.self] = newValue }
-  }
-}
-
-private struct CheckForUpdatesActionKey: FocusedValueKey {
-  typealias Value = () -> Void
-}
-
-extension FocusedValues {
-  var checkForUpdatesAction: (() -> Void)? {
-    get { self[CheckForUpdatesActionKey.self] }
-    set { self[CheckForUpdatesActionKey.self] = newValue }
-  }
-}
-
-private struct GhosttyKeyboardShortcutProviderKey: FocusedValueKey {
-  typealias Value = (String) -> KeyboardShortcut?
-}
-
-extension FocusedValues {
-  var updatePhase: UpdatePhase? {
-    get { self[UpdatePhaseKey.self] }
-    set { self[UpdatePhaseKey.self] = newValue }
-  }
-}
-
-private struct UpdatePhaseKey: FocusedValueKey {
-  typealias Value = UpdatePhase
-}
-
-extension FocusedValues {
-  var ghosttyKeyboardShortcutProvider: ((String) -> KeyboardShortcut?)? {
-    get { self[GhosttyKeyboardShortcutProviderKey.self] }
-    set { self[GhosttyKeyboardShortcutProviderKey.self] = newValue }
-  }
+  static let empty = Self(
+    newTerminal: nil,
+    closeSurface: nil,
+    closeTab: nil,
+    nextTab: nil,
+    previousTab: nil,
+    selectTab: nil,
+    selectLastTab: nil,
+    selectWorkspace: nil,
+    toggleSidebar: nil,
+    startSearch: nil,
+    searchSelection: nil,
+    navigateSearchNext: nil,
+    navigateSearchPrevious: nil,
+    endSearch: nil,
+    splitBelow: nil,
+    splitRight: nil,
+    equalizePanes: nil,
+    togglePaneZoom: nil,
+    checkForUpdates: nil,
+    updateMenuItemText: "Check for Updates...",
+    keyboardShortcutProvider: { _ in nil }
+  )
 }
 
 private struct KeyboardShortcutModifier: ViewModifier {

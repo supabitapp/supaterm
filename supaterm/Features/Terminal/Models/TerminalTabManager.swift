@@ -19,12 +19,14 @@ final class TerminalTabManager {
   }
 
   func createTab(
+    id: TerminalTabID = TerminalTabID(),
     title: String,
     icon: String?,
     isPinned: Bool = false,
     isTitleLocked: Bool = false
   ) -> TerminalTabID {
     let tab = TerminalTabItem(
+      id: id,
       title: title,
       icon: icon,
       isPinned: isPinned,
@@ -37,6 +39,20 @@ final class TerminalTabManager {
     }
     selectedTabId = tab.id
     return tab.id
+  }
+
+  func restoreTabs(
+    _ restoredTabs: [TerminalTabItem],
+    selectedTabID: TerminalTabID?
+  ) {
+    tabs = restoredTabs
+    if let selectedTabID,
+      restoredTabs.contains(where: { $0.id == selectedTabID })
+    {
+      selectedTabId = selectedTabID
+    } else {
+      selectedTabId = restoredTabs.first?.id
+    }
   }
 
   func selectTab(_ id: TerminalTabID) {
