@@ -165,6 +165,48 @@ struct CodexSettingsInstallerTests {
   }
 
   @Test
+  func installReplacesLegacySupatermCommand() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [
+            {
+              "hooks": [
+                {
+                  "command": "[ -n \\"${SUPATERM_CLI_PATH:-}\\" ] && \\"$SUPATERM_CLI_PATH\\" agent-hook || true",
+                  "timeout": 99,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+    )
+
+    try installer.installSupatermHooks()
+
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let commands = try codexEventGroupsValue("Stop", in: object)
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+
+    #expect(commands.filter { $0.contains("SUPATERM_CLI_PATH") && $0.contains("agent-hook") }.count == 1)
+    #expect(commands.contains(SupatermCodexHookSettings.command))
+  }
+
+  @Test
   func installFailsWithoutOverwritingInvalidJSON() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

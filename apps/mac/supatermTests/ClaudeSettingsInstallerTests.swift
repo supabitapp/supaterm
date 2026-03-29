@@ -151,6 +151,44 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
+  func installReplacesLegacySupatermCommand() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "SessionStart": [
+            {
+              "matcher": "",
+              "hooks": [
+                {
+                  "command": "[ -n \\"${SUPATERM_CLI_PATH:-}\\" ] && \\"$SUPATERM_CLI_PATH\\" agent-hook || true",
+                  "timeout": 99,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).installSupatermHooks()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    let commands = try sessionStartGroupsValue(in: object)
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+
+    #expect(commands.filter { $0.contains("SUPATERM_CLI_PATH") && $0.contains("agent-hook") }.count == 1)
+    #expect(commands.contains(SupatermClaudeHookSettings.command))
+  }
+
+  @Test
   func installFailsWithoutOverwritingInvalidJSON() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
@@ -201,4 +239,9 @@ private func notificationGroupsValue(in object: [String: Any]) throws -> [[Strin
 private func preToolUseGroupsValue(in object: [String: Any]) throws -> [[String: Any]] {
   let hooks = try #require(object["hooks"] as? [String: Any])
   return try #require(hooks["PreToolUse"] as? [[String: Any]])
+}
+
+private func sessionStartGroupsValue(in object: [String: Any]) throws -> [[String: Any]] {
+  let hooks = try #require(object["hooks"] as? [String: Any])
+  return try #require(hooks["SessionStart"] as? [[String: Any]])
 }

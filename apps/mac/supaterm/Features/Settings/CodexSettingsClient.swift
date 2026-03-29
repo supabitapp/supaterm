@@ -171,7 +171,7 @@ nonisolated struct CodexSettingsInstaller {
       guard let hookObject = hook.objectValue else {
         return true
       }
-      return hookObject["command"]?.stringValue != SupatermCodexHookSettings.command
+      return !AgentHookCommandOwnership.isSupatermManagedCommand(hookObject["command"]?.stringValue)
     }
 
     guard !filteredHooks.isEmpty else {
