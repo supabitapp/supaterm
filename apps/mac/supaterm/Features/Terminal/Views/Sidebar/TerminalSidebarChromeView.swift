@@ -389,7 +389,7 @@ struct TerminalSidebarChromeView: View {
 
 struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
-    case claudeActivity(TerminalHostState.ClaudeActivity)
+    case agentActivity(TerminalHostState.AgentActivity)
     case focusedNotification
     case terminalProgress(TerminalSidebarTerminalProgress)
     case tabSymbol(String, TerminalTabIconStyle)
@@ -404,21 +404,21 @@ struct TerminalSidebarTabSummaryView: View {
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
-  let claudeActivity: TerminalHostState.ClaudeActivity?
+  let agentActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   static func leadingIndicator(
     hasFocusedNotificationAttention: Bool,
     tab: TerminalTabItem,
     unreadCount: Int,
-    claudeActivity: TerminalHostState.ClaudeActivity?,
+    agentActivity: TerminalHostState.AgentActivity?,
     terminalProgress: TerminalSidebarTerminalProgress?
   ) -> LeadingIndicator {
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
     }
-    if let claudeActivity, claudeActivity.showsLeadingIndicator {
-      return .claudeActivity(claudeActivity)
+    if let agentActivity, agentActivity.showsLeadingIndicator {
+      return .agentActivity(agentActivity)
     }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
@@ -449,7 +449,7 @@ struct TerminalSidebarTabSummaryView: View {
         hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         tab: tab,
         unreadCount: unreadCount,
-        claudeActivity: claudeActivity,
+        agentActivity: agentActivity,
         terminalProgress: terminalProgress
       ) {
       case .unreadCount(let unreadCount):
@@ -463,8 +463,8 @@ struct TerminalSidebarTabSummaryView: View {
             in: Capsule(style: .continuous)
           )
 
-      case .claudeActivity(let activity):
-        TerminalSidebarClaudeActivityView(
+      case .agentActivity(let activity):
+        TerminalSidebarAgentActivityView(
           activity: activity,
           isSelected: isSelected,
           palette: palette
@@ -647,7 +647,7 @@ private struct TerminalSidebarProgressRingView: View {
 
 struct TerminalSidebarTabRow: View {
   private struct AnimatedPresentation: Equatable {
-    let claudeActivity: TerminalHostState.ClaudeActivity?
+    let agentActivity: TerminalHostState.AgentActivity?
     let hasFocusedNotificationAttention: Bool
     let latestNotificationText: String?
     let paneWorkingDirectories: [String]
@@ -685,7 +685,7 @@ struct TerminalSidebarTabRow: View {
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
-          claudeActivity: terminal.claudeActivity(for: tab.id),
+          agentActivity: terminal.agentActivity(for: tab.id),
           terminalProgress: terminalProgress
         )
         if let helpText = TerminalSidebarTabSummaryView.helpText(
@@ -777,7 +777,7 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     .init(
-      claudeActivity: terminal.claudeActivity(for: tab.id),
+      agentActivity: terminal.agentActivity(for: tab.id),
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       latestNotificationText: latestNotificationText,
       paneWorkingDirectories: paneWorkingDirectories,
@@ -821,8 +821,8 @@ private struct TerminalSidebarFocusedNotificationView: View {
   }
 }
 
-private struct TerminalSidebarClaudeActivityView: View {
-  let activity: TerminalHostState.ClaudeActivity
+private struct TerminalSidebarAgentActivityView: View {
+  let activity: TerminalHostState.AgentActivity
   let isSelected: Bool
   let palette: TerminalPalette
 
@@ -834,7 +834,7 @@ private struct TerminalSidebarClaudeActivityView: View {
       .fill(backgroundColor)
       .frame(width: 16, height: 16)
       .overlay {
-        switch activity {
+        switch activity.phase {
         case .needsInput:
           Image(systemName: "bell.fill")
             .font(.system(size: 9, weight: .semibold))
@@ -879,7 +879,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   }
 
   private var animation: Animation? {
-    switch activity {
+    switch activity.phase {
     case .needsInput:
       return .easeInOut(duration: 0.65)
         .repeatForever(autoreverses: true)
@@ -904,7 +904,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   }
 
   private var backgroundColor: Color {
-    switch activity {
+    switch activity.phase {
     case .needsInput:
       return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     case .running:
@@ -918,7 +918,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   }
 
   private var scale: CGFloat {
-    switch activity {
+    switch activity.phase {
     case .needsInput:
       return isAnimating ? 1.14 : 1
     case .running:
@@ -929,7 +929,7 @@ private struct TerminalSidebarClaudeActivityView: View {
   }
 
   private var verticalOffset: CGFloat {
-    switch activity {
+    switch activity.phase {
     case .needsInput:
       return isAnimating ? -1 : 0
     case .running:
@@ -986,7 +986,7 @@ private struct TerminalSidebarClaudeActivityView: View {
     }
   }
 
-  private func color(for tone: TerminalHostState.ClaudeActivityTone) -> Color {
+  private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
     switch tone {
     case .attention:
       return palette.attention

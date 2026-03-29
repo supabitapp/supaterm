@@ -22,8 +22,12 @@ private struct SettingsCodingAgentsView: View {
   let store: StoreOf<SettingsFeature>
   @Environment(\.colorScheme) private var colorScheme
 
-  private var installState: SettingsClaudeHooksInstallState {
+  private var claudeInstallState: SettingsAgentHooksInstallState {
     store.claudeHooksInstallState
+  }
+
+  private var codexInstallState: SettingsAgentHooksInstallState {
+    store.codexHooksInstallState
   }
 
   var body: some View {
@@ -32,30 +36,27 @@ private struct SettingsCodingAgentsView: View {
         .font(.title2.weight(.semibold))
 
       VStack(alignment: .leading, spacing: 20) {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Claude Code")
-            .font(.title3.weight(.semibold))
-          Text("Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.")
-            .foregroundStyle(.secondary)
-          Text("Supaterm preserves your existing settings and rewrites only its own hook entries.")
-            .foregroundStyle(.secondary)
-        }
+        SettingsAgentInstallSection(
+          action: { _ = store.send(.claudeHooksInstallButtonTapped) },
+          buttonTitle: "Install Claude Hooks",
+          detail: "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.",
+          footnote: "Supaterm preserves your existing settings and rewrites only its own hook entries.",
+          installState: claudeInstallState,
+          title: "Claude Code"
+        )
 
         Rectangle()
           .fill(dividerColor)
           .frame(height: 1)
 
-        HStack(alignment: .center, spacing: 16) {
-          Button(installState.isInstalling ? "Installing..." : "Install Claude Hooks") {
-            _ = store.send(.claudeHooksInstallButtonTapped)
-          }
-          .disabled(installState.isInstalling)
-
-          if let message = installState.message {
-            Text(message)
-              .foregroundStyle(installState.isFailure ? errorColor : Color.secondary)
-          }
-        }
+        SettingsAgentInstallSection(
+          action: { _ = store.send(.codexHooksInstallButtonTapped) },
+          buttonTitle: "Install Codex Hooks",
+          detail: "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable the Codex hooks feature.",
+          footnote: "Supaterm preserves your existing global hooks and uses the Codex CLI to update Codex config.",
+          installState: codexInstallState,
+          title: "Codex"
+        )
       }
       .padding(20)
       .background(sectionBackground)
@@ -79,6 +80,45 @@ private struct SettingsCodingAgentsView: View {
     colorScheme == .dark
       ? Color(red: 0.18, green: 0.19, blue: 0.2)
       : Color.white
+  }
+}
+
+private struct SettingsAgentInstallSection: View {
+  let action: () -> Void
+  let buttonTitle: String
+  let detail: String
+  let footnote: String
+  let installState: SettingsAgentHooksInstallState
+  let title: String
+
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(title)
+        .font(.title3.weight(.semibold))
+      Text(detail)
+        .foregroundStyle(.secondary)
+      Text(footnote)
+        .foregroundStyle(.secondary)
+
+      HStack(alignment: .center, spacing: 16) {
+        Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
+          .disabled(installState.isInstalling)
+
+        if let message = installState.message {
+          Text(message)
+            .foregroundStyle(installState.isFailure ? errorColor : Color.secondary)
+        }
+      }
+      .padding(.top, 8)
+    }
+  }
+
+  private var errorColor: Color {
+    colorScheme == .dark
+      ? Color(red: 1, green: 0.54, blue: 0.54)
+      : Color(red: 0.74, green: 0.17, blue: 0.17)
   }
 }
 

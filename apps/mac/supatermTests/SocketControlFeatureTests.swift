@@ -721,7 +721,7 @@ struct SocketControlFeatureTests {
   }
 
   @Test
-  func claudeHookRequestRepliesWithOKAndDesktopNotification() async throws {
+  func agentHookRequestRepliesWithOKAndDesktopNotification() async throws {
     let recorder = SocketReplyRecorder()
     let desktopNotificationRecorder = DesktopNotificationRecorder()
     let handle = UUID(uuidString: "0BFA1E47-4704-4E8A-A33D-3D1742681A9E")!
@@ -746,7 +746,7 @@ struct SocketControlFeatureTests {
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
       }
-      $0.terminalWindowsClient.claudeHook = { payload in
+      $0.terminalWindowsClient.agentHook = { payload in
         #expect(payload == requestPayload)
         return .init(
           desktopNotification: .init(
@@ -771,7 +771,7 @@ struct SocketControlFeatureTests {
   }
 
   @Test
-  func claudeHookRequestMapsValidationErrorsToInvalidRequest() async throws {
+  func agentHookRequestMapsValidationErrorsToInvalidRequest() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "DCFBCE7F-6432-4DEA-A333-5D9A81E720B6")!
     let request = SocketControlClient.Request(

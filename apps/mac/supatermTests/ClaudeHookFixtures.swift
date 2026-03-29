@@ -74,15 +74,16 @@ enum ClaudeHookFixtures {
     }
     """
 
-  static func event(_ json: String) throws -> SupatermClaudeHookEvent {
-    try JSONDecoder().decode(SupatermClaudeHookEvent.self, from: Data(json.utf8))
+  static func event(_ json: String) throws -> SupatermAgentHookEvent {
+    try JSONDecoder().decode(SupatermAgentHookEvent.self, from: Data(json.utf8))
   }
 
   static func request(
     _ json: String,
     context: SupatermCLIContext? = nil
-  ) throws -> SupatermClaudeHookRequest {
+  ) throws -> SupatermAgentHookRequest {
     .init(
+      agent: .claude,
       context: context,
       event: try event(json)
     )

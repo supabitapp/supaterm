@@ -1,7 +1,7 @@
 import Foundation
 
-public enum SupatermClaudeHookSettings {
-  public static let command = SupatermAgentHookSettingsCommand.command(for: .claude)
+public enum SupatermCodexHookSettings {
+  public static let command = SupatermAgentHookSettingsCommand.command(for: .codex)
 
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
@@ -14,13 +14,13 @@ public enum SupatermClaudeHookSettings {
       let objectValue = try JSONValue(Settings()).objectValue,
       let hooksValue = objectValue["hooks"]?.objectValue
     else {
-      throw SupatermClaudeHookSettingsError.invalidConfiguration
+      throw SupatermCodexHookSettingsError.invalidConfiguration
     }
 
     var hookGroupsByEvent: [String: [JSONValue]] = [:]
     for (event, value) in hooksValue {
       guard let groups = value.arrayValue else {
-        throw SupatermClaudeHookSettingsError.invalidConfiguration
+        throw SupatermCodexHookSettingsError.invalidConfiguration
       }
       hookGroupsByEvent[event] = groups
     }
@@ -29,10 +29,8 @@ public enum SupatermClaudeHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
-      "Notification": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
-      "PreToolUse": [.init(matcher: "", hooks: [.init(command: command, timeout: 5, isAsync: true)])],
-      "SessionEnd": [.init(matcher: "", hooks: [.init(command: command, timeout: 1)])],
-      "SessionStart": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
+      "PreToolUse": [.init(matcher: "Bash", hooks: [.init(command: command, timeout: 5)])],
+      "SessionStart": [.init(matcher: "startup|resume", hooks: [.init(command: command, timeout: 10)])],
       "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
       "UserPromptSubmit": [.init(hooks: [.init(command: command, timeout: 10)])],
     ]
@@ -52,29 +50,14 @@ public enum SupatermClaudeHookSettings {
     let type = "command"
     let command: String
     let timeout: Int
-    let isAsync: Bool?
 
-    init(command: String, timeout: Int, isAsync: Bool? = nil) {
+    init(command: String, timeout: Int) {
       self.command = command
       self.timeout = timeout
-      self.isAsync = isAsync
-    }
-
-    enum CodingKeys: String, CodingKey {
-      case type
-      case command
-      case timeout
-      case isAsync = "async"
     }
   }
 }
 
-public enum SupatermClaudeHookSettingsError: Error {
+public enum SupatermCodexHookSettingsError: Error {
   case invalidConfiguration
-}
-
-public enum SupatermAgentHookSettingsCommand {
-  public static func command(for agent: SupatermAgentKind) -> String {
-    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook --agent \#(agent.rawValue) || true"#
-  }
 }

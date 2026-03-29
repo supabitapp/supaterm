@@ -64,7 +64,7 @@ struct TerminalNotificationEvent: Equatable, Sendable {
   let subtitle: String
 }
 
-struct TerminalClaudeHookResult: Equatable, Sendable {
+struct TerminalAgentHookResult: Equatable, Sendable {
   let desktopNotification: DesktopNotificationRequest?
 }
 

@@ -1,7 +1,7 @@
 import ComposableArchitecture
 import Foundation
 
-enum SettingsClaudeHooksInstallState: Equatable {
+enum SettingsAgentHooksInstallState: Equatable {
   case idle
   case failed(String)
   case installing
@@ -31,7 +31,7 @@ enum SettingsClaudeHooksInstallState: Equatable {
   }
 }
 
-enum SettingsClaudeHooksInstallResult: Equatable {
+enum SettingsAgentHooksInstallResult: Equatable {
   case failure(String)
   case success
 }
@@ -40,13 +40,16 @@ enum SettingsClaudeHooksInstallResult: Equatable {
 struct SettingsFeature {
   @ObservableState
   struct State: Equatable {
-    var claudeHooksInstallState = SettingsClaudeHooksInstallState.idle
+    var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
+    var codexHooksInstallState = SettingsAgentHooksInstallState.idle
     var selectedTab = Tab.general
   }
 
   enum Action: Equatable {
     case claudeHooksInstallButtonTapped
-    case claudeHooksInstallFinished(SettingsClaudeHooksInstallResult)
+    case claudeHooksInstallFinished(SettingsAgentHooksInstallResult)
+    case codexHooksInstallButtonTapped
+    case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
     case tabSelected(Tab)
   }
 
@@ -85,7 +88,7 @@ struct SettingsFeature {
     var detail: String {
       switch self {
       case .codingAgents:
-        "Install Claude hooks"
+        "Install Claude and Codex hooks"
       case .general:
         "Startup, chrome, and behavior"
       case .updates:
@@ -97,6 +100,7 @@ struct SettingsFeature {
   }
 
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
+  @Dependency(CodexSettingsClient.self) var codexSettingsClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
@@ -121,6 +125,28 @@ struct SettingsFeature {
 
       case .claudeHooksInstallFinished(.failure(let message)):
         state.claudeHooksInstallState = .failed(message)
+        return .none
+
+      case .codexHooksInstallButtonTapped:
+        guard !state.codexHooksInstallState.isInstalling else {
+          return .none
+        }
+        state.codexHooksInstallState = .installing
+        return .run { [codexSettingsClient] send in
+          do {
+            try await codexSettingsClient.installSupatermHooks()
+            await send(.codexHooksInstallFinished(.success))
+          } catch {
+            await send(.codexHooksInstallFinished(.failure(error.localizedDescription)))
+          }
+        }
+
+      case .codexHooksInstallFinished(.success):
+        state.codexHooksInstallState = .succeeded("Codex hooks installed in ~/.codex/hooks.json.")
+        return .none
+
+      case .codexHooksInstallFinished(.failure(let message)):
+        state.codexHooksInstallState = .failed(message)
         return .none
 
       case .tabSelected(let tab):

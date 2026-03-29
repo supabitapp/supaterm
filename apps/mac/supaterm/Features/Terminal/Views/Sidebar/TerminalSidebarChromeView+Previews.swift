@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 import SwiftUI
 
 private enum TerminalSidebarTabPreviewSection: String, CaseIterable, Identifiable {
@@ -26,7 +27,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
-  let claudeActivity: TerminalHostState.ClaudeActivity?
+  let agentActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   var id: String {
@@ -57,12 +58,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 
   private var stateLabel: String? {
     switch leadingIndicator {
-    case .claudeActivity(.running):
-      return "Running"
-    case .claudeActivity(.needsInput):
-      return "Needs Input"
-    case .claudeActivity(.idle):
-      return "Idle"
+    case .agentActivity(let activity):
+      return "\(activity.kind.notificationTitle) \(phaseLabel(activity.phase))"
     case .terminalProgress:
       return "Terminal Progress"
     case .focusedNotification:
@@ -85,7 +82,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       unreadCount: unreadCount,
-      claudeActivity: claudeActivity,
+      agentActivity: agentActivity,
       terminalProgress: terminalProgress
     )
   }
@@ -101,7 +98,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     latestNotificationText: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
-    claudeActivity: TerminalHostState.ClaudeActivity? = nil,
+    agentActivity: TerminalHostState.AgentActivity? = nil,
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
@@ -115,8 +112,19 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.latestNotificationText = latestNotificationText
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
-    self.claudeActivity = claudeActivity
+    self.agentActivity = agentActivity
     self.terminalProgress = terminalProgress
+  }
+
+  private func phaseLabel(_ phase: TerminalHostState.AgentActivityPhase) -> String {
+    switch phase {
+    case .running:
+      return "Running"
+    case .needsInput:
+      return "Needs Input"
+    case .idle:
+      return "Idle"
+    }
   }
 
   private static func uuid(_ id: String) -> UUID {
@@ -180,7 +188,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac"),
         cwd("docs")
       ),
-      claudeActivity: .running
+      agentActivity: .claude(.running)
     ),
     .init(
       section: .codingAgents,
@@ -193,7 +201,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         cwd("docs")
       ),
-      claudeActivity: .needsInput
+      agentActivity: .claude(.needsInput)
     ),
     .init(
       section: .codingAgents,
@@ -203,7 +211,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       icon: "doc.text.magnifyingglass",
       latestNotificationText: "Review complete: no further changes needed",
       paneWorkingDirectories: cwdList(cwd("docs")),
-      claudeActivity: .idle
+      agentActivity: .claude(.idle)
     ),
     .init(
       section: .terminalProgress,
@@ -243,7 +251,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supatermTests")
       ),
       unreadCount: 12,
-      claudeActivity: .needsInput
+      agentActivity: .claude(.needsInput)
     ),
   ]
 
@@ -272,7 +280,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       latestNotificationText: item.latestNotificationText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
-      claudeActivity: item.claudeActivity,
+      agentActivity: item.agentActivity,
       terminalProgress: item.terminalProgress
     )
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)

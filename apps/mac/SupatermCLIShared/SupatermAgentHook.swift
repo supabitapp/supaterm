@@ -1,6 +1,20 @@
 import Foundation
 
-public enum SupatermClaudeHookEventName: Equatable, Sendable {
+public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendable {
+  case claude
+  case codex
+
+  public var notificationTitle: String {
+    switch self {
+    case .claude:
+      return "Claude Code"
+    case .codex:
+      return "Codex"
+    }
+  }
+}
+
+public enum SupatermAgentHookEventName: Equatable, Sendable {
   case notification
   case preToolUse
   case sessionEnd
@@ -48,7 +62,7 @@ public enum SupatermClaudeHookEventName: Equatable, Sendable {
   }
 }
 
-extension SupatermClaudeHookEventName: Codable {
+extension SupatermAgentHookEventName: Codable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     self = .init(rawValue: try container.decode(String.self))
@@ -60,11 +74,11 @@ extension SupatermClaudeHookEventName: Codable {
   }
 }
 
-public struct SupatermClaudeHookQuestionOption: Equatable, Sendable, Codable {
+public struct SupatermAgentHookQuestionOption: Equatable, Sendable, Codable {
   public let label: String?
 
   public init(label: String? = nil) {
-    self.label = normalizeClaudeHookString(label)
+    self.label = normalizeAgentHookString(label)
   }
 
   public init(from decoder: Decoder) throws {
@@ -79,26 +93,26 @@ public struct SupatermClaudeHookQuestionOption: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermClaudeHookQuestion: Equatable, Sendable, Codable {
+public struct SupatermAgentHookQuestion: Equatable, Sendable, Codable {
   public let header: String?
-  public let options: [SupatermClaudeHookQuestionOption]
+  public let options: [SupatermAgentHookQuestionOption]
   public let question: String?
 
   public init(
     header: String? = nil,
-    options: [SupatermClaudeHookQuestionOption] = [],
+    options: [SupatermAgentHookQuestionOption] = [],
     question: String? = nil
   ) {
-    self.header = normalizeClaudeHookString(header)
+    self.header = normalizeAgentHookString(header)
     self.options = options
-    self.question = normalizeClaudeHookString(question)
+    self.question = normalizeAgentHookString(question)
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
       header: try container.decodeIfPresent(String.self, forKey: .header),
-      options: try container.decodeIfPresent([SupatermClaudeHookQuestionOption].self, forKey: .options) ?? [],
+      options: try container.decodeIfPresent([SupatermAgentHookQuestionOption].self, forKey: .options) ?? [],
       question: try container.decodeIfPresent(String.self, forKey: .question)
     )
   }
@@ -110,17 +124,17 @@ public struct SupatermClaudeHookQuestion: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermClaudeHookToolInput: Equatable, Sendable, Codable {
-  public let questions: [SupatermClaudeHookQuestion]
+public struct SupatermAgentHookToolInput: Equatable, Sendable, Codable {
+  public let questions: [SupatermAgentHookQuestion]
 
-  public init(questions: [SupatermClaudeHookQuestion] = []) {
+  public init(questions: [SupatermAgentHookQuestion] = []) {
     self.questions = questions
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
-      questions: try container.decodeIfPresent([SupatermClaudeHookQuestion].self, forKey: .questions) ?? []
+      questions: try container.decodeIfPresent([SupatermAgentHookQuestion].self, forKey: .questions) ?? []
     )
   }
 
@@ -129,10 +143,10 @@ public struct SupatermClaudeHookToolInput: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
+public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public let agentType: String?
   public let cwd: String?
-  public let hookEventName: SupatermClaudeHookEventName
+  public let hookEventName: SupatermAgentHookEventName
   public let lastAssistantMessage: String?
   public let message: String?
   public let model: String?
@@ -144,7 +158,7 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
   public let source: String?
   public let stopHookActive: Bool?
   public let title: String?
-  public let toolInput: SupatermClaudeHookToolInput?
+  public let toolInput: SupatermAgentHookToolInput?
   public let toolName: String?
   public let toolUseID: String?
   public let transcriptPath: String?
@@ -152,7 +166,7 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
   public init(
     agentType: String? = nil,
     cwd: String? = nil,
-    hookEventName: SupatermClaudeHookEventName,
+    hookEventName: SupatermAgentHookEventName,
     lastAssistantMessage: String? = nil,
     message: String? = nil,
     model: String? = nil,
@@ -164,29 +178,29 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
     source: String? = nil,
     stopHookActive: Bool? = nil,
     title: String? = nil,
-    toolInput: SupatermClaudeHookToolInput? = nil,
+    toolInput: SupatermAgentHookToolInput? = nil,
     toolName: String? = nil,
     toolUseID: String? = nil,
     transcriptPath: String? = nil
   ) {
-    self.agentType = normalizeClaudeHookString(agentType)
-    self.cwd = normalizeClaudeHookString(cwd)
+    self.agentType = normalizeAgentHookString(agentType)
+    self.cwd = normalizeAgentHookString(cwd)
     self.hookEventName = hookEventName
-    self.lastAssistantMessage = normalizeClaudeHookString(lastAssistantMessage)
-    self.message = normalizeClaudeHookString(message)
-    self.model = normalizeClaudeHookString(model)
-    self.notificationType = normalizeClaudeHookString(notificationType)
-    self.permissionMode = normalizeClaudeHookString(permissionMode)
-    self.prompt = normalizeClaudeHookString(prompt)
-    self.reason = normalizeClaudeHookString(reason)
-    self.sessionID = normalizeClaudeHookString(sessionID)
-    self.source = normalizeClaudeHookString(source)
+    self.lastAssistantMessage = normalizeAgentHookString(lastAssistantMessage)
+    self.message = normalizeAgentHookString(message)
+    self.model = normalizeAgentHookString(model)
+    self.notificationType = normalizeAgentHookString(notificationType)
+    self.permissionMode = normalizeAgentHookString(permissionMode)
+    self.prompt = normalizeAgentHookString(prompt)
+    self.reason = normalizeAgentHookString(reason)
+    self.sessionID = normalizeAgentHookString(sessionID)
+    self.source = normalizeAgentHookString(source)
     self.stopHookActive = stopHookActive
-    self.title = normalizeClaudeHookString(title)
+    self.title = normalizeAgentHookString(title)
     self.toolInput = toolInput
-    self.toolName = normalizeClaudeHookString(toolName)
-    self.toolUseID = normalizeClaudeHookString(toolUseID)
-    self.transcriptPath = normalizeClaudeHookString(transcriptPath)
+    self.toolName = normalizeAgentHookString(toolName)
+    self.toolUseID = normalizeAgentHookString(toolUseID)
+    self.transcriptPath = normalizeAgentHookString(transcriptPath)
   }
 
   public init(from decoder: Decoder) throws {
@@ -194,7 +208,7 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
     self.init(
       agentType: try container.decodeIfPresent(String.self, forKey: .agentType),
       cwd: try container.decodeIfPresent(String.self, forKey: .cwd),
-      hookEventName: try container.decode(SupatermClaudeHookEventName.self, forKey: .hookEventName),
+      hookEventName: try container.decode(SupatermAgentHookEventName.self, forKey: .hookEventName),
       lastAssistantMessage: try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage),
       message: try container.decodeIfPresent(String.self, forKey: .message),
       model: try container.decodeIfPresent(String.self, forKey: .model),
@@ -206,7 +220,7 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
       source: try container.decodeIfPresent(String.self, forKey: .source),
       stopHookActive: try container.decodeIfPresent(Bool.self, forKey: .stopHookActive),
       title: try container.decodeIfPresent(String.self, forKey: .title),
-      toolInput: try container.decodeIfPresent(SupatermClaudeHookToolInput.self, forKey: .toolInput),
+      toolInput: try container.decodeIfPresent(SupatermAgentHookToolInput.self, forKey: .toolInput),
       toolName: try container.decodeIfPresent(String.self, forKey: .toolName),
       toolUseID: try container.decodeIfPresent(String.self, forKey: .toolUseID),
       transcriptPath: try container.decodeIfPresent(String.self, forKey: .transcriptPath)
@@ -235,20 +249,23 @@ public struct SupatermClaudeHookEvent: Equatable, Sendable, Codable {
   }
 }
 
-public struct SupatermClaudeHookRequest: Equatable, Sendable, Codable {
+public struct SupatermAgentHookRequest: Equatable, Sendable, Codable {
+  public let agent: SupatermAgentKind
   public let context: SupatermCLIContext?
-  public let event: SupatermClaudeHookEvent
+  public let event: SupatermAgentHookEvent
 
   public init(
+    agent: SupatermAgentKind,
     context: SupatermCLIContext? = nil,
-    event: SupatermClaudeHookEvent
+    event: SupatermAgentHookEvent
   ) {
+    self.agent = agent
     self.context = context
     self.event = event
   }
 }
 
-private func normalizeClaudeHookString(_ value: String?) -> String? {
+private func normalizeAgentHookString(_ value: String?) -> String? {
   guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
     return nil
   }

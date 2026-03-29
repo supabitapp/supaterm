@@ -98,7 +98,7 @@ struct ClaudeHookEventTests {
       """
     )
 
-    #expect(throws: ClaudeHookError.missingNotificationMessage) {
+    #expect(throws: AgentHookError.missingNotificationMessage) {
       _ = try event.notificationMessage()
     }
   }

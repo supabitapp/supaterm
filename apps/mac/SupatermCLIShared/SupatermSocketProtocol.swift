@@ -137,7 +137,7 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
   }
 
   public static func agentHook(
-    _ payload: SupatermClaudeHookRequest,
+    _ payload: SupatermAgentHookRequest,
     id: String = UUID().uuidString
   ) throws -> Self {
     Self(

@@ -79,10 +79,10 @@ enum SPHelp {
   static let agentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Install Claude Code hooks from Supaterm Settings > Coding Agents.
+    Install Claude or Codex hooks from Supaterm Settings > Coding Agents.
 
     Example:
-      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent-hook
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 

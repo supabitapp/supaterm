@@ -22,6 +22,7 @@ public struct SP: ParsableCommand {
     AgentHook.self,
     Ping.self,
     ClaudeHookSettings.self,
+    CodexHookSettings.self,
     Development.self,
   ]
 
@@ -518,6 +519,9 @@ extension SP {
       discussion: SPHelp.agentHookDiscussion
     )
 
+    @Option(name: .long, help: "Agent that emitted the hook payload.")
+    var agent: SupatermAgentKind
+
     @OptionGroup
     var connection: SPConnectionOptions
 
@@ -531,6 +535,7 @@ extension SP {
       let response = try client.send(
         .agentHook(
           .init(
+            agent: agent,
             context: SupatermCLIContext.current,
             event: event
           )
@@ -578,6 +583,18 @@ extension SP {
 
     mutating func run() throws {
       print(try SupatermClaudeHookSettings.jsonString())
+    }
+  }
+
+  struct CodexHookSettings: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "codex-hook-settings",
+      abstract: "Print the canonical Codex hook settings JSON.",
+      shouldDisplay: false
+    )
+
+    mutating func run() throws {
+      print(try SupatermCodexHookSettings.jsonString())
     }
   }
 }
@@ -772,17 +789,19 @@ private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   return url.standardizedFileURL.path
 }
 
-private func agentHookEvent(from data: Data) throws -> SupatermClaudeHookEvent {
+private func agentHookEvent(from data: Data) throws -> SupatermAgentHookEvent {
   guard !data.isEmpty else {
     throw ValidationError("Agent hook input must be valid hook JSON.")
   }
 
   do {
-    return try JSONDecoder().decode(SupatermClaudeHookEvent.self, from: data)
+    return try JSONDecoder().decode(SupatermAgentHookEvent.self, from: data)
   } catch {
     throw ValidationError("Agent hook input must be valid hook JSON.")
   }
 }
+
+extension SupatermAgentKind: ExpressibleByArgument {}
 
 struct SPDevelopmentClaudeInvocationOptions: ParsableArguments {
   @OptionGroup
@@ -833,7 +852,7 @@ struct SPDevelopmentClaudeEventBuilder {
     _ kind: SPDevelopmentClaudeEventKind,
     context: SupatermCLIContext,
     sessionIDOverride: String? = nil
-  ) throws -> SupatermClaudeHookEvent {
+  ) throws -> SupatermAgentHookEvent {
     let sessionID = try resolvedSessionID(context: context, sessionIDOverride: sessionIDOverride)
     switch kind {
     case .sessionStart:
@@ -938,6 +957,7 @@ private func sendDevelopmentClaudeEvent(
   let response = try client.send(
     .agentHook(
       .init(
+        agent: .claude,
         context: context,
         event: event
       )
