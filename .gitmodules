@@ -1,3 +1,4 @@
 [submodule "ThirdParty/ghostty"]
 	path = apps/mac/ThirdParty/ghostty
-	url = https://github.com/ghostty-org/ghostty
+	url = git@github.com:ghostty-org/ghostty.git
+	pushurl = git@github.com:ghostty-org/ghostty.git
