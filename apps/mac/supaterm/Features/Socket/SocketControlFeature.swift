@@ -126,7 +126,7 @@ struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
-    } catch let error as ClaudeHookError {
+    } catch let error as AgentHookError {
       return .error(
         id: request.id,
         code: "invalid_request",
@@ -220,8 +220,8 @@ struct SocketControlFeature {
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalAgentHook:
-      let payload = try request.decodeParams(SupatermClaudeHookRequest.self)
-      let result = try await terminalWindowsClient.claudeHook(payload)
+      let payload = try request.decodeParams(SupatermAgentHookRequest.self)
+      let result = try await terminalWindowsClient.agentHook(payload)
       if let desktopNotification = result.desktopNotification {
         await desktopNotificationClient.deliver(desktopNotification)
       }

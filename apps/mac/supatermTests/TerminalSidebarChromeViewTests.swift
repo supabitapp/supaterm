@@ -4,7 +4,7 @@ import Testing
 
 struct TerminalSidebarChromeViewTests {
   @Test
-  func unreadCountTakesPrecedenceOverClaudeActivity() {
+  func unreadCountTakesPrecedenceOverAgentActivity() {
     let tab = TerminalTabItem(title: "Build", icon: nil)
 
     #expect(
@@ -12,14 +12,14 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 3,
-        claudeActivity: .needsInput,
+        agentActivity: .claude(.needsInput),
         terminalProgress: nil
       ) == .unreadCount(3)
     )
   }
 
   @Test
-  func claudeActivityTakesPrecedenceOverDefaultTabSymbol() {
+  func agentActivityTakesPrecedenceOverDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
     #expect(
@@ -27,14 +27,14 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .running,
+        agentActivity: .claude(.running),
         terminalProgress: nil
-      ) == .claudeActivity(.running)
+      ) == .agentActivity(.claude(.running))
     )
   }
 
   @Test
-  func claudeActivityTakesPrecedenceOverTerminalProgress() {
+  func agentActivityTakesPrecedenceOverTerminalProgress() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
 
     #expect(
@@ -42,9 +42,9 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .running,
+        agentActivity: .claude(.running),
         terminalProgress: .init(fraction: 0.5, tone: .active)
-      ) == .claudeActivity(.running)
+      ) == .agentActivity(.claude(.running))
     )
   }
 
@@ -58,14 +58,14 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil,
+        agentActivity: nil,
         terminalProgress: progress
       ) == .terminalProgress(progress)
     )
   }
 
   @Test
-  func focusedNotificationTakesPrecedenceOverDefaultTabSymbol() {
+  func focusedNotificationTakesPrecedenceOverIdleAgentState() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
     #expect(
@@ -73,26 +73,26 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: .idle,
+        agentActivity: .claude(.idle),
         terminalProgress: nil
       ) == .focusedNotification
     )
   }
 
   @Test
-  func claudeActivityPresentationUsesExpectedTonesAndVisibility() {
-    #expect(TerminalHostState.ClaudeActivity.running.tone == .active)
-    #expect(TerminalHostState.ClaudeActivity.running.showsLeadingIndicator)
+  func agentActivityPresentationUsesExpectedTonesAndVisibility() {
+    #expect(TerminalHostState.AgentActivity.claude(.running).tone == .active)
+    #expect(TerminalHostState.AgentActivity.claude(.running).showsLeadingIndicator)
 
-    #expect(TerminalHostState.ClaudeActivity.needsInput.tone == .attention)
-    #expect(TerminalHostState.ClaudeActivity.needsInput.showsLeadingIndicator)
+    #expect(TerminalHostState.AgentActivity.codex(.needsInput).tone == .attention)
+    #expect(TerminalHostState.AgentActivity.codex(.needsInput).showsLeadingIndicator)
 
-    #expect(TerminalHostState.ClaudeActivity.idle.tone == .muted)
-    #expect(!TerminalHostState.ClaudeActivity.idle.showsLeadingIndicator)
+    #expect(TerminalHostState.AgentActivity.claude(.idle).tone == .muted)
+    #expect(!TerminalHostState.AgentActivity.claude(.idle).showsLeadingIndicator)
   }
 
   @Test
-  func defaultTabSymbolIsUsedWithoutUnreadOrClaudeActivity() {
+  func defaultTabSymbolIsUsedWithoutUnreadOrAgentActivity() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
     #expect(
@@ -100,7 +100,7 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil,
+        agentActivity: nil,
         terminalProgress: nil
       ) == .tabSymbol("hammer", .accent(tab.tone))
     )
@@ -115,7 +115,7 @@ struct TerminalSidebarChromeViewTests {
         hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
-        claudeActivity: nil,
+        agentActivity: nil,
         terminalProgress: nil
       ) == .tabSymbol("terminal", .neutral)
     )

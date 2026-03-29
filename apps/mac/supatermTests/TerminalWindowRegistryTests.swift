@@ -556,16 +556,16 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationUsesStoredSessionSurfaceWhenAmbientContextIsMissing() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.needsInput))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
@@ -573,46 +573,46 @@ struct TerminalWindowRegistryTests {
   func claudeSessionStartDoesNotMarkTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
 
-    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
   }
 
   @Test
   func claudePreToolUseMarksTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
 
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
   }
 
   @Test
-  func commandFinishedClearsClaudeActivityAndStoredSessionRouting() throws {
+  func commandFinishedClearsAgentActivityAndStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
 
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
 
     let surface = try #require(harness.host.selectedSurfaceView)
     surface.bridge.onCommandFinished?()
 
-    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -623,13 +623,13 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationUsesGenericMessage() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -642,13 +642,13 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    let result = try harness.registry.handleClaudeHook(
+    let result = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -662,7 +662,7 @@ struct TerminalWindowRegistryTests {
     )
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .needsInput)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.needsInput))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
@@ -670,17 +670,17 @@ struct TerminalWindowRegistryTests {
   func claudeUserPromptSubmitReturnsTabToRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit)
     )
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .running)
-    _ = try harness.registry.handleClaudeHook(
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -693,34 +693,34 @@ struct TerminalWindowRegistryTests {
   func claudeStopMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .idle)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
   }
 
   @Test
   func claudeSessionEndRemovesStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
-    #expect(harness.host.claudeActivity(for: harness.tabID) == .idle)
-    _ = try harness.registry.handleClaudeHook(
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
     )
-    #expect(harness.host.claudeActivity(for: harness.tabID) == nil)
-    _ = try harness.registry.handleClaudeHook(
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -732,11 +732,11 @@ struct TerminalWindowRegistryTests {
   func staleStoredClaudeSessionIsClearedAfterContextPaneDisappears() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
     harness.registry.unregister(windowControllerID: harness.windowControllerID)
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
     harness.registry.register(
@@ -747,12 +747,32 @@ struct TerminalWindowRegistryTests {
       requestConfirmedWindowClose: {}
     )
     harness.registry.updateWindow(makeWindow(), for: harness.windowControllerID)
-    _ = try harness.registry.handleClaudeHook(
+    _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func codexPreToolUseAndStopUpdateCodexActivity() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.stop)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
 
   private func makeWindow() -> NSWindow {

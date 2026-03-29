@@ -736,9 +736,10 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func claudeHookRequestRoundTripsTypedPayload() throws {
+  func agentHookRequestRoundTripsTypedPayload() throws {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
-    let requestPayload = SupatermClaudeHookRequest(
+    let requestPayload = SupatermAgentHookRequest(
+      agent: .claude,
       context: .init(
         surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
@@ -749,7 +750,7 @@ struct SupatermSocketProtocolTests {
     let request = try SupatermSocketRequest.agentHook(requestPayload, id: "agent-hook-1")
 
     #expect(request.method == SupatermSocketMethod.terminalAgentHook)
-    #expect(try request.decodeParams(SupatermClaudeHookRequest.self) == requestPayload)
+    #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
   }
 }
 

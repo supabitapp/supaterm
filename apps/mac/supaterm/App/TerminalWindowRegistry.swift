@@ -46,11 +46,16 @@ final class TerminalWindowRegistry {
     let windowReference: WindowReference
   }
 
-  private struct ClaudeHookSession {
+  private struct AgentHookSessionKey: Hashable {
+    let agent: SupatermAgentKind
+    let sessionID: String
+  }
+
+  private struct AgentHookSession {
     var surfaceID: UUID
   }
 
-  private var claudeHookSessions: [String: ClaudeHookSession] = [:]
+  private var agentHookSessions: [AgentHookSessionKey: AgentHookSession] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
 
@@ -75,7 +80,7 @@ final class TerminalWindowRegistry {
   ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     terminal.onCommandFinished = { [weak self] surfaceID in
-      self?.clearClaudeHookSessions(for: surfaceID)
+      self?.clearAgentHookSessions(for: surfaceID)
     }
     entries.append(
       .init(
@@ -459,10 +464,10 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func handleClaudeHook(_ request: SupatermClaudeHookRequest) throws -> TerminalClaudeHookResult {
+  func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     let event = request.event
     if let sessionID = event.sessionID, let context = request.context {
-      claudeHookSessions[sessionID] = .init(
+      agentHookSessions[.init(agent: request.agent, sessionID: sessionID)] = .init(
         surfaceID: context.surfaceID
       )
     }
@@ -475,33 +480,53 @@ final class TerminalWindowRegistry {
       guard let sessionID = event.sessionID else {
         return .init(desktopNotification: nil)
       }
-      _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
+      _ = setAgentActivity(
+        .init(kind: request.agent, phase: .running),
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context
+      )
       return .init(desktopNotification: nil)
 
     case .userPromptSubmit:
       if let sessionID = event.sessionID {
-        _ = setClaudeActivity(.running, sessionID: sessionID, context: request.context)
+        _ = setAgentActivity(
+          .init(kind: request.agent, phase: .running),
+          agent: request.agent,
+          sessionID: sessionID,
+          context: request.context
+        )
       }
       return .init(desktopNotification: nil)
 
     case .stop:
       if let sessionID = event.sessionID {
-        _ = setClaudeActivity(.idle, sessionID: sessionID, context: request.context)
+        _ = setAgentActivity(
+          .init(kind: request.agent, phase: .idle),
+          agent: request.agent,
+          sessionID: sessionID,
+          context: request.context
+        )
       }
       return .init(desktopNotification: nil)
 
     case .sessionEnd:
       if let sessionID = event.sessionID {
-        _ = clearClaudeActivity(sessionID: sessionID, context: request.context)
-        claudeHookSessions.removeValue(forKey: sessionID)
+        _ = clearAgentActivity(agent: request.agent, sessionID: sessionID, context: request.context)
+        agentHookSessions.removeValue(forKey: .init(agent: request.agent, sessionID: sessionID))
       }
       return .init(desktopNotification: nil)
 
     case .notification:
       if let sessionID = event.sessionID {
-        _ = setClaudeActivity(.needsInput, sessionID: sessionID, context: request.context)
+        _ = setAgentActivity(
+          .init(kind: request.agent, phase: .needsInput),
+          agent: request.agent,
+          sessionID: sessionID,
+          context: request.context
+        )
       }
-      return try handleClaudeNotification(event, context: request.context)
+      return try handleAgentNotification(request.agent, event: event, context: request.context)
     }
   }
 
@@ -535,15 +560,16 @@ final class TerminalWindowRegistry {
     throw TerminalCreatePaneError.contextPaneNotFound
   }
 
-  private func handleClaudeNotification(
-    _ event: SupatermClaudeHookEvent,
+  private func handleAgentNotification(
+    _ agent: SupatermAgentKind,
+    event: SupatermAgentHookEvent,
     context: SupatermCLIContext?
-  ) throws -> TerminalClaudeHookResult {
+  ) throws -> TerminalAgentHookResult {
     let message = try event.notificationMessage()
-    let session = event.sessionID.flatMap { claudeHookSessions[$0] }
+    let session = event.sessionID.flatMap { agentHookSessions[.init(agent: agent, sessionID: $0)] }
     let subtitle = event.title ?? "Attention"
     let body = message
-    let title = "Claude Code"
+    let title = agent.notificationTitle
     var candidateSurfaceIDs: [UUID] = []
     if let surfaceID = context?.surfaceID {
       candidateSurfaceIDs.append(surfaceID)
@@ -572,8 +598,11 @@ final class TerminalWindowRegistry {
         guard case .contextPaneNotFound = error else {
           throw error
         }
-        if event.sessionID.flatMap({ claudeHookSessions[$0]?.surfaceID }) == surfaceID {
-          claudeHookSessions.removeValue(forKey: event.sessionID ?? "")
+        if let sessionID = event.sessionID {
+          let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+          if agentHookSessions[key]?.surfaceID == surfaceID {
+            agentHookSessions.removeValue(forKey: key)
+          }
           return .init(desktopNotification: nil)
         }
       }
@@ -583,36 +612,39 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  private func setClaudeActivity(
-    _ activity: TerminalHostState.ClaudeActivity,
+  private func setAgentActivity(
+    _ activity: TerminalHostState.AgentActivity,
+    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    updateClaudeActivity(activity, sessionID: sessionID, context: context)
+    updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
   }
 
   @discardableResult
-  private func clearClaudeActivity(
+  private func clearAgentActivity(
+    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    updateClaudeActivity(nil, sessionID: sessionID, context: context)
+    updateAgentActivity(nil, agent: agent, sessionID: sessionID, context: context)
   }
 
   @discardableResult
-  private func updateClaudeActivity(
-    _ activity: TerminalHostState.ClaudeActivity?,
+  private func updateAgentActivity(
+    _ activity: TerminalHostState.AgentActivity?,
+    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    let candidateSurfaceIDs = claudeCandidateSurfaceIDs(sessionID: sessionID, context: context)
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(agent: agent, sessionID: sessionID, context: context)
     for surfaceID in candidateSurfaceIDs {
       for entry in activeEntries() {
         if let activity {
-          if entry.terminal.setClaudeActivity(activity, for: surfaceID) {
+          if entry.terminal.setAgentActivity(activity, for: surfaceID) {
             return true
           }
-        } else if entry.terminal.clearClaudeActivity(for: surfaceID) {
+        } else if entry.terminal.clearAgentActivity(for: surfaceID) {
           return true
         }
       }
@@ -620,7 +652,8 @@ final class TerminalWindowRegistry {
     return false
   }
 
-  private func claudeCandidateSurfaceIDs(
+  private func agentCandidateSurfaceIDs(
+    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) -> [UUID] {
@@ -628,14 +661,16 @@ final class TerminalWindowRegistry {
     if let surfaceID = context?.surfaceID {
       candidateSurfaceIDs.append(surfaceID)
     }
-    if let surfaceID = claudeHookSessions[sessionID]?.surfaceID, !candidateSurfaceIDs.contains(surfaceID) {
+    if let surfaceID = agentHookSessions[.init(agent: agent, sessionID: sessionID)]?.surfaceID,
+      !candidateSurfaceIDs.contains(surfaceID)
+    {
       candidateSurfaceIDs.append(surfaceID)
     }
     return candidateSurfaceIDs
   }
 
-  private func clearClaudeHookSessions(for surfaceID: UUID) {
-    claudeHookSessions = claudeHookSessions.filter { $0.value.surfaceID != surfaceID }
+  private func clearAgentHookSessions(for surfaceID: UUID) {
+    agentHookSessions = agentHookSessions.filter { $0.value.surfaceID != surfaceID }
   }
 
   private func activeEntries() -> [Entry] {

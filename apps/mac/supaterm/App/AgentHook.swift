@@ -1,21 +1,21 @@
 import Foundation
 import SupatermCLIShared
 
-enum ClaudeHookError: Error, Equatable, LocalizedError {
+enum AgentHookError: Error, Equatable, LocalizedError {
   case missingNotificationMessage
 
   var errorDescription: String? {
     switch self {
     case .missingNotificationMessage:
-      return "Claude notification payload is missing message."
+      return "Agent notification payload is missing message."
     }
   }
 }
 
-extension SupatermClaudeHookEvent {
+extension SupatermAgentHookEvent {
   func notificationMessage() throws -> String {
     guard let message else {
-      throw ClaudeHookError.missingNotificationMessage
+      throw AgentHookError.missingNotificationMessage
     }
     return message
   }

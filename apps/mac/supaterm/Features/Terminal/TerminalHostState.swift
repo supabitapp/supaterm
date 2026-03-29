@@ -50,19 +50,32 @@ final class TerminalHostState {
     var title: String
   }
 
-  enum ClaudeActivityTone: Equatable, Sendable {
+  enum AgentActivityTone: Equatable, Sendable {
     case attention
     case active
     case muted
   }
 
-  enum ClaudeActivity: Equatable, Sendable {
+  enum AgentActivityPhase: Equatable, Sendable {
     case needsInput
     case running
     case idle
+  }
 
-    var tone: ClaudeActivityTone {
-      switch self {
+  struct AgentActivity: Equatable, Sendable {
+    let kind: SupatermAgentKind
+    let phase: AgentActivityPhase
+
+    static func claude(_ phase: AgentActivityPhase) -> Self {
+      .init(kind: .claude, phase: phase)
+    }
+
+    static func codex(_ phase: AgentActivityPhase) -> Self {
+      .init(kind: .codex, phase: phase)
+    }
+
+    var tone: AgentActivityTone {
+      switch phase {
       case .needsInput:
         return .attention
       case .running:
@@ -73,7 +86,7 @@ final class TerminalHostState {
     }
 
     var showsLeadingIndicator: Bool {
-      switch self {
+      switch phase {
       case .needsInput, .running:
         return true
       case .idle:
@@ -108,7 +121,7 @@ final class TerminalHostState {
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
-  private var claudeActivityByTab: [TerminalTabID: ClaudeActivity] = [:]
+  private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
   private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
@@ -483,21 +496,21 @@ final class TerminalHostState {
       .contains { Self.surfaceAttentionState(in: $0) == .focused }
   }
 
-  func claudeActivity(for tabID: TerminalTabID) -> ClaudeActivity? {
-    claudeActivityByTab[tabID]
+  func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
+    agentActivityByTab[tabID]
   }
 
   @discardableResult
-  func setClaudeActivity(_ activity: ClaudeActivity, for surfaceID: UUID) -> Bool {
+  func setAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID) else { return false }
-    claudeActivityByTab[tabID] = activity
+    agentActivityByTab[tabID] = activity
     return true
   }
 
   @discardableResult
-  func clearClaudeActivity(for surfaceID: UUID) -> Bool {
+  func clearAgentActivity(for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID) else { return false }
-    claudeActivityByTab.removeValue(forKey: tabID)
+    agentActivityByTab.removeValue(forKey: tabID)
     return true
   }
   private func ensureInitialTab(focusing: Bool) {
@@ -1326,7 +1339,7 @@ final class TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
-      claudeActivityByTab.removeValue(forKey: tabID)
+      agentActivityByTab.removeValue(forKey: tabID)
       tabTitleOverrides.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
@@ -1430,7 +1443,7 @@ final class TerminalHostState {
     }
     view.bridge.onCommandFinished = { [weak self, weak view] in
       guard let self, let view else { return }
-      _ = self.clearClaudeActivity(for: view.id)
+      _ = self.clearAgentActivity(for: view.id)
       self.onCommandFinished(view.id)
     }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
@@ -1811,7 +1824,7 @@ final class TerminalHostState {
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
-    claudeActivityByTab.removeValue(forKey: tabID)
+    agentActivityByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     tabTitleOverrides.removeValue(forKey: tabID)
   }
@@ -1990,7 +2003,7 @@ final class TerminalHostState {
   }
 
   private func hasActiveAgentAttention(for tabID: TerminalTabID) -> Bool {
-    switch claudeActivityByTab[tabID] {
+    switch agentActivityByTab[tabID]?.phase {
     case .some(.needsInput), .some(.running):
       return true
     case .some(.idle), .none:

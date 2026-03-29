@@ -51,7 +51,7 @@ Claude is the current first-class coding agent integration.
 ### Hook Injection
 
 - Supaterm's canonical Claude hook fragment is also available from `sp claude-hook-settings`.
-- The installed user settings tell Claude to invoke `sp agent-hook` for:
+- The installed user settings tell Claude to invoke `sp agent-hook --agent claude` for:
   - `SessionStart`
   - `PreToolUse`
   - `Notification`
@@ -62,8 +62,9 @@ Claude is the current first-class coding agent integration.
 ### Event Forwarding
 
 - `sp agent-hook` reads one agent hook event JSON object from stdin.
+- The caller must declare the agent explicitly with `--agent`.
 - It forwards that payload to the app over the socket method `terminal.agent_hook`.
-- The forwarded request carries both the decoded event and the ambient `SupatermCLIContext` from the current pane.
+- The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
 
 ### App Behavior
 
@@ -81,3 +82,33 @@ The sidebar renders the Claude activity at tab level with three states:
 - `Claude running`
 - `Claude needs input`
 - `Claude idle`
+
+## Codex
+
+Codex now uses the same app-side bridge and tab-state model.
+
+### Entry Point
+
+- Supaterm exposes an `Install Codex Hooks` button in Settings > Coding Agents.
+- That action enables the Codex hooks feature by running `codex features enable codex_hooks` through the user's login shell.
+- The same action reads `~/.codex/hooks.json`, preserves unrelated hooks, and installs the canonical Supaterm Codex hooks into the user-scoped global file.
+
+### Hook Injection
+
+- Supaterm's canonical Codex hook fragment is also available from `sp codex-hook-settings`.
+- The installed global hooks tell Codex to invoke `sp agent-hook --agent codex` for:
+  - `SessionStart` with matcher `startup|resume`
+  - `PreToolUse` with matcher `Bash`
+  - `UserPromptSubmit`
+  - `Stop`
+
+### App Behavior
+
+The app binds Codex sessions to pane surfaces and turns Codex hook events into tab activity.
+
+- `SessionStart` binds the session to the current pane surface.
+- `PreToolUse` marks the tab as `running`.
+- `UserPromptSubmit` marks the tab as `running`.
+- `Stop` marks the tab as `idle`.
+
+The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.

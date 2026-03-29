@@ -171,7 +171,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func notifySuppressesDesktopDeliveryWhenClaudeIsRunning() throws {
+  func notifySuppressesDesktopDeliveryWhenAgentIsRunning() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -181,7 +181,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setClaudeActivity(.running, for: surface.id))
+    #expect(host.setAgentActivity(.claude(.running), for: surface.id))
 
     let result = try host.notify(
       .init(
@@ -200,7 +200,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func commandFinishedClearsClaudeActivity() throws {
+  func commandFinishedClearsAgentActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -209,11 +209,11 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setClaudeActivity(.running, for: surface.id))
+    #expect(host.setAgentActivity(.claude(.running), for: surface.id))
 
     surface.bridge.onCommandFinished?()
 
-    #expect(host.claudeActivity(for: tabID) == nil)
+    #expect(host.agentActivity(for: tabID) == nil)
   }
 
   @Test

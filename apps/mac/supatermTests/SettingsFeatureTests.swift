@@ -68,4 +68,46 @@ struct SettingsFeatureTests {
       $0.claudeHooksInstallState = .failed("Claude settings must be valid JSON before Supaterm can install hooks.")
     }
   }
+
+  @Test
+  func codexHooksInstallButtonShowsSuccessState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.codexSettingsClient.installSupatermHooks = {}
+    }
+
+    await store.send(.codexHooksInstallButtonTapped) {
+      $0.codexHooksInstallState = .installing
+    }
+
+    await store.receive(.codexHooksInstallFinished(.success)) {
+      $0.codexHooksInstallState = .succeeded("Codex hooks installed in ~/.codex/hooks.json.")
+    }
+  }
+
+  @Test
+  func codexHooksInstallButtonShowsFailureState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.codexSettingsClient.installSupatermHooks = {
+        throw CodexSettingsInstallerError.codexUnavailable
+      }
+    }
+
+    await store.send(.codexHooksInstallButtonTapped) {
+      $0.codexHooksInstallState = .installing
+    }
+
+    await store.receive(
+      .codexHooksInstallFinished(
+        .failure("Codex must be installed and available in your login shell before Supaterm can install hooks.")
+      )
+    ) {
+      $0.codexHooksInstallState = .failed(
+        "Codex must be installed and available in your login shell before Supaterm can install hooks."
+      )
+    }
+  }
 }
