@@ -1,13 +1,13 @@
 import Foundation
 import Testing
 
-@testable import SPCLI
+@testable import SupatermCLIShared
 
 struct SupatermClaudeHookSettingsTests {
   @Test
   func commandStaysStable() {
     #expect(
-      SPClaudeHookSettings.command
+      SupatermClaudeHookSettings.command
         == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook || true"#
     )
   }
@@ -16,7 +16,7 @@ struct SupatermClaudeHookSettingsTests {
   func jsonIncludesAllHookEventsAndTimeouts() throws {
     let object =
       try JSONSerialization.jsonObject(
-        with: Data(SPClaudeHookSettings.jsonString().utf8)
+        with: Data(SupatermClaudeHookSettings.jsonString().utf8)
       ) as? [String: Any]
     let hooks = try #require(object?["hooks"] as? [String: [[String: Any]]])
 
@@ -30,7 +30,7 @@ struct SupatermClaudeHookSettingsTests {
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
     #expect(
-      try commandHook(in: hooks, event: "Notification")["command"] as? String == SPClaudeHookSettings.command)
+      try commandHook(in: hooks, event: "Notification")["command"] as? String == SupatermClaudeHookSettings.command)
   }
 }
 

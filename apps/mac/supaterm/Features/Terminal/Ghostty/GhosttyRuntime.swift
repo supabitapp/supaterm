@@ -487,12 +487,6 @@ final class GhosttyRuntime {
     if includeCLIArgs {
       ghostty_config_load_cli_args(config)
     }
-    if let hostedConfigOverride = GhosttyBootstrap.hostedConfigOverride(resourcesURL: Bundle.main.resourceURL) {
-      let length = hostedConfigOverride.utf8.count
-      hostedConfigOverride.withCString { pointer in
-        ghostty_config_load_string(config, pointer, length)
-      }
-    }
     ghostty_config_finalize(config)
     return config
   }

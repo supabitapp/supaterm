@@ -7,7 +7,6 @@ struct SupatermCLIContextTests {
   @Test
   func environmentKeysStayStable() {
     #expect(SupatermCLIEnvironment.cliPathKey == "SUPATERM_CLI_PATH")
-    #expect(SupatermCLIEnvironment.claudeHooksDisabledKey == "SUPATERM_CLAUDE_HOOKS_DISABLED")
     #expect(SupatermCLIEnvironment.surfaceIDKey == "SUPATERM_SURFACE_ID")
     #expect(SupatermCLIEnvironment.tabIDKey == "SUPATERM_TAB_ID")
     #expect(SupatermCLIEnvironment.socketPathKey == "SUPATERM_SOCKET_PATH")
