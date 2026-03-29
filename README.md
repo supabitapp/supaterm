@@ -6,7 +6,6 @@ Supaterm is a monorepo. The current shipped product is the macOS terminal app in
 
 - `apps/mac` — macOS app, embedded `sp` CLI, Tuist project, and Ghostty dependency
 - `docs` — shared repository documentation
-- `plans` — implementation plans
 
 ## Requirements
 
