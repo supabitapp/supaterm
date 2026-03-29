@@ -18,7 +18,6 @@ struct TerminalSidebarDragItem: Equatable {
 }
 
 struct TerminalSidebarDragPreviewItem {
-  let displayTitle: String
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
   let latestNotificationText: String?
@@ -491,7 +490,6 @@ private struct TerminalSidebarDragPreviewContent: View {
       if let preview = manager.draggedPreview {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
-          displayTitle: preview.displayTitle,
           hasFocusedNotificationAttention: preview.hasFocusedNotificationAttention,
           tab: preview.tab,
           latestNotificationText: preview.latestNotificationText,
@@ -513,7 +511,6 @@ private struct TerminalSidebarDragPreviewContent: View {
 }
 
 private struct TerminalSidebarMorphingPreview: View {
-  let displayTitle: String
   let hasFocusedNotificationAttention: Bool
   let tab: TerminalTabItem
   let latestNotificationText: String?
@@ -526,7 +523,6 @@ private struct TerminalSidebarMorphingPreview: View {
   var body: some View {
     TerminalSidebarTabSummaryView(
       tab: tab,
-      displayTitle: displayTitle,
       palette: palette,
       isSelected: false,
       notificationColor: notificationColor,

@@ -1,4 +1,3 @@
-import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -130,26 +129,5 @@ struct TerminalSidebarChromeViewTests {
         paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
       ) == "Build finished\n~/Downloads\n~/Downloads/abc"
     )
-  }
-
-  @Test
-  func summaryViewUsesExplicitDisplayTitle() {
-    let tab = TerminalTabItem(title: "⠋ Build", icon: "hammer")
-    let view = TerminalSidebarTabSummaryView(
-      tab: tab,
-      displayTitle: "Build",
-      palette: .init(colorScheme: .dark),
-      isSelected: false,
-      notificationColor: .red,
-      hasFocusedNotificationAttention: false,
-      latestNotificationText: nil,
-      paneWorkingDirectories: [],
-      unreadCount: 0,
-      claudeActivity: nil,
-      terminalProgress: nil
-    )
-
-    #expect(view.displayTitle == "Build")
-    #expect(view.tab.title == "⠋ Build")
   }
 }
