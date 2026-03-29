@@ -46,6 +46,7 @@ Claude is the current first-class coding agent integration.
 
 - Supaterm exposes an `Install Claude Hooks` button in Settings > Coding Agents.
 - That action reads `~/.claude/settings.json`, preserves unrelated settings, and installs the canonical Supaterm Claude hooks into the user settings file.
+- Before appending the canonical hooks, Supaterm removes any existing Supaterm-managed hooks by signature so reinstall stays idempotent even if the exact command string changed.
 - The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes.
 
 ### Hook Injection
@@ -92,6 +93,7 @@ Codex now uses the same app-side bridge and tab-state model.
 - Supaterm exposes an `Install Codex Hooks` button in Settings > Coding Agents.
 - That action enables the Codex hooks feature by running `codex features enable codex_hooks` through the user's login shell.
 - The same action reads `~/.codex/hooks.json`, preserves unrelated hooks, and installs the canonical Supaterm Codex hooks into the user-scoped global file.
+- Before appending the canonical hooks, Supaterm removes any existing Supaterm-managed hooks by signature so reinstall stays idempotent even if the exact command string changed.
 
 ### Hook Injection
 
@@ -112,3 +114,5 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `Stop` marks the tab as `idle`.
 
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.
+
+Supaterm currently treats a hook as Supaterm-managed when its command contains both `SUPATERM_CLI_PATH` and `agent-hook`.
