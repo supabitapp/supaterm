@@ -1,16 +1,84 @@
+import ComposableArchitecture
 import Sharing
 import SwiftUI
 
 struct SettingsTabContentView: View {
+  let store: StoreOf<SettingsFeature>
   let tab: SettingsFeature.Tab
 
   var body: some View {
     switch tab {
+    case .codingAgents:
+      SettingsCodingAgentsView(store: store)
     case .general:
       SettingsGeneralView()
     case .updates, .about:
       SettingsPlaceholderView(tab: tab)
     }
+  }
+}
+
+private struct SettingsCodingAgentsView: View {
+  let store: StoreOf<SettingsFeature>
+  @Environment(\.colorScheme) private var colorScheme
+
+  private var installState: SettingsClaudeHooksInstallState {
+    store.claudeHooksInstallState
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 22) {
+      Text("Coding Agents")
+        .font(.title2.weight(.semibold))
+
+      VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Claude Code")
+            .font(.title3.weight(.semibold))
+          Text("Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.")
+            .foregroundStyle(.secondary)
+          Text("Supaterm preserves your existing settings and rewrites only its own hook entries.")
+            .foregroundStyle(.secondary)
+        }
+
+        Rectangle()
+          .fill(dividerColor)
+          .frame(height: 1)
+
+        HStack(alignment: .center, spacing: 16) {
+          Button(installState.isInstalling ? "Installing..." : "Install Claude Hooks") {
+            _ = store.send(.claudeHooksInstallButtonTapped)
+          }
+          .disabled(installState.isInstalling)
+
+          if let message = installState.message {
+            Text(message)
+              .foregroundStyle(installState.isFailure ? errorColor : Color.secondary)
+          }
+        }
+      }
+      .padding(20)
+      .background(sectionBackground)
+      .clipShape(.rect(cornerRadius: 24))
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .padding(24)
+  }
+
+  private var dividerColor: Color {
+    colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
+  }
+
+  private var errorColor: Color {
+    colorScheme == .dark
+      ? Color(red: 1, green: 0.54, blue: 0.54)
+      : Color(red: 0.74, green: 0.17, blue: 0.17)
+  }
+
+  private var sectionBackground: Color {
+    colorScheme == .dark
+      ? Color(red: 0.18, green: 0.19, blue: 0.2)
+      : Color.white
   }
 }
 

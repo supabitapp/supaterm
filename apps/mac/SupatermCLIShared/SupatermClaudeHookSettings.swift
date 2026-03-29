@@ -1,12 +1,30 @@
 import Foundation
 
-enum SPClaudeHookSettings {
-  static let command = #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook || true"#
+public enum SupatermClaudeHookSettings {
+  public static let command = #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook || true"#
 
-  static func jsonString() throws -> String {
+  public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     return String(decoding: try encoder.encode(Settings()), as: UTF8.self)
+  }
+
+  public static func hookGroupsByEvent() throws -> [String: [JSONValue]] {
+    guard
+      let objectValue = try JSONValue(Settings()).objectValue,
+      let hooksValue = objectValue["hooks"]?.objectValue
+    else {
+      throw SupatermClaudeHookSettingsError.invalidConfiguration
+    }
+
+    var hookGroupsByEvent: [String: [JSONValue]] = [:]
+    for (event, value) in hooksValue {
+      guard let groups = value.arrayValue else {
+        throw SupatermClaudeHookSettingsError.invalidConfiguration
+      }
+      hookGroupsByEvent[event] = groups
+    }
+    return hookGroupsByEvent
   }
 
   private struct Settings: Encodable {
@@ -49,4 +67,8 @@ enum SPClaudeHookSettings {
       case isAsync = "async"
     }
   }
+}
+
+public enum SupatermClaudeHookSettingsError: Error {
+  case invalidConfiguration
 }

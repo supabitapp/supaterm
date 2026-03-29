@@ -19,16 +19,6 @@ struct GhosttyBootstrapTests {
   }
 
   @Test
-  func hostedConfigOverrideTargetsBundledCommandDirectory() {
-    let resourcesURL = URL(fileURLWithPath: #"/Applications/Supaterm "Dev"/Contents/Resources"#, isDirectory: true)
-
-    #expect(
-      GhosttyBootstrap.hostedConfigOverride(resourcesURL: resourcesURL)
-        == #"shell-integration-preferred-bin-dir = "/Applications/Supaterm \"Dev\"/Contents/Resources/bin""#
-    )
-  }
-
-  @Test
   func resourceDirectoriesRequirePreservedGhosttyFolders() throws {
     let rootURL = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)

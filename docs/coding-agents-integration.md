@@ -12,8 +12,6 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
   - `SUPATERM_CLI_PATH`
   - `SUPATERM_SURFACE_ID`
   - `SUPATERM_TAB_ID`
-- Bundled command wrappers live in `Contents/Resources/bin` and can win inside Supaterm panes because the Ghostty fork gives that directory precedence after shell startup files run.
-- The wrapper or adapter must fall through cleanly outside Supaterm. Supaterm should never interfere with the same agent in a normal shell.
 - Structured agent events go through the `sp` CLI and then through the socket control boundary into the app process.
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 
@@ -24,14 +22,10 @@ The integration is split into three layers.
 ### Pane Runtime
 
 - inject pane context into the process environment
-- make bundled wrappers available inside Supaterm panes
-- keep normal shells untouched outside Supaterm
 
 ### Agent Adapter
 
-- detect whether the process is inside a Supaterm pane
-- resolve the real agent binary
-- collect or synthesize the agent's hook payloads
+- install agent-native hook configuration when the user opts in
 - forward those payloads through `sp`
 
 ### App-Side Interpreter
@@ -50,17 +44,14 @@ Claude is the current first-class coding agent integration.
 
 ### Entry Point
 
-- Supaterm bundles a `claude` wrapper in `apps/mac/Resources/bin/claude`.
-- Inside a Supaterm pane, that wrapper resolves the real `claude` binary from `PATH`.
-- Outside Supaterm, or when the socket is unavailable, or when `SUPATERM_CLAUDE_HOOKS_DISABLED=1`, the wrapper immediately execs the real binary with no Supaterm behavior.
-- Non-interactive commands such as `auth`, `update`, `agents`, `mcp`, and `remote-control` also pass through directly.
+- Supaterm exposes an `Install Claude Hooks` button in Settings > Coding Agents.
+- That action reads `~/.claude/settings.json`, preserves unrelated settings, and installs the canonical Supaterm Claude hooks into the user settings file.
+- The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes.
 
 ### Hook Injection
 
-- For an interactive Claude session inside Supaterm, the wrapper runs `sp claude-hook-settings`.
-- That command prints the canonical hook settings JSON.
-- Claude is then launched with `--settings <json>`.
-- Those settings tell Claude to invoke `sp agent-hook` for:
+- Supaterm's canonical Claude hook fragment is also available from `sp claude-hook-settings`.
+- The installed user settings tell Claude to invoke `sp agent-hook` for:
   - `SessionStart`
   - `PreToolUse`
   - `Notification`

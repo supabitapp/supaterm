@@ -577,7 +577,7 @@ extension SP {
     )
 
     mutating func run() throws {
-      print(try SPClaudeHookSettings.jsonString())
+      print(try SupatermClaudeHookSettings.jsonString())
     }
   }
 }

@@ -7,7 +7,6 @@ enum SPHelp {
   static let rootDiscussion = """
     Environment:
       \(SupatermCLIEnvironment.cliPathKey)  Auto-set in Supaterm panes. Path to the bundled sp CLI.
-      \(SupatermCLIEnvironment.claudeHooksDisabledKey)  Set to 1 to disable auto Claude hook injection in Supaterm panes.
       \(SupatermCLIEnvironment.socketPathKey)  Auto-set in Supaterm panes. Default --socket.
       \(SupatermCLIEnvironment.surfaceIDKey)  Auto-set in Supaterm panes. Current pane ID.
       \(SupatermCLIEnvironment.tabIDKey)  Auto-set in Supaterm panes. Current tab ID.
@@ -80,11 +79,11 @@ enum SPHelp {
   static let agentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Inside Supaterm panes, launching `claude` automatically injects Claude Code hooks through the bundled wrapper.
+    Install Claude Code hooks from Supaterm Settings > Coding Agents.
 
     Example:
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent-hook
-      \(SPClaudeHookSettings.command)
+      \(SupatermClaudeHookSettings.command)
     """
 
   static let developmentDiscussion = """

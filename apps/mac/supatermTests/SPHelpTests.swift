@@ -10,7 +10,6 @@ struct SPHelpTests {
 
     #expect(help.contains("Environment:"))
     #expect(help.contains("SUPATERM_CLI_PATH"))
-    #expect(help.contains("SUPATERM_CLAUDE_HOOKS_DISABLED"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
@@ -58,10 +57,10 @@ struct SPHelpTests {
   }
 
   @Test
-  func claudeHookHelpMentionsAutomaticWrapperIntegration() {
+  func claudeHookHelpMentionsSettingsInstallation() {
     let help = SP.helpMessage(for: SP.AgentHook.self, columns: 100)
 
-    #expect(help.contains("automatically injects Claude Code hooks"))
+    #expect(help.contains("Settings > Coding Agents"))
   }
 
   @Test

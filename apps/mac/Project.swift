@@ -5,7 +5,6 @@ let ghosttyXCFrameworkPath: Path = ".build/ghostty/GhosttyKit.xcframework"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
-let claudeWrapperScriptPath: Path = "Resources/bin/claude"
 let ghosttyFingerprintInputScript = """
 "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
@@ -56,7 +55,6 @@ let project = Project(
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
       sources: [
-        "sp/SPClaudeHookSettings.swift",
         "sp/SPCommand.swift",
         "sp/SPHelp.swift",
         "sp/SPSocketClient.swift",
@@ -208,26 +206,6 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
-          ]
-        ),
-        .post(
-          script: """
-            set -eu
-
-            source_path="${SRCROOT}/\(claudeWrapperScriptPath.pathString)"
-            resources_destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
-            resources_destination_path="${resources_destination_dir}/claude"
-
-            mkdir -p "${resources_destination_dir}"
-            /bin/cp -f "${source_path}" "${resources_destination_path}"
-            /bin/chmod 755 "${resources_destination_path}"
-            """,
-          name: "Embed Claude Wrapper",
-          inputPaths: [
-            "$(SRCROOT)/\(claudeWrapperScriptPath.pathString)",
-          ],
-          outputPaths: [
-            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/claude",
           ]
         ),
       ],
