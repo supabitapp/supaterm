@@ -254,6 +254,34 @@ struct CodexSettingsInstallerTests {
       try installer.installSupatermHooks()
     }
   }
+
+  @Test
+  func loginShellURLPrefersCurrentUserShell() {
+    #expect(
+      CodexSettingsInstaller.loginShellURL(
+        environment: ["SHELL": "/bin/zsh"],
+        currentUserShellPath: "/opt/homebrew/bin/fish"
+      ).path == "/opt/homebrew/bin/fish"
+    )
+  }
+
+  @Test
+  func loginShellURLFallsBackToEnvironmentShell() {
+    #expect(
+      CodexSettingsInstaller.loginShellURL(
+        environment: ["SHELL": "/bin/bash"],
+        currentUserShellPath: nil
+      ).path == "/bin/bash"
+    )
+  }
+
+  @Test
+  func enableHooksCommandArgumentsAreShellNeutral() {
+    #expect(
+      CodexSettingsInstaller.enableHooksCommandArguments()
+        == ["-l", "-c", "codex features enable codex_hooks"]
+    )
+  }
 }
 
 private func temporaryCodexHomeDirectory() throws -> URL {
