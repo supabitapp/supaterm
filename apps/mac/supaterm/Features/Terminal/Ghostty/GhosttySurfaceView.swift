@@ -152,11 +152,37 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
+  static func cliDirectory(_ cliPath: String?) -> String? {
+    guard let cliPath else { return nil }
+    let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPath.isEmpty else { return nil }
+    return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
+  }
+
+  static func prependedPath(
+    _ directory: String,
+    currentPath: String?
+  ) -> String {
+    let trimmedDirectory = directory.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedDirectory.isEmpty else {
+      return currentPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    var components =
+      currentPath?
+      .split(separator: ":")
+      .map(String.init)
+      .filter { !$0.isEmpty && $0 != trimmedDirectory } ?? []
+    components.insert(trimmedDirectory, at: 0)
+    return components.joined(separator: ":")
+  }
+
   static func supatermEnvironmentVariables(
     surfaceID: UUID,
     tabID: UUID,
     socketPath: String?,
-    cliPath: String?
+    cliPath: String?,
+    processEnvironment: [String: String] = ProcessInfo.processInfo.environment
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
       surfaceID: surfaceID,
@@ -175,6 +201,18 @@ final class GhosttySurfaceView: NSView, Identifiable {
         .init(
           key: SupatermCLIEnvironment.cliPathKey,
           value: cliPath
+        )
+      )
+    }
+    let path = prependedPath(
+      cliDirectory(cliPath) ?? "",
+      currentPath: processEnvironment["PATH"]
+    )
+    if !path.isEmpty {
+      environmentVariables.append(
+        .init(
+          key: "PATH",
+          value: path
         )
       )
     }
