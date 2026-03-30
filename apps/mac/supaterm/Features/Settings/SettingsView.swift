@@ -90,22 +90,17 @@ private struct SettingsCodingAgentsView: View {
       Section {
         SettingsAgentInstallRow(
           action: { _ = store.send(.claudeHooksInstallButtonTapped) },
-          buttonTitle: "Install Claude Hooks",
+          buttonTitle: "Install",
           installState: claudeInstallState,
-          subtitle:
-            "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`. "
-            + "Supaterm preserves your existing settings and rewrites only its own hook entries.",
+          subtitle: "Install the Supaterm hook bridge in ~/.claude/settings.json.",
           title: "Claude Code"
         )
 
         SettingsAgentInstallRow(
           action: { _ = store.send(.codexHooksInstallButtonTapped) },
-          buttonTitle: "Install Codex Hooks",
+          buttonTitle: "Install",
           installState: codexInstallState,
-          subtitle:
-            "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable "
-            + "the Codex hooks feature. Supaterm preserves your existing global hooks and "
-            + "uses the Codex CLI to update Codex config.",
+          subtitle: "Install the Supaterm hook bridge in ~/.codex/hooks.json and enable hooks.",
           title: "Codex"
         )
       }
@@ -125,26 +120,25 @@ private struct SettingsAgentInstallRow: View {
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    HStack(alignment: .center, spacing: 16) {
-      VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: 6) {
+      LabeledContent {
+        Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
+          .disabled(installState.isInstalling)
+          .fixedSize()
+      } label: {
         SettingsRowLabel(
           title: title,
           subtitle: subtitle
         )
-        if let message = installState.message {
-          Text(message)
-            .font(.callout)
-            .foregroundStyle(installState.isFailure ? errorColor : .secondary)
-            .fixedSize(horizontal: false, vertical: true)
-        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-
-      Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
-        .disabled(installState.isInstalling)
-        .fixedSize()
+      if let message = installState.message {
+        Text(message)
+          .font(.callout)
+          .foregroundStyle(installState.isFailure ? errorColor : .secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
-    .padding(.vertical, 4)
+    .padding(.vertical, 2)
   }
 
   private var errorColor: Color {
