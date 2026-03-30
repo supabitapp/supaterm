@@ -1,6 +1,6 @@
 # supaterm.com
 
-This app ships as a static Vite build with a Cloudflare Worker in front of it. The Worker serves the built assets and proxies GitHub `tip` release files under `/download/tip/*`.
+This app ships as a static Vite build with a Cloudflare Worker in front of it. The Worker serves the built assets and proxies GitHub stable release files under `/download/latest/*` and tip release files under `/download/tip/*`.
 
 ## Local work
 

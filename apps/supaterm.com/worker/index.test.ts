@@ -11,6 +11,35 @@ afterEach(() => {
 });
 
 describe("worker", () => {
+  it("proxies latest release assets", async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(
+      new Response("stable", {
+        headers: { etag: '"stable"' },
+      }),
+    );
+    const assetsFetch = vi.fn().mockResolvedValue(new Response("asset"));
+
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const response = await worker.fetch(
+      new Request("https://supaterm.com/download/latest/appcast.xml?build=1"),
+      { ASSETS: { fetch: assetsFetch } as AssetBinding },
+    );
+
+    expect(assetsFetch).not.toHaveBeenCalled();
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+
+    const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
+
+    expect(target.toString()).toBe(
+      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml?build=1",
+    );
+    expect(init.method).toBe("GET");
+    expect(init.headers.get("host")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("public, max-age=300");
+    await expect(response.text()).resolves.toBe("stable");
+  });
+
   it("proxies tip release assets", async () => {
     const upstreamFetch = vi.fn().mockResolvedValue(
       new Response("appcast", {
@@ -71,7 +100,7 @@ describe("worker", () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
 
-    const response = await worker.fetch(new Request("https://supaterm.com/download/tip/"), {
+    const response = await worker.fetch(new Request("https://supaterm.com/download/latest/"), {
       ASSETS: { fetch: vi.fn() } as AssetBinding,
     });
 
