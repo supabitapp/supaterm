@@ -128,6 +128,7 @@ struct SettingsFeature {
 
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
+  @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
@@ -203,6 +204,7 @@ struct SettingsFeature {
         return persist(state)
 
       case .checkForUpdatesButtonTapped:
+        analyticsClient.capture("update_checked")
         return .run { [updateClient] _ in
           await updateClient.perform(.checkForUpdates)
         }
@@ -247,6 +249,9 @@ struct SettingsFeature {
     @Shared(.appPrefs) var sharedAppPrefs = .default
     $sharedAppPrefs.withLock {
       $0 = appPrefs
+    }
+    if appPrefs.analyticsEnabled {
+      analyticsClient.capture("settings_changed")
     }
     guard applyUpdateSettings else {
       return .none
