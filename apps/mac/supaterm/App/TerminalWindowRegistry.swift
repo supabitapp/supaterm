@@ -55,6 +55,12 @@ final class TerminalWindowRegistry {
     var surfaceID: UUID
   }
 
+  private struct AgentHookNotification {
+    let body: String
+    let semantic: TerminalHostState.NotificationSemantic
+    let subtitle: String
+  }
+
   private var agentHookSessions: [AgentHookSessionKey: AgentHookSession] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
@@ -482,6 +488,11 @@ final class TerminalWindowRegistry {
       guard let sessionID = event.sessionID else {
         return .init(desktopNotification: nil)
       }
+      clearRecentStructuredNotifications(
+        agent: request.agent,
+        context: request.context,
+        sessionID: sessionID
+      )
       _ = setAgentActivity(
         .init(kind: request.agent, phase: .running),
         agent: request.agent,
@@ -492,6 +503,11 @@ final class TerminalWindowRegistry {
 
     case .userPromptSubmit:
       if let sessionID = event.sessionID {
+        clearRecentStructuredNotifications(
+          agent: request.agent,
+          context: request.context,
+          sessionID: sessionID
+        )
         _ = setAgentActivity(
           .init(kind: request.agent, phase: .running),
           agent: request.agent,
@@ -520,8 +536,11 @@ final class TerminalWindowRegistry {
         request.agent,
         event: event,
         context: request.context,
-        body: body,
-        subtitle: "Turn complete"
+        notification: .init(
+          body: body,
+          semantic: .completion,
+          subtitle: "Turn complete"
+        )
       )
 
     case .sessionEnd:
@@ -544,8 +563,11 @@ final class TerminalWindowRegistry {
         request.agent,
         event: event,
         context: request.context,
-        body: try event.notificationMessage(),
-        subtitle: event.title ?? "Attention"
+        notification: .init(
+          body: try event.notificationMessage(),
+          semantic: .attention,
+          subtitle: event.title ?? "Attention"
+        )
       )
     }
   }
@@ -580,37 +602,56 @@ final class TerminalWindowRegistry {
     throw TerminalCreatePaneError.contextPaneNotFound
   }
 
+  private func notifyStructuredAgent(
+    _ request: TerminalNotifyRequest,
+    semantic: TerminalHostState.NotificationSemantic
+  ) throws -> SupatermNotifyResult {
+    for (offset, entry) in activeEntries().enumerated() {
+      do {
+        let result = try entry.terminal.notifyStructuredAgent(request, semantic: semantic)
+        return Self.rewrite(result, windowIndex: offset + 1)
+      } catch let error as TerminalCreatePaneError {
+        if case .contextPaneNotFound = error {
+          continue
+        }
+        throw error
+      }
+    }
+    throw TerminalCreatePaneError.contextPaneNotFound
+  }
+
   private func handleAgentEventNotification(
     _ agent: SupatermAgentKind,
     event: SupatermAgentHookEvent,
     context: SupatermCLIContext?,
-    body: String,
-    subtitle: String
+    notification: AgentHookNotification
   ) throws -> TerminalAgentHookResult {
-    let session = event.sessionID.flatMap { agentHookSessions[.init(agent: agent, sessionID: $0)] }
     let title = agent.notificationTitle
-    var candidateSurfaceIDs: [UUID] = []
-    if let surfaceID = context?.surfaceID {
-      candidateSurfaceIDs.append(surfaceID)
-    }
-    if let surfaceID = session?.surfaceID, !candidateSurfaceIDs.contains(surfaceID) {
-      candidateSurfaceIDs.append(surfaceID)
-    }
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: event.sessionID,
+      context: context
+    )
 
     for surfaceID in candidateSurfaceIDs {
       do {
-        let result = try notify(
+        let result = try notifyStructuredAgent(
           .init(
-            body: body,
-            subtitle: subtitle,
+            body: notification.body,
+            subtitle: notification.subtitle,
             target: .contextPane(surfaceID),
             title: title,
             allowDesktopNotificationWhenAgentActive: true
-          )
+          ),
+          semantic: notification.semantic
         )
         return .init(
           desktopNotification: result.desktopNotificationDisposition.shouldDeliver
-            ? .init(body: body, subtitle: subtitle, title: result.resolvedTitle)
+            ? .init(
+              body: notification.body,
+              subtitle: notification.subtitle,
+              title: result.resolvedTitle
+            )
             : nil
         )
       } catch let error as TerminalCreatePaneError {
@@ -638,6 +679,24 @@ final class TerminalWindowRegistry {
     context: SupatermCLIContext?
   ) -> Bool {
     updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
+  }
+
+  private func clearRecentStructuredNotifications(
+    agent: SupatermAgentKind,
+    context: SupatermCLIContext?,
+    sessionID: String
+  ) {
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    for surfaceID in candidateSurfaceIDs {
+      for entry in activeEntries()
+      where entry.terminal.clearRecentStructuredNotification(for: surfaceID) {
+        break
+      }
+    }
   }
 
   @discardableResult
@@ -673,14 +732,15 @@ final class TerminalWindowRegistry {
 
   private func agentCandidateSurfaceIDs(
     agent: SupatermAgentKind,
-    sessionID: String,
+    sessionID: String?,
     context: SupatermCLIContext?
   ) -> [UUID] {
     var candidateSurfaceIDs: [UUID] = []
     if let surfaceID = context?.surfaceID {
       candidateSurfaceIDs.append(surfaceID)
     }
-    if let surfaceID = agentHookSessions[.init(agent: agent, sessionID: sessionID)]?.surfaceID,
+    if let sessionID,
+      let surfaceID = agentHookSessions[.init(agent: agent, sessionID: sessionID)]?.surfaceID,
       !candidateSurfaceIDs.contains(surfaceID)
     {
       candidateSurfaceIDs.append(surfaceID)

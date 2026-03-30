@@ -50,6 +50,24 @@ final class TerminalHostState {
     var title: String
   }
 
+  enum NotificationSemantic: Equatable, Sendable {
+    case completion
+    case attention
+    case other
+  }
+
+  private enum NotificationOrigin: Equatable, Sendable {
+    case structuredAgent(NotificationSemantic)
+    case terminalDesktop
+    case generic
+  }
+
+  private struct RecentStructuredNotification: Equatable, Sendable {
+    let recordedAt: Date
+    let semantic: NotificationSemantic
+    let text: String
+  }
+
   enum AgentActivityTone: Equatable, Sendable {
     case attention
     case active
@@ -126,6 +144,8 @@ final class TerminalHostState {
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
   private var suppressesSessionChanges = 0
+  @ObservationIgnored
+  private var recentStructuredNotificationsBySurfaceID: [UUID: RecentStructuredNotification] = [:]
 
   var windowActivity = WindowActivityState.inactive
 
@@ -1076,6 +1096,25 @@ final class TerminalHostState {
   }
 
   func notify(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {
+    try notify(request, origin: .generic)
+  }
+
+  func notifyStructuredAgent(
+    _ request: TerminalNotifyRequest,
+    semantic: NotificationSemantic
+  ) throws -> SupatermNotifyResult {
+    try notify(request, origin: .structuredAgent(semantic))
+  }
+
+  @discardableResult
+  func clearRecentStructuredNotification(for surfaceID: UUID) -> Bool {
+    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID) != nil
+  }
+
+  private func notify(
+    _ request: TerminalNotifyRequest,
+    origin: NotificationOrigin
+  ) throws -> SupatermNotifyResult {
     let resolvedTarget = try resolveNotifyTarget(request.target)
     let paneLocation = try resolvedPaneLocation(
       spaceID: resolvedTarget.spaceID,
@@ -1101,14 +1140,22 @@ final class TerminalHostState {
       request.title,
       for: resolvedTarget.tabID
     )
+    let createdAt = Date()
     paneNotifications[resolvedTarget.anchorSurface.id, default: []].append(
       .init(
         attentionState: attentionState,
         body: request.body,
-        createdAt: Date(),
+        createdAt: createdAt,
         subtitle: request.subtitle,
         title: resolvedTitle
       ))
+    updateRecentStructuredNotificationIfNeeded(
+      body: request.body,
+      createdAt: createdAt,
+      origin: origin,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      title: resolvedTitle
+    )
 
     return .init(
       attentionState: attentionState,
@@ -1130,6 +1177,9 @@ final class TerminalHostState {
     title: String
   ) {
     let subtitle = ""
+    guard !shouldSuppressDesktopNotification(body: body, surfaceID: surfaceID, title: title) else {
+      return
+    }
     guard
       let result = try? notify(
         .init(
@@ -1137,7 +1187,8 @@ final class TerminalHostState {
           subtitle: subtitle,
           target: .contextPane(surfaceID),
           title: Self.trimmedNonEmpty(title)
-        )
+        ),
+        origin: .terminalDesktop
       )
     else {
       return
@@ -1348,6 +1399,7 @@ final class TerminalHostState {
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
+    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
@@ -1834,6 +1886,7 @@ final class TerminalHostState {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
       paneNotifications.removeValue(forKey: surface.id)
+      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
@@ -2514,6 +2567,65 @@ final class TerminalHostState {
     }
   }
 
+  private func updateRecentStructuredNotificationIfNeeded(
+    body: String,
+    createdAt: Date,
+    origin: NotificationOrigin,
+    surfaceID: UUID,
+    title: String
+  ) {
+    guard case .structuredAgent(let semantic) = origin else { return }
+    guard
+      let text = Self.normalizedNotificationText(
+        Self.notificationText(body: body, title: title)
+      )
+    else {
+      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
+      return
+    }
+    recentStructuredNotificationsBySurfaceID[surfaceID] = .init(
+      recordedAt: createdAt,
+      semantic: semantic,
+      text: text
+    )
+  }
+
+  private func shouldSuppressDesktopNotification(
+    body: String,
+    surfaceID: UUID,
+    title: String
+  ) -> Bool {
+    guard
+      let terminalText = Self.normalizedNotificationText(
+        Self.notificationText(body: body, title: title)
+      ),
+      let recentStructuredNotification = recentStructuredNotification(for: surfaceID)
+    else {
+      return false
+    }
+    if terminalText == recentStructuredNotification.text {
+      return true
+    }
+    if terminalText.count < recentStructuredNotification.text.count,
+      recentStructuredNotification.text.hasPrefix(terminalText)
+    {
+      return true
+    }
+    return recentStructuredNotification.semantic == .completion
+      && Self.genericCompletionNotificationTexts.contains(terminalText)
+  }
+
+  private func recentStructuredNotification(for surfaceID: UUID) -> RecentStructuredNotification? {
+    guard let notification = recentStructuredNotificationsBySurfaceID[surfaceID] else {
+      return nil
+    }
+    guard Date().timeIntervalSince(notification.recordedAt) <= Self.notificationCoalescingWindow else {
+      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
+      return nil
+    }
+    return notification
+  }
+
   static func latestNotification(in notifications: [PaneNotification]) -> PaneNotification? {
     notifications.max { lhs, rhs in
       lhs.createdAt < rhs.createdAt
@@ -2551,12 +2663,36 @@ final class TerminalHostState {
 
   static func notificationText(_ notification: PaneNotification?) -> String? {
     guard let notification else { return nil }
-    let body = notification.body.trimmingCharacters(in: .whitespacesAndNewlines)
+    return notificationText(body: notification.body, title: notification.title)
+  }
+
+  static func notificationText(body: String, title: String) -> String? {
+    let body = body.trimmingCharacters(in: .whitespacesAndNewlines)
     if !body.isEmpty {
       return body
     }
-    let title = notification.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
     return title.isEmpty ? nil : title
+  }
+
+  private static let genericCompletionNotificationTexts: Set<String> = [
+    "agent turn complete",
+    "task complete",
+    "turn complete",
+  ]
+
+  private static let notificationCoalescingWindow: TimeInterval = 2
+
+  private static func normalizedNotificationText(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let collapsed =
+      value
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+      .lowercased()
+      .trimmingCharacters(in: .punctuationCharacters)
+    return collapsed.isEmpty ? nil : collapsed
   }
 
   private static func trimmedNonEmpty(_ value: String?) -> String? {

@@ -685,6 +685,24 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func terminalDesktopNotificationIsSuppressedAfterMatchingClaudeHookNotification() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("Needs input", "Claude needs your attention")
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
+  }
+
+  @Test
   func claudeUserPromptSubmitReturnsTabToRunning() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -856,6 +874,51 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func codexStopKeepsStructuredCompletionWhenTerminalFallbackArrives() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.stop)
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("Codex", "Agent turn complete")
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func codexUserPromptSubmitClearsStructuredCompletionSuppression() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.stop)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit)
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("Codex", "Agent turn complete")
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 2)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Agent turn complete")
   }
 
   @Test
