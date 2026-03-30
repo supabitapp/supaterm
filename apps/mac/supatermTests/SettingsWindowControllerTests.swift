@@ -1,10 +1,27 @@
 import AppKit
+import ComposableArchitecture
 import Testing
 
 @testable import supaterm
 
 @MainActor
 struct SettingsWindowControllerTests {
+  @Test
+  func windowUsesUnifiedSettingsChrome() throws {
+    let controller = SettingsWindowController()
+    let window = try #require(controller.window)
+
+    #expect(window.styleMask.contains(.fullSizeContentView))
+    #expect(window.title.isEmpty)
+    #expect(window.titleVisibility == .hidden)
+    #expect(window.titlebarAppearsTransparent)
+    #expect(window.toolbarStyle == .unified)
+    #expect(window.toolbar != nil)
+    #expect(window.contentMinSize.width == 750)
+    #expect(window.contentMinSize.height >= 500)
+    #expect(window.contentRect(forFrameRect: window.frame).size == NSSize(width: 800, height: 600))
+  }
+
   @Test
   func initialWindowCentersRelativeToSourceWindowAndConstrainsToVisibleFrameWhenNoSavedFrameExists() throws {
     NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
@@ -48,5 +65,22 @@ struct SettingsWindowControllerTests {
     let frame = try #require(controller.window?.frame)
 
     #expect(frame == savedFrame)
+  }
+
+  @Test
+  func showSelectsRequestedTab() {
+    let controller = SettingsWindowController()
+    controller.show(tab: .about)
+    defer { controller.window?.orderOut(nil) }
+
+    #expect(controller.store.selectedTab == .about)
+
+    controller.show(tab: .advanced)
+
+    #expect(controller.store.selectedTab == .advanced)
+
+    controller.show(tab: .codingAgents)
+
+    #expect(controller.store.selectedTab == .codingAgents)
   }
 }

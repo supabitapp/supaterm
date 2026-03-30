@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import Sharing
 import Sparkle
 
 enum UpdateUserAction: Equatable, Sendable {
@@ -262,6 +263,7 @@ struct UpdateClient: Sendable {
     var phase: UpdatePhase
   }
 
+  var applySettings: @Sendable (UpdateSettings) async -> Void
   var observe: @Sendable () async -> AsyncStream<Snapshot>
   var perform: @Sendable (UpdateUserAction) async -> Void
   var start: @Sendable () async -> Void
@@ -271,6 +273,9 @@ extension UpdateClient: DependencyKey {
   static let liveValue: Self = {
     let runtime = UpdateRuntime.shared
     return Self(
+      applySettings: { settings in
+        await runtime.apply(settings: settings)
+      },
       observe: {
         await runtime.observe()
       },
@@ -278,12 +283,17 @@ extension UpdateClient: DependencyKey {
         await runtime.perform(action)
       },
       start: {
-        await runtime.start()
+        let settings = await MainActor.run {
+          @Shared(.appPrefs) var appPrefs = .default
+          return appPrefs.updateSettings
+        }
+        await runtime.start(settings: settings)
       }
     )
   }()
 
   static let testValue = Self(
+    applySettings: { _ in },
     observe: {
       AsyncStream { continuation in
         continuation.finish()
@@ -321,15 +331,18 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private var interaction: Interaction = .none
   private var phase: UpdatePhase = .idle
   private var started = false
+  private let userDriver: UpdateDriver?
   private let updater: SPUUpdater?
 
   private override init() {
     #if DEBUG
+      userDriver = nil
       updater = nil
       super.init()
     #else
       let hostBundle = Bundle.main
       let userDriver = UpdateDriver(hostBundle: hostBundle)
+      self.userDriver = userDriver
       updater = SPUUpdater(
         hostBundle: hostBundle,
         applicationBundle: hostBundle,
@@ -338,7 +351,6 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       )
       super.init()
       userDriver.runtime = self
-      updater?.updateCheckInterval = 900
       canCheckForUpdatesObservation = updater?.observe(
         \.canCheckForUpdates, options: [.new]
       ) { [weak self] _, _ in
@@ -406,7 +418,16 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
-  func start() {
+  func apply(settings: UpdateSettings) {
+    configureUpdater(settings)
+    if started && settings.automaticallyChecksForUpdates {
+      updater?.checkForUpdatesInBackground()
+    }
+    publish()
+  }
+
+  func start(settings: UpdateSettings) {
+    configureUpdater(settings)
     guard !started else {
       publish()
       return
@@ -421,14 +442,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     do {
       try updater.start()
       started = true
-      if updater.automaticallyChecksForUpdates && AppBuild.allowsBackgroundUpdateCheckOnLaunch {
+      if settings.automaticallyChecksForUpdates && AppBuild.allowsBackgroundUpdateCheckOnLaunch {
         updater.checkForUpdatesInBackground()
       }
       publish()
     } catch {
       interaction = .error(retry: { [weak self] in
         Task { @MainActor in
-          self?.start()
+          self?.start(settings: settings)
         }
       })
       phase = .error(.init(message: error.localizedDescription))
@@ -739,17 +760,31 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       continuation.yield(snapshot)
     }
   }
+
+  private func configureUpdater(_ settings: UpdateSettings) {
+    userDriver?.updateChannel = settings.updateChannel
+    updater?.updateCheckInterval = settings.updateChannel.updateCheckInterval
+    updater?.automaticallyChecksForUpdates = settings.automaticallyChecksForUpdates
+    updater?.automaticallyDownloadsUpdates = settings.automaticallyDownloadsUpdates
+  }
 }
 
 @MainActor
 private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   weak var runtime: UpdateRuntime?
+  var updateChannel: UpdateChannel = .stable
 
   private let standard: SPUStandardUserDriver
 
   init(hostBundle: Bundle) {
     standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: nil)
     super.init()
+  }
+
+  nonisolated func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+    MainActor.assumeIsolated {
+      updateChannel.sparkleChannels
+    }
   }
 
   func updater(
