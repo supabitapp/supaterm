@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Sharing
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 @MainActor

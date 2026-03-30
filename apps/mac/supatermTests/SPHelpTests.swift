@@ -16,6 +16,7 @@ struct SPHelpTests {
     #expect(help.contains("Example:"))
     #expect(help.contains("sp tree"))
     #expect(help.contains("sp new-pane --space 1 --tab 1 down"))
+    #expect(help.contains("install-agent-hooks"))
     #expect(help.contains("development"))
   }
 
@@ -29,6 +30,9 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.AgentHook.self, columns: 100),
+      SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
+      SP.helpMessage(for: SP.InstallAgentHooks.Claude.self, columns: 100),
+      SP.helpMessage(for: SP.InstallAgentHooks.Codex.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.SessionStart.self, columns: 100),
@@ -72,6 +76,15 @@ struct SPHelpTests {
     let help = SP.helpMessage(for: SP.AgentHook.self, columns: 100)
 
     #expect(help.contains("Settings > Coding Agents"))
+    #expect(help.contains("sp install-agent-hooks"))
+  }
+
+  @Test
+  func installAgentHooksHelpShowsExamples() {
+    let help = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
+
+    #expect(help.contains("sp install-agent-hooks claude"))
+    #expect(help.contains("sp install-agent-hooks codex"))
   }
 
   @Test

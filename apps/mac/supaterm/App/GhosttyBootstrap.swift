@@ -54,11 +54,11 @@ enum GhosttyBootstrap {
     return (ghosttyURL, terminfoURL)
   }
 
-  static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
+  nonisolated static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
     resourcesURL?.appendingPathComponent("bin", isDirectory: true)
   }
 
-  static func bundledCLIPath(resourcesURL: URL?) -> String? {
+  nonisolated static func bundledCLIPath(resourcesURL: URL?) -> String? {
     bundledCommandDirectory(resourcesURL: resourcesURL)?
       .appendingPathComponent("sp", isDirectory: false)
       .path
