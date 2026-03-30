@@ -49,6 +49,7 @@ struct SPHelpTests {
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
+    #expect(help.contains("--no-equalize"))
     #expect(help.contains("sp new-pane down htop"))
     #expect(!help.contains("--space <space>                Target a space by its 1-based index. (default:"))
     #expect(

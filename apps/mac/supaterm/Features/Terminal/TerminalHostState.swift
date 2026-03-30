@@ -908,7 +908,8 @@ final class TerminalHostState {
         at: resolvedTarget.anchorSurface,
         direction: mapPaneDirection(request.direction)
       )
-      trees[resolvedTarget.tabID] = newTree
+      let finalTree = request.equalize ? newTree.equalized() : newTree
+      trees[resolvedTarget.tabID] = finalTree
       updateRunningState(for: resolvedTarget.tabID)
 
       let nextSelectedTabID = Self.selectedTabID(
@@ -934,7 +935,7 @@ final class TerminalHostState {
         spaceID: resolvedTarget.spaceID,
         tabID: resolvedTarget.tabID,
         surfaceID: newSurface.id,
-        tree: newTree
+        tree: finalTree
       )
       let selectionState = Self.newPaneSelectionState(
         selectedTabID: spaceManager.selectedTabID,

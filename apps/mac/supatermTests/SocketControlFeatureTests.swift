@@ -449,6 +449,7 @@ struct SocketControlFeatureTests {
       command: "pwd",
       direction: .down,
       focus: false,
+      equalize: false,
       targetWindowIndex: 1,
       targetSpaceIndex: 2,
       targetTabIndex: 1,
@@ -481,6 +482,7 @@ struct SocketControlFeatureTests {
               command: "pwd",
               direction: .down,
               focus: false,
+              equalize: false,
               target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2)
             )
         )
@@ -814,7 +816,8 @@ struct SocketControlFeatureTests {
         .init(
           command: nil,
           direction: .right,
-          focus: true
+          focus: true,
+          equalize: true
         ),
         id: "new-pane-2"
       )
@@ -856,6 +859,7 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .right,
           focus: true,
+          equalize: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3
@@ -903,6 +907,7 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .left,
           focus: true,
+          equalize: true,
           targetPaneIndex: 2
         ),
         id: "new-pane-4"
@@ -945,6 +950,7 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .right,
           focus: true,
+          equalize: true,
           targetTabIndex: 2
         ),
         id: "new-pane-5"
@@ -987,6 +993,7 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .right,
           focus: true,
+          equalize: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 2
         ),
@@ -1030,6 +1037,7 @@ struct SocketControlFeatureTests {
           command: nil,
           direction: .right,
           focus: true,
+          equalize: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 4,
           targetTabIndex: 1

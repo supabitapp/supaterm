@@ -14,6 +14,19 @@ struct SPCommandTests {
   }
 
   @Test
+  func newPaneEqualizeDefaultsToTrueAndCanBeDisabled() throws {
+    let defaultCommand = try #require(
+      try SP.NewPane.parseAsRoot(["right", "--space", "1", "--tab", "1"]) as? SP.NewPane
+    )
+    let noEqualizeCommand = try #require(
+      try SP.NewPane.parseAsRoot(["right", "--space", "1", "--tab", "1", "--no-equalize"]) as? SP.NewPane
+    )
+
+    #expect(defaultCommand.equalize)
+    #expect(!noEqualizeCommand.equalize)
+  }
+
+  @Test
   func newTabHelpShowsScriptOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 

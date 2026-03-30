@@ -383,6 +383,7 @@ final class TerminalWindowRegistry {
         command: request.command,
         direction: request.direction,
         focus: request.focus,
+        equalize: request.equalize,
         target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
       )
       do {
@@ -397,6 +398,7 @@ final class TerminalWindowRegistry {
         command: request.command,
         direction: request.direction,
         focus: request.focus,
+        equalize: request.equalize,
         target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
       )
       do {

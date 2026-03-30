@@ -702,6 +702,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let direction: SupatermPaneDirection
   public let focus: Bool
+  public let equalize: Bool
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
   public let targetTabIndex: Int?
@@ -712,6 +713,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     contextPaneID: UUID? = nil,
     direction: SupatermPaneDirection,
     focus: Bool,
+    equalize: Bool,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil,
     targetTabIndex: Int? = nil,
@@ -721,6 +723,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     self.contextPaneID = contextPaneID
     self.direction = direction
     self.focus = focus
+    self.equalize = equalize
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
     self.targetTabIndex = targetTabIndex

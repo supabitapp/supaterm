@@ -36,6 +36,7 @@ struct TerminalHostStateSessionRestoreTests {
           command: nil,
           direction: .right,
           focus: true,
+          equalize: true,
           target: .contextPane(firstSurfaceID)
         )
       )

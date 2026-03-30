@@ -293,6 +293,7 @@ struct SocketControlFeature {
       command: payload.command,
       direction: payload.direction,
       focus: payload.focus,
+      equalize: payload.equalize,
       target: try createPaneTarget(from: payload)
     )
   }
