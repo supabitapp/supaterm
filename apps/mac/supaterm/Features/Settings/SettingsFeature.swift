@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 
 enum SettingsAgentHooksInstallState: Equatable {
   case idle
@@ -40,24 +41,44 @@ enum SettingsAgentHooksInstallResult: Equatable {
 struct SettingsFeature {
   @ObservableState
   struct State: Equatable {
+    var appearanceMode = AppPrefs.default.appearanceMode
+    var analyticsEnabled = AppPrefs.default.analyticsEnabled
     var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
     var codexHooksInstallState = SettingsAgentHooksInstallState.idle
+    var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
     var selectedTab = Tab.general
+    var updateChannel = AppPrefs.default.updateChannel
+    var updatesAutomaticallyCheckForUpdates = AppPrefs.default.updatesAutomaticallyCheckForUpdates
+    var updatesAutomaticallyDownloadUpdates = AppPrefs.default.updatesAutomaticallyDownloadUpdates
   }
 
   enum Action: Equatable {
+    case appearanceModeSelected(AppearanceMode)
+    case analyticsEnabledChanged(Bool)
+    case checkForUpdatesButtonTapped
     case claudeHooksInstallButtonTapped
     case claudeHooksInstallFinished(SettingsAgentHooksInstallResult)
     case codexHooksInstallButtonTapped
     case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
+    case crashReportsEnabledChanged(Bool)
+    case settingsLoaded(AppPrefs)
     case tabSelected(Tab)
+    case task
+    case updateChannelSelected(UpdateChannel)
+    case updatesAutomaticallyCheckForUpdatesChanged(Bool)
+    case updatesAutomaticallyDownloadUpdatesChanged(Bool)
   }
 
-  enum Tab: String, CaseIterable, Equatable, Hashable {
+  enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
     case codingAgents
     case updates
+    case advanced
     case about
+
+    var id: String {
+      rawValue
+    }
 
     var symbol: String {
       switch self {
@@ -67,6 +88,8 @@ struct SettingsFeature {
         "slider.horizontal.3"
       case .updates:
         "arrow.trianglehead.clockwise"
+      case .advanced:
+        "gearshape.2"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -80,6 +103,8 @@ struct SettingsFeature {
         "General"
       case .updates:
         "Updates"
+      case .advanced:
+        "Advanced"
       case .about:
         "About"
       }
@@ -88,11 +113,13 @@ struct SettingsFeature {
     var detail: String {
       switch self {
       case .codingAgents:
-        "Install Claude and Codex hooks"
+        "Claude and Codex hook integration"
       case .general:
-        "Startup, chrome, and behavior"
+        "Appearance and preferences"
       case .updates:
-        "Release flow and delivery"
+        "Channel and automatic update preferences"
+      case .advanced:
+        "Analytics and diagnostics"
       case .about:
         "Build, engine, and links"
       }
@@ -101,10 +128,32 @@ struct SettingsFeature {
 
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
+  @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
+      case .task:
+        @Shared(.appPrefs) var appPrefs = .default
+        return .send(.settingsLoaded(appPrefs))
+
+      case .settingsLoaded(let appPrefs):
+        state.appearanceMode = appPrefs.appearanceMode
+        state.analyticsEnabled = appPrefs.analyticsEnabled
+        state.crashReportsEnabled = appPrefs.crashReportsEnabled
+        state.updateChannel = appPrefs.updateChannel
+        state.updatesAutomaticallyCheckForUpdates = appPrefs.updatesAutomaticallyCheckForUpdates
+        state.updatesAutomaticallyDownloadUpdates = appPrefs.updatesAutomaticallyDownloadUpdates
+        return .none
+
+      case .appearanceModeSelected(let appearanceMode):
+        state.appearanceMode = appearanceMode
+        return persist(state)
+
+      case .analyticsEnabledChanged(let isEnabled):
+        state.analyticsEnabled = isEnabled
+        return persist(state)
+
       case .claudeHooksInstallButtonTapped:
         guard !state.claudeHooksInstallState.isInstalling else {
           return .none
@@ -149,10 +198,61 @@ struct SettingsFeature {
         state.codexHooksInstallState = .failed(message)
         return .none
 
+      case .crashReportsEnabledChanged(let isEnabled):
+        state.crashReportsEnabled = isEnabled
+        return persist(state)
+
+      case .checkForUpdatesButtonTapped:
+        return .run { [updateClient] _ in
+          await updateClient.perform(.checkForUpdates)
+        }
+
       case .tabSelected(let tab):
         state.selectedTab = tab
         return .none
+
+      case .updateChannelSelected(let updateChannel):
+        state.updateChannel = updateChannel
+        return persist(state, applyUpdateSettings: true)
+
+      case .updatesAutomaticallyCheckForUpdatesChanged(let isEnabled):
+        state.updatesAutomaticallyCheckForUpdates = isEnabled
+        if !isEnabled {
+          state.updatesAutomaticallyDownloadUpdates = false
+        }
+        return persist(state, applyUpdateSettings: true)
+
+      case .updatesAutomaticallyDownloadUpdatesChanged(let isEnabled):
+        guard state.updatesAutomaticallyCheckForUpdates else {
+          return .none
+        }
+        state.updatesAutomaticallyDownloadUpdates = isEnabled
+        return persist(state, applyUpdateSettings: true)
       }
+    }
+  }
+
+  private func persist(
+    _ state: State,
+    applyUpdateSettings: Bool = false
+  ) -> Effect<Action> {
+    let appPrefs = AppPrefs(
+      appearanceMode: state.appearanceMode,
+      analyticsEnabled: state.analyticsEnabled,
+      crashReportsEnabled: state.crashReportsEnabled,
+      updateChannel: state.updateChannel,
+      updatesAutomaticallyCheckForUpdates: state.updatesAutomaticallyCheckForUpdates,
+      updatesAutomaticallyDownloadUpdates: state.updatesAutomaticallyDownloadUpdates
+    )
+    @Shared(.appPrefs) var sharedAppPrefs = .default
+    $sharedAppPrefs.withLock {
+      $0 = appPrefs
+    }
+    guard applyUpdateSettings else {
+      return .none
+    }
+    return .run { [updateClient, updateSettings = appPrefs.updateSettings] _ in
+      await updateClient.applySettings(updateSettings)
     }
   }
 }
