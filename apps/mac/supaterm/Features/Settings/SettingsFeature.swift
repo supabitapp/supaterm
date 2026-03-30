@@ -121,7 +121,7 @@ struct SettingsFeature {
       case .advanced:
         "Analytics and diagnostics"
       case .about:
-        "Build, engine, and links"
+        "App logo and build information"
       }
     }
   }
