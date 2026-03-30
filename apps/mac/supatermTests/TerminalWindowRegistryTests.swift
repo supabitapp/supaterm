@@ -717,10 +717,43 @@ struct TerminalWindowRegistryTests {
     _ = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    let result = try harness.registry.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
+
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func claudeStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+    let result = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
+    #expect(
+      result.desktopNotification
+        == .init(
+          body: "Done.",
+          subtitle: "Turn complete",
+          title: "Claude Code"
+        )
+    )
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
   @Test
@@ -743,7 +776,7 @@ struct TerminalWindowRegistryTests {
     )
 
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
   @Test
@@ -786,11 +819,72 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
-    _ = try harness.registry.handleAgentHook(
+    let result = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+    let result = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.stop)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    #expect(
+      result.desktopNotification
+        == .init(
+          body: "Done.",
+          subtitle: "Turn complete",
+          title: "Codex"
+        )
+    )
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func stopWithoutAssistantMessageOnlyMarksTabIdle() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+    let result = try harness.registry.handleAgentHook(
+      .init(
+        agent: .codex,
+        event: .init(
+          cwd: CodexHookFixtures.cwd,
+          hookEventName: .stop,
+          lastAssistantMessage: "   ",
+          sessionID: CodexHookFixtures.sessionID
+        )
+      )
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
   }
 
   private func makeWindow() -> NSWindow {

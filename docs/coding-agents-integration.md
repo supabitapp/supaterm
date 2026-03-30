@@ -75,7 +75,7 @@ The app binds Claude sessions to pane surfaces and turns Claude hook events into
 - `PreToolUse` marks the tab as `running`.
 - `Notification` marks the tab as `needs input` and may trigger a notification.
 - `UserPromptSubmit` marks the tab as `running`.
-- `Stop` marks the tab as `idle`.
+- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
 - `SessionEnd` clears the tab activity and drops the stored session state.
 
 The sidebar renders the Claude activity at tab level with three states:
@@ -111,7 +111,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `SessionStart` binds the session to the current pane surface.
 - `PreToolUse` marks the tab as `running`.
 - `UserPromptSubmit` marks the tab as `running`.
-- `Stop` marks the tab as `idle`.
+- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
 
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.
 
