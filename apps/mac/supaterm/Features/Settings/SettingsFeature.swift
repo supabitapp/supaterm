@@ -53,11 +53,15 @@ struct SettingsFeature {
     case tabSelected(Tab)
   }
 
-  enum Tab: String, CaseIterable, Equatable, Hashable {
+  enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
     case codingAgents
     case updates
     case about
+
+    var id: String {
+      rawValue
+    }
 
     var symbol: String {
       switch self {
@@ -88,9 +92,9 @@ struct SettingsFeature {
     var detail: String {
       switch self {
       case .codingAgents:
-        "Install Claude and Codex hooks"
+        "Claude and Codex hook integration"
       case .general:
-        "Startup, chrome, and behavior"
+        "Appearance and preferences"
       case .updates:
         "Release flow and delivery"
       case .about:

@@ -2,7 +2,67 @@ import ComposableArchitecture
 import Sharing
 import SwiftUI
 
-struct SettingsTabContentView: View {
+struct SettingsView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var selection: Binding<SettingsFeature.Tab?> {
+    Binding(
+      get: { store.selectedTab },
+      set: { newValue in
+        guard let newValue else { return }
+        _ = store.send(.tabSelected(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    let tab = store.selectedTab
+    NavigationSplitView(columnVisibility: .constant(.all)) {
+      List(selection: selection) {
+        ForEach(SettingsFeature.Tab.allCases) { tab in
+          Label(tab.title, systemImage: tab.symbol)
+            .tag(tab)
+        }
+      }
+      .listStyle(.sidebar)
+      .frame(minWidth: 220, maxHeight: .infinity)
+      .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
+      .toolbar(removing: .sidebarToggle)
+    } detail: {
+      SettingsDetailView {
+        SettingsTabContentView(store: store, tab: tab)
+          .navigationTitle(tab.title)
+          .navigationSubtitle(tab.detail)
+      }
+    }
+    .toolbar {
+      ToolbarItem(placement: .principal) {
+        Color.clear.frame(width: 1, height: 1)
+      }
+    }
+    .navigationSplitViewStyle(.balanced)
+    .frame(minWidth: 750, minHeight: 500)
+    .ignoresSafeArea(.container, edges: .top)
+  }
+}
+
+private struct SettingsDetailView<Content: View>: View {
+  let content: Content
+
+  init(@ViewBuilder content: () -> Content) {
+    self.content = content()
+  }
+
+  var body: some View {
+    content
+      .scenePadding(.top)
+      .scenePadding(.horizontal)
+      .scenePadding(.bottom)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SettingsTabContentView: View {
   let store: StoreOf<SettingsFeature>
   let tab: SettingsFeature.Tab
 
@@ -20,7 +80,6 @@ struct SettingsTabContentView: View {
 
 private struct SettingsCodingAgentsView: View {
   let store: StoreOf<SettingsFeature>
-  @Environment(\.colorScheme) private var colorScheme
 
   private var claudeInstallState: SettingsAgentHooksInstallState {
     store.claudeHooksInstallState
@@ -31,55 +90,27 @@ private struct SettingsCodingAgentsView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 22) {
-      Text("Coding Agents")
-        .font(.title2.weight(.semibold))
+    Form {
+      SettingsAgentInstallSection(
+        action: { _ = store.send(.claudeHooksInstallButtonTapped) },
+        buttonTitle: "Install Claude Hooks",
+        detail: "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.",
+        footnote: "Supaterm preserves your existing settings and rewrites only its own hook entries.",
+        installState: claudeInstallState,
+        title: "Claude Code"
+      )
 
-      VStack(alignment: .leading, spacing: 20) {
-        SettingsAgentInstallSection(
-          action: { _ = store.send(.claudeHooksInstallButtonTapped) },
-          buttonTitle: "Install Claude Hooks",
-          detail: "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.",
-          footnote: "Supaterm preserves your existing settings and rewrites only its own hook entries.",
-          installState: claudeInstallState,
-          title: "Claude Code"
-        )
-
-        Rectangle()
-          .fill(dividerColor)
-          .frame(height: 1)
-
-        SettingsAgentInstallSection(
-          action: { _ = store.send(.codexHooksInstallButtonTapped) },
-          buttonTitle: "Install Codex Hooks",
-          detail: "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable the Codex hooks feature.",
-          footnote: "Supaterm preserves your existing global hooks and uses the Codex CLI to update Codex config.",
-          installState: codexInstallState,
-          title: "Codex"
-        )
-      }
-      .padding(20)
-      .background(sectionBackground)
-      .clipShape(.rect(cornerRadius: 24))
+      SettingsAgentInstallSection(
+        action: { _ = store.send(.codexHooksInstallButtonTapped) },
+        buttonTitle: "Install Codex Hooks",
+        detail: "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable the Codex hooks feature.",
+        footnote: "Supaterm preserves your existing global hooks and uses the Codex CLI to update Codex config.",
+        installState: codexInstallState,
+        title: "Codex"
+      )
     }
+    .formStyle(.grouped)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .padding(24)
-  }
-
-  private var dividerColor: Color {
-    colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
-  }
-
-  private var errorColor: Color {
-    colorScheme == .dark
-      ? Color(red: 1, green: 0.54, blue: 0.54)
-      : Color(red: 0.74, green: 0.17, blue: 0.17)
-  }
-
-  private var sectionBackground: Color {
-    colorScheme == .dark
-      ? Color(red: 0.18, green: 0.19, blue: 0.2)
-      : Color.white
   }
 }
 
@@ -94,24 +125,19 @@ private struct SettingsAgentInstallSection: View {
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text(title)
-        .font(.title3.weight(.semibold))
+    Section(title) {
       Text(detail)
-        .foregroundStyle(.secondary)
       Text(footnote)
+        .font(.footnote)
         .foregroundStyle(.secondary)
 
-      HStack(alignment: .center, spacing: 16) {
-        Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
-          .disabled(installState.isInstalling)
+      Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
+        .disabled(installState.isInstalling)
 
-        if let message = installState.message {
-          Text(message)
-            .foregroundStyle(installState.isFailure ? errorColor : Color.secondary)
-        }
+      if let message = installState.message {
+        Text(message)
+          .foregroundStyle(installState.isFailure ? errorColor : .secondary)
       }
-      .padding(.top, 8)
     }
   }
 
@@ -124,7 +150,6 @@ private struct SettingsAgentInstallSection: View {
 
 private struct SettingsGeneralView: View {
   @Shared(.appPrefs) private var appPrefs = .default
-  @Environment(\.colorScheme) private var colorScheme
 
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
@@ -138,12 +163,9 @@ private struct SettingsGeneralView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 22) {
-      Text("Appearance")
-        .font(.title2.weight(.semibold))
-
-      VStack(alignment: .leading, spacing: 20) {
-        HStack(spacing: 16) {
+    Form {
+      Section("Appearance") {
+        HStack(spacing: 12) {
           let selectedMode = appearanceMode.wrappedValue
           ForEach(AppearanceMode.allCases) { mode in
             AppearanceOptionCardView(
@@ -155,112 +177,78 @@ private struct SettingsGeneralView: View {
           }
         }
 
-        Rectangle()
-          .fill(dividerColor)
-          .frame(height: 1)
-
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
           Text("Terminal theming follows Ghostty config")
           Text("For example, add the following line to `~/.config/ghostty/config`")
           Text("theme = light:Monokai Pro Light Sun,dark:Dimmed Monokai")
             .monospaced()
         }
-        .font(.body.weight(.semibold))
+        .font(.footnote)
         .foregroundStyle(.secondary)
         .textSelection(.enabled)
       }
-      .padding(20)
-      .background(sectionBackground)
-      .clipShape(.rect(cornerRadius: 24))
     }
+    .formStyle(.grouped)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .padding(24)
-  }
-
-  private var dividerColor: Color {
-    colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
-  }
-
-  private var sectionBackground: Color {
-    colorScheme == .dark
-      ? Color(red: 0.18, green: 0.19, blue: 0.2)
-      : Color.white
   }
 }
 
 private struct AppearanceOptionCardView: View {
-  @Environment(\.colorScheme) private var colorScheme
   let mode: AppearanceMode
   let isSelected: Bool
   let action: () -> Void
 
   var body: some View {
+    let strokeColor = isSelected ? Color.accentColor : Color.secondary.opacity(0.35)
+
     Button(action: action) {
-      VStack(spacing: 18) {
+      VStack {
         ZStack {
-          RoundedRectangle(cornerRadius: 22)
+          RoundedRectangle(cornerRadius: 12)
             .fill(mode.previewBackground)
 
-          VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 10) {
+          VStack(alignment: .leading) {
+            HStack {
               Circle()
-                .fill(Color(red: 1, green: 0.27, blue: 0.32))
-                .frame(width: 12, height: 12)
+                .fill(.red)
+                .frame(width: 6, height: 6)
               Circle()
-                .fill(Color(red: 1, green: 0.83, blue: 0.02))
-                .frame(width: 12, height: 12)
+                .fill(.yellow)
+                .frame(width: 6, height: 6)
               Circle()
-                .fill(Color(red: 0.22, green: 0.79, blue: 0.33))
-                .frame(width: 12, height: 12)
+                .fill(.green)
+                .frame(width: 6, height: 6)
             }
 
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 3)
               .fill(mode.previewPrimary)
-              .frame(height: 20)
+              .frame(height: 10)
 
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 3)
               .fill(mode.previewSecondary)
-              .frame(height: 16)
+              .frame(height: 8)
 
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 3)
               .fill(mode.previewAccent)
-              .frame(width: 128, height: 14)
+              .frame(width: 64, height: 6)
           }
-          .padding(32)
+          .padding()
         }
-        .aspectRatio(1.18, contentMode: .fit)
+        .aspectRatio(1.6, contentMode: .fit)
 
         Text(mode.title)
-          .font(.title3.weight(.semibold))
+          .font(.headline)
       }
       .frame(maxWidth: .infinity)
-      .padding(18)
-      .background(cardBackground)
-      .clipShape(.rect(cornerRadius: 22))
-      .overlay {
-        RoundedRectangle(cornerRadius: 22)
-          .stroke(cardStroke, lineWidth: isSelected ? 4 : 1.5)
-      }
+      .padding()
     }
     .buttonStyle(.plain)
-  }
-
-  private var cardBackground: Color {
-    if isSelected {
-      return Color(red: 0.18, green: 0.25, blue: 0.37)
+    .background(isSelected ? Color.accentColor.opacity(0.12) : .clear)
+    .clipShape(.rect(cornerRadius: 12))
+    .overlay {
+      RoundedRectangle(cornerRadius: 12)
+        .stroke(strokeColor, lineWidth: isSelected ? 2 : 1)
     }
-    return colorScheme == .dark
-      ? Color.white.opacity(0.03)
-      : Color.black.opacity(0.03)
-  }
-
-  private var cardStroke: Color {
-    if isSelected {
-      return .accentColor
-    }
-    return colorScheme == .dark
-      ? Color.white.opacity(0.18)
-      : Color.black.opacity(0.12)
   }
 }
 
@@ -268,14 +256,13 @@ private struct SettingsPlaceholderView: View {
   let tab: SettingsFeature.Tab
 
   var body: some View {
-    VStack(spacing: 12) {
-      Text(tab.title)
-        .font(.title2.weight(.semibold))
-
-      Text(tab.detail)
-        .foregroundStyle(.secondary)
+    Form {
+      Section(tab.title) {
+        Text(tab.detail)
+          .foregroundStyle(.secondary)
+      }
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding(24)
+    .formStyle(.grouped)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
