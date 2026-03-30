@@ -67,7 +67,7 @@ final class TerminalWindowController: NSWindowController {
     }
     let store = Store(initialState: AppFeature.State()) {
       AppFeature()
-        ._printChanges(.actionLabels)
+        .logActions()
     } withDependencies: {
       $0.terminalClient = .live(host: terminal)
       $0.terminalWindowsClient = .live(registry: registry)
