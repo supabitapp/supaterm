@@ -42,6 +42,7 @@ final class SettingsWindowController: NSWindowController {
   }
 
   func show(tab: SettingsFeature.Tab, relativeTo sourceWindow: NSWindow? = nil) {
+    _ = store.send(.task)
     _ = store.send(.tabSelected(tab))
 
     guard let window else { return }

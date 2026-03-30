@@ -14,6 +14,34 @@ struct AppPrefsTests {
   }
 
   @Test
+  func defaultPrefsUseStableUpdateChannel() {
+    let prefs = AppPrefs.default
+
+    #expect(prefs.appearanceMode == .system)
+    #expect(prefs.updateChannel == .stable)
+    #expect(prefs.updatesAutomaticallyCheckForUpdates)
+    #expect(!prefs.updatesAutomaticallyDownloadUpdates)
+  }
+
+  @Test
+  func legacyPrefsDecodeWithStableUpdateDefaults() throws {
+    let data = Data(
+      #"""
+      {
+        "appearanceMode": "dark"
+      }
+      """#.utf8
+    )
+
+    let prefs = try JSONDecoder().decode(AppPrefs.self, from: data)
+
+    #expect(prefs.appearanceMode == .dark)
+    #expect(prefs.updateChannel == UpdateChannel.stable)
+    #expect(prefs.updatesAutomaticallyCheckForUpdates)
+    #expect(!prefs.updatesAutomaticallyDownloadUpdates)
+  }
+
+  @Test
   func appearanceModeResolvesColorScheme() {
     #expect(AppearanceMode.system.colorScheme == nil)
     #expect(AppearanceMode.light.colorScheme == .light)

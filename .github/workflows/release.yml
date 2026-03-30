@@ -1,19 +1,17 @@
-name: release-tip
+name: release
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-  workflow_dispatch: {}
+  release:
+    types:
+      - published
 
 concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
+  group: stable-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
 
 jobs:
   build:
+    if: github.event.release.prerelease == false
     runs-on: macos-26
     permissions:
       contents: write
@@ -30,6 +28,7 @@ jobs:
       APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
       APPLE_NOTARIZATION_KEY: ${{ secrets.APPLE_NOTARIZATION_KEY }}
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -43,15 +42,10 @@ jobs:
             exit 1
           fi
       - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
-      - name: Compute tip build number
+      - name: Compute stable build number
         run: |
           BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' apps/mac/Configurations/Project.xcconfig)
-          OFFSET=${{ github.run_number }}
-          if [ "$OFFSET" -gt 999 ]; then
-            echo "::error::Tip run_number ($OFFSET) exceeds 999. Bump CURRENT_PROJECT_VERSION before the next tip release."
-            exit 1
-          fi
-          BUILD_NUMBER=$((BASE * 1000 + OFFSET))
+          BUILD_NUMBER=$((BASE * 1000))
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
       - name: Setup keychain
         run: |
@@ -177,47 +171,21 @@ jobs:
           mkdir -p apps/mac/build/sparkle-tools
           curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-for-Swift-Package-Manager.zip" -o apps/mac/build/sparkle-tools/sparkle.zip
           unzip -q apps/mac/build/sparkle-tools/sparkle.zip -d apps/mac/build/sparkle-tools
-      - name: Generate tip appcast
+      - name: Generate stable appcast
         run: |
           set -euo pipefail
           STAGING=$(mktemp -d)
           cp apps/mac/build/supaterm.app.zip "$STAGING/"
           printf "%s" "$SPARKLE_PRIVATE_KEY" | tr -d '\r\n\t ' | apps/mac/build/sparkle-tools/bin/generate_appcast \
-            --download-url-prefix "https://supaterm.com/download/tip/" \
+            --download-url-prefix "https://supaterm.com/download/latest/" \
             --maximum-versions 1 \
             --ed-key-file - "$STAGING"
-          sed -i '' 's|<enclosure |<sparkle:channel>tip</sparkle:channel>\n            <enclosure |' "$STAGING/appcast.xml"
           cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
-      - uses: actions/upload-artifact@v6
-        with:
-          name: build-artifacts
-          if-no-files-found: ignore
-          path: |
-            apps/mac/build/supaterm.dmg
-            apps/mac/build/supaterm.app.zip
-            apps/mac/build/appcast.xml
-      - name: Force-move tip tag
+      - name: Upload release assets
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -fa tip -m "Latest Continuous Release" ${{ github.sha }}
-          git push --force origin tip
-      - name: Update tip release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
-          gh release edit tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" -R "${{ github.repository }}"
-          gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml --clobber -R "${{ github.repository }}"
-      - name: Merge tip item into stable appcast
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            exit 0
-          fi
-          gh release download "$LATEST_TAG" -p "appcast.xml" -O stable_appcast.xml -R "${{ github.repository }}" 2>/dev/null || exit 0
-          python3 .github/scripts/merge_appcasts.py stable_appcast.xml apps/mac/build/appcast.xml merged_appcast.xml
-          mv merged_appcast.xml appcast.xml
-          gh release upload "$LATEST_TAG" appcast.xml --clobber -R "${{ github.repository }}"
+          gh release upload "${{ github.event.release.tag_name }}" \
+            apps/mac/build/supaterm.dmg \
+            apps/mac/build/supaterm.app.zip \
+            apps/mac/build/appcast.xml \
+            --clobber \
+            -R "${{ github.repository }}"

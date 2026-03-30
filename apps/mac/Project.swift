@@ -133,7 +133,7 @@ let project = Project(
         "NSSpeechRecognitionUsageDescription": "A program running within Supaterm would like to use speech recognition.",
         "NSSystemAdministrationUsageDescription": "A program running within Supaterm requires elevated privileges.",
         "SupatermDevelopmentBuild": "$(SUPATERM_DEVELOPMENT_BUILD)",
-        "SUFeedURL": "https://supaterm.com/download/tip/appcast.xml",
+        "SUFeedURL": "https://supaterm.com/download/latest/appcast.xml",
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
         "SUEnableAutomaticChecks": true,
         "SUAutomaticallyUpdate": true,

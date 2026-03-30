@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Sharing
 import Testing
 
 @testable import supaterm
@@ -10,6 +11,35 @@ struct SettingsFeatureTests {
     let state = SettingsFeature.State()
 
     #expect(state.selectedTab == .general)
+  }
+
+  @Test
+  func taskLoadsPersistedSettings() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.appPrefs) var appPrefs = .default
+      $appPrefs.withLock {
+        $0 = AppPrefs(
+          appearanceMode: .dark,
+          updateChannel: .tip,
+          updatesAutomaticallyCheckForUpdates: false,
+          updatesAutomaticallyDownloadUpdates: false
+        )
+      }
+
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.task)
+      await store.receive(.settingsLoaded(appPrefs)) {
+        $0.appearanceMode = .dark
+        $0.updateChannel = .tip
+        $0.updatesAutomaticallyCheckForUpdates = false
+        $0.updatesAutomaticallyDownloadUpdates = false
+      }
+    }
   }
 
   @Test
@@ -29,6 +59,121 @@ struct SettingsFeatureTests {
     await store.send(.tabSelected(.about)) {
       $0.selectedTab = .about
     }
+  }
+
+  @Test
+  func appearanceModeSelectionPersistsPrefs() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.appearanceModeSelected(.dark)) {
+        $0.appearanceMode = .dark
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(appPrefs.appearanceMode == .dark)
+    }
+  }
+
+  @Test
+  func updateSettingsPersistAndApplyToUpdater() async throws {
+    let recorder = UpdateSettingsRecorder()
+
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.updateClient.applySettings = { settings in
+        await recorder.record(settings)
+      }
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.updateChannelSelected(.tip)) {
+        $0.updateChannel = .tip
+      }
+      await store.send(.updatesAutomaticallyDownloadUpdatesChanged(true)) {
+        $0.updatesAutomaticallyDownloadUpdates = true
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(appPrefs.updateChannel == .tip)
+      #expect(appPrefs.updatesAutomaticallyCheckForUpdates)
+      #expect(appPrefs.updatesAutomaticallyDownloadUpdates)
+      #expect(
+        await recorder.recorded() == [
+          UpdateSettings(
+            updateChannel: .tip,
+            automaticallyChecksForUpdates: true,
+            automaticallyDownloadsUpdates: false
+          ),
+          UpdateSettings(
+            updateChannel: .tip,
+            automaticallyChecksForUpdates: true,
+            automaticallyDownloadsUpdates: true,
+          ),
+        ]
+      )
+    }
+  }
+
+  @Test
+  func disablingAutomaticChecksClearsAutomaticDownloads() async throws {
+    let recorder = UpdateSettingsRecorder()
+
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.updateClient.applySettings = { settings in
+        await recorder.record(settings)
+      }
+    } operation: {
+      var state = SettingsFeature.State()
+      state.updatesAutomaticallyDownloadUpdates = true
+
+      let store = TestStore(initialState: state) {
+        SettingsFeature()
+      }
+
+      await store.send(.updatesAutomaticallyCheckForUpdatesChanged(false)) {
+        $0.updatesAutomaticallyCheckForUpdates = false
+        $0.updatesAutomaticallyDownloadUpdates = false
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(!appPrefs.updatesAutomaticallyCheckForUpdates)
+      #expect(!appPrefs.updatesAutomaticallyDownloadUpdates)
+      let recorded = await recorder.recorded()
+      #expect(recorded.count == 1)
+      #expect(
+        recorded.first
+          == UpdateSettings(
+            updateChannel: .stable,
+            automaticallyChecksForUpdates: false,
+            automaticallyDownloadsUpdates: false
+          )
+      )
+    }
+  }
+
+  @Test
+  func checkForUpdatesButtonRoutesThroughUpdateClient() async {
+    let recorder = UpdateActionRecorder()
+
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+
+    await store.send(.checkForUpdatesButtonTapped)
+
+    #expect(await recorder.actions() == [.checkForUpdates])
   }
 
   @Test
@@ -109,5 +254,29 @@ struct SettingsFeatureTests {
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
       )
     }
+  }
+}
+
+private actor UpdateActionRecorder {
+  private var recordedActions: [UpdateUserAction] = []
+
+  func actions() -> [UpdateUserAction] {
+    recordedActions
+  }
+
+  func record(_ action: UpdateUserAction) {
+    recordedActions.append(action)
+  }
+}
+
+private actor UpdateSettingsRecorder {
+  private var settings: [UpdateSettings] = []
+
+  func recorded() -> [UpdateSettings] {
+    settings
+  }
+
+  func record(_ setting: UpdateSettings) {
+    settings.append(setting)
   }
 }

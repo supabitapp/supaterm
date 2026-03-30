@@ -13,9 +13,17 @@ type CloudflareRequestInit = RequestInit & {
   };
 };
 
-const downloadPrefix = "/download/tip/";
-const downloadBase = "https://github.com/supabitapp/supaterm/releases/download/tip/";
 const cacheControl = "public, max-age=300";
+const downloadRoutes = [
+  {
+    prefix: "/download/latest/",
+    base: "https://github.com/supabitapp/supaterm/releases/latest/download/",
+  },
+  {
+    prefix: "/download/tip/",
+    base: "https://github.com/supabitapp/supaterm/releases/download/tip/",
+  },
+] as const;
 
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
@@ -26,6 +34,8 @@ const methodNotAllowed = () =>
 const notFound = () => new Response("Not Found", { status: 404 });
 
 const getAssets = (env: Env) => env.ASSETS;
+const getDownloadRoute = (pathname: string) =>
+  downloadRoutes.find((route) => pathname.startsWith(route.prefix));
 
 const withCacheControl = (response: Response) => {
   const headers = new Headers(response.headers);
@@ -37,23 +47,23 @@ const withCacheControl = (response: Response) => {
   });
 };
 
-const buildTargetUrl = (requestUrl: URL) => {
-  const assetPath = requestUrl.pathname.slice(downloadPrefix.length);
+const buildTargetUrl = (route: (typeof downloadRoutes)[number], requestUrl: URL) => {
+  const assetPath = requestUrl.pathname.slice(route.prefix.length);
   if (!assetPath) {
     return null;
   }
 
-  const targetUrl = new URL(`${downloadBase}${assetPath}`);
+  const targetUrl = new URL(`${route.base}${assetPath}`);
   targetUrl.search = requestUrl.search;
   return targetUrl;
 };
 
-const proxyTipAsset = async (request: Request) => {
+const proxyDownloadAsset = async (route: (typeof downloadRoutes)[number], request: Request) => {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return methodNotAllowed();
   }
 
-  const targetUrl = buildTargetUrl(new URL(request.url));
+  const targetUrl = buildTargetUrl(route, new URL(request.url));
   if (!targetUrl) {
     return notFound();
   }
@@ -76,8 +86,9 @@ const proxyTipAsset = async (request: Request) => {
 
 export default {
   async fetch(request: Request, env: Env) {
-    if (new URL(request.url).pathname.startsWith(downloadPrefix)) {
-      return proxyTipAsset(request);
+    const route = getDownloadRoute(new URL(request.url).pathname);
+    if (route) {
+      return proxyDownloadAsset(route, request);
     }
 
     const assets = getAssets(env);

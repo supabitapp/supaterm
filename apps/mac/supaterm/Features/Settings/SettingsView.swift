@@ -1,5 +1,4 @@
 import ComposableArchitecture
-import Sharing
 import SwiftUI
 
 struct SettingsView: View {
@@ -65,8 +64,10 @@ private struct SettingsTabContentView: View {
     case .codingAgents:
       SettingsCodingAgentsView(store: store)
     case .general:
-      SettingsGeneralView()
-    case .updates, .about:
+      SettingsGeneralView(store: store)
+    case .updates:
+      SettingsUpdatesView(store: store)
+    case .about:
       SettingsPlaceholderView(tab: tab)
     }
   }
@@ -143,15 +144,13 @@ private struct SettingsAgentInstallSection: View {
 }
 
 private struct SettingsGeneralView: View {
-  @Shared(.appPrefs) private var appPrefs = .default
+  let store: StoreOf<SettingsFeature>
 
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
-      get: { appPrefs.appearanceMode },
+      get: { store.appearanceMode },
       set: { newValue in
-        $appPrefs.withLock {
-          $0.appearanceMode = newValue
-        }
+        _ = store.send(.appearanceModeSelected(newValue))
       }
     )
   }
@@ -183,6 +182,73 @@ private struct SettingsGeneralView: View {
       }
     }
     .formStyle(.grouped)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SettingsUpdatesView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var updateChannel: Binding<UpdateChannel> {
+    Binding(
+      get: { store.updateChannel },
+      set: { newValue in
+        _ = store.send(.updateChannelSelected(newValue))
+      }
+    )
+  }
+
+  private var updatesAutomaticallyCheckForUpdates: Binding<Bool> {
+    Binding(
+      get: { store.updatesAutomaticallyCheckForUpdates },
+      set: { newValue in
+        _ = store.send(.updatesAutomaticallyCheckForUpdatesChanged(newValue))
+      }
+    )
+  }
+
+  private var updatesAutomaticallyDownloadUpdates: Binding<Bool> {
+    Binding(
+      get: { store.updatesAutomaticallyDownloadUpdates },
+      set: { newValue in
+        _ = store.send(.updatesAutomaticallyDownloadUpdatesChanged(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Form {
+        Section("Update Channel") {
+          Picker("Channel", selection: updateChannel) {
+            ForEach(UpdateChannel.allCases) { channel in
+              Text(channel.title).tag(channel)
+            }
+          }
+        }
+
+        Section("Automatic Updates") {
+          Toggle(
+            "Check for updates automatically",
+            isOn: updatesAutomaticallyCheckForUpdates
+          )
+          Toggle(
+            "Download and install updates automatically",
+            isOn: updatesAutomaticallyDownloadUpdates
+          )
+          .disabled(!store.updatesAutomaticallyCheckForUpdates)
+        }
+      }
+      .formStyle(.grouped)
+
+      HStack {
+        Button("Check for Updates Now") {
+          _ = store.send(.checkForUpdatesButtonTapped)
+        }
+        Spacer()
+      }
+      .padding(.top)
+    }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
