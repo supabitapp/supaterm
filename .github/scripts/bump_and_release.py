@@ -185,11 +185,7 @@ def bump_and_release() -> None:
 def main() -> int:
   os.chdir(REPO_ROOT)
   parser = argparse.ArgumentParser()
-  parser.add_argument("command", choices=["bump-version", "bump-and-release"])
-  args = parser.parse_args()
-  if args.command == "bump-version":
-    bump_version()
-    return 0
+  parser.parse_args()
   bump_and_release()
   return 0
 
