@@ -222,7 +222,7 @@ struct TerminalWindowFeatureTests {
   func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async {
     let recorder = TerminalDesktopNotificationRecorder()
     let event = TerminalNotificationEvent(
-      attentionState: .focused,
+      attentionState: .unread,
       body: "Build finished",
       desktopNotificationDisposition: .suppressFocused,
       resolvedTitle: "Deploy complete",

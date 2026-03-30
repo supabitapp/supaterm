@@ -634,12 +634,7 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
 }
 
 public enum SupatermNotificationAttentionState: String, Equatable, Sendable, Codable {
-  case focused
   case unread
-
-  public var isUnread: Bool {
-    self == .unread
-  }
 }
 
 public enum SupatermDesktopNotificationDisposition: String, Equatable, Sendable, Codable {

@@ -23,7 +23,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let title: String
   let icon: String?
   let isSelected: Bool
-  let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -62,8 +61,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       return "\(activity.kind.notificationTitle) \(phaseLabel(activity.phase))"
     case .terminalProgress:
       return "Terminal Progress"
-    case .focusedNotification:
-      return "Focused Alert"
     case .unreadCount(let count):
       return "Unread \(count)"
     case .tabSymbol:
@@ -79,7 +76,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 
   private var leadingIndicator: TerminalSidebarTabSummaryView.LeadingIndicator {
     TerminalSidebarTabSummaryView.leadingIndicator(
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       unreadCount: unreadCount,
       agentActivity: agentActivity,
@@ -94,7 +90,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     id: String,
     icon: String? = nil,
     isSelected: Bool = false,
-    hasFocusedNotificationAttention: Bool = false,
     latestNotificationText: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
@@ -108,7 +103,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.title = title
     self.icon = icon
     self.isSelected = isSelected
-    self.hasFocusedNotificationAttention = hasFocusedNotificationAttention
     self.latestNotificationText = latestNotificationText
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
@@ -227,16 +221,16 @@ private enum TerminalSidebarTabPreviewFixtures {
     ),
     .init(
       section: .attention,
-      scenario: "Focused notification without unread count",
+      scenario: "Single unread pane",
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
       icon: "shippingbox",
-      hasFocusedNotificationAttention: true,
       latestNotificationText: "Local preview server is ready",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
-      )
+      ),
+      unreadCount: 1
     ),
     .init(
       section: .attention,
@@ -244,7 +238,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       icon: "hammer",
-      hasFocusedNotificationAttention: true,
       latestNotificationText: "2 failures in TerminalSidebarChromeViewTests",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
@@ -275,8 +268,6 @@ private struct TerminalSidebarTabPreviewRow: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
-      notificationColor: palette.attention,
-      hasFocusedNotificationAttention: item.hasFocusedNotificationAttention,
       latestNotificationText: item.latestNotificationText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,

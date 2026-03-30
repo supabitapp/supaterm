@@ -9,7 +9,6 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 3,
         agentActivity: .claude(.needsInput),
@@ -24,7 +23,6 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
         agentActivity: .claude(.running),
@@ -39,7 +37,6 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
         agentActivity: .claude(.running),
@@ -49,13 +46,12 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverFocusedNotification() {
+  func terminalProgressTakesPrecedenceOverDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
         agentActivity: nil,
@@ -65,17 +61,16 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func focusedNotificationTakesPrecedenceOverIdleAgentState() {
+  func idleAgentFallsBackToDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: true,
         tab: tab,
         unreadCount: 0,
         agentActivity: .claude(.idle),
         terminalProgress: nil
-      ) == .focusedNotification
+      ) == .tabSymbol("hammer", .accent(tab.tone))
     )
   }
 
@@ -97,7 +92,6 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
         agentActivity: nil,
@@ -112,7 +106,6 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
-        hasFocusedNotificationAttention: false,
         tab: tab,
         unreadCount: 0,
         agentActivity: nil,
