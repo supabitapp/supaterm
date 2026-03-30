@@ -55,6 +55,68 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func newTabCaptureRecordsAnalyticsAndSendsCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
+    let recorder = TerminalCommandRecorder()
+    let surfaceID = UUID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.newTabButtonTapped(inheritingFromSurfaceID: surfaceID))
+
+    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
+    #expect(recorder.commands == [.createTab(inheritingFromSurfaceID: surfaceID)])
+  }
+
+  @Test
+  func splitOperationCaptureRecordsAnalyticsAndSendsCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.splitOperationRequested(tabID: tabID, operation: .equalize))
+
+    #expect(analyticsRecorder.recorded() == ["terminal_pane_created"])
+    #expect(recorder.commands == [.performSplitOperation(tabID: tabID, operation: .equalize)])
+  }
+
+  @Test
+  func spaceCreateCaptureRecordsAnalyticsAndSendsCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.spaceCreateButtonTapped)
+
+    #expect(analyticsRecorder.recorded() == ["space_created"])
+    #expect(recorder.commands == [.createSpace])
+  }
+
+  @Test
   func closeRequestedPresentsConfirmationWhenNeeded() async {
     let tabID = TerminalTabID()
 

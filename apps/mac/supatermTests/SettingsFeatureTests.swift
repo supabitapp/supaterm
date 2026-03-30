@@ -111,6 +111,50 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func settingsChangeCapturesAnalyticsWhenEnabled() async throws {
+    let recorder = AnalyticsEventRecorder()
+
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.analyticsClient.capture = { event in
+        recorder.record(event)
+      }
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.crashReportsEnabledChanged(false)) {
+        $0.crashReportsEnabled = false
+      }
+
+      #expect(recorder.recorded() == ["settings_changed"])
+    }
+  }
+
+  @Test
+  func disablingAnalyticsDoesNotCaptureSettingsChanged() async throws {
+    let recorder = AnalyticsEventRecorder()
+
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      $0.analyticsClient.capture = { event in
+        recorder.record(event)
+      }
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.analyticsEnabledChanged(false)) {
+        $0.analyticsEnabled = false
+      }
+
+      #expect(recorder.recorded().isEmpty)
+    }
+  }
+
+  @Test
   func updateSettingsPersistAndApplyToUpdater() async throws {
     let recorder = UpdateSettingsRecorder()
 
@@ -193,10 +237,14 @@ struct SettingsFeatureTests {
   @Test
   func checkForUpdatesButtonRoutesThroughUpdateClient() async {
     let recorder = UpdateActionRecorder()
+    let analyticsRecorder = AnalyticsEventRecorder()
 
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
       $0.updateClient.perform = { action in
         await recorder.record(action)
       }
@@ -205,6 +253,7 @@ struct SettingsFeatureTests {
     await store.send(.checkForUpdatesButtonTapped)
 
     #expect(await recorder.actions() == [.checkForUpdates])
+    #expect(analyticsRecorder.recorded() == ["update_checked"])
   }
 
   @Test

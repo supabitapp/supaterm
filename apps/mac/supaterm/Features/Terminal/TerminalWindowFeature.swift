@@ -121,6 +121,7 @@ struct TerminalWindowFeature {
     case windowCloseRequested(windowID: ObjectIdentifier)
   }
 
+  @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
@@ -240,6 +241,7 @@ struct TerminalWindowFeature {
         return sendCommand(.navigateSearch(direction))
 
       case .newTabButtonTapped(let inheritingFromSurfaceID):
+        analyticsClient.capture("terminal_tab_created")
         return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
 
       case .nextSpaceRequested:
@@ -282,6 +284,7 @@ struct TerminalWindowFeature {
         return .none
 
       case .splitOperationRequested(let tabID, let operation):
+        analyticsClient.capture("terminal_pane_created")
         return sendCommand(.performSplitOperation(tabID: tabID, operation: operation))
 
       case .tabSelected(let tabID):
@@ -300,6 +303,7 @@ struct TerminalWindowFeature {
         )
 
       case .spaceCreateButtonTapped:
+        analyticsClient.capture("space_created")
         return sendCommand(.createSpace)
 
       case .spaceDeleteRequested(let space):

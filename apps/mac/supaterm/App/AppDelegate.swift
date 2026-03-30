@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var suppressesSessionSave = false
 
   override init() {
+    AppTelemetry.setup()
     GhosttyBootstrap.initialize()
     let terminalWindowRegistry = TerminalWindowRegistry()
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
@@ -88,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   @discardableResult
   func performNewWindow() -> Bool {
     let controller = createWindow()
+    AppTelemetry.capture("window_created")
     NSApp.activate(ignoringOtherApps: true)
     controller.window?.makeKeyAndOrderFront(nil)
     return true

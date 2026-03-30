@@ -7,6 +7,7 @@ import ProjectDescription
 let packageSettings = PackageSettings(
   productTypes: [
     "ComposableArchitecture": .staticFramework,
+    "PostHog": .framework,
     "Sharing": .staticFramework,
     "Sparkle": .framework,
   ]
@@ -17,6 +18,7 @@ let package = Package(
   name: "supaterm",
   dependencies: [
     .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.6.2"),
+    .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.48.3"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", exact: "1.23.1"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", exact: "2.7.4"),
     .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.9.0"),

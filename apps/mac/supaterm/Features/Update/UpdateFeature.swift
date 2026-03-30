@@ -18,6 +18,7 @@ struct UpdateFeature {
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
   }
 
+  @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
@@ -26,6 +27,9 @@ struct UpdateFeature {
       case .perform(let action):
         if action == .checkForUpdates && !state.canCheckForUpdates {
           return .none
+        }
+        if action == .checkForUpdates {
+          analyticsClient.capture("update_checked")
         }
         return .run { [updateClient] _ in
           await updateClient.perform(action)

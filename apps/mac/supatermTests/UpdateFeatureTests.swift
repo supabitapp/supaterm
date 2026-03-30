@@ -8,12 +8,16 @@ struct UpdateFeatureTests {
   @Test
   func performCheckForUpdatesUsesClientWhenEnabled() async {
     let recorder = UpdateActionRecorder()
+    let analyticsRecorder = AnalyticsEventRecorder()
     var initialState = UpdateFeature.State()
     initialState.canCheckForUpdates = true
 
     let store = TestStore(initialState: initialState) {
       UpdateFeature()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
       $0.updateClient.perform = { action in
         await recorder.record(action)
       }
@@ -21,15 +25,20 @@ struct UpdateFeatureTests {
 
     await store.send(.perform(.checkForUpdates))
     #expect(await recorder.actions() == [.checkForUpdates])
+    #expect(analyticsRecorder.recorded() == ["update_checked"])
   }
 
   @Test
   func performCheckForUpdatesDoesNothingWhenDisabled() async {
     let recorder = UpdateActionRecorder()
+    let analyticsRecorder = AnalyticsEventRecorder()
 
     let store = TestStore(initialState: UpdateFeature.State()) {
       UpdateFeature()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
       $0.updateClient.perform = { action in
         await recorder.record(action)
       }
@@ -37,6 +46,7 @@ struct UpdateFeatureTests {
 
     await store.send(.perform(.checkForUpdates))
     #expect(await recorder.actions().isEmpty)
+    #expect(analyticsRecorder.recorded().isEmpty)
   }
 
   @Test
