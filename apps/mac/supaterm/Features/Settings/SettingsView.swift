@@ -35,11 +35,6 @@ struct SettingsView: View {
           .navigationSubtitle(tab.detail)
       }
     }
-    .toolbar {
-      ToolbarItem(placement: .principal) {
-        Color.clear.frame(width: 1, height: 1)
-      }
-    }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
     .ignoresSafeArea(.container, edges: .top)
