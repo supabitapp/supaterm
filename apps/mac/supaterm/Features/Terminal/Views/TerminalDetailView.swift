@@ -208,7 +208,6 @@ private struct TerminalSurfacePaneView: View {
 
   var body: some View {
     TerminalSplitTreeAXContainer(
-      focusedSurfaceIDs: terminal.focusedNotifiedSurfaceIDs(in: tabID),
       notificationColor: notificationColor,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)

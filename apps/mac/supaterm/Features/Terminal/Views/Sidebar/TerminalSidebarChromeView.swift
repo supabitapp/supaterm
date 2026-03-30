@@ -243,16 +243,13 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
-    let hasFocusedNotificationAttention = terminal.hasFocusedNotificationAttention(for: tab.id)
     let latestNotificationText = terminal.latestNotificationText(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       tab: tab,
       latestNotificationText: latestNotificationText,
       paneWorkingDirectories: paneWorkingDirectories,
-      notificationColor: terminal.notificationAttentionColor,
       unreadCount: unreadCount
     )
 
@@ -269,7 +266,6 @@ struct TerminalSidebarChromeView: View {
         store: store,
         terminal: terminal,
         tab: tab,
-        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         latestNotificationText: latestNotificationText,
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
@@ -390,7 +386,6 @@ struct TerminalSidebarChromeView: View {
 struct TerminalSidebarTabSummaryView: View {
   enum LeadingIndicator: Equatable {
     case agentActivity(TerminalHostState.AgentActivity)
-    case focusedNotification
     case terminalProgress(TerminalSidebarTerminalProgress)
     case tabSymbol(String, TerminalTabIconStyle)
     case unreadCount(Int)
@@ -399,8 +394,6 @@ struct TerminalSidebarTabSummaryView: View {
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
-  let notificationColor: Color
-  let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -408,7 +401,6 @@ struct TerminalSidebarTabSummaryView: View {
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   static func leadingIndicator(
-    hasFocusedNotificationAttention: Bool,
     tab: TerminalTabItem,
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
@@ -422,9 +414,6 @@ struct TerminalSidebarTabSummaryView: View {
     }
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
-    }
-    if hasFocusedNotificationAttention {
-      return .focusedNotification
     }
     return .tabSymbol(tab.symbol, tab.iconStyle)
   }
@@ -446,7 +435,6 @@ struct TerminalSidebarTabSummaryView: View {
   var body: some View {
     HStack(alignment: .top, spacing: 8) {
       switch Self.leadingIndicator(
-        hasFocusedNotificationAttention: hasFocusedNotificationAttention,
         tab: tab,
         unreadCount: unreadCount,
         agentActivity: agentActivity,
@@ -475,12 +463,6 @@ struct TerminalSidebarTabSummaryView: View {
           progress: terminalProgress,
           isSelected: isSelected,
           palette: palette
-        )
-
-      case .focusedNotification:
-        TerminalSidebarFocusedNotificationView(
-          isSelected: isSelected,
-          notificationColor: notificationColor
         )
 
       case .tabSymbol(let symbol, let style):
@@ -648,7 +630,6 @@ private struct TerminalSidebarProgressRingView: View {
 struct TerminalSidebarTabRow: View {
   private struct AnimatedPresentation: Equatable {
     let agentActivity: TerminalHostState.AgentActivity?
-    let hasFocusedNotificationAttention: Bool
     let latestNotificationText: String?
     let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
@@ -658,7 +639,6 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
-  let hasFocusedNotificationAttention: Bool
   let latestNotificationText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -680,8 +660,6 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
-          notificationColor: terminal.notificationAttentionColor,
-          hasFocusedNotificationAttention: hasFocusedNotificationAttention,
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
@@ -778,7 +756,6 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     .init(
       agentActivity: terminal.agentActivity(for: tab.id),
-      hasFocusedNotificationAttention: hasFocusedNotificationAttention,
       latestNotificationText: latestNotificationText,
       paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,
@@ -798,26 +775,6 @@ struct TerminalSidebarTabRow: View {
     withAnimation(.easeInOut(duration: 0.15)) {
       _ = store.send(.closeTabRequested(tab.id))
     }
-  }
-}
-
-private struct TerminalSidebarFocusedNotificationView: View {
-  let isSelected: Bool
-  let notificationColor: Color
-
-  var body: some View {
-    Circle()
-      .strokeBorder(color.opacity(isSelected ? 0.75 : 0.55), lineWidth: 2.25)
-      .frame(width: 16, height: 16)
-      .overlay {
-        Circle()
-          .fill(color.opacity(isSelected ? 0.95 : 0.82))
-          .frame(width: 4, height: 4)
-      }
-  }
-
-  private var color: Color {
-    notificationColor
   }
 }
 

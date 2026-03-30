@@ -600,7 +600,7 @@ struct SocketControlFeatureTests {
       )
     )
     let expectedResult = SupatermNotifyResult(
-      attentionState: .focused,
+      attentionState: .unread,
       desktopNotificationDisposition: .suppressFocused,
       resolvedTitle: "Deploy complete",
       windowIndex: 1,

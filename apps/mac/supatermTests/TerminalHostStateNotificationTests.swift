@@ -10,7 +10,7 @@ struct TerminalHostStateNotificationTests {
   func directInteractionClearsAttentionWithoutDroppingLatestText() {
     let notifications = [
       makeNotification(
-        attentionState: .focused,
+        attentionState: .unread,
         body: "Build finished",
         createdAt: 1,
         title: "Build"
@@ -57,23 +57,23 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func unreadNotificationCountCountsOnlyUnreadNotifications() {
+  func unreadNotificationRecordCountCountsOnlyUnreadNotifications() {
     let notifications = [
       makeNotification(attentionState: .unread, createdAt: 1, title: "One"),
-      makeNotification(attentionState: .focused, createdAt: 2, title: "Two"),
+      makeNotification(attentionState: .unread, createdAt: 2, title: "Two"),
       makeNotification(attentionState: .unread, createdAt: 3, title: "Three"),
       makeNotification(attentionState: nil, createdAt: 4, title: "Four"),
     ]
 
     #expect(
-      TerminalHostState.unreadNotificationCount(in: notifications) == 2
+      TerminalHostState.unreadNotificationRecordCount(in: notifications) == 3
     )
   }
 
   @Test
-  func surfaceAttentionStatePrefersUnreadOverFocused() {
+  func surfaceAttentionStateReturnsUnreadWhenAnyUnreadExists() {
     let notifications = [
-      makeNotification(attentionState: .focused, createdAt: 1, title: "Focused"),
+      makeNotification(attentionState: nil, createdAt: 1, title: "Hidden"),
       makeNotification(attentionState: .unread, createdAt: 2, title: "Unread"),
     ]
 
@@ -91,7 +91,7 @@ struct TerminalHostStateNotificationTests {
       title: "Deploy complete"
     )
     let titleFallback = makeNotification(
-      attentionState: .focused,
+      attentionState: .unread,
       body: "   ",
       createdAt: 2,
       title: "  Deploy complete  "
@@ -109,7 +109,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func desktopNotificationCallbackStoresFocusedAttentionAndResolvesTabTitleOnBlankTitle() async throws {
+  func desktopNotificationCallbackStoresUnreadAttentionAndResolvesTabTitleOnBlankTitle() async throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -129,15 +129,15 @@ struct TerminalHostStateNotificationTests {
       return
     }
 
-    #expect(notification.attentionState == .focused)
+    #expect(notification.attentionState == .unread)
     #expect(notification.body == "Build finished")
     #expect(notification.desktopNotificationDisposition == .suppressFocused)
     #expect(notification.resolvedTitle == expectedTitle)
     #expect(notification.sourceSurfaceID == surface.id)
     #expect(notification.subtitle == "")
-    #expect(host.unreadNotificationCount(for: tabID) == 0)
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
     #expect(host.latestNotificationText(for: tabID) == "Build finished")
-    #expect(host.focusedNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
   }
 
   @Test
@@ -194,7 +194,7 @@ struct TerminalHostStateNotificationTests {
 
     surface.bridge.onDesktopNotification?("Build", "Build finished")
 
-    #expect(host.unreadNotificationCount(for: tabID) == 2)
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
     #expect(host.latestNotificationText(for: tabID) == "Build finished")
   }
 
@@ -245,7 +245,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func notifyTracksMultipleNotificationsOnSameSurface() throws {
+  func notifyAggregatesMultipleNotificationsOnSameSurface() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -272,9 +272,51 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(host.unreadNotificationCount(for: tabID) == 2)
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
     #expect(host.latestNotificationText(for: tabID) == "Deploy complete")
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
+  }
+
+  @Test
+  func notifyCountsUnreadAttentionPerSurface() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .inactive
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondSurface = try host.createPane(
+      .init(
+        command: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    _ = try host.notify(
+      .init(
+        body: "Build finished",
+        subtitle: "",
+        target: .contextPane(firstSurface.id),
+        title: "Build"
+      )
+    )
+    _ = try host.notify(
+      .init(
+        body: "Deploy complete",
+        subtitle: "",
+        target: .contextPane(secondSurface.paneID),
+        title: "Deploy"
+      )
+    )
+
+    #expect(host.unreadNotificationCount(for: tabID) == 2)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([firstSurface.id, secondSurface.paneID]))
+    #expect(host.latestNotificationText(for: tabID) == "Deploy complete")
   }
 
   @Test
@@ -303,7 +345,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.latestNotificationText(for: tabID) == nil)
     #expect(host.unreadNotificationCount(for: tabID) == 0)
-    #expect(host.focusedNotifiedSurfaceIDs(in: tabID).isEmpty)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID).isEmpty)
   }
 
   @Test
@@ -326,8 +368,8 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
-    #expect(host.unreadNotificationCount(for: tabID) == 0)
-    #expect(host.focusedNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+    #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
 
     host.windowActivity = .inactive
 
@@ -349,7 +391,6 @@ struct TerminalHostStateNotificationTests {
     #expect(host.latestNotificationText(for: tabID) == nil)
     #expect(host.unreadNotificationCount(for: tabID) == 0)
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID).isEmpty)
-    #expect(host.focusedNotifiedSurfaceIDs(in: tabID).isEmpty)
   }
 
   private func makeNotification(

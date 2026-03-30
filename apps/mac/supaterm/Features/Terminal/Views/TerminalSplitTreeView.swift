@@ -38,7 +38,6 @@ enum TerminalNotificationPulsePattern {
 }
 
 struct TerminalSplitTreeView: View {
-  let focusedSurfaceIDs: Set<UUID>
   let notificationColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
@@ -102,7 +101,6 @@ struct TerminalSplitTreeView: View {
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
       SubtreeView(
-        focusedSurfaceIDs: focusedSurfaceIDs,
         node: node,
         notificationColor: notificationColor,
         unreadSurfaceIDs: unreadSurfaceIDs,
@@ -121,7 +119,6 @@ struct TerminalSplitTreeView: View {
   }
 
   struct SubtreeView: View {
-    let focusedSurfaceIDs: Set<UUID>
     let node: SplitTree<GhosttySurfaceView>.Node
     let notificationColor: Color
     let unreadSurfaceIDs: Set<UUID>
@@ -133,7 +130,6 @@ struct TerminalSplitTreeView: View {
       switch node {
       case .leaf(let leafView):
         LeafView(
-          hasFocusedNotification: focusedSurfaceIDs.contains(leafView.id),
           notificationColor: notificationColor,
           surfaceView: leafView,
           isSplit: !isRoot,
@@ -160,7 +156,6 @@ struct TerminalSplitTreeView: View {
           resizeIncrements: .init(width: 1, height: 1),
           left: {
             SubtreeView(
-              focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.left,
               notificationColor: notificationColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -170,7 +165,6 @@ struct TerminalSplitTreeView: View {
           },
           right: {
             SubtreeView(
-              focusedSurfaceIDs: focusedSurfaceIDs,
               node: split.right,
               notificationColor: notificationColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -187,7 +181,6 @@ struct TerminalSplitTreeView: View {
   }
 
   struct LeafView: View {
-    let hasFocusedNotification: Bool
     let notificationColor: Color
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
@@ -291,21 +284,15 @@ struct TerminalSplitTreeView: View {
     }
 
     private var backgroundOpacity: Double {
-      if isUnread {
-        return 0.1
-      }
-      if hasFocusedNotification {
-        return 0.05
-      }
-      return 0
+      isUnread ? 0.1 : 0
     }
 
     private var hasVisibleAttention: Bool {
-      isUnread || hasFocusedNotification
+      isUnread
     }
 
     private var lineWidth: CGFloat {
-      isUnread ? 3 : 2.25
+      3
     }
 
     private var notificationPulseLineWidth: CGFloat {
@@ -317,15 +304,15 @@ struct TerminalSplitTreeView: View {
     }
 
     private var shadowOpacity: Double {
-      isUnread ? 0.58 : 0.22
+      0.58
     }
 
     private var shadowRadius: CGFloat {
-      isUnread ? 14 : 10
+      14
     }
 
     private var strokeOpacity: Double {
-      isUnread ? 1 : 0.6
+      1
     }
 
     static func shouldTriggerNotificationPulse(from oldValue: Bool, to newValue: Bool) -> Bool {
@@ -512,7 +499,6 @@ extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 /// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
-  let focusedSurfaceIDs: Set<UUID>
   let notificationColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
@@ -528,7 +514,6 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
     nsView.update(
       rootView: AnyView(
         TerminalSplitTreeView(
-          focusedSurfaceIDs: focusedSurfaceIDs,
           notificationColor: notificationColor,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,

@@ -581,8 +581,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.needsInput))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
@@ -651,8 +651,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
@@ -679,7 +679,7 @@ struct TerminalWindowRegistryTests {
         )
     )
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.needsInput))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
@@ -720,8 +720,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
 
@@ -741,8 +741,8 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
     #expect(result.desktopNotification == nil)
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
@@ -770,7 +770,7 @@ struct TerminalWindowRegistryTests {
         )
     )
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
@@ -793,7 +793,8 @@ struct TerminalWindowRegistryTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
@@ -843,8 +844,8 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
     #expect(result.desktopNotification == nil)
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
@@ -872,7 +873,7 @@ struct TerminalWindowRegistryTests {
         )
     )
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
   }
 
@@ -917,7 +918,8 @@ struct TerminalWindowRegistryTests {
     let surface = try #require(harness.host.selectedSurfaceView)
     surface.bridge.onDesktopNotification?("Codex", "Agent turn complete")
 
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 2)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Agent turn complete")
   }
 
@@ -946,7 +948,7 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
     #expect(result.desktopNotification == nil)
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
-    #expect(harness.host.focusedNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
   }
 

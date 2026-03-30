@@ -489,7 +489,7 @@ final class TerminalHostState {
   }
 
   func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
-    Self.unreadNotificationCount(in: notifications(for: tabID).values.flatMap { $0 })
+    unreadNotifiedSurfaceIDs(in: tabID).count
   }
 
   func unreadNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
@@ -499,21 +499,6 @@ final class TerminalHostState {
           Self.surfaceAttentionState(in: notifications) == .unread ? surfaceID : nil
         }
     )
-  }
-
-  func focusedNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
-    Set(
-      notifications(for: tabID)
-        .compactMap { surfaceID, notifications in
-          Self.surfaceAttentionState(in: notifications) == .focused ? surfaceID : nil
-        }
-    )
-  }
-
-  func hasFocusedNotificationAttention(for tabID: TerminalTabID) -> Bool {
-    notifications(for: tabID)
-      .values
-      .contains { Self.surfaceAttentionState(in: $0) == .focused }
   }
 
   func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
@@ -1129,8 +1114,7 @@ final class TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[resolvedTarget.tabID],
       surfaceID: resolvedTarget.anchorSurface.id
     )
-    let attentionState: SupatermNotificationAttentionState =
-      selectionState.isFocused ? .focused : .unread
+    let attentionState: SupatermNotificationAttentionState = .unread
     let desktopNotificationDisposition = resolvedDesktopNotificationDisposition(
       allowDesktopNotificationWhenAgentActive: request.allowDesktopNotificationWhenAgentActive,
       isFocused: selectionState.isFocused,
@@ -2632,7 +2616,7 @@ final class TerminalHostState {
     }
   }
 
-  static func unreadNotificationCount(in notifications: [PaneNotification]) -> Int {
+  static func unreadNotificationRecordCount(in notifications: [PaneNotification]) -> Int {
     notifications.filter { $0.attentionState == .unread }.count
   }
 
@@ -2641,9 +2625,6 @@ final class TerminalHostState {
   ) -> SupatermNotificationAttentionState? {
     if notifications.contains(where: { $0.attentionState == .unread }) {
       return .unread
-    }
-    if notifications.contains(where: { $0.attentionState == .focused }) {
-      return .focused
     }
     return nil
   }
