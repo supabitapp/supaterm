@@ -9,7 +9,7 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 GIT_HOOKS_DIR := .git-hooks
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-version bump-and-release mac-generate mac-generate-sources mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release mac-generate mac-generate-sources mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -19,11 +19,8 @@ help:  # Display this help.
 install-git-hooks:  # Install repo-local Git hooks.
 	@chmod +x "$(GIT_HOOKS_DIR)/pre-commit" && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
 
-bump-version:  # Print the current version, ask for the next version, then commit and tag it.
-	@python3 .github/scripts/bump_and_release.py bump-version
-
 bump-and-release:  # Print the current version, ask for the next version, then draft custom release notes and create the release.
-	@python3 .github/scripts/bump_and_release.py bump-and-release
+	@python3 .github/scripts/bump_and_release.py
 
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project
