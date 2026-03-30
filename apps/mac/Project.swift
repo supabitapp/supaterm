@@ -58,6 +58,7 @@ let project = Project(
         "sp/SPCommand.swift",
         "sp/SPHelp.swift",
         "sp/SPSocketClient.swift",
+        "sp/SPTargetResolver.swift",
         "sp/SPTreeRenderer.swift",
       ],
       dependencies: [

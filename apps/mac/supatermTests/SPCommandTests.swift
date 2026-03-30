@@ -27,6 +27,26 @@ struct SPCommandTests {
   }
 
   @Test
+  func newTabParserAcceptsUUIDSpaceTarget() throws {
+    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+    let command = try #require(
+      try SP.NewTab.parseAsRoot(["--space", spaceID.uuidString]) as? SP.NewTab
+    )
+
+    #expect(command.space == .id(spaceID))
+  }
+
+  @Test
+  func newPaneParserAcceptsUUIDTargets() throws {
+    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    let command = try #require(
+      try SP.NewPane.parseAsRoot(["right", "--pane", paneID.uuidString]) as? SP.NewPane
+    )
+
+    #expect(command.pane == .id(paneID))
+  }
+
+  @Test
   func newTabHelpShowsScriptOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 
@@ -56,6 +76,21 @@ struct SPCommandTests {
     } catch {
       let message = String(describing: error)
       #expect(message.contains("--script must not be empty."))
+    }
+  }
+
+  @Test(arguments: [
+    ["new-tab", "--space", "0"],
+    ["new-pane", "right", "--tab", "bad-target"],
+    ["notify", "--pane", " "],
+  ])
+  func parserRejectsInvalidIndexOrUUIDTargets(arguments: [String]) {
+    do {
+      _ = try SP.parseAsRoot(arguments)
+      Issue.record("Expected parsing to reject an invalid target.")
+    } catch {
+      let message = String(describing: error)
+      #expect(message.contains("1-based index or UUID") || message.contains("1 or greater"))
     }
   }
 }

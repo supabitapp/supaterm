@@ -359,16 +359,19 @@ private extension SupatermAppDebugSnapshot {
           spaces: window.spaces.map { space in
             .init(
               index: space.index,
+              id: space.id,
               name: space.name,
               isSelected: space.isSelected,
               tabs: space.tabs.map { tab in
                 .init(
                   index: tab.index,
+                  id: tab.id,
                   title: tab.title,
                   isSelected: tab.isSelected,
                   panes: tab.panes.map { pane in
                     .init(
                       index: pane.index,
+                      id: pane.id,
                       isFocused: pane.isFocused
                     )
                   }

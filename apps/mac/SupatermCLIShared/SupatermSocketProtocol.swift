@@ -488,17 +488,20 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
 
   public struct Space: Equatable, Sendable, Codable {
     public let index: Int
+    public let id: UUID
     public let name: String
     public let isSelected: Bool
     public let tabs: [Tab]
 
     public init(
       index: Int,
+      id: UUID,
       name: String,
       isSelected: Bool,
       tabs: [Tab]
     ) {
       self.index = index
+      self.id = id
       self.name = name
       self.isSelected = isSelected
       self.tabs = tabs
@@ -507,12 +510,14 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
 
   public struct Tab: Equatable, Sendable, Codable {
     public let index: Int
+    public let id: UUID
     public let title: String
     public let isSelected: Bool
     public let panes: [Pane]
 
-    public init(index: Int, title: String, isSelected: Bool, panes: [Pane]) {
+    public init(index: Int, id: UUID, title: String, isSelected: Bool, panes: [Pane]) {
       self.index = index
+      self.id = id
       self.title = title
       self.isSelected = isSelected
       self.panes = panes
@@ -521,10 +526,12 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
 
   public struct Pane: Equatable, Sendable, Codable {
     public let index: Int
+    public let id: UUID
     public let isFocused: Bool
 
-    public init(index: Int, isFocused: Bool) {
+    public init(index: Int, id: UUID, isFocused: Bool) {
       self.index = index
+      self.id = id
       self.isFocused = isFocused
     }
   }
@@ -595,8 +602,11 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
   public let isSelectedTab: Bool
   public let windowIndex: Int
   public let spaceIndex: Int
+  public let spaceID: UUID
   public let tabIndex: Int
+  public let tabID: UUID
   public let paneIndex: Int
+  public let paneID: UUID
 
   public init(
     isFocused: Bool,
@@ -604,16 +614,22 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
     isSelectedTab: Bool,
     windowIndex: Int,
     spaceIndex: Int,
+    spaceID: UUID,
     tabIndex: Int,
-    paneIndex: Int
+    tabID: UUID,
+    paneIndex: Int,
+    paneID: UUID
   ) {
     self.isFocused = isFocused
     self.isSelectedSpace = isSelectedSpace
     self.isSelectedTab = isSelectedTab
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
     self.tabIndex = tabIndex
+    self.tabID = tabID
     self.paneIndex = paneIndex
+    self.paneID = paneID
   }
 }
 
@@ -734,28 +750,37 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
 public struct SupatermNotifyResult: Equatable, Sendable, Codable {
   public let attentionState: SupatermNotificationAttentionState
   public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
-  public let paneIndex: Int
   public let resolvedTitle: String
-  public let spaceIndex: Int
-  public let tabIndex: Int
   public let windowIndex: Int
+  public let spaceIndex: Int
+  public let spaceID: UUID
+  public let tabIndex: Int
+  public let tabID: UUID
+  public let paneIndex: Int
+  public let paneID: UUID
 
   public init(
     attentionState: SupatermNotificationAttentionState,
     desktopNotificationDisposition: SupatermDesktopNotificationDisposition,
-    paneIndex: Int,
     resolvedTitle: String,
+    windowIndex: Int,
     spaceIndex: Int,
+    spaceID: UUID,
     tabIndex: Int,
-    windowIndex: Int
+    tabID: UUID,
+    paneIndex: Int,
+    paneID: UUID
   ) {
     self.attentionState = attentionState
     self.desktopNotificationDisposition = desktopNotificationDisposition
-    self.paneIndex = paneIndex
     self.resolvedTitle = resolvedTitle
-    self.spaceIndex = spaceIndex
-    self.tabIndex = tabIndex
     self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
+    self.tabIndex = tabIndex
+    self.tabID = tabID
+    self.paneIndex = paneIndex
+    self.paneID = paneID
   }
 }
 
@@ -765,8 +790,11 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let isSelectedTab: Bool
   public let windowIndex: Int
   public let spaceIndex: Int
+  public let spaceID: UUID
   public let tabIndex: Int
+  public let tabID: UUID
   public let paneIndex: Int
+  public let paneID: UUID
 
   public init(
     direction: SupatermPaneDirection,
@@ -774,16 +802,22 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
     isSelectedTab: Bool,
     windowIndex: Int,
     spaceIndex: Int,
+    spaceID: UUID,
     tabIndex: Int,
-    paneIndex: Int
+    tabID: UUID,
+    paneIndex: Int,
+    paneID: UUID
   ) {
     self.direction = direction
     self.isFocused = isFocused
     self.isSelectedTab = isSelectedTab
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
     self.tabIndex = tabIndex
+    self.tabID = tabID
     self.paneIndex = paneIndex
+    self.paneID = paneID
   }
 }
 

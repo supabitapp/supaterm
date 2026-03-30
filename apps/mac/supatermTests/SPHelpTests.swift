@@ -46,15 +46,25 @@ struct SPHelpTests {
     #expect(help.contains("--socket <socket>"))
     #expect(help.contains("default: $SUPATERM_SOCKET_PATH"))
     #expect(help.contains("If you omit --space and --tab inside Supaterm"))
+    #expect(help.contains("1-based index or UUID"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
     #expect(help.contains("--no-equalize"))
     #expect(help.contains("sp new-pane down htop"))
-    #expect(!help.contains("--space <space>                Target a space by its 1-based index. (default:"))
-    #expect(
-      !help.contains(
-        "--tab <tab>                    Target a tab inside the specified space by its 1-based index. (default:"))
+    #expect(help.contains("--tab <tab>"))
+    #expect(help.contains("sp new-pane --tab <tab-uuid> left"))
+  }
+
+  @Test
+  func newTabAndNotifyHelpMentionUUIDTargets() {
+    let newTabHelp = SP.helpMessage(for: SP.NewTab.self, columns: 100)
+    let notifyHelp = SP.helpMessage(for: SP.Notify.self, columns: 100)
+
+    #expect(newTabHelp.contains("1-based index or UUID"))
+    #expect(newTabHelp.contains("sp new-tab --space <space-uuid>"))
+    #expect(notifyHelp.contains("1-based index or UUID"))
+    #expect(notifyHelp.contains("sp notify --pane <pane-uuid>"))
   }
 
   @Test

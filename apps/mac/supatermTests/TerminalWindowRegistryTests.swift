@@ -454,8 +454,11 @@ struct TerminalWindowRegistryTests {
       isSelectedTab: false,
       windowIndex: 1,
       spaceIndex: 3,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 2,
-      paneIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
     #expect(
@@ -466,8 +469,11 @@ struct TerminalWindowRegistryTests {
           isSelectedTab: false,
           windowIndex: 2,
           spaceIndex: 3,
+          spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
           tabIndex: 2,
-          paneIndex: 1
+          tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+          paneIndex: 1,
+          paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
         )
     )
   }
@@ -480,8 +486,11 @@ struct TerminalWindowRegistryTests {
       isSelectedTab: true,
       windowIndex: 1,
       spaceIndex: 3,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 2,
-      paneIndex: 4
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
     )
 
     #expect(
@@ -492,8 +501,11 @@ struct TerminalWindowRegistryTests {
           isSelectedTab: true,
           windowIndex: 2,
           spaceIndex: 3,
+          spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
           tabIndex: 2,
-          paneIndex: 4
+          tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+          paneIndex: 4,
+          paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
         )
     )
   }
@@ -516,11 +528,14 @@ struct TerminalWindowRegistryTests {
     let result = SupatermNotifyResult(
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
-      paneIndex: 4,
       resolvedTitle: "Deploy complete",
+      windowIndex: 1,
       spaceIndex: 3,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 2,
-      windowIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
     )
 
     #expect(
@@ -528,11 +543,14 @@ struct TerminalWindowRegistryTests {
         == .init(
           attentionState: .unread,
           desktopNotificationDisposition: .deliver,
-          paneIndex: 4,
           resolvedTitle: "Deploy complete",
+          windowIndex: 2,
           spaceIndex: 3,
+          spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
           tabIndex: 2,
-          windowIndex: 2
+          tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+          paneIndex: 4,
+          paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
         )
     )
   }
