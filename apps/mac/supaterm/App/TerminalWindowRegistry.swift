@@ -510,7 +510,19 @@ final class TerminalWindowRegistry {
           context: request.context
         )
       }
-      return .init(desktopNotification: nil)
+      guard
+        let body = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+        !body.isEmpty
+      else {
+        return .init(desktopNotification: nil)
+      }
+      return try handleAgentEventNotification(
+        request.agent,
+        event: event,
+        context: request.context,
+        body: body,
+        subtitle: "Turn complete"
+      )
 
     case .sessionEnd:
       if let sessionID = event.sessionID {
@@ -528,7 +540,13 @@ final class TerminalWindowRegistry {
           context: request.context
         )
       }
-      return try handleAgentNotification(request.agent, event: event, context: request.context)
+      return try handleAgentEventNotification(
+        request.agent,
+        event: event,
+        context: request.context,
+        body: try event.notificationMessage(),
+        subtitle: event.title ?? "Attention"
+      )
     }
   }
 
@@ -562,15 +580,14 @@ final class TerminalWindowRegistry {
     throw TerminalCreatePaneError.contextPaneNotFound
   }
 
-  private func handleAgentNotification(
+  private func handleAgentEventNotification(
     _ agent: SupatermAgentKind,
     event: SupatermAgentHookEvent,
-    context: SupatermCLIContext?
+    context: SupatermCLIContext?,
+    body: String,
+    subtitle: String
   ) throws -> TerminalAgentHookResult {
-    let message = try event.notificationMessage()
     let session = event.sessionID.flatMap { agentHookSessions[.init(agent: agent, sessionID: $0)] }
-    let subtitle = event.title ?? "Attention"
-    let body = message
     let title = agent.notificationTitle
     var candidateSurfaceIDs: [UUID] = []
     if let surfaceID = context?.surfaceID {
