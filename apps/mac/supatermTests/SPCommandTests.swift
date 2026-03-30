@@ -54,6 +54,19 @@ struct SPCommandTests {
     #expect(help.contains("sp new-tab --script"))
   }
 
+  @Test
+  func installAgentHooksParserAcceptsClaudeAndCodexSubcommands() throws {
+    let claudeCommand = try #require(
+      try SP.parseAsRoot(["install-agent-hooks", "claude"]) as? SP.InstallAgentHooks.Claude
+    )
+    let codexCommand = try #require(
+      try SP.parseAsRoot(["install-agent-hooks", "codex"]) as? SP.InstallAgentHooks.Codex
+    )
+
+    #expect(type(of: claudeCommand) == SP.InstallAgentHooks.Claude.self)
+    #expect(type(of: codexCommand) == SP.InstallAgentHooks.Codex.self)
+  }
+
   @Test(arguments: [
     ["new-pane", "right", "--script", "echo 1", "echo", "2"],
     ["new-tab", "--script", "echo 1", "echo", "2"],

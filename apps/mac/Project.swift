@@ -262,6 +262,7 @@ let project = Project(
       ],
       settings: .settings(
         base: [
+          "OTHER_LDFLAGS": "$(inherited) -lSupatermCLIShared",
           "TEST_HOST": "",
           "BUNDLE_LOADER": "$(BUILT_PRODUCTS_DIR)/supaterm.app/Contents/MacOS/supaterm.debug.dylib",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @loader_path/../Frameworks @executable_path/../Frameworks @loader_path/../../../supaterm.app/Contents/MacOS",

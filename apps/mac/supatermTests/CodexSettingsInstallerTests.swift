@@ -2,7 +2,6 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
-@testable import supaterm
 
 struct CodexSettingsInstallerTests {
   @Test

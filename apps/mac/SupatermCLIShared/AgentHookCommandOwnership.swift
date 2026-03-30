@@ -1,4 +1,4 @@
-nonisolated enum AgentHookCommandOwnership {
+enum AgentHookCommandOwnership {
   static func isSupatermManagedCommand(_ command: String?) -> Bool {
     guard let command else {
       return false

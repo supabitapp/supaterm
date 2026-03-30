@@ -20,6 +20,7 @@ public struct SP: ParsableCommand {
     NewPane.self,
     Notify.self,
     AgentHook.self,
+    InstallAgentHooks.self,
     Ping.self,
     ClaudeHookSettings.self,
     CodexHookSettings.self,
@@ -598,6 +599,19 @@ extension SP {
     }
   }
 
+  struct InstallAgentHooks: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "install-agent-hooks",
+      abstract: "Install Supaterm's hook bridge for a coding agent.",
+      discussion: SPHelp.installAgentHooksDiscussion,
+      subcommands: [Claude.self, Codex.self]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+
   struct Ping: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "ping",
@@ -646,6 +660,42 @@ extension SP {
 
     mutating func run() throws {
       print(try SupatermCodexHookSettings.jsonString())
+    }
+  }
+}
+
+extension SP.InstallAgentHooks {
+  struct Claude: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "claude",
+      abstract: "Install Supaterm's Claude hook bridge.",
+      discussion: SPHelp.installAgentHooksClaudeDiscussion
+    )
+
+    mutating func run() throws {
+      do {
+        try ClaudeSettingsInstaller().installSupatermHooks()
+      } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        throw ExitCode.failure
+      }
+    }
+  }
+
+  struct Codex: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "codex",
+      abstract: "Install Supaterm's Codex hook bridge.",
+      discussion: SPHelp.installAgentHooksCodexDiscussion
+    )
+
+    mutating func run() throws {
+      do {
+        try CodexSettingsInstaller().installSupatermHooks()
+      } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        throw ExitCode.failure
+      }
     }
   }
 }
