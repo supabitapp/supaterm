@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Darwin
 import Foundation
 import SupatermCLIShared
 
@@ -73,12 +74,8 @@ nonisolated struct CodexSettingsInstaller {
 
   static func runEnableHooksCommand() throws -> CommandResult {
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-    process.arguments = [
-      "-l",
-      "-c",
-      "command -v codex >/dev/null 2>&1 || exit 127; exec codex features enable codex_hooks",
-    ]
+    process.executableURL = loginShellURL()
+    process.arguments = enableHooksCommandArguments()
 
     let errorPipe = Pipe()
     process.standardError = errorPipe
@@ -96,6 +93,39 @@ nonisolated struct CodexSettingsInstaller {
       throw CodexSettingsInstallerError.codexUnavailable
     }
     return .init(status: status, standardError: standardError.trimmingCharacters(in: .whitespacesAndNewlines))
+  }
+
+  static func loginShellURL(
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    currentUserShellPath: String? = currentUserShellPath()
+  ) -> URL {
+    let shellPath =
+      normalizedShellPath(currentUserShellPath)
+      ?? normalizedShellPath(environment["SHELL"])
+      ?? "/bin/zsh"
+    return URL(fileURLWithPath: shellPath)
+  }
+
+  static func enableHooksCommandArguments() -> [String] {
+    [
+      "-l",
+      "-c",
+      "codex features enable codex_hooks",
+    ]
+  }
+
+  private static func currentUserShellPath() -> String? {
+    guard let entry = getpwuid(getuid()), let shell = entry.pointee.pw_shell else {
+      return nil
+    }
+    return String(cString: shell)
+  }
+
+  private static func normalizedShellPath(_ path: String?) -> String? {
+    guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
+      return nil
+    }
+    return path
   }
 
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {
