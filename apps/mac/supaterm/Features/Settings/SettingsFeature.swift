@@ -42,8 +42,10 @@ struct SettingsFeature {
   @ObservableState
   struct State: Equatable {
     var appearanceMode = AppPrefs.default.appearanceMode
+    var analyticsEnabled = AppPrefs.default.analyticsEnabled
     var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
     var codexHooksInstallState = SettingsAgentHooksInstallState.idle
+    var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
     var selectedTab = Tab.general
     var updateChannel = AppPrefs.default.updateChannel
     var updatesAutomaticallyCheckForUpdates = AppPrefs.default.updatesAutomaticallyCheckForUpdates
@@ -52,11 +54,13 @@ struct SettingsFeature {
 
   enum Action: Equatable {
     case appearanceModeSelected(AppearanceMode)
+    case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case claudeHooksInstallButtonTapped
     case claudeHooksInstallFinished(SettingsAgentHooksInstallResult)
     case codexHooksInstallButtonTapped
     case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
+    case crashReportsEnabledChanged(Bool)
     case settingsLoaded(AppPrefs)
     case tabSelected(Tab)
     case task
@@ -69,6 +73,7 @@ struct SettingsFeature {
     case general
     case codingAgents
     case updates
+    case advanced
     case about
 
     var id: String {
@@ -83,6 +88,8 @@ struct SettingsFeature {
         "slider.horizontal.3"
       case .updates:
         "arrow.trianglehead.clockwise"
+      case .advanced:
+        "gearshape.2"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -96,6 +103,8 @@ struct SettingsFeature {
         "General"
       case .updates:
         "Updates"
+      case .advanced:
+        "Advanced"
       case .about:
         "About"
       }
@@ -109,6 +118,8 @@ struct SettingsFeature {
         "Appearance and preferences"
       case .updates:
         "Channel and automatic update preferences"
+      case .advanced:
+        "Analytics and diagnostics"
       case .about:
         "Build, engine, and links"
       }
@@ -128,6 +139,8 @@ struct SettingsFeature {
 
       case .settingsLoaded(let appPrefs):
         state.appearanceMode = appPrefs.appearanceMode
+        state.analyticsEnabled = appPrefs.analyticsEnabled
+        state.crashReportsEnabled = appPrefs.crashReportsEnabled
         state.updateChannel = appPrefs.updateChannel
         state.updatesAutomaticallyCheckForUpdates = appPrefs.updatesAutomaticallyCheckForUpdates
         state.updatesAutomaticallyDownloadUpdates = appPrefs.updatesAutomaticallyDownloadUpdates
@@ -135,6 +148,10 @@ struct SettingsFeature {
 
       case .appearanceModeSelected(let appearanceMode):
         state.appearanceMode = appearanceMode
+        return persist(state)
+
+      case .analyticsEnabledChanged(let isEnabled):
+        state.analyticsEnabled = isEnabled
         return persist(state)
 
       case .claudeHooksInstallButtonTapped:
@@ -181,6 +198,10 @@ struct SettingsFeature {
         state.codexHooksInstallState = .failed(message)
         return .none
 
+      case .crashReportsEnabledChanged(let isEnabled):
+        state.crashReportsEnabled = isEnabled
+        return persist(state)
+
       case .checkForUpdatesButtonTapped:
         return .run { [updateClient] _ in
           await updateClient.perform(.checkForUpdates)
@@ -217,6 +238,8 @@ struct SettingsFeature {
   ) -> Effect<Action> {
     let appPrefs = AppPrefs(
       appearanceMode: state.appearanceMode,
+      analyticsEnabled: state.analyticsEnabled,
+      crashReportsEnabled: state.crashReportsEnabled,
       updateChannel: state.updateChannel,
       updatesAutomaticallyCheckForUpdates: state.updatesAutomaticallyCheckForUpdates,
       updatesAutomaticallyDownloadUpdates: state.updatesAutomaticallyDownloadUpdates

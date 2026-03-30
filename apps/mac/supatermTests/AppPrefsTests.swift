@@ -18,6 +18,8 @@ struct AppPrefsTests {
     let prefs = AppPrefs.default
 
     #expect(prefs.appearanceMode == .system)
+    #expect(prefs.analyticsEnabled)
+    #expect(prefs.crashReportsEnabled)
     #expect(prefs.updateChannel == .stable)
     #expect(prefs.updatesAutomaticallyCheckForUpdates)
     #expect(!prefs.updatesAutomaticallyDownloadUpdates)
@@ -36,6 +38,8 @@ struct AppPrefsTests {
     let prefs = try JSONDecoder().decode(AppPrefs.self, from: data)
 
     #expect(prefs.appearanceMode == .dark)
+    #expect(prefs.analyticsEnabled)
+    #expect(prefs.crashReportsEnabled)
     #expect(prefs.updateChannel == UpdateChannel.stable)
     #expect(prefs.updatesAutomaticallyCheckForUpdates)
     #expect(!prefs.updatesAutomaticallyDownloadUpdates)
