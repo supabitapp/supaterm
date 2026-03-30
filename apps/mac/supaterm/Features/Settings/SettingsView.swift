@@ -68,8 +68,6 @@ private struct SettingsTabContentView: View {
       SettingsGeneralView(store: store)
     case .updates:
       SettingsUpdatesView(store: store)
-    case .advanced:
-      SettingsAdvancedView(store: store)
     case .about:
       SettingsAboutView()
     }
@@ -129,12 +127,10 @@ private struct SettingsAgentInstallRow: View {
   var body: some View {
     HStack(alignment: .center, spacing: 16) {
       VStack(alignment: .leading, spacing: 4) {
-        Text(title)
-          .font(.headline)
-        Text(subtitle)
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
+        SettingsRowLabel(
+          title: title,
+          subtitle: subtitle
+        )
         if let message = installState.message {
           Text(message)
             .font(.callout)
@@ -170,30 +166,80 @@ private struct SettingsGeneralView: View {
     )
   }
 
+  private var analyticsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.analyticsEnabled },
+      set: { newValue in
+        _ = store.send(.analyticsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  private var crashReportsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.crashReportsEnabled },
+      set: { newValue in
+        _ = store.send(.crashReportsEnabledChanged(newValue))
+      }
+    )
+  }
+
   var body: some View {
     Form {
-      Section("Appearance") {
-        HStack(spacing: 12) {
-          let selectedMode = appearanceMode.wrappedValue
-          ForEach(AppearanceMode.allCases) { mode in
-            AppearanceOptionCardView(
-              mode: mode,
-              isSelected: mode == selectedMode
-            ) {
-              appearanceMode.wrappedValue = mode
+      Section {
+        LabeledContent {
+          HStack(spacing: 12) {
+            let selectedMode = appearanceMode.wrappedValue
+            ForEach(AppearanceMode.allCases) { mode in
+              AppearanceOptionCardView(
+                mode: mode,
+                isSelected: mode == selectedMode
+              ) {
+                appearanceMode.wrappedValue = mode
+              }
             }
           }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+          SettingsRowLabel(
+            title: "Appearance",
+            subtitle: "Choose how Supaterm renders window chrome."
+          )
         }
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Terminal theming follows Ghostty config")
-          Text("For example, add the following line to `~/.config/ghostty/config`")
-          Text("theme = light:Monokai Pro Light Sun,dark:Dimmed Monokai")
-            .monospaced()
+        LabeledContent {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Configure Ghostty directly to control terminal colors.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+            Text("theme = light:Monokai Pro Light Sun,dark:Dimmed Monokai")
+              .font(.callout.monospaced())
+              .textSelection(.enabled)
+          }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+          SettingsRowLabel(
+            title: "Terminal Theme",
+            subtitle: "Managed through your Ghostty config."
+          )
         }
-        .font(.footnote)
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
+      }
+
+      Section {
+        SettingsToggleRow(
+          title: "Share analytics with Supaterm",
+          subtitle: "Anonymous usage data helps improve Supaterm.",
+          isOn: analyticsEnabled
+        )
+        SettingsToggleRow(
+          title: "Share crash reports with Supaterm",
+          subtitle: "Anonymous crash reports help improve stability.",
+          isOn: crashReportsEnabled
+        )
+      } header: {
+        Text("Diagnostics")
+      } footer: {
+        Text("Changes to analytics and crash reports require an app restart.")
       }
     }
     .formStyle(.grouped)
@@ -232,78 +278,43 @@ private struct SettingsUpdatesView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      Form {
-        Section("Update Channel") {
-          Picker("Channel", selection: updateChannel) {
-            ForEach(UpdateChannel.allCases) { channel in
-              Text(channel.title).tag(channel)
-            }
+    Form {
+      Section {
+        Picker(selection: updateChannel) {
+          ForEach(UpdateChannel.allCases) { channel in
+            Text(channel.title).tag(channel)
           }
-        }
-
-        Section("Automatic Updates") {
-          Toggle(
-            "Check for updates automatically",
-            isOn: updatesAutomaticallyCheckForUpdates
+        } label: {
+          SettingsRowLabel(
+            title: "Channel",
+            subtitle: store.updateChannel == .stable
+              ? "Recommended for most users."
+              : "Get the latest features early."
           )
-          Toggle(
-            "Download and install updates automatically",
-            isOn: updatesAutomaticallyDownloadUpdates
-          )
-          .disabled(!store.updatesAutomaticallyCheckForUpdates)
         }
       }
-      .formStyle(.grouped)
 
-      HStack {
+      Section("Automatic Updates") {
+        SettingsToggleRow(
+          title: "Check for updates automatically",
+          subtitle: "Periodically checks for new versions while Supaterm is running.",
+          isOn: updatesAutomaticallyCheckForUpdates
+        )
+        SettingsToggleRow(
+          title: "Download and install updates automatically",
+          subtitle: "Downloads updates in the background and prompts for restart when needed.",
+          isOn: updatesAutomaticallyDownloadUpdates
+        )
+        .disabled(!store.updatesAutomaticallyCheckForUpdates)
+      }
+
+      Section {
         Button("Check for Updates Now") {
           _ = store.send(.checkForUpdatesButtonTapped)
         }
-        Spacer()
-      }
-      .padding(.top)
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-  }
-}
-
-private struct SettingsAdvancedView: View {
-  let store: StoreOf<SettingsFeature>
-
-  private var analyticsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.analyticsEnabled },
-      set: { newValue in
-        _ = store.send(.analyticsEnabledChanged(newValue))
-      }
-    )
-  }
-
-  private var crashReportsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.crashReportsEnabled },
-      set: { newValue in
-        _ = store.send(.crashReportsEnabledChanged(newValue))
-      }
-    )
-  }
-
-  var body: some View {
-    Form {
-      Section("Advanced") {
-        SettingsAdvancedToggleView(
-          detail: "Anonymous usage data helps improve Supaterm.",
-          help: "Share anonymous usage data with Supaterm (requires restart)",
-          isOn: analyticsEnabled,
-          title: "Share analytics with Supaterm"
-        )
-        SettingsAdvancedToggleView(
-          detail: "Anonymous crash reports help improve stability.",
-          help: "Share anonymous crash reports with Supaterm (requires restart)",
-          isOn: crashReportsEnabled,
-          title: "Share crash reports with Supaterm"
-        )
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
     .formStyle(.grouped)
@@ -311,24 +322,18 @@ private struct SettingsAdvancedView: View {
   }
 }
 
-private struct SettingsAdvancedToggleView: View {
-  let detail: String
-  let help: String
-  let isOn: Binding<Bool>
+private struct SettingsToggleRow: View {
   let title: String
+  let subtitle: String
+  let isOn: Binding<Bool>
 
   var body: some View {
-    VStack(alignment: .leading) {
-      Toggle(title, isOn: isOn)
-        .help(help)
-      Text(detail)
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      Text("Requires app restart.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
+    Toggle(isOn: isOn) {
+      SettingsRowLabel(
+        title: title,
+        subtitle: subtitle
+      )
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -383,45 +388,17 @@ private struct AppearanceOptionCardView: View {
     let strokeColor = isSelected ? Color.accentColor : Color.secondary.opacity(0.35)
 
     Button(action: action) {
-      VStack {
-        ZStack {
-          RoundedRectangle(cornerRadius: 12)
-            .fill(mode.previewBackground)
-
-          VStack(alignment: .leading) {
-            HStack {
-              Circle()
-                .fill(.red)
-                .frame(width: 6, height: 6)
-              Circle()
-                .fill(.yellow)
-                .frame(width: 6, height: 6)
-              Circle()
-                .fill(.green)
-                .frame(width: 6, height: 6)
-            }
-
-            RoundedRectangle(cornerRadius: 3)
-              .fill(mode.previewPrimary)
-              .frame(height: 10)
-
-            RoundedRectangle(cornerRadius: 3)
-              .fill(mode.previewSecondary)
-              .frame(height: 8)
-
-            RoundedRectangle(cornerRadius: 3)
-              .fill(mode.previewAccent)
-              .frame(width: 64, height: 6)
-          }
-          .padding()
-        }
-        .aspectRatio(1.6, contentMode: .fit)
-
+      VStack(spacing: 12) {
+        Image(mode.imageName)
+          .resizable()
+          .interpolation(.high)
+          .scaledToFit()
+          .accessibilityHidden(true)
         Text(mode.title)
           .font(.headline)
       }
-      .frame(maxWidth: .infinity)
-      .padding()
+      .frame(minWidth: 112, maxWidth: 124)
+      .padding(12)
     }
     .buttonStyle(.plain)
     .background(isSelected ? Color.accentColor.opacity(0.12) : .clear)
@@ -429,6 +406,21 @@ private struct AppearanceOptionCardView: View {
     .overlay {
       RoundedRectangle(cornerRadius: 12)
         .stroke(strokeColor, lineWidth: isSelected ? 2 : 1)
+    }
+  }
+}
+
+private struct SettingsRowLabel: View {
+  let title: String
+  let subtitle: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title)
+      Text(subtitle)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 }

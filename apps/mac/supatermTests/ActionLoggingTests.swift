@@ -14,8 +14,8 @@ struct ActionLoggingTests {
   @Test
   func formatsSettingsActions() {
     #expect(
-      debugCaseOutput(SettingsFeature.Action.tabSelected(.advanced))
-        == "SettingsFeature.Action.tabSelected(.advanced)"
+      debugCaseOutput(SettingsFeature.Action.tabSelected(.updates))
+        == "SettingsFeature.Action.tabSelected(.updates)"
     )
   }
 }

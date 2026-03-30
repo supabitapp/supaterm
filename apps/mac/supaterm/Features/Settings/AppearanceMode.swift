@@ -35,7 +35,7 @@ enum AppearanceMode: String, CaseIterable, Codable, Hashable, Identifiable, Send
   var title: String {
     switch self {
     case .system:
-      "System"
+      "Auto"
     case .light:
       "Light"
     case .dark:
@@ -43,40 +43,14 @@ enum AppearanceMode: String, CaseIterable, Codable, Hashable, Identifiable, Send
     }
   }
 
-  var previewAccent: Color {
-    Color(red: 0.09, green: 0.54, blue: 0.93)
-  }
-
-  var previewBackground: Color {
+  var imageName: String {
     switch self {
     case .system:
-      Color(red: 0.13, green: 0.13, blue: 0.14)
+      "AppearanceAuto"
     case .light:
-      Color(red: 0.95, green: 0.95, blue: 0.95)
+      "AppearanceLight"
     case .dark:
-      .black
-    }
-  }
-
-  var previewPrimary: Color {
-    switch self {
-    case .system:
-      Color.white.opacity(0.16)
-    case .light:
-      Color.black.opacity(0.14)
-    case .dark:
-      Color.white.opacity(0.2)
-    }
-  }
-
-  var previewSecondary: Color {
-    switch self {
-    case .system:
-      Color.white.opacity(0.12)
-    case .light:
-      Color.black.opacity(0.08)
-    case .dark:
-      Color.white.opacity(0.12)
+      "AppearanceDark"
     }
   }
 }

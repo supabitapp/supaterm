@@ -60,10 +60,6 @@ struct SettingsFeatureTests {
       $0.selectedTab = .updates
     }
 
-    await store.send(.tabSelected(.advanced)) {
-      $0.selectedTab = .advanced
-    }
-
     await store.send(.tabSelected(.about)) {
       $0.selectedTab = .about
     }
@@ -88,7 +84,7 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func advancedSettingsPersistPrefs() async throws {
+  func diagnosticsSettingsPersistPrefs() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {

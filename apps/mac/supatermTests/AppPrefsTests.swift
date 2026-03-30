@@ -58,4 +58,9 @@ struct AppPrefsTests {
     #expect(AppearanceMode.light.appearance?.name == .aqua)
     #expect(AppearanceMode.dark.appearance?.name == .darkAqua)
   }
+
+  @Test
+  func appearanceModeUsesAutoTitleForSystem() {
+    #expect(AppearanceMode.system.title == "Auto")
+  }
 }
