@@ -89,21 +89,7 @@ jobs:
           EOF
       - run: make mac-export-archive
       - name: Re-sign frameworks
-        run: |
-          set -euo pipefail
-          APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
-          SPARKLE_DIR=$(find "$APP_PATH/Contents/Frameworks/Sparkle.framework/Versions" -mindepth 1 -maxdepth 1 -type d ! -name Current -print -quit)
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/XPCServices/Installer.xpc"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements -v "$SPARKLE_DIR/XPCServices/Downloader.xpc"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Updater.app"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Autoupdate"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Sparkle"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
-          SENTRY_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sentry.framework"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK/Versions/A/Sentry"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK"
-          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$APP_PATH"
-          codesign -vvv --deep --strict "$APP_PATH"
+        run: bash ./.github/scripts/resign_exported_app.sh apps/mac/build/export
       - name: Store notarization credentials
         run: |
           echo "$APPLE_NOTARIZATION_KEY" > notarization_key.p8
