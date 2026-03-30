@@ -48,6 +48,40 @@ final class TerminalHostState {
     let createdAt: Date
     var subtitle: String
     var title: String
+    fileprivate let origin: NotificationOrigin
+
+    init(
+      attentionState: SupatermNotificationAttentionState?,
+      body: String,
+      createdAt: Date,
+      subtitle: String,
+      title: String
+    ) {
+      self.init(
+        attentionState: attentionState,
+        body: body,
+        createdAt: createdAt,
+        subtitle: subtitle,
+        title: title,
+        origin: .generic
+      )
+    }
+
+    fileprivate init(
+      attentionState: SupatermNotificationAttentionState?,
+      body: String,
+      createdAt: Date,
+      subtitle: String,
+      title: String,
+      origin: NotificationOrigin
+    ) {
+      self.attentionState = attentionState
+      self.body = body
+      self.createdAt = createdAt
+      self.subtitle = subtitle
+      self.title = title
+      self.origin = origin
+    }
   }
 
   enum NotificationSemantic: Equatable, Sendable {
@@ -56,7 +90,7 @@ final class TerminalHostState {
     case other
   }
 
-  private enum NotificationOrigin: Equatable, Sendable {
+  fileprivate enum NotificationOrigin: Equatable, Sendable {
     case structuredAgent(NotificationSemantic)
     case terminalDesktop
     case generic
@@ -486,6 +520,12 @@ final class TerminalHostState {
           .filter { $0.attentionState != nil }
       )
     )
+  }
+
+  func notificationRecordCount(for tabID: TerminalTabID) -> Int {
+    notifications(for: tabID)
+      .values
+      .reduce(into: 0) { $0 += $1.count }
   }
 
   func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
@@ -1125,13 +1165,20 @@ final class TerminalHostState {
       for: resolvedTarget.tabID
     )
     let createdAt = Date()
+    coalesceStructuredNotificationIfNeeded(
+      body: request.body,
+      origin: origin,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      title: resolvedTitle
+    )
     paneNotifications[resolvedTarget.anchorSurface.id, default: []].append(
-      .init(
+      PaneNotification(
         attentionState: attentionState,
         body: request.body,
         createdAt: createdAt,
         subtitle: request.subtitle,
-        title: resolvedTitle
+        title: resolvedTitle,
+        origin: origin
       ))
     updateRecentStructuredNotificationIfNeeded(
       body: request.body,
@@ -2574,6 +2621,49 @@ final class TerminalHostState {
     )
   }
 
+  private func coalesceStructuredNotificationIfNeeded(
+    body: String,
+    origin: NotificationOrigin,
+    surfaceID: UUID,
+    title: String
+  ) {
+    guard case .structuredAgent(let semantic) = origin else { return }
+    guard
+      let structuredText = Self.normalizedNotificationText(
+        Self.notificationText(body: body, title: title)
+      ),
+      var notifications = paneNotifications[surfaceID]
+    else {
+      return
+    }
+    let now = Date()
+    guard
+      let index = notifications.indices.reversed().first(where: { index in
+        let notification = notifications[index]
+        guard
+          notification.origin == .terminalDesktop,
+          now.timeIntervalSince(notification.createdAt) <= Self.notificationCoalescingWindow,
+          let terminalText = Self.normalizedNotificationText(Self.notificationText(notification))
+        else {
+          return false
+        }
+        return Self.shouldCoalesceTerminalNotification(
+          terminalText: terminalText,
+          structuredText: structuredText,
+          semantic: semantic
+        )
+      })
+    else {
+      return
+    }
+    notifications.remove(at: index)
+    if notifications.isEmpty {
+      paneNotifications.removeValue(forKey: surfaceID)
+    } else {
+      paneNotifications[surfaceID] = notifications
+    }
+  }
+
   private func shouldSuppressDesktopNotification(
     body: String,
     surfaceID: UUID,
@@ -2587,16 +2677,11 @@ final class TerminalHostState {
     else {
       return false
     }
-    if terminalText == recentStructuredNotification.text {
-      return true
-    }
-    if terminalText.count < recentStructuredNotification.text.count,
-      recentStructuredNotification.text.hasPrefix(terminalText)
-    {
-      return true
-    }
-    return recentStructuredNotification.semantic == .completion
-      && Self.genericCompletionNotificationTexts.contains(terminalText)
+    return Self.shouldCoalesceTerminalNotification(
+      terminalText: terminalText,
+      structuredText: recentStructuredNotification.text,
+      semantic: recentStructuredNotification.semantic
+    )
   }
 
   private func recentStructuredNotification(for surfaceID: UUID) -> RecentStructuredNotification? {
@@ -2663,6 +2748,23 @@ final class TerminalHostState {
   ]
 
   private static let notificationCoalescingWindow: TimeInterval = 2
+
+  private static func shouldCoalesceTerminalNotification(
+    terminalText: String,
+    structuredText: String,
+    semantic: NotificationSemantic
+  ) -> Bool {
+    if terminalText == structuredText {
+      return true
+    }
+    if terminalText.count < structuredText.count,
+      structuredText.hasPrefix(terminalText)
+    {
+      return true
+    }
+    return semantic == .completion
+      && genericCompletionNotificationTexts.contains(terminalText)
+  }
 
   private static func normalizedNotificationText(_ value: String?) -> String? {
     guard let value else { return nil }

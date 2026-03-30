@@ -199,6 +199,34 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func structuredCompletionReplacesRecentTerminalCompletionFallback() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .inactive
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    surface.bridge.onDesktopNotification?("Codex", "Agent turn complete")
+
+    _ = try host.notifyStructuredAgent(
+      .init(
+        body: "Done.",
+        subtitle: "Turn complete",
+        target: .contextPane(surface.id),
+        title: "Codex",
+        allowDesktopNotificationWhenAgentActive: true
+      ),
+      semantic: .completion
+    )
+
+    #expect(host.notificationRecordCount(for: tabID) == 1)
+    #expect(host.latestNotificationText(for: tabID) == "Done.")
+  }
+
+  @Test
   func notifySuppressesDesktopDeliveryWhenAgentIsRunning() throws {
     initializeGhosttyForTests()
 
