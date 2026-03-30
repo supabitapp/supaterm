@@ -94,7 +94,7 @@ jobs:
           </plist>
           EOF
       - run: make mac-export-archive
-      - name: Re-sign Sparkle helpers
+      - name: Re-sign frameworks
         run: |
           set -euo pipefail
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
@@ -105,6 +105,9 @@ jobs:
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Autoupdate"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SPARKLE_DIR/Sparkle"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$APP_PATH/Contents/Frameworks/Sparkle.framework"
+          SENTRY_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sentry.framework"
+          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK/Versions/A/Sentry"
+          codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp -v "$SENTRY_FRAMEWORK"
           codesign -f -s "$DEVELOPER_ID_IDENTITY_SHA" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags -v "$APP_PATH"
           codesign -vvv --deep --strict "$APP_PATH"
       - name: Store notarization credentials
@@ -166,6 +169,11 @@ jobs:
         run: |
           APP_PATH=$(find apps/mac/build/export -maxdepth 3 -name 'supaterm.app' -print -quit)
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" apps/mac/build/supaterm.app.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dsyms
+          if-no-files-found: error
+          path: apps/mac/build/supaterm.xcarchive/dSYMs/**
       - name: Download Sparkle tools
         run: |
           SPARKLE_VERSION=$(awk -F'"' '/sparkle-project\/Sparkle/ { print $4; exit }' apps/mac/Tuist/Package.swift)
@@ -221,3 +229,20 @@ jobs:
           python3 .github/scripts/merge_appcasts.py stable_appcast.xml apps/mac/build/appcast.xml merged_appcast.xml
           mv merged_appcast.xml appcast.xml
           gh release upload "$LATEST_TAG" appcast.xml --clobber -R "${{ github.repository }}"
+
+  sentry-dsym:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
+      - uses: actions/download-artifact@v7
+        with:
+          name: dsyms
+          path: dsyms
+      - name: Upload dSYMs to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: supabit
+          SENTRY_PROJECT: supaterm
+        run: sentry-cli debug-files upload --include-sources dsyms

@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var suppressesSessionSave = false
 
   override init() {
+    AppCrashReporting.setup()
     AppTelemetry.setup()
     GhosttyBootstrap.initialize()
     let terminalWindowRegistry = TerminalWindowRegistry()

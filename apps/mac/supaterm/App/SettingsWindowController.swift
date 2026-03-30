@@ -10,6 +10,7 @@ final class SettingsWindowController: NSWindowController {
   init() {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
+        .logActions()
     }
     self.store = store
     let rootView = AppAppearanceView {
