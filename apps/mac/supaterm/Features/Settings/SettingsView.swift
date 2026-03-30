@@ -89,54 +89,66 @@ private struct SettingsCodingAgentsView: View {
 
   var body: some View {
     Form {
-      SettingsAgentInstallSection(
-        action: { _ = store.send(.claudeHooksInstallButtonTapped) },
-        buttonTitle: "Install Claude Hooks",
-        detail: "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`.",
-        footnote: "Supaterm preserves your existing settings and rewrites only its own hook entries.",
-        installState: claudeInstallState,
-        title: "Claude Code"
-      )
+      Section {
+        SettingsAgentInstallRow(
+          action: { _ = store.send(.claudeHooksInstallButtonTapped) },
+          buttonTitle: "Install Claude Hooks",
+          installState: claudeInstallState,
+          subtitle:
+            "Install Supaterm's Claude hook bridge into `~/.claude/settings.json`. "
+            + "Supaterm preserves your existing settings and rewrites only its own hook entries.",
+          title: "Claude Code"
+        )
 
-      SettingsAgentInstallSection(
-        action: { _ = store.send(.codexHooksInstallButtonTapped) },
-        buttonTitle: "Install Codex Hooks",
-        detail: "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable the Codex hooks feature.",
-        footnote: "Supaterm preserves your existing global hooks and uses the Codex CLI to update Codex config.",
-        installState: codexInstallState,
-        title: "Codex"
-      )
+        SettingsAgentInstallRow(
+          action: { _ = store.send(.codexHooksInstallButtonTapped) },
+          buttonTitle: "Install Codex Hooks",
+          installState: codexInstallState,
+          subtitle:
+            "Install Supaterm's Codex hook bridge into `~/.codex/hooks.json` and enable "
+            + "the Codex hooks feature. Supaterm preserves your existing global hooks and "
+            + "uses the Codex CLI to update Codex config.",
+          title: "Codex"
+        )
+      }
     }
     .formStyle(.grouped)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
-private struct SettingsAgentInstallSection: View {
+private struct SettingsAgentInstallRow: View {
   let action: () -> Void
   let buttonTitle: String
-  let detail: String
-  let footnote: String
   let installState: SettingsAgentHooksInstallState
+  let subtitle: String
   let title: String
 
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    Section(title) {
-      Text(detail)
-      Text(footnote)
-        .font(.footnote)
-        .foregroundStyle(.secondary)
+    HStack(alignment: .center, spacing: 16) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.headline)
+        Text(subtitle)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+        if let message = installState.message {
+          Text(message)
+            .font(.callout)
+            .foregroundStyle(installState.isFailure ? errorColor : .secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
 
       Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
         .disabled(installState.isInstalling)
-
-      if let message = installState.message {
-        Text(message)
-          .foregroundStyle(installState.isFailure ? errorColor : .secondary)
-      }
+        .fixedSize()
     }
+    .padding(.vertical, 4)
   }
 
   private var errorColor: Color {
