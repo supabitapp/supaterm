@@ -22,6 +22,7 @@ const downloadRoutes = [
   {
     prefix: "/download/tip/",
     base: "https://github.com/supabitapp/supaterm/releases/download/tip/",
+    appcastBase: "https://github.com/supabitapp/supaterm/releases/latest/download/",
   },
 ] as const;
 
@@ -53,7 +54,11 @@ const buildTargetUrl = (route: (typeof downloadRoutes)[number], requestUrl: URL)
     return null;
   }
 
-  const targetUrl = new URL(`${route.base}${assetPath}`);
+  const base =
+    assetPath === "appcast.xml" && "appcastBase" in route && route.appcastBase
+      ? route.appcastBase
+      : route.base;
+  const targetUrl = new URL(`${base}${assetPath}`);
   targetUrl.search = requestUrl.search;
   return targetUrl;
 };

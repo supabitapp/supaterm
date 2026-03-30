@@ -40,7 +40,7 @@ describe("worker", () => {
     await expect(response.text()).resolves.toBe("stable");
   });
 
-  it("proxies tip release assets", async () => {
+  it("proxies the tip appcast through the merged latest feed", async () => {
     const upstreamFetch = vi.fn().mockResolvedValue(
       new Response("appcast", {
         headers: { etag: '"abc"' },
@@ -61,12 +61,39 @@ describe("worker", () => {
     const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
 
     expect(target.toString()).toBe(
-      "https://github.com/supabitapp/supaterm/releases/download/tip/appcast.xml?build=1",
+      "https://github.com/supabitapp/supaterm/releases/latest/download/appcast.xml?build=1",
     );
     expect(init.method).toBe("GET");
     expect(init.headers.get("host")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("public, max-age=300");
     await expect(response.text()).resolves.toBe("appcast");
+  });
+
+  it("keeps tip binary assets on the tip release", async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(
+      new Response("dmg", {
+        headers: { etag: '"tip"' },
+      }),
+    );
+
+    vi.stubGlobal("fetch", upstreamFetch);
+
+    const response = await worker.fetch(
+      new Request("https://supaterm.com/download/tip/supaterm.dmg?build=1"),
+      { ASSETS: { fetch: vi.fn() } as AssetBinding },
+    );
+
+    expect(upstreamFetch).toHaveBeenCalledTimes(1);
+
+    const [target, init] = upstreamFetch.mock.calls[0] as [URL, RequestInit & { headers: Headers }];
+
+    expect(target.toString()).toBe(
+      "https://github.com/supabitapp/supaterm/releases/download/tip/supaterm.dmg?build=1",
+    );
+    expect(init.method).toBe("GET");
+    expect(init.headers.get("host")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("public, max-age=300");
+    await expect(response.text()).resolves.toBe("dmg");
   });
 
   it("returns 405 for non-read download requests", async () => {
