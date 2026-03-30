@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import SwiftUI
 
@@ -70,7 +71,7 @@ private struct SettingsTabContentView: View {
     case .advanced:
       SettingsAdvancedView(store: store)
     case .about:
-      SettingsPlaceholderView(tab: tab)
+      SettingsAboutView()
     }
   }
 }
@@ -319,6 +320,48 @@ private struct SettingsAdvancedToggleView: View {
   }
 }
 
+private struct SettingsAboutView: View {
+  private var appName: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+      ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+      ?? "Supaterm"
+  }
+
+  private var versionText: String {
+    switch (AppBuild.version, AppBuild.buildNumber) {
+    case (let version, let buildNumber) where !version.isEmpty && !buildNumber.isEmpty:
+      return "\(version) (\(buildNumber))"
+    case (let version, _) where !version.isEmpty:
+      return version
+    case (_, let buildNumber) where !buildNumber.isEmpty:
+      return buildNumber
+    default:
+      return "Unknown Version"
+    }
+  }
+
+  var body: some View {
+    VStack(spacing: 24) {
+      Image(nsImage: NSApplication.shared.applicationIconImage)
+        .resizable()
+        .interpolation(.high)
+        .frame(width: 96, height: 96)
+        .accessibilityLabel("\(appName) app icon")
+
+      VStack(spacing: 6) {
+        Text(appName)
+          .font(.title2.weight(.semibold))
+
+        Text(versionText)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
 private struct AppearanceOptionCardView: View {
   let mode: AppearanceMode
   let isSelected: Bool
@@ -375,20 +418,5 @@ private struct AppearanceOptionCardView: View {
       RoundedRectangle(cornerRadius: 12)
         .stroke(strokeColor, lineWidth: isSelected ? 2 : 1)
     }
-  }
-}
-
-private struct SettingsPlaceholderView: View {
-  let tab: SettingsFeature.Tab
-
-  var body: some View {
-    Form {
-      Section(tab.title) {
-        Text(tab.detail)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
