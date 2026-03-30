@@ -54,6 +54,7 @@ enum SPHelp {
       sp new-pane right
       sp new-pane down htop
       sp new-pane down --script $'echo 1\necho 2'
+      sp new-pane --no-equalize right
       sp new-pane --space 1 --tab 2 left
       sp new-pane --space 1 --tab 2 --pane 3 down tail -f /tmp/server.log
     """

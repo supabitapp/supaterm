@@ -661,6 +661,7 @@ struct SupatermSocketProtocolTests {
       command: "pwd",
       direction: .down,
       focus: false,
+      equalize: false,
       targetWindowIndex: 1,
       targetSpaceIndex: 2,
       targetTabIndex: 1,

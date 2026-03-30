@@ -359,6 +359,9 @@ extension SP {
     @Flag(inversion: .prefixedNo, help: "Focus the new pane after creating it.")
     var focus = true
 
+    @Flag(inversion: .prefixedNo, help: "Equalize panes after creating the new pane.")
+    var equalize = true
+
     @Flag(name: .long, help: "Print the result as JSON.")
     var json = false
 
@@ -408,6 +411,7 @@ extension SP {
           command: command,
           direction: direction.direction,
           focus: focus,
+          equalize: equalize,
           targetWindowIndex: window ?? 1,
           targetSpaceIndex: space,
           targetTabIndex: tab,
@@ -423,7 +427,8 @@ extension SP {
         command: command,
         contextPaneID: context.surfaceID,
         direction: direction.direction,
-        focus: focus
+        focus: focus,
+        equalize: equalize
       )
     }
   }

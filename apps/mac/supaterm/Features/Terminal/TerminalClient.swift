@@ -24,6 +24,7 @@ struct TerminalCreatePaneRequest: Equatable, Sendable {
   let command: String?
   let direction: SupatermPaneDirection
   let focus: Bool
+  let equalize: Bool
   let target: Target
 }
 
