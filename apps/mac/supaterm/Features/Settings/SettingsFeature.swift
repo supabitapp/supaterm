@@ -73,7 +73,6 @@ struct SettingsFeature {
     case general
     case codingAgents
     case updates
-    case advanced
     case about
 
     var id: String {
@@ -88,8 +87,6 @@ struct SettingsFeature {
         "slider.horizontal.3"
       case .updates:
         "arrow.trianglehead.clockwise"
-      case .advanced:
-        "gearshape.2"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -103,8 +100,6 @@ struct SettingsFeature {
         "General"
       case .updates:
         "Updates"
-      case .advanced:
-        "Advanced"
       case .about:
         "About"
       }
@@ -115,11 +110,9 @@ struct SettingsFeature {
       case .codingAgents:
         "Claude and Codex hook integration"
       case .general:
-        "Appearance and preferences"
+        "Appearance, privacy, and preferences"
       case .updates:
         "Channel and automatic update preferences"
-      case .advanced:
-        "Analytics and diagnostics"
       case .about:
         "App logo and build information"
       }
