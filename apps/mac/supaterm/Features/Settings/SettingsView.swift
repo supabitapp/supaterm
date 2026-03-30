@@ -67,6 +67,8 @@ private struct SettingsTabContentView: View {
       SettingsGeneralView(store: store)
     case .updates:
       SettingsUpdatesView(store: store)
+    case .advanced:
+      SettingsAdvancedView(store: store)
     case .about:
       SettingsPlaceholderView(tab: tab)
     }
@@ -250,6 +252,70 @@ private struct SettingsUpdatesView: View {
       .padding(.top)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SettingsAdvancedView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var analyticsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.analyticsEnabled },
+      set: { newValue in
+        _ = store.send(.analyticsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  private var crashReportsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.crashReportsEnabled },
+      set: { newValue in
+        _ = store.send(.crashReportsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    Form {
+      Section("Advanced") {
+        SettingsAdvancedToggleView(
+          detail: "Anonymous usage data helps improve Supaterm.",
+          help: "Share anonymous usage data with Supaterm (requires restart)",
+          isOn: analyticsEnabled,
+          title: "Share analytics with Supaterm"
+        )
+        SettingsAdvancedToggleView(
+          detail: "Anonymous crash reports help improve stability.",
+          help: "Share anonymous crash reports with Supaterm (requires restart)",
+          isOn: crashReportsEnabled,
+          title: "Share crash reports with Supaterm"
+        )
+      }
+    }
+    .formStyle(.grouped)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SettingsAdvancedToggleView: View {
+  let detail: String
+  let help: String
+  let isOn: Binding<Bool>
+  let title: String
+
+  var body: some View {
+    VStack(alignment: .leading) {
+      Toggle(title, isOn: isOn)
+        .help(help)
+      Text(detail)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+      Text("Requires app restart.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

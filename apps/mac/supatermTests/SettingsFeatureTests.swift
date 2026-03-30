@@ -22,6 +22,8 @@ struct SettingsFeatureTests {
       $appPrefs.withLock {
         $0 = AppPrefs(
           appearanceMode: .dark,
+          analyticsEnabled: false,
+          crashReportsEnabled: true,
           updateChannel: .tip,
           updatesAutomaticallyCheckForUpdates: false,
           updatesAutomaticallyDownloadUpdates: false
@@ -35,6 +37,8 @@ struct SettingsFeatureTests {
       await store.send(.task)
       await store.receive(.settingsLoaded(appPrefs)) {
         $0.appearanceMode = .dark
+        $0.analyticsEnabled = false
+        $0.crashReportsEnabled = true
         $0.updateChannel = .tip
         $0.updatesAutomaticallyCheckForUpdates = false
         $0.updatesAutomaticallyDownloadUpdates = false
@@ -54,6 +58,10 @@ struct SettingsFeatureTests {
 
     await store.send(.tabSelected(.updates)) {
       $0.selectedTab = .updates
+    }
+
+    await store.send(.tabSelected(.advanced)) {
+      $0.selectedTab = .advanced
     }
 
     await store.send(.tabSelected(.about)) {
@@ -76,6 +84,29 @@ struct SettingsFeatureTests {
 
       @Shared(.appPrefs) var appPrefs = .default
       #expect(appPrefs.appearanceMode == .dark)
+    }
+  }
+
+  @Test
+  func advancedSettingsPersistPrefs() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.analyticsEnabledChanged(false)) {
+        $0.analyticsEnabled = false
+      }
+
+      await store.send(.crashReportsEnabledChanged(false)) {
+        $0.crashReportsEnabled = false
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(!appPrefs.analyticsEnabled)
+      #expect(!appPrefs.crashReportsEnabled)
     }
   }
 
