@@ -827,12 +827,14 @@ final class TerminalHostState {
           let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
             SupatermTreeSnapshot.Pane(
               index: paneOffset + 1,
+              id: pane.id,
               isFocused: pane.id == focusedSurfaceID
             )
           }
 
           return SupatermTreeSnapshot.Tab(
             index: tabOffset + 1,
+            id: tab.id.rawValue,
             title: tab.title,
             isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
             panes: panes
@@ -841,6 +843,7 @@ final class TerminalHostState {
 
         return SupatermTreeSnapshot.Space(
           index: spaceOffset + 1,
+          id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
           tabs: tabs
@@ -951,8 +954,11 @@ final class TerminalHostState {
         isSelectedTab: selectionState.isSelectedTab,
         windowIndex: 1,
         spaceIndex: paneLocation.spaceIndex,
+        spaceID: resolvedTarget.spaceID.rawValue,
         tabIndex: paneLocation.tabIndex,
-        paneIndex: paneLocation.paneIndex
+        tabID: resolvedTarget.tabID.rawValue,
+        paneIndex: paneLocation.paneIndex,
+        paneID: newSurface.id
       )
     } catch let error as TerminalCreatePaneError {
       newSurface.closeSurface()
@@ -1048,8 +1054,11 @@ final class TerminalHostState {
         isSelectedTab: selectionState.isSelectedTab,
         windowIndex: 1,
         spaceIndex: spaceIndex,
+        spaceID: resolvedTarget.space.id.rawValue,
         tabIndex: tabIndex + 1,
-        paneIndex: paneIndex + 1
+        tabID: tabID.rawValue,
+        paneIndex: paneIndex + 1,
+        paneID: surfaceID
       )
     } catch let error as TerminalCreateTabError {
       if let createdTabID {
@@ -1104,11 +1113,14 @@ final class TerminalHostState {
     return .init(
       attentionState: attentionState,
       desktopNotificationDisposition: desktopNotificationDisposition,
-      paneIndex: paneLocation.paneIndex,
       resolvedTitle: resolvedTitle,
+      windowIndex: 1,
       spaceIndex: paneLocation.spaceIndex,
+      spaceID: resolvedTarget.spaceID.rawValue,
       tabIndex: paneLocation.tabIndex,
-      windowIndex: 1
+      tabID: resolvedTarget.tabID.rawValue,
+      paneIndex: paneLocation.paneIndex,
+      paneID: resolvedTarget.anchorSurface.id
     )
   }
 

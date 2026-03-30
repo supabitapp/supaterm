@@ -20,6 +20,8 @@ enum SPHelp {
     """
 
   static let treeDiscussion = """
+    `sp tree --json` includes UUIDs for spaces, tabs, and panes.
+
     Example:
       sp tree
       sp tree --json
@@ -50,12 +52,15 @@ enum SPHelp {
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
     Example:
       sp new-pane right
       sp new-pane down htop
       sp new-pane down --script $'echo 1\necho 2'
       sp new-pane --no-equalize right
       sp new-pane --space 1 --tab 2 left
+      sp new-pane --tab <tab-uuid> left
       sp new-pane --space 1 --tab 2 --pane 3 down tail -f /tmp/server.log
     """
 
@@ -64,17 +69,23 @@ enum SPHelp {
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
+    Explicit --space targets accept either a 1-based index or UUID.
+
     Example:
       sp new-tab ping 1.1.1.1
       sp new-tab --script $'echo 1\necho 2'
       sp new-tab --focus ping 1.1.1.1
       sp new-tab --space 1 --cwd ~/tmp ping 1.1.1.1
+      sp new-tab --space <space-uuid> --cwd ~/tmp ping 1.1.1.1
     """
 
   static let notifyDiscussion = """
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
     Example:
       sp notify --body "All tests passed"
       sp notify --space 1 --tab 2 --pane 3 --body "Deploy complete"
+      sp notify --pane <pane-uuid> --body "Deploy complete"
     """
 
   static let agentHookDiscussion = """

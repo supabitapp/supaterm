@@ -119,14 +119,21 @@ struct SocketControlFeatureTests {
   func treeRequestRepliesWithSnapshot() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "92B503AB-CC76-4D91-A024-FD4D400F0446")!
+    let pane = SupatermTreeSnapshot.Pane(
+      index: 1,
+      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+      isFocused: true
+    )
     let tab = SupatermTreeSnapshot.Tab(
       index: 1,
+      id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "zsh",
       isSelected: true,
-      panes: [.init(index: 1, isFocused: true)]
+      panes: [pane]
     )
     let space = SupatermTreeSnapshot.Space(
       index: 1,
+      id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
       tabs: [tab]
@@ -270,8 +277,11 @@ struct SocketControlFeatureTests {
       isSelectedTab: false,
       windowIndex: 1,
       spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 3,
-      paneIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -324,8 +334,11 @@ struct SocketControlFeatureTests {
       isSelectedTab: false,
       windowIndex: 1,
       spaceIndex: 1,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 2,
-      paneIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -465,8 +478,11 @@ struct SocketControlFeatureTests {
       isSelectedTab: true,
       windowIndex: 1,
       spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 1,
-      paneIndex: 3
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 3,
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -519,11 +535,14 @@ struct SocketControlFeatureTests {
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
-      paneIndex: 2,
       resolvedTitle: "Deploy complete",
+      windowIndex: 1,
       spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 1,
-      windowIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 2,
+      paneID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -583,11 +602,14 @@ struct SocketControlFeatureTests {
     let expectedResult = SupatermNotifyResult(
       attentionState: .focused,
       desktopNotificationDisposition: .suppressFocused,
-      paneIndex: 1,
       resolvedTitle: "Deploy complete",
+      windowIndex: 1,
       spaceIndex: 1,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 1,
-      windowIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {
@@ -678,11 +700,14 @@ struct SocketControlFeatureTests {
     let expectedResult = SupatermNotifyResult(
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
-      paneIndex: 1,
       resolvedTitle: "Build",
+      windowIndex: 1,
       spaceIndex: 1,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       tabIndex: 1,
-      windowIndex: 1
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
     let store = TestStore(initialState: SocketControlFeature.State()) {

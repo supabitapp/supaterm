@@ -226,8 +226,12 @@ extension SP {
     @Option(name: .long, help: "Start the new tab in the specified working directory.")
     var cwd: String?
 
-    @Option(name: .long, help: "Target a space by its 1-based index.")
-    var space: Int?
+    @Option(
+      name: .long,
+      help: "Target a space by its 1-based index or UUID.",
+      transform: parseSpaceTarget
+    )
+    var space: SPTargetSelector?
 
     @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
     var window: Int?
@@ -254,7 +258,7 @@ extension SP {
         path: connection.explicitSocketPath,
         instance: connection.instance
       )
-      let response = try client.send(.newTab(try requestPayload()))
+      let response = try client.send(.newTab(try requestPayload(client: client)))
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
@@ -270,47 +274,37 @@ extension SP {
     }
 
     func validate() throws {
-      if let window, window < 1 {
-        throw ValidationError("--window must be 1 or greater.")
-      }
-      if let space, space < 1 {
-        throw ValidationError("--space must be 1 or greater.")
-      }
-      if window != nil && space == nil {
-        throw ValidationError("--window requires --space.")
-      }
       if script != nil && !command.isEmpty {
         throw ValidationError("--script cannot be used with a trailing command.")
       }
-      if space == nil && SupatermCLIContext.current == nil {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --space.")
-      }
     }
 
-    private func requestPayload() throws -> SupatermNewTabRequest {
+    private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
       let command = try shellInput(script: script, tokens: command)
       let cwd = try resolvedWorkingDirectory(cwd)
+      switch try SPTargetResolver.resolveNewTabTarget(
+        window: window,
+        space: space,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      ) {
+      case .context(let contextPaneID):
+        return SupatermNewTabRequest(
+          command: command,
+          contextPaneID: contextPaneID,
+          cwd: cwd,
+          focus: focus
+        )
 
-      if let space {
+      case .space(let windowIndex, let spaceIndex):
         return SupatermNewTabRequest(
           command: command,
           cwd: cwd,
           focus: focus,
-          targetWindowIndex: window ?? 1,
-          targetSpaceIndex: space
+          targetWindowIndex: windowIndex,
+          targetSpaceIndex: spaceIndex
         )
       }
-
-      guard let context = SupatermCLIContext.current else {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --space.")
-      }
-
-      return SupatermNewTabRequest(
-        command: command,
-        contextPaneID: context.surfaceID,
-        cwd: cwd,
-        focus: focus
-      )
     }
   }
 
@@ -344,14 +338,26 @@ extension SP {
     @Argument(help: "Direction for the new pane.")
     var direction: PaneDirectionArgument = .right
 
-    @Option(name: .long, help: "Target a pane inside the specified tab by its 1-based index.")
-    var pane: Int?
+    @Option(
+      name: .long,
+      help: "Target a pane inside the specified tab by its 1-based index or UUID.",
+      transform: parsePaneTarget
+    )
+    var pane: SPTargetSelector?
 
-    @Option(name: .long, help: "Target a space by its 1-based index.")
-    var space: Int?
+    @Option(
+      name: .long,
+      help: "Target a space by its 1-based index or UUID.",
+      transform: parseSpaceTarget
+    )
+    var space: SPTargetSelector?
 
-    @Option(name: .long, help: "Target a tab inside the specified space by its 1-based index.")
-    var tab: Int?
+    @Option(
+      name: .long,
+      help: "Target a tab inside the specified space by its 1-based index or UUID.",
+      transform: parseTabTarget
+    )
+    var tab: SPTargetSelector?
 
     @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
     var window: Int?
@@ -381,7 +387,7 @@ extension SP {
         path: connection.explicitSocketPath,
         instance: connection.instance
       )
-      let response = try client.send(.newPane(try requestPayload()))
+      let response = try client.send(.newPane(try requestPayload(client: client)))
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
@@ -400,36 +406,50 @@ extension SP {
       if script != nil && !command.isEmpty {
         throw ValidationError("--script cannot be used with a trailing command.")
       }
-      try validateTargetSelection(window: window, space: space, tab: tab, pane: pane)
     }
 
-    private func requestPayload() throws -> SupatermNewPaneRequest {
+    private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
       let command = try shellInput(script: script, tokens: command)
+      switch try SPTargetResolver.resolvePaneTarget(
+        window: window,
+        space: space,
+        tab: tab,
+        pane: pane,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      ) {
+      case .context(let contextPaneID):
+        return SupatermNewPaneRequest(
+          command: command,
+          contextPaneID: contextPaneID,
+          direction: direction.direction,
+          focus: focus,
+          equalize: equalize
+        )
 
-      if let tab {
+      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
           command: command,
           direction: direction.direction,
           focus: focus,
           equalize: equalize,
-          targetWindowIndex: window ?? 1,
-          targetSpaceIndex: space,
-          targetTabIndex: tab,
-          targetPaneIndex: pane
+          targetWindowIndex: windowIndex,
+          targetSpaceIndex: spaceIndex,
+          targetTabIndex: tabIndex,
+          targetPaneIndex: paneIndex
+        )
+
+      case .tab(let windowIndex, let spaceIndex, let tabIndex):
+        return SupatermNewPaneRequest(
+          command: command,
+          direction: direction.direction,
+          focus: focus,
+          equalize: equalize,
+          targetWindowIndex: windowIndex,
+          targetSpaceIndex: spaceIndex,
+          targetTabIndex: tabIndex
         )
       }
-
-      guard let context = SupatermCLIContext.current else {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
-      }
-
-      return SupatermNewPaneRequest(
-        command: command,
-        contextPaneID: context.surfaceID,
-        direction: direction.direction,
-        focus: focus,
-        equalize: equalize
-      )
     }
   }
 
@@ -449,14 +469,26 @@ extension SP {
     @Option(name: .long, help: "Notification body.")
     var body = ""
 
-    @Option(name: .long, help: "Target a pane inside the specified tab by its 1-based index.")
-    var pane: Int?
+    @Option(
+      name: .long,
+      help: "Target a pane inside the specified tab by its 1-based index or UUID.",
+      transform: parsePaneTarget
+    )
+    var pane: SPTargetSelector?
 
-    @Option(name: .long, help: "Target a space by its 1-based index.")
-    var space: Int?
+    @Option(
+      name: .long,
+      help: "Target a space by its 1-based index or UUID.",
+      transform: parseSpaceTarget
+    )
+    var space: SPTargetSelector?
 
-    @Option(name: .long, help: "Target a tab inside the specified space by its 1-based index.")
-    var tab: Int?
+    @Option(
+      name: .long,
+      help: "Target a tab inside the specified space by its 1-based index or UUID.",
+      transform: parseTabTarget
+    )
+    var tab: SPTargetSelector?
 
     @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
     var window: Int?
@@ -474,7 +506,7 @@ extension SP {
         path: connection.explicitSocketPath,
         instance: connection.instance
       )
-      let response = try client.send(.notify(try requestPayload()))
+      let response = try client.send(.notify(try requestPayload(client: client)))
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
@@ -488,32 +520,46 @@ extension SP {
     }
 
     func validate() throws {
-      try validateTargetSelection(window: window, space: space, tab: tab, pane: pane)
     }
 
-    private func requestPayload() throws -> SupatermNotifyRequest {
-      if let tab {
+    private func requestPayload(client: SPSocketClient) throws -> SupatermNotifyRequest {
+      switch try SPTargetResolver.resolvePaneTarget(
+        window: window,
+        space: space,
+        tab: tab,
+        pane: pane,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      ) {
+      case .context(let contextPaneID):
+        return .init(
+          body: body,
+          contextPaneID: contextPaneID,
+          subtitle: subtitle,
+          title: title
+        )
+
+      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
         return .init(
           body: body,
           subtitle: subtitle,
-          targetPaneIndex: pane,
-          targetSpaceIndex: space,
-          targetTabIndex: tab,
-          targetWindowIndex: window ?? 1,
+          targetPaneIndex: paneIndex,
+          targetSpaceIndex: spaceIndex,
+          targetTabIndex: tabIndex,
+          targetWindowIndex: windowIndex,
+          title: title
+        )
+
+      case .tab(let windowIndex, let spaceIndex, let tabIndex):
+        return .init(
+          body: body,
+          subtitle: subtitle,
+          targetSpaceIndex: spaceIndex,
+          targetTabIndex: tabIndex,
+          targetWindowIndex: windowIndex,
           title: title
         )
       }
-
-      guard let context = SupatermCLIContext.current else {
-        throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
-      }
-
-      return .init(
-        body: body,
-        contextPaneID: context.surfaceID,
-        subtitle: subtitle,
-        title: title
-      )
     }
   }
 
@@ -1020,39 +1066,12 @@ private func socketClient(
   return try SPSocketClient(path: resolvedTarget.path, responseTimeout: responseTimeout)
 }
 
-private func validateTargetSelection(
-  window: Int?,
-  space: Int?,
-  tab: Int?,
-  pane: Int?
-) throws {
-  if let window, window < 1 {
-    throw ValidationError("--window must be 1 or greater.")
+private func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {
+  let response = try client.send(.tree())
+  guard response.ok else {
+    throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
   }
-  if let space, space < 1 {
-    throw ValidationError("--space must be 1 or greater.")
-  }
-  if let tab, tab < 1 {
-    throw ValidationError("--tab must be 1 or greater.")
-  }
-  if let pane, pane < 1 {
-    throw ValidationError("--pane must be 1 or greater.")
-  }
-  if pane != nil && tab == nil {
-    throw ValidationError("--pane requires --tab.")
-  }
-  if tab != nil && space == nil {
-    throw ValidationError("--tab requires --space.")
-  }
-  if window != nil && space == nil {
-    throw ValidationError("--window requires --space.")
-  }
-  if space != nil && tab == nil {
-    throw ValidationError("--space requires --tab.")
-  }
-  if space == nil && tab == nil && pane == nil && SupatermCLIContext.current == nil {
-    throw ValidationError("Run this command inside a Supaterm pane or provide --space and --tab.")
-  }
+  return try response.decodeResult(SupatermTreeSnapshot.self)
 }
 
 private enum SPTerminalStyle {

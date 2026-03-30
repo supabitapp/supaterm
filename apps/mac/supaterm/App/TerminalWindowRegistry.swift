@@ -729,8 +729,11 @@ final class TerminalWindowRegistry {
       isSelectedTab: result.isSelectedTab,
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
       tabIndex: result.tabIndex,
-      paneIndex: result.paneIndex
+      tabID: result.tabID,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID
     )
   }
 
@@ -744,8 +747,11 @@ final class TerminalWindowRegistry {
       isSelectedTab: result.isSelectedTab,
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
       tabIndex: result.tabIndex,
-      paneIndex: result.paneIndex
+      tabID: result.tabID,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID
     )
   }
 
@@ -772,11 +778,14 @@ final class TerminalWindowRegistry {
     .init(
       attentionState: result.attentionState,
       desktopNotificationDisposition: result.desktopNotificationDisposition,
-      paneIndex: result.paneIndex,
       resolvedTitle: result.resolvedTitle,
+      windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
       tabIndex: result.tabIndex,
-      windowIndex: windowIndex
+      tabID: result.tabID,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID
     )
   }
 
