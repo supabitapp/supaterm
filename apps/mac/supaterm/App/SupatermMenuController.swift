@@ -389,7 +389,7 @@ final class SupatermMenuController: NSObject {
     action: #selector(selectLastTab(_:)),
     identifier: MenuItemIdentifier.selectLastTab
   )
-  private lazy var selectTabItems: [NSMenuItem] = (1...8).map { slot in
+  private lazy var selectTabItems: [NSMenuItem] = (1...10).map { slot in
     let item = makeItem(
       title: "Tab \(slot)",
       action: #selector(selectTab(_:)),

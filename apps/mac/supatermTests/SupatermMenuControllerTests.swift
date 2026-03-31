@@ -614,6 +614,8 @@ struct SupatermMenuControllerTests {
         "Tab 6",
         "Tab 7",
         "Tab 8",
+        "Tab 9",
+        "Tab 10",
         "Last Tab",
       ])
   }
