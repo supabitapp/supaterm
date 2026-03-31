@@ -274,6 +274,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       agentActivity: item.agentActivity,
       terminalProgress: item.terminalProgress
     )
+    .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)

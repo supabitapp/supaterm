@@ -399,29 +399,6 @@ struct TerminalSidebarTabSummaryView: View {
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
-  let showsFullNotificationText: Bool
-
-  init(
-    tab: TerminalTabItem,
-    palette: TerminalPalette,
-    isSelected: Bool,
-    latestNotificationText: String?,
-    paneWorkingDirectories: [String],
-    unreadCount: Int,
-    agentActivity: TerminalHostState.AgentActivity?,
-    terminalProgress: TerminalSidebarTerminalProgress?,
-    showsFullNotificationText: Bool = false
-  ) {
-    self.tab = tab
-    self.palette = palette
-    self.isSelected = isSelected
-    self.latestNotificationText = latestNotificationText
-    self.paneWorkingDirectories = paneWorkingDirectories
-    self.unreadCount = unreadCount
-    self.agentActivity = agentActivity
-    self.terminalProgress = terminalProgress
-    self.showsFullNotificationText = showsFullNotificationText
-  }
 
   static func leadingIndicator(
     tab: TerminalTabItem,
@@ -519,7 +496,6 @@ struct TerminalSidebarTabSummaryView: View {
                 ? palette.selectedText.opacity(0.82)
                 : palette.secondaryText
             )
-            .lineLimit(showsFullNotificationText ? nil : 10)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
             .contentTransition(.opacity)
@@ -687,9 +663,9 @@ struct TerminalSidebarTabRow: View {
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           agentActivity: terminal.agentActivity(for: tab.id),
-          terminalProgress: terminalProgress,
-          showsFullNotificationText: isHovering
+          terminalProgress: terminalProgress
         )
+        .lineLimit(isHovering ? nil : 10)
         if let helpText = TerminalSidebarTabSummaryView.helpText(
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories
