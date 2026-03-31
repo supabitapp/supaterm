@@ -47,6 +47,16 @@ struct UpdatePhaseTests {
   }
 
   @Test
+  func deferredRestartKeepsRestartMenuActionWhileHidingSidebarSection() {
+    let phase = UpdatePhase.installing(.init(isAutoUpdate: true, showsPrompt: false))
+
+    #expect(!phase.showsSidebarSection)
+    #expect(phase.menuItemAction == .restartNow)
+    #expect(phase.menuItemTitle == "Restart to Update...")
+    #expect(phase.bypassesQuitConfirmation)
+  }
+
+  @Test
   func errorUsesFailureMessageAsDetail() {
     let phase = UpdatePhase.error(.init(message: "Network error"))
 

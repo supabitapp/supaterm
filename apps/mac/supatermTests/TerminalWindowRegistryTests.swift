@@ -122,6 +122,32 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func menuContextShowsRestartToUpdateWhenRestartIsDeferred() {
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: windowControllerID)
+
+    let context = registry.menuContext()
+    #expect(context.updateMenuItemText == "Restart to Update...")
+    #expect(context.isUpdateMenuItemEnabled)
+  }
+
+  @Test
   func requestUpdateMenuActionInKeyWindowDispatchesCheckForUpdatesWhenEnabled() async {
     let registry = TerminalWindowRegistry()
     let recorder = UpdateMenuActionRecorder()

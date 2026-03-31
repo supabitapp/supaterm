@@ -157,14 +157,16 @@ struct TerminalSidebarUpdateSection: View {
         progressContent
       }
 
-    case .installing:
-      trailingActionRow {
-        actionButton("Restart Later") {
-          _ = store.send(.perform(.restartLater))
-        }
+    case .installing(let installing):
+      if installing.showsPrompt {
+        trailingActionRow {
+          actionButton("Restart Later") {
+            _ = store.send(.perform(.restartLater))
+          }
 
-        actionButton("Restart Now", tone: .prominent) {
-          _ = store.send(.perform(.restartNow))
+          actionButton("Restart Now", tone: .prominent) {
+            _ = store.send(.perform(.restartNow))
+          }
         }
       }
 
