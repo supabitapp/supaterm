@@ -42,6 +42,11 @@ final class TerminalHostState {
     let isFocused: Bool
   }
 
+  struct SidebarNotificationPresentation: Equatable, Sendable {
+    let markdown: String
+    let previewMarkdown: String
+  }
+
   struct PaneNotification: Equatable, Sendable {
     var attentionState: SupatermNotificationAttentionState?
     var body: String
@@ -566,6 +571,19 @@ final class TerminalHostState {
 
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
     Self.notificationText(
+      Self.latestNotification(
+        in: notifications(for: tabID)
+          .values
+          .flatMap { $0 }
+          .filter { $0.attentionState != nil }
+      )
+    )
+  }
+
+  func latestSidebarNotificationPresentation(
+    for tabID: TerminalTabID
+  ) -> SidebarNotificationPresentation? {
+    Self.sidebarNotificationPresentation(
       Self.latestNotification(
         in: notifications(for: tabID)
           .values
@@ -2820,6 +2838,16 @@ final class TerminalHostState {
     return notificationText(body: notification.body, title: notification.title)
   }
 
+  static func sidebarNotificationPresentation(
+    _ notification: PaneNotification?
+  ) -> SidebarNotificationPresentation? {
+    guard let markdown = notificationText(notification) else { return nil }
+    return .init(
+      markdown: markdown,
+      previewMarkdown: sidebarNotificationPreviewMarkdown(markdown)
+    )
+  }
+
   static func notificationText(body: String, title: String) -> String? {
     let body = body.trimmingCharacters(in: .whitespacesAndNewlines)
     if !body.isEmpty {
@@ -2827,6 +2855,77 @@ final class TerminalHostState {
     }
     let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
     return title.isEmpty ? nil : title
+  }
+
+  static func sidebarNotificationPreviewMarkdown(
+    _ markdown: String
+  ) -> String {
+    var preview = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+    let replacements = [
+      (#"(?m)^\s*\[[^\]]+\]:\s+\S.*$"#, ""),
+      (#"(?m)^\s*(```|~~~).*$"#, ""),
+      (#"(?m)^\s{0,3}#{1,6}\s*"#, ""),
+      (#"(?m)^\s{0,3}>\s?"#, ""),
+      (#"(?m)^\s*[-+*]\s+"#, ""),
+      (#"(?m)^\s*\d+[.)]\s+"#, ""),
+      (#"(?m)^\s*\[[ xX]\]\s+"#, ""),
+      (#"!\[([^\]]*)\]\([^)]+\)"#, "$1"),
+      (#"\[([^\]]+)\]\([^)]+\)"#, "$1"),
+      (#"\[([^\]]+)\]\[[^\]]*\]"#, "$1"),
+      (#"(?i)<(?:https?://|mailto:)[^>]+>"#, ""),
+      (#"(?i)\b(?:https?://|mailto:)\S+\b"#, ""),
+      (#"(?m)^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?\s*$"#, ""),
+    ]
+
+    for (pattern, template) in replacements {
+      preview = replacingMatches(in: preview, pattern: pattern, with: template)
+    }
+
+    preview =
+      preview
+      .split(separator: "\n", omittingEmptySubsequences: true)
+      .map { normalizeSidebarNotificationPreviewLine(String($0)) }
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+
+    preview = replacingMatches(in: preview, pattern: #"\s+"#, with: " ", options: [])
+    return preview.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private static func normalizeSidebarNotificationPreviewLine(
+    _ line: String
+  ) -> String {
+    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+
+    let pipeCount = trimmed.reduce(into: 0) { count, character in
+      if character == "|" {
+        count += 1
+      }
+    }
+    guard trimmed.hasPrefix("|") || trimmed.hasSuffix("|") || pipeCount >= 2 else {
+      return trimmed
+    }
+
+    let cells =
+      trimmed
+      .split(separator: "|", omittingEmptySubsequences: false)
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    return cells.joined(separator: " · ")
+  }
+
+  private static func replacingMatches(
+    in string: String,
+    pattern: String,
+    with template: String,
+    options: NSRegularExpression.Options = [.anchorsMatchLines]
+  ) -> String {
+    guard let expression = try? NSRegularExpression(pattern: pattern, options: options) else {
+      return string
+    }
+    let range = NSRange(string.startIndex..<string.endIndex, in: string)
+    return expression.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: template)
   }
 
   private static let genericCompletionNotificationTexts: Set<String> = [

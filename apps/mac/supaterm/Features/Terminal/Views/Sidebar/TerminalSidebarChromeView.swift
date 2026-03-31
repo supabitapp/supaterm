@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SwiftUI
+import Textual
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
@@ -266,12 +267,12 @@ struct TerminalSidebarChromeView: View {
     index: Int,
     zoneID: TerminalSidebarDropZoneID
   ) -> some View {
-    let latestNotificationText = terminal.latestNotificationText(for: tab.id)
+    let notificationPresentation = terminal.latestSidebarNotificationPresentation(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       tab: tab,
-      latestNotificationText: latestNotificationText,
+      notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount
     )
@@ -289,7 +290,7 @@ struct TerminalSidebarChromeView: View {
         store: store,
         terminal: terminal,
         tab: tab,
-        latestNotificationText: latestNotificationText,
+        notificationPresentation: notificationPresentation,
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
         terminalProgress: nil,
@@ -425,7 +426,7 @@ struct TerminalSidebarTabSummaryView: View {
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
-  let latestNotificationText: String?
+  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
@@ -452,46 +453,10 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func helpText(
-    latestNotificationText: String?,
     paneWorkingDirectories: [String]
   ) -> String? {
-    let notificationText = latestNotificationText?
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let sections =
-      [notificationText]
-      .compactMap { text in
-        guard let text, !text.isEmpty else { return nil }
-        return text
-      } + paneWorkingDirectories
-
-    guard !sections.isEmpty else { return nil }
-    return sections.joined(separator: "\n")
-  }
-
-  static func notificationPopoverText(
-    latestNotificationText: String?
-  ) -> String? {
-    let text = latestNotificationText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    return text.isEmpty ? nil : text
-  }
-
-  static func notificationPopoverContent(
-    latestNotificationText: String?
-  ) -> AttributedString? {
-    guard let text = notificationPopoverText(latestNotificationText: latestNotificationText) else {
-      return nil
-    }
-    do {
-      return try AttributedString(
-        markdown: text,
-        options: .init(
-          interpretedSyntax: .inlineOnlyPreservingWhitespace,
-          failurePolicy: .returnPartiallyParsedIfPossible
-        )
-      )
-    } catch {
-      return AttributedString(text)
-    }
+    guard !paneWorkingDirectories.isEmpty else { return nil }
+    return paneWorkingDirectories.joined(separator: "\n")
   }
 
   var body: some View {
@@ -560,14 +525,12 @@ struct TerminalSidebarTabSummaryView: View {
           }
         }
 
-        if let latestNotificationText {
-          Text(latestNotificationText)
+        if let notificationPreviewMarkdown, !notificationPreviewMarkdown.isEmpty {
+          InlineText(markdown: notificationPreviewMarkdown)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(
-              isSelected
-                ? palette.selectedText.opacity(0.82)
-                : palette.secondaryText
-            )
+            .foregroundStyle(notificationTextColor)
+            .textual.inlineStyle(notificationInlineStyle)
+            .lineLimit(2)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
             .contentTransition(.opacity)
@@ -612,6 +575,21 @@ struct TerminalSidebarTabSummaryView: View {
     case .neutral:
       return isSelected ? palette.selectedText.opacity(0.72) : palette.secondaryText
     }
+  }
+
+  private var notificationTextColor: Color {
+    isSelected
+      ? palette.selectedText.opacity(0.82)
+      : palette.secondaryText
+  }
+
+  private var notificationInlineStyle: InlineStyle {
+    InlineStyle()
+      .code(.monospaced, .fontScale(0.94), .foregroundColor(notificationTextColor))
+      .emphasis(.italic)
+      .strong(.fontWeight(.semibold))
+      .link(.foregroundColor(notificationTextColor))
+      .strikethrough(.strikethroughStyle(.single))
   }
 }
 
@@ -701,7 +679,8 @@ private struct TerminalSidebarProgressRingView: View {
 struct TerminalSidebarTabRow: View {
   private struct AnimatedPresentation: Equatable {
     let agentActivity: TerminalHostState.AgentActivity?
-    let latestNotificationText: String?
+    let notificationPreviewMarkdown: String?
+    let notificationMarkdown: String?
     let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
@@ -710,7 +689,7 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
-  let latestNotificationText: String?
+  let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
@@ -746,7 +725,7 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
-          latestNotificationText: latestNotificationText,
+          notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           agentActivity: terminal.agentActivity(for: tab.id),
@@ -756,7 +735,6 @@ struct TerminalSidebarTabRow: View {
         )
         .lineLimit(8)
         if let helpText = TerminalSidebarTabSummaryView.helpText(
-          latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories
         ) {
           summary.help(helpText)
@@ -802,10 +780,10 @@ struct TerminalSidebarTabRow: View {
       attachmentAnchor: .rect(.bounds),
       arrowEdge: .leading
     ) {
-      if let notificationPopoverContent {
+      if let notificationMarkdown {
         TerminalSidebarNotificationPopover(
           palette: palette,
-          content: notificationPopoverContent
+          markdown: notificationMarkdown
         )
       }
     }
@@ -871,7 +849,8 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     .init(
       agentActivity: terminal.agentActivity(for: tab.id),
-      latestNotificationText: latestNotificationText,
+      notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
+      notificationMarkdown: notificationPresentation?.markdown,
       paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
@@ -882,15 +861,13 @@ struct TerminalSidebarTabRow: View {
     accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
   }
 
-  private var notificationPopoverContent: AttributedString? {
-    TerminalSidebarTabSummaryView.notificationPopoverContent(
-      latestNotificationText: latestNotificationText
-    )
+  private var notificationMarkdown: String? {
+    notificationPresentation?.markdown
   }
 
   private var notificationPopoverPresented: Binding<Bool> {
     Binding(
-      get: { isHovering && notificationPopoverContent != nil },
+      get: { isHovering && notificationMarkdown != nil },
       set: { _ in }
     )
   }
@@ -908,18 +885,19 @@ struct TerminalSidebarTabRow: View {
 
 private struct TerminalSidebarNotificationPopover: View {
   let palette: TerminalPalette
-  let content: AttributedString
+  let markdown: String
 
   private let cornerRadius: CGFloat = 14
 
   var body: some View {
     ScrollView {
-      Text(content)
+      StructuredText(markdown: markdown)
         .font(.system(size: 12))
-        .foregroundStyle(palette.primaryText)
+        .textual.structuredTextStyle(.gitHub)
+        .textual.textSelection(.enabled)
+        .textual.overflowMode(.wrap)
         .frame(maxWidth: .infinity, alignment: .leading)
         .multilineTextAlignment(.leading)
-        .textSelection(.enabled)
     }
     .scrollIndicators(.hidden)
     .padding(12)
