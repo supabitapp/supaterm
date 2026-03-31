@@ -4,26 +4,18 @@ import Testing
 
 struct GhosttySearchNavigationTests {
   @Test
-  func directionsUseNavigateSearchBindings() {
-    #expect(GhosttySearchDirection.next.command == .navigateSearch(.next))
-    #expect(GhosttySearchDirection.previous.command == .navigateSearch(.previous))
+  func directionsUseGhosttyNavigationBindings() {
+    #expect(GhosttySearchDirection.next.bindingAction == "navigate_search:next")
+    #expect(GhosttySearchDirection.previous.bindingAction == "navigate_search:previous")
   }
 
   @Test
-  func navigationDefaultsToDirectCommand() {
-    #expect(
-      GhosttySearchNavigator.commands(
-        direction: .next,
-        selected: nil,
-        total: nil
-      ) == [.navigateSearch(.next)]
-    )
-    #expect(
-      GhosttySearchNavigator.commands(
-        direction: .previous,
-        selected: nil,
-        total: nil
-      ) == [.navigateSearch(.previous)]
-    )
+  func closeSearchClearsSearchStateImmediately() {
+    let bridge = GhosttySurfaceBridge()
+    bridge.state.searchState = GhosttySurfaceSearchState(needle: "needle")
+
+    bridge.closeSearch()
+
+    #expect(bridge.state.searchState == nil)
   }
 }

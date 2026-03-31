@@ -1,202 +1,142 @@
-import AppKit
 import SwiftUI
 
 struct GhosttySurfaceSearchOverlay: View {
   let surfaceView: GhosttySurfaceView
-  @Bindable var state: GhosttySurfaceState
+  @ObservedObject var searchState: GhosttySurfaceSearchState
 
-  @State private var searchText: String
   @State private var corner: GhosttySearchCorner = .topRight
   @State private var dragOffset: CGSize = .zero
   @State private var barSize: CGSize = .zero
-  @State private var isSearchFieldFocused = false
-  @State private var searchTask: Task<Void, Never>?
+  @FocusState private var isSearchFieldFocused: Bool
 
-  private let overlayPadding: CGFloat = 8
-
-  init(surfaceView: GhosttySurfaceView) {
-    self.surfaceView = surfaceView
-    self._state = Bindable(surfaceView.bridge.state)
-    self._searchText = State(initialValue: surfaceView.bridge.state.searchNeedle ?? "")
-  }
+  private let padding: CGFloat = 8
 
   var body: some View {
     GeometryReader { geo in
-      ZStack(alignment: corner.alignment) {
-        HStack(spacing: 4) {
-          GhosttySearchField(
-            text: $searchText,
-            isFocused: isSearchFieldFocused,
-            onSubmit: { isShifted in
-              navigateSearch(isShifted ? .previous : .next)
-            },
-            onEscape: {
-              isSearchFieldFocused = false
-              surfaceView.requestFocus()
-            }
-          )
+      HStack(spacing: 4) {
+        TextField("Search", text: $searchState.needle)
+          .textFieldStyle(.plain)
           .frame(width: 180)
           .padding(.leading, 8)
           .padding(.trailing, 50)
           .padding(.vertical, 6)
           .background(Color.primary.opacity(0.1))
-          .clipShape(.rect(cornerRadius: 6))
+          .cornerRadius(6)
+          .focused($isSearchFieldFocused)
           .overlay(alignment: .trailing) {
             matchLabel
           }
-
-          Button {
-            navigateSearch(.next)
-          } label: {
-            SearchButtonLabel(
-              title: "Next",
-              shortcut: "Cmd-G",
-              systemImage: "chevron.up"
-            )
-          }
-          .buttonStyle(GhosttySearchButtonStyle())
-
-          Button {
-            navigateSearch(.previous)
-          } label: {
-            SearchButtonLabel(
-              title: "Previous",
-              shortcut: "Shift-Cmd-G",
-              systemImage: "chevron.down"
-            )
-          }
-          .buttonStyle(GhosttySearchButtonStyle())
-
-          Button {
-            closeSearch()
-          } label: {
-            SearchButtonLabel(
-              title: "Close",
-              shortcut: "Esc",
-              systemImage: "xmark"
-            )
-          }
-          .buttonStyle(GhosttySearchButtonStyle())
-        }
-        .padding(8)
-        .background(.background)
-        .clipShape(GhosttySearchOverlayShape())
-        .shadow(radius: 4)
-        .background(
-          GeometryReader { barGeo in
-            Color.clear.onAppear {
-              barSize = barGeo.size
+          .onExitCommand {
+            if searchState.needle.isEmpty {
+              surfaceView.bridge.closeSearch()
+            } else {
+              surfaceView.requestFocus()
             }
+          }
+          .onKeyPress(.return, phases: .down) { keyPress in
+            surfaceView.navigateSearch(
+              keyPress.modifiers.contains(.shift) ? .previous : .next
+            )
+            return .handled
+          }
+
+        Button(
+          action: { surfaceView.navigateSearch(.next) },
+          label: {
+            Image(systemName: "chevron.up")
+              .accessibilityLabel("Next Search Result")
           }
         )
-        .padding(overlayPadding)
-        .offset(dragOffset)
-        .contentShape(.rect)
-        .gesture(
-          DragGesture()
-            .onChanged { value in
-              dragOffset = value.translation
-            }
-            .onEnded { value in
-              let centerPos = centerPosition(for: corner, in: geo.size, barSize: barSize)
-              let newCenter = CGPoint(
-                x: centerPos.x + value.translation.width,
-                y: centerPos.y + value.translation.height
-              )
-              let newCorner = closestCorner(to: newCenter, in: geo.size)
-              withAnimation(.easeOut(duration: 0.2)) {
-                corner = newCorner
-                dragOffset = .zero
-              }
-            }
+        .buttonStyle(GhosttySearchButtonStyle())
+
+        Button(
+          action: { surfaceView.navigateSearch(.previous) },
+          label: {
+            Image(systemName: "chevron.down")
+              .accessibilityLabel("Previous Search Result")
+          }
         )
+        .buttonStyle(GhosttySearchButtonStyle())
+
+        Button(
+          action: { surfaceView.bridge.closeSearch() },
+          label: {
+            Image(systemName: "xmark")
+              .accessibilityLabel("Close Search")
+          }
+        )
+        .buttonStyle(GhosttySearchButtonStyle())
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: corner.alignment)
+      .padding(8)
+      .background(.background)
+      .clipShape(clipShape)
+      .shadow(radius: 4)
       .onAppear {
-        focusSearchField()
-        scheduleSearch(searchText)
+        isSearchFieldFocused = true
       }
-      .onChange(of: searchText) { _, newValue in
-        scheduleSearch(newValue)
-      }
-      .onChange(of: state.searchNeedle) { _, newValue in
-        guard let newValue else { return }
-        focusSearchField()
-        if !newValue.isEmpty, newValue != searchText {
-          searchText = newValue
+      .onReceive(NotificationCenter.default.publisher(for: .ghosttySearchFocus)) { notification in
+        guard notification.object as? GhosttySurfaceView === surfaceView else { return }
+        DispatchQueue.main.async {
+          isSearchFieldFocused = true
         }
       }
-      .onChange(of: state.searchFocusCount) { _, _ in
-        focusSearchField()
-      }
-      .onDisappear {
-        searchTask?.cancel()
-        searchTask = nil
-      }
+      .background(
+        GeometryReader { barGeo in
+          Color.clear.onAppear {
+            barSize = barGeo.size
+          }
+        }
+      )
+      .padding(padding)
+      .offset(dragOffset)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: corner.alignment)
+      .gesture(
+        DragGesture()
+          .onChanged { value in
+            dragOffset = value.translation
+          }
+          .onEnded { value in
+            let centerPosition = centerPosition(
+              for: corner,
+              in: geo.size,
+              barSize: barSize
+            )
+            let newCenter = CGPoint(
+              x: centerPosition.x + value.translation.width,
+              y: centerPosition.y + value.translation.height
+            )
+            let newCorner = closestCorner(to: newCenter, in: geo.size)
+            withAnimation(.easeOut(duration: 0.2)) {
+              corner = newCorner
+              dragOffset = .zero
+            }
+          }
+      )
     }
   }
 
   @ViewBuilder
   private var matchLabel: some View {
-    if let selected = state.searchSelected {
-      let totalLabel = state.searchTotal.map(String.init) ?? "?"
-      Text("\(selected + 1)/\(totalLabel)")
+    if let selected = searchState.selected {
+      Text("\(selected + 1)/\(searchState.total.map(String.init) ?? "?")")
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundColor(.secondary)
+        .monospacedDigit()
         .padding(.trailing, 8)
-    } else if let total = state.searchTotal {
+    } else if let total = searchState.total {
       Text("-/\(total)")
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundColor(.secondary)
+        .monospacedDigit()
         .padding(.trailing, 8)
     }
   }
 
-  private func scheduleSearch(_ needle: String) {
-    searchTask?.cancel()
-    if needle.isEmpty || needle.count >= 3 {
-      emitSearch(needle)
-      return
+  private var clipShape: some Shape {
+    if #available(macOS 26.0, *) {
+      return ConcentricRectangle(corners: .concentric(minimum: 8), isUniform: true)
     }
-
-    let text = needle
-    searchTask = Task { @MainActor in
-      do {
-        try await ContinuousClock().sleep(for: .milliseconds(300))
-      } catch {
-        return
-      }
-      guard !Task.isCancelled else { return }
-      emitSearch(text)
-    }
-  }
-
-  private func emitSearch(_ needle: String) {
-    surfaceView.performBindingAction("search:\(needle)")
-  }
-
-  private func navigateSearch(_ direction: GhosttySearchDirection) {
-    flushPendingSearch()
-    surfaceView.navigateSearch(direction)
-  }
-
-  private func closeSearch() {
-    surfaceView.performBindingAction("end_search")
-  }
-
-  private func flushPendingSearch() {
-    guard let searchTask else { return }
-    searchTask.cancel()
-    self.searchTask = nil
-    emitSearch(searchText)
-  }
-
-  private func focusSearchField() {
-    isSearchFieldFocused = false
-    Task { @MainActor in
-      await Task.yield()
-      isSearchFieldFocused = true
-    }
+    return RoundedRectangle(cornerRadius: 8)
   }
 
   private func centerPosition(
@@ -204,8 +144,8 @@ struct GhosttySurfaceSearchOverlay: View {
     in containerSize: CGSize,
     barSize: CGSize
   ) -> CGPoint {
-    let halfWidth = barSize.width / 2 + overlayPadding
-    let halfHeight = barSize.height / 2 + overlayPadding
+    let halfWidth = barSize.width / 2 + padding
+    let halfHeight = barSize.height / 2 + padding
 
     switch corner {
     case .topLeft:
@@ -238,109 +178,14 @@ private enum GhosttySearchCorner {
 
   var alignment: Alignment {
     switch self {
-    case .topLeft: return .topLeading
-    case .topRight: return .topTrailing
-    case .bottomLeft: return .bottomLeading
-    case .bottomRight: return .bottomTrailing
-    }
-  }
-}
-
-private struct GhosttySearchOverlayShape: Shape {
-  func path(in rect: CGRect) -> Path {
-    if #available(macOS 26.0, *) {
-      return ConcentricRectangle(corners: .concentric(minimum: 8), isUniform: true).path(in: rect)
-    }
-    return RoundedRectangle(cornerRadius: 8).path(in: rect)
-  }
-}
-
-private struct SearchButtonLabel: View {
-  let title: String
-  let shortcut: String?
-  let systemImage: String
-
-  var body: some View {
-    Label {
-      if let shortcut {
-        Text("\(title) \(Text("(\(shortcut))").foregroundColor(.secondary.opacity(0.7)))")
-      } else {
-        Text(title)
-      }
-    } icon: {
-      Image(systemName: systemImage)
-        .accessibilityHidden(true)
-    }
-  }
-}
-
-private struct GhosttySearchField: NSViewRepresentable {
-  @Binding var text: String
-  var isFocused: Bool
-  var onSubmit: (Bool) -> Void
-  var onEscape: () -> Void
-
-  func makeCoordinator() -> Coordinator {
-    Coordinator(text: $text)
-  }
-
-  func makeNSView(context: Context) -> SearchField {
-    let field = SearchField()
-    field.delegate = context.coordinator
-    field.onSubmit = onSubmit
-    field.onEscape = onEscape
-    field.isBordered = false
-    field.drawsBackground = false
-    field.focusRingType = .none
-    field.placeholderString = "Search"
-    field.usesSingleLineMode = true
-    field.lineBreakMode = .byTruncatingTail
-    field.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-    return field
-  }
-
-  func updateNSView(_ nsView: SearchField, context: Context) {
-    if nsView.stringValue != text {
-      nsView.stringValue = text
-    }
-    nsView.onSubmit = onSubmit
-    nsView.onEscape = onEscape
-
-    if isFocused, nsView.window?.firstResponder !== nsView.currentEditor() {
-      nsView.window?.makeFirstResponder(nsView)
-    }
-  }
-
-  final class Coordinator: NSObject, NSTextFieldDelegate {
-    @Binding var text: String
-
-    init(text: Binding<String>) {
-      _text = text
-    }
-
-    func controlTextDidChange(_ obj: Notification) {
-      guard let field = obj.object as? NSTextField else { return }
-      text = field.stringValue
-    }
-  }
-
-  final class SearchField: NSTextField {
-    var onSubmit: ((Bool) -> Void)?
-    var onEscape: (() -> Void)?
-
-    override func cancelOperation(_ sender: Any?) {
-      onEscape?()
-    }
-
-    override func keyDown(with event: NSEvent) {
-      switch event.keyCode {
-      case 36, 76:
-        onSubmit?(event.modifierFlags.contains(.shift))
-      case 53:
-        onEscape?()
-      default:
-        super.keyDown(with: event)
-      }
+    case .topLeft:
+      return .topLeading
+    case .topRight:
+      return .topTrailing
+    case .bottomLeft:
+      return .bottomLeading
+    case .bottomRight:
+      return .bottomTrailing
     }
   }
 }
@@ -358,20 +203,7 @@ private struct GhosttySearchButtonStyle: ButtonStyle {
           .fill(backgroundColor(isPressed: configuration.isPressed))
       )
       .onHover { hovering in
-        if hovering != isHovered {
-          isHovered = hovering
-          if hovering {
-            NSCursor.pointingHand.push()
-          } else {
-            NSCursor.pop()
-          }
-        }
-      }
-      .onDisappear {
-        if isHovered {
-          isHovered = false
-          NSCursor.pop()
-        }
+        isHovered = hovering
       }
   }
 

@@ -209,8 +209,11 @@ struct TerminalSplitTreeView: View {
             GhosttySurfaceProgressOverlay(state: surfaceView.bridge.state)
           }
           .overlay(alignment: .topTrailing) {
-            if surfaceView.bridge.state.searchNeedle != nil {
-              GhosttySurfaceSearchOverlay(surfaceView: surfaceView)
+            if let searchState = surfaceView.bridge.state.searchState {
+              GhosttySurfaceSearchOverlay(
+                surfaceView: surfaceView,
+                searchState: searchState
+              )
             }
           }
           .overlay(alignment: .top) {
