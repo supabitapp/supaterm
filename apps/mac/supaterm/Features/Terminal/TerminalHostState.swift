@@ -354,6 +354,8 @@ final class TerminalHostState {
       closeSurface(surfaceID)
     case .closeTab(let tabID):
       closeTab(tabID)
+    case .closeTabs(let tabIDs):
+      closeTabs(tabIDs)
     case .createTab(let inheritingFromSurfaceID):
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
     case .ensureInitialTab(let focusing):
@@ -374,6 +376,10 @@ final class TerminalHostState {
       requestCloseSurface(surfaceID)
     case .requestCloseTab(let tabID):
       requestCloseTab(tabID)
+    case .requestCloseTabsBelow(let tabID):
+      requestCloseTabsBelow(tabID)
+    case .requestCloseOtherTabs(let tabID):
+      requestCloseOtherTabs(tabID)
     case .renameSpace(let spaceID, let name):
       renameSpace(spaceID, to: name)
     case .nextSpace,
@@ -797,6 +803,10 @@ final class TerminalHostState {
     performCloseTab(tabID)
   }
 
+  private func closeTabs(_ tabIDs: [TerminalTabID]) {
+    performCloseTabs(tabIDs)
+  }
+
   private func requestCloseSurface(_ surfaceID: UUID, needsConfirmation: Bool? = nil) {
     guard surfaces[surfaceID] != nil else { return }
     emit(
@@ -816,6 +826,31 @@ final class TerminalHostState {
         .init(
           target: .tab(tabID),
           needsConfirmation: tabNeedsCloseConfirmation(tabID)
+        )
+      )
+    )
+  }
+
+  private func requestCloseTabsBelow(_ tabID: TerminalTabID) {
+    guard let space = spaceManager.space(for: tabID) else { return }
+    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
+    requestCloseTabs(tabManager.tabIDsBelow(tabID))
+  }
+
+  private func requestCloseOtherTabs(_ tabID: TerminalTabID) {
+    guard let space = spaceManager.space(for: tabID) else { return }
+    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
+    requestCloseTabs(tabManager.otherTabIDs(tabID))
+  }
+
+  private func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
+    let tabIDs = tabIDs.filter { trees[$0] != nil }
+    guard !tabIDs.isEmpty else { return }
+    emit(
+      .closeRequested(
+        .init(
+          target: .tabs(tabIDs),
+          needsConfirmation: tabIDs.contains(where: tabNeedsCloseConfirmation)
         )
       )
     )
@@ -1423,6 +1458,12 @@ final class TerminalHostState {
 
     syncFocus(windowActivity)
     sessionDidChange()
+  }
+
+  private func performCloseTabs(_ tabIDs: [TerminalTabID]) {
+    for tabID in tabIDs {
+      performCloseTab(tabID)
+    }
   }
 
   private func performCloseSurface(_ surfaceID: UUID) {

@@ -72,6 +72,30 @@ struct TerminalTabManagerTests {
   }
 
   @Test
+  func tabIDsBelowFollowVisibleOrder() {
+    let manager = TerminalTabManager()
+
+    let pinned = manager.createTab(title: "Pinned", icon: "terminal", isPinned: true)
+    let regularA = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let regularB = manager.createTab(title: "Terminal 2", icon: "terminal")
+
+    #expect(manager.tabIDsBelow(pinned) == [regularA, regularB])
+    #expect(manager.tabIDsBelow(regularA) == [regularB])
+    #expect(manager.tabIDsBelow(regularB).isEmpty)
+  }
+
+  @Test
+  func otherTabIDsExcludeAnchorAndPreserveOrder() {
+    let manager = TerminalTabManager()
+
+    let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let second = manager.createTab(title: "Terminal 2", icon: "terminal")
+    let third = manager.createTab(title: "Terminal 3", icon: "terminal")
+
+    #expect(manager.otherTabIDs(second) == [first, third])
+  }
+
+  @Test
   func togglePinnedMovesTabsAcrossSections() {
     let manager = TerminalTabManager()
 
