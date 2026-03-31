@@ -494,6 +494,13 @@ final class TerminalHostState {
     )
   }
 
+  func contextSurfaceID(for tabID: TerminalTabID) -> UUID? {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], surfaces[focusedSurfaceID] != nil {
+      return focusedSurfaceID
+    }
+    return trees[tabID]?.root?.leftmostLeaf().id
+  }
+
   func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
     Self.paneWorkingDirectories(
       in: splitTree(for: tabID),
