@@ -525,6 +525,7 @@ private struct TerminalSidebarMorphingPreview: View {
       agentActivity: nil,
       terminalProgress: nil
     )
+    .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(width: rowWidth)
