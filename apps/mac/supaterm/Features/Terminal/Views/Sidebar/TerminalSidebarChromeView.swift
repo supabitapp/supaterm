@@ -712,7 +712,7 @@ struct TerminalSidebarTabRow: View {
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint
         )
-        .lineLimit(isHovering ? nil : 10)
+        .lineLimit(isHovering ? nil : 8)
         if let helpText = TerminalSidebarTabSummaryView.helpText(
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories
