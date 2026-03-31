@@ -272,7 +272,9 @@ private struct TerminalSidebarTabPreviewRow: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentActivity: item.agentActivity,
-      terminalProgress: item.terminalProgress
+      terminalProgress: item.terminalProgress,
+      shortcutHint: nil,
+      showsShortcutHint: false
     )
     .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
