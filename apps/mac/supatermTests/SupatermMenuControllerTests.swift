@@ -445,6 +445,41 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func validateCheckForUpdatesMenuItemShowsRestartToUpdateWhenRestartIsDeferred() throws {
+    let app = NSApplication.shared
+    let previousMainMenu = app.mainMenu
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(NSWindow(), for: windowControllerID)
+    let controller = SupatermMenuController(registry: registry)
+    defer {
+      app.mainMenu = previousMainMenu
+    }
+
+    controller.install()
+
+    let appMenu = try #require(app.mainMenu?.items.first?.submenu)
+    let item = try #require(
+      appMenu.items.first(where: { $0.identifier == .init("app.supabit.supaterm.app.checkForUpdates") }))
+
+    #expect(controller.validateMenuItem(item))
+    #expect(item.title == "Restart to Update...")
+  }
+
+  @Test
   func performGhosttyBindingMenuKeyEquivalentRoutesReboundQuit() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

@@ -66,6 +66,7 @@ enum UpdatePhase: Equatable, Sendable {
 
   struct Installing: Equatable, Sendable {
     var isAutoUpdate: Bool
+    var showsPrompt = true
   }
 
   case idle
@@ -183,6 +184,17 @@ enum UpdatePhase: Equatable, Sendable {
       return true
     }
     return false
+  }
+
+  var showsSidebarSection: Bool {
+    switch self {
+    case .idle:
+      return false
+    case .installing(let installing):
+      return installing.showsPrompt || !installing.isAutoUpdate
+    default:
+      return true
+    }
   }
 
   var menuItemAction: UpdateUserAction? {
@@ -592,8 +604,13 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   fileprivate func dismissUpdateInstallation() {
-    interaction = .none
-    phase = .idle
+    guard case .installing = interaction, case .installing(let installing) = phase else {
+      interaction = .none
+      phase = .idle
+      publish()
+      return
+    }
+    phase = .installing(.init(isAutoUpdate: installing.isAutoUpdate, showsPrompt: false))
     publish()
   }
 
@@ -708,9 +725,8 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   private func restartLater() {
-    guard case .installing = interaction else { return }
-    interaction = .none
-    phase = .idle
+    guard case .installing = interaction, case .installing(let installing) = phase else { return }
+    phase = .installing(.init(isAutoUpdate: installing.isAutoUpdate, showsPrompt: false))
     publish()
   }
 

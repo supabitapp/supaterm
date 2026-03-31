@@ -71,7 +71,7 @@ struct TerminalSidebarChromeView: View {
   var body: some View {
     VStack(spacing: 10) {
       tabList
-      if !updateStore.phase.isIdle {
+      if updateStore.phase.showsSidebarSection {
         TerminalSidebarUpdateSection(
           store: updateStore,
           palette: palette
