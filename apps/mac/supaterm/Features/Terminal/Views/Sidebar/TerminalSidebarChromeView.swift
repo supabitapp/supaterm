@@ -897,7 +897,8 @@ private struct TerminalSidebarNotificationPopover: View {
     }
     .scrollIndicators(.hidden)
     .padding(12)
-    .frame(width: 320, maxHeight: 220, alignment: .topLeading)
+    .frame(width: 320, alignment: .topLeading)
+    .frame(maxHeight: 220, alignment: .topLeading)
     .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
     .background {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
