@@ -1,4 +1,3 @@
-import Foundation
 import Testing
 
 @testable import supaterm
@@ -116,42 +115,11 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func helpTextIncludesNotificationAndPaneDirectories() {
+  func helpTextIncludesPaneDirectoriesOnly() {
     #expect(
       TerminalSidebarTabSummaryView.helpText(
-        latestNotificationText: "Build finished",
         paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
-      ) == "Build finished\n~/Downloads\n~/Downloads/abc"
-    )
-  }
-
-  @Test
-  func notificationPopoverContentParsesInlineMarkdownAndPreservesWhitespace() throws {
-    let content = try #require(
-      TerminalSidebarTabSummaryView.notificationPopoverContent(
-        latestNotificationText: """
-          **Build**
-          - `npm test`
-          """
-      )
-    )
-
-    #expect(
-      String(content.characters) == """
-        Build
-        - npm test
-        """
-    )
-    #expect(content.runs.contains { $0.inlinePresentationIntent == .stronglyEmphasized })
-    #expect(content.runs.contains { $0.inlinePresentationIntent == .code })
-  }
-
-  @Test
-  func notificationPopoverContentReturnsNilForBlankText() {
-    #expect(
-      TerminalSidebarTabSummaryView.notificationPopoverContent(
-        latestNotificationText: "   "
-      ) == nil
+      ) == "~/Downloads\n~/Downloads/abc"
     )
   }
 

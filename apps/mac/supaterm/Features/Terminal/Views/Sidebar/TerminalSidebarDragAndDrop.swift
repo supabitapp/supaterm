@@ -19,7 +19,7 @@ struct TerminalSidebarDragItem: Equatable {
 
 struct TerminalSidebarDragPreviewItem {
   let tab: TerminalTabItem
-  let latestNotificationText: String?
+  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
 }
@@ -489,7 +489,7 @@ private struct TerminalSidebarDragPreviewContent: View {
         let palette = TerminalPalette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: preview.tab,
-          latestNotificationText: preview.latestNotificationText,
+          notificationPreviewMarkdown: preview.notificationPreviewMarkdown,
           paneWorkingDirectories: preview.paneWorkingDirectories,
           unreadCount: preview.unreadCount,
           rowWidth: manager.previewRowWidth,
@@ -508,7 +508,7 @@ private struct TerminalSidebarDragPreviewContent: View {
 
 private struct TerminalSidebarMorphingPreview: View {
   let tab: TerminalTabItem
-  let latestNotificationText: String?
+  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let rowWidth: CGFloat
@@ -519,7 +519,7 @@ private struct TerminalSidebarMorphingPreview: View {
       tab: tab,
       palette: palette,
       isSelected: false,
-      latestNotificationText: latestNotificationText,
+      notificationPreviewMarkdown: notificationPreviewMarkdown,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentActivity: nil,

@@ -109,6 +109,92 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func sidebarNotificationPreviewMarkdownDropsBlockSyntaxAndLinks() {
+    let preview = TerminalHostState.sidebarNotificationPreviewMarkdown(
+      """
+      # Supaterm Notes
+
+      ## Features
+      - **Fast** tabbed terminal workflows
+      - [Docs](https://supaterm.com/docs)
+      - <https://supaterm.com/download>
+
+      > `socketctl`
+
+      | Area | Status | Owner |
+      | --- | --- | --- |
+      | Terminal | Done | khoi |
+
+      ```swift
+      print("hi")
+      ```
+      """
+    )
+    let expectedPreview =
+      "Supaterm Notes Features **Fast** tabbed terminal workflows Docs `socketctl` "
+      + "Area · Status · Owner Terminal · Done · khoi print(\"hi\")"
+
+    #expect(
+      preview == expectedPreview
+    )
+    #expect(!preview.contains("https://"))
+  }
+
+  @Test
+  func sidebarNotificationPresentationPreservesMarkdownAndBuildsCompactPreview() throws {
+    let notification = makeNotification(
+      attentionState: .unread,
+      body: """
+        ## Release
+
+        - [Docs](https://example.com)
+        - `sp`
+        """,
+      createdAt: 1,
+      title: "Ignored"
+    )
+
+    let presentation = try #require(
+      TerminalHostState.sidebarNotificationPresentation(notification)
+    )
+
+    #expect(
+      presentation
+        == .init(
+          markdown: """
+            ## Release
+
+            - [Docs](https://example.com)
+            - `sp`
+            """,
+          previewMarkdown: "Release Docs `sp`"
+        )
+    )
+  }
+
+  @Test
+  func sidebarNotificationPresentationFallsBackToTitleMarkdown() throws {
+    let notification = makeNotification(
+      attentionState: .unread,
+      body: "   ",
+      createdAt: 1,
+      title: "  [Ship notes](https://example.com)  "
+    )
+
+    let presentation = try #require(
+      TerminalHostState.sidebarNotificationPresentation(notification)
+    )
+
+    #expect(
+      presentation
+        == .init(
+          markdown: "[Ship notes](https://example.com)",
+          previewMarkdown: "Ship notes"
+        )
+    )
+  }
+
+  @Test
   func desktopNotificationCallbackStoresUnreadAttentionAndResolvesTabTitleOnBlankTitle() async throws {
     initializeGhosttyForTests()
 

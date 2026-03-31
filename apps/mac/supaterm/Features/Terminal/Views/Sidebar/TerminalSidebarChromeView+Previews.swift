@@ -23,7 +23,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let title: String
   let icon: String?
   let isSelected: Bool
-  let latestNotificationText: String?
+  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
@@ -47,7 +47,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       stateLabel,
       isSelected ? "Selected" : nil,
       paneCountLabel,
-      latestNotificationText == nil ? nil : "Message",
+      notificationPreviewMarkdown == nil ? nil : "Message",
     ]
     .compactMap { $0 }
 
@@ -90,7 +90,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     id: String,
     icon: String? = nil,
     isSelected: Bool = false,
-    latestNotificationText: String? = nil,
+    notificationPreviewMarkdown: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentActivity: TerminalHostState.AgentActivity? = nil,
@@ -103,7 +103,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.title = title
     self.icon = icon
     self.isSelected = isSelected
-    self.latestNotificationText = latestNotificationText
+    self.notificationPreviewMarkdown = notificationPreviewMarkdown
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.agentActivity = agentActivity
@@ -177,7 +177,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Running agent inside a split coding tab",
       title: "Socket cleanup",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05",
-      latestNotificationText: "Applying patch to socket notification routing",
+      notificationPreviewMarkdown: "Applying patch to socket notification routing",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("docs")
@@ -190,7 +190,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Release note pass",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06",
       icon: "doc.text",
-      latestNotificationText: "Need input on wording before publish",
+      notificationPreviewMarkdown: "Need input on wording before publish",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -203,7 +203,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       icon: "doc.text.magnifyingglass",
-      latestNotificationText: "Review complete: no further changes needed",
+      notificationPreviewMarkdown: "Review complete: no further changes needed",
       paneWorkingDirectories: cwdList(cwd("docs")),
       agentActivity: .claude(.idle)
     ),
@@ -225,7 +225,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
       icon: "shippingbox",
-      latestNotificationText: "Local preview server is ready",
+      notificationPreviewMarkdown: "Local preview server is ready",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -238,7 +238,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       icon: "hammer",
-      latestNotificationText: "2 failures in TerminalSidebarChromeViewTests",
+      notificationPreviewMarkdown: "2 failures in TerminalSidebarChromeViewTests",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("apps", "mac", "supatermTests")
@@ -268,7 +268,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
-      latestNotificationText: item.latestNotificationText,
+      notificationPreviewMarkdown: item.notificationPreviewMarkdown,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentActivity: item.agentActivity,
