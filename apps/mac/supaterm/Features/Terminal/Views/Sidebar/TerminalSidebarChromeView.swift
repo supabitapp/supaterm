@@ -701,6 +701,15 @@ struct TerminalSidebarTabRow: View {
     terminal.contextSurfaceID(for: tab.id)
   }
 
+  private var hasTabsBelow: Bool {
+    guard let index = terminal.tabs.firstIndex(where: { $0.id == tab.id }) else { return false }
+    return terminal.tabs.index(after: index) < terminal.tabs.endIndex
+  }
+
+  private var hasOtherTabs: Bool {
+    terminal.tabs.contains { $0.id != tab.id }
+  }
+
   var body: some View {
     Button(action: select) {
       HStack(spacing: 8) {
@@ -781,6 +790,22 @@ struct TerminalSidebarTabRow: View {
       } label: {
         Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
       }
+
+      Divider()
+
+      Button {
+        _ = store.send(.closeTabsBelowRequested(tab.id))
+      } label: {
+        Label("Close All Below", systemImage: "arrow.down.to.line")
+      }
+      .disabled(!hasTabsBelow)
+
+      Button {
+        _ = store.send(.closeOtherTabsRequested(tab.id))
+      } label: {
+        Label("Close Others", systemImage: "xmark.circle")
+      }
+      .disabled(!hasOtherTabs)
 
       Divider()
 

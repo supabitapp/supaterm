@@ -72,6 +72,7 @@ struct TerminalAgentHookResult: Equatable, Sendable {
 enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)
+  case tabs([TerminalTabID])
 }
 
 struct TerminalCloseRequest: Equatable, Sendable {
@@ -104,6 +105,7 @@ struct TerminalClient: Sendable {
   enum Command: Equatable, @unchecked Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
+    case closeTabs([TerminalTabID])
     case createSpace
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
@@ -118,6 +120,8 @@ struct TerminalClient: Sendable {
     case previousTab
     case requestCloseSurface(UUID)
     case requestCloseTab(TerminalTabID)
+    case requestCloseTabsBelow(TerminalTabID)
+    case requestCloseOtherTabs(TerminalTabID)
     case renameSpace(TerminalSpaceID, String)
     case selectLastTab
     case selectTab(TerminalTabID)

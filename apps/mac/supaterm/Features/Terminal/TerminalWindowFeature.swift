@@ -58,6 +58,8 @@ struct TerminalWindowFeature {
         return "pane:\(surfaceID.uuidString)"
       case .tab(let tabID):
         return "tab:\(tabID.rawValue.uuidString)"
+      case .tabs(let tabIDs):
+        return "tabs:\(tabIDs.map { $0.rawValue.uuidString }.joined(separator: \",\"))"
       }
     }
   }
@@ -65,6 +67,7 @@ struct TerminalWindowFeature {
   enum PendingCloseTarget: Equatable {
     case surface(UUID)
     case tab(TerminalTabID)
+    case tabs([TerminalTabID])
   }
 
   enum Action {
@@ -79,8 +82,10 @@ struct TerminalWindowFeature {
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
     case closeAllWindowsRequested([ObjectIdentifier])
+    case closeOtherTabsRequested(TerminalTabID)
     case closeSurfaceRequested(UUID)
     case closeTabRequested(TerminalTabID)
+    case closeTabsBelowRequested(TerminalTabID)
     case collapseSidebarButtonTapped
     case floatingSidebarVisibilityChanged(Bool)
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
@@ -218,11 +223,17 @@ struct TerminalWindowFeature {
         state.pendingSpaceDeleteRequest = nil
         return sendCommand(.deleteSpace(request.space.id))
 
+      case .closeOtherTabsRequested(let tabID):
+        return sendCommand(.requestCloseOtherTabs(tabID))
+
       case .closeSurfaceRequested(let surfaceID):
         return sendCommand(.requestCloseSurface(surfaceID))
 
       case .closeTabRequested(let tabID):
         return sendCommand(.requestCloseTab(tabID))
+
+      case .closeTabsBelowRequested(let tabID):
+        return sendCommand(.requestCloseTabsBelow(tabID))
 
       case .closeAllWindowsRequested(let windowIDs):
         guard !windowIDs.isEmpty else { return .none }
@@ -400,6 +411,8 @@ struct TerminalWindowFeature {
       return sendCommand(.closeSurface(surfaceID))
     case .tab(let tabID):
       return sendCommand(.closeTab(tabID))
+    case .tabs(let tabIDs):
+      return sendCommand(.closeTabs(tabIDs))
     }
   }
 
@@ -409,6 +422,8 @@ struct TerminalWindowFeature {
       return .surface(surfaceID)
     case .tab(let tabID):
       return .tab(tabID)
+    case .tabs(let tabIDs):
+      return .tabs(tabIDs)
     }
   }
 
@@ -425,6 +440,12 @@ struct TerminalWindowFeature {
         target: .tab(tabID),
         title: "Close Tab?",
         message: "A process is still running in this tab. Close it anyway?"
+      )
+    case .tabs(let tabIDs):
+      return .init(
+        target: .tabs(tabIDs),
+        title: "Close Tabs?",
+        message: "A process is still running in one or more of these tabs. Close them anyway?"
       )
     }
   }

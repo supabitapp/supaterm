@@ -131,6 +131,17 @@ final class TerminalTabManager {
     }
   }
 
+  func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
+    guard let index = tabs.firstIndex(where: { $0.id == id }) else { return [] }
+    let nextIndex = tabs.index(after: index)
+    guard nextIndex < tabs.endIndex else { return [] }
+    return tabs[nextIndex...].map(\.id)
+  }
+
+  func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
+    tabs.map(\.id).filter { $0 != id }
+  }
+
   func closeAll() {
     tabs.removeAll()
     selectedTabId = nil

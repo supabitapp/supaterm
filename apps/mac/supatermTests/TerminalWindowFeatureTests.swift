@@ -55,6 +55,38 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func closeTabsBelowRequestedAsksHostToResolveClose() async {
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.closeTabsBelowRequested(tabID))
+
+    #expect(recorder.commands == [.requestCloseTabsBelow(tabID)])
+  }
+
+  @Test
+  func closeOtherTabsRequestedAsksHostToResolveClose() async {
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.closeOtherTabsRequested(tabID))
+
+    #expect(recorder.commands == [.requestCloseOtherTabs(tabID)])
+  }
+
+  @Test
   func newTabCaptureRecordsAnalyticsAndSendsCommand() async {
     let analyticsRecorder = AnalyticsEventRecorder()
     let recorder = TerminalCommandRecorder()
@@ -155,6 +187,31 @@ struct TerminalWindowFeatureTests {
     }
 
     #expect(recorder.commands == [.closeTab(tabID)])
+  }
+
+  @Test
+  func closeConfirmationConfirmClosesPendingTabs() async {
+    let recorder = TerminalCommandRecorder()
+    let firstTabID = TerminalTabID()
+    let secondTabID = TerminalTabID()
+    var initialState = TerminalWindowFeature.State()
+    initialState.pendingCloseRequest = .init(
+      target: .tabs([firstTabID, secondTabID]),
+      title: "Close Tabs?",
+      message: "A process is still running in one or more of these tabs. Close them anyway?"
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.closeConfirmationConfirmButtonTapped) {
+      $0.pendingCloseRequest = nil
+    }
+
+    #expect(recorder.commands == [.closeTabs([firstTabID, secondTabID])])
   }
 
   @Test
