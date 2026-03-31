@@ -4,15 +4,15 @@ import SwiftUI
 
 @MainActor
 private final class TerminalGestureWindow: NSWindow {
+  var onModifierFlagsChanged: ((NSEvent.ModifierFlags) -> Void)?
   var onSwipeLeft: (() -> Void)?
   var onSwipeRight: (() -> Void)?
 
   override func sendEvent(_ event: NSEvent) {
-    guard event.type == .swipe else {
-      super.sendEvent(event)
-      return
+    if event.type == .flagsChanged {
+      onModifierFlagsChanged?(event.modifierFlags)
     }
-    if handleSwipe(event) {
+    if event.type == .swipe, handleSwipe(event) {
       return
     }
     super.sendEvent(event)
@@ -48,6 +48,7 @@ final class TerminalWindowController: NSWindowController {
   var onWindowWillClose: ((TerminalWindowController) -> Void)?
 
   private let registry: TerminalWindowRegistry
+  private let commandHoldObserver: CommandHoldObserver
   private var isPerformingConfirmedClose = false
 
   init(
@@ -72,9 +73,12 @@ final class TerminalWindowController: NSWindowController {
       $0.terminalClient = .live(host: terminal)
       $0.terminalWindowsClient = .live(registry: registry)
     }
+    let ghosttyShortcuts = GhosttyShortcutManager(runtime: ghostty)
+    let commandHoldObserver = CommandHoldObserver()
 
     self.ghostty = ghostty
-    self.ghosttyShortcuts = GhosttyShortcutManager(runtime: ghostty)
+    self.ghosttyShortcuts = ghosttyShortcuts
+    self.commandHoldObserver = commandHoldObserver
     self.terminal = terminal
     self.store = store
 
@@ -82,6 +86,8 @@ final class TerminalWindowController: NSWindowController {
       rootView: AppAppearanceView {
         GhosttyColorSchemeSyncView(ghostty: ghostty) {
           ContentView(
+            commandHoldObserver: commandHoldObserver,
+            ghosttyShortcuts: ghosttyShortcuts,
             store: store,
             terminal: terminal
           )
@@ -104,6 +110,9 @@ final class TerminalWindowController: NSWindowController {
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
+    window.onModifierFlagsChanged = { [commandHoldObserver] modifierFlags in
+      commandHoldObserver.update(modifierFlags: modifierFlags)
+    }
     window.onSwipeLeft = { [store] in
       _ = store.send(.terminal(.nextSpaceRequested))
     }
@@ -150,6 +159,14 @@ final class TerminalWindowController: NSWindowController {
 }
 
 extension TerminalWindowController: NSWindowDelegate {
+  func windowDidBecomeKey(_ notification: Notification) {
+    commandHoldObserver.update(modifierFlags: NSEvent.modifierFlags)
+  }
+
+  func windowDidResignKey(_ notification: Notification) {
+    commandHoldObserver.reset()
+  }
+
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     if isPerformingConfirmedClose {
       isPerformingConfirmedClose = false

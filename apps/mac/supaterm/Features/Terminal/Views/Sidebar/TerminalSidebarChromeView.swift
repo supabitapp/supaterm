@@ -56,13 +56,36 @@ private struct TerminalSidebarContentHeightKey: PreferenceKey {
   }
 }
 
+enum TerminalSidebarTabShortcutHints {
+  static let maxVisibleShortcutCount = 10
+
+  static func byTabID(
+    for visibleTabs: [TerminalTabItem],
+    shortcutForSlot: (Int) -> KeyboardShortcut?
+  ) -> [TerminalTabID: String] {
+    Dictionary(
+      uniqueKeysWithValues:
+        visibleTabs
+        .prefix(maxVisibleShortcutCount)
+        .enumerated()
+        .compactMap { index, tab in
+          let slot = index + 1
+          guard let shortcut = shortcutForSlot(slot) else { return nil }
+          return (tab.id, shortcut.display)
+        }
+    )
+  }
+}
+
 struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
   @StateObject private var dragSession = TerminalSidebarDragSession()
   @State private var scrollOffset: CGFloat = 0
   @State private var contentHeight: CGFloat = 0
@@ -270,7 +293,9 @@ struct TerminalSidebarChromeView: View {
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
         terminalProgress: nil,
-        palette: palette
+        palette: palette,
+        shortcutHint: tabShortcutHintsByID[tab.id],
+        showsShortcutHint: commandHoldObserver.isPressed
       )
       .id(tab.id)
       .background {
@@ -298,6 +323,12 @@ struct TerminalSidebarChromeView: View {
   private var selectedTabFrame: CGRect? {
     guard let selectedTabID = terminal.selectedTabID else { return nil }
     return tabFrames[selectedTabID]?.scrollFrame
+  }
+
+  private var tabShortcutHintsByID: [TerminalTabID: String] {
+    TerminalSidebarTabShortcutHints.byTabID(for: terminal.visibleTabs) { slot in
+      ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
+    }
   }
 
   private func newTab() {
@@ -399,6 +430,8 @@ struct TerminalSidebarTabSummaryView: View {
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
+  let shortcutHint: String?
+  let showsShortcutHint: Bool
 
   static func leadingIndicator(
     tab: TerminalTabItem,
@@ -486,6 +519,16 @@ struct TerminalSidebarTabSummaryView: View {
             .truncationMode(.tail)
 
           Spacer(minLength: 0)
+
+          if showsShortcutHint, let shortcutHint {
+            Text(shortcutHint)
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(
+                isSelected
+                  ? palette.selectedText.opacity(0.72)
+                  : palette.secondaryText
+              )
+          }
         }
 
         if let latestNotificationText {
@@ -644,6 +687,8 @@ struct TerminalSidebarTabRow: View {
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: TerminalPalette
+  let shortcutHint: String?
+  let showsShortcutHint: Bool
 
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var isHovering = false
@@ -664,7 +709,9 @@ struct TerminalSidebarTabRow: View {
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           agentActivity: terminal.agentActivity(for: tab.id),
-          terminalProgress: terminalProgress
+          terminalProgress: terminalProgress,
+          shortcutHint: shortcutHint,
+          showsShortcutHint: showsShortcutHint
         )
         if let helpText = TerminalSidebarTabSummaryView.helpText(
           latestNotificationText: latestNotificationText,
@@ -675,7 +722,7 @@ struct TerminalSidebarTabRow: View {
           summary
         }
 
-        if isHovering {
+        if isHovering && !showsShortcutHint {
           Button(action: close) {
             Image(systemName: "xmark")
               .font(.system(size: 12, weight: .heavy))

@@ -144,10 +144,8 @@ enum SupatermCommand: Hashable, Sendable {
       KeyboardShortcut(.escape, modifiers: [])
     case .equalizeSplits:
       KeyboardShortcut("=", modifiers: [.command, .control])
-    case .goToTab(let tab) where (1...8).contains(tab):
-      KeyboardShortcut(KeyEquivalent(Character(String(tab))), modifiers: .command)
-    case .lastTab:
-      KeyboardShortcut("9", modifiers: .command)
+    case .goToTab(let tab) where (1...10).contains(tab):
+      KeyboardShortcut(tabKeyEquivalent(tab), modifiers: .command)
     case .navigateSearch(.next):
       KeyboardShortcut("g", modifiers: .command)
     case .navigateSearch(.previous):
@@ -177,11 +175,19 @@ enum SupatermCommand: Hashable, Sendable {
     case .toggleSplitZoom:
       KeyboardShortcut(.return, modifiers: [.command, .shift])
     case .goToSplit,
+      .lastTab,
       .goToTab,
       .newSplit(.left),
       .newSplit(.top),
       .resizeSplit:
       nil
     }
+  }
+
+  private func tabKeyEquivalent(_ tab: Int) -> KeyEquivalent {
+    if tab == 10 {
+      return KeyEquivalent("0")
+    }
+    return KeyEquivalent(Character(String(tab)))
   }
 }
