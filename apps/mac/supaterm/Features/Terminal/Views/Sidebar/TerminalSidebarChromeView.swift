@@ -455,10 +455,17 @@ struct TerminalSidebarTabSummaryView: View {
     latestNotificationText: String?,
     paneWorkingDirectories: [String]
   ) -> String? {
-    let details = paneWorkingDirectories
+    let notificationText = latestNotificationText?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let sections =
+      [notificationText]
+      .compactMap { text in
+        guard let text, !text.isEmpty else { return nil }
+        return text
+      } + paneWorkingDirectories
 
-    guard !details.isEmpty else { return nil }
-    return details.joined(separator: "\n")
+    guard !sections.isEmpty else { return nil }
+    return sections.joined(separator: "\n")
   }
 
   static func notificationPopoverText(
@@ -466,6 +473,25 @@ struct TerminalSidebarTabSummaryView: View {
   ) -> String? {
     let text = latestNotificationText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return text.isEmpty ? nil : text
+  }
+
+  static func notificationPopoverContent(
+    latestNotificationText: String?
+  ) -> AttributedString? {
+    guard let text = notificationPopoverText(latestNotificationText: latestNotificationText) else {
+      return nil
+    }
+    do {
+      return try AttributedString(
+        markdown: text,
+        options: .init(
+          interpretedSyntax: .inlineOnlyPreservingWhitespace,
+          failurePolicy: .returnPartiallyParsedIfPossible
+        )
+      )
+    } catch {
+      return AttributedString(text)
+    }
   }
 
   var body: some View {
@@ -776,10 +802,10 @@ struct TerminalSidebarTabRow: View {
       attachmentAnchor: .rect(.bounds),
       arrowEdge: .leading
     ) {
-      if let notificationPopoverText {
+      if let notificationPopoverContent {
         TerminalSidebarNotificationPopover(
           palette: palette,
-          text: notificationPopoverText
+          content: notificationPopoverContent
         )
       }
     }
@@ -856,15 +882,15 @@ struct TerminalSidebarTabRow: View {
     accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
   }
 
-  private var notificationPopoverText: String? {
-    TerminalSidebarTabSummaryView.notificationPopoverText(
+  private var notificationPopoverContent: AttributedString? {
+    TerminalSidebarTabSummaryView.notificationPopoverContent(
       latestNotificationText: latestNotificationText
     )
   }
 
   private var notificationPopoverPresented: Binding<Bool> {
     Binding(
-      get: { isHovering && notificationPopoverText != nil },
+      get: { isHovering && notificationPopoverContent != nil },
       set: { _ in }
     )
   }
@@ -882,14 +908,14 @@ struct TerminalSidebarTabRow: View {
 
 private struct TerminalSidebarNotificationPopover: View {
   let palette: TerminalPalette
-  let text: String
+  let content: AttributedString
 
   private let cornerRadius: CGFloat = 14
 
   var body: some View {
     ScrollView {
-      Text(text)
-        .font(.system(size: 12, weight: .medium))
+      Text(content)
+        .font(.system(size: 12))
         .foregroundStyle(palette.primaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
         .multilineTextAlignment(.leading)
