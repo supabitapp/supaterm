@@ -896,23 +896,20 @@ private struct TerminalSidebarNotificationPopover: View {
   }
 
   var body: some View {
-    ScrollView {
-      StructuredText(
-        markdown,
-        parser: SidebarNotificationMarkdown.popoverParser
-      )
-      .font(.system(size: 12))
-      .foregroundStyle(palette.primaryText)
-      .textual.structuredTextStyle(.gitHub)
-      .textual.textSelection(.enabled)
-      .textual.overflowMode(.wrap)
-      .frame(width: contentWidth, alignment: .leading)
-      .multilineTextAlignment(.leading)
-    }
-    .scrollIndicators(.hidden)
+    StructuredText(
+      markdown,
+      parser: SidebarNotificationMarkdown.popoverParser
+    )
+    .font(.system(size: 12))
+    .foregroundStyle(palette.primaryText)
+    .textual.structuredTextStyle(.gitHub)
+    .textual.textSelection(.enabled)
+    .textual.overflowMode(.wrap)
+    .frame(width: contentWidth, alignment: .leading)
+    .fixedSize(horizontal: false, vertical: true)
+    .multilineTextAlignment(.leading)
     .padding(popoverPadding)
     .frame(width: popoverWidth, alignment: .topLeading)
-    .frame(maxHeight: 220, alignment: .topLeading)
     .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
     .background {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
