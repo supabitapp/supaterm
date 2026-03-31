@@ -37,7 +37,7 @@ struct TerminalTabManagerTests {
   }
 
   @Test
-  func closingSelectedTabFallsBackToAdjacentSelection() {
+  func closingSelectedTabPrefersNextTabBeforePrevious() {
     let manager = TerminalTabManager()
 
     let first = manager.createTab(title: "Terminal 1", icon: "terminal")
@@ -46,14 +46,29 @@ struct TerminalTabManagerTests {
 
     manager.selectTab(second)
     manager.closeTab(second)
-    #expect(manager.selectedTabId == first)
-
-    manager.closeTab(first)
     #expect(manager.selectedTabId == third)
 
     manager.closeTab(third)
+    #expect(manager.selectedTabId == first)
+
+    manager.closeTab(first)
     #expect(manager.selectedTabId == nil)
     #expect(manager.tabs.isEmpty)
+  }
+
+  @Test
+  func closingUnselectedTabKeepsSelection() {
+    let manager = TerminalTabManager()
+
+    let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let second = manager.createTab(title: "Terminal 2", icon: "terminal")
+    let third = manager.createTab(title: "Terminal 3", icon: "terminal")
+
+    manager.selectTab(second)
+    manager.closeTab(first)
+
+    #expect(manager.selectedTabId == second)
+    #expect(manager.tabs.map(\.id) == [second, third])
   }
 
   @Test
