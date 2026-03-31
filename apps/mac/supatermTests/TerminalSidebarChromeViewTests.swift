@@ -1,4 +1,6 @@
+import Foundation
 import Testing
+import Textual
 
 @testable import supaterm
 
@@ -121,6 +123,21 @@ struct TerminalSidebarChromeViewTests {
         paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
       ) == "~/Downloads\n~/Downloads/abc"
     )
+  }
+
+  @MainActor
+  @Test
+  func notificationPopoverParserReturnsPartialDocumentForInvalidMarkdown() throws {
+    let output = try SidebarNotificationMarkdown.popoverParser.attributedString(
+      for: """
+        # Project Notes
+
+        Here's a broken link [Docs](https://supaterm.com
+        and the rest of the document should still render.
+        """
+    )
+
+    #expect(!String(output.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
   }
 
   @Test

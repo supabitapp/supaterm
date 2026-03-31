@@ -888,20 +888,30 @@ private struct TerminalSidebarNotificationPopover: View {
   let markdown: String
 
   private let cornerRadius: CGFloat = 14
+  private let popoverWidth: CGFloat = 320
+  private let popoverPadding: CGFloat = 12
+
+  private var contentWidth: CGFloat {
+    popoverWidth - (popoverPadding * 2)
+  }
 
   var body: some View {
     ScrollView {
-      StructuredText(markdown: markdown)
-        .font(.system(size: 12))
-        .textual.structuredTextStyle(.gitHub)
-        .textual.textSelection(.enabled)
-        .textual.overflowMode(.wrap)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .multilineTextAlignment(.leading)
+      StructuredText(
+        markdown,
+        parser: SidebarNotificationMarkdown.popoverParser
+      )
+      .font(.system(size: 12))
+      .foregroundStyle(palette.primaryText)
+      .textual.structuredTextStyle(.gitHub)
+      .textual.textSelection(.enabled)
+      .textual.overflowMode(.wrap)
+      .frame(width: contentWidth, alignment: .leading)
+      .multilineTextAlignment(.leading)
     }
     .scrollIndicators(.hidden)
-    .padding(12)
-    .frame(width: 320, alignment: .topLeading)
+    .padding(popoverPadding)
+    .frame(width: popoverWidth, alignment: .topLeading)
     .frame(maxHeight: 220, alignment: .topLeading)
     .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
     .background {
@@ -916,6 +926,13 @@ private struct TerminalSidebarNotificationPopover: View {
     }
     .shadow(color: palette.shadow, radius: 18, y: 10)
   }
+}
+
+enum SidebarNotificationMarkdown {
+  static let popoverParser = AttributedStringMarkdownParser(
+    baseURL: nil,
+    options: .init(failurePolicy: .returnPartiallyParsedIfPossible)
+  )
 }
 
 private struct TerminalSidebarAgentActivityView: View {
