@@ -119,12 +119,13 @@ final class TerminalTabManager {
 
   func closeTab(_ id: TerminalTabID) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+    let wasSelected = selectedTabId == id
     tabs.remove(at: index)
-    guard selectedTabId == id else { return }
-    if index > 0 {
-      selectedTabId = tabs[index - 1].id
-    } else if !tabs.isEmpty {
-      selectedTabId = tabs[0].id
+    guard wasSelected else { return }
+    if tabs.indices.contains(index) {
+      selectedTabId = tabs[index].id
+    } else if let lastTab = tabs.last {
+      selectedTabId = lastTab.id
     } else {
       selectedTabId = nil
     }
