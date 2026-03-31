@@ -106,6 +106,8 @@ struct GhosttyBootstrapTests {
 
     let contents = try String(contentsOf: locations.preferred, encoding: .utf8)
 
+    #expect(contents.contains("cursor-style = block"))
+    #expect(contents.contains("cursor-style-blink = false"))
     #expect(contents == GhosttyBootstrap.defaultConfigContents)
   }
 
