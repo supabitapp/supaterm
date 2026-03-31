@@ -5,7 +5,7 @@
 Example command of getting issues using linear-cli
 
 ```
-linear issue list --team SUP --state backlog --state unstarted --sort manual --assignee @me --limit 100
+linear issue list --team SUP --sort manual --limit 50 --no-pager
 ```
 
 ## Layout
