@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import GhosttyKit
 
@@ -23,9 +24,19 @@ final class GhosttySurfaceBridge {
   var onDesktopNotification: ((String, String) -> Void)?
   var onStateChange: (() -> Void)?
   private var progressResetTask: Task<Void, Never>?
+  private var searchNeedleCancellable: AnyCancellable?
 
   deinit {
     progressResetTask?.cancel()
+  }
+
+  func closeSearch() {
+    guard state.searchState != nil else { return }
+    surfaceView?.requestFocus()
+    searchNeedleCancellable?.cancel()
+    searchNeedleCancellable = nil
+    state.searchState = nil
+    surfaceView?.performBindingAction("end_search")
   }
 
   func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
@@ -360,35 +371,56 @@ final class GhosttySurfaceBridge {
 
     case GHOSTTY_ACTION_START_SEARCH:
       let needle = string(from: action.action.start_search.needle) ?? ""
-      if !needle.isEmpty {
-        state.searchNeedle = needle
-      } else if state.searchNeedle == nil {
-        state.searchNeedle = ""
+      if let searchState = state.searchState {
+        if !needle.isEmpty {
+          searchState.needle = needle
+        }
+        searchState.total = nil
+        searchState.selected = nil
+      } else {
+        let searchState = GhosttySurfaceSearchState(needle: needle)
+        bindSearchState(searchState)
+        state.searchState = searchState
       }
-      state.searchTotal = nil
-      state.searchSelected = nil
-      state.searchFocusCount += 1
+      NotificationCenter.default.post(name: .ghosttySearchFocus, object: surfaceView)
       return true
 
     case GHOSTTY_ACTION_END_SEARCH:
-      state.searchNeedle = nil
-      state.searchTotal = nil
-      state.searchSelected = nil
+      searchNeedleCancellable?.cancel()
+      searchNeedleCancellable = nil
+      state.searchState = nil
       return true
 
     case GHOSTTY_ACTION_SEARCH_TOTAL:
       let total = action.action.search_total.total
-      state.searchTotal = total < 0 ? nil : Int(total)
+      state.searchState?.total = total < 0 ? nil : UInt(total)
       return true
 
     case GHOSTTY_ACTION_SEARCH_SELECTED:
       let selected = action.action.search_selected.selected
-      state.searchSelected = selected < 0 ? nil : Int(selected)
+      state.searchState?.selected = selected < 0 ? nil : UInt(selected)
       return true
 
     default:
       return false
     }
+  }
+
+  private func bindSearchState(_ searchState: GhosttySurfaceSearchState) {
+    searchNeedleCancellable = searchState.$needle
+      .removeDuplicates()
+      .map { needle -> AnyPublisher<String, Never> in
+        if needle.isEmpty || needle.count >= 3 {
+          return Just(needle).eraseToAnyPublisher()
+        }
+        return Just(needle)
+          .delay(for: .milliseconds(300), scheduler: DispatchQueue.main)
+          .eraseToAnyPublisher()
+      }
+      .switchToLatest()
+      .sink { [weak self] needle in
+        self?.surfaceView?.performBindingAction("search:\(needle)")
+      }
   }
 
   private func handleSizeAndKey(_ action: ghostty_action_s) -> Bool {

@@ -148,7 +148,7 @@ final class TerminalWindowRegistry {
         hasSurface: entry.terminal.selectedSurfaceView != nil
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
-      hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
+      hasSearch: entry.terminal.selectedSurfaceState?.searchState != nil,
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
