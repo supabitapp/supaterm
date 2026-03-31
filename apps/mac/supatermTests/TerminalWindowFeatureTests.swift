@@ -451,6 +451,78 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func sidebarTabSplitRequestedCreatesRightPaneInContextSurface() async {
+    let surfaceID = UUID()
+    var requests: [TerminalCreatePaneRequest] = []
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.createPane = { request in
+        requests.append(request)
+        return .init(
+          direction: request.direction,
+          isFocused: false,
+          isSelectedTab: true,
+          windowIndex: 1,
+          spaceIndex: 1,
+          tabIndex: 1,
+          paneIndex: 2
+        )
+      }
+    }
+
+    await store.send(.sidebarTabSplitRequested(surfaceID: surfaceID, direction: .right))
+
+    #expect(requests.count == 1)
+    #expect(
+      requests.first
+        == .init(
+          command: nil,
+          direction: .right,
+          focus: false,
+          target: .contextPane(surfaceID)
+        )
+    )
+  }
+
+  @Test
+  func sidebarTabSplitRequestedCreatesDownPaneInContextSurface() async {
+    let surfaceID = UUID()
+    var requests: [TerminalCreatePaneRequest] = []
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.createPane = { request in
+        requests.append(request)
+        return .init(
+          direction: request.direction,
+          isFocused: false,
+          isSelectedTab: true,
+          windowIndex: 1,
+          spaceIndex: 1,
+          tabIndex: 1,
+          paneIndex: 2
+        )
+      }
+    }
+
+    await store.send(.sidebarTabSplitRequested(surfaceID: surfaceID, direction: .down))
+
+    #expect(requests.count == 1)
+    #expect(
+      requests.first
+        == .init(
+          command: nil,
+          direction: .down,
+          focus: false,
+          target: .contextPane(surfaceID)
+        )
+    )
+  }
+
+  @Test
   func sidebarTabMoveCommittedSendsAtomicMoveCommand() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()

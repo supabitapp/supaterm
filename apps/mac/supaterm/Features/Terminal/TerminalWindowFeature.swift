@@ -95,6 +95,7 @@ struct TerminalWindowFeature {
     case selectTabMenuItemSelected(Int)
     case selectSpaceButtonTapped(TerminalSpaceID)
     case selectSpaceMenuItemSelected(Int)
+    case sidebarTabSplitRequested(surfaceID: UUID, direction: SupatermPaneDirection)
     case sidebarTabMoveCommitted(
       tabID: TerminalTabID,
       pinnedOrder: [TerminalTabID],
@@ -273,6 +274,18 @@ struct TerminalWindowFeature {
 
       case .selectSpaceMenuItemSelected(let slot):
         return sendCommand(.selectSpaceSlot(slot))
+
+      case .sidebarTabSplitRequested(let surfaceID, let direction):
+        return .run { [terminalClient] _ in
+          _ = try? await terminalClient.createPane(
+            .init(
+              command: nil,
+              direction: direction,
+              focus: false,
+              target: .contextPane(surfaceID)
+            )
+          )
+        }
 
       case .sidebarTabMoveCommitted(let tabID, let pinnedOrder, let regularOrder):
         return sendCommand(
