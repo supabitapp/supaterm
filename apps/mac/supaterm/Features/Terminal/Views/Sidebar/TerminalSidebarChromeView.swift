@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermCLIShared
 import SwiftUI
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
@@ -697,6 +698,10 @@ struct TerminalSidebarTabRow: View {
     terminal.selectedTabID == tab.id
   }
 
+  private var contextSurfaceID: UUID? {
+    terminal.contextSurfaceID(for: tab.id)
+  }
+
   var body: some View {
     Button(action: select) {
       HStack(spacing: 8) {
@@ -764,11 +769,29 @@ struct TerminalSidebarTabRow: View {
     .contextMenu {
       Button {
         _ = store.send(
-          .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+          .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
         )
       } label: {
         Label("New Tab", systemImage: "plus")
       }
+
+      Divider()
+
+      Button {
+        guard let contextSurfaceID else { return }
+        _ = store.send(.sidebarTabSplitRequested(surfaceID: contextSurfaceID, direction: .right))
+      } label: {
+        Label("Split Right", systemImage: "rectangle.righthalf.inset.filled")
+      }
+      .disabled(contextSurfaceID == nil)
+
+      Button {
+        guard let contextSurfaceID else { return }
+        _ = store.send(.sidebarTabSplitRequested(surfaceID: contextSurfaceID, direction: .down))
+      } label: {
+        Label("Split Down", systemImage: "rectangle.bottomhalf.inset.filled")
+      }
+      .disabled(contextSurfaceID == nil)
 
       Divider()
 
