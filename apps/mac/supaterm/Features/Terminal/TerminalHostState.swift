@@ -501,14 +501,6 @@ final class TerminalHostState {
     return trees[tabID]?.root?.leftmostLeaf().id
   }
 
-  func sidebarDisplayTitle(for tabID: TerminalTabID) -> String {
-    let surface = titleSurface(for: tabID)
-    return Self.resolvedSidebarDisplayTitle(
-      title: rawTitle(for: tabID),
-      pwd: surface?.bridge.state.pwd,
-      defaultValue: fallbackTitle(for: tabID)
-    )
-  }
   func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
     Self.paneWorkingDirectories(
       in: splitTree(for: tabID),

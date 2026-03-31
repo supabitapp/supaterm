@@ -453,6 +453,9 @@ struct TerminalWindowFeatureTests {
   @Test
   func sidebarTabSplitRequestedCreatesRightPaneInContextSurface() async {
     let surfaceID = UUID()
+    let spaceID = UUID()
+    let tabID = UUID()
+    let paneID = UUID()
     var requests: [TerminalCreatePaneRequest] = []
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -466,21 +469,30 @@ struct TerminalWindowFeatureTests {
           isSelectedTab: true,
           windowIndex: 1,
           spaceIndex: 1,
+          spaceID: spaceID,
           tabIndex: 1,
-          paneIndex: 2
+          tabID: tabID,
+          paneIndex: 2,
+          paneID: paneID
         )
       }
     }
 
-    await store.send(.sidebarTabSplitRequested(surfaceID: surfaceID, direction: .right))
+    await store.send(
+      TerminalWindowFeature.Action.sidebarTabSplitRequested(
+        surfaceID: surfaceID,
+        direction: SupatermPaneDirection.right
+      )
+    )
 
     #expect(requests.count == 1)
     #expect(
       requests.first
         == .init(
           command: nil,
-          direction: .right,
+          direction: SupatermPaneDirection.right,
           focus: false,
+          equalize: false,
           target: .contextPane(surfaceID)
         )
     )
@@ -489,6 +501,9 @@ struct TerminalWindowFeatureTests {
   @Test
   func sidebarTabSplitRequestedCreatesDownPaneInContextSurface() async {
     let surfaceID = UUID()
+    let spaceID = UUID()
+    let tabID = UUID()
+    let paneID = UUID()
     var requests: [TerminalCreatePaneRequest] = []
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -502,21 +517,30 @@ struct TerminalWindowFeatureTests {
           isSelectedTab: true,
           windowIndex: 1,
           spaceIndex: 1,
+          spaceID: spaceID,
           tabIndex: 1,
-          paneIndex: 2
+          tabID: tabID,
+          paneIndex: 2,
+          paneID: paneID
         )
       }
     }
 
-    await store.send(.sidebarTabSplitRequested(surfaceID: surfaceID, direction: .down))
+    await store.send(
+      TerminalWindowFeature.Action.sidebarTabSplitRequested(
+        surfaceID: surfaceID,
+        direction: SupatermPaneDirection.down
+      )
+    )
 
     #expect(requests.count == 1)
     #expect(
       requests.first
         == .init(
           command: nil,
-          direction: .down,
+          direction: SupatermPaneDirection.down,
           focus: false,
+          equalize: false,
           target: .contextPane(surfaceID)
         )
     )

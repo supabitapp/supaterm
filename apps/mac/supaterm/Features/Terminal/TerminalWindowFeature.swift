@@ -282,6 +282,7 @@ struct TerminalWindowFeature {
               command: nil,
               direction: direction,
               focus: false,
+              equalize: false,
               target: .contextPane(surfaceID)
             )
           )
