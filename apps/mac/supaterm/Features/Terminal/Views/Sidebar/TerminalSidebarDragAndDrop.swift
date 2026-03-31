@@ -523,7 +523,9 @@ private struct TerminalSidebarMorphingPreview: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentActivity: nil,
-      terminalProgress: nil
+      terminalProgress: nil,
+      shortcutHint: nil,
+      showsShortcutHint: false
     )
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
