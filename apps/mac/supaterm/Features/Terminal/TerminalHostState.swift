@@ -350,38 +350,25 @@ final class TerminalHostState {
 
   func handleCommand(_ command: TerminalClient.Command) {
     switch command {
-    case .closeSurface(let surfaceID):
-      closeSurface(surfaceID)
-    case .closeTab(let tabID):
-      closeTab(tabID)
-    case .closeTabs(let tabIDs):
-      closeTabs(tabIDs)
-    case .createTab(let inheritingFromSurfaceID):
-      _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
-    case .ensureInitialTab(let focusing):
-      ensureInitialTab(focusing: focusing)
-    case .createSpace:
-      createSpace()
-    case .navigateSearch(let direction):
-      _ = navigateSearchOnFocusedSurface(direction)
-    case .nextTab:
-      nextTab()
-    case .performBindingActionOnFocusedSurface(let command):
-      _ = performBindingActionOnFocusedSurface(command)
-    case .performSplitOperation(let tabID, let operation):
-      performSplitOperation(operation, in: tabID)
-    case .previousTab:
-      previousTab()
-    case .requestCloseSurface(let surfaceID):
-      requestCloseSurface(surfaceID)
-    case .requestCloseTab(let tabID):
-      requestCloseTab(tabID)
-    case .requestCloseTabsBelow(let tabID):
-      requestCloseTabsBelow(tabID)
-    case .requestCloseOtherTabs(let tabID):
-      requestCloseOtherTabs(tabID)
-    case .renameSpace(let spaceID, let name):
-      renameSpace(spaceID, to: name)
+    case .closeSurface,
+      .closeTab,
+      .closeTabs,
+      .requestCloseSurface,
+      .requestCloseTab,
+      .requestCloseTabsBelow,
+      .requestCloseOtherTabs:
+      handleCloseCommand(command)
+    case .createTab,
+      .ensureInitialTab,
+      .createSpace:
+      handleCreationCommand(command)
+    case .navigateSearch,
+      .nextTab,
+      .performBindingActionOnFocusedSurface,
+      .performSplitOperation,
+      .previousTab,
+      .renameSpace:
+      handleInteractionCommand(command)
     case .nextSpace,
       .previousSpace,
       .selectLastTab,
@@ -396,6 +383,59 @@ final class TerminalHostState {
       .updateWindowActivity,
       .deleteSpace:
       handleSelectionCommand(command)
+    }
+  }
+
+  private func handleCloseCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .closeSurface(let surfaceID):
+      closeSurface(surfaceID)
+    case .closeTab(let tabID):
+      closeTab(tabID)
+    case .closeTabs(let tabIDs):
+      closeTabs(tabIDs)
+    case .requestCloseSurface(let surfaceID):
+      requestCloseSurface(surfaceID)
+    case .requestCloseTab(let tabID):
+      requestCloseTab(tabID)
+    case .requestCloseTabsBelow(let tabID):
+      requestCloseTabsBelow(tabID)
+    case .requestCloseOtherTabs(let tabID):
+      requestCloseOtherTabs(tabID)
+    default:
+      return
+    }
+  }
+
+  private func handleCreationCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .createTab(let inheritingFromSurfaceID):
+      _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    case .ensureInitialTab(let focusing):
+      ensureInitialTab(focusing: focusing)
+    case .createSpace:
+      createSpace()
+    default:
+      return
+    }
+  }
+
+  private func handleInteractionCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .navigateSearch(let direction):
+      _ = navigateSearchOnFocusedSurface(direction)
+    case .nextTab:
+      nextTab()
+    case .performBindingActionOnFocusedSurface(let command):
+      _ = performBindingActionOnFocusedSurface(command)
+    case .performSplitOperation(let tabID, let operation):
+      performSplitOperation(operation, in: tabID)
+    case .previousTab:
+      previousTab()
+    case .renameSpace(let spaceID, let name):
+      renameSpace(spaceID, to: name)
+    default:
+      return
     }
   }
 

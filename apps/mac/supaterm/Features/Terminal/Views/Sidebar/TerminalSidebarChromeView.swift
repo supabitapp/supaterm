@@ -455,14 +455,17 @@ struct TerminalSidebarTabSummaryView: View {
     latestNotificationText: String?,
     paneWorkingDirectories: [String]
   ) -> String? {
-    let details =
-      [latestNotificationText]
-      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
-      + paneWorkingDirectories
+    let details = paneWorkingDirectories
 
     guard !details.isEmpty else { return nil }
     return details.joined(separator: "\n")
+  }
+
+  static func notificationPopoverText(
+    latestNotificationText: String?
+  ) -> String? {
+    let text = latestNotificationText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return text.isEmpty ? nil : text
   }
 
   var body: some View {
@@ -725,7 +728,7 @@ struct TerminalSidebarTabRow: View {
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint
         )
-        .lineLimit(isHovering ? nil : 8)
+        .lineLimit(8)
         if let helpText = TerminalSidebarTabSummaryView.helpText(
           latestNotificationText: latestNotificationText,
           paneWorkingDirectories: paneWorkingDirectories
@@ -768,6 +771,18 @@ struct TerminalSidebarTabRow: View {
     }
     .buttonStyle(.plain)
     .animation(rowAnimation, value: animatedPresentation)
+    .popover(
+      isPresented: notificationPopoverPresented,
+      attachmentAnchor: .rect(.bounds),
+      arrowEdge: .leading
+    ) {
+      if let notificationPopoverText {
+        TerminalSidebarNotificationPopover(
+          palette: palette,
+          text: notificationPopoverText
+        )
+      }
+    }
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
@@ -841,6 +856,19 @@ struct TerminalSidebarTabRow: View {
     accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
   }
 
+  private var notificationPopoverText: String? {
+    TerminalSidebarTabSummaryView.notificationPopoverText(
+      latestNotificationText: latestNotificationText
+    )
+  }
+
+  private var notificationPopoverPresented: Binding<Bool> {
+    Binding(
+      get: { isHovering && notificationPopoverText != nil },
+      set: { _ in }
+    )
+  }
+
   private func select() {
     _ = store.send(.tabSelected(tab.id))
   }
@@ -849,6 +877,39 @@ struct TerminalSidebarTabRow: View {
     withAnimation(.easeInOut(duration: 0.15)) {
       _ = store.send(.closeTabRequested(tab.id))
     }
+  }
+}
+
+private struct TerminalSidebarNotificationPopover: View {
+  let palette: TerminalPalette
+  let text: String
+
+  private let cornerRadius: CGFloat = 14
+
+  var body: some View {
+    ScrollView {
+      Text(text)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(palette.primaryText)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .multilineTextAlignment(.leading)
+        .textSelection(.enabled)
+    }
+    .scrollIndicators(.hidden)
+    .padding(12)
+    .frame(width: 320, maxHeight: 220, alignment: .topLeading)
+    .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
+    .background {
+      BlurEffectView(material: .popover, blendingMode: .withinWindow)
+        .clipShape(.rect(cornerRadius: cornerRadius))
+    }
+    .compositingGroup()
+    .clipShape(.rect(cornerRadius: cornerRadius))
+    .overlay {
+      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        .stroke(palette.detailStroke, lineWidth: 0.5)
+    }
+    .shadow(color: palette.shadow, radius: 18, y: 10)
   }
 }
 
