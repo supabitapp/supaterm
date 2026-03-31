@@ -59,7 +59,7 @@ struct TerminalWindowFeature {
       case .tab(let tabID):
         return "tab:\(tabID.rawValue.uuidString)"
       case .tabs(let tabIDs):
-        return "tabs:\(tabIDs.map { $0.rawValue.uuidString }.joined(separator: \",\"))"
+        return "tabs:\(tabIDs.map { $0.rawValue.uuidString }.joined(separator: ","))"
       }
     }
   }
