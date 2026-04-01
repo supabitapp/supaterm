@@ -530,13 +530,6 @@ private struct TerminalSidebarGroupedTabPreview: View {
         .lineLimit(1)
 
       Spacer(minLength: 0)
-
-      Text(group.items.count.formatted())
-        .font(.system(size: 10, weight: .bold))
-        .foregroundStyle(palette.primaryText.opacity(0.88))
-        .padding(.horizontal, 6)
-        .frame(height: 18)
-        .background(accent.opacity(countFillOpacity), in: Capsule(style: .continuous))
     }
     .padding(.horizontal, 4)
     .padding(.top, 2)
@@ -562,10 +555,6 @@ private struct TerminalSidebarGroupedTabPreview: View {
     hasSelectedItem
       ? (colorScheme == .dark ? 0.34 : 0.22)
       : (colorScheme == .dark ? 0.24 : 0.16)
-  }
-
-  private var countFillOpacity: Double {
-    colorScheme == .dark ? 0.22 : 0.16
   }
 
   private var hasSelectedItem: Bool {
@@ -696,10 +685,33 @@ private struct TerminalSidebarGroupPreviewComparison: View {
   }
 }
 
-#Preview("Sidebar Row States") {
-  TerminalSidebarTabPreviewComparison()
+private struct TerminalSidebarPreviewShowcase: View {
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Row States")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+          TerminalSidebarTabPreviewComparison()
+        }
+
+        VStack(alignment: .leading, spacing: 10) {
+          Text("Grouped Tabs")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.secondary)
+
+          TerminalSidebarGroupPreviewComparison()
+        }
+      }
+      .padding(16)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .frame(width: 736, height: 1680)
+  }
 }
 
-#Preview("Grouped Tabs") {
-  TerminalSidebarGroupPreviewComparison()
+#Preview("Sidebar") {
+  TerminalSidebarPreviewShowcase()
 }
