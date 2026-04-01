@@ -384,6 +384,322 @@ private struct TerminalSidebarTabPreviewComparison: View {
   }
 }
 
+private struct TerminalSidebarTabGroupPreviewModel {
+  let title: String
+  let tone: TerminalTone
+  let items: [TerminalSidebarTabPreviewItem]
+}
+
+private enum TerminalSidebarGroupedTabPreviewFixtures {
+  static let leadingItems: [TerminalSidebarTabPreviewItem] = [
+    item(
+      title: "Socket routing",
+      id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B01",
+      icon: "square.split.2x2",
+      paneWorkingDirectories: [
+        cwd("apps", "mac", "supaterm"),
+        cwd("docs"),
+      ]
+    ),
+    item(
+      title: "Ghostty vendor bump",
+      id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B02",
+      icon: "shippingbox",
+      notificationPreviewMarkdown: "Build finished with 2 warnings",
+      paneWorkingDirectories: [
+        cwd("apps", "mac")
+      ],
+      unreadCount: 2
+    ),
+  ]
+
+  static let group = TerminalSidebarTabGroupPreviewModel(
+    title: "Launch Prep",
+    tone: .amber,
+    items: [
+      item(
+        title: "supaterm.com polish",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B03",
+        icon: "sparkles",
+        isSelected: true,
+        notificationPreviewMarkdown: "Preview server is ready for review",
+        paneWorkingDirectories: [
+          cwd("apps", "supaterm.com")
+        ]
+      ),
+      item(
+        title: "Release notes",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B04",
+        icon: "doc.text",
+        notificationPreviewMarkdown: "Draft is ready for one last pass",
+        paneWorkingDirectories: [
+          cwd("docs")
+        ]
+      ),
+      item(
+        title: "Smoke test",
+        id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B05",
+        icon: "checkmark.seal",
+        notificationPreviewMarkdown: "Need input on the onboarding flow",
+        paneWorkingDirectories: [
+          cwd("apps", "mac"),
+          cwd("apps", "supaterm.com"),
+        ],
+        agentActivity: .claude(.needsInput)
+      ),
+    ]
+  )
+
+  private static func item(
+    title: String,
+    id: String,
+    icon: String? = nil,
+    isSelected: Bool = false,
+    notificationPreviewMarkdown: String? = nil,
+    paneWorkingDirectories: [String] = [],
+    unreadCount: Int = 0,
+    agentActivity: TerminalHostState.AgentActivity? = nil
+  ) -> TerminalSidebarTabPreviewItem {
+    .init(
+      section: .attention,
+      scenario: "",
+      title: title,
+      id: id,
+      icon: icon,
+      isSelected: isSelected,
+      notificationPreviewMarkdown: notificationPreviewMarkdown,
+      paneWorkingDirectories: paneWorkingDirectories,
+      unreadCount: unreadCount,
+      agentActivity: agentActivity
+    )
+  }
+
+  private static func cwd(_ components: String...) -> String {
+    let root = "~/code/github.com/supabitapp/supaterm"
+    guard !components.isEmpty else { return root }
+    return ([root] + components).joined(separator: "/")
+  }
+}
+
+private struct TerminalSidebarGroupedTabPreview: View {
+  let group: TerminalSidebarTabGroupPreviewModel
+  let palette: TerminalPalette
+
+  @Environment(\.colorScheme) private var colorScheme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      header
+
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
+        ForEach(group.items) { item in
+          TerminalSidebarTabPreviewRow(
+            item: item,
+            palette: palette
+          )
+        }
+      }
+      .padding(6)
+      .background(innerFill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+    .padding(6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(palette.clearFill)
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(accent.opacity(groupFillOpacity))
+    }
+    .overlay {
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .stroke(accent.opacity(groupStrokeOpacity), lineWidth: 1)
+    }
+  }
+
+  private var header: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "chevron.down")
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(palette.secondaryText)
+        .frame(width: 12)
+        .accessibilityHidden(true)
+
+      Text(group.title)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(1)
+
+      Spacer(minLength: 0)
+
+      Text(group.items.count.formatted())
+        .font(.system(size: 10, weight: .bold))
+        .foregroundStyle(palette.primaryText.opacity(0.88))
+        .padding(.horizontal, 6)
+        .frame(height: 18)
+        .background(accent.opacity(countFillOpacity), in: Capsule(style: .continuous))
+    }
+    .padding(.horizontal, 4)
+    .padding(.top, 2)
+  }
+
+  private var accent: Color {
+    palette.fill(for: group.tone)
+  }
+
+  private var innerFill: Color {
+    colorScheme == .dark
+      ? palette.clearFill.opacity(0.92)
+      : palette.clearFill.opacity(0.72)
+  }
+
+  private var groupFillOpacity: Double {
+    hasSelectedItem
+      ? (colorScheme == .dark ? 0.16 : 0.12)
+      : (colorScheme == .dark ? 0.1 : 0.07)
+  }
+
+  private var groupStrokeOpacity: Double {
+    hasSelectedItem
+      ? (colorScheme == .dark ? 0.34 : 0.22)
+      : (colorScheme == .dark ? 0.24 : 0.16)
+  }
+
+  private var countFillOpacity: Double {
+    colorScheme == .dark ? 0.22 : 0.16
+  }
+
+  private var hasSelectedItem: Bool {
+    group.items.contains(where: \.isSelected)
+  }
+}
+
+private struct TerminalSidebarPreviewWindowHeader: View {
+  var body: some View {
+    HStack(spacing: 0) {
+      HStack(spacing: 8) {
+        Circle()
+          .fill(Color(red: 1, green: 0.37, blue: 0.32))
+          .frame(width: 12, height: 12)
+
+        Circle()
+          .fill(Color(red: 1, green: 0.74, blue: 0.18))
+          .frame(width: 12, height: 12)
+
+        Circle()
+          .fill(Color(red: 0.16, green: 0.8, blue: 0.25))
+          .frame(width: 12, height: 12)
+      }
+
+      Spacer(minLength: 0)
+    }
+    .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24, alignment: .topLeading)
+  }
+}
+
+private struct TerminalSidebarGroupedTabNewRowPreview: View {
+  let palette: TerminalPalette
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Image(systemName: "plus")
+        .font(.system(size: 12, weight: .semibold))
+        .frame(width: 18, height: 18)
+        .foregroundStyle(palette.secondaryText)
+        .accessibilityHidden(true)
+
+      Text("New Tab")
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(palette.primaryText)
+
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, 10)
+    .frame(height: 36)
+  }
+}
+
+private struct TerminalSidebarGroupedTabPreviewGallery: View {
+  let colorScheme: ColorScheme
+
+  private var palette: TerminalPalette {
+    .init(colorScheme: colorScheme)
+  }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      TerminalSidebarPreviewWindowHeader()
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+
+      ScrollView {
+        VStack(alignment: .leading, spacing: 8) {
+          ForEach(TerminalSidebarGroupedTabPreviewFixtures.leadingItems) { item in
+            TerminalSidebarTabPreviewRow(
+              item: item,
+              palette: palette
+            )
+          }
+
+          TerminalSidebarGroupedTabPreview(
+            group: TerminalSidebarGroupedTabPreviewFixtures.group,
+            palette: palette
+          )
+
+          TerminalSidebarGroupedTabNewRowPreview(palette: palette)
+        }
+        .padding(8)
+        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .frame(width: 320, height: 420)
+    .background(palette.windowBackgroundTint)
+    .background(palette.detailBackground)
+  }
+}
+
+private struct TerminalSidebarGroupedTabPreviewColumn: View {
+  let title: String
+  let colorScheme: ColorScheme
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(title)
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(.secondary)
+
+      TerminalSidebarGroupedTabPreviewGallery(colorScheme: colorScheme)
+        .environment(\.colorScheme, colorScheme)
+    }
+    .frame(width: 320, alignment: .leading)
+  }
+}
+
+private struct TerminalSidebarGroupPreviewComparison: View {
+  var body: some View {
+    ScrollView(.horizontal) {
+      HStack(alignment: .top, spacing: 16) {
+        TerminalSidebarGroupedTabPreviewColumn(
+          title: "Light",
+          colorScheme: .light
+        )
+
+        TerminalSidebarGroupedTabPreviewColumn(
+          title: "Dark",
+          colorScheme: .dark
+        )
+      }
+      .padding(16)
+    }
+    .frame(width: 704, height: 460)
+  }
+}
+
 #Preview("Sidebar Row States") {
   TerminalSidebarTabPreviewComparison()
+}
+
+#Preview("Grouped Tabs") {
+  TerminalSidebarGroupPreviewComparison()
 }
