@@ -128,6 +128,9 @@ let project = Project(
         "NSContactsUsageDescription": "A program running within Supaterm would like to access your Contacts.",
         "NSLocalNetworkUsageDescription": "A program running within Supaterm would like to access the local network.",
         "NSLocationUsageDescription": "A program running within Supaterm would like to access your location information.",
+        "NSLocationTemporaryUsageDescriptionDictionary": [
+          "TemporaryLocationAccess": "A program running within Supaterm would like to use your location temporarily."
+        ],
         "NSMicrophoneUsageDescription": "A program running within Supaterm would like to use your microphone.",
         "NSMotionUsageDescription": "A program running within Supaterm would like to access motion data.",
         "NSPhotoLibraryUsageDescription": "A program running within Supaterm would like to access your Photo Library.",
