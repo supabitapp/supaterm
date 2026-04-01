@@ -530,6 +530,7 @@ struct TerminalSidebarTabSummaryView: View {
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(notificationTextColor)
             .textual.inlineStyle(notificationInlineStyle)
+            .allowsHitTesting(false)
             .lineLimit(2)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
