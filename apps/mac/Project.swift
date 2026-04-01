@@ -121,6 +121,7 @@ let project = Project(
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSApplicationCategoryType": "public.app-category.developer-tools",
         "NSAppleEventsUsageDescription": "A program running within Supaterm would like to use AppleScript.",
+        "NSAudioCaptureUsageDescription": "A program running within Supaterm would like to access your system's audio.",
         "NSBluetoothAlwaysUsageDescription": "A program running within Supaterm would like to use Bluetooth.",
         "NSCalendarsUsageDescription": "A program running within Supaterm would like to access your Calendar.",
         "NSCameraUsageDescription": "A program running within Supaterm would like to use the camera.",
