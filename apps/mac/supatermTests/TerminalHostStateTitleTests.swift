@@ -5,20 +5,34 @@ import Testing
 
 struct TerminalHostStateTitleTests {
   @Test
-  func resolvedPaneDisplayTitlePrefersExplicitTitle() {
+  func resolvedPaneDisplayTitlePrefersManualOverride() {
     let title = TerminalHostState.resolvedPaneDisplayTitle(
+      titleOverride: "Pinned",
       title: "  zsh  ",
       pwd: "/tmp/project",
       defaultValue: "Pane 1"
     )
 
-    #expect(title == "zsh")
+    #expect(title == "Pinned")
+  }
+
+  @Test
+  func resolvedPaneDisplayTitlePreservesLiteralWhitespaceOverride() {
+    let title = TerminalHostState.resolvedPaneDisplayTitle(
+      titleOverride: "  ",
+      title: "shell",
+      pwd: "/tmp/project",
+      defaultValue: "Pane 1"
+    )
+
+    #expect(title == "  ")
   }
 
   @Test
   func resolvedPaneDisplayTitleFallsBackToWorkingDirectory() {
     let title = TerminalHostState.resolvedPaneDisplayTitle(
-      title: "   ",
+      titleOverride: nil,
+      title: "",
       pwd: "  /tmp/project  ",
       defaultValue: "Pane 1"
     )
@@ -36,6 +50,7 @@ struct TerminalHostStateTitleTests {
     let title = TerminalHostState.selectedPaneDisplayTitle(
       focusedSurfaceID: second.id,
       in: tree,
+      titleOverride: \.titleOverride,
       title: \.paneTitle,
       pwd: \.workingDirectory
     )
@@ -46,13 +61,14 @@ struct TerminalHostStateTitleTests {
   @Test
   func selectedPaneDisplayTitleUsesFocusedPaneWhenAvailable() throws {
     let first = PaneTitleTestView(paneTitle: "shell")
-    let second = PaneTitleTestView(paneTitle: "logs")
+    let second = PaneTitleTestView(titleOverride: "logs", paneTitle: "shell")
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
 
     let title = TerminalHostState.selectedPaneDisplayTitle(
       focusedSurfaceID: second.id,
       in: tree,
+      titleOverride: \.titleOverride,
       title: \.paneTitle,
       pwd: \.workingDirectory
     )
@@ -70,6 +86,7 @@ struct TerminalHostStateTitleTests {
     let title = TerminalHostState.selectedPaneDisplayTitle(
       focusedSurfaceID: nil,
       in: tree,
+      titleOverride: \.titleOverride,
       title: \.paneTitle,
       pwd: \.workingDirectory
     )
@@ -98,13 +115,16 @@ struct TerminalHostStateTitleTests {
 
 private final class PaneTitleTestView: NSView, Identifiable {
   let id = UUID()
+  let titleOverride: String?
   let paneTitle: String?
   let workingDirectory: String?
 
   init(
+    titleOverride: String? = nil,
     paneTitle: String? = nil,
     workingDirectory: String? = nil
   ) {
+    self.titleOverride = titleOverride
     self.paneTitle = paneTitle
     self.workingDirectory = workingDirectory
     super.init(frame: .zero)

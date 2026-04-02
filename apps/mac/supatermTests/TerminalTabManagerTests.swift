@@ -37,6 +37,23 @@ struct TerminalTabManagerTests {
   }
 
   @Test
+  func setLockedTitlePreservesLiteralValueAndUnlocks() {
+    let manager = TerminalTabManager()
+    let tabID = manager.createTab(title: "Terminal 1", icon: "terminal")
+
+    manager.setLockedTitle(tabID, title: "  ")
+
+    #expect(manager.tabs.first(where: { $0.id == tabID })?.isTitleLocked == true)
+    #expect(manager.tabs.first(where: { $0.id == tabID })?.title == "  ")
+
+    manager.setLockedTitle(tabID, title: nil)
+    manager.updateTitle(tabID, title: "zsh")
+
+    #expect(manager.tabs.first(where: { $0.id == tabID })?.isTitleLocked == false)
+    #expect(manager.tabs.first(where: { $0.id == tabID })?.title == "zsh")
+  }
+
+  @Test
   func closingSelectedTabPrefersNextTabBeforePrevious() {
     let manager = TerminalTabManager()
 

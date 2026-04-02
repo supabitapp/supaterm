@@ -24,6 +24,7 @@ struct SupatermMenuControllerTests {
 
     try assertAppMenu(app.mainMenu)
     try assertFileMenu(app.mainMenu)
+    try assertViewMenu(app.mainMenu)
     try assertTabsMenu(app.mainMenu)
     try assertSpacesMenu(app.mainMenu)
     try assertWindowMenu(app.mainMenu)
@@ -49,6 +50,8 @@ struct SupatermMenuControllerTests {
             KeyboardShortcut("u", modifiers: [.command, .option])
           case "start_search":
             KeyboardShortcut("l", modifiers: [.command, .shift])
+          case "prompt_tab_title":
+            KeyboardShortcut("r", modifiers: [.command, .option])
           default:
             nil
           }
@@ -74,6 +77,10 @@ struct SupatermMenuControllerTests {
       let findMenu = try #require(editMenu.items.last?.submenu)
       #expect(findMenu.items[0].keyEquivalent == "l")
       #expect(findMenu.items[0].keyEquivalentModifierMask == [.command, .shift])
+
+      let viewMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "View" })?.submenu)
+      #expect(viewMenu.items[2].keyEquivalent == "r")
+      #expect(viewMenu.items[2].keyEquivalentModifierMask == [.command, .option])
     }
   }
 
@@ -617,6 +624,17 @@ struct SupatermMenuControllerTests {
         "Tab 9",
         "Tab 10",
         "Last Tab",
+      ])
+  }
+
+  private func assertViewMenu(_ menu: NSMenu?) throws {
+    let viewMenu = try #require(menu?.items.first(where: { $0.title == "View" })?.submenu)
+    #expect(
+      viewMenu.items.map(\.title) == [
+        "Toggle Sidebar",
+        "",
+        "Change Tab Title...",
+        "Change Terminal Title...",
       ])
   }
 

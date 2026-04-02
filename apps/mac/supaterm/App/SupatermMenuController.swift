@@ -47,6 +47,8 @@ final class SupatermMenuController: NSObject {
     static let hideFindBar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.hideFindBar")
     static let selectionForFind = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.selectionForFind")
     static let toggleSidebar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleSidebar")
+    static let changeTabTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTabTitle")
+    static let changeTerminalTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTerminalTitle")
     static let nextTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.next")
     static let previousTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.previous")
     static let selectLastTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.last")
@@ -176,6 +178,9 @@ final class SupatermMenuController: NSObject {
   private lazy var viewMenu: NSMenu = {
     let menu = NSMenu(title: "View")
     menu.addItem(toggleSidebarItem)
+    menu.addItem(.separator())
+    menu.addItem(changeTabTitleItem)
+    menu.addItem(changeTerminalTitleItem)
     return menu
   }()
 
@@ -374,6 +379,18 @@ final class SupatermMenuController: NSObject {
     SupatermMenuShortcut.apply(KeyboardShortcut("s", modifiers: .command), to: item)
     return item
   }()
+  private lazy var changeTabTitleItem = makeItem(
+    title: "Change Tab Title...",
+    action: #selector(changeTabTitle(_:)),
+    identifier: MenuItemIdentifier.changeTabTitle,
+    symbol: "pencil.line"
+  )
+  private lazy var changeTerminalTitleItem = makeItem(
+    title: "Change Terminal Title...",
+    action: #selector(changeTerminalTitle(_:)),
+    identifier: MenuItemIdentifier.changeTerminalTitle,
+    symbol: "pencil.line"
+  )
   private lazy var nextTabItem = makeItem(
     title: "Next Tab",
     action: #selector(nextTab(_:)),
@@ -544,6 +561,8 @@ final class SupatermMenuController: NSObject {
     syncShortcut(command: .navigateSearch(.previous), item: findPreviousItem)
     syncShortcut(command: .endSearch, item: hideFindBarItem)
     syncShortcut(command: .searchSelection, item: selectionForFindItem)
+    syncShortcut(command: .promptTabTitle, item: changeTabTitleItem)
+    syncShortcut(command: .promptSurfaceTitle, item: changeTerminalTitleItem)
     syncShortcut(command: .toggleSplitZoom, item: zoomSplitItem)
     syncShortcut(command: .goToSplit(.previous), item: previousSplitItem)
     syncShortcut(command: .goToSplit(.next), item: nextSplitItem)
@@ -695,6 +714,14 @@ final class SupatermMenuController: NSObject {
 
   @objc func toggleSidebar(_ sender: Any?) {
     registry.requestToggleSidebarInKeyWindow()
+  }
+
+  @objc func changeTabTitle(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.promptTabTitle)
+  }
+
+  @objc func changeTerminalTitle(_ sender: Any?) {
+    registry.requestBindingActionInKeyWindow(.promptSurfaceTitle)
   }
 
   @objc func zoomSplit(_ sender: Any?) {
@@ -920,6 +947,7 @@ extension SupatermMenuController: NSMenuItemValidation {
     case MenuItemIdentifier.find,
       MenuItemIdentifier.findNext,
       MenuItemIdentifier.findPrevious,
+      MenuItemIdentifier.changeTerminalTitle,
       MenuItemIdentifier.selectionForFind,
       MenuItemIdentifier.zoomSplit,
       MenuItemIdentifier.previousSplit,
@@ -938,6 +966,7 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.hasSearch
     case MenuItemIdentifier.nextTab,
       MenuItemIdentifier.previousTab,
+      MenuItemIdentifier.changeTabTitle,
       MenuItemIdentifier.selectLastTab:
       return context.visibleTabCount > 0
     default:

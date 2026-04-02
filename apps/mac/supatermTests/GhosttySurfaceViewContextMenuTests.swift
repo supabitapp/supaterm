@@ -22,9 +22,9 @@ struct GhosttySurfaceViewContextMenuTests {
   }
 
   @Test
-  func contextMenuIncludesChangeTerminalTitleItem() {
+  func contextMenuIncludesTitleItemsInGhosttyOrder() {
     let menu = GhosttySurfaceView.contextMenu(hasSelection: false)
 
-    #expect(menu.items.contains { $0.title == "Change Terminal Title..." })
+    #expect(Array(menu.items.map(\.title).suffix(2)) == ["Change Tab Title...", "Change Terminal Title..."])
   }
 }

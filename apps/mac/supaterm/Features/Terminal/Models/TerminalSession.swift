@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 2
+  static let currentVersion = 3
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -104,9 +104,6 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
 
   func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
-    let lockedTitle =
-      lockedTitle?
-      .trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalTabSession(
       isPinned: isPinned,
       lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
@@ -185,13 +182,23 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
 
 nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
   var workingDirectoryPath: String?
+  var titleOverride: String?
+
+  init(
+    workingDirectoryPath: String?,
+    titleOverride: String? = nil
+  ) {
+    self.workingDirectoryPath = workingDirectoryPath
+    self.titleOverride = titleOverride
+  }
 
   func pruned() -> TerminalPaneLeafSession {
     let workingDirectoryPath =
       workingDirectoryPath?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalPaneLeafSession(
-      workingDirectoryPath: workingDirectoryPath?.isEmpty == true ? nil : workingDirectoryPath
+      workingDirectoryPath: workingDirectoryPath?.isEmpty == true ? nil : workingDirectoryPath,
+      titleOverride: titleOverride?.isEmpty == true ? nil : titleOverride
     )
   }
 }

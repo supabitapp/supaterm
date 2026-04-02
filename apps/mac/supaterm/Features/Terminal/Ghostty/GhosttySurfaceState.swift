@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class GhosttySurfaceState {
   var title: String?
+  var titleOverride: String?
   var pwd: String?
   var progressStyleEnabled = true
   var progressState: ghostty_action_progress_report_state_e?
@@ -44,4 +45,12 @@ final class GhosttySurfaceState {
   var presentTerminalCount: Int = 0
   var resetWindowSizeCount: Int = 0
   var quitTimer: ghostty_action_quit_timer_e?
+
+  var effectiveTitle: String? {
+    if let titleOverride {
+      return titleOverride
+    }
+    guard let title, !title.isEmpty else { return nil }
+    return title
+  }
 }

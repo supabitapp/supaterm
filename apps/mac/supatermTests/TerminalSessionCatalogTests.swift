@@ -53,7 +53,7 @@ struct TerminalSessionCatalogTests {
         .init(
           direction: .horizontal,
           ratio: 0,
-          left: .leaf(.init(workingDirectoryPath: "/tmp")),
+          left: .leaf(.init(workingDirectoryPath: "/tmp", titleOverride: "  ")),
           right: .leaf(.init(workingDirectoryPath: "/var"))
         )
       )
@@ -66,7 +66,12 @@ struct TerminalSessionCatalogTests {
     }
 
     #expect(split.ratio == 0.5)
-    #expect(pruned.lockedTitle == nil)
+    #expect(pruned.lockedTitle == "  ")
+    guard case .leaf(let left) = split.left else {
+      Issue.record("Expected left leaf")
+      return
+    }
+    #expect(left.titleOverride == "  ")
     #expect(pruned.focusedPaneIndex == 0)
   }
 
@@ -80,13 +85,13 @@ struct TerminalSessionCatalogTests {
           isPinned: false,
           lockedTitle: nil,
           focusedPaneIndex: 0,
-          root: .leaf(.init(workingDirectoryPath: nil))
+          root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
         ),
         .init(
           isPinned: true,
           lockedTitle: "Pinned",
           focusedPaneIndex: 0,
-          root: .leaf(.init(workingDirectoryPath: nil))
+          root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
         ),
       ]
     )
@@ -106,13 +111,13 @@ struct TerminalSessionCatalogTests {
         isPinned: false,
         lockedTitle: nil,
         focusedPaneIndex: 0,
-        root: .leaf(.init(workingDirectoryPath: "/tmp"))
+        root: .leaf(.init(workingDirectoryPath: "/tmp", titleOverride: "Pane"))
       ),
       .init(
         isPinned: true,
         lockedTitle: "Pinned",
         focusedPaneIndex: 0,
-        root: .leaf(.init(workingDirectoryPath: nil))
+        root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
       ),
     ]
     let space = TerminalWindowSpaceSession(
@@ -133,6 +138,7 @@ struct TerminalSessionCatalogTests {
 
     #expect(json.contains(#""selectedTabIndex":1"#))
     #expect(json.contains(#""lockedTitle":"Pinned""#))
+    #expect(json.contains(#""titleOverride":"Pane""#))
     #expect(!json.contains(#""title":"#))
     #expect(!json.contains(#""isTitleLocked":"#))
     #expect(!json.contains(#""selectedTabID":"#))
