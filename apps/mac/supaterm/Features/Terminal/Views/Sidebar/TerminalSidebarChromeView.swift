@@ -487,7 +487,7 @@ struct TerminalSidebarTabSummaryView: View {
         )
 
       case .terminalProgress(let terminalProgress):
-        TerminalSidebarProgressRingView(
+        TerminalSidebarProgressIndicatorView(
           progress: terminalProgress,
           isSelected: isSelected,
           palette: palette
@@ -602,11 +602,25 @@ struct TerminalSidebarTerminalProgress: Equatable {
     case error
   }
 
+  enum IndicatorStyle: Equatable {
+    case ring
+    case pauseIcon
+  }
+
   let fraction: Double?
   let tone: Tone
+
+  var indicatorStyle: IndicatorStyle {
+    switch tone {
+    case .paused:
+      return .pauseIcon
+    case .active, .error:
+      return .ring
+    }
+  }
 }
 
-private struct TerminalSidebarProgressRingView: View {
+private struct TerminalSidebarProgressIndicatorView: View {
   let progress: TerminalSidebarTerminalProgress
   let isSelected: Bool
   let palette: TerminalPalette
@@ -615,46 +629,67 @@ private struct TerminalSidebarProgressRingView: View {
   @State private var rotation = Angle.zero
 
   var body: some View {
-    ZStack {
-      Circle()
-        .stroke(trackColor, lineWidth: 2)
+    Group {
+      switch progress.indicatorStyle {
+      case .ring:
+        ZStack {
+          Circle()
+            .stroke(trackColor, lineWidth: 2)
 
-      if let fraction = progress.fraction {
-        Circle()
-          .trim(from: 0, to: fraction)
-          .stroke(
-            color,
-            style: StrokeStyle(lineWidth: 2, lineCap: .round)
-          )
-          .rotationEffect(.degrees(-90))
-          .animation(.easeInOut(duration: 0.2), value: fraction)
-      } else {
-        Circle()
-          .trim(from: 0.14, to: 0.64)
-          .stroke(
-            color,
-            style: StrokeStyle(lineWidth: 2, lineCap: .round)
-          )
-          .rotationEffect(rotation)
+          if let fraction = progress.fraction {
+            Circle()
+              .trim(from: 0, to: fraction)
+              .stroke(
+                color,
+                style: StrokeStyle(lineWidth: 2, lineCap: .round)
+              )
+              .rotationEffect(.degrees(-90))
+              .animation(.easeInOut(duration: 0.2), value: fraction)
+          } else {
+            Circle()
+              .trim(from: 0.14, to: 0.64)
+              .stroke(
+                color,
+                style: StrokeStyle(lineWidth: 2, lineCap: .round)
+              )
+              .rotationEffect(rotation)
+          }
+        }
+        .frame(width: 16, height: 16)
+      case .pauseIcon:
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+          .fill(color.opacity(isSelected ? 0.24 : 0.16))
+          .frame(width: 16, height: 16)
+          .overlay {
+            Image(systemName: "pause.fill")
+              .font(.system(size: 8, weight: .bold))
+              .foregroundStyle(color)
+              .accessibilityHidden(true)
+          }
       }
     }
-    .frame(width: 16, height: 16)
     .onAppear {
-      guard progress.fraction == nil, !accessibilityReduceMotion else { return }
+      guard progress.indicatorStyle == .ring, progress.fraction == nil, !accessibilityReduceMotion else {
+        return
+      }
       withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
         rotation = .degrees(360)
       }
     }
     .onChange(of: progress.fraction == nil) { _, isIndeterminate in
       rotation = .zero
-      guard isIndeterminate, !accessibilityReduceMotion else { return }
+      guard progress.indicatorStyle == .ring, isIndeterminate, !accessibilityReduceMotion else {
+        return
+      }
       withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
         rotation = .degrees(360)
       }
     }
     .onChange(of: accessibilityReduceMotion) { _, reduceMotion in
       rotation = .zero
-      guard progress.fraction == nil, !reduceMotion else { return }
+      guard progress.indicatorStyle == .ring, progress.fraction == nil, !reduceMotion else {
+        return
+      }
       withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
         rotation = .degrees(360)
       }
