@@ -63,6 +63,8 @@ private struct SettingsTabContentView: View {
 
   var body: some View {
     switch tab {
+    case .advanced:
+      SettingsAdvancedView(store: store)
     case .codingAgents:
       SettingsCodingAgentsView(store: store)
     case .general:
@@ -152,8 +154,6 @@ private struct SettingsAgentInstallRow: View {
 }
 
 private struct SettingsGeneralView: View {
-  let store: StoreOf<SettingsFeature>
-
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
       get: { store.appearanceMode },
@@ -163,23 +163,7 @@ private struct SettingsGeneralView: View {
     )
   }
 
-  private var analyticsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.analyticsEnabled },
-      set: { newValue in
-        _ = store.send(.analyticsEnabledChanged(newValue))
-      }
-    )
-  }
-
-  private var crashReportsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.crashReportsEnabled },
-      set: { newValue in
-        _ = store.send(.crashReportsEnabledChanged(newValue))
-      }
-    )
-  }
+  let store: StoreOf<SettingsFeature>
 
   var body: some View {
     Form {
@@ -221,7 +205,35 @@ private struct SettingsGeneralView: View {
           )
         }
       }
+    }
+    .formStyle(.grouped)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
 
+private struct SettingsAdvancedView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var analyticsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.analyticsEnabled },
+      set: { newValue in
+        _ = store.send(.analyticsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  private var crashReportsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.crashReportsEnabled },
+      set: { newValue in
+        _ = store.send(.crashReportsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    Form {
       Section {
         SettingsToggleRow(
           title: "Share analytics with Supaterm",
