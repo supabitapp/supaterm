@@ -434,6 +434,52 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func selectingTabPrefersUnreadPaneFromBackgroundSplit() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let firstTabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondSurface = try host.createPane(
+      .init(
+        command: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    _ = try host.notify(
+      .init(
+        body: "Claude needs your attention",
+        subtitle: "Needs input",
+        target: .contextPane(secondSurface.paneID),
+        title: "Claude Code"
+      )
+    )
+
+    #expect(host.selectedSurfaceView?.id == firstSurface.id)
+    #expect(host.unreadNotifiedSurfaceIDs(in: firstTabID) == Set([secondSurface.paneID]))
+
+    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+
+    let secondTabID = try #require(host.selectedTabID)
+    #expect(secondTabID != firstTabID)
+
+    host.handleCommand(.selectTab(firstTabID))
+
+    #expect(host.selectedTabID == firstTabID)
+    #expect(host.selectedSurfaceView?.id == secondSurface.paneID)
+    #expect(host.unreadNotificationCount(for: firstTabID) == 0)
+    #expect(host.unreadNotifiedSurfaceIDs(in: firstTabID).isEmpty)
+    #expect(host.latestNotificationText(for: firstTabID) == nil)
+  }
+
+  @Test
   func directKeyboardInteractionClearsSidebarNotificationText() throws {
     initializeGhosttyForTests()
 

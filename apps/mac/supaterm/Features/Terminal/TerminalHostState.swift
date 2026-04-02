@@ -2616,6 +2616,10 @@ final class TerminalHostState {
   }
 
   private func focusSurface(in tabID: TerminalTabID) {
+    if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID), let surface = surfaces[unreadSurfaceID] {
+      focusSurface(surface, in: tabID)
+      return
+    }
     if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
       focusSurface(surface, in: tabID)
       return
@@ -2735,6 +2739,24 @@ final class TerminalHostState {
         paneNotifications[surface.id].map { (surface.id, $0) }
       }
     )
+  }
+
+  private func latestUnreadNotifiedSurfaceID(in tabID: TerminalTabID) -> UUID? {
+    notifications(for: tabID)
+      .compactMap { surfaceID, notifications -> (UUID, PaneNotification)? in
+        guard
+          let latestUnreadNotification = Self.latestNotification(
+            in: notifications.filter { $0.attentionState == .unread }
+          )
+        else {
+          return nil
+        }
+        return (surfaceID, latestUnreadNotification)
+      }
+      .max { lhs, rhs in
+        lhs.1.createdAt < rhs.1.createdAt
+      }?
+      .0
   }
 
   private func latestNotification(for tabID: TerminalTabID) -> PaneNotification? {
