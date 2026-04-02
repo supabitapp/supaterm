@@ -270,6 +270,7 @@ struct TerminalSidebarChromeView: View {
     let notificationPresentation = terminal.latestSidebarNotificationPresentation(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
+    let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       tab: tab,
       notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
@@ -293,7 +294,7 @@ struct TerminalSidebarChromeView: View {
         notificationPresentation: notificationPresentation,
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
-        terminalProgress: nil,
+        terminalProgress: terminalProgress,
         palette: palette,
         shortcutHint: tabShortcutHintsByID[tab.id],
         showsShortcutHint: commandHoldObserver.isPressed
@@ -440,14 +441,14 @@ struct TerminalSidebarTabSummaryView: View {
     agentActivity: TerminalHostState.AgentActivity?,
     terminalProgress: TerminalSidebarTerminalProgress?
   ) -> LeadingIndicator {
+    if let terminalProgress {
+      return .terminalProgress(terminalProgress)
+    }
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
     }
     if let agentActivity, agentActivity.showsLeadingIndicator {
       return .agentActivity(agentActivity)
-    }
-    if let terminalProgress {
-      return .terminalProgress(terminalProgress)
     }
     return .tabSymbol(tab.symbol, tab.iconStyle)
   }

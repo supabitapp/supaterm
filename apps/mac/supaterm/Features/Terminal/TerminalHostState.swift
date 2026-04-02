@@ -528,6 +528,14 @@ final class TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
+  func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
+    Self.sidebarTerminalProgress(
+      state: focusedSurfaceIDByTab[tabID].flatMap { surfaceID in
+        surfaces[surfaceID]?.bridge.state
+      }
+    )
+  }
+
   var selectedPaneIsZoomed: Bool {
     Self.isPaneZoomed(
       focusedSurfaceID: currentFocusedSurfaceID(),
@@ -2721,6 +2729,34 @@ final class TerminalHostState {
       return "error"
     case .some(GHOSTTY_PROGRESS_STATE_REMOVE):
       return "remove"
+    default:
+      return nil
+    }
+  }
+
+  static func sidebarTerminalProgress(
+    state: GhosttySurfaceState?
+  ) -> TerminalSidebarTerminalProgress? {
+    guard let state else { return nil }
+
+    switch state.progressState {
+    case .some(GHOSTTY_PROGRESS_STATE_SET):
+      return .init(
+        fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
+        tone: .active
+      )
+    case .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE):
+      return .init(fraction: nil, tone: .active)
+    case .some(GHOSTTY_PROGRESS_STATE_PAUSE):
+      return .init(
+        fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 } ?? 1,
+        tone: .paused
+      )
+    case .some(GHOSTTY_PROGRESS_STATE_ERROR):
+      return .init(
+        fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
+        tone: .error
+      )
     default:
       return nil
     }
