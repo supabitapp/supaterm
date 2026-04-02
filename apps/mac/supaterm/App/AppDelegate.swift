@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
   private var settingsWindowController: SettingsWindowController?
+  private var terminatingSessionCatalog: TerminalSessionCatalog?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
 
@@ -64,7 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    saveSession()
+    persistSession(
+      Self.persistedSessionCatalog(
+        liveSessionCatalog: terminalWindowRegistry.restorationSnapshot(),
+        pendingTerminationSessionCatalog: terminatingSessionCatalog
+      )
+    )
     socketStore.send(.shutdown)
   }
 
@@ -78,13 +84,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    Self.terminateReply(
+    let reply = Self.terminateReply(
       hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
       needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation,
       bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation
     ) {
       quitConfirmationPresenter.confirmQuit()
     }
+    terminatingSessionCatalog = Self.pendingTerminationSessionCatalog(
+      for: reply,
+      liveSessionCatalog: terminalWindowRegistry.restorationSnapshot()
+    )
+    return reply
   }
 
   @discardableResult
@@ -179,9 +190,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   private func saveSession() {
-    guard !suppressesSessionSave else { return }
+    guard
+      Self.shouldSaveLiveSession(
+        suppressesSessionSave: suppressesSessionSave,
+        pendingTerminationSessionCatalog: terminatingSessionCatalog
+      )
+    else { return }
+    persistSession(terminalWindowRegistry.restorationSnapshot())
+  }
+
+  private func persistSession(_ sessionCatalog: TerminalSessionCatalog) {
     $sessionCatalog.withLock {
-      $0 = terminalWindowRegistry.restorationSnapshot()
+      $0 = sessionCatalog
     }
   }
 
@@ -204,5 +224,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     guard !bypassesQuitConfirmation else { return .terminateNow }
     guard needsQuitConfirmation else { return .terminateNow }
     return confirmQuit() ? .terminateNow : .terminateCancel
+  }
+
+  static func pendingTerminationSessionCatalog(
+    for reply: NSApplication.TerminateReply,
+    liveSessionCatalog: TerminalSessionCatalog
+  ) -> TerminalSessionCatalog? {
+    reply == .terminateNow ? liveSessionCatalog : nil
+  }
+
+  static func persistedSessionCatalog(
+    liveSessionCatalog: TerminalSessionCatalog,
+    pendingTerminationSessionCatalog: TerminalSessionCatalog?
+  ) -> TerminalSessionCatalog {
+    pendingTerminationSessionCatalog ?? liveSessionCatalog
+  }
+
+  static func shouldSaveLiveSession(
+    suppressesSessionSave: Bool,
+    pendingTerminationSessionCatalog: TerminalSessionCatalog?
+  ) -> Bool {
+    !suppressesSessionSave && pendingTerminationSessionCatalog == nil
   }
 }
