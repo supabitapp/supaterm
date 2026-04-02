@@ -2165,6 +2165,11 @@ final class TerminalHostState {
     sessionDidChange()
   }
 
+  func promptTabTitle(_ tabID: TerminalTabID) {
+    guard let view = selectedSurfaceView ?? titleSurface(for: tabID) else { return }
+    promptTabTitle(for: tabID, using: view)
+  }
+
   private func promptTabTitle(for tabID: TerminalTabID, using view: GhosttySurfaceView) {
     view.promptTitle(
       messageText: "Change Tab Title",
