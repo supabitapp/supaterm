@@ -149,8 +149,8 @@ final class SupatermMenuController: NSObject {
 
   private lazy var editMenu: NSMenu = {
     let menu = NSMenu(title: "Edit")
-    menu.addItem(systemItem(title: "Undo", action: Selector(("undo:"))))
-    menu.addItem(systemItem(title: "Redo", action: Selector(("redo:"))))
+    menu.addItem(systemItem(title: "Undo", action: #selector(UndoManager.undo)))
+    menu.addItem(systemItem(title: "Redo", action: #selector(UndoManager.redo)))
     menu.addItem(.separator())
     menu.addItem(copyItem)
     menu.addItem(pasteItem)
