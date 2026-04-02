@@ -158,8 +158,20 @@ def edit_release_notes(notes_path: Path) -> None:
   run_interactive([*shlex.split(editor), str(notes_path)])
 
 
+def create_release_command(tag: str, notes_path: Path) -> list[str]:
+  return ["gh", "release", "create", tag, "--draft", "--verify-tag", "--notes-file", str(notes_path)]
+
+
 def create_release(tag: str, notes_path: Path) -> None:
-  run_interactive(["gh", "release", "create", tag, "--notes-file", str(notes_path)])
+  run_interactive(create_release_command(tag, notes_path))
+
+
+def dispatch_release_workflow_command(tag: str) -> list[str]:
+  return ["gh", "workflow", "run", "release.yml", "--ref", tag, "-f", f"tag={tag}"]
+
+
+def dispatch_release_workflow(tag: str) -> None:
+  run_interactive(dispatch_release_workflow_command(tag))
 
 
 def bump_and_release() -> None:
@@ -178,6 +190,7 @@ def bump_and_release() -> None:
     generate_release_notes(tag, notes_path)
     edit_release_notes(notes_path)
     create_release(tag, notes_path)
+    dispatch_release_workflow(tag)
   finally:
     notes_path.unlink(missing_ok=True)
 

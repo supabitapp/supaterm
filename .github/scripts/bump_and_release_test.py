@@ -1,6 +1,14 @@
+from pathlib import Path
 import unittest
 
-from bump_and_release import parse_version_state, update_version_state, validate_new_version, version_tuple
+from bump_and_release import (
+  create_release_command,
+  dispatch_release_workflow_command,
+  parse_version_state,
+  update_version_state,
+  validate_new_version,
+  version_tuple,
+)
 
 
 class BumpAndReleaseTest(unittest.TestCase):
@@ -34,6 +42,27 @@ class BumpAndReleaseTest(unittest.TestCase):
 
   def test_version_tuple_sorts_semantic_parts_numerically(self) -> None:
     self.assertGreater(version_tuple("1.10.0"), version_tuple("1.2.9"))
+
+  def test_create_release_command_creates_verified_draft_release(self) -> None:
+    self.assertEqual(
+      create_release_command("v1.4.0", Path("/tmp/release-notes.md")),
+      [
+        "gh",
+        "release",
+        "create",
+        "v1.4.0",
+        "--draft",
+        "--verify-tag",
+        "--notes-file",
+        "/tmp/release-notes.md",
+      ],
+    )
+
+  def test_dispatch_release_workflow_command_runs_on_the_tag(self) -> None:
+    self.assertEqual(
+      dispatch_release_workflow_command("v1.4.0"),
+      ["gh", "workflow", "run", "release.yml", "--ref", "v1.4.0", "-f", "tag=v1.4.0"],
+    )
 
 
 if __name__ == "__main__":

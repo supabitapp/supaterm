@@ -19,7 +19,7 @@ help:  # Display this help.
 install-git-hooks:  # Install repo-local Git hooks.
 	@chmod +x "$(GIT_HOOKS_DIR)/pre-commit" && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
 
-bump-and-release:  # Print the current version, ask for the next version, then draft custom release notes and create the release.
+bump-and-release:  # Print the current version, ask for the next version, then create a draft release and dispatch the release build.
 	@python3 .github/scripts/bump_and_release.py
 
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
