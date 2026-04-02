@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
           if [ "$RELEASE_STATE" != "true" ]; then
-            gh release create "$RELEASE_TAG" --draft --verify-tag --notes-from-tag -R "${{ github.repository }}"
+            gh release create "$RELEASE_TAG" --draft --verify-tag --notes-from-tag
           fi
       - name: Ensure Tuist token is configured
         shell: bash
