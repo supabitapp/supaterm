@@ -1,21 +1,24 @@
 name: release
 
 on:
-  release:
-    types:
-      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
 
 concurrency:
-  group: stable-release-${{ github.event.release.tag_name }}
+  group: stable-release-${{ github.event.inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   build:
-    if: github.event.release.prerelease == false
     runs-on: macos-26
     permissions:
       contents: write
     env:
+      RELEASE_TAG: ${{ github.event.inputs.tag }}
       MISE_HTTP_TIMEOUT: 120
       MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
@@ -32,7 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
+      - name: Ensure draft release exists
+        run: |
+          if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' -R "${{ github.repository }}")" != "true" ]; then
+            echo "::error::Release $RELEASE_TAG must exist as a draft"
+            exit 1
+          fi
       - uses: ./.github/actions/setup-macos
       - name: Ensure Tuist token is configured
         shell: bash
@@ -177,7 +187,7 @@ jobs:
           cp "$STAGING/appcast.xml" apps/mac/build/appcast.xml
       - name: Upload release assets
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" \
+          gh release upload "$RELEASE_TAG" \
             apps/mac/build/supaterm.dmg \
             apps/mac/build/supaterm.app.zip \
             apps/mac/build/appcast.xml \
@@ -185,7 +195,6 @@ jobs:
             -R "${{ github.repository }}"
 
   sentry-dsym:
-    if: github.event.release.prerelease == false
     runs-on: ubuntu-latest
     needs: [build]
     steps:
@@ -201,3 +210,15 @@ jobs:
           SENTRY_ORG: supabit
           SENTRY_PROJECT: supaterm
         run: sentry-cli debug-files upload --include-sources dsyms
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build, sentry-dsym]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event.inputs.tag }}
+    steps:
+      - name: Publish release
+        run: gh release edit "$RELEASE_TAG" --draft=false -R "${{ github.repository }}"
