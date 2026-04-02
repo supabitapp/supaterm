@@ -431,7 +431,7 @@ struct TerminalSplitTreeView: View {
   }
 
   enum DropZone: String, Equatable {
-    case top
+    case up
     case bottom
     case left
     case right
@@ -449,7 +449,7 @@ struct TerminalSplitTreeView: View {
 
       if minDist == distToLeft { return .left }
       if minDist == distToRight { return .right }
-      if minDist == distToTop { return .top }
+      if minDist == distToTop { return .up }
       return .bottom
     }
   }
@@ -462,7 +462,7 @@ struct TerminalSplitTreeView: View {
       let overlayColor = Color.accentColor.opacity(0.3)
 
       switch zone {
-      case .top:
+      case .up:
         VStack(spacing: 0) {
           Rectangle()
             .fill(overlayColor)

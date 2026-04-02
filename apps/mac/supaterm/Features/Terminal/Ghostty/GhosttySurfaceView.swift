@@ -1292,7 +1292,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   @IBAction func splitUp(_ sender: Any?) {
-    _ = bridge.onSplitAction?(.newSplit(direction: .top))
+    _ = bridge.onSplitAction?(.newSplit(direction: .up))
   }
 
   @IBAction func closePane(_ sender: Any?) {

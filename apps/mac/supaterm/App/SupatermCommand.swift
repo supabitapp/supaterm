@@ -7,14 +7,14 @@ enum SupatermCommand: Hashable, Sendable {
     case next
     case previous
     case right
-    case top
+    case up
   }
 
   enum SplitResizeDirection: Hashable, Sendable {
     case down
     case left
     case right
-    case top
+    case up
   }
 
   enum SearchDirection: Hashable, Sendable {
@@ -26,7 +26,7 @@ enum SupatermCommand: Hashable, Sendable {
     case down
     case left
     case right
-    case top
+    case up
   }
 
   case copyToClipboard
@@ -83,7 +83,7 @@ enum SupatermCommand: Hashable, Sendable {
       "goto_split:previous"
     case .goToSplit(.right):
       "goto_split:right"
-    case .goToSplit(.top):
+    case .goToSplit(.up):
       "goto_split:up"
     case .lastTab:
       "last_tab"
@@ -97,7 +97,7 @@ enum SupatermCommand: Hashable, Sendable {
       "new_split:left"
     case .newSplit(.right):
       "new_split:right"
-    case .newSplit(.top):
+    case .newSplit(.up):
       "new_split:up"
     case .newTab:
       "new_tab"
@@ -121,7 +121,7 @@ enum SupatermCommand: Hashable, Sendable {
       "resize_split:left,\(amount)"
     case .resizeSplit(.right, let amount):
       "resize_split:right,\(amount)"
-    case .resizeSplit(.top, let amount):
+    case .resizeSplit(.up, let amount):
       "resize_split:up,\(amount)"
     case .searchSelection:
       "search_selection"
@@ -184,7 +184,7 @@ enum SupatermCommand: Hashable, Sendable {
       .lastTab,
       .goToTab,
       .newSplit(.left),
-      .newSplit(.top),
+      .newSplit(.up),
       .promptSurfaceTitle,
       .promptTabTitle,
       .resizeSplit:

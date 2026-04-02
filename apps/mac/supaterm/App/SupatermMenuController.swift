@@ -547,7 +547,7 @@ final class SupatermMenuController: NSObject {
     syncShortcut(command: .newSplit(.right), item: splitRightItem)
     syncShortcut(command: .newSplit(.left), item: splitLeftItem)
     syncShortcut(command: .newSplit(.down), item: splitDownItem)
-    syncShortcut(command: .newSplit(.top), item: splitUpItem)
+    syncShortcut(command: .newSplit(.up), item: splitUpItem)
     syncShortcut(command: .closeSurface, item: closeSurfaceItem)
     syncShortcut(command: .closeTab, item: closeTabItem)
     syncShortcut(command: .closeWindow, item: closeWindowItem)
@@ -566,12 +566,12 @@ final class SupatermMenuController: NSObject {
     syncShortcut(command: .toggleSplitZoom, item: zoomSplitItem)
     syncShortcut(command: .goToSplit(.previous), item: previousSplitItem)
     syncShortcut(command: .goToSplit(.next), item: nextSplitItem)
-    syncShortcut(command: .goToSplit(.top), item: selectSplitAboveItem)
+    syncShortcut(command: .goToSplit(.up), item: selectSplitAboveItem)
     syncShortcut(command: .goToSplit(.down), item: selectSplitBelowItem)
     syncShortcut(command: .goToSplit(.left), item: selectSplitLeftItem)
     syncShortcut(command: .goToSplit(.right), item: selectSplitRightItem)
     syncShortcut(command: .equalizeSplits, item: equalizeSplitsItem)
-    syncShortcut(command: .resizeSplit(.top, 10), item: moveSplitDividerUpItem)
+    syncShortcut(command: .resizeSplit(.up, 10), item: moveSplitDividerUpItem)
     syncShortcut(command: .resizeSplit(.down, 10), item: moveSplitDividerDownItem)
     syncShortcut(command: .resizeSplit(.left, 10), item: moveSplitDividerLeftItem)
     syncShortcut(command: .resizeSplit(.right, 10), item: moveSplitDividerRightItem)
@@ -668,7 +668,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func splitUp(_ sender: Any?) {
-    registry.requestBindingActionInKeyWindow(.newSplit(.top))
+    registry.requestBindingActionInKeyWindow(.newSplit(.up))
   }
 
   @objc func closeSurface(_ sender: Any?) {
@@ -737,7 +737,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func selectSplitAbove(_ sender: Any?) {
-    registry.requestBindingActionInKeyWindow(.goToSplit(.top))
+    registry.requestBindingActionInKeyWindow(.goToSplit(.up))
   }
 
   @objc func selectSplitBelow(_ sender: Any?) {
@@ -757,7 +757,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @objc func moveSplitDividerUp(_ sender: Any?) {
-    registry.requestBindingActionInKeyWindow(.resizeSplit(.top, 10))
+    registry.requestBindingActionInKeyWindow(.resizeSplit(.up, 10))
   }
 
   @objc func moveSplitDividerDown(_ sender: Any?) {

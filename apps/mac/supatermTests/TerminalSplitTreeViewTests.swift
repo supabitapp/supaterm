@@ -78,4 +78,14 @@ struct TerminalSplitTreeViewTests {
     #expect(radii.topTrailing == 0)
     #expect(radii.bottomTrailing == 0)
   }
+
+  @Test
+  func dropZoneUsesUpForTopEdge() {
+    let zone = TerminalSplitTreeView.DropZone.calculate(
+      at: .init(x: 60, y: 4),
+      in: .init(width: 120, height: 120)
+    )
+
+    #expect(zone == .up)
+  }
 }
