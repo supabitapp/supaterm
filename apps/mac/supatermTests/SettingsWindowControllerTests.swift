@@ -83,6 +83,10 @@ struct SettingsWindowControllerTests {
 
     #expect(controller.store.selectedTab == .notifications)
 
+    controller.show(tab: .advanced)
+
+    #expect(controller.store.selectedTab == .advanced)
+
     controller.show(tab: .codingAgents)
 
     #expect(controller.store.selectedTab == .codingAgents)

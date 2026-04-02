@@ -16,6 +16,14 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func tabOrderIncludesAdvancedAfterGeneral() {
+    #expect(
+      SettingsFeature.Tab.allCases
+        == [.general, .advanced, .notifications, .codingAgents, .updates, .about]
+    )
+  }
+
+  @Test
   func taskLoadsPersistedSettings() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -82,6 +90,10 @@ struct SettingsFeatureTests {
   func tabSelectionUpdatesState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
+    }
+
+    await store.send(.tabSelected(.advanced)) {
+      $0.selectedTab = .advanced
     }
 
     await store.send(.tabSelected(.codingAgents)) {
