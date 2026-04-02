@@ -43,16 +43,19 @@ struct SettingsFeature {
   struct State: Equatable {
     var appearanceMode = AppPrefs.default.appearanceMode
     var analyticsEnabled = AppPrefs.default.analyticsEnabled
+    @Presents var alert: AlertState<Alert>?
     var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
     var codexHooksInstallState = SettingsAgentHooksInstallState.idle
     var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
     var selectedTab = Tab.general
+    var systemNotificationsEnabled = AppPrefs.default.systemNotificationsEnabled
     var updateChannel = AppPrefs.default.updateChannel
     var updatesAutomaticallyCheckForUpdates = AppPrefs.default.updatesAutomaticallyCheckForUpdates
     var updatesAutomaticallyDownloadUpdates = AppPrefs.default.updatesAutomaticallyDownloadUpdates
   }
 
   enum Action: Equatable {
+    case alert(PresentationAction<Alert>)
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
@@ -62,6 +65,9 @@ struct SettingsFeature {
     case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
     case crashReportsEnabledChanged(Bool)
     case settingsLoaded(AppPrefs)
+    case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
+    case systemNotificationsAuthorizationResult(DesktopNotificationClient.AuthorizationRequestResult)
+    case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
     case updateChannelSelected(UpdateChannel)
@@ -69,8 +75,14 @@ struct SettingsFeature {
     case updatesAutomaticallyDownloadUpdatesChanged(Bool)
   }
 
+  enum Alert: Equatable {
+    case dismiss
+    case openSystemNotificationSettings
+  }
+
   enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
+    case notifications
     case codingAgents
     case updates
     case about
@@ -85,6 +97,8 @@ struct SettingsFeature {
         "terminal"
       case .general:
         "slider.horizontal.3"
+      case .notifications:
+        "bell"
       case .updates:
         "arrow.trianglehead.clockwise"
       case .about:
@@ -98,6 +112,8 @@ struct SettingsFeature {
         "Coding Agents"
       case .general:
         "General"
+      case .notifications:
+        "Notifications"
       case .updates:
         "Updates"
       case .about:
@@ -111,6 +127,8 @@ struct SettingsFeature {
         "Claude and Codex hook integration"
       case .general:
         "Appearance, privacy, and preferences"
+      case .notifications:
+        "macOS desktop notification delivery"
       case .updates:
         "Channel and automatic update preferences"
       case .about:
@@ -122,6 +140,7 @@ struct SettingsFeature {
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
+  @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
@@ -135,9 +154,23 @@ struct SettingsFeature {
         state.appearanceMode = appPrefs.appearanceMode
         state.analyticsEnabled = appPrefs.analyticsEnabled
         state.crashReportsEnabled = appPrefs.crashReportsEnabled
+        state.systemNotificationsEnabled = appPrefs.systemNotificationsEnabled
         state.updateChannel = appPrefs.updateChannel
         state.updatesAutomaticallyCheckForUpdates = appPrefs.updatesAutomaticallyCheckForUpdates
         state.updatesAutomaticallyDownloadUpdates = appPrefs.updatesAutomaticallyDownloadUpdates
+        return .none
+
+      case .alert(.dismiss), .alert(.presented(.dismiss)):
+        state.alert = nil
+        return .none
+
+      case .alert(.presented(.openSystemNotificationSettings)):
+        state.alert = nil
+        return .run { [desktopNotificationClient] _ in
+          await desktopNotificationClient.openSettings()
+        }
+
+      case .alert:
         return .none
 
       case .appearanceModeSelected(let appearanceMode):
@@ -196,6 +229,44 @@ struct SettingsFeature {
         state.crashReportsEnabled = isEnabled
         return persist(state)
 
+      case .systemNotificationsEnabledChanged(let isEnabled):
+        state.alert = nil
+        state.systemNotificationsEnabled = isEnabled
+        guard isEnabled else {
+          return persist(state)
+        }
+        return .run { [desktopNotificationClient] send in
+          let status = await desktopNotificationClient.authorizationStatus()
+          await send(.systemNotificationsAuthorizationChecked(status))
+        }
+
+      case .systemNotificationsAuthorizationChecked(let status):
+        switch status {
+        case .authorized:
+          return persist(state)
+
+        case .denied:
+          return .send(
+            .systemNotificationsAuthorizationResult(
+              .init(granted: false, errorMessage: "Authorization status is denied.")
+            )
+          )
+
+        case .notDetermined:
+          return .run { [desktopNotificationClient] send in
+            let result = await desktopNotificationClient.requestAuthorization()
+            await send(.systemNotificationsAuthorizationResult(result))
+          }
+        }
+
+      case .systemNotificationsAuthorizationResult(let result):
+        guard result.granted else {
+          state.systemNotificationsEnabled = false
+          state.alert = notificationPermissionAlert(errorMessage: result.errorMessage)
+          return persist(state)
+        }
+        return persist(state)
+
       case .checkForUpdatesButtonTapped:
         analyticsClient.capture("update_checked")
         return .run { [updateClient] _ in
@@ -235,6 +306,7 @@ struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
+      systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.updateChannel,
       updatesAutomaticallyCheckForUpdates: state.updatesAutomaticallyCheckForUpdates,
       updatesAutomaticallyDownloadUpdates: state.updatesAutomaticallyDownloadUpdates
@@ -251,6 +323,29 @@ struct SettingsFeature {
     }
     return .run { [updateClient, updateSettings = appPrefs.updateSettings] _ in
       await updateClient.applySettings(updateSettings)
+    }
+  }
+
+  private func notificationPermissionAlert(errorMessage: String?) -> AlertState<Alert> {
+    let message: String
+    if let errorMessage, !errorMessage.isEmpty {
+      message =
+        "Supaterm cannot send system notifications.\n\n"
+        + "Error: \(errorMessage)"
+    } else {
+      message = "Supaterm cannot send system notifications while permission is denied."
+    }
+    return AlertState {
+      TextState("Enable Notifications in System Settings")
+    } actions: {
+      ButtonState(action: .openSystemNotificationSettings) {
+        TextState("Open System Settings")
+      }
+      ButtonState(role: .cancel, action: .dismiss) {
+        TextState("Cancel")
+      }
+    } message: {
+      TextState(message)
     }
   }
 }

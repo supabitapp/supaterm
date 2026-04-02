@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 import SupatermCLIShared
 
 private enum SocketControlCancelID {
@@ -208,7 +209,8 @@ struct SocketControlFeature {
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
-      if result.desktopNotificationDisposition.shouldDeliver {
+      @Shared(.appPrefs) var appPrefs = .default
+      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
@@ -222,7 +224,8 @@ struct SocketControlFeature {
     case SupatermSocketMethod.terminalAgentHook:
       let payload = try request.decodeParams(SupatermAgentHookRequest.self)
       let result = try await terminalWindowsClient.agentHook(payload)
-      if let desktopNotification = result.desktopNotification {
+      @Shared(.appPrefs) var appPrefs = .default
+      if appPrefs.systemNotificationsEnabled, let desktopNotification = result.desktopNotification {
         await desktopNotificationClient.deliver(desktopNotification)
       }
       return .ok(id: request.id)
