@@ -29,9 +29,9 @@ nonisolated enum UpdateChannel: String, Codable, CaseIterable, Equatable, Hashab
   var updateCheckInterval: TimeInterval {
     switch self {
     case .stable:
-      3600
+      86400
     case .tip:
-      900
+      3600
     }
   }
 }

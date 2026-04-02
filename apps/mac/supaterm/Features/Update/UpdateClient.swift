@@ -454,9 +454,6 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     do {
       try updater.start()
       started = true
-      if settings.automaticallyChecksForUpdates && AppBuild.allowsBackgroundUpdateCheckOnLaunch {
-        updater.checkForUpdatesInBackground()
-      }
       publish()
     } catch {
       interaction = .error(retry: { [weak self] in

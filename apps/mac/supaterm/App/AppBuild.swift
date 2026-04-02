@@ -4,10 +4,6 @@ import Foundation
 enum AppBuild {
   nonisolated static let developmentBuildMessage = "This is a development build"
 
-  nonisolated static var allowsBackgroundUpdateCheckOnLaunch: Bool {
-    true
-  }
-
   nonisolated static var usesStubUpdateChecks: Bool {
     #if DEBUG
       true
