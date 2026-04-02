@@ -53,9 +53,7 @@ struct AppTelemetryTests {
           appearanceMode: .system,
           analyticsEnabled: false,
           crashReportsEnabled: true,
-          updateChannel: .stable,
-          updatesAutomaticallyCheckForUpdates: true,
-          updatesAutomaticallyDownloadUpdates: false
+          updateChannel: .stable
         ),
         isDebugBuild: false
       )

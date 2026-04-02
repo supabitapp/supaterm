@@ -7,34 +7,19 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
   var crashReportsEnabled: Bool
   var systemNotificationsEnabled: Bool
   var updateChannel: UpdateChannel
-  var updatesAutomaticallyCheckForUpdates: Bool
-  var updatesAutomaticallyDownloadUpdates: Bool
 
   init(
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     crashReportsEnabled: Bool,
     systemNotificationsEnabled: Bool = false,
-    updateChannel: UpdateChannel,
-    updatesAutomaticallyCheckForUpdates: Bool,
-    updatesAutomaticallyDownloadUpdates: Bool
+    updateChannel: UpdateChannel
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.crashReportsEnabled = crashReportsEnabled
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
-    self.updatesAutomaticallyCheckForUpdates = updatesAutomaticallyCheckForUpdates
-    self.updatesAutomaticallyDownloadUpdates =
-      updatesAutomaticallyCheckForUpdates && updatesAutomaticallyDownloadUpdates
-  }
-
-  var updateSettings: UpdateSettings {
-    UpdateSettings(
-      updateChannel: updateChannel,
-      automaticallyChecksForUpdates: updatesAutomaticallyCheckForUpdates,
-      automaticallyDownloadsUpdates: updatesAutomaticallyDownloadUpdates
-    )
   }
 
   static let `default` = Self(
@@ -42,9 +27,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     analyticsEnabled: true,
     crashReportsEnabled: true,
     systemNotificationsEnabled: false,
-    updateChannel: .stable,
-    updatesAutomaticallyCheckForUpdates: true,
-    updatesAutomaticallyDownloadUpdates: false
+    updateChannel: .stable
   )
 
   static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
@@ -66,8 +49,6 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     case crashReportsEnabled
     case systemNotificationsEnabled
     case updateChannel
-    case updatesAutomaticallyCheckForUpdates
-    case updatesAutomaticallyDownloadUpdates
   }
 
   init(from decoder: any Decoder) throws {
@@ -78,11 +59,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
       crashReportsEnabled: try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? true,
       systemNotificationsEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled) ?? false,
-      updateChannel: try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? .stable,
-      updatesAutomaticallyCheckForUpdates:
-        try container.decodeIfPresent(Bool.self, forKey: .updatesAutomaticallyCheckForUpdates) ?? true,
-      updatesAutomaticallyDownloadUpdates:
-        try container.decodeIfPresent(Bool.self, forKey: .updatesAutomaticallyDownloadUpdates) ?? false
+      updateChannel: try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? .stable
     )
   }
 }

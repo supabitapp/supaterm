@@ -2,6 +2,10 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 
+private enum SettingsFeatureCancelID {
+  static let updateObservation = "SettingsFeature.updateObservation"
+}
+
 enum SettingsAgentHooksInstallState: Equatable {
   case idle
   case failed(String)
@@ -50,8 +54,8 @@ struct SettingsFeature {
     var selectedTab = Tab.general
     var systemNotificationsEnabled = AppPrefs.default.systemNotificationsEnabled
     var updateChannel = AppPrefs.default.updateChannel
-    var updatesAutomaticallyCheckForUpdates = AppPrefs.default.updatesAutomaticallyCheckForUpdates
-    var updatesAutomaticallyDownloadUpdates = AppPrefs.default.updatesAutomaticallyDownloadUpdates
+    var updatesAutomaticallyCheckForUpdates = true
+    var updatesAutomaticallyDownloadUpdates = true
   }
 
   enum Action: Equatable {
@@ -71,6 +75,7 @@ struct SettingsFeature {
     case tabSelected(Tab)
     case task
     case updateChannelSelected(UpdateChannel)
+    case updateClientSnapshotReceived(UpdateClient.Snapshot)
     case updatesAutomaticallyCheckForUpdatesChanged(Bool)
     case updatesAutomaticallyDownloadUpdatesChanged(Bool)
   }
@@ -148,7 +153,17 @@ struct SettingsFeature {
       switch action {
       case .task:
         @Shared(.appPrefs) var appPrefs = .default
-        return .send(.settingsLoaded(appPrefs))
+        return .merge(
+          .send(.settingsLoaded(appPrefs)),
+          .run { [updateClient] send in
+            await updateClient.start()
+            let stream = await updateClient.observe()
+            for await snapshot in stream {
+              await send(.updateClientSnapshotReceived(snapshot))
+            }
+          }
+          .cancellable(id: SettingsFeatureCancelID.updateObservation, cancelInFlight: true)
+        )
 
       case .settingsLoaded(let appPrefs):
         state.appearanceMode = appPrefs.appearanceMode
@@ -156,8 +171,11 @@ struct SettingsFeature {
         state.crashReportsEnabled = appPrefs.crashReportsEnabled
         state.systemNotificationsEnabled = appPrefs.systemNotificationsEnabled
         state.updateChannel = appPrefs.updateChannel
-        state.updatesAutomaticallyCheckForUpdates = appPrefs.updatesAutomaticallyCheckForUpdates
-        state.updatesAutomaticallyDownloadUpdates = appPrefs.updatesAutomaticallyDownloadUpdates
+        return .none
+
+      case .updateClientSnapshotReceived(let snapshot):
+        state.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
+        state.updatesAutomaticallyDownloadUpdates = snapshot.automaticallyDownloadsUpdates
         return .none
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
@@ -279,37 +297,41 @@ struct SettingsFeature {
 
       case .updateChannelSelected(let updateChannel):
         state.updateChannel = updateChannel
-        return persist(state, applyUpdateSettings: true)
+        return .merge(
+          persist(state),
+          .run { [updateClient] _ in
+            await updateClient.setUpdateChannel(updateChannel)
+          }
+        )
 
       case .updatesAutomaticallyCheckForUpdatesChanged(let isEnabled):
         state.updatesAutomaticallyCheckForUpdates = isEnabled
         if !isEnabled {
           state.updatesAutomaticallyDownloadUpdates = false
         }
-        return persist(state, applyUpdateSettings: true)
+        return .run { [updateClient] _ in
+          await updateClient.setAutomaticallyChecksForUpdates(isEnabled)
+        }
 
       case .updatesAutomaticallyDownloadUpdatesChanged(let isEnabled):
         guard state.updatesAutomaticallyCheckForUpdates else {
           return .none
         }
         state.updatesAutomaticallyDownloadUpdates = isEnabled
-        return persist(state, applyUpdateSettings: true)
+        return .run { [updateClient] _ in
+          await updateClient.setAutomaticallyDownloadsUpdates(isEnabled)
+        }
       }
     }
   }
 
-  private func persist(
-    _ state: State,
-    applyUpdateSettings: Bool = false
-  ) -> Effect<Action> {
+  private func persist(_ state: State) -> Effect<Action> {
     let appPrefs = AppPrefs(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
-      updateChannel: state.updateChannel,
-      updatesAutomaticallyCheckForUpdates: state.updatesAutomaticallyCheckForUpdates,
-      updatesAutomaticallyDownloadUpdates: state.updatesAutomaticallyDownloadUpdates
+      updateChannel: state.updateChannel
     )
     @Shared(.appPrefs) var sharedAppPrefs = .default
     $sharedAppPrefs.withLock {
@@ -318,12 +340,7 @@ struct SettingsFeature {
     if appPrefs.analyticsEnabled {
       analyticsClient.capture("settings_changed")
     }
-    guard applyUpdateSettings else {
-      return .none
-    }
-    return .run { [updateClient, updateSettings = appPrefs.updateSettings] _ in
-      await updateClient.applySettings(updateSettings)
-    }
+    return .none
   }
 
   private func notificationPermissionAlert(errorMessage: String?) -> AlertState<Alert> {

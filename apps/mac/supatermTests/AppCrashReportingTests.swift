@@ -38,9 +38,7 @@ struct AppCrashReportingTests {
           appearanceMode: .system,
           analyticsEnabled: true,
           crashReportsEnabled: false,
-          updateChannel: .stable,
-          updatesAutomaticallyCheckForUpdates: true,
-          updatesAutomaticallyDownloadUpdates: false
+          updateChannel: .stable
         ),
         isDebugBuild: false
       )
