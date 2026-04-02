@@ -15,16 +15,4 @@ struct UpdateSettingsTests {
     #expect(UpdateChannel.tip.sparkleChannels == ["tip"])
     #expect(UpdateChannel.tip.updateCheckInterval == 3600)
   }
-
-  @Test
-  func automaticDownloadsRequireAutomaticChecks() {
-    let settings = UpdateSettings(
-      updateChannel: .tip,
-      automaticallyChecksForUpdates: false,
-      automaticallyDownloadsUpdates: true
-    )
-
-    #expect(!settings.automaticallyChecksForUpdates)
-    #expect(!settings.automaticallyDownloadsUpdates)
-  }
 }

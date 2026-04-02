@@ -27,9 +27,7 @@ struct SettingsFeatureTests {
           analyticsEnabled: false,
           crashReportsEnabled: true,
           systemNotificationsEnabled: true,
-          updateChannel: .tip,
-          updatesAutomaticallyCheckForUpdates: false,
-          updatesAutomaticallyDownloadUpdates: false
+          updateChannel: .tip
         )
       }
 
@@ -44,10 +42,40 @@ struct SettingsFeatureTests {
         $0.crashReportsEnabled = true
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
-        $0.updatesAutomaticallyCheckForUpdates = false
-        $0.updatesAutomaticallyDownloadUpdates = false
       }
     }
+  }
+
+  @Test
+  func taskMirrorsSparkleUpdateSettingsIntoState() async {
+    let (stream, continuation) = makeSettingsStream()
+
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.updateClient.observe = { stream }
+      $0.updateClient.start = {}
+    }
+
+    await store.send(.task)
+    await store.receive(\.settingsLoaded)
+
+    continuation.yield(
+      .init(
+        automaticallyChecksForUpdates: false,
+        automaticallyDownloadsUpdates: false,
+        canCheckForUpdates: true,
+        phase: .idle
+      )
+    )
+
+    await store.receive(\.updateClientSnapshotReceived) {
+      $0.updatesAutomaticallyCheckForUpdates = false
+      $0.updatesAutomaticallyDownloadUpdates = false
+    }
+
+    continuation.finish()
+    await store.finish()
   }
 
   @Test
@@ -276,13 +304,13 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func updateSettingsPersistAndApplyToUpdater() async throws {
-    let recorder = UpdateSettingsRecorder()
+  func updateChannelPersistsPrefsAndRoutesToUpdateClient() async throws {
+    let recorder = UpdateClientCommandRecorder()
 
     await withDependencies {
       $0.defaultFileStorage = .inMemory
-      $0.updateClient.applySettings = { settings in
-        await recorder.record(settings)
+      $0.updateClient.setUpdateChannel = { updateChannel in
+        await recorder.record(.setUpdateChannel(updateChannel))
       }
     } operation: {
       let store = TestStore(initialState: SettingsFeature.State()) {
@@ -292,67 +320,52 @@ struct SettingsFeatureTests {
       await store.send(.updateChannelSelected(.tip)) {
         $0.updateChannel = .tip
       }
-      await store.send(.updatesAutomaticallyDownloadUpdatesChanged(true)) {
-        $0.updatesAutomaticallyDownloadUpdates = true
-      }
 
       @Shared(.appPrefs) var appPrefs = .default
       #expect(appPrefs.updateChannel == .tip)
-      #expect(appPrefs.updatesAutomaticallyCheckForUpdates)
-      #expect(appPrefs.updatesAutomaticallyDownloadUpdates)
-      #expect(
-        await recorder.recorded() == [
-          UpdateSettings(
-            updateChannel: .tip,
-            automaticallyChecksForUpdates: true,
-            automaticallyDownloadsUpdates: false
-          ),
-          UpdateSettings(
-            updateChannel: .tip,
-            automaticallyChecksForUpdates: true,
-            automaticallyDownloadsUpdates: true,
-          ),
-        ]
-      )
+      #expect(await recorder.recorded() == [.setUpdateChannel(.tip)])
     }
   }
 
   @Test
-  func disablingAutomaticChecksClearsAutomaticDownloads() async throws {
-    let recorder = UpdateSettingsRecorder()
+  func disablingAutomaticChecksClearsAutomaticDownloadsAndRoutesToUpdateClient() async {
+    let recorder = UpdateClientCommandRecorder()
+    var state = SettingsFeature.State()
+    state.updatesAutomaticallyDownloadUpdates = true
 
-    await withDependencies {
-      $0.defaultFileStorage = .inMemory
-      $0.updateClient.applySettings = { settings in
-        await recorder.record(settings)
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.updateClient.setAutomaticallyChecksForUpdates = { isEnabled in
+        await recorder.record(.setAutomaticallyChecksForUpdates(isEnabled))
       }
-    } operation: {
-      var state = SettingsFeature.State()
-      state.updatesAutomaticallyDownloadUpdates = true
-
-      let store = TestStore(initialState: state) {
-        SettingsFeature()
-      }
-
-      await store.send(.updatesAutomaticallyCheckForUpdatesChanged(false)) {
-        $0.updatesAutomaticallyCheckForUpdates = false
-        $0.updatesAutomaticallyDownloadUpdates = false
-      }
-
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(!appPrefs.updatesAutomaticallyCheckForUpdates)
-      #expect(!appPrefs.updatesAutomaticallyDownloadUpdates)
-      let recorded = await recorder.recorded()
-      #expect(recorded.count == 1)
-      #expect(
-        recorded.first
-          == UpdateSettings(
-            updateChannel: .stable,
-            automaticallyChecksForUpdates: false,
-            automaticallyDownloadsUpdates: false
-          )
-      )
     }
+
+    await store.send(.updatesAutomaticallyCheckForUpdatesChanged(false)) {
+      $0.updatesAutomaticallyCheckForUpdates = false
+      $0.updatesAutomaticallyDownloadUpdates = false
+    }
+
+    #expect(await recorder.recorded() == [.setAutomaticallyChecksForUpdates(false)])
+  }
+
+  @Test
+  func enablingAutomaticDownloadsRoutesToUpdateClient() async {
+    let recorder = UpdateClientCommandRecorder()
+
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.updateClient.setAutomaticallyDownloadsUpdates = { isEnabled in
+        await recorder.record(.setAutomaticallyDownloadsUpdates(isEnabled))
+      }
+    }
+
+    await store.send(.updatesAutomaticallyDownloadUpdatesChanged(false)) {
+      $0.updatesAutomaticallyDownloadUpdates = false
+    }
+
+    #expect(await recorder.recorded() == [.setAutomaticallyDownloadsUpdates(false)])
   }
 
   @Test
@@ -506,14 +519,31 @@ private actor UpdateActionRecorder {
   }
 }
 
-private actor UpdateSettingsRecorder {
-  private var settings: [UpdateSettings] = []
+private enum UpdateClientCommand: Equatable {
+  case setAutomaticallyChecksForUpdates(Bool)
+  case setAutomaticallyDownloadsUpdates(Bool)
+  case setUpdateChannel(UpdateChannel)
+}
 
-  func recorded() -> [UpdateSettings] {
-    settings
+private actor UpdateClientCommandRecorder {
+  private var commands: [UpdateClientCommand] = []
+
+  func recorded() -> [UpdateClientCommand] {
+    commands
   }
 
-  func record(_ setting: UpdateSettings) {
-    settings.append(setting)
+  func record(_ command: UpdateClientCommand) {
+    commands.append(command)
   }
+}
+
+private func makeSettingsStream() -> (
+  AsyncStream<UpdateClient.Snapshot>,
+  AsyncStream<UpdateClient.Snapshot>.Continuation
+) {
+  var capturedContinuation: AsyncStream<UpdateClient.Snapshot>.Continuation?
+  let stream = AsyncStream<UpdateClient.Snapshot> { continuation in
+    capturedContinuation = continuation
+  }
+  return (stream, capturedContinuation!)
 }

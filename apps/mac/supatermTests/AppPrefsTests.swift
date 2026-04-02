@@ -22,16 +22,16 @@ struct AppPrefsTests {
     #expect(prefs.crashReportsEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
-    #expect(prefs.updatesAutomaticallyCheckForUpdates)
-    #expect(!prefs.updatesAutomaticallyDownloadUpdates)
   }
 
   @Test
-  func legacyPrefsDecodeWithStableUpdateDefaults() throws {
+  func legacyPrefsDecodeIgnoresRemovedSparkleSettings() throws {
     let data = Data(
       #"""
       {
-        "appearanceMode": "dark"
+        "appearanceMode": "dark",
+        "updatesAutomaticallyCheckForUpdates": false,
+        "updatesAutomaticallyDownloadUpdates": false
       }
       """#.utf8
     )
@@ -43,8 +43,6 @@ struct AppPrefsTests {
     #expect(prefs.crashReportsEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == UpdateChannel.stable)
-    #expect(prefs.updatesAutomaticallyCheckForUpdates)
-    #expect(!prefs.updatesAutomaticallyDownloadUpdates)
   }
 
   @Test

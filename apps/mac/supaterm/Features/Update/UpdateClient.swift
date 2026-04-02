@@ -287,13 +287,17 @@ enum UpdatePhase: Equatable, Sendable {
 
 struct UpdateClient: Sendable {
   struct Snapshot: Equatable, Sendable {
+    var automaticallyChecksForUpdates: Bool
+    var automaticallyDownloadsUpdates: Bool
     var canCheckForUpdates: Bool
     var phase: UpdatePhase
   }
 
-  var applySettings: @Sendable (UpdateSettings) async -> Void
   var observe: @Sendable () async -> AsyncStream<Snapshot>
   var perform: @Sendable (UpdateUserAction) async -> Void
+  var setAutomaticallyChecksForUpdates: @Sendable (Bool) async -> Void
+  var setAutomaticallyDownloadsUpdates: @Sendable (Bool) async -> Void
+  var setUpdateChannel: @Sendable (UpdateChannel) async -> Void
   var start: @Sendable () async -> Void
 }
 
@@ -301,33 +305,41 @@ extension UpdateClient: DependencyKey {
   static let liveValue: Self = {
     let runtime = UpdateRuntime.shared
     return Self(
-      applySettings: { settings in
-        await runtime.apply(settings: settings)
-      },
       observe: {
         await runtime.observe()
       },
       perform: { action in
         await runtime.perform(action)
       },
+      setAutomaticallyChecksForUpdates: { isEnabled in
+        await runtime.setAutomaticallyChecksForUpdates(isEnabled)
+      },
+      setAutomaticallyDownloadsUpdates: { isEnabled in
+        await runtime.setAutomaticallyDownloadsUpdates(isEnabled)
+      },
+      setUpdateChannel: { updateChannel in
+        await runtime.setUpdateChannel(updateChannel)
+      },
       start: {
-        let settings = await MainActor.run {
+        let updateChannel = await MainActor.run {
           @Shared(.appPrefs) var appPrefs = .default
-          return appPrefs.updateSettings
+          return appPrefs.updateChannel
         }
-        await runtime.start(settings: settings)
+        await runtime.start(updateChannel: updateChannel)
       }
     )
   }()
 
   static let testValue = Self(
-    applySettings: { _ in },
     observe: {
       AsyncStream { continuation in
         continuation.finish()
       }
     },
     perform: { _ in },
+    setAutomaticallyChecksForUpdates: { _ in },
+    setAutomaticallyDownloadsUpdates: { _ in },
+    setUpdateChannel: { _ in },
     start: {}
   )
 }
@@ -354,11 +366,15 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     case installing(() -> Void)
   }
 
+  private var automaticallyChecksForUpdatesObservation: NSKeyValueObservation?
+  private var automaticallyDownloadsUpdatesObservation: NSKeyValueObservation?
   private var canCheckForUpdatesObservation: NSKeyValueObservation?
   private var continuations: [UUID: AsyncStream<UpdateClient.Snapshot>.Continuation] = [:]
   private var interaction: Interaction = .none
   private var phase: UpdatePhase = .idle
   private var started = false
+  private var stubAutomaticallyChecksForUpdates = true
+  private var stubAutomaticallyDownloadsUpdates = true
   private let userDriver: UpdateDriver?
   private let updater: SPUUpdater?
 
@@ -381,6 +397,20 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       userDriver.runtime = self
       canCheckForUpdatesObservation = updater?.observe(
         \.canCheckForUpdates, options: [.new]
+      ) { [weak self] _, _ in
+        MainActor.assumeIsolated {
+          self?.publish()
+        }
+      }
+      automaticallyChecksForUpdatesObservation = updater?.observe(
+        \.automaticallyChecksForUpdates, options: [.new]
+      ) { [weak self] _, _ in
+        MainActor.assumeIsolated {
+          self?.publish()
+        }
+      }
+      automaticallyDownloadsUpdatesObservation = updater?.observe(
+        \.automaticallyDownloadsUpdates, options: [.new]
       ) { [weak self] _, _ in
         MainActor.assumeIsolated {
           self?.publish()
@@ -446,16 +476,38 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
-  func apply(settings: UpdateSettings) {
-    configureUpdater(settings)
-    if started && settings.automaticallyChecksForUpdates {
-      updater?.checkForUpdatesInBackground()
+  func setAutomaticallyChecksForUpdates(_ isEnabled: Bool) {
+    if let updater {
+      updater.automaticallyChecksForUpdates = isEnabled
+      if !isEnabled {
+        updater.automaticallyDownloadsUpdates = false
+      }
+    } else {
+      stubAutomaticallyChecksForUpdates = isEnabled
+      if !isEnabled {
+        stubAutomaticallyDownloadsUpdates = false
+      }
     }
     publish()
   }
 
-  func start(settings: UpdateSettings) {
-    configureUpdater(settings)
+  func setAutomaticallyDownloadsUpdates(_ isEnabled: Bool) {
+    if let updater {
+      updater.automaticallyDownloadsUpdates =
+        updater.automaticallyChecksForUpdates && isEnabled
+    } else {
+      stubAutomaticallyDownloadsUpdates =
+        stubAutomaticallyChecksForUpdates && isEnabled
+    }
+    publish()
+  }
+
+  func setUpdateChannel(_ updateChannel: UpdateChannel) {
+    configureUpdater(updateChannel: updateChannel)
+  }
+
+  func start(updateChannel: UpdateChannel) {
+    configureUpdater(updateChannel: updateChannel)
     guard !started else {
       publish()
       return
@@ -474,7 +526,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     } catch {
       interaction = .error(retry: { [weak self] in
         Task { @MainActor in
-          self?.start(settings: settings)
+          self?.start(updateChannel: updateChannel)
         }
       })
       phase = .error(.init(message: error.localizedDescription))
@@ -663,6 +715,8 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private var snapshot: UpdateClient.Snapshot {
     UpdateClient.Snapshot(
+      automaticallyChecksForUpdates: updater?.automaticallyChecksForUpdates ?? stubAutomaticallyChecksForUpdates,
+      automaticallyDownloadsUpdates: updater?.automaticallyDownloadsUpdates ?? stubAutomaticallyDownloadsUpdates,
       canCheckForUpdates: updater?.canCheckForUpdates ?? false,
       phase: phase
     )
@@ -750,6 +804,15 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
         sendSystemProfile: false
       )
     )
+    if !automaticChecks {
+      if let updater {
+        updater.automaticallyDownloadsUpdates = false
+      } else {
+        stubAutomaticallyChecksForUpdates = false
+        stubAutomaticallyDownloadsUpdates = false
+        publish()
+      }
+    }
   }
 
   private func restartLater() {
@@ -812,11 +875,10 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     }
   }
 
-  private func configureUpdater(_ settings: UpdateSettings) {
-    userDriver?.updateChannel = settings.updateChannel
-    updater?.updateCheckInterval = settings.updateChannel.updateCheckInterval
-    updater?.automaticallyChecksForUpdates = settings.automaticallyChecksForUpdates
-    updater?.automaticallyDownloadsUpdates = settings.automaticallyDownloadsUpdates
+  private func configureUpdater(updateChannel: UpdateChannel) {
+    userDriver?.updateChannel = updateChannel
+    updater?.updateCheckInterval = updateChannel.updateCheckInterval
+    publish()
   }
 }
 

@@ -17,6 +17,8 @@ struct AppFeatureTests {
   @Test
   func updateActionsRouteToChildFeature() async {
     let snapshot = UpdateClient.Snapshot(
+      automaticallyChecksForUpdates: true,
+      automaticallyDownloadsUpdates: true,
       canCheckForUpdates: true,
       phase: .checking
     )
