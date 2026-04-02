@@ -678,6 +678,35 @@ private struct TerminalSidebarProgressRingView: View {
 }
 
 struct TerminalSidebarTabRow: View {
+  enum ContextMenuItem: Equatable {
+    case newTab
+    case divider
+    case togglePinned(Bool)
+    case changeTabTitle
+    case closeTabsBelow(Bool)
+    case closeOtherTabs(Bool)
+    case close
+
+    var title: String? {
+      switch self {
+      case .newTab:
+        "New Tab"
+      case .divider:
+        nil
+      case .togglePinned(let isPinned):
+        isPinned ? "Unpin Tab" : "Pin Tab"
+      case .changeTabTitle:
+        "Change Tab Title..."
+      case .closeTabsBelow:
+        "Close All Below"
+      case .closeOtherTabs:
+        "Close Others"
+      case .close:
+        "Close"
+      }
+    }
+  }
+
   private struct AnimatedPresentation: Equatable {
     let agentActivity: TerminalHostState.AgentActivity?
     let notificationPreviewMarkdown: String?
@@ -697,6 +726,24 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
+
+  static func contextMenuItems(
+    isPinned: Bool,
+    hasTabsBelow: Bool,
+    hasOtherTabs: Bool
+  ) -> [ContextMenuItem] {
+    [
+      .newTab,
+      .divider,
+      .togglePinned(isPinned),
+      .changeTabTitle,
+      .divider,
+      .closeTabsBelow(hasTabsBelow),
+      .closeOtherTabs(hasOtherTabs),
+      .divider,
+      .close,
+    ]
+  }
 
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var isHovering = false
@@ -795,44 +842,66 @@ struct TerminalSidebarTabRow: View {
       self.isHovering = isHovering
     }
     .contextMenu {
-      Button {
-        _ = store.send(
-          .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-        )
-      } label: {
-        Label("New Tab", systemImage: "plus")
-      }
+      ForEach(
+        Array(
+          Self.contextMenuItems(
+            isPinned: tab.isPinned,
+            hasTabsBelow: hasTabsBelow,
+            hasOtherTabs: hasOtherTabs
+          ).enumerated()
+        ),
+        id: \.offset
+      ) { _, item in
+        switch item {
+        case .newTab:
+          Button {
+            _ = store.send(
+              .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
+            )
+          } label: {
+            Label("New Tab", systemImage: "plus")
+          }
 
-      Divider()
+        case .divider:
+          Divider()
 
-      Button {
-        _ = store.send(.togglePinned(tab.id))
-      } label: {
-        Label(tab.isPinned ? "Unpin Tab" : "Pin Tab", systemImage: tab.isPinned ? "pin.slash" : "pin")
-      }
+        case .togglePinned(let isPinned):
+          Button {
+            _ = store.send(.togglePinned(tab.id))
+          } label: {
+            Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
+          }
 
-      Divider()
+        case .changeTabTitle:
+          Button {
+            terminal.promptTabTitle(tab.id)
+          } label: {
+            Label("Change Tab Title...", systemImage: "pencil")
+          }
 
-      Button {
-        _ = store.send(.closeTabsBelowRequested(tab.id))
-      } label: {
-        Label("Close All Below", systemImage: "arrow.down.to.line")
-      }
-      .disabled(!hasTabsBelow)
+        case .closeTabsBelow(let isEnabled):
+          Button {
+            _ = store.send(.closeTabsBelowRequested(tab.id))
+          } label: {
+            Label("Close All Below", systemImage: "arrow.down.to.line")
+          }
+          .disabled(!isEnabled)
 
-      Button {
-        _ = store.send(.closeOtherTabsRequested(tab.id))
-      } label: {
-        Label("Close Others", systemImage: "xmark.circle")
-      }
-      .disabled(!hasOtherTabs)
+        case .closeOtherTabs(let isEnabled):
+          Button {
+            _ = store.send(.closeOtherTabsRequested(tab.id))
+          } label: {
+            Label("Close Others", systemImage: "xmark.circle")
+          }
+          .disabled(!isEnabled)
 
-      Divider()
-
-      Button(role: .destructive) {
-        _ = store.send(.closeTabRequested(tab.id))
-      } label: {
-        Label("Close", systemImage: "xmark")
+        case .close:
+          Button(role: .destructive) {
+            _ = store.send(.closeTabRequested(tab.id))
+          } label: {
+            Label("Close", systemImage: "xmark")
+          }
+        }
       }
     }
   }

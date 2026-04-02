@@ -170,4 +170,24 @@ struct TerminalSidebarChromeViewTests {
     #expect(hints[first.id] == "⌘2")
     #expect(hints[second.id] == "⌘3")
   }
+
+  @Test
+  func tabContextMenuIncludesChangeTabTitle() {
+    let titles = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: false,
+      hasTabsBelow: true,
+      hasOtherTabs: true
+    ).compactMap(\.title)
+
+    #expect(
+      titles == [
+        "New Tab",
+        "Pin Tab",
+        "Change Tab Title...",
+        "Close All Below",
+        "Close Others",
+        "Close",
+      ]
+    )
+  }
 }
