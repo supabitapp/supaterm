@@ -41,7 +41,7 @@ jobs:
           xcodebuild -version
       - uses: ./.github/actions/setup-macos
       - name: Validate release tag
-        run: mise exec -- python .github/scripts/bump_and_release.py validate-release-tag "$RELEASE_TAG"
+        run: /usr/bin/python3 .github/scripts/bump_and_release.py validate-release-tag "$RELEASE_TAG"
       - name: Ensure draft release exists
         run: |
           RELEASE_STATE=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' -R "${{ github.repository }}" 2>/dev/null || true)
