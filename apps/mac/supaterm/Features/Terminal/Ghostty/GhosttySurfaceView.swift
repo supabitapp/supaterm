@@ -177,6 +177,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return components.joined(separator: ":")
   }
 
+  static func setSurfaceTitleAction(_ title: String) -> String {
+    "set_surface_title:\(title)"
+  }
+
   static func supatermEnvironmentVariables(
     surfaceID: UUID,
     tabID: UUID,
@@ -263,6 +267,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     wantsLayer = true
     bridge.state.pwd = initialWorkingDirectoryPath
     bridge.surfaceView = self
+    bridge.onPromptTitle = { [weak self] prompt in
+      guard let self, prompt == GHOSTTY_PROMPT_TITLE_SURFACE else { return }
+      self.promptTitle()
+    }
     createSurface()
     if let surface {
       surfaceRef = runtime.registerSurface(surface)
@@ -1217,7 +1225,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     menu.addItem(.separator())
     menu.addItem(
       contextMenuItem(
-        title: "Change Title...",
+        title: "Change Terminal Title...",
         action: #selector(GhosttySurfaceView.changeTitle(_:)),
         symbol: "pencil.line"
       ))
@@ -1326,6 +1334,32 @@ final class GhosttySurfaceView: NSView, Identifiable {
     guard let surface else { return }
     _ = action.withCString { ptr in
       ghostty_surface_binding_action(surface, ptr, UInt(action.lengthOfBytes(using: .utf8)))
+    }
+  }
+
+  func promptTitle() {
+    let alert = NSAlert()
+    alert.messageText = "Change Terminal Title"
+    alert.informativeText = "Leave blank to restore the default."
+    alert.alertStyle = .informational
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
+    textField.stringValue = bridge.state.title ?? ""
+    alert.accessoryView = textField
+
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "Cancel")
+    alert.window.initialFirstResponder = textField
+
+    let completionHandler: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+      guard let self, response == .alertFirstButtonReturn else { return }
+      self.performBindingAction(Self.setSurfaceTitleAction(textField.stringValue))
+    }
+
+    if let window {
+      alert.beginSheetModal(for: window, completionHandler: completionHandler)
+    } else {
+      completionHandler(alert.runModal())
     }
   }
 
