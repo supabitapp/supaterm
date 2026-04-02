@@ -100,4 +100,53 @@ struct AppDelegateTests {
 
     #expect(sessions == [first, second])
   }
+
+  @Test
+  func pendingTerminationSessionCatalogCapturesLiveSnapshotOnlyWhenTerminating() {
+    let liveWindowSession = TerminalWindowSession(
+      selectedSpaceID: TerminalSpaceID(),
+      spaces: []
+    )
+    let liveSessionCatalog = TerminalSessionCatalog(
+      windows: [liveWindowSession]
+    )
+
+    #expect(
+      AppDelegate.pendingTerminationSessionCatalog(
+        for: .terminateNow,
+        liveSessionCatalog: liveSessionCatalog
+      ) == liveSessionCatalog
+    )
+    #expect(
+      AppDelegate.pendingTerminationSessionCatalog(
+        for: .terminateCancel,
+        liveSessionCatalog: liveSessionCatalog
+      ) == nil
+    )
+  }
+
+  @Test
+  func persistedSessionCatalogPrefersPreTerminationSnapshotOverClosingWindowsSnapshot() {
+    let preservedWindowSession = TerminalWindowSession(
+      selectedSpaceID: TerminalSpaceID(),
+      spaces: []
+    )
+    let preservedSessionCatalog = TerminalSessionCatalog(
+      windows: [preservedWindowSession]
+    )
+    let closingWindowsSessionCatalog = TerminalSessionCatalog(windows: [])
+
+    #expect(
+      !AppDelegate.shouldSaveLiveSession(
+        suppressesSessionSave: false,
+        pendingTerminationSessionCatalog: preservedSessionCatalog
+      )
+    )
+    #expect(
+      AppDelegate.persistedSessionCatalog(
+        liveSessionCatalog: closingWindowsSessionCatalog,
+        pendingTerminationSessionCatalog: preservedSessionCatalog
+      ) == preservedSessionCatalog
+    )
+  }
 }
