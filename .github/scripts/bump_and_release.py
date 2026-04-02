@@ -7,20 +7,33 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XCCONFIG_PATH = REPO_ROOT / "apps/mac/Configurations/Project.xcconfig"
+VERSION_STATE_PATH = XCCONFIG_PATH.relative_to(REPO_ROOT).as_posix()
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+RELEASE_TAG_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)$")
+ZERO_OID_PATTERN = re.compile(r"^0+$")
 
 
 @dataclass(frozen=True)
 class VersionState:
   marketing_version: str
   build_number: int
+
+
+@dataclass(frozen=True)
+class PushUpdate:
+  local_ref: str
+  local_object_name: str
+  remote_ref: str
+  remote_object_name: str
 
 
 def parse_version_state(content: str) -> VersionState:
@@ -70,6 +83,10 @@ def read_version_state(path: Path = XCCONFIG_PATH) -> VersionState:
   return parse_version_state(path.read_text(encoding="utf-8"))
 
 
+def read_version_state_at_revision(revision: str) -> VersionState:
+  return parse_version_state(run(["git", "show", f"{revision}:{VERSION_STATE_PATH}"]))
+
+
 def prompt_for_version(current: str) -> str:
   while True:
     candidate = input("New version (x.y.z): ").strip()
@@ -107,7 +124,6 @@ def bump_version() -> tuple[str, int]:
   XCCONFIG_PATH.write_text(updated, encoding="utf-8")
   run_interactive(["git", "add", str(XCCONFIG_PATH.relative_to(REPO_ROOT))])
   run_interactive(["git", "commit", "-m", f"bump v{new_version}"])
-  run_interactive(["git", "tag", "-a", f"v{new_version}", "-m", f"v{new_version}"])
   print(f"Bumped version to {new_version} ({new_build})")
   return new_version, new_build
 
@@ -137,7 +153,11 @@ def previous_release_tag() -> str:
     return ""
 
 
-def generate_release_notes(tag: str, notes_path: Path) -> None:
+def current_commit() -> str:
+  return run(["git", "rev-parse", "HEAD"])
+
+
+def generate_release_notes(tag: str, notes_path: Path, target_commitish: str) -> None:
   repo = current_repository()
   previous_tag = previous_release_tag()
   command = [
@@ -146,6 +166,8 @@ def generate_release_notes(tag: str, notes_path: Path) -> None:
     f"repos/{repo}/releases/generate-notes",
     "-f",
     f"tag_name={tag}",
+    "-f",
+    f"target_commitish={target_commitish}",
   ]
   if previous_tag:
     command.extend(["-f", f"previous_tag_name={previous_tag}"])
@@ -158,26 +180,100 @@ def edit_release_notes(notes_path: Path) -> None:
   run_interactive([*shlex.split(editor), str(notes_path)])
 
 
-def create_release_command(tag: str, notes_path: Path) -> list[str]:
-  return ["gh", "release", "create", tag, "--draft", "--verify-tag", "--notes-file", str(notes_path)]
+def current_branch_remote() -> str:
+  branch = run(["git", "branch", "--show-current"])
+  return run(["git", "config", f"branch.{branch}.remote"])
 
 
-def create_release(tag: str, notes_path: Path) -> None:
-  run_interactive(create_release_command(tag, notes_path))
+def create_annotated_tag_command(tag: str, notes_path: Path) -> list[str]:
+  return ["git", "tag", "-a", tag, "-F", str(notes_path)]
 
 
-def dispatch_release_workflow_command(tag: str) -> list[str]:
-  return ["gh", "workflow", "run", "release.yml", "--ref", tag, "-f", f"tag={tag}"]
+def create_annotated_tag(tag: str, notes_path: Path) -> None:
+  run_interactive(create_annotated_tag_command(tag, notes_path))
 
 
-def dispatch_release_workflow(tag: str) -> None:
-  run_interactive(dispatch_release_workflow_command(tag))
+def push_current_branch() -> None:
+  run_interactive(["git", "push"])
+
+
+def push_release_tag(tag: str) -> None:
+  run_interactive(["git", "push", current_branch_remote(), tag])
+
+
+def release_tag_version(tag: str) -> str:
+  match = RELEASE_TAG_PATTERN.fullmatch(tag)
+  if match is None:
+    raise ValueError("release tag must be in vX.Y.Z format")
+  return match.group(1)
+
+
+def is_zero_object_name(object_name: str) -> bool:
+  return ZERO_OID_PATTERN.fullmatch(object_name) is not None
+
+
+def read_object_type(reference: str) -> str:
+  try:
+    return run(["git", "cat-file", "-t", reference])
+  except subprocess.CalledProcessError as error:
+    raise ValueError(f"{reference} could not be resolved locally") from error
+
+
+def validate_release_tag(tag: str, reference: str | None = None) -> None:
+  expected_version = release_tag_version(tag)
+  resolved_reference = reference or f"refs/tags/{tag}"
+  if read_object_type(resolved_reference) != "tag":
+    raise ValueError(f"{tag} must be an annotated tag")
+  try:
+    actual_version = read_version_state_at_revision(f"{resolved_reference}^{{commit}}").marketing_version
+  except subprocess.CalledProcessError as error:
+    raise ValueError(f"{tag} could not resolve a tagged commit") from error
+  if actual_version != expected_version:
+    raise ValueError(f"{tag} does not match MARKETING_VERSION {actual_version}")
+
+
+def parse_push_update(line: str) -> PushUpdate:
+  parts = line.rstrip("\n").split(" ")
+  if len(parts) != 4:
+    raise ValueError("invalid pre-push input")
+  return PushUpdate(*parts)
+
+
+def pushed_tag(update: PushUpdate) -> tuple[str, str] | None:
+  if update.local_ref == "(delete)" or is_zero_object_name(update.local_object_name):
+    return None
+  if update.local_ref.startswith("refs/tags/"):
+    return update.local_ref.removeprefix("refs/tags/"), update.local_ref
+  if update.remote_ref.startswith("refs/tags/"):
+    tag = update.remote_ref.removeprefix("refs/tags/")
+    return tag, f"refs/tags/{tag}"
+  return None
+
+
+def validate_pre_push(stdin: TextIO) -> None:
+  errors: list[str] = []
+  for line in stdin:
+    if not line.strip():
+      continue
+    update = parse_push_update(line)
+    release_tag = pushed_tag(update)
+    if release_tag is None:
+      continue
+    tag, reference = release_tag
+    if not tag.startswith("v"):
+      continue
+    try:
+      validate_release_tag(tag, reference)
+    except ValueError as error:
+      errors.append(f"{tag}: {error}")
+  if errors:
+    raise ValueError("\n".join(errors))
 
 
 def bump_and_release() -> None:
   version, _ = bump_version()
   tag = f"v{version}"
-  run_interactive(["git", "push", "--follow-tags"])
+  push_current_branch()
   with tempfile.NamedTemporaryFile(
     mode="w+",
     encoding="utf-8",
@@ -187,10 +283,10 @@ def bump_and_release() -> None:
   ) as handle:
     notes_path = Path(handle.name)
   try:
-    generate_release_notes(tag, notes_path)
+    generate_release_notes(tag, notes_path, current_commit())
     edit_release_notes(notes_path)
-    create_release(tag, notes_path)
-    dispatch_release_workflow(tag)
+    create_annotated_tag(tag, notes_path)
+    push_release_tag(tag)
   finally:
     notes_path.unlink(missing_ok=True)
 
@@ -198,8 +294,22 @@ def bump_and_release() -> None:
 def main() -> int:
   os.chdir(REPO_ROOT)
   parser = argparse.ArgumentParser()
-  parser.parse_args()
-  bump_and_release()
+  subparsers = parser.add_subparsers(dest="command")
+  validate_release_tag_parser = subparsers.add_parser("validate-release-tag")
+  validate_release_tag_parser.add_argument("tag")
+  validate_release_tag_parser.add_argument("--ref")
+  subparsers.add_parser("validate-pre-push")
+  args = parser.parse_args()
+  try:
+    if args.command == "validate-release-tag":
+      validate_release_tag(args.tag, args.ref)
+    elif args.command == "validate-pre-push":
+      validate_pre_push(sys.stdin)
+    else:
+      bump_and_release()
+  except ValueError as error:
+    print(f"error: {error}", file=sys.stderr)
+    return 1
   return 0
 
 

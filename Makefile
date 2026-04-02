@@ -17,9 +17,9 @@ help:  # Display this help.
 	@-+grep -Eh "^[a-z-]+:.*#" $(lastword $(MAKEFILE_LIST)) | sed -E 's/^(.*:)(.*#+)(.*)/  \1 @@@ \3 /' | column -t -s "@@@"
 
 install-git-hooks:  # Install repo-local Git hooks.
-	@chmod +x "$(GIT_HOOKS_DIR)/pre-commit" && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
+	@chmod +x "$(GIT_HOOKS_DIR)"/* && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
 
-bump-and-release:  # Print the current version, ask for the next version, then create a draft release and dispatch the release build.
+bump-and-release:  # Print the current version, ask for the next version, then push an annotated release tag for the stable build.
 	@python3 .github/scripts/bump_and_release.py
 
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
