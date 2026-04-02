@@ -7,13 +7,13 @@ struct UpdateSettingsTests {
   @Test
   func stableChannelUsesDefaultSparkleFeedRules() {
     #expect(UpdateChannel.stable.sparkleChannels.isEmpty)
-    #expect(UpdateChannel.stable.updateCheckInterval == 3600)
+    #expect(UpdateChannel.stable.updateCheckInterval == 86400)
   }
 
   @Test
   func tipChannelUsesTipSparkleFeedRules() {
     #expect(UpdateChannel.tip.sparkleChannels == ["tip"])
-    #expect(UpdateChannel.tip.updateCheckInterval == 900)
+    #expect(UpdateChannel.tip.updateCheckInterval == 3600)
   }
 
   @Test
