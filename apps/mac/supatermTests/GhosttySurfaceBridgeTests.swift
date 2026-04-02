@@ -25,11 +25,15 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
-  func promptTitleEmitsCallback() {
+  func promptSurfaceTitleEmitsCallback() {
     let bridge = GhosttySurfaceBridge()
-    var received: ghostty_action_prompt_title_e?
-    bridge.onPromptTitle = { prompt in
-      received = prompt
+    var promptSurfaceTitle = 0
+    var promptTabTitle = 0
+    bridge.onPromptSurfaceTitle = {
+      promptSurfaceTitle += 1
+    }
+    bridge.onPromptTabTitle = {
+      promptTabTitle += 1
     }
 
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
@@ -37,6 +41,49 @@ struct GhosttySurfaceBridgeTests {
     action.action.prompt_title = GHOSTTY_PROMPT_TITLE_SURFACE
 
     #expect(bridge.handleAction(target: target, action: action) == false)
-    #expect(received == GHOSTTY_PROMPT_TITLE_SURFACE)
+    #expect(promptSurfaceTitle == 1)
+    #expect(promptTabTitle == 0)
+  }
+
+  @Test
+  func promptTabTitleEmitsCallback() {
+    let bridge = GhosttySurfaceBridge()
+    var promptSurfaceTitle = 0
+    var promptTabTitle = 0
+    bridge.onPromptSurfaceTitle = {
+      promptSurfaceTitle += 1
+    }
+    bridge.onPromptTabTitle = {
+      promptTabTitle += 1
+    }
+
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: .init())
+    action.action.prompt_title = GHOSTTY_PROMPT_TITLE_TAB
+
+    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(promptSurfaceTitle == 0)
+    #expect(promptTabTitle == 1)
+  }
+
+  @Test
+  func setTitleDoesNotClearManualTitleOverride() {
+    let bridge = GhosttySurfaceBridge()
+    bridge.state.titleOverride = "Pinned"
+    var emittedTitles: [String] = []
+    bridge.onTitleChange = { emittedTitles.append($0) }
+
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_SET_TITLE, action: .init())
+    let title = strdup("sleep 10")
+    action.action.set_title.title = UnsafePointer(title)
+    defer {
+      free(title)
+    }
+
+    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.state.title == "sleep 10")
+    #expect(bridge.state.titleOverride == "Pinned")
+    #expect(emittedTitles.isEmpty)
   }
 }

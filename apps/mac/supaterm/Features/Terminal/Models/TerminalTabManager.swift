@@ -50,6 +50,14 @@ final class TerminalTabManager {
     tabs[index].title = title
   }
 
+  func setLockedTitle(_ id: TerminalTabID, title: String?) {
+    guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+    tabs[index].isTitleLocked = title != nil
+    if let title {
+      tabs[index].title = title
+    }
+  }
+
   func updateDirty(_ id: TerminalTabID, isDirty: Bool) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     tabs[index].isDirty = isDirty

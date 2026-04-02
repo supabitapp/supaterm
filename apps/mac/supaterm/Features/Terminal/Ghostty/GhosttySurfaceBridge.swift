@@ -9,7 +9,8 @@ final class GhosttySurfaceBridge {
   var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
   var onTitleChange: ((String) -> Void)?
-  var onPromptTitle: ((ghostty_action_prompt_title_e) -> Void)?
+  var onPromptSurfaceTitle: (() -> Void)?
+  var onPromptTabTitle: (() -> Void)?
   var onPathChange: (() -> Void)?
   var onTabTitleChange: ((String?) -> Bool)?
   var onCopyTitleToClipboard: (() -> Bool)?
@@ -38,6 +39,15 @@ final class GhosttySurfaceBridge {
     searchNeedleCancellable = nil
     state.searchState = nil
     surfaceView?.performBindingAction("end_search")
+  }
+
+  func titleDidChange(from previousTitle: String?) {
+    let title = state.effectiveTitle
+    guard title != previousTitle else { return }
+    onTitleChange?(title ?? "")
+    if let surfaceView {
+      NSAccessibility.post(element: surfaceView, notification: .titleChanged)
+    }
   }
 
   func handleAction(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
@@ -227,17 +237,22 @@ final class GhosttySurfaceBridge {
   private func handleTitleAndPath(_ action: ghostty_action_s) -> Bool {
     switch action.tag {
     case GHOSTTY_ACTION_SET_TITLE:
+      let previousTitle = state.effectiveTitle
       if let title = string(from: action.action.set_title.title) {
         state.title = title
-        onTitleChange?(title)
-        if let surfaceView {
-          NSAccessibility.post(element: surfaceView, notification: .titleChanged)
-        }
+        titleDidChange(from: previousTitle)
       }
       return true
 
     case GHOSTTY_ACTION_PROMPT_TITLE:
-      onPromptTitle?(action.action.prompt_title)
+      switch action.action.prompt_title {
+      case GHOSTTY_PROMPT_TITLE_SURFACE:
+        onPromptSurfaceTitle?()
+      case GHOSTTY_PROMPT_TITLE_TAB:
+        onPromptTabTitle?()
+      default:
+        break
+      }
       return true
 
     case GHOSTTY_ACTION_PWD:
@@ -245,9 +260,7 @@ final class GhosttySurfaceBridge {
       onPathChange?()
       if let surfaceView {
         NSAccessibility.post(element: surfaceView, notification: .valueChanged)
-        // VoiceOver does not reliably re-read the label on `.valueChanged` alone.
-        // If the surface view's label falls back to PWD, post `.titleChanged` to trigger re-announcement.
-        let title = state.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = state.effectiveTitle ?? ""
         if title.isEmpty {
           NSAccessibility.post(element: surfaceView, notification: .titleChanged)
         }

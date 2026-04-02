@@ -179,7 +179,6 @@ final class TerminalHostState {
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
-  private var tabTitleOverrides: [TerminalTabID: String] = [:]
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
   private var suppressesSessionChanges = 0
@@ -540,6 +539,7 @@ final class TerminalHostState {
     Self.selectedPaneDisplayTitle(
       focusedSurfaceID: currentFocusedSurfaceID(),
       in: selectedTree,
+      titleOverride: { $0.bridge.state.titleOverride },
       title: { $0.bridge.state.title },
       pwd: { $0.bridge.state.pwd }
     )
@@ -1542,7 +1542,6 @@ final class TerminalHostState {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
       agentActivityByTab.removeValue(forKey: tabID)
-      tabTitleOverrides.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
@@ -1612,12 +1611,16 @@ final class TerminalHostState {
     }
     view.bridge.onTabTitleChange = { [weak self] title in
       guard let self else { return false }
-      self.setTabTitleOverride(title, for: tabID)
+      self.setLockedTabTitle(title, for: tabID)
       return true
     }
-    view.bridge.onCopyTitleToClipboard = { [weak self] in
-      guard let self else { return false }
-      return self.copyTitleToClipboard(for: tabID)
+    view.bridge.onPromptTabTitle = { [weak self, weak view] in
+      guard let self, let view else { return }
+      self.promptTabTitle(for: tabID, using: view)
+    }
+    view.bridge.onCopyTitleToClipboard = { [weak self, weak view] in
+      guard let self, let view else { return false }
+      return self.copyTitleToClipboard(for: view.id)
     }
     view.bridge.onSplitAction = { [weak self, weak view] action in
       guard let self, let view else { return false }
@@ -2029,7 +2032,6 @@ final class TerminalHostState {
     }
     agentActivityByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
-    tabTitleOverrides.removeValue(forKey: tabID)
   }
 
   private func notifications(for tabID: TerminalTabID) -> [UUID: [PaneNotification]] {
@@ -2155,26 +2157,33 @@ final class TerminalHostState {
     spaceManager.tab(for: tabID)?.defaultTitle ?? "Terminal"
   }
 
-  private func setTabTitleOverride(_ title: String?, for tabID: TerminalTabID) {
-    if let title {
-      tabTitleOverrides[tabID] = title
-    } else {
-      tabTitleOverrides.removeValue(forKey: tabID)
-    }
+  private func setLockedTabTitle(_ title: String?, for tabID: TerminalTabID) {
+    spaceManager.space(for: tabID)
+      .flatMap { spaceManager.tabManager(for: $0.id) }?
+      .setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
     sessionDidChange()
   }
 
-  private func copyTitleToClipboard(for tabID: TerminalTabID) -> Bool {
-    let title = currentTabTitle(for: tabID).trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !title.isEmpty else { return false }
+  private func promptTabTitle(for tabID: TerminalTabID, using view: GhosttySurfaceView) {
+    view.promptTitle(
+      messageText: "Change Tab Title",
+      initialValue: currentTabTitle(for: tabID)
+    ) { [weak self] title in
+      self?.setLockedTabTitle(GhosttySurfaceView.titleOverride(from: title), for: tabID)
+    }
+  }
+
+  private func copyTitleToClipboard(for surfaceID: UUID) -> Bool {
+    guard let surface = surfaces[surfaceID] else { return false }
+    guard let title = surface.effectiveTitle(), !title.isEmpty else { return false }
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     return pasteboard.setString(title, forType: .string)
   }
 
   private func currentTabTitle(for tabID: TerminalTabID) -> String {
-    if let title = tabTitleOverrides[tabID] {
+    if let title = lockedTabTitle(for: tabID) {
       return title
     }
     let fallbackTitle = fallbackTitle(for: tabID)
@@ -2182,6 +2191,11 @@ final class TerminalHostState {
       return fallbackTitle
     }
     return surface.resolvedDisplayTitle(defaultValue: fallbackTitle)
+  }
+
+  private func lockedTabTitle(for tabID: TerminalTabID) -> String? {
+    guard let tab = spaceManager.tab(for: tabID), tab.isTitleLocked else { return nil }
+    return tab.title
   }
 
   private func resolvedNotificationTitle(
@@ -2232,7 +2246,7 @@ final class TerminalHostState {
       ?? 0
     return TerminalTabSession(
       isPinned: tab.isPinned,
-      lockedTitle: Self.trimmedNonEmpty(tabTitleOverrides[tab.id]),
+      lockedTitle: lockedTabTitle(for: tab.id),
       focusedPaneIndex: focusedPaneIndex,
       root: root
     )
@@ -2245,7 +2259,8 @@ final class TerminalHostState {
     case .leaf(let surface):
       return .leaf(
         TerminalPaneLeafSession(
-          workingDirectoryPath: workingDirectoryPath(for: surface)
+          workingDirectoryPath: workingDirectoryPath(for: surface),
+          titleOverride: surface.bridge.state.titleOverride
         )
       )
     case .split(let split):
@@ -2291,11 +2306,6 @@ final class TerminalHostState {
       context: context
     )
     trees[tabID] = SplitTree(root: restoredRoot, zoomed: nil)
-    if let lockedTitle = session.lockedTitle {
-      tabTitleOverrides[tabID] = lockedTitle
-    } else {
-      tabTitleOverrides.removeValue(forKey: tabID)
-    }
     let leaves = restoredRoot.leaves()
     let focusedPaneIndex =
       leaves.indices.contains(session.focusedPaneIndex)
@@ -2320,6 +2330,7 @@ final class TerminalHostState {
         workingDirectory: existingWorkingDirectoryURL(for: leaf.workingDirectoryPath),
         context: context
       )
+      surface.bridge.state.titleOverride = leaf.titleOverride
       return .leaf(view: surface)
 
     case .split(let split):
@@ -2604,6 +2615,7 @@ final class TerminalHostState {
   static func selectedPaneDisplayTitle<Surface: NSView & Identifiable>(
     focusedSurfaceID: UUID?,
     in tree: SplitTree<Surface>?,
+    titleOverride: (Surface) -> String?,
     title: (Surface) -> String?,
     pwd: (Surface) -> String?
   ) -> String where Surface.ID == UUID {
@@ -2613,6 +2625,7 @@ final class TerminalHostState {
       return "Pane"
     }
     return resolvedPaneDisplayTitle(
+      titleOverride: titleOverride(surface),
       title: title(surface),
       pwd: pwd(surface),
       defaultValue: paneFallbackTitle(for: surface.id, in: tree)
@@ -2646,11 +2659,15 @@ final class TerminalHostState {
   }
 
   static func resolvedPaneDisplayTitle(
+    titleOverride: String?,
     title: String?,
     pwd: String?,
     defaultValue: String
   ) -> String {
-    if let title = trimmedNonEmpty(title) {
+    if let titleOverride {
+      return titleOverride
+    }
+    if let title, !title.isEmpty {
       return title
     }
     if let pwd = trimmedNonEmpty(pwd) {
@@ -2979,6 +2996,7 @@ extension GhosttySurfaceView {
 
   fileprivate func resolvedDisplayTitle(defaultValue: String) -> String {
     TerminalHostState.resolvedPaneDisplayTitle(
+      titleOverride: bridge.state.titleOverride,
       title: bridge.state.title,
       pwd: bridge.state.pwd,
       defaultValue: defaultValue

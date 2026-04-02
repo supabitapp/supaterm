@@ -47,6 +47,8 @@ enum SupatermCommand: Hashable, Sendable {
   case pasteFromClipboard
   case pasteFromSelection
   case previousTab
+  case promptSurfaceTitle
+  case promptTabTitle
   case resizeSplit(SplitResizeDirection, UInt16)
   case searchSelection
   case selectAll
@@ -109,6 +111,10 @@ enum SupatermCommand: Hashable, Sendable {
       "paste_from_selection"
     case .previousTab:
       "previous_tab"
+    case .promptSurfaceTitle:
+      "prompt_surface_title"
+    case .promptTabTitle:
+      "prompt_tab_title"
     case .resizeSplit(.down, let amount):
       "resize_split:down,\(amount)"
     case .resizeSplit(.left, let amount):
@@ -179,6 +185,8 @@ enum SupatermCommand: Hashable, Sendable {
       .goToTab,
       .newSplit(.left),
       .newSplit(.top),
+      .promptSurfaceTitle,
+      .promptTabTitle,
       .resizeSplit:
       nil
     }

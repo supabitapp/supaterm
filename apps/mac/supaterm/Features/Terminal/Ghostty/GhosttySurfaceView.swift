@@ -177,8 +177,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return components.joined(separator: ":")
   }
 
-  static func setSurfaceTitleAction(_ title: String) -> String {
-    "set_surface_title:\(title)"
+  static func titleOverride(from title: String) -> String? {
+    title.isEmpty ? nil : title
   }
 
   static func supatermEnvironmentVariables(
@@ -267,9 +267,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     wantsLayer = true
     bridge.state.pwd = initialWorkingDirectoryPath
     bridge.surfaceView = self
-    bridge.onPromptTitle = { [weak self] prompt in
-      guard let self, prompt == GHOSTTY_PROMPT_TITLE_SURFACE else { return }
-      self.promptTitle()
+    bridge.onPromptSurfaceTitle = { [weak self] in
+      self?.promptSurfaceTitle()
     }
     createSurface()
     if let surface {
@@ -502,8 +501,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func accessibilityLabel() -> String? {
-    let title = bridge.state.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !title.isEmpty {
+    if let title = bridge.state.effectiveTitle {
       return title
     }
     let pwd = bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1225,6 +1223,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
     menu.addItem(.separator())
     menu.addItem(
       contextMenuItem(
+        title: "Change Tab Title...",
+        action: #selector(GhosttySurfaceView.changeTabTitle(_:)),
+        symbol: "pencil.line"
+      ))
+    menu.addItem(
+      contextMenuItem(
         title: "Change Terminal Title...",
         action: #selector(GhosttySurfaceView.changeTitle(_:)),
         symbol: "pencil.line"
@@ -1264,6 +1268,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   @IBAction func changeTitle(_ sender: Any?) {
     performBindingAction("prompt_surface_title")
+  }
+
+  @IBAction func changeTabTitle(_ sender: Any?) {
+    performBindingAction("prompt_tab_title")
   }
 
   private func shouldAttemptMenu(for flags: ghostty_binding_flags_e) -> Bool {
@@ -1337,29 +1345,57 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  func promptTitle() {
+  func effectiveTitle() -> String? {
+    bridge.state.effectiveTitle
+  }
+
+  func setTitleOverride(_ title: String?) {
+    let previousTitle = bridge.state.effectiveTitle
+    let previousOverride = bridge.state.titleOverride
+    bridge.state.titleOverride = title
+    if previousTitle != bridge.state.effectiveTitle {
+      bridge.titleDidChange(from: previousTitle)
+    } else if previousOverride != title {
+      bridge.onTitleChange?(bridge.state.effectiveTitle ?? "")
+    }
+  }
+
+  func promptTitle(
+    messageText: String,
+    initialValue: String,
+    handler: @escaping (String) -> Void
+  ) {
     let alert = NSAlert()
-    alert.messageText = "Change Terminal Title"
+    alert.messageText = messageText
     alert.informativeText = "Leave blank to restore the default."
     alert.alertStyle = .informational
 
     let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 250, height: 24))
-    textField.stringValue = bridge.state.title ?? ""
+    textField.stringValue = initialValue
     alert.accessoryView = textField
 
     alert.addButton(withTitle: "OK")
     alert.addButton(withTitle: "Cancel")
     alert.window.initialFirstResponder = textField
 
-    let completionHandler: (NSApplication.ModalResponse) -> Void = { [weak self] response in
-      guard let self, response == .alertFirstButtonReturn else { return }
-      self.performBindingAction(Self.setSurfaceTitleAction(textField.stringValue))
+    let completionHandler: (NSApplication.ModalResponse) -> Void = { response in
+      guard response == .alertFirstButtonReturn else { return }
+      handler(textField.stringValue)
     }
 
     if let window {
       alert.beginSheetModal(for: window, completionHandler: completionHandler)
     } else {
       completionHandler(alert.runModal())
+    }
+  }
+
+  func promptSurfaceTitle() {
+    promptTitle(
+      messageText: "Change Terminal Title",
+      initialValue: bridge.state.titleOverride ?? bridge.state.title ?? ""
+    ) { [weak self] title in
+      self?.setTitleOverride(Self.titleOverride(from: title))
     }
   }
 

@@ -53,15 +53,13 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
-  func setSurfaceTitleActionPreservesEmptyTitle() {
-    #expect(GhosttySurfaceView.setSurfaceTitleAction("") == "set_surface_title:")
+  func titleOverrideTreatsEmptyStringAsRestoreDefault() {
+    #expect(GhosttySurfaceView.titleOverride(from: "") == nil)
   }
 
   @Test
-  func setSurfaceTitleActionPreservesWhitespaceAndColons() {
-    #expect(GhosttySurfaceView.setSurfaceTitleAction("  ") == "set_surface_title:  ")
-    #expect(
-      GhosttySurfaceView.setSurfaceTitleAction("foo:bar") == "set_surface_title:foo:bar"
-    )
+  func titleOverridePreservesWhitespaceAndColons() {
+    #expect(GhosttySurfaceView.titleOverride(from: "  ") == "  ")
+    #expect(GhosttySurfaceView.titleOverride(from: "foo:bar") == "foo:bar")
   }
 }

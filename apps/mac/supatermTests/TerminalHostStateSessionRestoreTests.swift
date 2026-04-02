@@ -59,6 +59,8 @@ struct TerminalHostStateSessionRestoreTests {
       let secondSpaceTabs = host.spaceManager.tabs(in: secondSpaceID)
       let secondSpaceSelectedTabID = try #require(secondSpaceTabs.last?.id)
       host.handleCommand(.selectTab(secondSpaceSelectedTabID))
+      host.spaceManager.tabManager(for: secondSpaceID)?.setLockedTitle(secondSpaceSelectedTabID, title: "Pinned Tab")
+      host.selectedSurfaceView?.setTitleOverride("Pane Title")
 
       let snapshot = host.restorationSnapshot()
 
@@ -72,7 +74,10 @@ struct TerminalHostStateSessionRestoreTests {
       )
       #expect(restored.spaceManager.tabs(in: secondSpaceID).count == secondSpaceTabs.count)
       #expect(restored.spaceManager.tabs(in: secondSpaceID).map(\.isPinned) == [true, false])
+      #expect(restored.spaceManager.tabs(in: secondSpaceID).last?.title == "Pinned Tab")
+      #expect(restored.spaceManager.tabs(in: secondSpaceID).last?.isTitleLocked == true)
       #expect(restored.selectedSurfaceState?.pwd == restoredPathString)
+      #expect(restored.selectedSurfaceState?.titleOverride == "Pane Title")
 
       let debug = restored.debugWindowSnapshot(index: 1)
       let restoredFirstSpace = try #require(debug.spaces.first(where: { $0.id == firstSpaceID.rawValue }))
@@ -80,6 +85,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       #expect(restoredFirstTab.panes.count == 2)
       #expect(restoredFirstTab.panes.filter(\.isFocused).count == 1)
+      #expect(debug.spaces.last?.tabs.last?.panes.first(where: \.isFocused)?.displayTitle == "Pane Title")
     }
   }
 }
