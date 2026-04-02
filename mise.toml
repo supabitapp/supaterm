@@ -1,5 +1,4 @@
 [tools]
-python = "3.13"
 zig = "0.15.2"
 tuist = "4.163.0"
 swiftlint = "latest"
@@ -8,7 +7,7 @@ pnpm = "10.32.1"
 "npm:create-dmg" = { version = "latest", os = ["macos"] }
 
 [tasks.validate-release-tags]
-run = "python .github/scripts/bump_and_release.py validate-pre-push"
+run = "python3 .github/scripts/bump_and_release.py validate-pre-push"
 
 [hooks]
 postinstall = '''
