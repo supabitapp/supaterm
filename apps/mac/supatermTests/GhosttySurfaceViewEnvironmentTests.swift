@@ -1,9 +1,12 @@
+import AppKit
 import Foundation
+import GhosttyKit
 import Testing
 
 @testable import SupatermCLIShared
 @testable import supaterm
 
+@MainActor
 struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesIncludePaneSocketCliAndPrependedPath() {
@@ -61,5 +64,38 @@ struct GhosttySurfaceViewEnvironmentTests {
   func titleOverridePreservesWhitespaceAndColons() {
     #expect(GhosttySurfaceView.titleOverride(from: "  ") == "  ")
     #expect(GhosttySurfaceView.titleOverride(from: "foo:bar") == "foo:bar")
+  }
+
+  @Test
+  func scrollOnFocusedSurfaceCountsAsDirectInteraction() throws {
+    initializeGhosttyForTests()
+
+    let runtime = GhosttyRuntime()
+    let view = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    var interactionCount = 0
+    view.onDirectInteraction = {
+      interactionCount += 1
+    }
+    view.focusDidChange(true)
+    let cgEvent = try #require(
+      CGEvent(
+        scrollWheelEvent2Source: nil,
+        units: .pixel,
+        wheelCount: 1,
+        wheel1: 1,
+        wheel2: 0,
+        wheel3: 0
+      )
+    )
+    let scrollEvent = try #require(NSEvent(cgEvent: cgEvent))
+
+    view.scrollWheel(with: scrollEvent)
+
+    #expect(interactionCount == 1)
   }
 }
