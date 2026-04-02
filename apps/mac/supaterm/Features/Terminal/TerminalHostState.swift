@@ -3195,8 +3195,8 @@ final class TerminalHostState {
       return .left
     case .right:
       return .right
-    case .top:
-      return .top
+    case .up:
+      return .up
     case .down:
       return .down
     }
@@ -3235,7 +3235,7 @@ final class TerminalHostState {
     case .right:
       return .right
     case .up:
-      return .top
+      return .up
     }
   }
 
@@ -3251,8 +3251,8 @@ final class TerminalHostState {
       return .spatial(.left)
     case .right:
       return .spatial(.right)
-    case .top:
-      return .spatial(.top)
+    case .up:
+      return .spatial(.up)
     case .down:
       return .spatial(.down)
     }
@@ -3266,8 +3266,8 @@ final class TerminalHostState {
       return .left
     case .right:
       return .right
-    case .top:
-      return .top
+    case .up:
+      return .up
     case .down:
       return .down
     }
@@ -3282,7 +3282,7 @@ final class TerminalHostState {
     case .right:
       return .right
     case .up:
-      return .top
+      return .up
     case .down:
       return .down
     }
@@ -3292,8 +3292,8 @@ final class TerminalHostState {
     -> SplitTree<GhosttySurfaceView>.NewDirection
   {
     switch zone {
-    case .top:
-      return .top
+    case .up:
+      return .up
     case .bottom:
       return .down
     case .left:

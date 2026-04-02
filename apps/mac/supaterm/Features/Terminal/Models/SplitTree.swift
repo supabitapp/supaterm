@@ -41,7 +41,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   enum SpatialDirection {
     case left
     case right
-    case top
+    case up
     case down
   }
 
@@ -57,7 +57,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     case left
     case right
     case down
-    case top
+    case up
   }
 
   enum FocusDirection {
@@ -157,7 +157,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
 
       case .split:
         return switch spatialDirection {
-        case .top, .left: bestNode.node.leftmostLeaf()
+        case .up, .left: bestNode.node.leftmostLeaf()
         case .down, .right: bestNode.node.rightmostLeaf()
         }
       }
@@ -197,7 +197,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
 
     let targetSplitDirection: Direction =
       switch direction {
-      case .top, .down: .vertical
+      case .up, .down: .vertical
       case .left, .right: .horizontal
       }
 
@@ -239,7 +239,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
       newRatio = split.ratio - (pixelOffset / width)
     case (.horizontal, .right):
       newRatio = split.ratio + (pixelOffset / width)
-    case (.vertical, .top):
+    case (.vertical, .up):
       newRatio = split.ratio - (pixelOffset / height)
     case (.vertical, .down):
       newRatio = split.ratio + (pixelOffset / height)
@@ -403,7 +403,7 @@ extension SplitTree.Node {
     case .right:
       splitDirection = .horizontal
       newViewOnLeft = false
-    case .top:
+    case .up:
       splitDirection = .vertical
       newViewOnLeft = true
     case .down:
@@ -740,7 +740,7 @@ extension SplitTree.Spatial {
         distance(from: refSlot.bounds, to: $0.bounds)
           < distance(from: refSlot.bounds, to: $1.bounds)
       }
-    case .top:
+    case .up:
       slots.filter {
         $0.node != referenceNode && $0.bounds.maxY <= refSlot.bounds.minY
       }.sorted {

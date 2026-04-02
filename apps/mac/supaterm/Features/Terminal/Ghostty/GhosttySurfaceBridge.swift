@@ -188,7 +188,7 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_SPLIT_DIRECTION_RIGHT:
       return .right
     case GHOSTTY_SPLIT_DIRECTION_UP:
-      return .top
+      return .up
     case GHOSTTY_SPLIT_DIRECTION_DOWN:
       return .down
     default:
@@ -209,7 +209,7 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_GOTO_SPLIT_RIGHT:
       return .right
     case GHOSTTY_GOTO_SPLIT_UP:
-      return .top
+      return .up
     case GHOSTTY_GOTO_SPLIT_DOWN:
       return .down
     default:
@@ -226,7 +226,7 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_RESIZE_SPLIT_RIGHT:
       return .right
     case GHOSTTY_RESIZE_SPLIT_UP:
-      return .top
+      return .up
     case GHOSTTY_RESIZE_SPLIT_DOWN:
       return .down
     default:
