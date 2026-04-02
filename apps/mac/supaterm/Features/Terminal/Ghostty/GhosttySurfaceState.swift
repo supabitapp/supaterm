@@ -6,7 +6,6 @@ import Observation
 final class GhosttySurfaceState {
   var title: String?
   var pwd: String?
-  var promptTitle: ghostty_action_prompt_title_e?
   var progressStyleEnabled = true
   var progressState: ghostty_action_progress_report_state_e?
   var progressValue: Int?

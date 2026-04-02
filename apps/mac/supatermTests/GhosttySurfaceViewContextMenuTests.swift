@@ -20,4 +20,11 @@ struct GhosttySurfaceViewContextMenuTests {
     #expect(menuWithSelection.items.first?.title == "Copy")
     #expect(menuWithoutSelection.items.first?.title == "Paste")
   }
+
+  @Test
+  func contextMenuIncludesChangeTerminalTitleItem() {
+    let menu = GhosttySurfaceView.contextMenu(hasSelection: false)
+
+    #expect(menu.items.contains { $0.title == "Change Terminal Title..." })
+  }
 }

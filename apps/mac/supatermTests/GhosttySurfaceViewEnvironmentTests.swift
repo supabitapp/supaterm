@@ -51,4 +51,17 @@ struct GhosttySurfaceViewEnvironmentTests {
         == "/Applications/Supaterm.app/Contents/Resources/bin"
     )
   }
+
+  @Test
+  func setSurfaceTitleActionPreservesEmptyTitle() {
+    #expect(GhosttySurfaceView.setSurfaceTitleAction("") == "set_surface_title:")
+  }
+
+  @Test
+  func setSurfaceTitleActionPreservesWhitespaceAndColons() {
+    #expect(GhosttySurfaceView.setSurfaceTitleAction("  ") == "set_surface_title:  ")
+    #expect(
+      GhosttySurfaceView.setSurfaceTitleAction("foo:bar") == "set_surface_title:foo:bar"
+    )
+  }
 }
