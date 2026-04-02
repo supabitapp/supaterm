@@ -15,7 +15,6 @@ struct TerminalSplitView: View {
   let onHide: () -> Void
 
   @State private var dragFraction: CGFloat?
-  @State private var notificationOverlay: TerminalSidebarNotificationOverlay?
 
   var body: some View {
     let effectiveFraction = TerminalSplitMetrics.clampedFraction(
@@ -49,9 +48,7 @@ struct TerminalSplitView: View {
           store: store,
           updateStore: updateStore,
           palette: palette,
-          terminal: terminal,
-          overlayCoordinateSpace: TerminalCoordinateSpace.split,
-          notificationOverlay: $notificationOverlay
+          terminal: terminal
         )
         .frame(width: currentSidebarWidth)
         .frame(maxHeight: .infinity)
@@ -72,14 +69,6 @@ struct TerminalSplitView: View {
           Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-      }
-
-      if !visualSidebarCollapsed, let notificationOverlay {
-        TerminalSidebarNotificationOverlayHost(
-          palette: palette,
-          overlay: notificationOverlay,
-          containerWidth: totalWidth
-        )
       }
 
       if !isSidebarCollapsed {
@@ -103,8 +92,6 @@ struct TerminalSidebarView: View {
   let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
-  let overlayCoordinateSpace: String
-  @Binding var notificationOverlay: TerminalSidebarNotificationOverlay?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
@@ -113,9 +100,7 @@ struct TerminalSidebarView: View {
         store: store,
         updateStore: updateStore,
         palette: palette,
-        terminal: terminal,
-        overlayCoordinateSpace: overlayCoordinateSpace,
-        notificationOverlay: $notificationOverlay
+        terminal: terminal
       )
     }
     .padding(.top, sidebarTopPadding)
@@ -136,7 +121,6 @@ struct FloatingSidebarOverlay: View {
   let maxFraction: CGFloat
 
   @State private var dragFraction: CGFloat?
-  @State private var notificationOverlay: TerminalSidebarNotificationOverlay?
 
   var body: some View {
     let effectiveFraction = TerminalSplitMetrics.clampedFraction(
@@ -156,8 +140,7 @@ struct FloatingSidebarOverlay: View {
           updateStore: updateStore,
           palette: palette,
           terminal: terminal,
-          width: floatingWidth,
-          notificationOverlay: $notificationOverlay
+          width: floatingWidth
         )
         .frame(width: floatingWidth)
         .transition(.move(edge: .leading))
@@ -167,15 +150,6 @@ struct FloatingSidebarOverlay: View {
       HStack(spacing: 0) {
         hoverStrip(width: isVisible ? floatingWidth : 10)
         Spacer(minLength: 0)
-      }
-
-      if isVisible, let notificationOverlay {
-        TerminalSidebarNotificationOverlayHost(
-          palette: palette,
-          overlay: notificationOverlay,
-          containerWidth: totalWidth
-        )
-        .zIndex(2)
       }
 
       if isVisible {
@@ -204,27 +178,6 @@ struct FloatingSidebarOverlay: View {
           slack: 8
         )
       }
-  }
-}
-
-private struct TerminalSidebarNotificationOverlayHost: View {
-  let palette: TerminalPalette
-  let overlay: TerminalSidebarNotificationOverlay
-  let containerWidth: CGFloat
-
-  var body: some View {
-    let origin = TerminalSidebarNotificationOverlayLayout.origin(
-      for: overlay.frame,
-      containerWidth: containerWidth
-    )
-
-    TerminalSidebarNotificationPopover(
-      palette: palette,
-      markdown: overlay.markdown
-    )
-    .allowsHitTesting(false)
-    .offset(x: origin.x, y: origin.y)
-    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
   }
 }
 
@@ -362,16 +315,13 @@ private struct FloatingSidebarView: View {
   let palette: TerminalPalette
   let terminal: TerminalHostState
   let width: CGFloat
-  @Binding var notificationOverlay: TerminalSidebarNotificationOverlay?
 
   var body: some View {
     TerminalSidebarView(
       store: store,
       updateStore: updateStore,
       palette: palette,
-      terminal: terminal,
-      overlayCoordinateSpace: TerminalCoordinateSpace.floatingSidebar,
-      notificationOverlay: $notificationOverlay
+      terminal: terminal
     )
     .frame(width: width)
     .background(palette.windowBackgroundTint)
