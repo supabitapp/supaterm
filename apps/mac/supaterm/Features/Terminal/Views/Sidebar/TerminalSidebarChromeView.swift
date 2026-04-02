@@ -748,21 +748,9 @@ struct TerminalSidebarTabRow: View {
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var isHovering = false
   @State private var isCloseHovering = false
-  @State private var isNotificationPopoverHovering = false
-  @State private var isTransitioningToNotificationPopover = false
-  @State private var notificationPopoverDismissTask: Task<Void, Never>?
 
   private var isSelected: Bool {
     terminal.selectedTabID == tab.id
-  }
-
-  static func showsNotificationPopover(
-    hasNotification: Bool,
-    isRowHovering: Bool,
-    isPopoverHovering: Bool,
-    isTransitioningToPopover: Bool
-  ) -> Bool {
-    hasNotification && (isRowHovering || isPopoverHovering || isTransitioningToPopover)
   }
 
   private var contextSurfaceID: UUID? {
@@ -843,8 +831,7 @@ struct TerminalSidebarTabRow: View {
       if let notificationMarkdown {
         TerminalSidebarNotificationPopover(
           palette: palette,
-          markdown: notificationMarkdown,
-          onHoverChange: handleNotificationPopoverHoverChange
+          markdown: notificationMarkdown
         )
       }
     }
@@ -852,18 +839,7 @@ struct TerminalSidebarTabRow: View {
       TerminalSidebarMiddleClickActionView(action: close)
     )
     .onHover { isHovering in
-      handleRowHoverChange(isHovering)
-    }
-    .onChange(of: notificationMarkdown) { _, notificationMarkdown in
-      guard notificationMarkdown == nil else { return }
-      notificationPopoverDismissTask?.cancel()
-      notificationPopoverDismissTask = nil
-      isNotificationPopoverHovering = false
-      isTransitioningToNotificationPopover = false
-    }
-    .onDisappear {
-      notificationPopoverDismissTask?.cancel()
-      notificationPopoverDismissTask = nil
+      self.isHovering = isHovering
     }
     .contextMenu {
       ForEach(
@@ -961,14 +937,7 @@ struct TerminalSidebarTabRow: View {
 
   private var notificationPopoverPresented: Binding<Bool> {
     Binding(
-      get: {
-        Self.showsNotificationPopover(
-          hasNotification: notificationMarkdown != nil,
-          isRowHovering: isHovering,
-          isPopoverHovering: isNotificationPopoverHovering,
-          isTransitioningToPopover: isTransitioningToNotificationPopover
-        )
-      },
+      get: { isHovering && notificationMarkdown != nil },
       set: { _ in }
     )
   }
@@ -982,55 +951,11 @@ struct TerminalSidebarTabRow: View {
       _ = store.send(.closeTabRequested(tab.id))
     }
   }
-
-  private func handleRowHoverChange(_ isHovering: Bool) {
-    self.isHovering = isHovering
-
-    if isHovering {
-      notificationPopoverDismissTask?.cancel()
-      notificationPopoverDismissTask = nil
-      isTransitioningToNotificationPopover = false
-    } else {
-      scheduleNotificationPopoverDismissal()
-    }
-  }
-
-  private func handleNotificationPopoverHoverChange(_ isHovering: Bool) {
-    isNotificationPopoverHovering = isHovering
-
-    if isHovering {
-      notificationPopoverDismissTask?.cancel()
-      notificationPopoverDismissTask = nil
-      isTransitioningToNotificationPopover = false
-    } else if !self.isHovering {
-      scheduleNotificationPopoverDismissal()
-    }
-  }
-
-  private func scheduleNotificationPopoverDismissal() {
-    notificationPopoverDismissTask?.cancel()
-    notificationPopoverDismissTask = nil
-
-    guard notificationMarkdown != nil else {
-      isTransitioningToNotificationPopover = false
-      return
-    }
-
-    isTransitioningToNotificationPopover = true
-    notificationPopoverDismissTask = Task { @MainActor in
-      try? await Task.sleep(for: .milliseconds(180))
-      guard !Task.isCancelled else { return }
-      guard !isHovering, !isNotificationPopoverHovering else { return }
-      isTransitioningToNotificationPopover = false
-      notificationPopoverDismissTask = nil
-    }
-  }
 }
 
 private struct TerminalSidebarNotificationPopover: View {
   let palette: TerminalPalette
   let markdown: String
-  let onHoverChange: (Bool) -> Void
 
   private let cornerRadius: CGFloat = 14
   private let popoverWidth: CGFloat = 320
@@ -1061,14 +986,6 @@ private struct TerminalSidebarNotificationPopover: View {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
         .clipShape(.rect(cornerRadius: cornerRadius))
     }
-    .environment(
-      \.openURL,
-      OpenURLAction { url in
-        _ = NSWorkspace.shared.open(url)
-        return .handled
-      }
-    )
-    .onHover(perform: onHoverChange)
     .compositingGroup()
     .clipShape(.rect(cornerRadius: cornerRadius))
     .overlay {
