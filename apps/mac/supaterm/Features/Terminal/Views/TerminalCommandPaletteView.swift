@@ -159,7 +159,7 @@ struct TerminalCommandPaletteOverlay: View {
   private var queryBinding: Binding<String> {
     Binding(
       get: { state.query },
-      set: onQueryChange
+      set: { onQueryChange($0) }
     )
   }
 

@@ -1216,9 +1216,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     let menu = NSMenu()
     menu.automaticallyInsertsWritingToolsItems = false
     if hasSelection {
-      menu.addItem(NSMenuItem(title: "Copy", action: Selector(("copy:")), keyEquivalent: ""))
+      menu.addItem(NSMenuItem(title: "Copy", action: #selector(GhosttySurfaceView.copy(_:)), keyEquivalent: ""))
     }
-    menu.addItem(NSMenuItem(title: "Paste", action: Selector(("paste:")), keyEquivalent: ""))
+    menu.addItem(NSMenuItem(title: "Paste", action: #selector(GhosttySurfaceView.paste(_:)), keyEquivalent: ""))
     menu.addItem(.separator())
     menu.addItem(
       contextMenuItem(

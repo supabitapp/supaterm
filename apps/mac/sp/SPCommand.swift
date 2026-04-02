@@ -912,7 +912,7 @@ private func agentHookEvent(from data: Data) throws -> SupatermAgentHookEvent {
   }
 }
 
-extension SupatermAgentKind: ExpressibleByArgument {}
+extension SupatermAgentKind: @retroactive ExpressibleByArgument {}
 
 struct SPDevelopmentClaudeInvocationOptions: ParsableArguments {
   @OptionGroup
