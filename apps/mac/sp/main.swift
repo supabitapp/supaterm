@@ -1,4 +1,4 @@
 import ArgumentParser
 import SPCLI
 
-SP.main()
+SPEntrypoint.main()

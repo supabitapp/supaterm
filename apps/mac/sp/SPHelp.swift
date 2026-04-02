@@ -88,6 +88,114 @@ enum SPHelp {
       sp notify --pane <pane-uuid> --body "Deploy complete"
     """
 
+  static let focusPaneDiscussion = """
+    If you omit --space, --tab, and --pane inside Supaterm, this command focuses the current pane.
+
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
+    Example:
+      sp focus-pane --space 1 --tab 2 --pane 3
+      sp focus-pane --pane <pane-uuid>
+    """
+
+  static let closePaneDiscussion = """
+    If you omit --space, --tab, and --pane inside Supaterm, this command closes the current pane.
+
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
+    Example:
+      sp close-pane
+      sp close-pane --space 1 --tab 2 --pane 3
+      sp close-pane --pane <pane-uuid>
+    """
+
+  static let selectTabDiscussion = """
+    If you omit --space and --tab inside Supaterm, this command selects the current tab.
+
+    Explicit --space and --tab targets accept either a 1-based index or UUID.
+
+    Example:
+      sp select-tab --space 1 --tab 2
+      sp select-tab --tab <tab-uuid>
+    """
+
+  static let closeTabDiscussion = """
+    If you omit --space and --tab inside Supaterm, this command closes the current tab.
+
+    Explicit --space and --tab targets accept either a 1-based index or UUID.
+
+    Example:
+      sp close-tab
+      sp close-tab --space 1 --tab 2
+      sp close-tab --tab <tab-uuid>
+    """
+
+  static let sendTextDiscussion = """
+    If you omit --space, --tab, and --pane inside Supaterm, this command targets the current pane.
+
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
+    Example:
+      sp send-text --text 'echo hello' --newline
+      sp send-text --space 1 --tab 2 --pane 3 --text 'pwd'
+      sp send-text --pane <pane-uuid> --text 'clear'
+    """
+
+  static let capturePaneDiscussion = """
+    If you omit --space, --tab, and --pane inside Supaterm, this command captures the current pane.
+
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
+    Example:
+      sp capture-pane
+      sp capture-pane --scrollback --lines 200
+      sp capture-pane --pane <pane-uuid> --json
+    """
+
+  static let resizePaneDiscussion = """
+    If you omit --space, --tab, and --pane inside Supaterm, this command resizes the current pane.
+
+    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+
+    Example:
+      sp resize-pane right 10
+      sp resize-pane down 5 --space 1 --tab 2 --pane 3
+      sp resize-pane left 8 --pane <pane-uuid>
+    """
+
+  static let renameTabDiscussion = """
+    If you omit --space and --tab inside Supaterm, this command renames the current tab.
+
+    Explicit --space and --tab targets accept either a 1-based index or UUID.
+
+    Example:
+      sp rename-tab --title Build
+      sp rename-tab --space 1 --tab 2 --title Logs
+      sp rename-tab --tab <tab-uuid> --title ''
+    """
+
+  static let tmuxDiscussion = """
+    `sp tmux` passes the remaining arguments to Supaterm's tmux compatibility layer.
+
+    Connection options must come before the tmux command.
+
+    Example:
+      sp tmux list-panes
+      sp tmux split-window -h -P
+      sp tmux --instance work-mac display-message -p '#{session_name}:#{window_index}.#{pane_index}'
+    """
+
+  static let claudeTeamsDiscussion = """
+    Launch the external Claude CLI with Supaterm's tmux compatibility layer enabled.
+
+    Connection options must come before Claude arguments.
+
+    Example:
+      sp claude-teams
+      sp claude-teams --resume
+      sp claude-teams --instance work-mac --help
+    """
+
   static let agentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 

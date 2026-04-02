@@ -149,6 +149,8 @@ struct SocketControlFeature {
       return createTabErrorResponse(error, requestID: request.id)
     } catch let error as TerminalCreatePaneError {
       return terminalErrorResponse(error, requestID: request.id)
+    } catch let error as TerminalControlError {
+      return controlErrorResponse(error, requestID: request.id)
     } catch {
       return .error(
         id: request.id,
@@ -193,18 +195,6 @@ struct SocketControlFeature {
     case SupatermSocketMethod.systemPing:
       return .ok(id: request.id, result: ["pong": true])
 
-    case SupatermSocketMethod.terminalNewTab:
-      let payload = try request.decodeParams(SupatermNewTabRequest.self)
-      let createTabRequest = try createTabRequest(from: payload)
-      let result = try await terminalWindowsClient.createTab(createTabRequest)
-      return try .ok(id: request.id, encodableResult: result)
-
-    case SupatermSocketMethod.terminalNewPane:
-      let payload = try request.decodeParams(SupatermNewPaneRequest.self)
-      let createPaneRequest = try createPaneRequest(from: payload)
-      let result = try await terminalWindowsClient.createPane(createPaneRequest)
-      return try .ok(id: request.id, encodableResult: result)
-
     case SupatermSocketMethod.terminalNotify:
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
       let notifyRequest = try notifyRequest(from: payload)
@@ -231,11 +221,224 @@ struct SocketControlFeature {
       return .ok(id: request.id)
 
     default:
+      if let response = try await terminalControlResponseResult(
+        for: request,
+        terminalWindowsClient: terminalWindowsClient
+      ) {
+        return response
+      }
       return .error(
         id: request.id,
         code: "method_not_found",
         message: "Unknown method '\(request.method)'."
       )
+    }
+  }
+
+  private func terminalControlResponseResult(
+    for request: SupatermSocketRequest,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse? {
+    if let response = try await terminalCreationResponseResult(
+      for: request,
+      terminalWindowsClient: terminalWindowsClient
+    ) {
+      return response
+    }
+    if let response = try await terminalPaneResponseResult(
+      for: request,
+      terminalWindowsClient: terminalWindowsClient
+    ) {
+      return response
+    }
+    if let response = try await terminalTabResponseResult(
+      for: request,
+      terminalWindowsClient: terminalWindowsClient
+    ) {
+      return response
+    }
+    return try await terminalSpaceResponseResult(
+      for: request,
+      terminalWindowsClient: terminalWindowsClient
+    )
+  }
+
+  private func terminalCreationResponseResult(
+    for request: SupatermSocketRequest,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
+    case SupatermSocketMethod.terminalNewTab:
+      let payload = try request.decodeParams(SupatermNewTabRequest.self)
+      let createTabRequest = try createTabRequest(from: payload)
+      let result = try await terminalWindowsClient.createTab(createTabRequest)
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalNewPane:
+      let payload = try request.decodeParams(SupatermNewPaneRequest.self)
+      let createPaneRequest = try createPaneRequest(from: payload)
+      let result = try await terminalWindowsClient.createPane(createPaneRequest)
+      return try .ok(id: request.id, encodableResult: result)
+
+    default:
+      return nil
+    }
+  }
+
+  private func terminalPaneResponseResult(
+    for request: SupatermSocketRequest,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
+    case SupatermSocketMethod.terminalFocusPane:
+      let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
+      let result = try await terminalWindowsClient.focusPane(try createPaneTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalLastPane:
+      let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
+      let result = try await terminalWindowsClient.lastPane(try createPaneTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalClosePane:
+      let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
+      let result = try await terminalWindowsClient.closePane(try createPaneTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalSendText:
+      let payload = try request.decodeParams(SupatermSendTextRequest.self)
+      let result = try await terminalWindowsClient.sendText(
+        .init(
+          target: try createPaneTarget(from: payload.target),
+          text: payload.text
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalCapturePane:
+      let payload = try request.decodeParams(SupatermCapturePaneRequest.self)
+      let result = try await terminalWindowsClient.capturePane(
+        .init(
+          lines: payload.lines,
+          scope: payload.scope,
+          target: try createPaneTarget(from: payload.target)
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalResizePane:
+      let payload = try request.decodeParams(SupatermResizePaneRequest.self)
+      let result = try await terminalWindowsClient.resizePane(
+        .init(
+          amount: payload.amount,
+          direction: payload.direction,
+          target: try createPaneTarget(from: payload.target)
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    default:
+      return nil
+    }
+  }
+
+  private func terminalTabResponseResult(
+    for request: SupatermSocketRequest,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
+    case SupatermSocketMethod.terminalSelectTab:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let result = try await terminalWindowsClient.selectTab(try createTabTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalCloseTab:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let result = try await terminalWindowsClient.closeTab(try createTabTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalRenameTab:
+      let payload = try request.decodeParams(SupatermRenameTabRequest.self)
+      let result = try await terminalWindowsClient.renameTab(
+        .init(
+          target: try createTabTarget(from: payload.target),
+          title: payload.title
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalNextTab:
+      let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
+      let result = try await terminalWindowsClient.nextTab(createTabNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalPreviousTab:
+      let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
+      let result = try await terminalWindowsClient.previousTab(createTabNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalLastTab:
+      let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
+      let result = try await terminalWindowsClient.lastTab(createTabNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    default:
+      return nil
+    }
+  }
+
+  private func terminalSpaceResponseResult(
+    for request: SupatermSocketRequest,
+    terminalWindowsClient: TerminalWindowsClient
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
+    case SupatermSocketMethod.terminalCreateSpace:
+      let payload = try request.decodeParams(SupatermCreateSpaceRequest.self)
+      let result = try await terminalWindowsClient.createSpace(
+        .init(
+          name: payload.name,
+          target: createSpaceNavigationRequest(from: payload.target)
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalSelectSpace:
+      let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
+      let result = try await terminalWindowsClient.selectSpace(try createSpaceTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalCloseSpace:
+      let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
+      let result = try await terminalWindowsClient.closeSpace(try createSpaceTarget(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalRenameSpace:
+      let payload = try request.decodeParams(SupatermRenameSpaceRequest.self)
+      let result = try await terminalWindowsClient.renameSpace(
+        .init(
+          name: payload.name,
+          target: try createSpaceTarget(from: payload.target)
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalNextSpace:
+      let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
+      let result = try await terminalWindowsClient.nextSpace(createSpaceNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalPreviousSpace:
+      let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
+      let result = try await terminalWindowsClient.previousSpace(createSpaceNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalLastSpace:
+      let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
+      let result = try await terminalWindowsClient.lastSpace(createSpaceNavigationRequest(from: payload))
+      return try .ok(id: request.id, encodableResult: result)
+
+    default:
+      return nil
     }
   }
 
@@ -434,6 +637,129 @@ struct SocketControlFeature {
     }
   }
 
+  private func createSpaceTarget(
+    from payload: SupatermSpaceTargetRequest
+  ) throws -> TerminalSpaceTarget {
+    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+      throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
+    }
+
+    if let spaceIndex = payload.targetSpaceIndex {
+      return .space(windowIndex: payload.targetWindowIndex ?? 1, spaceIndex: spaceIndex)
+    }
+    guard let contextPaneID = payload.contextPaneID else {
+      throw SocketRequestError.missingSpaceTarget
+    }
+    if payload.targetWindowIndex != nil {
+      throw SocketRequestError.windowRequiresSpace
+    }
+    return .contextPane(contextPaneID)
+  }
+
+  private func createTabTarget(
+    from payload: SupatermTabTargetRequest
+  ) throws -> TerminalTabTarget {
+    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+      throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
+    }
+    if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
+      throw SocketRequestError.invalidIndex("tab")
+    }
+
+    switch (payload.targetSpaceIndex, payload.targetTabIndex) {
+    case (.some, .some):
+      return .tab(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
+        tabIndex: payload.targetTabIndex!
+      )
+
+    case (.none, .none):
+      guard let contextPaneID = payload.contextPaneID else {
+        throw SocketRequestError.missingTarget
+      }
+      if payload.targetWindowIndex != nil {
+        throw SocketRequestError.windowRequiresSpace
+      }
+      return .contextPane(contextPaneID)
+
+    case (.none, .some):
+      throw SocketRequestError.tabRequiresSpace
+    case (.some, .none):
+      throw SocketRequestError.spaceRequiresTab
+    }
+  }
+
+  private func createPaneTarget(
+    from payload: SupatermPaneTargetRequest
+  ) throws -> TerminalPaneTarget {
+    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+      throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
+    }
+    if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
+      throw SocketRequestError.invalidIndex("tab")
+    }
+    if let paneIndex = payload.targetPaneIndex, paneIndex < 1 {
+      throw SocketRequestError.invalidIndex("pane")
+    }
+
+    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
+    case (.some, .some, .some):
+      return .pane(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: payload.targetSpaceIndex!,
+        tabIndex: payload.targetTabIndex!,
+        paneIndex: payload.targetPaneIndex!
+      )
+
+    case (.none, .none, .none):
+      guard let contextPaneID = payload.contextPaneID else {
+        throw SocketRequestError.missingTarget
+      }
+      if payload.targetWindowIndex != nil {
+        throw SocketRequestError.windowRequiresSpace
+      }
+      return .contextPane(contextPaneID)
+
+    case (.none, .some, _):
+      throw SocketRequestError.tabRequiresSpace
+    case (.some, .none, _):
+      throw SocketRequestError.spaceRequiresTab
+    case (.some, .some, .none):
+      throw SocketRequestError.paneRequiresTab
+    case (.none, .none, .some):
+      throw SocketRequestError.paneRequiresTab
+    }
+  }
+
+  private func createSpaceNavigationRequest(
+    from payload: SupatermSpaceNavigationRequest
+  ) -> TerminalSpaceNavigationRequest {
+    .init(
+      contextPaneID: payload.contextPaneID,
+      windowIndex: payload.targetWindowIndex
+    )
+  }
+
+  private func createTabNavigationRequest(
+    from payload: SupatermTabNavigationRequest
+  ) -> TerminalTabNavigationRequest {
+    .init(
+      contextPaneID: payload.contextPaneID,
+      spaceIndex: payload.targetSpaceIndex,
+      windowIndex: payload.targetWindowIndex
+    )
+  }
+
   private func createNotifyTarget(
     from payload: SupatermNotifyRequest
   ) throws -> TerminalNotifyRequest.Target {
@@ -495,6 +821,83 @@ struct SocketControlFeature {
         id: requestID,
         code: "not_found",
         message: "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
+      )
+
+    case .spaceNotFound(let windowIndex, let spaceIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Space \(spaceIndex) was not found in window \(windowIndex)."
+      )
+
+    case .tabNotFound(let windowIndex, let spaceIndex, let tabIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Tab \(tabIndex) was not found in space \(spaceIndex) of window \(windowIndex)."
+      )
+
+    case .windowNotFound(let windowIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Window \(windowIndex) was not found."
+      )
+    }
+  }
+
+  private func controlErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse {
+    switch error {
+    case .captureFailed:
+      return .error(
+        id: requestID,
+        code: "internal_error",
+        message: "Failed to capture pane text."
+      )
+
+    case .contextPaneNotFound:
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "The current pane could not be resolved."
+      )
+
+    case .lastPaneNotFound:
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "No previously focused pane was found."
+      )
+
+    case .lastSpaceNotFound:
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "No previously selected space was found."
+      )
+
+    case .lastTabNotFound:
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "No previously selected tab was found."
+      )
+
+    case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
+      )
+
+    case .resizeFailed:
+      return .error(
+        id: requestID,
+        code: "internal_error",
+        message: "Failed to resize the pane."
       )
 
     case .spaceNotFound(let windowIndex, let spaceIndex):

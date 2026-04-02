@@ -1238,6 +1238,181 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func focusPaneRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "7E905D56-4261-4B60-908D-DF245BB5B3C8")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .focusPane(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3,
+          targetPaneIndex: 4
+        ),
+        id: "focus-pane-1"
+      )
+    )
+    let result = SupatermFocusPaneResult(
+      isFocused: true,
+      isSelectedTab: true,
+      target: .init(
+        windowIndex: 1,
+        spaceIndex: 2,
+        spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        tabIndex: 3,
+        tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+        paneIndex: 4,
+        paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.focusPane = { target in
+        #expect(
+          target
+            == .pane(
+              windowIndex: 1,
+              spaceIndex: 2,
+              tabIndex: 3,
+              paneIndex: 4
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermFocusPaneResult.self) == result)
+  }
+
+  @Test
+  func createSpaceRequestRepliesWithSelection() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "1E24A0F8-5D9C-4C72-91E4-43F0F31C422F")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .createSpace(
+        .init(
+          name: "Build",
+          target: .init(targetWindowIndex: 1)
+        ),
+        id: "create-space-1"
+      )
+    )
+    let result = SupatermCreateSpaceResult(
+      isFocused: true,
+      isSelectedSpace: true,
+      isSelectedTab: true,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+      tabIndex: 1,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      target: .init(
+        windowIndex: 1,
+        spaceIndex: 2,
+        spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        name: "Build"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.createSpace = { request in
+        #expect(
+          request
+            == .init(
+              name: "Build",
+              target: .init(
+                contextPaneID: nil,
+                windowIndex: 1
+              )
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermCreateSpaceResult.self) == result)
+  }
+
+  @Test
+  func nextTabRequestRepliesWithSelection() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "B1B93F7A-0B86-4C42-B784-A84A56432530")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .nextTab(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2
+        ),
+        id: "next-tab-1"
+      )
+    )
+    let result = SupatermSelectTabResult(
+      isFocused: true,
+      isSelectedSpace: true,
+      isSelectedTab: true,
+      isTitleLocked: false,
+      paneIndex: 1,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+      target: .init(
+        windowIndex: 1,
+        spaceIndex: 2,
+        spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        tabIndex: 3,
+        tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+        title: "Logs"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.nextTab = { request in
+        #expect(
+          request
+            == .init(
+              contextPaneID: nil,
+              spaceIndex: 2,
+              windowIndex: 1
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermSelectTabResult.self) == result)
+  }
+
+  @Test
   func unknownMethodRepliesWithStructuredError() async {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "B12602E1-5D37-470E-9388-55CD09D400CA")!

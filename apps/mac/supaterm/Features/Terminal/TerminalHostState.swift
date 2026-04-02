@@ -177,8 +177,11 @@ final class TerminalHostState {
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   private var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
+  private var previousFocusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
+  private var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
+  private var previousSelectedSpaceID: TerminalSpaceID?
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
   private var suppressesSessionChanges = 0
@@ -298,7 +301,7 @@ final class TerminalHostState {
         spaces.contains(where: { $0.id == session.selectedSpaceID })
         ? session.selectedSpaceID
         : spaces.first?.id
-      guard let selectedSpaceID, spaceManager.selectSpace(selectedSpaceID) else {
+      guard let selectedSpaceID, applySelectedSpace(selectedSpaceID) else {
         clearSessionState()
         return false
       }
@@ -699,14 +702,35 @@ final class TerminalHostState {
     return tabID
   }
 
+  @discardableResult
+  private func applySelectedSpace(_ spaceID: TerminalSpaceID) -> Bool {
+    let currentSelectedSpaceID = selectedSpaceID
+    guard spaceManager.selectSpace(spaceID) else { return false }
+    if currentSelectedSpaceID != spaceID, let currentSelectedSpaceID {
+      previousSelectedSpaceID = currentSelectedSpaceID
+    }
+    return true
+  }
+
+  private func applySelectedTab(
+    _ tabID: TerminalTabID,
+    in spaceID: TerminalSpaceID
+  ) {
+    let currentSelectedTabID = spaceManager.selectedTabID(in: spaceID)
+    if currentSelectedTabID != tabID, let currentSelectedTabID {
+      previousSelectedTabIDBySpace[spaceID] = currentSelectedTabID
+    }
+    spaceManager.tabManager(for: spaceID)?.selectTab(tabID)
+  }
+
   private func selectTab(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
     let didChangeSpace = spaceManager.selectedSpaceID != space.id
-    guard spaceManager.selectSpace(space.id) else { return }
+    guard applySelectedSpace(space.id) else { return }
     if didChangeSpace {
       persistDefaultSelectedSpaceID(space.id)
     }
-    spaceManager.tabManager(for: space.id)?.selectTab(tabID)
+    applySelectedTab(tabID, in: space.id)
     focusSurface(in: tabID)
     syncFocus(windowActivity)
     sessionDidChange()
@@ -751,7 +775,8 @@ final class TerminalHostState {
   }
 
   private func selectLastTab() {
-    guard let lastTabID = visibleTabs.last?.id else { return }
+    guard let selectedSpaceID else { return }
+    guard let lastTabID = previousSelectedTabIDBySpace[selectedSpaceID] else { return }
     selectTab(lastTabID)
   }
 
@@ -790,7 +815,7 @@ final class TerminalHostState {
       spaces: updatedSpaceCatalog.spaces + [space]
     )
     _ = writeSpaceCatalog(updatedSpaceCatalog)
-    guard spaceManager.selectSpace(space.id) else { return }
+    guard applySelectedSpace(space.id) else { return }
     finalizeSpaceSelectionChange()
     sessionDidChange()
   }
@@ -803,7 +828,7 @@ final class TerminalHostState {
     _ spaceID: TerminalSpaceID,
     persistDefaultSelection: Bool
   ) {
-    guard spaceManager.selectSpace(spaceID) else { return }
+    guard applySelectedSpace(spaceID) else { return }
     if persistDefaultSelection {
       persistDefaultSelectedSpaceID(spaceID)
     }
@@ -843,6 +868,9 @@ final class TerminalHostState {
     let remainingSpaces = spaceCatalog.spaces.filter { $0.id != spaceID }
     guard !remainingSpaces.isEmpty else { return }
     guard remainingSpaces.count != spaceCatalog.spaces.count else { return }
+    if previousSelectedSpaceID == spaceID {
+      previousSelectedSpaceID = nil
+    }
 
     let nextSelectedSpaceID = nextSelectedSpaceID(afterDeleting: spaceID)
     let updatedSpaceCatalog = TerminalSpaceCatalog(
@@ -1075,8 +1103,8 @@ final class TerminalHostState {
       )
       if let nextSelectedTabID, nextSelectedTabID != spaceManager.selectedTabID {
         if let space = spaceManager.space(for: nextSelectedTabID) {
-          _ = spaceManager.selectSpace(space.id)
-          spaceManager.tabManager(for: space.id)?.selectTab(nextSelectedTabID)
+          _ = applySelectedSpace(space.id)
+          applySelectedTab(nextSelectedTabID, in: space.id)
         }
       }
 
@@ -1164,14 +1192,14 @@ final class TerminalHostState {
       if let tabManager = spaceManager.tabManager(for: resolvedTarget.space.id),
         resolvedSelectedTabID != tabManager.selectedTabId
       {
-        tabManager.selectTab(resolvedSelectedTabID)
+        applySelectedTab(resolvedSelectedTabID, in: resolvedTarget.space.id)
       }
 
       if request.focus {
         if currentSelectedSpaceID != resolvedTarget.space.id {
           selectSpace(resolvedTarget.space.id, persistDefaultSelection: true)
         }
-        spaceManager.tabManager(for: resolvedTarget.space.id)?.selectTab(tabID)
+        applySelectedTab(tabID, in: resolvedTarget.space.id)
         if let surface = surfaces[surfaceID] {
           focusSurface(surface, in: tabID)
         }
@@ -1239,9 +1267,652 @@ final class TerminalHostState {
     try notify(request, origin: .structuredAgent(semantic))
   }
 
+  func focusPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
+    let resolvedTarget = try resolvePaneTarget(target)
+    if selectedSpaceID != resolvedTarget.spaceID {
+      selectSpace(resolvedTarget.spaceID, persistDefaultSelection: true)
+    }
+    applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
+    focusSurface(resolvedTarget.anchorSurface, in: resolvedTarget.tabID)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try focusPaneResult(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: resolvedTarget.tree
+    )
+  }
+
+  func lastPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
+    let resolvedTarget = try resolvePaneTarget(target)
+    guard let lastSurfaceID = previousFocusedSurfaceIDByTab[resolvedTarget.tabID] else {
+      throw TerminalControlError.lastPaneNotFound
+    }
+    guard let lastSurface = surfaces[lastSurfaceID] else {
+      throw TerminalControlError.lastPaneNotFound
+    }
+    if selectedSpaceID != resolvedTarget.spaceID {
+      selectSpace(resolvedTarget.spaceID, persistDefaultSelection: true)
+    }
+    applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
+    focusSurface(lastSurface, in: resolvedTarget.tabID)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try focusPaneResult(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: lastSurfaceID,
+      tree: trees[resolvedTarget.tabID] ?? resolvedTarget.tree
+    )
+  }
+
+  func closePane(_ target: TerminalPaneTarget) throws -> SupatermClosePaneResult {
+    let resolvedTarget = try resolvePaneTarget(target)
+    let result = try paneTarget(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: resolvedTarget.tree
+    )
+    performCloseSurface(resolvedTarget.anchorSurface.id)
+    return result
+  }
+
+  func selectTab(_ target: TerminalTabTarget) throws -> SupatermSelectTabResult {
+    let resolvedTarget = try resolveTabTarget(target)
+    if selectedSpaceID != resolvedTarget.spaceID {
+      selectSpace(resolvedTarget.spaceID, persistDefaultSelection: true)
+    }
+    applySelectedTab(resolvedTarget.tabID, in: resolvedTarget.spaceID)
+    focusSurface(in: resolvedTarget.tabID)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try selectTabResult(for: resolvedTarget.tabID)
+  }
+
+  func closeTab(_ target: TerminalTabTarget) throws -> SupatermCloseTabResult {
+    let resolvedTarget = try resolveTabTarget(target)
+    let result = try tabTarget(for: resolvedTarget.tabID)
+    performCloseTab(resolvedTarget.tabID)
+    return result
+  }
+
+  func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
+    let resolvedTarget = try resolvePaneTarget(request.target)
+    resolvedTarget.anchorSurface.bridge.sendText(request.text)
+    return try paneTarget(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: resolvedTarget.tree
+    )
+  }
+
+  func capturePane(_ request: TerminalCapturePaneRequest) throws -> SupatermCapturePaneResult {
+    let resolvedTarget = try resolvePaneTarget(request.target)
+    guard
+      let text = resolvedTarget.anchorSurface.captureText(
+        scope: request.scope,
+        lines: request.lines
+      )
+    else {
+      throw TerminalControlError.captureFailed
+    }
+    return .init(
+      target: try paneTarget(
+        spaceID: resolvedTarget.spaceID,
+        tabID: resolvedTarget.tabID,
+        surfaceID: resolvedTarget.anchorSurface.id,
+        tree: resolvedTarget.tree
+      ),
+      text: text
+    )
+  }
+
+  func resizePane(_ request: TerminalResizePaneRequest) throws -> SupatermResizePaneResult {
+    let resolvedTarget = try resolvePaneTarget(request.target)
+    guard let node = resolvedTarget.tree.find(id: resolvedTarget.anchorSurface.id) else {
+      throw TerminalControlError.resizeFailed
+    }
+    let newTree = try resolvedTarget.tree.resizing(
+      node: node,
+      by: request.amount,
+      in: mapResizeDirection(request.direction),
+      with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
+    )
+    trees[resolvedTarget.tabID] = newTree
+    sessionDidChange()
+    return try paneTarget(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: newTree
+    )
+  }
+
+  func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
+    let resolvedTarget = try resolveTabTarget(request.target)
+    let title = Self.trimmedNonEmpty(request.title)
+    setLockedTabTitle(title, for: resolvedTarget.tabID)
+    return .init(
+      isTitleLocked: title != nil,
+      target: try tabTarget(for: resolvedTarget.tabID)
+    )
+  }
+
+  func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {
+    if let windowIndex = request.target.windowIndex, windowIndex != 1 {
+      throw TerminalControlError.windowNotFound(windowIndex)
+    }
+    let name =
+      Self.trimmedNonEmpty(request.name)
+      .flatMap { spaceManager.isNameAvailable($0) ? $0 : nil }
+      ?? spaceManager.nextDefaultSpaceName()
+    let space = PersistedTerminalSpace(name: name)
+    var updatedSpaceCatalog = spaceCatalog
+    updatedSpaceCatalog.defaultSelectedSpaceID = space.id
+    updatedSpaceCatalog = TerminalSpaceCatalog(
+      defaultSelectedSpaceID: updatedSpaceCatalog.defaultSelectedSpaceID,
+      spaces: updatedSpaceCatalog.spaces + [space]
+    )
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+    guard applySelectedSpace(space.id) else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
+    }
+    finalizeSpaceSelectionChange()
+    sessionDidChange()
+    return try selectSpaceResult(for: space.id)
+  }
+
+  func selectSpace(_ target: TerminalSpaceTarget) throws -> SupatermSelectSpaceResult {
+    let resolvedTarget = try resolveSpaceTarget(target)
+    selectSpace(resolvedTarget.space.id, persistDefaultSelection: true)
+    return try selectSpaceResult(for: resolvedTarget.space.id)
+  }
+
+  func closeSpace(_ target: TerminalSpaceTarget) throws -> SupatermCloseSpaceResult {
+    let resolvedTarget = try resolveSpaceTarget(target)
+    let result = try spaceTarget(for: resolvedTarget.space.id)
+    if spaces.count == 1 {
+      _ = try createSpace(
+        .init(
+          name: nil,
+          target: .init(contextPaneID: nil, windowIndex: nil)
+        )
+      )
+    }
+    deleteSpace(resolvedTarget.space.id)
+    return result
+  }
+
+  func renameSpace(_ request: TerminalRenameSpaceRequest) throws -> SupatermSpaceTarget {
+    let resolvedTarget = try resolveSpaceTarget(request.target)
+    renameSpace(resolvedTarget.space.id, to: request.name)
+    return try spaceTarget(for: resolvedTarget.space.id)
+  }
+
+  func nextSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    let currentSpaceID = try resolvedNavigationSpaceID(request)
+    let allSpaces = spaces
+    guard
+      let currentIndex = allSpaces.firstIndex(where: { $0.id == currentSpaceID }),
+      !allSpaces.isEmpty
+    else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    let nextIndex = (currentIndex + 1) % allSpaces.count
+    selectSpace(allSpaces[nextIndex].id, persistDefaultSelection: true)
+    return try selectSpaceResult(for: allSpaces[nextIndex].id)
+  }
+
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    let currentSpaceID = try resolvedNavigationSpaceID(request)
+    let allSpaces = spaces
+    guard
+      let currentIndex = allSpaces.firstIndex(where: { $0.id == currentSpaceID }),
+      !allSpaces.isEmpty
+    else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    let previousIndex = (currentIndex - 1 + allSpaces.count) % allSpaces.count
+    selectSpace(allSpaces[previousIndex].id, persistDefaultSelection: true)
+    return try selectSpaceResult(for: allSpaces[previousIndex].id)
+  }
+
+  func lastSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    if let windowIndex = request.windowIndex, windowIndex != 1 {
+      throw TerminalControlError.windowNotFound(windowIndex)
+    }
+    guard let previousSelectedSpaceID else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    selectSpace(previousSelectedSpaceID, persistDefaultSelection: true)
+    return try selectSpaceResult(for: previousSelectedSpaceID)
+  }
+
+  func nextTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    let spaceID = try resolvedNavigationSpaceID(request)
+    let tabs = spaceManager.tabs(in: spaceID)
+    guard !tabs.isEmpty else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    let currentTabID = spaceManager.selectedTabID(in: spaceID) ?? tabs[0].id
+    guard let currentIndex = tabs.firstIndex(where: { $0.id == currentTabID }) else {
+      throw TerminalControlError.lastTabNotFound
+    }
+    let nextIndex = (currentIndex + 1) % tabs.count
+    selectSpace(spaceID, persistDefaultSelection: true)
+    applySelectedTab(tabs[nextIndex].id, in: spaceID)
+    focusSurface(in: tabs[nextIndex].id)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try selectTabResult(for: tabs[nextIndex].id)
+  }
+
+  func previousTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    let spaceID = try resolvedNavigationSpaceID(request)
+    let tabs = spaceManager.tabs(in: spaceID)
+    guard !tabs.isEmpty else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    let currentTabID = spaceManager.selectedTabID(in: spaceID) ?? tabs[0].id
+    guard let currentIndex = tabs.firstIndex(where: { $0.id == currentTabID }) else {
+      throw TerminalControlError.lastTabNotFound
+    }
+    let previousIndex = (currentIndex - 1 + tabs.count) % tabs.count
+    selectSpace(spaceID, persistDefaultSelection: true)
+    applySelectedTab(tabs[previousIndex].id, in: spaceID)
+    focusSurface(in: tabs[previousIndex].id)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try selectTabResult(for: tabs[previousIndex].id)
+  }
+
+  func lastTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    let spaceID = try resolvedNavigationSpaceID(request)
+    guard let tabID = previousSelectedTabIDBySpace[spaceID] else {
+      throw TerminalControlError.lastTabNotFound
+    }
+    selectSpace(spaceID, persistDefaultSelection: true)
+    applySelectedTab(tabID, in: spaceID)
+    focusSurface(in: tabID)
+    syncFocus(windowActivity)
+    sessionDidChange()
+    return try selectTabResult(for: tabID)
+  }
+
   @discardableResult
   func clearRecentStructuredNotification(for surfaceID: UUID) -> Bool {
     recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID) != nil
+  }
+
+  private func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
+    switch target {
+    case .contextPane(let contextPaneID):
+      do {
+        return try resolveCreateTabTarget(.contextPane(contextPaneID))
+      } catch TerminalCreateTabError.contextPaneNotFound {
+        throw TerminalControlError.contextPaneNotFound
+      } catch TerminalCreateTabError.spaceNotFound(let windowIndex, let spaceIndex) {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      } catch TerminalCreateTabError.windowNotFound(let windowIndex) {
+        throw TerminalControlError.windowNotFound(windowIndex)
+      } catch {
+        throw TerminalControlError.contextPaneNotFound
+      }
+
+    case .space(let windowIndex, let spaceIndex):
+      do {
+        return try resolveCreateTabTarget(.space(windowIndex: windowIndex, spaceIndex: spaceIndex))
+      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+        throw TerminalControlError.spaceNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex
+        )
+      } catch TerminalCreateTabError.windowNotFound(let resolvedWindowIndex) {
+        throw TerminalControlError.windowNotFound(resolvedWindowIndex)
+      } catch {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      }
+    }
+  }
+
+  private func resolveTabTarget(_ target: TerminalTabTarget) throws -> ResolvedCreatePaneTarget {
+    switch target {
+    case .contextPane(let contextPaneID):
+      do {
+        return try resolveCreatePaneTarget(.contextPane(contextPaneID))
+      } catch TerminalCreatePaneError.contextPaneNotFound {
+        throw TerminalControlError.contextPaneNotFound
+      } catch TerminalCreatePaneError.spaceNotFound(let windowIndex, let spaceIndex) {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      } catch TerminalCreatePaneError.tabNotFound(let windowIndex, let spaceIndex, let tabIndex) {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex
+        )
+      } catch TerminalCreatePaneError.windowNotFound(let windowIndex) {
+        throw TerminalControlError.windowNotFound(windowIndex)
+      } catch {
+        throw TerminalControlError.contextPaneNotFound
+      }
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      do {
+        return try resolveCreatePaneTarget(
+          .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        )
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+        throw TerminalControlError.spaceNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex
+        )
+      } catch TerminalCreatePaneError.tabNotFound(
+        let resolvedWindowIndex,
+        let resolvedSpaceIndex,
+        let resolvedTabIndex
+      ) {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex,
+          tabIndex: resolvedTabIndex
+        )
+      } catch TerminalCreatePaneError.windowNotFound(let resolvedWindowIndex) {
+        throw TerminalControlError.windowNotFound(resolvedWindowIndex)
+      } catch {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex
+        )
+      }
+    }
+  }
+
+  private func resolvePaneTarget(_ target: TerminalPaneTarget) throws -> ResolvedCreatePaneTarget {
+    switch target {
+    case .contextPane(let contextPaneID):
+      do {
+        return try resolveCreatePaneTarget(.contextPane(contextPaneID))
+      } catch TerminalCreatePaneError.contextPaneNotFound {
+        throw TerminalControlError.contextPaneNotFound
+      } catch TerminalCreatePaneError.spaceNotFound(let windowIndex, let spaceIndex) {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      } catch TerminalCreatePaneError.tabNotFound(let windowIndex, let spaceIndex, let tabIndex) {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex
+        )
+      } catch TerminalCreatePaneError.paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex) {
+        throw TerminalControlError.paneNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex,
+          paneIndex: paneIndex
+        )
+      } catch TerminalCreatePaneError.windowNotFound(let windowIndex) {
+        throw TerminalControlError.windowNotFound(windowIndex)
+      } catch {
+        throw TerminalControlError.contextPaneNotFound
+      }
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      do {
+        return try resolveCreatePaneTarget(
+          .pane(
+            windowIndex: windowIndex,
+            spaceIndex: spaceIndex,
+            tabIndex: tabIndex,
+            paneIndex: paneIndex
+          )
+        )
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+        throw TerminalControlError.spaceNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex
+        )
+      } catch TerminalCreatePaneError.tabNotFound(
+        let resolvedWindowIndex,
+        let resolvedSpaceIndex,
+        let resolvedTabIndex
+      ) {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex,
+          tabIndex: resolvedTabIndex
+        )
+      } catch TerminalCreatePaneError.paneNotFound(
+        let resolvedWindowIndex,
+        let resolvedSpaceIndex,
+        let resolvedTabIndex,
+        let resolvedPaneIndex
+      ) {
+        throw TerminalControlError.paneNotFound(
+          windowIndex: resolvedWindowIndex,
+          spaceIndex: resolvedSpaceIndex,
+          tabIndex: resolvedTabIndex,
+          paneIndex: resolvedPaneIndex
+        )
+      } catch TerminalCreatePaneError.windowNotFound(let resolvedWindowIndex) {
+        throw TerminalControlError.windowNotFound(resolvedWindowIndex)
+      } catch {
+        throw TerminalControlError.paneNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex,
+          paneIndex: paneIndex
+        )
+      }
+    }
+  }
+
+  private func resolvedNavigationSpaceID(_ request: TerminalSpaceNavigationRequest) throws -> TerminalSpaceID {
+    if let windowIndex = request.windowIndex, windowIndex != 1 {
+      throw TerminalControlError.windowNotFound(windowIndex)
+    }
+    if let contextPaneID = request.contextPaneID {
+      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID) else {
+        throw TerminalControlError.contextPaneNotFound
+      }
+      return space.id
+    }
+    guard let selectedSpaceID else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    return selectedSpaceID
+  }
+
+  private func resolvedNavigationSpaceID(_ request: TerminalTabNavigationRequest) throws -> TerminalSpaceID {
+    if let windowIndex = request.windowIndex, windowIndex != 1 {
+      throw TerminalControlError.windowNotFound(windowIndex)
+    }
+    if let contextPaneID = request.contextPaneID {
+      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID) else {
+        throw TerminalControlError.contextPaneNotFound
+      }
+      return space.id
+    }
+    if let spaceIndex = request.spaceIndex {
+      do {
+        return try resolveSpace(windowIndex: request.windowIndex ?? 1, spaceIndex: spaceIndex).id
+      } catch TerminalCreatePaneError.spaceNotFound(let windowIndex, let resolvedSpaceIndex) {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: resolvedSpaceIndex)
+      } catch TerminalCreatePaneError.windowNotFound(let windowIndex) {
+        throw TerminalControlError.windowNotFound(windowIndex)
+      } catch {
+        throw TerminalControlError.spaceNotFound(windowIndex: request.windowIndex ?? 1, spaceIndex: spaceIndex)
+      }
+    }
+    guard let selectedSpaceID else {
+      throw TerminalControlError.lastTabNotFound
+    }
+    return selectedSpaceID
+  }
+
+  private func spaceTarget(for spaceID: TerminalSpaceID) throws -> SupatermSpaceTarget {
+    guard let space = spaces.first(where: { $0.id == spaceID }) else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
+    }
+    guard let spaceIndex = spaceManager.spaceIndex(for: spaceID) else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
+    }
+    return .init(
+      windowIndex: 1,
+      spaceIndex: spaceIndex,
+      spaceID: spaceID.rawValue,
+      name: space.name
+    )
+  }
+
+  private func tabTarget(for tabID: TerminalTabID) throws -> SupatermTabTarget {
+    guard let space = spaceManager.space(for: tabID) else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    guard let spaceIndex = spaceManager.spaceIndex(for: space.id) else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    let tabs = spaceManager.tabs(in: space.id)
+    guard let tabIndex = tabs.firstIndex(where: { $0.id == tabID }) else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: 1)
+    }
+    let tab = tabs[tabIndex]
+    return .init(
+      windowIndex: 1,
+      spaceIndex: spaceIndex,
+      spaceID: space.id.rawValue,
+      tabIndex: tabIndex + 1,
+      tabID: tabID.rawValue,
+      title: tab.title
+    )
+  }
+
+  private func paneTarget(
+    spaceID: TerminalSpaceID,
+    tabID: TerminalTabID,
+    surfaceID: UUID,
+    tree: SplitTree<GhosttySurfaceView>
+  ) throws -> SupatermPaneTarget {
+    let location = try resolvedPaneLocation(
+      spaceID: spaceID,
+      tabID: tabID,
+      surfaceID: surfaceID,
+      tree: tree
+    )
+    return .init(
+      windowIndex: 1,
+      spaceIndex: location.spaceIndex,
+      spaceID: spaceID.rawValue,
+      tabIndex: location.tabIndex,
+      tabID: tabID.rawValue,
+      paneIndex: location.paneIndex,
+      paneID: surfaceID
+    )
+  }
+
+  private func resolvedFocusedSurface(
+    in tabID: TerminalTabID
+  ) -> (tree: SplitTree<GhosttySurfaceView>, surface: GhosttySurfaceView)? {
+    guard let tree = trees[tabID] else { return nil }
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
+      return (tree, surface)
+    }
+    guard let surface = tree.root?.leftmostLeaf() else { return nil }
+    return (tree, surface)
+  }
+
+  private func focusPaneResult(
+    spaceID: TerminalSpaceID,
+    tabID: TerminalTabID,
+    surfaceID: UUID,
+    tree: SplitTree<GhosttySurfaceView>
+  ) throws -> SupatermFocusPaneResult {
+    let target = try paneTarget(
+      spaceID: spaceID,
+      tabID: tabID,
+      surfaceID: surfaceID,
+      tree: tree
+    )
+    let activity = Self.surfaceActivity(
+      isSelectedTab: selectedTabID == tabID,
+      windowIsVisible: windowActivity.isVisible,
+      windowIsKey: windowActivity.isKeyWindow,
+      focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+      surfaceID: surfaceID
+    )
+    return .init(
+      isFocused: activity.isFocused,
+      isSelectedTab: selectedTabID == tabID,
+      target: target
+    )
+  }
+
+  private func selectTabResult(for tabID: TerminalTabID) throws -> SupatermSelectTabResult {
+    guard let space = spaceManager.space(for: tabID) else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    guard let resolvedSurface = resolvedFocusedSurface(in: tabID) else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    }
+    let target = try tabTarget(for: tabID)
+    let paneTarget = try paneTarget(
+      spaceID: space.id,
+      tabID: tabID,
+      surfaceID: resolvedSurface.surface.id,
+      tree: resolvedSurface.tree
+    )
+    let activity = Self.surfaceActivity(
+      isSelectedTab: selectedTabID == tabID,
+      windowIsVisible: windowActivity.isVisible,
+      windowIsKey: windowActivity.isKeyWindow,
+      focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+      surfaceID: resolvedSurface.surface.id
+    )
+    return .init(
+      isFocused: activity.isFocused,
+      isSelectedSpace: selectedSpaceID == space.id,
+      isSelectedTab: selectedTabID == tabID,
+      isTitleLocked: spaceManager.tab(for: tabID)?.isTitleLocked == true,
+      paneIndex: paneTarget.paneIndex,
+      paneID: paneTarget.paneID,
+      target: target
+    )
+  }
+
+  private func selectSpaceResult(for spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
+    guard let tabID = spaceManager.selectedTabID(in: spaceID) ?? spaceManager.tabs(in: spaceID).first?.id else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    let target = try spaceTarget(for: spaceID)
+    let tabTarget = try self.tabTarget(for: tabID)
+    guard let resolvedSurface = resolvedFocusedSurface(in: tabID) else {
+      throw TerminalControlError.lastSpaceNotFound
+    }
+    let paneTarget = try paneTarget(
+      spaceID: spaceID,
+      tabID: tabID,
+      surfaceID: resolvedSurface.surface.id,
+      tree: resolvedSurface.tree
+    )
+    let activity = Self.surfaceActivity(
+      isSelectedTab: selectedTabID == tabID,
+      windowIsVisible: windowActivity.isVisible,
+      windowIsKey: windowActivity.isKeyWindow,
+      focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+      surfaceID: resolvedSurface.surface.id
+    )
+    return .init(
+      isFocused: activity.isFocused,
+      isSelectedSpace: selectedSpaceID == spaceID,
+      isSelectedTab: selectedTabID == tabID,
+      paneIndex: paneTarget.paneIndex,
+      paneID: paneTarget.paneID,
+      tabIndex: tabTarget.tabIndex,
+      tabID: tabTarget.tabID,
+      target: target
+    )
   }
 
   private func notify(
@@ -1369,7 +2040,7 @@ final class TerminalHostState {
     )
     let tree = SplitTree(view: surface)
     trees[tabID] = tree
-    focusedSurfaceIDByTab[tabID] = surface.id
+    applyFocusedSurface(surface.id, in: tabID)
     return tree
   }
 
@@ -1505,7 +2176,7 @@ final class TerminalHostState {
     let shouldCreateReplacement = tabManager.tabs.count == 1
     let inheritedSurfaceID = focusedSurfaceIDByTab[tabID]
     if shouldCreateReplacement {
-      _ = spaceManager.selectSpace(space.id)
+      _ = applySelectedSpace(space.id)
       _ = createTab(
         focusing: false,
         inheritingFromSurfaceID: inheritedSurfaceID,
@@ -1549,6 +2220,7 @@ final class TerminalHostState {
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
+      previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
       agentActivityByTab.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
@@ -1571,6 +2243,7 @@ final class TerminalHostState {
         focusSurface(nextSurface, in: tabID)
       } else {
         focusedSurfaceIDByTab.removeValue(forKey: tabID)
+        previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
       }
     }
     syncFocus(windowActivity)
@@ -1683,7 +2356,7 @@ final class TerminalHostState {
     }
     view.onFocusChange = { [weak self, weak view] focused in
       guard let self, let view, focused else { return }
-      self.focusedSurfaceIDByTab[tabID] = view.id
+      self.applyFocusedSurface(view.id, in: tabID)
       self.updateTabTitle(for: tabID)
       self.updateRunningState(for: tabID)
       self.clearNotificationAttention(for: view.id)
@@ -1953,9 +2626,20 @@ final class TerminalHostState {
     }
   }
 
+  private func applyFocusedSurface(
+    _ surfaceID: UUID,
+    in tabID: TerminalTabID
+  ) {
+    let currentFocusedSurfaceID = focusedSurfaceIDByTab[tabID]
+    if currentFocusedSurfaceID != surfaceID, let currentFocusedSurfaceID {
+      previousFocusedSurfaceIDByTab[tabID] = currentFocusedSurfaceID
+    }
+    focusedSurfaceIDByTab[tabID] = surfaceID
+  }
+
   private func focusSurface(_ surface: GhosttySurfaceView, in tabID: TerminalTabID) {
     let previousSurface = focusedSurfaceIDByTab[tabID].flatMap { surfaces[$0] }
-    focusedSurfaceIDByTab[tabID] = surface.id
+    applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
     clearNotificationAttention(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
@@ -2040,6 +2724,8 @@ final class TerminalHostState {
     }
     agentActivityByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
+    previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
+    previousSelectedTabIDBySpace = previousSelectedTabIDBySpace.filter { $0.value != tabID }
   }
 
   private func notifications(for tabID: TerminalTabID) -> [UUID: [PaneNotification]] {
@@ -2324,7 +3010,7 @@ final class TerminalHostState {
       leaves.indices.contains(session.focusedPaneIndex)
       ? session.focusedPaneIndex
       : 0
-    focusedSurfaceIDByTab[tabID] = leaves[focusedPaneIndex].id
+    applyFocusedSurface(leaves[focusedPaneIndex].id, in: tabID)
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
   }
@@ -2366,6 +3052,9 @@ final class TerminalHostState {
     for space in spaces {
       _ = spaceManager.restoreTabs([], selectedTabID: nil, in: space.id)
     }
+    previousFocusedSurfaceIDByTab.removeAll()
+    previousSelectedTabIDBySpace.removeAll()
+    previousSelectedSpaceID = nil
     lastEmittedFocusSurfaceID = nil
   }
 
@@ -2578,6 +3267,21 @@ final class TerminalHostState {
     case .right:
       return .right
     case .top:
+      return .top
+    case .down:
+      return .down
+    }
+  }
+
+  private func mapResizeDirection(_ direction: SupatermResizePaneDirection)
+    -> SplitTree<GhosttySurfaceView>.SpatialDirection
+  {
+    switch direction {
+    case .left:
+      return .left
+    case .right:
+      return .right
+    case .up:
       return .top
     case .down:
       return .down

@@ -47,6 +47,31 @@ struct SPCommandTests {
   }
 
   @Test
+  func focusPaneAndSelectTabParsersAcceptUUIDTargets() throws {
+    let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+
+    let focusPane = try #require(
+      try SP.FocusPane.parseAsRoot(["--pane", paneID.uuidString]) as? SP.FocusPane
+    )
+    let selectTab = try #require(
+      try SP.SelectTab.parseAsRoot(["--tab", tabID.uuidString]) as? SP.SelectTab
+    )
+
+    #expect(focusPane.pane == .id(paneID))
+    #expect(selectTab.tab == .id(tabID))
+  }
+
+  @Test
+  func tmuxParserAcceptsPassThroughCommandName() throws {
+    let tmux = try #require(
+      try SP.Tmux.parseAsRoot(["display-message"]) as? SP.Tmux
+    )
+
+    #expect(tmux.arguments == ["display-message"])
+  }
+
+  @Test
   func newTabHelpShowsScriptOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 

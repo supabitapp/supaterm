@@ -415,6 +415,591 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func focusPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.focusPane(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.focusPane(
+            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+          ),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func lastPane(_ target: TerminalPaneTarget) throws -> SupatermFocusPaneResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.lastPane(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.lastPane(
+            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+          ),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func closePane(_ target: TerminalPaneTarget) throws -> SupatermClosePaneResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.closePane(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.closePane(
+            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+          ),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func selectTab(_ target: TerminalTabTarget) throws -> SupatermSelectTabResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.selectTab(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.selectTab(.tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func closeTab(_ target: TerminalTabTarget) throws -> SupatermCloseTabResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.closeTab(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.closeTab(.tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.sendText(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalSendTextRequest(
+        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
+        text: request.text
+      )
+      do {
+        return Self.rewrite(try entry.terminal.sendText(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func capturePane(_ request: TerminalCapturePaneRequest) throws -> SupatermCapturePaneResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.capturePane(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalCapturePaneRequest(
+        lines: request.lines,
+        scope: request.scope,
+        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.capturePane(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func resizePane(_ request: TerminalResizePaneRequest) throws -> SupatermResizePaneResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.resizePane(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalResizePaneRequest(
+        amount: request.amount,
+        direction: request.direction,
+        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.resizePane(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.renameTab(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalRenameTabRequest(
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex),
+        title: request.title
+      )
+      do {
+        return Self.rewrite(try entry.terminal.renameTab(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {
+    if request.target.contextPaneID != nil && request.target.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.createSpace(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    if let windowIndex = request.target.windowIndex {
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalCreateSpaceRequest(
+        name: request.name,
+        target: .init(contextPaneID: request.target.contextPaneID, windowIndex: 1)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.createSpace(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+
+    guard let entry = preferredActiveEntry() ?? activeEntries().first else {
+      throw TerminalControlError.windowNotFound(1)
+    }
+    return try Self.rewrite(entry.terminal.createSpace(request), windowIndex: 1)
+  }
+
+  func selectSpace(_ target: TerminalSpaceTarget) throws -> SupatermSelectSpaceResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.selectSpace(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .space(let windowIndex, let spaceIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.selectSpace(.space(windowIndex: 1, spaceIndex: spaceIndex)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func closeSpace(_ target: TerminalSpaceTarget) throws -> SupatermCloseSpaceResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.closeSpace(target)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .space(let windowIndex, let spaceIndex):
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.closeSpace(.space(windowIndex: 1, spaceIndex: spaceIndex)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func renameSpace(_ request: TerminalRenameSpaceRequest) throws -> SupatermSpaceTarget {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.renameSpace(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .space(let windowIndex, let spaceIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalRenameSpaceRequest(
+        name: request.name,
+        target: .space(windowIndex: 1, spaceIndex: spaceIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.renameSpace(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func nextSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.nextSpace(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    if let windowIndex = request.windowIndex {
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.nextSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+    guard let entry = preferredActiveEntry() ?? activeEntries().first else {
+      throw TerminalControlError.windowNotFound(1)
+    }
+    return try Self.rewrite(entry.terminal.nextSpace(request), windowIndex: 1)
+  }
+
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.previousSpace(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    if let windowIndex = request.windowIndex {
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.previousSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+    guard let entry = preferredActiveEntry() ?? activeEntries().first else {
+      throw TerminalControlError.windowNotFound(1)
+    }
+    return try Self.rewrite(entry.terminal.previousSpace(request), windowIndex: 1)
+  }
+
+  func lastSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.lastSpace(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    if let windowIndex = request.windowIndex {
+      let entry = try entry(for: windowIndex)
+      do {
+        return Self.rewrite(
+          try entry.terminal.lastSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+    guard let entry = preferredActiveEntry() ?? activeEntries().first else {
+      throw TerminalControlError.windowNotFound(1)
+    }
+    return try Self.rewrite(entry.terminal.lastSpace(request), windowIndex: 1)
+  }
+
+  func nextTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.nextTab(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    let windowIndex = request.windowIndex ?? 1
+    let entry = try entry(for: windowIndex)
+    do {
+      return Self.rewrite(
+        try entry.terminal.nextTab(
+          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+        ),
+        windowIndex: windowIndex
+      )
+    } catch let error as TerminalControlError {
+      throw Self.rewrite(error, windowIndex: windowIndex)
+    }
+  }
+
+  func previousTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.previousTab(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    let windowIndex = request.windowIndex ?? 1
+    let entry = try entry(for: windowIndex)
+    do {
+      return Self.rewrite(
+        try entry.terminal.previousTab(
+          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+        ),
+        windowIndex: windowIndex
+      )
+    } catch let error as TerminalControlError {
+      throw Self.rewrite(error, windowIndex: windowIndex)
+    }
+  }
+
+  func lastTab(_ request: TerminalTabNavigationRequest) throws -> SupatermSelectTabResult {
+    if request.contextPaneID != nil && request.windowIndex == nil {
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.lastTab(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    }
+
+    let windowIndex = request.windowIndex ?? 1
+    let entry = try entry(for: windowIndex)
+    do {
+      return Self.rewrite(
+        try entry.terminal.lastTab(
+          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+        ),
+        windowIndex: windowIndex
+      )
+    } catch let error as TerminalControlError {
+      throw Self.rewrite(error, windowIndex: windowIndex)
+    }
+  }
+
   private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     for (offset, entry) in activeEntries().enumerated() {
       do {
@@ -815,6 +1400,109 @@ final class TerminalWindowRegistry {
   }
 
   static func rewrite(
+    _ result: SupatermSpaceTarget,
+    windowIndex: Int
+  ) -> SupatermSpaceTarget {
+    .init(
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
+      name: result.name
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermTabTarget,
+    windowIndex: Int
+  ) -> SupatermTabTarget {
+    .init(
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
+      tabIndex: result.tabIndex,
+      tabID: result.tabID,
+      title: result.title
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermPaneTarget,
+    windowIndex: Int
+  ) -> SupatermPaneTarget {
+    .init(
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
+      tabIndex: result.tabIndex,
+      tabID: result.tabID,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermFocusPaneResult,
+    windowIndex: Int
+  ) -> SupatermFocusPaneResult {
+    .init(
+      isFocused: result.isFocused,
+      isSelectedTab: result.isSelectedTab,
+      target: rewrite(result.target, windowIndex: windowIndex)
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermSelectTabResult,
+    windowIndex: Int
+  ) -> SupatermSelectTabResult {
+    .init(
+      isFocused: result.isFocused,
+      isSelectedSpace: result.isSelectedSpace,
+      isSelectedTab: result.isSelectedTab,
+      isTitleLocked: result.isTitleLocked,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID,
+      target: rewrite(result.target, windowIndex: windowIndex)
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermSelectSpaceResult,
+    windowIndex: Int
+  ) -> SupatermSelectSpaceResult {
+    .init(
+      isFocused: result.isFocused,
+      isSelectedSpace: result.isSelectedSpace,
+      isSelectedTab: result.isSelectedTab,
+      paneIndex: result.paneIndex,
+      paneID: result.paneID,
+      tabIndex: result.tabIndex,
+      tabID: result.tabID,
+      target: rewrite(result.target, windowIndex: windowIndex)
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermCapturePaneResult,
+    windowIndex: Int
+  ) -> SupatermCapturePaneResult {
+    .init(
+      target: rewrite(result.target, windowIndex: windowIndex),
+      text: result.text
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermRenameTabResult,
+    windowIndex: Int
+  ) -> SupatermRenameTabResult {
+    .init(
+      isTitleLocked: result.isTitleLocked,
+      target: rewrite(result.target, windowIndex: windowIndex)
+    )
+  }
+
+  static func rewrite(
     _ result: SupatermNewPaneResult,
     windowIndex: Int
   ) -> SupatermNewPaneResult {
@@ -843,6 +1531,43 @@ final class TerminalWindowRegistry {
       return .creationFailed
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    case .windowNotFound:
+      return .windowNotFound(windowIndex)
+    }
+  }
+
+  static func rewrite(
+    _ error: TerminalControlError,
+    windowIndex: Int
+  ) -> TerminalControlError {
+    switch error {
+    case .captureFailed:
+      return .captureFailed
+    case .contextPaneNotFound:
+      return .contextPaneNotFound
+    case .lastPaneNotFound:
+      return .lastPaneNotFound
+    case .lastSpaceNotFound:
+      return .lastSpaceNotFound
+    case .lastTabNotFound:
+      return .lastTabNotFound
+    case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
+      return .paneNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex,
+        paneIndex: paneIndex
+      )
+    case .resizeFailed:
+      return .resizeFailed
+    case .spaceNotFound(_, let spaceIndex):
+      return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    case .tabNotFound(_, let spaceIndex, let tabIndex):
+      return .tabNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex
+      )
     case .windowNotFound:
       return .windowNotFound(windowIndex)
     }

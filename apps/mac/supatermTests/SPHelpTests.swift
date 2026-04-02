@@ -29,6 +29,16 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Instances.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
+      SP.helpMessage(for: SP.FocusPane.self, columns: 100),
+      SP.helpMessage(for: SP.SelectTab.self, columns: 100),
+      SP.helpMessage(for: SP.ClosePane.self, columns: 100),
+      SP.helpMessage(for: SP.CloseTab.self, columns: 100),
+      SP.helpMessage(for: SP.SendText.self, columns: 100),
+      SP.helpMessage(for: SP.CapturePane.self, columns: 100),
+      SP.helpMessage(for: SP.ResizePane.self, columns: 100),
+      SP.helpMessage(for: SP.RenameTab.self, columns: 100),
+      SP.helpMessage(for: SP.Tmux.self, columns: 100),
+      SP.helpMessage(for: SP.ClaudeTeams.self, columns: 100),
       SP.helpMessage(for: SP.AgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.Claude.self, columns: 100),
@@ -96,5 +106,16 @@ struct SPHelpTests {
     #expect(help.contains("sp development claude session-start"))
     #expect(help.contains("sp development claude notification"))
     #expect(help.contains("sp development claude session-end"))
+  }
+
+  @Test
+  func tmuxAndClaudeTeamsHelpShowPassThroughExamples() {
+    let tmuxHelp = SP.helpMessage(for: SP.Tmux.self, columns: 100)
+    let teammateHelp = SP.helpMessage(for: SP.ClaudeTeams.self, columns: 100)
+
+    #expect(tmuxHelp.contains("sp tmux split-window -h -P"))
+    #expect(tmuxHelp.contains("--instance work-mac"))
+    #expect(teammateHelp.contains("claude-teams"))
+    #expect(teammateHelp.contains("Example:"))
   }
 }
