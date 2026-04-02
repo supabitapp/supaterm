@@ -56,9 +56,12 @@ let project = Project(
       infoPlist: .default,
       sources: [
         "sp/SPCommand.swift",
+        "sp/SPEntrypoint.swift",
         "sp/SPHelp.swift",
         "sp/SPSocketClient.swift",
+        "sp/SPTerminalControlCommands.swift",
         "sp/SPTargetResolver.swift",
+        "sp/SPTmuxCompat.swift",
         "sp/SPTreeRenderer.swift",
       ],
       dependencies: [

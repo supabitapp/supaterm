@@ -772,6 +772,88 @@ struct SupatermSocketProtocolTests {
     #expect(request.method == SupatermSocketMethod.terminalAgentHook)
     #expect(try request.decodeParams(SupatermAgentHookRequest.self) == requestPayload)
   }
+
+  @Test
+  func terminalControlRequestsRoundTripThroughTypedHelpers() throws {
+    let paneTarget = SupatermPaneTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    )
+    let focusRequest = try SupatermSocketRequest.focusPane(
+      .init(
+        targetWindowIndex: 1,
+        targetSpaceIndex: 2,
+        targetTabIndex: 3,
+        targetPaneIndex: 4
+      ),
+      id: "focus-pane-1"
+    )
+    let focusResponse = try SupatermSocketResponse.ok(
+      id: "focus-pane-1",
+      encodableResult: SupatermFocusPaneResult(
+        isFocused: true,
+        isSelectedTab: true,
+        target: paneTarget
+      )
+    )
+    let sendTextRequest = try SupatermSocketRequest.sendText(
+      .init(
+        target: .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3,
+          targetPaneIndex: 4
+        ),
+        text: "echo hello\n"
+      ),
+      id: "send-text-1"
+    )
+    let createSpaceRequest = try SupatermSocketRequest.createSpace(
+      .init(
+        name: "Build",
+        target: .init(targetWindowIndex: 1)
+      ),
+      id: "create-space-1"
+    )
+
+    #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
+    #expect(
+      try focusRequest.decodeParams(SupatermPaneTargetRequest.self)
+        == .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3,
+          targetPaneIndex: 4
+        )
+    )
+    #expect(try focusResponse.decodeResult(SupatermFocusPaneResult.self).target == paneTarget)
+    #expect(sendTextRequest.method == SupatermSocketMethod.terminalSendText)
+    #expect(
+      try sendTextRequest.decodeParams(SupatermSendTextRequest.self)
+        == .init(
+          target: .init(
+            targetWindowIndex: 1,
+            targetSpaceIndex: 2,
+            targetTabIndex: 3,
+            targetPaneIndex: 4
+          ),
+          text: "echo hello\n"
+        )
+    )
+    #expect(createSpaceRequest.method == SupatermSocketMethod.terminalCreateSpace)
+    #expect(
+      try createSpaceRequest.decodeParams(SupatermCreateSpaceRequest.self)
+        == .init(
+          name: "Build",
+          target: .init(targetWindowIndex: 1)
+        )
+    )
+  }
 }
 
 private func socketEndpoint(

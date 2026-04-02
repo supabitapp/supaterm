@@ -7,9 +7,28 @@ public enum SupatermSocketMethod {
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalAgentHook = "terminal.agent_hook"
+  public static let terminalCapturePane = "terminal.capture_pane"
+  public static let terminalClosePane = "terminal.close_pane"
+  public static let terminalCloseSpace = "terminal.close_space"
+  public static let terminalCloseTab = "terminal.close_tab"
+  public static let terminalCreateSpace = "terminal.create_space"
+  public static let terminalFocusPane = "terminal.focus_pane"
+  public static let terminalLastPane = "terminal.last_pane"
+  public static let terminalLastSpace = "terminal.last_space"
+  public static let terminalLastTab = "terminal.last_tab"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
+  public static let terminalNextSpace = "terminal.next_space"
+  public static let terminalNextTab = "terminal.next_tab"
   public static let terminalNotify = "terminal.notify"
+  public static let terminalPreviousSpace = "terminal.previous_space"
+  public static let terminalPreviousTab = "terminal.previous_tab"
+  public static let terminalRenameSpace = "terminal.rename_space"
+  public static let terminalRenameTab = "terminal.rename_tab"
+  public static let terminalResizePane = "terminal.resize_pane"
+  public static let terminalSelectSpace = "terminal.select_space"
+  public static let terminalSelectTab = "terminal.select_tab"
+  public static let terminalSendText = "terminal.send_text"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -143,6 +162,215 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalAgentHook,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func capturePane(
+    _ payload: SupatermCapturePaneRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalCapturePane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func closePane(
+    _ payload: SupatermPaneTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalClosePane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func closeSpace(
+    _ payload: SupatermSpaceTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalCloseSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func closeTab(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalCloseTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func createSpace(
+    _ payload: SupatermCreateSpaceRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalCreateSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func focusPane(
+    _ payload: SupatermPaneTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalFocusPane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func lastSpace(
+    _ payload: SupatermSpaceNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalLastSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func lastPane(
+    _ payload: SupatermPaneTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalLastPane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func lastTab(
+    _ payload: SupatermTabNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalLastTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func nextSpace(
+    _ payload: SupatermSpaceNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalNextSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func nextTab(
+    _ payload: SupatermTabNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalNextTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func previousSpace(
+    _ payload: SupatermSpaceNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalPreviousSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func previousTab(
+    _ payload: SupatermTabNavigationRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalPreviousTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func renameSpace(
+    _ payload: SupatermRenameSpaceRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalRenameSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func renameTab(
+    _ payload: SupatermRenameTabRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalRenameTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func resizePane(
+    _ payload: SupatermResizePaneRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalResizePane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func selectSpace(
+    _ payload: SupatermSpaceTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalSelectSpace,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func selectTab(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalSelectTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func sendText(
+    _ payload: SupatermSendTextRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalSendText,
       params: try JSONObject(payload)
     )
   }
@@ -742,6 +970,188 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermSpaceTargetRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+  }
+}
+
+public struct SupatermTabTargetRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+  public let targetTabIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil,
+    targetTabIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+    self.targetTabIndex = targetTabIndex
+  }
+}
+
+public struct SupatermPaneTargetRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+  public let targetTabIndex: Int?
+  public let targetPaneIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil,
+    targetTabIndex: Int? = nil,
+    targetPaneIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+    self.targetTabIndex = targetTabIndex
+    self.targetPaneIndex = targetPaneIndex
+  }
+}
+
+public struct SupatermSendTextRequest: Equatable, Sendable, Codable {
+  public let target: SupatermPaneTargetRequest
+  public let text: String
+
+  public init(
+    target: SupatermPaneTargetRequest,
+    text: String
+  ) {
+    self.target = target
+    self.text = text
+  }
+}
+
+public enum SupatermCapturePaneScope: String, Equatable, Sendable, Codable {
+  case scrollback
+  case visible
+}
+
+public struct SupatermCapturePaneRequest: Equatable, Sendable, Codable {
+  public let lines: Int?
+  public let scope: SupatermCapturePaneScope
+  public let target: SupatermPaneTargetRequest
+
+  public init(
+    lines: Int? = nil,
+    scope: SupatermCapturePaneScope = .visible,
+    target: SupatermPaneTargetRequest
+  ) {
+    self.lines = lines
+    self.scope = scope
+    self.target = target
+  }
+}
+
+public enum SupatermResizePaneDirection: String, Equatable, Sendable, Codable {
+  case down
+  case left
+  case right
+  case up
+}
+
+public struct SupatermResizePaneRequest: Equatable, Sendable, Codable {
+  public let amount: UInt16
+  public let direction: SupatermResizePaneDirection
+  public let target: SupatermPaneTargetRequest
+
+  public init(
+    amount: UInt16,
+    direction: SupatermResizePaneDirection,
+    target: SupatermPaneTargetRequest
+  ) {
+    self.amount = amount
+    self.direction = direction
+    self.target = target
+  }
+}
+
+public struct SupatermRenameTabRequest: Equatable, Sendable, Codable {
+  public let target: SupatermTabTargetRequest
+  public let title: String?
+
+  public init(
+    target: SupatermTabTargetRequest,
+    title: String?
+  ) {
+    self.target = target
+    self.title = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+}
+
+public struct SupatermCreateSpaceRequest: Equatable, Sendable, Codable {
+  public let name: String?
+  public let target: SupatermSpaceNavigationRequest
+
+  public init(
+    name: String? = nil,
+    target: SupatermSpaceNavigationRequest = .init()
+  ) {
+    self.name = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.target = target
+  }
+}
+
+public struct SupatermRenameSpaceRequest: Equatable, Sendable, Codable {
+  public let target: SupatermSpaceTargetRequest
+  public let name: String
+
+  public init(
+    target: SupatermSpaceTargetRequest,
+    name: String
+  ) {
+    self.target = target
+    self.name = name
+  }
+}
+
+public struct SupatermSpaceNavigationRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+  }
+}
+
+public struct SupatermTabNavigationRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+  }
+}
+
 public struct SupatermNotifyResult: Equatable, Sendable, Codable {
   public let attentionState: SupatermNotificationAttentionState
   public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
@@ -778,6 +1188,186 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
     self.paneID = paneID
   }
 }
+
+public struct SupatermSpaceTarget: Equatable, Sendable, Codable {
+  public let windowIndex: Int
+  public let spaceIndex: Int
+  public let spaceID: UUID
+  public let name: String
+
+  public init(
+    windowIndex: Int,
+    spaceIndex: Int,
+    spaceID: UUID,
+    name: String
+  ) {
+    self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
+    self.name = name
+  }
+}
+
+public struct SupatermTabTarget: Equatable, Sendable, Codable {
+  public let windowIndex: Int
+  public let spaceIndex: Int
+  public let spaceID: UUID
+  public let tabIndex: Int
+  public let tabID: UUID
+  public let title: String
+
+  public init(
+    windowIndex: Int,
+    spaceIndex: Int,
+    spaceID: UUID,
+    tabIndex: Int,
+    tabID: UUID,
+    title: String
+  ) {
+    self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
+    self.tabIndex = tabIndex
+    self.tabID = tabID
+    self.title = title
+  }
+}
+
+public struct SupatermPaneTarget: Equatable, Sendable, Codable {
+  public let windowIndex: Int
+  public let spaceIndex: Int
+  public let spaceID: UUID
+  public let tabIndex: Int
+  public let tabID: UUID
+  public let paneIndex: Int
+  public let paneID: UUID
+
+  public init(
+    windowIndex: Int,
+    spaceIndex: Int,
+    spaceID: UUID,
+    tabIndex: Int,
+    tabID: UUID,
+    paneIndex: Int,
+    paneID: UUID
+  ) {
+    self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
+    self.tabIndex = tabIndex
+    self.tabID = tabID
+    self.paneIndex = paneIndex
+    self.paneID = paneID
+  }
+}
+
+public struct SupatermFocusPaneResult: Equatable, Sendable, Codable {
+  public let isFocused: Bool
+  public let isSelectedTab: Bool
+  public let target: SupatermPaneTarget
+
+  public init(
+    isFocused: Bool,
+    isSelectedTab: Bool,
+    target: SupatermPaneTarget
+  ) {
+    self.isFocused = isFocused
+    self.isSelectedTab = isSelectedTab
+    self.target = target
+  }
+}
+
+public struct SupatermSelectTabResult: Equatable, Sendable, Codable {
+  public let isFocused: Bool
+  public let isSelectedSpace: Bool
+  public let isSelectedTab: Bool
+  public let isTitleLocked: Bool
+  public let paneIndex: Int
+  public let paneID: UUID
+  public let target: SupatermTabTarget
+
+  public init(
+    isFocused: Bool,
+    isSelectedSpace: Bool,
+    isSelectedTab: Bool,
+    isTitleLocked: Bool,
+    paneIndex: Int,
+    paneID: UUID,
+    target: SupatermTabTarget
+  ) {
+    self.isFocused = isFocused
+    self.isSelectedSpace = isSelectedSpace
+    self.isSelectedTab = isSelectedTab
+    self.isTitleLocked = isTitleLocked
+    self.paneIndex = paneIndex
+    self.paneID = paneID
+    self.target = target
+  }
+}
+
+public struct SupatermSelectSpaceResult: Equatable, Sendable, Codable {
+  public let isFocused: Bool
+  public let isSelectedSpace: Bool
+  public let isSelectedTab: Bool
+  public let paneIndex: Int
+  public let paneID: UUID
+  public let tabIndex: Int
+  public let tabID: UUID
+  public let target: SupatermSpaceTarget
+
+  public init(
+    isFocused: Bool,
+    isSelectedSpace: Bool,
+    isSelectedTab: Bool,
+    paneIndex: Int,
+    paneID: UUID,
+    tabIndex: Int,
+    tabID: UUID,
+    target: SupatermSpaceTarget
+  ) {
+    self.isFocused = isFocused
+    self.isSelectedSpace = isSelectedSpace
+    self.isSelectedTab = isSelectedTab
+    self.paneIndex = paneIndex
+    self.paneID = paneID
+    self.tabIndex = tabIndex
+    self.tabID = tabID
+    self.target = target
+  }
+}
+
+public struct SupatermCapturePaneResult: Equatable, Sendable, Codable {
+  public let target: SupatermPaneTarget
+  public let text: String
+
+  public init(
+    target: SupatermPaneTarget,
+    text: String
+  ) {
+    self.target = target
+    self.text = text
+  }
+}
+
+public struct SupatermRenameTabResult: Equatable, Sendable, Codable {
+  public let isTitleLocked: Bool
+  public let target: SupatermTabTarget
+
+  public init(
+    isTitleLocked: Bool,
+    target: SupatermTabTarget
+  ) {
+    self.isTitleLocked = isTitleLocked
+    self.target = target
+  }
+}
+
+public typealias SupatermClosePaneResult = SupatermPaneTarget
+public typealias SupatermCloseSpaceResult = SupatermSpaceTarget
+public typealias SupatermCloseTabResult = SupatermTabTarget
+public typealias SupatermCreateSpaceResult = SupatermSelectSpaceResult
+public typealias SupatermResizePaneResult = SupatermPaneTarget
+public typealias SupatermSendTextResult = SupatermPaneTarget
 
 public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let direction: SupatermPaneDirection

@@ -18,6 +18,16 @@ public struct SP: ParsableCommand {
     Instances.self,
     NewTab.self,
     NewPane.self,
+    FocusPane.self,
+    SelectTab.self,
+    ClosePane.self,
+    CloseTab.self,
+    SendText.self,
+    CapturePane.self,
+    ResizePane.self,
+    RenameTab.self,
+    Tmux.self,
+    ClaudeTeams.self,
     Notify.self,
     AgentHook.self,
     InstallAgentHooks.self,
@@ -829,14 +839,14 @@ extension SP.Development.Claude {
   }
 }
 
-private func jsonString<T: Encodable>(_ value: T) throws -> String {
+func jsonString<T: Encodable>(_ value: T) throws -> String {
   let encoder = JSONEncoder()
   encoder.dateEncodingStrategy = .iso8601
   encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
   return String(decoding: try encoder.encode(value), as: UTF8.self)
 }
 
-private func resolvedSocketTarget(
+func resolvedSocketTarget(
   explicitPath: String?,
   instance: String?,
   alwaysDiscover: Bool = false
@@ -854,7 +864,7 @@ private func resolvedSocketTarget(
   return resolvedTarget
 }
 
-private func shellCommandInput(_ tokens: [String]) -> String? {
+func shellCommandInput(_ tokens: [String]) -> String? {
   guard !tokens.isEmpty else { return nil }
   return tokens.map(shellEscapedToken).joined(separator: " ")
 }
@@ -869,7 +879,7 @@ func shellInput(script: String?, tokens: [String]) throws -> String? {
   return shellCommandInput(tokens)
 }
 
-private func resolvedWorkingDirectory(_ path: String?) throws -> String? {
+func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   guard let path else { return nil }
 
   let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1102,7 +1112,7 @@ private func shellEscapedToken(_ token: String) -> String {
   return "'\(token.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
 }
 
-private func socketClient(
+func socketClient(
   path: String?,
   instance: String?,
   alwaysDiscover: Bool = false,
@@ -1116,7 +1126,7 @@ private func socketClient(
   return try SPSocketClient(path: resolvedTarget.path, responseTimeout: responseTimeout)
 }
 
-private func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {
+func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {
   let response = try client.send(.tree())
   guard response.ok else {
     throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")

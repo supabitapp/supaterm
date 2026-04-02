@@ -56,6 +56,64 @@ struct TerminalNotifyRequest: Equatable, Sendable {
   }
 }
 
+enum TerminalSpaceTarget: Equatable, Sendable {
+  case contextPane(UUID)
+  case space(windowIndex: Int, spaceIndex: Int)
+}
+
+enum TerminalTabTarget: Equatable, Sendable {
+  case contextPane(UUID)
+  case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+}
+
+enum TerminalPaneTarget: Equatable, Sendable {
+  case contextPane(UUID)
+  case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+}
+
+struct TerminalSendTextRequest: Equatable, Sendable {
+  let target: TerminalPaneTarget
+  let text: String
+}
+
+struct TerminalCapturePaneRequest: Equatable, Sendable {
+  let lines: Int?
+  let scope: SupatermCapturePaneScope
+  let target: TerminalPaneTarget
+}
+
+struct TerminalResizePaneRequest: Equatable, Sendable {
+  let amount: UInt16
+  let direction: SupatermResizePaneDirection
+  let target: TerminalPaneTarget
+}
+
+struct TerminalRenameTabRequest: Equatable, Sendable {
+  let target: TerminalTabTarget
+  let title: String?
+}
+
+struct TerminalRenameSpaceRequest: Equatable, Sendable {
+  let name: String
+  let target: TerminalSpaceTarget
+}
+
+struct TerminalSpaceNavigationRequest: Equatable, Sendable {
+  let contextPaneID: UUID?
+  let windowIndex: Int?
+}
+
+struct TerminalTabNavigationRequest: Equatable, Sendable {
+  let contextPaneID: UUID?
+  let spaceIndex: Int?
+  let windowIndex: Int?
+}
+
+struct TerminalCreateSpaceRequest: Equatable, Sendable {
+  let name: String?
+  let target: TerminalSpaceNavigationRequest
+}
+
 struct TerminalNotificationEvent: Equatable, Sendable {
   let attentionState: SupatermNotificationAttentionState
   let body: String
@@ -93,6 +151,19 @@ enum TerminalCreateTabError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
+  case windowNotFound(Int)
+}
+
+enum TerminalControlError: Error, Equatable {
+  case captureFailed
+  case contextPaneNotFound
+  case lastPaneNotFound
+  case lastSpaceNotFound
+  case lastTabNotFound
+  case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case resizeFailed
+  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
+  case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   case windowNotFound(Int)
 }
 

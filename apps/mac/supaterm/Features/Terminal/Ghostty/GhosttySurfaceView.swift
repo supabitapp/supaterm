@@ -591,24 +591,58 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func readScreenContents() -> String {
-    guard let surface else { return "" }
+    readText(
+      topLeftTag: GHOSTTY_POINT_SCREEN,
+      bottomRightTag: GHOSTTY_POINT_SCREEN
+    ) ?? ""
+  }
+
+  func captureText(
+    scope: SupatermCapturePaneScope,
+    lines: Int?
+  ) -> String? {
+    let text =
+      switch scope {
+      case .scrollback:
+        readText(
+          topLeftTag: GHOSTTY_POINT_SURFACE,
+          bottomRightTag: GHOSTTY_POINT_SCREEN
+        )
+      case .visible:
+        readText(
+          topLeftTag: GHOSTTY_POINT_SCREEN,
+          bottomRightTag: GHOSTTY_POINT_SCREEN
+        )
+      }
+    guard let text else { return nil }
+    guard let lines, lines > 0 else { return text }
+    let components = text.components(separatedBy: .newlines)
+    guard components.count > lines else { return text }
+    return components.suffix(lines).joined(separator: "\n")
+  }
+
+  private func readText(
+    topLeftTag: ghostty_point_tag_e,
+    bottomRightTag: ghostty_point_tag_e
+  ) -> String? {
+    guard let surface else { return nil }
     var text = ghostty_text_s()
     let selection = ghostty_selection_s(
       top_left: ghostty_point_s(
-        tag: GHOSTTY_POINT_SCREEN,
+        tag: topLeftTag,
         coord: GHOSTTY_POINT_COORD_TOP_LEFT,
         x: 0,
         y: 0
       ),
       bottom_right: ghostty_point_s(
-        tag: GHOSTTY_POINT_SCREEN,
+        tag: bottomRightTag,
         coord: GHOSTTY_POINT_COORD_BOTTOM_RIGHT,
         x: 0,
         y: 0
       ),
       rectangle: false
     )
-    guard ghostty_surface_read_text(surface, selection, &text) else { return "" }
+    guard ghostty_surface_read_text(surface, selection, &text) else { return nil }
     defer { ghostty_surface_free_text(surface, &text) }
     return String(cString: text.text)
   }
