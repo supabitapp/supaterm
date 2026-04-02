@@ -38,10 +38,16 @@ struct UpdatePhaseTests {
 
   @Test
   func installingBypassesQuitConfirmation() {
-    let phase = UpdatePhase.installing(.init(isAutoUpdate: true))
+    let phase = UpdatePhase.installing(
+      .init(
+        buildVersion: "1000",
+        isAutoUpdate: true,
+        version: "1.2.3"
+      )
+    )
 
     #expect(phase.summaryText == "Restart to Complete Update")
-    #expect(phase.detailMessage == "The update is ready. Restart Supaterm to complete installation.")
+    #expect(phase.detailMessage == "Updated to 1.2.3 (1000). Restart Supaterm to complete installation.")
     #expect(phase.bypassesQuitConfirmation)
     #expect(phase.debugIdentifier == "installing")
   }
@@ -54,6 +60,13 @@ struct UpdatePhaseTests {
     #expect(phase.menuItemAction == .restartNow)
     #expect(phase.menuItemTitle == "Restart to Update...")
     #expect(phase.bypassesQuitConfirmation)
+  }
+
+  @Test
+  func installingFallsBackWhenUpdatedVersionIsUnavailable() {
+    let phase = UpdatePhase.installing(.init(isAutoUpdate: true))
+
+    #expect(phase.detailMessage == "The update is ready. Restart Supaterm to complete installation.")
   }
 
   @Test

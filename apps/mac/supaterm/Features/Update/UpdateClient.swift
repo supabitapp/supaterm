@@ -37,17 +37,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
 
     var formattedVersion: String? {
-      let version = self.version.trimmingCharacters(in: .whitespacesAndNewlines)
-      let buildVersion = self.buildVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-      if let buildVersion, !buildVersion.isEmpty, buildVersion != version {
-        if version.isEmpty {
-          return buildVersion
-        }
-        return "\(version) (\(buildVersion))"
-      }
-
-      return version.isEmpty ? nil : version
+      UpdatePhase.formattedVersion(version: version, buildVersion: buildVersion)
     }
   }
 
@@ -65,8 +55,14 @@ enum UpdatePhase: Equatable, Sendable {
   }
 
   struct Installing: Equatable, Sendable {
+    var buildVersion: String?
     var isAutoUpdate: Bool
     var showsPrompt = true
+    var version = ""
+
+    var formattedVersion: String? {
+      UpdatePhase.formattedVersion(version: version, buildVersion: buildVersion)
+    }
   }
 
   case idle
@@ -122,6 +118,9 @@ enum UpdatePhase: Equatable, Sendable {
     case .extracting:
       return "Supaterm is preparing the downloaded update."
     case .installing(let installing):
+      if let version = installing.formattedVersion {
+        return "Updated to \(version). Restart Supaterm to complete installation."
+      }
       if installing.isAutoUpdate {
         return "The update is ready. Restart Supaterm to complete installation."
       }
@@ -254,6 +253,23 @@ enum UpdatePhase: Equatable, Sendable {
 
   private static func clampedProgress(_ value: Double) -> Double {
     min(1, max(0, value))
+  }
+
+  private static func formattedVersion(
+    version: String,
+    buildVersion: String?
+  ) -> String? {
+    let version = version.trimmingCharacters(in: .whitespacesAndNewlines)
+    let buildVersion = buildVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if let buildVersion, !buildVersion.isEmpty, buildVersion != version {
+      if version.isEmpty {
+        return buildVersion
+      }
+      return "\(version) (\(buildVersion))"
+    }
+
+    return version.isEmpty ? nil : version
   }
 
   private static func percentText(_ value: Double) -> String {
@@ -549,11 +565,19 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   fileprivate func showInstalling(
     isAutoUpdate: Bool,
+    buildVersion: String? = nil,
     restart: @escaping () -> Void,
+    version: String = "",
     fallback: (() -> Void)?
   ) {
     interaction = .installing(restart)
-    phase = .installing(.init(isAutoUpdate: isAutoUpdate))
+    phase = .installing(
+      .init(
+        buildVersion: buildVersion,
+        isAutoUpdate: isAutoUpdate,
+        version: version
+      )
+    )
     publish()
     fallback?()
   }
@@ -607,7 +631,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       publish()
       return
     }
-    phase = .installing(.init(isAutoUpdate: installing.isAutoUpdate, showsPrompt: false))
+    phase = .installing(
+      .init(
+        buildVersion: installing.buildVersion,
+        isAutoUpdate: installing.isAutoUpdate,
+        showsPrompt: false,
+        version: installing.version
+      )
+    )
     publish()
   }
 
@@ -723,7 +754,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func restartLater() {
     guard case .installing = interaction, case .installing(let installing) = phase else { return }
-    phase = .installing(.init(isAutoUpdate: installing.isAutoUpdate, showsPrompt: false))
+    phase = .installing(
+      .init(
+        buildVersion: installing.buildVersion,
+        isAutoUpdate: installing.isAutoUpdate,
+        showsPrompt: false,
+        version: installing.version
+      )
+    )
     publish()
   }
 
@@ -807,7 +845,9 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   ) -> Bool {
     runtime?.showInstalling(
       isAutoUpdate: true,
+      buildVersion: item.versionString,
       restart: immediateInstallHandler,
+      version: item.displayVersionString,
       fallback: nil
     )
     return true
