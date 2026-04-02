@@ -1,4 +1,5 @@
 import Foundation
+import GhosttyKit
 import Testing
 import Textual
 
@@ -20,6 +21,21 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func terminalProgressTakesPrecedenceOverUnreadCount() {
+    let tab = TerminalTabItem(title: "Build", icon: nil, isDirty: true)
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+
+    #expect(
+      TerminalSidebarTabSummaryView.leadingIndicator(
+        tab: tab,
+        unreadCount: 3,
+        agentActivity: nil,
+        terminalProgress: progress
+      ) == .terminalProgress(progress)
+    )
+  }
+
+  @Test
   func agentActivityTakesPrecedenceOverDefaultTabSymbol() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer")
 
@@ -34,16 +50,17 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentActivityTakesPrecedenceOverTerminalProgress() {
+  func terminalProgressTakesPrecedenceOverAgentActivity() {
     let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
       TerminalSidebarTabSummaryView.leadingIndicator(
         tab: tab,
         unreadCount: 0,
         agentActivity: .claude(.running),
-        terminalProgress: .init(fraction: 0.5, tone: .active)
-      ) == .agentActivity(.claude(.running))
+        terminalProgress: progress
+      ) == .terminalProgress(progress)
     )
   }
 
@@ -189,5 +206,60 @@ struct TerminalSidebarChromeViewTests {
         "Close",
       ]
     )
+  }
+
+  @MainActor
+  @Test
+  func focusedPaneIndeterminateProgressUsesActiveSpinner() {
+    let state = GhosttySurfaceState()
+    state.progressState = GHOSTTY_PROGRESS_STATE_INDETERMINATE
+
+    #expect(
+      TerminalHostState.sidebarTerminalProgress(state: state)
+        == .init(fraction: nil, tone: .active)
+    )
+  }
+
+  @MainActor
+  @Test
+  func focusedPaneDeterminateProgressUsesFraction() {
+    let state = GhosttySurfaceState()
+    state.progressState = GHOSTTY_PROGRESS_STATE_SET
+    state.progressValue = 42
+
+    #expect(
+      TerminalHostState.sidebarTerminalProgress(state: state)
+        == .init(fraction: 0.42, tone: .active)
+    )
+  }
+
+  @MainActor
+  @Test
+  func focusedPanePausedProgressWithoutValueUsesFullRing() {
+    let state = GhosttySurfaceState()
+    state.progressState = GHOSTTY_PROGRESS_STATE_PAUSE
+
+    #expect(
+      TerminalHostState.sidebarTerminalProgress(state: state)
+        == .init(fraction: 1, tone: .paused)
+    )
+  }
+
+  @MainActor
+  @Test
+  func focusedPaneErrorProgressWithoutValueUsesErrorSpinner() {
+    let state = GhosttySurfaceState()
+    state.progressState = GHOSTTY_PROGRESS_STATE_ERROR
+
+    #expect(
+      TerminalHostState.sidebarTerminalProgress(state: state)
+        == .init(fraction: nil, tone: .error)
+    )
+  }
+
+  @MainActor
+  @Test
+  func missingFocusedPaneStateProducesNoProgressRing() {
+    #expect(TerminalHostState.sidebarTerminalProgress(state: nil) == nil)
   }
 }
