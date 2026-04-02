@@ -141,6 +141,42 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func notificationPopoverStaysVisibleWhilePointerMovesIntoPopover() {
+    #expect(
+      TerminalSidebarTabRow.showsNotificationPopover(
+        hasNotification: true,
+        isRowHovering: false,
+        isPopoverHovering: false,
+        isTransitioningToPopover: true
+      )
+    )
+  }
+
+  @Test
+  func notificationPopoverStaysVisibleWhilePointerIsOverPopover() {
+    #expect(
+      TerminalSidebarTabRow.showsNotificationPopover(
+        hasNotification: true,
+        isRowHovering: false,
+        isPopoverHovering: true,
+        isTransitioningToPopover: false
+      )
+    )
+  }
+
+  @Test
+  func notificationPopoverClosesWithoutHoverOrTransition() {
+    #expect(
+      !TerminalSidebarTabRow.showsNotificationPopover(
+        hasNotification: true,
+        isRowHovering: false,
+        isPopoverHovering: false,
+        isTransitioningToPopover: false
+      )
+    )
+  }
+
+  @Test
   func shortcutHintsFollowVisibleTabOrderThroughSlotTen() {
     let tabs = (1...11).map { index in
       TerminalTabItem(title: "Tab \(index)", icon: nil)
