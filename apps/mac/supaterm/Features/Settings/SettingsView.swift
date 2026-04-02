@@ -38,6 +38,7 @@ struct SettingsView: View {
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
     .ignoresSafeArea(.container, edges: .top)
+    .alert(store: store.scope(state: \.$alert, action: \.alert))
   }
 }
 
@@ -66,6 +67,8 @@ private struct SettingsTabContentView: View {
       SettingsCodingAgentsView(store: store)
     case .general:
       SettingsGeneralView(store: store)
+    case .notifications:
+      SettingsNotificationsView(store: store)
     case .updates:
       SettingsUpdatesView(store: store)
     case .about:
@@ -234,6 +237,35 @@ private struct SettingsGeneralView: View {
         Text("Diagnostics")
       } footer: {
         Text("Changes to analytics and crash reports require an app restart.")
+      }
+    }
+    .formStyle(.grouped)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+
+private struct SettingsNotificationsView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var systemNotificationsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.systemNotificationsEnabled },
+      set: { newValue in
+        _ = store.send(.systemNotificationsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        SettingsToggleRow(
+          title: "System notifications",
+          subtitle: "Show macOS notifications for terminal and coding agent activity.",
+          isOn: systemNotificationsEnabled
+        )
+      } footer: {
+        Text("Turning this off only suppresses macOS delivery. Supaterm still tracks unread attention.")
       }
     }
     .formStyle(.grouped)

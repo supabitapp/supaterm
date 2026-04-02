@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 import Testing
 
 @testable import SupatermCLIShared
@@ -248,7 +249,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func notificationReceivedDeliversDesktopNotificationWhenRequested() async {
+  func notificationReceivedDeliversDesktopNotificationWhenRequested() async throws {
     let recorder = TerminalDesktopNotificationRecorder()
     let event = TerminalNotificationEvent(
       attentionState: .unread,
@@ -259,24 +260,33 @@ struct TerminalWindowFeatureTests {
       subtitle: "CI"
     )
 
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.desktopNotificationClient.deliver = { request in
-        await recorder.record(request)
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.appPrefs) var appPrefs = .default
+      $appPrefs.withLock {
+        $0.systemNotificationsEnabled = true
       }
+
+      let store = TestStore(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.deliver = { request in
+          await recorder.record(request)
+        }
+      }
+
+      await store.send(.clientEvent(.notificationReceived(event)))
+
+      #expect(
+        await recorder.snapshot()
+          == [.init(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
+      )
     }
-
-    await store.send(.clientEvent(.notificationReceived(event)))
-
-    #expect(
-      await recorder.snapshot()
-        == [.init(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
-    )
   }
 
   @Test
-  func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async {
+  func notificationReceivedSkipsDesktopNotificationWhenNotRequested() async throws {
     let recorder = TerminalDesktopNotificationRecorder()
     let event = TerminalNotificationEvent(
       attentionState: .unread,
@@ -287,17 +297,55 @@ struct TerminalWindowFeatureTests {
       subtitle: ""
     )
 
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.desktopNotificationClient.deliver = { request in
-        await recorder.record(request)
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.appPrefs) var appPrefs = .default
+      $appPrefs.withLock {
+        $0.systemNotificationsEnabled = true
       }
+
+      let store = TestStore(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.deliver = { request in
+          await recorder.record(request)
+        }
+      }
+
+      await store.send(.clientEvent(.notificationReceived(event)))
+
+      #expect(await recorder.snapshot().isEmpty)
     }
+  }
 
-    await store.send(.clientEvent(.notificationReceived(event)))
+  @Test
+  func notificationReceivedSkipsDesktopNotificationWhenDisabledInPrefs() async throws {
+    let recorder = TerminalDesktopNotificationRecorder()
+    let event = TerminalNotificationEvent(
+      attentionState: .unread,
+      body: "Build finished",
+      desktopNotificationDisposition: .deliver,
+      resolvedTitle: "Deploy complete",
+      sourceSurfaceID: UUID(),
+      subtitle: "CI"
+    )
 
-    #expect(await recorder.snapshot().isEmpty)
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: TerminalWindowFeature.State()) {
+        TerminalWindowFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.deliver = { request in
+          await recorder.record(request)
+        }
+      }
+
+      await store.send(.clientEvent(.notificationReceived(event)))
+
+      #expect(await recorder.snapshot().isEmpty)
+    }
   }
 
   @Test

@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import CoreGraphics
 import Foundation
+import Sharing
 import SupatermCLIShared
 
 private enum TerminalWindowCancelID {
@@ -160,6 +161,8 @@ struct TerminalWindowFeature {
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
 
         case .notificationReceived(let event):
+          @Shared(.appPrefs) var appPrefs = .default
+          guard appPrefs.systemNotificationsEnabled else { return .none }
           guard event.desktopNotificationDisposition.shouldDeliver else { return .none }
           return .run { [desktopNotificationClient] _ in
             await desktopNotificationClient.deliver(

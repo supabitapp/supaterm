@@ -5,6 +5,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
   var crashReportsEnabled: Bool
+  var systemNotificationsEnabled: Bool
   var updateChannel: UpdateChannel
   var updatesAutomaticallyCheckForUpdates: Bool
   var updatesAutomaticallyDownloadUpdates: Bool
@@ -13,6 +14,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     crashReportsEnabled: Bool,
+    systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel,
     updatesAutomaticallyCheckForUpdates: Bool,
     updatesAutomaticallyDownloadUpdates: Bool
@@ -20,6 +22,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.crashReportsEnabled = crashReportsEnabled
+    self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
     self.updatesAutomaticallyCheckForUpdates = updatesAutomaticallyCheckForUpdates
     self.updatesAutomaticallyDownloadUpdates =
@@ -38,6 +41,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     appearanceMode: .system,
     analyticsEnabled: true,
     crashReportsEnabled: true,
+    systemNotificationsEnabled: false,
     updateChannel: .stable,
     updatesAutomaticallyCheckForUpdates: true,
     updatesAutomaticallyDownloadUpdates: false
@@ -60,6 +64,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     case appearanceMode
     case analyticsEnabled
     case crashReportsEnabled
+    case systemNotificationsEnabled
     case updateChannel
     case updatesAutomaticallyCheckForUpdates
     case updatesAutomaticallyDownloadUpdates
@@ -71,6 +76,8 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
       appearanceMode: try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? .system,
       analyticsEnabled: try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? true,
       crashReportsEnabled: try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? true,
+      systemNotificationsEnabled:
+        try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled) ?? false,
       updateChannel: try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? .stable,
       updatesAutomaticallyCheckForUpdates:
         try container.decodeIfPresent(Bool.self, forKey: .updatesAutomaticallyCheckForUpdates) ?? true,

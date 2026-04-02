@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import Sharing
 import Testing
 
@@ -16,7 +17,7 @@ struct SettingsFeatureTests {
 
   @Test
   func taskLoadsPersistedSettings() async throws {
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.appPrefs) var appPrefs = .default
@@ -25,6 +26,7 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
+          systemNotificationsEnabled: true,
           updateChannel: .tip,
           updatesAutomaticallyCheckForUpdates: false,
           updatesAutomaticallyDownloadUpdates: false
@@ -40,6 +42,7 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
+        $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
         $0.updatesAutomaticallyCheckForUpdates = false
         $0.updatesAutomaticallyDownloadUpdates = false
@@ -57,6 +60,10 @@ struct SettingsFeatureTests {
       $0.selectedTab = .codingAgents
     }
 
+    await store.send(.tabSelected(.notifications)) {
+      $0.selectedTab = .notifications
+    }
+
     await store.send(.tabSelected(.updates)) {
       $0.selectedTab = .updates
     }
@@ -68,7 +75,7 @@ struct SettingsFeatureTests {
 
   @Test
   func appearanceModeSelectionPersistsPrefs() async throws {
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let store = TestStore(initialState: SettingsFeature.State()) {
@@ -86,7 +93,7 @@ struct SettingsFeatureTests {
 
   @Test
   func diagnosticsSettingsPersistPrefs() async throws {
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       let store = TestStore(initialState: SettingsFeature.State()) {
@@ -108,10 +115,127 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func enablingSystemNotificationsPersistsPrefsWhenAuthorized() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.authorizationStatus = { .authorized }
+      }
+
+      await store.send(.systemNotificationsEnabledChanged(true)) {
+        $0.systemNotificationsEnabled = true
+      }
+      await store.receive(.systemNotificationsAuthorizationChecked(.authorized))
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(appPrefs.systemNotificationsEnabled)
+    }
+  }
+
+  @Test
+  func enablingSystemNotificationsWithDeniedRequestRevertsToggleAndShowsAlert() async throws {
+    let recorder = SettingsNotificationPermissionRecorder()
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.authorizationStatus = { .notDetermined }
+        $0.desktopNotificationClient.requestAuthorization = {
+          await recorder.recordRequest()
+          return .init(granted: false, errorMessage: "Mock request error")
+        }
+      }
+
+      await store.send(.systemNotificationsEnabledChanged(true)) {
+        $0.systemNotificationsEnabled = true
+      }
+      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined))
+      await store.receive(
+        .systemNotificationsAuthorizationResult(
+          .init(granted: false, errorMessage: "Mock request error")
+        )
+      ) {
+        $0.systemNotificationsEnabled = false
+        $0.alert = notificationPermissionAlert(
+          "Supaterm cannot send system notifications.\n\nError: Mock request error")
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(!appPrefs.systemNotificationsEnabled)
+      #expect(await recorder.requestCount() == 1)
+    }
+  }
+
+  @Test
+  func enablingSystemNotificationsWithDeniedStatusRevertsToggleAndShowsAlert() async throws {
+    let recorder = SettingsNotificationPermissionRecorder()
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.desktopNotificationClient.authorizationStatus = { .denied }
+        $0.desktopNotificationClient.requestAuthorization = {
+          await recorder.recordRequest()
+          return .init(granted: true, errorMessage: nil)
+        }
+      }
+
+      await store.send(.systemNotificationsEnabledChanged(true)) {
+        $0.systemNotificationsEnabled = true
+      }
+      await store.receive(.systemNotificationsAuthorizationChecked(.denied))
+      await store.receive(
+        .systemNotificationsAuthorizationResult(
+          .init(granted: false, errorMessage: "Authorization status is denied.")
+        )
+      ) {
+        $0.systemNotificationsEnabled = false
+        $0.alert = notificationPermissionAlert(
+          "Supaterm cannot send system notifications.\n\nError: Authorization status is denied."
+        )
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(!appPrefs.systemNotificationsEnabled)
+      #expect(await recorder.requestCount() == 0)
+    }
+  }
+
+  @Test
+  func notificationPermissionAlertOpensSystemSettings() async {
+    let recorder = SettingsNotificationPermissionRecorder()
+    var state = SettingsFeature.State()
+    state.alert = notificationPermissionAlert("Supaterm cannot send system notifications.\n\nError: Mock request error")
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.desktopNotificationClient.openSettings = {
+        await recorder.recordOpen()
+      }
+    }
+
+    await store.send(.alert(.presented(.openSystemNotificationSettings))) {
+      $0.alert = nil
+    }
+
+    #expect(await recorder.openCount() == 1)
+  }
+
+  @Test
   func settingsChangeCapturesAnalyticsWhenEnabled() async throws {
     let recorder = AnalyticsEventRecorder()
 
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
       $0.analyticsClient.capture = { event in
         recorder.record(event)
@@ -133,7 +257,7 @@ struct SettingsFeatureTests {
   func disablingAnalyticsDoesNotCaptureSettingsChanged() async throws {
     let recorder = AnalyticsEventRecorder()
 
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
       $0.analyticsClient.capture = { event in
         recorder.record(event)
@@ -155,7 +279,7 @@ struct SettingsFeatureTests {
   func updateSettingsPersistAndApplyToUpdater() async throws {
     let recorder = UpdateSettingsRecorder()
 
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
       $0.updateClient.applySettings = { settings in
         await recorder.record(settings)
@@ -197,7 +321,7 @@ struct SettingsFeatureTests {
   func disablingAutomaticChecksClearsAutomaticDownloads() async throws {
     let recorder = UpdateSettingsRecorder()
 
-    try await withDependencies {
+    await withDependencies {
       $0.defaultFileStorage = .inMemory
       $0.updateClient.applySettings = { settings in
         await recorder.record(settings)
@@ -331,6 +455,42 @@ struct SettingsFeatureTests {
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
       )
     }
+  }
+}
+
+private func notificationPermissionAlert(_ message: String) -> AlertState<SettingsFeature.Alert> {
+  AlertState {
+    TextState("Enable Notifications in System Settings")
+  } actions: {
+    ButtonState(action: .openSystemNotificationSettings) {
+      TextState("Open System Settings")
+    }
+    ButtonState(role: .cancel, action: .dismiss) {
+      TextState("Cancel")
+    }
+  } message: {
+    TextState(message)
+  }
+}
+
+private actor SettingsNotificationPermissionRecorder {
+  private var openCountValue = 0
+  private var requestCountValue = 0
+
+  func openCount() -> Int {
+    openCountValue
+  }
+
+  func recordOpen() {
+    openCountValue += 1
+  }
+
+  func recordRequest() {
+    requestCountValue += 1
+  }
+
+  func requestCount() -> Int {
+    requestCountValue
   }
 }
 

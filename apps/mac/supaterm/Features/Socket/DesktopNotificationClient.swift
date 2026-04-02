@@ -1,6 +1,29 @@
+import AppKit
 import ComposableArchitecture
 import Foundation
 import UserNotifications
+
+private final class ForegroundDesktopNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    await Task.yield()
+    return [.badge, .sound, .banner]
+  }
+}
+
+@MainActor
+private let foregroundDesktopNotificationDelegate = ForegroundDesktopNotificationDelegate()
+
+@MainActor
+private func configuredNotificationCenter() -> UNUserNotificationCenter {
+  let center = UNUserNotificationCenter.current()
+  if center.delegate !== foregroundDesktopNotificationDelegate {
+    center.delegate = foregroundDesktopNotificationDelegate
+  }
+  return center
+}
 
 struct DesktopNotificationRequest: Equatable, Sendable {
   let body: String
@@ -9,17 +32,74 @@ struct DesktopNotificationRequest: Equatable, Sendable {
 }
 
 struct DesktopNotificationClient: Sendable {
-  var deliver: @Sendable (DesktopNotificationRequest) async -> Void
+  struct AuthorizationRequestResult: Equatable, Sendable {
+    let granted: Bool
+    let errorMessage: String?
+  }
+
+  enum AuthorizationStatus: Equatable, Sendable {
+    case authorized
+    case denied
+    case notDetermined
+  }
+
+  var authorizationStatus: @MainActor @Sendable () async -> AuthorizationStatus
+  var requestAuthorization: @MainActor @Sendable () async -> AuthorizationRequestResult
+  var openSettings: @MainActor @Sendable () async -> Void
+  var deliver: @MainActor @Sendable (DesktopNotificationRequest) async -> Void
 }
 
 extension DesktopNotificationClient: DependencyKey {
   static let liveValue = Self(
+    authorizationStatus: {
+      let center = configuredNotificationCenter()
+      let settings = await center.notificationSettings()
+      switch settings.authorizationStatus {
+      case .authorized, .provisional, .ephemeral:
+        return .authorized
+      case .denied:
+        return .denied
+      case .notDetermined:
+        return .notDetermined
+      @unknown default:
+        return .denied
+      }
+    },
+    requestAuthorization: {
+      let center = configuredNotificationCenter()
+      do {
+        let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+        return .init(granted: granted, errorMessage: nil)
+      } catch {
+        return .init(granted: false, errorMessage: error.localizedDescription)
+      }
+    },
+    openSettings: {
+      guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") else {
+        return
+      }
+      _ = NSWorkspace.shared.open(url)
+    },
     deliver: { request in
-      await DesktopNotificationCenter.shared.deliver(request)
+      let center = configuredNotificationCenter()
+      let content = UNMutableNotificationContent()
+      content.body = request.body
+      content.subtitle = request.subtitle
+      content.title = request.title
+      content.sound = .default
+      let notificationRequest = UNNotificationRequest(
+        identifier: UUID().uuidString,
+        content: content,
+        trigger: nil
+      )
+      try? await center.add(notificationRequest)
     }
   )
 
   static let testValue = Self(
+    authorizationStatus: { .notDetermined },
+    requestAuthorization: { .init(granted: false, errorMessage: nil) },
+    openSettings: {},
     deliver: { _ in }
   )
 }
@@ -28,74 +108,5 @@ extension DependencyValues {
   var desktopNotificationClient: DesktopNotificationClient {
     get { self[DesktopNotificationClient.self] }
     set { self[DesktopNotificationClient.self] = newValue }
-  }
-}
-
-private actor DesktopNotificationCenter {
-  private enum AuthorizationStatus: Sendable {
-    case authorized
-    case denied
-    case notDetermined
-  }
-
-  static let shared = DesktopNotificationCenter()
-
-  private let center = UNUserNotificationCenter.current()
-
-  func deliver(_ request: DesktopNotificationRequest) async {
-    switch await authorizationStatus() {
-    case .authorized:
-      await enqueue(request)
-    case .notDetermined:
-      guard await requestAuthorization() else { return }
-      await enqueue(request)
-    case .denied:
-      return
-    }
-  }
-
-  private func authorizationStatus() async -> AuthorizationStatus {
-    await withCheckedContinuation { continuation in
-      center.getNotificationSettings { settings in
-        switch settings.authorizationStatus {
-        case .authorized, .provisional, .ephemeral:
-          continuation.resume(returning: .authorized)
-        case .notDetermined:
-          continuation.resume(returning: .notDetermined)
-        case .denied:
-          continuation.resume(returning: .denied)
-        @unknown default:
-          continuation.resume(returning: .denied)
-        }
-      }
-    }
-  }
-
-  private func requestAuthorization() async -> Bool {
-    await withCheckedContinuation { continuation in
-      center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-        continuation.resume(returning: granted)
-      }
-    }
-  }
-
-  private func enqueue(_ request: DesktopNotificationRequest) async {
-    let content = UNMutableNotificationContent()
-    content.body = request.body
-    content.subtitle = request.subtitle
-    content.title = request.title
-    content.sound = .default
-
-    let notificationRequest = UNNotificationRequest(
-      identifier: UUID().uuidString,
-      content: content,
-      trigger: nil
-    )
-
-    await withCheckedContinuation { continuation in
-      center.add(notificationRequest) { _ in
-        continuation.resume()
-      }
-    }
   }
 }
