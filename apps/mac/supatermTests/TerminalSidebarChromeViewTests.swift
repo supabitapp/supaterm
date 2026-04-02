@@ -245,6 +245,13 @@ struct TerminalSidebarChromeViewTests {
     )
   }
 
+  @Test
+  func pausedProgressUsesPauseIconIndicator() {
+    let progress = TerminalSidebarTerminalProgress(fraction: 1, tone: .paused)
+
+    #expect(progress.indicatorStyle == .pauseIcon)
+  }
+
   @MainActor
   @Test
   func focusedPaneErrorProgressWithoutValueUsesErrorSpinner() {
