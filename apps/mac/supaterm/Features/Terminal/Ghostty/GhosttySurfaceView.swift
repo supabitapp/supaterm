@@ -1165,60 +1165,66 @@ final class GhosttySurfaceView: NSView, Identifiable {
       return nil
     }
 
+    return Self.contextMenu(hasSelection: ghostty_surface_has_selection(surface))
+  }
+
+  @MainActor
+  static func contextMenu(hasSelection: Bool) -> NSMenu {
     let menu = NSMenu()
-    if ghostty_surface_has_selection(surface) {
-      menu.addItem(NSMenuItem(title: "Copy", action: #selector(copy(_:)), keyEquivalent: ""))
+    menu.automaticallyInsertsWritingToolsItems = false
+    if hasSelection {
+      menu.addItem(NSMenuItem(title: "Copy", action: Selector(("copy:")), keyEquivalent: ""))
     }
-    menu.addItem(NSMenuItem(title: "Paste", action: #selector(paste(_:)), keyEquivalent: ""))
+    menu.addItem(NSMenuItem(title: "Paste", action: Selector(("paste:")), keyEquivalent: ""))
     menu.addItem(.separator())
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Split Right",
-        action: #selector(splitRight(_:)),
+        action: #selector(GhosttySurfaceView.splitRight(_:)),
         symbol: "rectangle.righthalf.inset.filled"
       ))
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Split Left",
-        action: #selector(splitLeft(_:)),
+        action: #selector(GhosttySurfaceView.splitLeft(_:)),
         symbol: "rectangle.leadinghalf.inset.filled"
       ))
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Split Down",
-        action: #selector(splitDown(_:)),
+        action: #selector(GhosttySurfaceView.splitDown(_:)),
         symbol: "rectangle.bottomhalf.inset.filled"
       ))
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Split Up",
-        action: #selector(splitUp(_:)),
+        action: #selector(GhosttySurfaceView.splitUp(_:)),
         symbol: "rectangle.tophalf.inset.filled"
       ))
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Close Pane",
-        action: #selector(closePane(_:)),
+        action: #selector(GhosttySurfaceView.closePane(_:)),
         symbol: "xmark"
       ))
     menu.addItem(.separator())
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Reset Terminal",
-        action: #selector(resetTerminal(_:)),
+        action: #selector(GhosttySurfaceView.resetTerminal(_:)),
         symbol: "arrow.trianglehead.2.clockwise"
       ))
     menu.addItem(.separator())
     menu.addItem(
-      menuItem(
+      contextMenuItem(
         title: "Change Title...",
-        action: #selector(changeTitle(_:)),
+        action: #selector(GhosttySurfaceView.changeTitle(_:)),
         symbol: "pencil.line"
       ))
     return menu
   }
 
-  private func menuItem(title: String, action: Selector, symbol: String) -> NSMenuItem {
+  private static func contextMenuItem(title: String, action: Selector, symbol: String) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
     item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     return item
