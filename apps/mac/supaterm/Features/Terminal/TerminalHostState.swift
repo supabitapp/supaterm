@@ -1401,6 +1401,13 @@ final class TerminalHostState {
     )
   }
 
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
+    let resolvedTarget = try resolveTabTarget(request.target)
+    trees[resolvedTarget.tabID] = resolvedTarget.tree.equalized()
+    sessionDidChange()
+    return try tabTarget(for: resolvedTarget.tabID)
+  }
+
   func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {
     if let windowIndex = request.target.windowIndex, windowIndex != 1 {
       throw TerminalControlError.windowNotFound(windowIndex)

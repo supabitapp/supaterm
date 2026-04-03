@@ -423,7 +423,10 @@ private struct SPTmuxCommandRunner {
     case "set-hook":
       try runSetHook(rawArguments)
 
-    case "select-layout", "set-option", "set", "set-window-option", "setw", "source-file", "refresh-client", "attach-session", "detach-client":
+    case "select-layout":
+      try runSelectLayout(rawArguments)
+
+    case "set-option", "set", "set-window-option", "setw", "source-file", "refresh-client", "attach-session", "detach-client":
       return
 
     default:
@@ -530,11 +533,12 @@ private struct SPTmuxCommandRunner {
       boolFlags: ["-d", "-P"]
     )
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
+    let command = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c"))
     let created = try send(
       .newTab(
         .init(
-          command: nil,
-          cwd: try resolvedWorkingDirectory(parsed.value("-c")),
+          command: command,
+          cwd: command == nil ? try resolvedWorkingDirectory(parsed.value("-c")) : nil,
           focus: false,
           targetWindowIndex: targetSpace.window.index,
           targetSpaceIndex: targetSpace.space.index
@@ -559,23 +563,6 @@ private struct SPTmuxCommandRunner {
       )
     }
 
-    if let text = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c")) {
-      _ = try send(
-        .sendText(
-          .init(
-            target: .init(
-              targetWindowIndex: created.windowIndex,
-              targetSpaceIndex: created.spaceIndex,
-              targetTabIndex: created.tabIndex,
-              targetPaneIndex: created.paneIndex
-            ),
-            text: text
-          )
-        ),
-        as: SupatermSendTextResult.self
-      )
-    }
-
     if parsed.hasFlag("-P") {
       let createdPane = try topology().locatePane(
         windowIndex: created.windowIndex,
@@ -596,6 +583,7 @@ private struct SPTmuxCommandRunner {
       boolFlags: ["-P", "-b", "-d", "-h", "-v"]
     )
     let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
+    let command = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c"))
     let direction: SupatermPaneDirection =
       if parsed.hasFlag("-h") {
         parsed.hasFlag("-b") ? .left : .right
@@ -606,7 +594,7 @@ private struct SPTmuxCommandRunner {
     let created = try send(
       .newPane(
         .init(
-          command: nil,
+          command: command,
           direction: direction,
           focus: false,
           equalize: true,
@@ -618,23 +606,6 @@ private struct SPTmuxCommandRunner {
       ),
       as: SupatermNewPaneResult.self
     )
-
-    if let text = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c")) {
-      _ = try send(
-        .sendText(
-          .init(
-            target: .init(
-              targetWindowIndex: created.windowIndex,
-              targetSpaceIndex: created.spaceIndex,
-              targetTabIndex: created.tabIndex,
-              targetPaneIndex: created.paneIndex
-            ),
-            text: text
-          )
-        ),
-        as: SupatermSendTextResult.self
-      )
-    }
 
     if parsed.hasFlag("-P") {
       let createdPane = try topology().locatePane(
@@ -877,6 +848,21 @@ private struct SPTmuxCommandRunner {
         )
       ),
       as: SupatermResizePaneResult.self
+    )
+  }
+
+  private func runSelectLayout(_ arguments: [String]) throws {
+    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: ["-E"])
+    let targetTab = try topology().resolveTab(raw: parsed.value("-t"))
+    _ = try send(
+      .equalizePanes(
+        .init(
+          targetWindowIndex: targetTab.window.index,
+          targetSpaceIndex: targetTab.space.index,
+          targetTabIndex: targetTab.tab.index
+        )
+      ),
+      as: SupatermEqualizePanesResult.self
     )
   }
 

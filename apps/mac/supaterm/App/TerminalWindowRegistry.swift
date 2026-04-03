@@ -688,6 +688,35 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.equalizePanes(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalEqualizePanesRequest(
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.equalizePanes(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {
     if request.target.contextPaneID != nil && request.target.windowIndex == nil {
       for (offset, entry) in activeEntries().enumerated() {

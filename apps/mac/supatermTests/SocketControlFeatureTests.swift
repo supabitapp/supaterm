@@ -1296,6 +1296,59 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func equalizePanesRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "31C9312F-27E1-470C-BFE7-10A85F8F3B2B")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .equalizePanes(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3
+        ),
+        id: "equalize-panes-1"
+      )
+    )
+    let result = SupatermTabTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      title: "Logs"
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.equalizePanes = { request in
+        #expect(
+          request
+            == .init(
+              target: .tab(
+                windowIndex: 1,
+                spaceIndex: 2,
+                tabIndex: 3
+              )
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermTabTarget.self) == result)
+  }
+
+  @Test
   func createSpaceRequestRepliesWithSelection() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "1E24A0F8-5D9C-4C72-91E4-43F0F31C422F")!
