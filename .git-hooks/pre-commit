@@ -1,3 +1,10 @@
-git diff --cached --quiet -- apps/supaterm.com && exit 0
-git diff --cached --quiet -- . ":(exclude)apps/supaterm.com" || exit 0
-cd apps/supaterm.com && vp staged
+if ! git diff --cached --quiet -- apps/supaterm.com; then
+  (
+    cd apps/supaterm.com
+    vp staged
+  )
+fi
+
+if ! git diff --cached --quiet -- apps/mac; then
+  make mac-lint
+fi
