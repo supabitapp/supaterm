@@ -1342,6 +1342,18 @@ final class TerminalHostState {
 
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {
     let resolvedTarget = try resolvePaneTarget(request.target)
+    TerminalControlTrace.write(
+      event: "send_text",
+      fields: [
+        "space_id": resolvedTarget.spaceID.rawValue.uuidString.lowercased(),
+        "tab_id": resolvedTarget.tabID.rawValue.uuidString.lowercased(),
+        "surface_id": resolvedTarget.anchorSurface.id.uuidString.lowercased(),
+        "text_length": String(request.text.count),
+        "text_has_cr": request.text.contains("\r") ? "1" : "0",
+        "text_has_lf": request.text.contains("\n") ? "1" : "0",
+        "text_preview": TerminalControlTrace.preview(request.text),
+      ]
+    )
     resolvedTarget.anchorSurface.bridge.sendText(request.text)
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -1403,8 +1415,7 @@ final class TerminalHostState {
     )
   }
 
-  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult
-  {
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.equalized()
     sessionDidChange()
@@ -1483,8 +1494,7 @@ final class TerminalHostState {
     return try selectSpaceResult(for: allSpaces[nextIndex].id)
   }
 
-  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult
-  {
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
     let currentSpaceID = try resolvedNavigationSpaceID(request)
     let allSpaces = spaces
     guard
@@ -1583,8 +1593,7 @@ final class TerminalHostState {
     case .space(let windowIndex, let spaceIndex):
       do {
         return try resolveCreateTabTarget(.space(windowIndex: windowIndex, spaceIndex: spaceIndex))
-      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
-      {
+      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1623,8 +1632,7 @@ final class TerminalHostState {
         return try resolveCreatePaneTarget(
           .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
         )
-      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
-      {
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1667,8 +1675,8 @@ final class TerminalHostState {
           tabIndex: tabIndex
         )
       } catch TerminalCreatePaneError.paneNotFound(
-        let windowIndex, let spaceIndex, let tabIndex, let paneIndex)
-      {
+        let windowIndex, let spaceIndex, let tabIndex, let paneIndex
+      ) {
         throw TerminalControlError.paneNotFound(
           windowIndex: windowIndex,
           spaceIndex: spaceIndex,
@@ -1691,8 +1699,7 @@ final class TerminalHostState {
             paneIndex: paneIndex
           )
         )
-      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
-      {
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1847,8 +1854,7 @@ final class TerminalHostState {
     in tabID: TerminalTabID
   ) -> (tree: SplitTree<GhosttySurfaceView>, surface: GhosttySurfaceView)? {
     guard let tree = trees[tabID] else { return nil }
-    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID]
-    {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
       return (tree, surface)
     }
     guard let surface = tree.root?.leftmostLeaf() else { return nil }
@@ -2665,8 +2671,7 @@ final class TerminalHostState {
       focusSurface(surface, in: tabID)
       return
     }
-    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID]
-    {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
       focusSurface(surface, in: tabID)
       return
     }
