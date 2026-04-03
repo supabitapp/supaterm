@@ -10,39 +10,7 @@ private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
 struct TerminalSidebarMeasuredTabFrame: Equatable {
   let zoneID: TerminalSidebarDropZoneID
   let scrollFrame: CGRect
-  let overlayFrame: CGRect
   let zoneFrame: CGRect
-}
-
-struct TerminalSidebarNotificationOverlay: Equatable {
-  let tabID: TerminalTabID
-  let frame: CGRect
-  let markdown: String
-}
-
-enum TerminalSidebarOverlayMetrics {
-  static let width: CGFloat = 320
-  static let horizontalGap: CGFloat = 14
-  static let viewportPadding: CGFloat = 12
-}
-
-enum TerminalSidebarNotificationOverlayLayout {
-  static func origin(
-    for anchorFrame: CGRect,
-    containerWidth: CGFloat
-  ) -> CGPoint {
-    let proposedX = anchorFrame.maxX + TerminalSidebarOverlayMetrics.horizontalGap
-    let maximumX = Swift.max(
-      0,
-      containerWidth
-        - TerminalSidebarOverlayMetrics.width
-        - TerminalSidebarOverlayMetrics.viewportPadding
-    )
-    return CGPoint(
-      x: Swift.min(proposedX, maximumX),
-      y: Swift.max(0, anchorFrame.minY)
-    )
-  }
 }
 
 extension TerminalSidebarDropZoneID {
@@ -115,8 +83,6 @@ struct TerminalSidebarChromeView: View {
   let updateStore: StoreOf<UpdateFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
-  let overlayCoordinateSpace: String
-  @Binding var notificationOverlay: TerminalSidebarNotificationOverlay?
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.colorScheme) private var colorScheme
@@ -151,9 +117,6 @@ struct TerminalSidebarChromeView: View {
     }
     .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
       handle(pendingReorder)
-    }
-    .onChange(of: tabFrames) { _, _ in
-      refreshNotificationOverlay()
     }
   }
 
@@ -334,10 +297,7 @@ struct TerminalSidebarChromeView: View {
         terminalProgress: terminalProgress,
         palette: palette,
         shortcutHint: tabShortcutHintsByID[tab.id],
-        showsShortcutHint: commandHoldObserver.isPressed,
-        onNotificationHoverChange: { isHovering in
-          handleNotificationHoverChange(isHovering, for: tab.id)
-        }
+        showsShortcutHint: commandHoldObserver.isPressed
       )
       .id(tab.id)
       .background {
@@ -345,7 +305,6 @@ struct TerminalSidebarChromeView: View {
           let measuredFrame = TerminalSidebarMeasuredTabFrame(
             zoneID: zoneID,
             scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
-            overlayFrame: geometry.frame(in: .named(overlayCoordinateSpace)),
             zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
           )
           Color.clear.preference(
@@ -454,46 +413,6 @@ struct TerminalSidebarChromeView: View {
     }
 
     dragSession.pendingReorder = nil
-  }
-
-  private func handleNotificationHoverChange(
-    _ isHovering: Bool,
-    for tabID: TerminalTabID
-  ) {
-    if isHovering {
-      updateNotificationOverlay(for: tabID)
-    } else if notificationOverlay?.tabID == tabID {
-      notificationOverlay = nil
-    }
-  }
-
-  private func refreshNotificationOverlay() {
-    guard let tabID = notificationOverlay?.tabID else { return }
-    updateNotificationOverlay(for: tabID)
-  }
-
-  private func updateNotificationOverlay(
-    for tabID: TerminalTabID
-  ) {
-    guard
-      let frame = tabFrames[tabID]?.overlayFrame,
-      let markdown = terminal.latestSidebarNotificationPresentation(for: tabID)?.markdown
-    else {
-      if notificationOverlay?.tabID == tabID {
-        notificationOverlay = nil
-      }
-      return
-    }
-
-    let overlay = TerminalSidebarNotificationOverlay(
-      tabID: tabID,
-      frame: frame,
-      markdown: markdown
-    )
-
-    if notificationOverlay != overlay {
-      notificationOverlay = overlay
-    }
   }
 }
 
@@ -843,7 +762,6 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
-  let onNotificationHoverChange: (Bool) -> Void
 
   static func contextMenuItems(
     isPinned: Bool,
@@ -941,20 +859,23 @@ struct TerminalSidebarTabRow: View {
     }
     .buttonStyle(.plain)
     .animation(rowAnimation, value: animatedPresentation)
+    .popover(
+      isPresented: notificationPopoverPresented,
+      attachmentAnchor: .rect(.bounds),
+      arrowEdge: .leading
+    ) {
+      if let notificationMarkdown {
+        TerminalSidebarNotificationPopover(
+          palette: palette,
+          markdown: notificationMarkdown
+        )
+      }
+    }
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
     .onHover { isHovering in
       self.isHovering = isHovering
-    }
-    .onChange(of: notificationHoverPresented) { _, isPresented in
-      onNotificationHoverChange(isPresented)
-    }
-    .onChange(of: notificationMarkdown) { _, _ in
-      onNotificationHoverChange(notificationHoverPresented)
-    }
-    .onDisappear {
-      onNotificationHoverChange(false)
     }
     .contextMenu {
       ForEach(
@@ -1050,8 +971,11 @@ struct TerminalSidebarTabRow: View {
     notificationPresentation?.markdown
   }
 
-  private var notificationHoverPresented: Bool {
-    isHovering && notificationMarkdown != nil
+  private var notificationPopoverPresented: Binding<Bool> {
+    Binding(
+      get: { isHovering && notificationMarkdown != nil },
+      set: { _ in }
+    )
   }
 
   private func select() {
@@ -1065,12 +989,12 @@ struct TerminalSidebarTabRow: View {
   }
 }
 
-struct TerminalSidebarNotificationPopover: View {
+private struct TerminalSidebarNotificationPopover: View {
   let palette: TerminalPalette
   let markdown: String
 
   private let cornerRadius: CGFloat = 14
-  private let popoverWidth = TerminalSidebarOverlayMetrics.width
+  private let popoverWidth: CGFloat = 320
   private let popoverPadding: CGFloat = 12
 
   private var contentWidth: CGFloat {
@@ -1093,10 +1017,14 @@ struct TerminalSidebarNotificationPopover: View {
     .padding(popoverPadding)
     .frame(width: popoverWidth, alignment: .topLeading)
     .contentShape(.rect)
+    .allowsHitTesting(false)
     .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
     .background {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
         .clipShape(.rect(cornerRadius: cornerRadius))
+    }
+    .background {
+      TerminalSidebarNotificationPopoverPassthroughView()
     }
     .compositingGroup()
     .clipShape(.rect(cornerRadius: cornerRadius))
@@ -1105,6 +1033,22 @@ struct TerminalSidebarNotificationPopover: View {
         .stroke(palette.detailStroke, lineWidth: 0.5)
     }
     .shadow(color: palette.shadow, radius: 18, y: 10)
+  }
+}
+
+private struct TerminalSidebarNotificationPopoverPassthroughView: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    NSView()
+  }
+
+  func updateNSView(_ nsView: NSView, context: Context) {
+    DispatchQueue.main.async {
+      nsView.window?.ignoresMouseEvents = true
+    }
+  }
+
+  static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
+    nsView.window?.ignoresMouseEvents = false
   }
 }
 
