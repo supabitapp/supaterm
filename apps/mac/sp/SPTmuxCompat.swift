@@ -136,6 +136,18 @@ enum SPTmuxCompatibility {
     instance: String? = nil,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) throws {
+    SPTmuxTrace.write(
+      category: "sp.tmux",
+      event: "invoke",
+      fields: [
+        "arguments": arguments.joined(separator: "\u{1f}"),
+        "socket_path": explicitSocketPath,
+        "instance": instance,
+        "tmux": environment["TMUX"],
+        "tmux_pane": environment["TMUX_PANE"],
+      ],
+      environment: environment
+    )
     let client = try socketClient(
       path: explicitSocketPath,
       instance: instance
@@ -219,6 +231,22 @@ enum SPTeammateLauncher {
     processEnvironment["TMUX_PANE"] = "%\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["PATH"] = prependPathEntries([shimDirectory.path], to: environment["PATH"])
     processEnvironment.removeValue(forKey: "TERM_PROGRAM")
+
+    SPTmuxTrace.write(
+      category: "sp.claude-teams",
+      event: "configured_process",
+      fields: [
+        "claude_path": resolvedExecutablePath,
+        "cli_path": resolvedCLIExecutablePath,
+        "shim_directory": shimDirectory.path,
+        "socket_path": socketPath,
+        "focused_space_id": focusedContext.spaceID.uuidString.lowercased(),
+        "focused_tab_id": focusedContext.tabID.uuidString.lowercased(),
+        "focused_pane_id": focusedContext.paneID.uuidString.lowercased(),
+        "arguments": teammateLaunchArguments(commandArgs: arguments).joined(separator: "\u{1f}"),
+      ],
+      environment: processEnvironment
+    )
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: resolvedExecutablePath, isDirectory: false)
@@ -349,6 +377,16 @@ private struct SPTmuxCommandRunner {
 
   func run(arguments: [String]) throws {
     let (command, rawArguments) = try splitTmuxCommand(arguments)
+    trace(
+      "command",
+      fields: [
+        "command": command,
+        "arguments": rawArguments.joined(separator: "\u{1f}"),
+        "context_surface_id": context?.surfaceID.uuidString.lowercased(),
+        "tmux": environment["TMUX"],
+        "tmux_pane": environment["TMUX_PANE"],
+      ]
+    )
 
     switch command {
     case "new-session", "new":
@@ -493,6 +531,24 @@ private struct SPTmuxCommandRunner {
     }
 
     if let text = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c")) {
+      let wrappedText = wrappedTeammatePaneCommand(
+        text,
+        spaceID: created.target.spaceID,
+        tabID: created.tabID,
+        paneID: created.paneID,
+        environment: environment
+      )
+      traceSendText(
+        event: "new_session_send_text",
+        target: .init(
+          targetWindowIndex: created.target.windowIndex,
+          targetSpaceIndex: created.target.spaceIndex,
+          targetTabIndex: created.tabIndex,
+          targetPaneIndex: created.paneIndex
+        ),
+        text: wrappedText,
+        sourceText: text
+      )
       _ = try send(
         .sendText(
           .init(
@@ -502,13 +558,7 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: wrappedTeammatePaneCommand(
-              text,
-              spaceID: created.target.spaceID,
-              tabID: created.tabID,
-              paneID: created.paneID,
-              environment: environment
-            )
+            text: wrappedText
           )
         ),
         as: SupatermSendTextResult.self
@@ -578,6 +628,24 @@ private struct SPTmuxCommandRunner {
     }
 
     if let command {
+      let wrappedText = wrappedTeammatePaneCommand(
+        command,
+        spaceID: created.spaceID,
+        tabID: created.tabID,
+        paneID: created.paneID,
+        environment: environment
+      )
+      traceSendText(
+        event: "new_window_send_text",
+        target: .init(
+          targetWindowIndex: created.windowIndex,
+          targetSpaceIndex: created.spaceIndex,
+          targetTabIndex: created.tabIndex,
+          targetPaneIndex: created.paneIndex
+        ),
+        text: wrappedText,
+        sourceText: command
+      )
       _ = try send(
         .sendText(
           .init(
@@ -587,13 +655,7 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: wrappedTeammatePaneCommand(
-              command,
-              spaceID: created.spaceID,
-              tabID: created.tabID,
-              paneID: created.paneID,
-              environment: environment
-            )
+            text: wrappedText
           )
         ),
         as: SupatermSendTextResult.self
@@ -645,6 +707,24 @@ private struct SPTmuxCommandRunner {
     )
 
     if let command {
+      let wrappedText = wrappedTeammatePaneCommand(
+        command,
+        spaceID: created.spaceID,
+        tabID: created.tabID,
+        paneID: created.paneID,
+        environment: environment
+      )
+      traceSendText(
+        event: "split_window_send_text",
+        target: .init(
+          targetWindowIndex: created.windowIndex,
+          targetSpaceIndex: created.spaceIndex,
+          targetTabIndex: created.tabIndex,
+          targetPaneIndex: created.paneIndex
+        ),
+        text: wrappedText,
+        sourceText: command
+      )
       _ = try send(
         .sendText(
           .init(
@@ -654,13 +734,7 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: wrappedTeammatePaneCommand(
-              command,
-              spaceID: created.spaceID,
-              tabID: created.tabID,
-              paneID: created.paneID,
-              environment: environment
-            )
+            text: wrappedText
           )
         ),
         as: SupatermSendTextResult.self
@@ -757,6 +831,16 @@ private struct SPTmuxCommandRunner {
     if text.isEmpty {
       return
     }
+    traceSendText(
+      event: "send_keys",
+      target: .init(
+        targetWindowIndex: targetPane.window.index,
+        targetSpaceIndex: targetPane.space.index,
+        targetTabIndex: targetPane.tab.index,
+        targetPaneIndex: targetPane.pane.index
+      ),
+      text: text
+    )
     _ = try send(
       .sendText(
         .init(
@@ -1211,11 +1295,58 @@ private struct SPTmuxCommandRunner {
     _ request: SupatermSocketRequest,
     as type: Result.Type
   ) throws -> Result {
+    trace(
+      "socket_request",
+      fields: [
+        "method": request.method,
+        "request_id": request.id,
+      ]
+    )
     let response = try client.send(request)
     guard response.ok else {
+      trace(
+        "socket_error",
+        fields: [
+          "method": request.method,
+          "request_id": request.id,
+          "message": response.error?.message,
+        ]
+      )
       throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
     }
+    trace(
+      "socket_response",
+      fields: [
+        "method": request.method,
+        "request_id": request.id,
+      ]
+    )
     return try response.decodeResult(type)
+  }
+
+  private func trace(_ event: String, fields: [String: String?] = [:]) {
+    SPTmuxTrace.write(
+      category: "sp.tmux",
+      event: event,
+      fields: fields,
+      environment: environment
+    )
+  }
+
+  private func traceSendText(
+    event: String,
+    target: SupatermPaneTargetRequest,
+    text: String,
+    sourceText: String? = nil
+  ) {
+    trace(
+      event,
+      fields: sendTextTraceFields(
+        target: target,
+        text: text,
+        sourceText: sourceText
+      )
+    )
   }
 }
 
@@ -2006,5 +2137,167 @@ private func setExecutablePermissions(at url: URL) throws {
   }
   guard result == 0 else {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+  }
+}
+
+private func sendTextTraceFields(
+  target: SupatermPaneTargetRequest,
+  text: String,
+  sourceText: String?
+) -> [String: String?] {
+  [
+    "target_window_index": String(target.targetWindowIndex ?? 0),
+    "target_space_index": String(target.targetSpaceIndex ?? 0),
+    "target_tab_index": String(target.targetTabIndex ?? 0),
+    "target_pane_index": String(target.targetPaneIndex ?? 0),
+    "text_length": String(text.count),
+    "text_has_cr": text.contains("\r") ? "1" : "0",
+    "text_has_lf": text.contains("\n") ? "1" : "0",
+    "text_preview": SPTmuxTrace.preview(text),
+    "source_length": sourceText.map { String($0.count) },
+    "source_has_cr": sourceText.map { $0.contains("\r") ? "1" : "0" },
+    "source_has_lf": sourceText.map { $0.contains("\n") ? "1" : "0" },
+    "source_preview": sourceText.map { SPTmuxTrace.preview($0) },
+  ]
+}
+
+private enum SPTmuxTrace {
+  static let enabledKey = "SUPATERM_TMUX_TRACE"
+  static let pathKey = "SUPATERM_TMUX_TRACE_PATH"
+
+  static func write(
+    category: String = "sp.tmux",
+    event: String,
+    fields: [String: String?] = [:],
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) {
+    guard isEnabled(in: environment) else {
+      return
+    }
+
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+    var values: [(String, String)] = [
+      ("ts", formatter.string(from: Date())),
+      ("pid", String(getpid())),
+      ("category", category),
+      ("event", event),
+    ]
+
+    for key in fields.keys.sorted() {
+      if let value = fields[key] ?? nil {
+        values.append((key, value))
+      }
+    }
+
+    let line =
+      values
+      .map { key, value in
+        "\(key)=\"\(escaped(value))\""
+      }
+      .joined(separator: " ")
+      + "\n"
+
+    let path = tracePath(in: environment)
+    guard append(line, to: path) else {
+      FileHandle.standardError.write(Data(line.utf8))
+      return
+    }
+  }
+
+  static func preview(_ text: String, limit: Int = 200) -> String {
+    let escapedText =
+      text
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\r", with: "\\r")
+      .replacingOccurrences(of: "\n", with: "\\n")
+      .replacingOccurrences(of: "\t", with: "\\t")
+    guard escapedText.count > limit else {
+      return escapedText
+    }
+    return String(escapedText.prefix(limit)) + "..."
+  }
+
+  private static func isEnabled(
+    in environment: [String: String]
+  ) -> Bool {
+    guard let rawValue = environment[enabledKey] else {
+      return false
+    }
+    switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "", "0", "false", "no", "off":
+      return false
+    default:
+      return true
+    }
+  }
+
+  private static func tracePath(
+    in environment: [String: String]
+  ) -> String {
+    if let explicitPath = environment[pathKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !explicitPath.isEmpty
+    {
+      return explicitPath
+    }
+    let homePath = environment["HOME"] ?? NSHomeDirectory()
+    return URL(fileURLWithPath: homePath, isDirectory: true)
+      .appendingPathComponent(".supaterm", isDirectory: true)
+      .appendingPathComponent("tmux", isDirectory: true)
+      .appendingPathComponent("trace.log", isDirectory: false)
+      .path
+  }
+
+  private static func escaped(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\"", with: "\\\"")
+      .replacingOccurrences(of: "\r", with: "\\r")
+      .replacingOccurrences(of: "\n", with: "\\n")
+      .replacingOccurrences(of: "\t", with: "\\t")
+  }
+
+  private static func append(_ line: String, to path: String) -> Bool {
+    let fileURL = URL(fileURLWithPath: path, isDirectory: false)
+    do {
+      try FileManager.default.createDirectory(
+        at: fileURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+      )
+    } catch {
+      return false
+    }
+
+    let fileDescriptor = open(path, O_CREAT | O_WRONLY | O_APPEND, S_IRUSR | S_IWUSR)
+    guard fileDescriptor >= 0 else {
+      return false
+    }
+    defer {
+      close(fileDescriptor)
+    }
+
+    let data = Data(line.utf8)
+    return data.withUnsafeBytes { bytes in
+      guard let baseAddress = bytes.baseAddress else {
+        return true
+      }
+
+      var totalBytesWritten = 0
+      while totalBytesWritten < data.count {
+        let bytesRemaining = data.count - totalBytesWritten
+        let writeResult = Darwin.write(
+          fileDescriptor,
+          baseAddress.advanced(by: totalBytesWritten),
+          bytesRemaining
+        )
+        if writeResult < 0 {
+          return false
+        }
+        totalBytesWritten += writeResult
+      }
+
+      return true
+    }
   }
 }
