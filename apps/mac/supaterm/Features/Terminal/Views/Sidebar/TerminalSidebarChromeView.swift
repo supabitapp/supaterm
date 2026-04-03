@@ -1024,7 +1024,7 @@ private struct TerminalSidebarNotificationPopover: View {
         .clipShape(.rect(cornerRadius: cornerRadius))
     }
     .background {
-      TerminalSidebarNotificationPopoverPassthroughView()
+      SidebarPopoverPassthroughView()
     }
     .compositingGroup()
     .clipShape(.rect(cornerRadius: cornerRadius))
@@ -1036,7 +1036,7 @@ private struct TerminalSidebarNotificationPopover: View {
   }
 }
 
-private struct TerminalSidebarNotificationPopoverPassthroughView: NSViewRepresentable {
+private struct SidebarPopoverPassthroughView: NSViewRepresentable {
   func makeNSView(context: Context) -> NSView {
     NSView()
   }
