@@ -12,8 +12,6 @@ public enum SPEntrypoint {
         return
       }
       SP.main()
-    } catch let exit as SPRawExit {
-      Darwin.exit(exit.code)
     } catch {
       FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
       Darwin.exit(EXIT_FAILURE)
