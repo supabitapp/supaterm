@@ -7,21 +7,6 @@ private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
 private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
 
-enum TerminalSidebarNotificationClickDebug {
-  private static var isEnabled: Bool {
-    ProcessInfo.processInfo.environment["SUPATERM_PRINT_SIDEBAR_NOTIFICATION_CLICKS"] == "1"
-  }
-
-  static func log(_ message: @autoclosure () -> String) {
-    guard isEnabled else { return }
-    FileHandle.standardError.write(Data((message() + "\n").utf8))
-  }
-
-  static func tabLabel(id: TerminalTabID, title: String) -> String {
-    "\(title) [\(id.rawValue.uuidString.prefix(8))]"
-  }
-}
-
 struct TerminalSidebarMeasuredTabFrame: Equatable {
   let zoneID: TerminalSidebarDropZoneID
   let scrollFrame: CGRect
@@ -818,11 +803,6 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
-    let tabDescription = TerminalSidebarNotificationClickDebug.tabLabel(
-      id: tab.id,
-      title: tab.title
-    )
-
     Button(action: select) {
       HStack(spacing: 8) {
         let summary = TerminalSidebarTabSummaryView(
@@ -891,14 +871,6 @@ struct TerminalSidebarTabRow: View {
     )
     .onHover { isHovering in
       self.isHovering = isHovering
-      TerminalSidebarNotificationClickDebug.log(
-        "sidebar.row.hover \(tabDescription) hovering=\(isHovering)"
-      )
-    }
-    .onChange(of: showsNotificationPopover) { _, isPresented in
-      TerminalSidebarNotificationClickDebug.log(
-        "sidebar.row.popover \(tabDescription) presented=\(isPresented)"
-      )
     }
     .contextMenu {
       ForEach(
@@ -999,9 +971,6 @@ struct TerminalSidebarTabRow: View {
   }
 
   private func select() {
-    TerminalSidebarNotificationClickDebug.log(
-      "sidebar.row.select \(TerminalSidebarNotificationClickDebug.tabLabel(id: tab.id, title: tab.title))"
-    )
     _ = store.send(.tabSelected(tab.id))
   }
 
@@ -1392,21 +1361,12 @@ private final class SidebarPopoverAnchorView: NSView {
     popover.contentViewController = hostingController
     popover.contentSize = hostingController.view.fittingSize
     self.popover = popover
-
-    TerminalSidebarNotificationClickDebug.log("sidebar.popover.render presented=true")
-
-    if popover.isShown {
-      popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
-    } else {
-      popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
-      TerminalSidebarNotificationClickDebug.log("sidebar.popover.appear")
-    }
+    popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
   }
 
   func closePopover() {
     guard let popover, popover.isShown else { return }
     popover.close()
-    TerminalSidebarNotificationClickDebug.log("sidebar.popover.disappear")
   }
 }
 
