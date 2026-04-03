@@ -12,6 +12,7 @@ struct TerminalWindowsClient: Sendable {
   var createSpace: @MainActor @Sendable (TerminalCreateSpaceRequest) async throws -> SupatermCreateSpaceResult
   var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var equalizePanes: @MainActor @Sendable (TerminalEqualizePanesRequest) async throws -> SupatermEqualizePanesResult
   var notify: @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult
   var focusPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
   var lastPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
@@ -62,6 +63,9 @@ struct TerminalWindowsClient: Sendable {
       },
       createPane: { request in
         try registry.createPane(request)
+      },
+      equalizePanes: { request in
+        try registry.equalizePanes(request)
       },
       notify: { request in
         try registry.notify(request)
@@ -149,6 +153,9 @@ extension TerminalWindowsClient: DependencyKey {
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
+    equalizePanes: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
     notify: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -225,6 +232,9 @@ extension TerminalWindowsClient: DependencyKey {
     },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
+    },
+    equalizePanes: { _ in
+      throw TerminalControlError.contextPaneNotFound
     },
     notify: { _ in
       throw TerminalCreatePaneError.creationFailed

@@ -71,6 +71,10 @@ enum TerminalPaneTarget: Equatable, Sendable {
   case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
 }
 
+struct TerminalEqualizePanesRequest: Equatable, Sendable {
+  let target: TerminalTabTarget
+}
+
 struct TerminalSendTextRequest: Equatable, Sendable {
   let target: TerminalPaneTarget
   let text: String

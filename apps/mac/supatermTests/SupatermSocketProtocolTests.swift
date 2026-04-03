@@ -820,6 +820,14 @@ struct SupatermSocketProtocolTests {
       ),
       id: "create-space-1"
     )
+    let equalizeRequest = try SupatermSocketRequest.equalizePanes(
+      .init(
+        targetWindowIndex: 1,
+        targetSpaceIndex: 2,
+        targetTabIndex: 3
+      ),
+      id: "equalize-panes-1"
+    )
 
     #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
     #expect(
@@ -851,6 +859,15 @@ struct SupatermSocketProtocolTests {
         == .init(
           name: "Build",
           target: .init(targetWindowIndex: 1)
+        )
+    )
+    #expect(equalizeRequest.method == SupatermSocketMethod.terminalEqualizePanes)
+    #expect(
+      try equalizeRequest.decodeParams(SupatermTabTargetRequest.self)
+        == .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3
         )
     )
   }

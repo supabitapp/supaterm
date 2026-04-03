@@ -347,6 +347,13 @@ struct SocketControlFeature {
     terminalWindowsClient: TerminalWindowsClient
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
+    case SupatermSocketMethod.terminalEqualizePanes:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let result = try await terminalWindowsClient.equalizePanes(
+        .init(target: try createTabTarget(from: payload))
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
     case SupatermSocketMethod.terminalSelectTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let result = try await terminalWindowsClient.selectTab(try createTabTarget(from: payload))

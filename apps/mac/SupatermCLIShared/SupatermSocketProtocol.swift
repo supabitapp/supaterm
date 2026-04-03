@@ -12,6 +12,7 @@ public enum SupatermSocketMethod {
   public static let terminalCloseSpace = "terminal.close_space"
   public static let terminalCloseTab = "terminal.close_tab"
   public static let terminalCreateSpace = "terminal.create_space"
+  public static let terminalEqualizePanes = "terminal.equalize_panes"
   public static let terminalFocusPane = "terminal.focus_pane"
   public static let terminalLastPane = "terminal.last_pane"
   public static let terminalLastSpace = "terminal.last_space"
@@ -228,6 +229,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalFocusPane,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func equalizePanes(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalEqualizePanes,
       params: try JSONObject(payload)
     )
   }
@@ -1366,6 +1378,7 @@ public typealias SupatermClosePaneResult = SupatermPaneTarget
 public typealias SupatermCloseSpaceResult = SupatermSpaceTarget
 public typealias SupatermCloseTabResult = SupatermTabTarget
 public typealias SupatermCreateSpaceResult = SupatermSelectSpaceResult
+public typealias SupatermEqualizePanesResult = SupatermTabTarget
 public typealias SupatermResizePaneResult = SupatermPaneTarget
 public typealias SupatermSendTextResult = SupatermPaneTarget
 
