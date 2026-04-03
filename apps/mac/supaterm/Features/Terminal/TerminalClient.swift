@@ -75,6 +75,10 @@ struct TerminalEqualizePanesRequest: Equatable, Sendable {
   let target: TerminalTabTarget
 }
 
+struct TerminalTilePanesRequest: Equatable, Sendable {
+  let target: TerminalTabTarget
+}
+
 struct TerminalSendTextRequest: Equatable, Sendable {
   let target: TerminalPaneTarget
   let text: String
@@ -172,7 +176,8 @@ enum TerminalControlError: Error, Equatable {
 }
 
 struct TerminalClient: Sendable {
-  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var createPane:
+    @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
@@ -186,7 +191,8 @@ struct TerminalClient: Sendable {
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool)
     case navigateSearch(GhosttySearchDirection)
-    case moveSidebarTab(tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
+    case moveSidebarTab(
+      tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
     case nextSpace
     case nextTab
     case performBindingActionOnFocusedSurface(SupatermCommand)

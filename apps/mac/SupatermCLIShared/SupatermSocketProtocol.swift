@@ -30,6 +30,7 @@ public enum SupatermSocketMethod {
   public static let terminalSelectSpace = "terminal.select_space"
   public static let terminalSelectTab = "terminal.select_tab"
   public static let terminalSendText = "terminal.send_text"
+  public static let terminalTilePanes = "terminal.tile_panes"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -240,6 +241,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalEqualizePanes,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func tilePanes(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalTilePanes,
       params: try JSONObject(payload)
     )
   }
@@ -1381,6 +1393,7 @@ public typealias SupatermCreateSpaceResult = SupatermSelectSpaceResult
 public typealias SupatermEqualizePanesResult = SupatermTabTarget
 public typealias SupatermResizePaneResult = SupatermPaneTarget
 public typealias SupatermSendTextResult = SupatermPaneTarget
+public typealias SupatermTilePanesResult = SupatermTabTarget
 
 public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let direction: SupatermPaneDirection

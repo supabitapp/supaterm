@@ -268,13 +268,16 @@ struct SupatermSocketProtocolTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let xdgRuntimeDirectory = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let xdgManagedDirectory = xdgRuntimeDirectory.appendingPathComponent("supaterm", isDirectory: true)
+    let xdgManagedDirectory = xdgRuntimeDirectory.appendingPathComponent(
+      "supaterm", isDirectory: true)
     let tmpDirectory = rootURL.appendingPathComponent("tmp", isDirectory: true)
     let tmpManagedDirectory =
       tmpDirectory
       .appendingPathComponent("supaterm-\(getuid())", isDirectory: true)
-    try FileManager.default.createDirectory(at: xdgManagedDirectory, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: tmpManagedDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: xdgManagedDirectory, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: tmpManagedDirectory, withIntermediateDirectories: true)
 
     let xdgSocketURL = xdgManagedDirectory.appendingPathComponent("xdg.sock", isDirectory: false)
     let tmpSocketURL = tmpManagedDirectory.appendingPathComponent("tmp.sock", isDirectory: false)
@@ -307,7 +310,8 @@ struct SupatermSocketProtocolTests {
       actualDirectory
       .appendingPathComponent("supaterm-\(getuid())", isDirectory: true)
     try FileManager.default.createDirectory(at: managedDirectory, withIntermediateDirectories: true)
-    try FileManager.default.createSymbolicLink(at: symlinkDirectory, withDestinationURL: actualDirectory)
+    try FileManager.default.createSymbolicLink(
+      at: symlinkDirectory, withDestinationURL: actualDirectory)
 
     let socketURL = managedDirectory.appendingPathComponent("control.sock", isDirectory: false)
     try createSocketNode(at: socketURL)
@@ -828,6 +832,14 @@ struct SupatermSocketProtocolTests {
       ),
       id: "equalize-panes-1"
     )
+    let tileRequest = try SupatermSocketRequest.tilePanes(
+      .init(
+        targetWindowIndex: 4,
+        targetSpaceIndex: 5,
+        targetTabIndex: 6
+      ),
+      id: "tile-panes-1"
+    )
 
     #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
     #expect(
@@ -868,6 +880,15 @@ struct SupatermSocketProtocolTests {
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3
+        )
+    )
+    #expect(tileRequest.method == SupatermSocketMethod.terminalTilePanes)
+    #expect(
+      try tileRequest.decodeParams(SupatermTabTargetRequest.self)
+        == .init(
+          targetWindowIndex: 4,
+          targetSpaceIndex: 5,
+          targetTabIndex: 6
         )
     )
   }

@@ -219,7 +219,8 @@ final class TerminalHostState {
 
   func restorationSnapshot() -> TerminalWindowSession {
     let spaces = spaces.map { space in
-      let tabSnapshots = spaceManager.tabs(in: space.id).compactMap { tab -> (TerminalTabID, TerminalTabSession)? in
+      let tabSnapshots = spaceManager.tabs(in: space.id).compactMap {
+        tab -> (TerminalTabID, TerminalTabSession)? in
         guard let session = restorationTabSession(for: tab) else { return nil }
         return (tab.id, session)
       }
@@ -802,7 +803,8 @@ final class TerminalHostState {
   }
 
   private func togglePinned(_ tabID: TerminalTabID) {
-    spaceManager.space(for: tabID).flatMap { spaceManager.tabManager(for: $0.id) }?.togglePinned(tabID)
+    spaceManager.space(for: tabID).flatMap { spaceManager.tabManager(for: $0.id) }?.togglePinned(
+      tabID)
     sessionDidChange()
   }
 
@@ -1401,9 +1403,17 @@ final class TerminalHostState {
     )
   }
 
-  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult
+  {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.equalized()
+    sessionDidChange()
+    return try tabTarget(for: resolvedTarget.tabID)
+  }
+
+  func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
+    let resolvedTarget = try resolveTabTarget(request.target)
+    trees[resolvedTarget.tabID] = resolvedTarget.tree.tiled()
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -1473,7 +1483,8 @@ final class TerminalHostState {
     return try selectSpaceResult(for: allSpaces[nextIndex].id)
   }
 
-  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult
+  {
     let currentSpaceID = try resolvedNavigationSpaceID(request)
     let allSpaces = spaces
     guard
@@ -1572,7 +1583,8 @@ final class TerminalHostState {
     case .space(let windowIndex, let spaceIndex):
       do {
         return try resolveCreateTabTarget(.space(windowIndex: windowIndex, spaceIndex: spaceIndex))
-      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
+      {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1611,7 +1623,8 @@ final class TerminalHostState {
         return try resolveCreatePaneTarget(
           .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
         )
-      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
+      {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1653,7 +1666,9 @@ final class TerminalHostState {
           spaceIndex: spaceIndex,
           tabIndex: tabIndex
         )
-      } catch TerminalCreatePaneError.paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex) {
+      } catch TerminalCreatePaneError.paneNotFound(
+        let windowIndex, let spaceIndex, let tabIndex, let paneIndex)
+      {
         throw TerminalControlError.paneNotFound(
           windowIndex: windowIndex,
           spaceIndex: spaceIndex,
@@ -1676,7 +1691,8 @@ final class TerminalHostState {
             paneIndex: paneIndex
           )
         )
-      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
+      } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex)
+      {
         throw TerminalControlError.spaceNotFound(
           windowIndex: resolvedWindowIndex,
           spaceIndex: resolvedSpaceIndex
@@ -1716,12 +1732,15 @@ final class TerminalHostState {
     }
   }
 
-  private func resolvedNavigationSpaceID(_ request: TerminalSpaceNavigationRequest) throws -> TerminalSpaceID {
+  private func resolvedNavigationSpaceID(_ request: TerminalSpaceNavigationRequest) throws
+    -> TerminalSpaceID
+  {
     if let windowIndex = request.windowIndex, windowIndex != 1 {
       throw TerminalControlError.windowNotFound(windowIndex)
     }
     if let contextPaneID = request.contextPaneID {
-      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID) else {
+      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID)
+      else {
         throw TerminalControlError.contextPaneNotFound
       }
       return space.id
@@ -1732,12 +1751,15 @@ final class TerminalHostState {
     return selectedSpaceID
   }
 
-  private func resolvedNavigationSpaceID(_ request: TerminalTabNavigationRequest) throws -> TerminalSpaceID {
+  private func resolvedNavigationSpaceID(_ request: TerminalTabNavigationRequest) throws
+    -> TerminalSpaceID
+  {
     if let windowIndex = request.windowIndex, windowIndex != 1 {
       throw TerminalControlError.windowNotFound(windowIndex)
     }
     if let contextPaneID = request.contextPaneID {
-      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID) else {
+      guard let tabID = tabID(containing: contextPaneID), let space = spaceManager.space(for: tabID)
+      else {
         throw TerminalControlError.contextPaneNotFound
       }
       return space.id
@@ -1746,11 +1768,13 @@ final class TerminalHostState {
       do {
         return try resolveSpace(windowIndex: request.windowIndex ?? 1, spaceIndex: spaceIndex).id
       } catch TerminalCreatePaneError.spaceNotFound(let windowIndex, let resolvedSpaceIndex) {
-        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: resolvedSpaceIndex)
+        throw TerminalControlError.spaceNotFound(
+          windowIndex: windowIndex, spaceIndex: resolvedSpaceIndex)
       } catch TerminalCreatePaneError.windowNotFound(let windowIndex) {
         throw TerminalControlError.windowNotFound(windowIndex)
       } catch {
-        throw TerminalControlError.spaceNotFound(windowIndex: request.windowIndex ?? 1, spaceIndex: spaceIndex)
+        throw TerminalControlError.spaceNotFound(
+          windowIndex: request.windowIndex ?? 1, spaceIndex: spaceIndex)
       }
     }
     guard let selectedSpaceID else {
@@ -1823,7 +1847,8 @@ final class TerminalHostState {
     in tabID: TerminalTabID
   ) -> (tree: SplitTree<GhosttySurfaceView>, surface: GhosttySurfaceView)? {
     guard let tree = trees[tabID] else { return nil }
-    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID]
+    {
       return (tree, surface)
     }
     guard let surface = tree.root?.leftmostLeaf() else { return nil }
@@ -1889,7 +1914,10 @@ final class TerminalHostState {
   }
 
   private func selectSpaceResult(for spaceID: TerminalSpaceID) throws -> SupatermSelectSpaceResult {
-    guard let tabID = spaceManager.selectedTabID(in: spaceID) ?? spaceManager.tabs(in: spaceID).first?.id else {
+    guard
+      let tabID = spaceManager.selectedTabID(in: spaceID)
+        ?? spaceManager.tabs(in: spaceID).first?.id
+    else {
       throw TerminalControlError.lastSpaceNotFound
     }
     let target = try spaceTarget(for: spaceID)
@@ -2124,7 +2152,9 @@ final class TerminalHostState {
     }
   }
 
-  private func performSplitOperation(_ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID) {
+  private func performSplitOperation(
+    _ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID
+  ) {
     guard var tree = trees[tabID] else { return }
 
     switch operation {
@@ -2406,7 +2436,9 @@ final class TerminalHostState {
 
   private func inheritedSurfaceID(in spaceID: TerminalSpaceID) -> UUID? {
     if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
-      if let focusedSurfaceID = focusedSurfaceIDByTab[selectedTabID], surfaces[focusedSurfaceID] != nil {
+      if let focusedSurfaceID = focusedSurfaceIDByTab[selectedTabID],
+        surfaces[focusedSurfaceID] != nil
+      {
         return focusedSurfaceID
       }
       if let surfaceID = trees[selectedTabID]?.root?.leftmostLeaf().id {
@@ -2503,7 +2535,8 @@ final class TerminalHostState {
       )
 
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
-      let resolvedTab = try resolveTab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      let resolvedTab = try resolveTab(
+        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
       let panes = resolvedTab.tree.leaves()
       let paneOffset = paneIndex - 1
       guard panes.indices.contains(paneOffset) else {
@@ -2523,7 +2556,8 @@ final class TerminalHostState {
       )
 
     case .tab(let windowIndex, let spaceIndex, let tabIndex):
-      let resolvedTab = try resolveTab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      let resolvedTab = try resolveTab(
+        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
       let anchorSurface =
         focusedSurfaceIDByTab[resolvedTab.tabID].flatMap { surfaces[$0] }
         ?? resolvedTab.tree.root?.leftmostLeaf()
@@ -2548,7 +2582,9 @@ final class TerminalHostState {
       return try resolveCreatePaneTarget(.contextPane(paneID))
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       return try resolveCreatePaneTarget(
-        .pane(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+        .pane(
+          windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex
+        )
       )
     case .tab(let windowIndex, let spaceIndex, let tabIndex):
       return try resolveCreatePaneTarget(
@@ -2623,11 +2659,14 @@ final class TerminalHostState {
   }
 
   private func focusSurface(in tabID: TerminalTabID) {
-    if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID), let surface = surfaces[unreadSurfaceID] {
+    if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID),
+      let surface = surfaces[unreadSurfaceID]
+    {
       focusSurface(surface, in: tabID)
       return
     }
-    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID] {
+    if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], let surface = surfaces[focusedSurfaceID]
+    {
       focusSurface(surface, in: tabID)
       return
     }
@@ -3366,7 +3405,9 @@ final class TerminalHostState {
     pwd: (Surface) -> String?
   ) -> String where Surface.ID == UUID {
     let leaves = tree?.leaves() ?? []
-    guard let surface = focusedSurfaceID.flatMap({ id in leaves.first(where: { $0.id == id }) }) ?? leaves.first
+    guard
+      let surface = focusedSurfaceID.flatMap({ id in leaves.first(where: { $0.id == id }) })
+        ?? leaves.first
     else {
       return "Pane"
     }
@@ -3585,7 +3626,8 @@ final class TerminalHostState {
     guard let notification = recentStructuredNotificationsBySurfaceID[surfaceID] else {
       return nil
     }
-    guard Date().timeIntervalSince(notification.recordedAt) <= Self.notificationCoalescingWindow else {
+    guard Date().timeIntervalSince(notification.recordedAt) <= Self.notificationCoalescingWindow
+    else {
       recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
       return nil
     }
@@ -3716,7 +3758,8 @@ final class TerminalHostState {
       return string
     }
     let range = NSRange(string.startIndex..<string.endIndex, in: string)
-    return expression.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: template)
+    return expression.stringByReplacingMatches(
+      in: string, options: [], range: range, withTemplate: template)
   }
 
   private static let genericCompletionNotificationTexts: Set<String> = [
