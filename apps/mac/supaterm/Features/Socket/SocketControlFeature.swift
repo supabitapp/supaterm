@@ -200,8 +200,7 @@ struct SocketControlFeature {
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
       @Shared(.appPrefs) var appPrefs = .default
-      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver
-      {
+      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
@@ -312,6 +311,16 @@ struct SocketControlFeature {
         .init(
           target: try createPaneTarget(from: payload.target),
           text: payload.text
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalSendKey:
+      let payload = try request.decodeParams(SupatermSendKeyRequest.self)
+      let result = try await terminalWindowsClient.sendKey(
+        .init(
+          key: payload.key,
+          target: try createPaneTarget(from: payload.target)
         )
       )
       return try .ok(id: request.id, encodableResult: result)

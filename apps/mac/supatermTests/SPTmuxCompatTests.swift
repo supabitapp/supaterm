@@ -105,4 +105,15 @@ struct SPTmuxCompatTests {
     #expect(tmuxResizeDirection(flags: ["-x"]) == nil)
     #expect(tmuxResizeDirection(flags: ["-y"]) == nil)
   }
+
+  @Test
+  func tmuxSendKeysTextConvertsSpecialKeysToControlCharacters() {
+    #expect(
+      tmuxSendKeysText(
+        from: ["echo hello", "Enter", "c-c", "Space", "tail", "Tab"],
+        literal: false
+      )
+        == "echo hello\r\u{03} tail\t"
+    )
+  }
 }

@@ -270,8 +270,7 @@ final class TerminalWindowRegistry {
     }
   }
 
-  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan
-  {
+  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan {
     let windowIDs = candidates.map(\.windowID)
     guard !windowIDs.isEmpty else { return .noWindows }
     guard candidates.contains(where: \.needsConfirmation) else {
@@ -604,6 +603,41 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func sendKey(_ request: TerminalSendKeyRequest) throws -> SupatermSendKeyResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.sendKey(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalSendKeyRequest(
+        key: request.key,
+        target: .pane(
+          windowIndex: 1,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex,
+          paneIndex: paneIndex
+        )
+      )
+      do {
+        return Self.rewrite(try entry.terminal.sendKey(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   func capturePane(_ request: TerminalCapturePaneRequest) throws -> SupatermCapturePaneResult {
     switch request.target {
     case .contextPane:
@@ -698,8 +732,7 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult
-  {
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
     switch request.target {
     case .contextPane:
       for (offset, entry) in activeEntries().enumerated() {
@@ -914,8 +947,7 @@ final class TerminalWindowRegistry {
     return try Self.rewrite(entry.terminal.nextSpace(request), windowIndex: 1)
   }
 
-  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult
-  {
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
     if request.contextPaneID != nil && request.windowIndex == nil {
       for (offset, entry) in activeEntries().enumerated() {
         do {
@@ -1075,8 +1107,7 @@ final class TerminalWindowRegistry {
     }
   }
 
-  private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult
-  {
+  private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     for (offset, entry) in activeEntries().enumerated() {
       do {
         let result = try entry.terminal.createTab(request)

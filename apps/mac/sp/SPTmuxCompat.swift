@@ -828,28 +828,24 @@ private struct SPTmuxCommandRunner {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: ["-l"])
     let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
     let text = tmuxSendKeysText(from: parsed.positional, literal: parsed.hasFlag("-l"))
-    if text.isEmpty {
+    guard !text.isEmpty else {
       return
     }
+    let target = SupatermPaneTargetRequest(
+      targetWindowIndex: targetPane.window.index,
+      targetSpaceIndex: targetPane.space.index,
+      targetTabIndex: targetPane.tab.index,
+      targetPaneIndex: targetPane.pane.index
+    )
     traceSendText(
-      event: "send_keys",
-      target: .init(
-        targetWindowIndex: targetPane.window.index,
-        targetSpaceIndex: targetPane.space.index,
-        targetTabIndex: targetPane.tab.index,
-        targetPaneIndex: targetPane.pane.index
-      ),
+      event: "send_keys_text",
+      target: target,
       text: text
     )
     _ = try send(
       .sendText(
         .init(
-          target: .init(
-            targetWindowIndex: targetPane.window.index,
-            targetSpaceIndex: targetPane.space.index,
-            targetTabIndex: targetPane.tab.index,
-            targetPaneIndex: targetPane.pane.index
-          ),
+          target: target,
           text: text
         )
       ),
@@ -2061,7 +2057,7 @@ func tmuxResizeDirection(flags: Set<String>) -> SupatermResizePaneDirection? {
   return nil
 }
 
-private func tmuxSpecialKeyText(_ token: String) -> String? {
+func tmuxSpecialKeyText(_ token: String) -> String? {
   switch token.lowercased() {
   case "enter", "c-m", "kpenter":
     return "\r"
@@ -2070,23 +2066,23 @@ private func tmuxSpecialKeyText(_ token: String) -> String? {
   case "space":
     return " "
   case "bspace", "backspace":
-    return "\u{7f}"
+    return "\u{7F}"
   case "escape", "esc", "c-[":
-    return "\u{1b}"
+    return "\u{1B}"
   case "c-c":
     return "\u{03}"
   case "c-d":
     return "\u{04}"
   case "c-z":
-    return "\u{1a}"
+    return "\u{1A}"
   case "c-l":
-    return "\u{0c}"
+    return "\u{0C}"
   default:
     return nil
   }
 }
 
-private func tmuxSendKeysText(
+func tmuxSendKeysText(
   from tokens: [String],
   literal: Bool
 ) -> String {
@@ -2094,21 +2090,21 @@ private func tmuxSendKeysText(
     return tokens.joined(separator: " ")
   }
 
-  var result = ""
+  var text = ""
   var pendingSpace = false
   for token in tokens {
     if let special = tmuxSpecialKeyText(token) {
-      result += special
+      text += special
       pendingSpace = false
       continue
     }
     if pendingSpace {
-      result += " "
+      text += " "
     }
-    result += token
+    text += token
     pendingSpace = true
   }
-  return result
+  return text
 }
 
 private func parsedTargetValue(_ arguments: [String]) -> String? {

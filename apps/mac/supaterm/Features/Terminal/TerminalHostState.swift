@@ -1363,6 +1363,26 @@ final class TerminalHostState {
     )
   }
 
+  func sendKey(_ request: TerminalSendKeyRequest) throws -> SupatermSendKeyResult {
+    let resolvedTarget = try resolvePaneTarget(request.target)
+    TerminalControlTrace.write(
+      event: "send_key",
+      fields: [
+        "key": request.key.rawValue,
+        "space_id": resolvedTarget.spaceID.rawValue.uuidString.lowercased(),
+        "tab_id": resolvedTarget.tabID.rawValue.uuidString.lowercased(),
+        "surface_id": resolvedTarget.anchorSurface.id.uuidString.lowercased(),
+      ]
+    )
+    resolvedTarget.anchorSurface.bridge.sendKey(request.key)
+    return try paneTarget(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: resolvedTarget.tree
+    )
+  }
+
   func capturePane(_ request: TerminalCapturePaneRequest) throws -> SupatermCapturePaneResult {
     let resolvedTarget = try resolvePaneTarget(request.target)
     guard

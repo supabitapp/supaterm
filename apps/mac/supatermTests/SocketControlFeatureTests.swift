@@ -874,16 +874,15 @@ struct SocketControlFeatureTests {
       await store.send(.requestReceived(request))
 
       let records = await recorder.snapshot()
+      let expectedNotification = DesktopNotification(
+        body: "Claude needs your attention",
+        subtitle: "Needs input",
+        title: "Claude Code"
+      )
       #expect(records.count == 1)
       #expect(records.first?.handle == handle)
       #expect(records.first?.response == .ok(id: "agent-hook-1"))
-      #expect(
-        await desktopNotificationRecorder.snapshot()
-          == [
-            .init(
-              body: "Claude needs your attention", subtitle: "Needs input", title: "Claude Code")
-          ]
-      )
+      #expect(await desktopNotificationRecorder.snapshot() == [expectedNotification])
     }
   }
 
@@ -1349,6 +1348,69 @@ struct SocketControlFeatureTests {
     #expect(records.count == 1)
     #expect(records.first?.handle == handle)
     #expect(try records.first?.response.decodeResult(SupatermTabTarget.self) == result)
+  }
+
+  @Test
+  func sendKeyRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "5D6996B2-28D4-4B30-9CDB-F18FD939E7B2")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .sendKey(
+        .init(
+          key: .enter,
+          target: .init(
+            targetWindowIndex: 1,
+            targetSpaceIndex: 2,
+            targetTabIndex: 3,
+            targetPaneIndex: 4
+          )
+        ),
+        id: "send-key-1"
+      )
+    )
+    let result = SupatermPaneTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+      displayTitle: "fish",
+      isFocused: false,
+      isSelectedTab: true
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.sendKey = { request in
+        #expect(
+          request
+            == .init(
+              key: .enter,
+              target: .pane(
+                windowIndex: 1,
+                spaceIndex: 2,
+                tabIndex: 3,
+                paneIndex: 4
+              )
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermPaneTarget.self) == result)
   }
 
   @Test

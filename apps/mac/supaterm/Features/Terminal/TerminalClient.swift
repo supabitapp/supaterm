@@ -84,6 +84,11 @@ struct TerminalSendTextRequest: Equatable, Sendable {
   let text: String
 }
 
+struct TerminalSendKeyRequest: Equatable, Sendable {
+  let key: SupatermInputKey
+  let target: TerminalPaneTarget
+}
+
 struct TerminalCapturePaneRequest: Equatable, Sendable {
   let lines: Int?
   let scope: SupatermCapturePaneScope
@@ -176,8 +181,7 @@ enum TerminalControlError: Error, Equatable {
 }
 
 struct TerminalClient: Sendable {
-  var createPane:
-    @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot

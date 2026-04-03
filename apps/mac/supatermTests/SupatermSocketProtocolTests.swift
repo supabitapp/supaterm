@@ -778,7 +778,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func terminalControlRequestsRoundTripThroughTypedHelpers() throws {
+  func paneControlRequestsRoundTripThroughTypedHelpers() throws {
     let paneTarget = SupatermPaneTarget(
       windowIndex: 1,
       spaceIndex: 2,
@@ -817,29 +817,6 @@ struct SupatermSocketProtocolTests {
       ),
       id: "send-text-1"
     )
-    let createSpaceRequest = try SupatermSocketRequest.createSpace(
-      .init(
-        name: "Build",
-        target: .init(targetWindowIndex: 1)
-      ),
-      id: "create-space-1"
-    )
-    let equalizeRequest = try SupatermSocketRequest.equalizePanes(
-      .init(
-        targetWindowIndex: 1,
-        targetSpaceIndex: 2,
-        targetTabIndex: 3
-      ),
-      id: "equalize-panes-1"
-    )
-    let tileRequest = try SupatermSocketRequest.tilePanes(
-      .init(
-        targetWindowIndex: 4,
-        targetSpaceIndex: 5,
-        targetTabIndex: 6
-      ),
-      id: "tile-panes-1"
-    )
 
     #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
     #expect(
@@ -865,6 +842,34 @@ struct SupatermSocketProtocolTests {
           text: "echo hello\n"
         )
     )
+  }
+
+  @Test
+  func spaceAndLayoutRequestsRoundTripThroughTypedHelpers() throws {
+    let createSpaceRequest = try SupatermSocketRequest.createSpace(
+      .init(
+        name: "Build",
+        target: .init(targetWindowIndex: 1)
+      ),
+      id: "create-space-1"
+    )
+    let equalizeRequest = try SupatermSocketRequest.equalizePanes(
+      .init(
+        targetWindowIndex: 1,
+        targetSpaceIndex: 2,
+        targetTabIndex: 3
+      ),
+      id: "equalize-panes-1"
+    )
+    let tileRequest = try SupatermSocketRequest.tilePanes(
+      .init(
+        targetWindowIndex: 4,
+        targetSpaceIndex: 5,
+        targetTabIndex: 6
+      ),
+      id: "tile-panes-1"
+    )
+
     #expect(createSpaceRequest.method == SupatermSocketMethod.terminalCreateSpace)
     #expect(
       try createSpaceRequest.decodeParams(SupatermCreateSpaceRequest.self)
@@ -889,6 +894,36 @@ struct SupatermSocketProtocolTests {
           targetWindowIndex: 4,
           targetSpaceIndex: 5,
           targetTabIndex: 6
+        )
+    )
+  }
+
+  @Test
+  func sendKeyRequestRoundTripsThroughTypedHelper() throws {
+    let request = try SupatermSocketRequest.sendKey(
+      .init(
+        key: .enter,
+        target: .init(
+          targetWindowIndex: 7,
+          targetSpaceIndex: 8,
+          targetTabIndex: 9,
+          targetPaneIndex: 10
+        )
+      ),
+      id: "send-key-1"
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalSendKey)
+    #expect(
+      try request.decodeParams(SupatermSendKeyRequest.self)
+        == .init(
+          key: .enter,
+          target: .init(
+            targetWindowIndex: 7,
+            targetSpaceIndex: 8,
+            targetTabIndex: 9,
+            targetPaneIndex: 10
+          )
         )
     )
   }
