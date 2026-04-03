@@ -777,7 +777,6 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
-  private let closeButtonReservedWidth: CGFloat = 28
 
   static func contextMenuItems(
     isPinned: Bool,
@@ -880,29 +879,16 @@ struct TerminalSidebarTabRow: View {
     }
     .buttonStyle(.plain)
     .animation(rowAnimation, value: animatedPresentation)
-    .popover(
-      isPresented: notificationPopoverPresented,
-      attachmentAnchor: .rect(.bounds),
-      arrowEdge: .leading
-    ) {
-      if let notificationMarkdown {
-        TerminalSidebarNotificationPopover(
-          palette: palette,
-          markdown: notificationMarkdown
-        )
-      }
+    .background {
+      SidebarPopoverPresenter(
+        isPresented: showsNotificationPopover,
+        palette: palette,
+        markdown: notificationMarkdown
+      )
     }
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
-    .overlay {
-      TerminalSidebarPrimaryClickBridgeView(
-        isEnabled: showsNotificationPopover && !isSelected,
-        excludedTrailingWidth: closeButtonReservedWidth,
-        tabDescription: tabDescription,
-        action: select
-      )
-    }
     .onHover { isHovering in
       self.isHovering = isHovering
       TerminalSidebarNotificationClickDebug.log(
@@ -1008,15 +994,8 @@ struct TerminalSidebarTabRow: View {
     notificationPresentation?.markdown
   }
 
-  private var notificationPopoverPresented: Binding<Bool> {
-    Binding(
-      get: { isHovering && notificationMarkdown != nil },
-      set: { _ in }
-    )
-  }
-
   private var showsNotificationPopover: Bool {
-    notificationPopoverPresented.wrappedValue
+    isHovering && notificationMarkdown != nil
   }
 
   private func select() {
@@ -1067,15 +1046,6 @@ private struct TerminalSidebarNotificationPopover: View {
       BlurEffectView(material: .popover, blendingMode: .withinWindow)
         .clipShape(.rect(cornerRadius: cornerRadius))
     }
-    .background {
-      SidebarPopoverPassthroughView()
-    }
-    .onAppear {
-      TerminalSidebarNotificationClickDebug.log("sidebar.popover.appear")
-    }
-    .onDisappear {
-      TerminalSidebarNotificationClickDebug.log("sidebar.popover.disappear")
-    }
     .compositingGroup()
     .clipShape(.rect(cornerRadius: cornerRadius))
     .overlay {
@@ -1083,28 +1053,6 @@ private struct TerminalSidebarNotificationPopover: View {
         .stroke(palette.detailStroke, lineWidth: 0.5)
     }
     .shadow(color: palette.shadow, radius: 18, y: 10)
-  }
-}
-
-private struct SidebarPopoverPassthroughView: NSViewRepresentable {
-  func makeNSView(context: Context) -> NSView {
-    NSView()
-  }
-
-  func updateNSView(_ nsView: NSView, context: Context) {
-    DispatchQueue.main.async {
-      nsView.window?.ignoresMouseEvents = true
-      if let window = nsView.window {
-        let windowClass = NSStringFromClass(type(of: window))
-        TerminalSidebarNotificationClickDebug.log(
-          "sidebar.popover.window num=\(window.windowNumber) class=\(windowClass) ignore=\(window.ignoresMouseEvents)"
-        )
-      }
-    }
-  }
-
-  static func dismantleNSView(_ nsView: NSView, coordinator: ()) {
-    nsView.window?.ignoresMouseEvents = false
   }
 }
 
@@ -1369,101 +1317,96 @@ private final class TerminalSidebarMiddleClickNSView: NSView {
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-enum TerminalSidebarPrimaryClickBridge {
-  static func clickableBounds(
-    for bounds: CGRect,
-    excludedTrailingWidth: CGFloat
-  ) -> CGRect {
-    CGRect(
-      x: bounds.minX,
-      y: bounds.minY,
-      width: max(0, bounds.width - excludedTrailingWidth),
-      height: bounds.height
-    )
-  }
-}
+private struct SidebarPopoverPresenter: NSViewRepresentable {
+  let isPresented: Bool
+  let palette: TerminalPalette
+  let markdown: String?
 
-private struct TerminalSidebarPrimaryClickBridgeView: NSViewRepresentable {
-  let isEnabled: Bool
-  let excludedTrailingWidth: CGFloat
-  let tabDescription: String
-  let action: () -> Void
-
-  func makeNSView(context: Context) -> TerminalSidebarPrimaryClickBridgeNSView {
-    let view = TerminalSidebarPrimaryClickBridgeNSView()
+  func makeNSView(context: Context) -> SidebarPopoverAnchorView {
+    let view = SidebarPopoverAnchorView()
     update(view)
     return view
   }
 
-  func updateNSView(_ nsView: TerminalSidebarPrimaryClickBridgeNSView, context: Context) {
+  func updateNSView(_ nsView: SidebarPopoverAnchorView, context: Context) {
     update(nsView)
   }
 
   static func dismantleNSView(
-    _ nsView: TerminalSidebarPrimaryClickBridgeNSView,
+    _ nsView: SidebarPopoverAnchorView,
     coordinator: ()
   ) {
-    nsView.stopMonitoring()
+    nsView.closePopover()
   }
 
-  private func update(_ view: TerminalSidebarPrimaryClickBridgeNSView) {
-    view.isEnabled = isEnabled
-    view.excludedTrailingWidth = excludedTrailingWidth
-    view.tabDescription = tabDescription
-    view.action = action
-    view.startMonitoring()
+  private func update(_ view: SidebarPopoverAnchorView) {
+    view.render(
+      isPresented: isPresented,
+      palette: palette,
+      markdown: markdown
+    )
   }
 }
 
-private final class TerminalSidebarPrimaryClickBridgeNSView: NSView {
-  var isEnabled = false
-  var excludedTrailingWidth: CGFloat = 0
-  var tabDescription = ""
-  var action: () -> Void = {}
-  private var localMonitor: Any?
-
-  override var isFlipped: Bool { true }
+private final class SidebarPopoverAnchorView: NSView {
+  private var hostingController: NSHostingController<TerminalSidebarNotificationPopover>?
+  private var popover: NSPopover?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     nil
   }
 
-  func startMonitoring() {
-    guard localMonitor == nil else { return }
-    localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
-      self?.handle(event)
-      return event
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window == nil {
+      closePopover()
     }
   }
 
-  func stopMonitoring() {
-    if let localMonitor {
-      NSEvent.removeMonitor(localMonitor)
+  func render(
+    isPresented: Bool,
+    palette: TerminalPalette,
+    markdown: String?
+  ) {
+    guard isPresented, let markdown, window != nil else {
+      closePopover()
+      return
     }
-    localMonitor = nil
-  }
 
-  override func viewWillMove(toWindow newWindow: NSWindow?) {
-    if newWindow == nil {
-      stopMonitoring()
-    }
-    super.viewWillMove(toWindow: newWindow)
-  }
-
-  private func handle(_ event: NSEvent) {
-    guard isEnabled, let window else { return }
-    let clickableBounds = TerminalSidebarPrimaryClickBridge.clickableBounds(
-      for: bounds,
-      excludedTrailingWidth: excludedTrailingWidth
+    let content = TerminalSidebarNotificationPopover(
+      palette: palette,
+      markdown: markdown
     )
-    let clickableFrame = window.convertToScreen(convert(clickableBounds, to: nil))
-    let mouseLocation = NSEvent.mouseLocation
-    guard clickableFrame.contains(mouseLocation) else { return }
-    let windowClass = event.window.map { NSStringFromClass(type(of: $0)) } ?? "nil"
-    TerminalSidebarNotificationClickDebug.log(
-      "sidebar.row.bridge \(tabDescription) window=\(windowClass) location=\(mouseLocation)"
-    )
-    action()
+
+    if let hostingController {
+      hostingController.rootView = content
+    } else {
+      hostingController = NSHostingController(rootView: content)
+    }
+
+    guard let hostingController else { return }
+    hostingController.view.layoutSubtreeIfNeeded()
+
+    let popover = self.popover ?? NSPopover()
+    popover.behavior = .applicationDefined
+    popover.contentViewController = hostingController
+    popover.contentSize = hostingController.view.fittingSize
+    self.popover = popover
+
+    TerminalSidebarNotificationClickDebug.log("sidebar.popover.render presented=true")
+
+    if popover.isShown {
+      popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
+    } else {
+      popover.show(relativeTo: bounds, of: self, preferredEdge: .maxX)
+      TerminalSidebarNotificationClickDebug.log("sidebar.popover.appear")
+    }
+  }
+
+  func closePopover() {
+    guard let popover, popover.isShown else { return }
+    popover.close()
+    TerminalSidebarNotificationClickDebug.log("sidebar.popover.disappear")
   }
 }
 
