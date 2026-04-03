@@ -53,10 +53,6 @@ extension SP {
   }
 }
 
-struct SPRawExit: Error {
-  let code: Int32
-}
-
 struct SPRawConnectionOptions: Equatable {
   let explicitSocketPath: String?
   let instance: String?
@@ -184,17 +180,7 @@ enum SPTeammateLauncher {
       focusedContext: focusedContext,
       environment: environment
     )
-    try launcher.run()
-    launcher.waitUntilExit()
-
-    switch launcher.terminationReason {
-    case .exit:
-      throw SPRawExit(code: launcher.terminationStatus)
-    case .uncaughtSignal:
-      throw SPRawExit(code: 128 + launcher.terminationStatus)
-    @unknown default:
-      throw SPRawExit(code: EXIT_FAILURE)
-    }
+    try execProcess(launcher)
   }
 
   static func configuredProcess(
@@ -304,6 +290,47 @@ enum SPTeammateLauncher {
     }
     return directoryURL
   }
+}
+
+private func execProcess(_ process: Process) throws -> Never {
+  guard let executablePath = process.executableURL?.path else {
+    throw ValidationError("Unable to resolve the Claude executable path.")
+  }
+
+  let arguments = [executablePath] + (process.arguments ?? [])
+  let environment = process.environment ?? ProcessInfo.processInfo.environment
+  let argv = makeCStringArray(arguments)
+  let envp = makeCStringArray(
+    environment.keys.sorted().map { key in
+      "\(key)=\(environment[key] ?? "")"
+    }
+  )
+  defer {
+    freeCStringArray(argv)
+    freeCStringArray(envp)
+  }
+
+  execve(executablePath, argv, envp)
+  let message = String(cString: strerror(errno))
+  throw ValidationError("Failed to launch Claude: \(message)")
+}
+
+private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> {
+  let pointer = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: values.count + 1)
+  for (index, value) in values.enumerated() {
+    pointer[index] = strdup(value)
+  }
+  pointer[values.count] = nil
+  return pointer
+}
+
+private func freeCStringArray(_ pointer: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>) {
+  var index = 0
+  while let value = pointer[index] {
+    free(value)
+    index += 1
+  }
+  pointer.deallocate()
 }
 
 private struct SPTmuxCommandRunner {
