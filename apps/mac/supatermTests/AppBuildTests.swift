@@ -5,8 +5,17 @@ import Testing
 
 struct AppBuildTests {
   @Test
-  func backgroundUpdateCheckOnLaunchIsAlwaysEnabled() {
-    #expect(AppBuild.allowsBackgroundUpdateCheckOnLaunch)
+  func developmentBuildMatchesBuildConfiguration() {
+    #if DEBUG
+      #expect(AppBuild.isDevelopmentBuild)
+    #else
+      #expect(
+        AppBuild.isDevelopmentBuild
+          == AppBuild.isDevelopmentFlag(
+            Bundle.main.object(forInfoDictionaryKey: "SupatermDevelopmentBuild")
+          )
+      )
+    #endif
   }
 
   @Test
