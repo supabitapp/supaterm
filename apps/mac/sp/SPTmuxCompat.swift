@@ -210,9 +210,12 @@ enum SPTeammateLauncher {
 
     var processEnvironment = environment
     processEnvironment[SupatermCLIEnvironment.socketPathKey] = socketPath
+    processEnvironment[SupatermCLIEnvironment.surfaceIDKey] = focusedContext.paneID.uuidString
+    processEnvironment[SupatermCLIEnvironment.tabIDKey] = focusedContext.tabID.uuidString
     processEnvironment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
     processEnvironment["TERM"] = "screen-256color"
-    processEnvironment["TMUX"] = "/tmp/sp-tmux/\(focusedContext.spaceID.uuidString.lowercased()),\(focusedContext.tabID.uuidString.lowercased()),\(focusedContext.paneID.uuidString.lowercased())"
+    processEnvironment["TMUX"] =
+      "/tmp/sp-tmux/\(focusedContext.spaceID.uuidString.lowercased()),\(focusedContext.tabID.uuidString.lowercased()),\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["TMUX_PANE"] = "%\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["PATH"] = prependPathEntries([shimDirectory.path], to: environment["PATH"])
     processEnvironment.removeValue(forKey: "TERM_PROGRAM")
@@ -315,8 +318,11 @@ private func execProcess(_ process: Process) throws -> Never {
   throw ValidationError("Failed to launch Claude: \(message)")
 }
 
-private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> {
-  let pointer = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: values.count + 1)
+private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<
+  UnsafeMutablePointer<CChar>?
+> {
+  let pointer = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(
+    capacity: values.count + 1)
   for (index, value) in values.enumerated() {
     pointer[index] = strdup(value)
   }
@@ -426,7 +432,8 @@ private struct SPTmuxCommandRunner {
     case "select-layout":
       try runSelectLayout(rawArguments)
 
-    case "set-option", "set", "set-window-option", "setw", "source-file", "refresh-client", "attach-session", "detach-client":
+    case "set-option", "set", "set-window-option", "setw", "source-file", "refresh-client",
+      "attach-session", "detach-client":
       return
 
     default:
@@ -469,7 +476,8 @@ private struct SPTmuxCommandRunner {
     )
 
     if let name = parsed.value("-n") ?? parsed.value("-s"),
-       let trimmedName = trimmedNonEmpty(name) {
+      let trimmedName = trimmedNonEmpty(name)
+    {
       _ = try send(
         .renameSpace(
           .init(
@@ -674,7 +682,8 @@ private struct SPTmuxCommandRunner {
   }
 
   private func runSelectPane(_ arguments: [String]) throws {
-    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-P", "-T", "-t"], boolFlags: [])
+    let parsed = try SPTmuxArgumentParser.parse(
+      arguments, valueFlags: ["-P", "-T", "-t"], boolFlags: [])
     if parsed.value("-P") != nil || parsed.value("-T") != nil {
       return
     }
@@ -785,9 +794,11 @@ private struct SPTmuxCommandRunner {
   }
 
   private func runDisplayMessage(_ arguments: [String]) throws {
-    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-F", "-t"], boolFlags: ["-p"])
+    let parsed = try SPTmuxArgumentParser.parse(
+      arguments, valueFlags: ["-F", "-t"], boolFlags: ["-p"])
     let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
-    let format = parsed.positional.isEmpty ? parsed.value("-F") : parsed.positional.joined(separator: " ")
+    let format =
+      parsed.positional.isEmpty ? parsed.value("-F") : parsed.positional.joined(separator: " ")
     let rendered = renderFormat(format, context: formatContext(for: targetPane), fallback: "")
     if parsed.hasFlag("-p") || !rendered.isEmpty {
       print(rendered)
@@ -827,7 +838,8 @@ private struct SPTmuxCommandRunner {
 
   private func runRenameWindow(_ arguments: [String]) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: [])
-    let title = parsed.positional.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    let title = parsed.positional.joined(separator: " ").trimmingCharacters(
+      in: .whitespacesAndNewlines)
     guard !title.isEmpty else {
       throw ValidationError("rename-window requires a title.")
     }
@@ -853,17 +865,10 @@ private struct SPTmuxCommandRunner {
       valueFlags: ["-t", "-x", "-y"],
       boolFlags: ["-D", "-L", "-R", "-U"]
     )
+    guard let direction = tmuxResizeDirection(flags: parsed.flags) else {
+      return
+    }
     let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
-    let direction: SupatermResizePaneDirection =
-      if parsed.hasFlag("-L") {
-        .left
-      } else if parsed.hasFlag("-U") {
-        .up
-      } else if parsed.hasFlag("-D") {
-        .down
-      } else {
-        .right
-      }
     let rawAmount = (parsed.value("-x") ?? parsed.value("-y") ?? "5")
       .replacingOccurrences(of: "%", with: "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -911,7 +916,8 @@ private struct SPTmuxCommandRunner {
     }
     let signalURL = tmuxWaitForSignalURL(name: name)
     if parsed.hasFlag("-S") || parsed.hasFlag("--signal") {
-      try FileManager.default.createDirectory(at: signalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(
+        at: signalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
       FileManager.default.createFile(atPath: signalURL.path, contents: Data())
       print("OK")
       return
@@ -976,9 +982,11 @@ private struct SPTmuxCommandRunner {
   }
 
   private func runSetBuffer(_ arguments: [String]) throws {
-    let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-b", "--name"], boolFlags: [])
+    let parsed = try SPTmuxArgumentParser.parse(
+      arguments, valueFlags: ["-b", "--name"], boolFlags: [])
     let name = parsed.value("-b") ?? parsed.value("--name") ?? "default"
-    let content = parsed.positional.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    let content = parsed.positional.joined(separator: " ").trimmingCharacters(
+      in: .whitespacesAndNewlines)
     guard !content.isEmpty else {
       throw ValidationError("set-buffer requires text.")
     }
@@ -1102,7 +1110,8 @@ private struct SPTmuxCommandRunner {
     guard let event = parsed.positional.first.flatMap(trimmedNonEmpty) else {
       throw ValidationError("set-hook requires <event> <command>.")
     }
-    let commandText = parsed.positional.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    let commandText = parsed.positional.dropFirst().joined(separator: " ").trimmingCharacters(
+      in: .whitespacesAndNewlines)
     guard !commandText.isEmpty else {
       throw ValidationError("set-hook requires <event> <command>.")
     }
@@ -1326,13 +1335,15 @@ private struct SPTmuxTopology {
       return
     }
     if let paneID = snapshot.currentTarget?.paneID,
-       let located = Self.locatePane(id: paneID, in: snapshot) {
+      let located = Self.locatePane(id: paneID, in: snapshot)
+    {
       self.current = located
       return
     }
     if let currentTarget = snapshot.currentTarget,
-       let located = Self.locateTab(id: currentTarget.tabID, in: snapshot),
-       let pane = located.tab.panes.first(where: \.isFocused) ?? located.tab.panes.first {
+      let located = Self.locateTab(id: currentTarget.tabID, in: snapshot),
+      let pane = located.tab.panes.first(where: \.isFocused) ?? located.tab.panes.first
+    {
       self.current = .init(
         window: located.window,
         space: located.space,
@@ -1357,7 +1368,9 @@ private struct SPTmuxTopology {
       return .init(window: current.window, space: current.space)
     }
     let sessionToken = sessionSelector(from: token) ?? token
-    if let location = locateSpace(selector: sessionToken, preferredWindowIndex: current.window.index) {
+    if let location = locateSpace(
+      selector: sessionToken, preferredWindowIndex: current.window.index)
+    {
       return location
     }
     throw ValidationError("Space target not found: \(token).")
@@ -1369,8 +1382,9 @@ private struct SPTmuxTopology {
     }
 
     if token.hasPrefix("%"),
-       let id = normalizedUUIDToken(String(token.dropFirst())),
-       let location = Self.locatePane(id: id, in: snapshot) {
+      let id = normalizedUUIDToken(String(token.dropFirst())),
+      let location = Self.locatePane(id: id, in: snapshot)
+    {
       return .init(window: location.window, space: location.space, tab: location.tab)
     }
 
@@ -1460,7 +1474,8 @@ private struct SPTmuxTopology {
     preferredWindowIndex: Int
   ) -> SpaceLocation? {
     if let id = normalizedUUIDToken(selector),
-       let space = Self.locateSpace(id: id, in: snapshot) {
+      let space = Self.locateSpace(id: id, in: snapshot)
+    {
       return space
     }
 
@@ -1501,7 +1516,8 @@ private struct SPTmuxTopology {
     }
 
     if let index = Int(strippingTabPrefix(selector)),
-       let tab = space.space.tabs.first(where: { $0.index == index }) {
+      let tab = space.space.tabs.first(where: { $0.index == index })
+    {
       return .init(window: space.window, space: space.space, tab: tab)
     }
 
@@ -1523,7 +1539,8 @@ private struct SPTmuxTopology {
     }
 
     if let index = Int(selector),
-       let pane = tab.tab.panes.first(where: { $0.index == index }) {
+      let pane = tab.tab.panes.first(where: { $0.index == index })
+    {
       return .init(window: tab.window, space: tab.space, tab: tab.tab, pane: pane)
     }
 
@@ -1561,7 +1578,9 @@ private struct SPTmuxTopology {
     return trimmedNonEmpty(session)
   }
 
-  private func splitSpaceAndTab(_ raw: String) -> (raw: String, spaceSelector: String?, tabSelector: String?) {
+  private func splitSpaceAndTab(_ raw: String) -> (
+    raw: String, spaceSelector: String?, tabSelector: String?
+  ) {
     let withoutPane: String =
       if let dotIndex = raw.lastIndex(of: ".") {
         String(raw[..<dotIndex])
@@ -1728,7 +1747,8 @@ private func normalizedConnectionEqualsValue(
   _ argument: String,
   flag: String
 ) throws -> String {
-  let value = String(argument.dropFirst(flag.count + 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+  let value = String(argument.dropFirst(flag.count + 1)).trimmingCharacters(
+    in: .whitespacesAndNewlines)
   guard !value.isEmpty else {
     throw ValidationError("\(flag) requires a value.")
   }
@@ -1763,7 +1783,9 @@ private func trimmedNonEmpty(_ value: String?) -> String? {
   return trimmed.isEmpty ? nil : trimmed
 }
 
-private func splitTmuxCommand(_ arguments: [String]) throws -> (command: String, arguments: [String]) {
+private func splitTmuxCommand(_ arguments: [String]) throws -> (
+  command: String, arguments: [String]
+) {
   var index = 0
   let globalValueFlags: Set<String> = ["-L", "-S", "-f"]
 
@@ -1797,7 +1819,8 @@ private func teammateLaunchArguments(commandArgs: [String]) -> [String] {
 private func prependPathEntries(_ newEntries: [String], to currentPath: String?) -> String {
   var ordered: [String] = []
   var seen = Set<String>()
-  for entry in newEntries + (currentPath?.split(separator: ":").map(String.init) ?? []) where !entry.isEmpty {
+  for entry in newEntries + (currentPath?.split(separator: ":").map(String.init) ?? [])
+  where !entry.isEmpty {
     if seen.insert(entry).inserted {
       ordered.append(entry)
     }
@@ -1814,7 +1837,8 @@ private func tmuxShellCommandText(
   cwd: String?
 ) -> String? {
   let trimmedCwd = cwd.flatMap(trimmedNonEmpty)
-  let commandText = commandTokens.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+  let commandText = commandTokens.joined(separator: " ").trimmingCharacters(
+    in: .whitespacesAndNewlines)
   guard trimmedCwd != nil || !commandText.isEmpty else {
     return nil
   }
@@ -1827,6 +1851,22 @@ private func tmuxShellCommandText(
     pieces.append(commandText)
   }
   return pieces.joined(separator: " && ") + "\r"
+}
+
+func tmuxResizeDirection(flags: Set<String>) -> SupatermResizePaneDirection? {
+  if flags.contains("-L") {
+    return .left
+  }
+  if flags.contains("-U") {
+    return .up
+  }
+  if flags.contains("-D") {
+    return .down
+  }
+  if flags.contains("-R") {
+    return .right
+  }
+  return nil
 }
 
 private func tmuxSpecialKeyText(_ token: String) -> String? {

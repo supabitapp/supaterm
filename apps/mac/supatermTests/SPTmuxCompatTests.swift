@@ -32,7 +32,9 @@ struct SPTmuxCompatTests {
         == ["--teammate-mode", "auto", "--resume"]
     )
     #expect(
-      SPTeammateLauncher.teammateLaunchArguments(commandArgs: ["--teammate-mode", "manual", "--resume"])
+      SPTeammateLauncher.teammateLaunchArguments(commandArgs: [
+        "--teammate-mode", "manual", "--resume",
+      ])
         == ["--teammate-mode", "manual", "--resume"]
     )
   }
@@ -83,11 +85,24 @@ struct SPTmuxCompatTests {
     #expect(process.executableURL?.path == claudeURL.path)
     #expect(process.arguments == ["--teammate-mode", "auto", "--resume"])
     #expect(environment[SupatermCLIEnvironment.socketPathKey] == "/tmp/supaterm.sock")
+    #expect(environment[SupatermCLIEnvironment.surfaceIDKey] == context.paneID.uuidString)
+    #expect(environment[SupatermCLIEnvironment.tabIDKey] == context.tabID.uuidString)
     #expect(environment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1")
     #expect(environment["TERM"] == "screen-256color")
     #expect(environment["TERM_PROGRAM"] == nil)
     #expect(environment["TMUX_PANE"] == "%2b8b3a57-d7f8-4ef7-930f-46b1f7281b2a")
     #expect(environment["PATH"]?.split(separator: ":").first.map(String.init) == shimDirectory.path)
     #expect(FileManager.default.isExecutableFile(atPath: shimURL.path))
+  }
+
+  @Test
+  func tmuxResizeDirectionRequiresDirectionalFlag() {
+    #expect(tmuxResizeDirection(flags: []) == nil)
+    #expect(tmuxResizeDirection(flags: ["-L"]) == .left)
+    #expect(tmuxResizeDirection(flags: ["-U"]) == .up)
+    #expect(tmuxResizeDirection(flags: ["-D"]) == .down)
+    #expect(tmuxResizeDirection(flags: ["-R"]) == .right)
+    #expect(tmuxResizeDirection(flags: ["-x"]) == nil)
+    #expect(tmuxResizeDirection(flags: ["-y"]) == nil)
   }
 }
