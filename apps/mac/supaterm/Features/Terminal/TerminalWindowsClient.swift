@@ -2,54 +2,36 @@ import ComposableArchitecture
 import SupatermCLIShared
 
 struct TerminalWindowsClient: Sendable {
-  var agentHook:
-    @MainActor @Sendable (SupatermAgentHookRequest) async throws -> TerminalAgentHookResult
-  var capturePane:
-    @MainActor @Sendable (TerminalCapturePaneRequest) async throws -> SupatermCapturePaneResult
+  var agentHook: @MainActor @Sendable (SupatermAgentHookRequest) async throws -> TerminalAgentHookResult
+  var capturePane: @MainActor @Sendable (TerminalCapturePaneRequest) async throws -> SupatermCapturePaneResult
   var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
   var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
   var closePane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermClosePaneResult
-  var closeSpace:
-    @MainActor @Sendable (TerminalSpaceTarget) async throws -> SupatermCloseSpaceResult
+  var closeSpace: @MainActor @Sendable (TerminalSpaceTarget) async throws -> SupatermCloseSpaceResult
   var closeTab: @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermCloseTabResult
-  var createSpace:
-    @MainActor @Sendable (TerminalCreateSpaceRequest) async throws -> SupatermCreateSpaceResult
-  var createTab:
-    @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
-  var createPane:
-    @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
-  var equalizePanes:
-    @MainActor @Sendable (TerminalEqualizePanesRequest) async throws -> SupatermEqualizePanesResult
+  var createSpace: @MainActor @Sendable (TerminalCreateSpaceRequest) async throws -> SupatermCreateSpaceResult
+  var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
+  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var equalizePanes: @MainActor @Sendable (TerminalEqualizePanesRequest) async throws -> SupatermEqualizePanesResult
   var notify: @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult
   var focusPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
   var lastPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
-  var lastSpace:
-    @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
-  var lastTab:
-    @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
-  var nextSpace:
-    @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
-  var nextTab:
-    @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
+  var lastSpace: @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
+  var lastTab: @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
+  var nextSpace: @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
+  var nextTab: @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
   var onboardingSnapshot: @MainActor @Sendable () async -> SupatermOnboardingSnapshot?
-  var previousSpace:
-    @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
-  var previousTab:
-    @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
+  var previousSpace: @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
+  var previousTab: @MainActor @Sendable (TerminalTabNavigationRequest) async throws -> SupatermSelectTabResult
   var debugSnapshot: @MainActor @Sendable (SupatermDebugRequest) async -> SupatermAppDebugSnapshot
-  var renameSpace:
-    @MainActor @Sendable (TerminalRenameSpaceRequest) async throws -> SupatermSpaceTarget
-  var renameTab:
-    @MainActor @Sendable (TerminalRenameTabRequest) async throws -> SupatermRenameTabResult
-  var resizePane:
-    @MainActor @Sendable (TerminalResizePaneRequest) async throws -> SupatermResizePaneResult
-  var selectSpace:
-    @MainActor @Sendable (TerminalSpaceTarget) async throws -> SupatermSelectSpaceResult
+  var renameSpace: @MainActor @Sendable (TerminalRenameSpaceRequest) async throws -> SupatermSpaceTarget
+  var renameTab: @MainActor @Sendable (TerminalRenameTabRequest) async throws -> SupatermRenameTabResult
+  var resizePane: @MainActor @Sendable (TerminalResizePaneRequest) async throws -> SupatermResizePaneResult
+  var selectSpace: @MainActor @Sendable (TerminalSpaceTarget) async throws -> SupatermSelectSpaceResult
   var selectTab: @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermSelectTabResult
-  var sendText:
-    @MainActor @Sendable (TerminalSendTextRequest) async throws -> SupatermSendTextResult
-  var tilePanes:
-    @MainActor @Sendable (TerminalTilePanesRequest) async throws -> SupatermTilePanesResult
+  var sendKey: @MainActor @Sendable (TerminalSendKeyRequest) async throws -> SupatermSendKeyResult
+  var sendText: @MainActor @Sendable (TerminalSendTextRequest) async throws -> SupatermSendTextResult
+  var tilePanes: @MainActor @Sendable (TerminalTilePanesRequest) async throws -> SupatermTilePanesResult
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
 
   static func live(registry: TerminalWindowRegistry) -> Self {
@@ -134,6 +116,9 @@ struct TerminalWindowsClient: Sendable {
       },
       selectTab: { target in
         try registry.selectTab(target)
+      },
+      sendKey: { request in
+        try registry.sendKey(request)
       },
       sendText: { request in
         try registry.sendText(request)
@@ -223,6 +208,9 @@ extension TerminalWindowsClient: DependencyKey {
     selectTab: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
+    sendKey: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
     sendText: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
@@ -304,6 +292,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalControlError.contextPaneNotFound
     },
     selectTab: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
+    sendKey: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
     sendText: { _ in

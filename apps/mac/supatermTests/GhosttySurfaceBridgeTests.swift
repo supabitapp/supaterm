@@ -7,6 +7,25 @@ import Testing
 @MainActor
 struct GhosttySurfaceBridgeTests {
   @Test
+  func inputChunksSplitControlScalarsIntoKeys() {
+    #expect(
+      ghosttyInputChunks("echo hello\r\u{03}tail\t\u{1B}\u{7F}\u{04}\u{0C}\u{1A}")
+        == [
+          .text("echo hello"),
+          .key(.enter),
+          .key(.ctrlC),
+          .text("tail"),
+          .key(.tab),
+          .key(.escape),
+          .key(.backspace),
+          .key(.ctrlD),
+          .key(.ctrlL),
+          .key(.ctrlZ),
+        ]
+    )
+  }
+
+  @Test
   func openConfigUsesAppActionPerformer() {
     let app = NSApplication.shared
     let previousDelegate = app.delegate

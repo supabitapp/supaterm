@@ -29,6 +29,7 @@ public enum SupatermSocketMethod {
   public static let terminalResizePane = "terminal.resize_pane"
   public static let terminalSelectSpace = "terminal.select_space"
   public static let terminalSelectTab = "terminal.select_tab"
+  public static let terminalSendKey = "terminal.send_key"
   public static let terminalSendText = "terminal.send_text"
   public static let terminalTilePanes = "terminal.tile_panes"
 }
@@ -395,6 +396,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalSendText,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func sendKey(
+    _ payload: SupatermSendKeyRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalSendKey,
       params: try JSONObject(payload)
     )
   }
@@ -1064,6 +1076,30 @@ public struct SupatermSendTextRequest: Equatable, Sendable, Codable {
   }
 }
 
+public enum SupatermInputKey: String, Equatable, Sendable, Codable {
+  case backspace
+  case ctrlC = "ctrl_c"
+  case ctrlD = "ctrl_d"
+  case ctrlL = "ctrl_l"
+  case ctrlZ = "ctrl_z"
+  case enter
+  case escape
+  case tab
+}
+
+public struct SupatermSendKeyRequest: Equatable, Sendable, Codable {
+  public let key: SupatermInputKey
+  public let target: SupatermPaneTargetRequest
+
+  public init(
+    key: SupatermInputKey,
+    target: SupatermPaneTargetRequest
+  ) {
+    self.key = key
+    self.target = target
+  }
+}
+
 public enum SupatermCapturePaneScope: String, Equatable, Sendable, Codable {
   case scrollback
   case visible
@@ -1392,6 +1428,7 @@ public typealias SupatermCloseTabResult = SupatermTabTarget
 public typealias SupatermCreateSpaceResult = SupatermSelectSpaceResult
 public typealias SupatermEqualizePanesResult = SupatermTabTarget
 public typealias SupatermResizePaneResult = SupatermPaneTarget
+public typealias SupatermSendKeyResult = SupatermPaneTarget
 public typealias SupatermSendTextResult = SupatermPaneTarget
 public typealias SupatermTilePanesResult = SupatermTabTarget
 

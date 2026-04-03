@@ -1,7 +1,63 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Foundation
 import GhosttyKit
+import SupatermCLIShared
+
+enum GhosttyInputChunk: Equatable {
+  case key(SupatermInputKey)
+  case text(String)
+}
+
+func ghosttyInputKey(for scalar: UnicodeScalar) -> SupatermInputKey? {
+  switch scalar.value {
+  case 0x03:
+    return .ctrlC
+  case 0x04:
+    return .ctrlD
+  case 0x09:
+    return .tab
+  case 0x0A, 0x0D:
+    return .enter
+  case 0x0C:
+    return .ctrlL
+  case 0x1A:
+    return .ctrlZ
+  case 0x1B:
+    return .escape
+  case 0x7F:
+    return .backspace
+  default:
+    return nil
+  }
+}
+
+func ghosttyInputChunks(_ text: String) -> [GhosttyInputChunk] {
+  guard !text.isEmpty else { return [] }
+
+  var chunks: [GhosttyInputChunk] = []
+  var bufferedText = ""
+  bufferedText.reserveCapacity(text.count)
+
+  func flushBufferedText() {
+    guard !bufferedText.isEmpty else { return }
+    chunks.append(.text(bufferedText))
+    bufferedText.removeAll(keepingCapacity: true)
+  }
+
+  for scalar in text.unicodeScalars {
+    if let key = ghosttyInputKey(for: scalar) {
+      flushBufferedText()
+      chunks.append(.key(key))
+    } else {
+      bufferedText.unicodeScalars.append(scalar)
+    }
+  }
+
+  flushBufferedText()
+  return chunks
+}
 
 @MainActor
 final class GhosttySurfaceBridge {
@@ -97,8 +153,67 @@ final class GhosttySurfaceBridge {
 
   func sendText(_ text: String) {
     guard let surface else { return }
-    text.withCString { ptr in
-      ghostty_surface_text(surface, ptr, UInt(text.lengthOfBytes(using: .utf8)))
+    for chunk in ghosttyInputChunks(text) {
+      switch chunk {
+      case .key(let key):
+        sendKey(key, surface: surface)
+      case .text(let value):
+        sendText(value, surface: surface)
+      }
+    }
+  }
+
+  func sendKey(_ key: SupatermInputKey) {
+    guard let surface else { return }
+    sendKey(key, surface: surface)
+  }
+
+  private func sendText(_ text: String, surface: ghostty_surface_t) {
+    sendKeyEvent(surface: surface, keycode: 0, text: text)
+  }
+
+  private func sendKey(_ key: SupatermInputKey, surface: ghostty_surface_t) {
+    switch key {
+    case .enter:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_Return))
+    case .tab:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_Tab))
+    case .escape:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_Escape))
+    case .backspace:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_Delete))
+    case .ctrlC:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_C), mods: GHOSTTY_MODS_CTRL)
+    case .ctrlD:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_D), mods: GHOSTTY_MODS_CTRL)
+    case .ctrlL:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_L), mods: GHOSTTY_MODS_CTRL)
+    case .ctrlZ:
+      sendKeyEvent(surface: surface, keycode: UInt32(kVK_ANSI_Z), mods: GHOSTTY_MODS_CTRL)
+    }
+  }
+
+  private func sendKeyEvent(
+    surface: ghostty_surface_t,
+    keycode: UInt32,
+    mods: ghostty_input_mods_e = GHOSTTY_MODS_NONE,
+    text: String? = nil
+  ) {
+    var event = ghostty_input_key_s()
+    event.action = GHOSTTY_ACTION_PRESS
+    event.keycode = keycode
+    event.mods = mods
+    event.composing = false
+    event.consumed_mods = GHOSTTY_MODS_NONE
+    event.unshifted_codepoint = 0
+    if let text {
+      text.withCString { ptr in
+        event.text = ptr
+        _ = ghostty_surface_key(surface, event)
+      }
+    } else {
+      event.text = nil
+      _ = ghostty_surface_key(surface, event)
     }
   }
 
