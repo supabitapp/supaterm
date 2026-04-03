@@ -107,7 +107,8 @@ final class TerminalWindowRegistry {
   }
 
   func updateWindow(_ window: NSWindow?, for windowControllerID: UUID) {
-    guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID }) else { return }
+    guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
+    else { return }
     entries[index].windowReference.value = window
     onChange()
   }
@@ -212,7 +213,9 @@ final class TerminalWindowRegistry {
   @discardableResult
   func requestUpdateMenuActionInKeyWindow() -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
-    guard let action = Self.updateMenuItemAction(for: entry.store.withState(\.update)) else { return false }
+    guard let action = Self.updateMenuItemAction(for: entry.store.withState(\.update)) else {
+      return false
+    }
     entry.store.send(.update(.perform(action)))
     return true
   }
@@ -267,7 +270,8 @@ final class TerminalWindowRegistry {
     }
   }
 
-  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan {
+  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan
+  {
     let windowIDs = candidates.map(\.windowID)
     guard !windowIDs.isEmpty else { return .noWindows }
     guard candidates.contains(where: \.needsConfirmation) else {
@@ -390,7 +394,8 @@ final class TerminalWindowRegistry {
         direction: request.direction,
         focus: request.focus,
         equalize: request.equalize,
-        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
       )
       do {
         return Self.rewrite(try entry.terminal.createPane(localRequest), windowIndex: windowIndex)
@@ -528,7 +533,8 @@ final class TerminalWindowRegistry {
       let entry = try entry(for: windowIndex)
       do {
         return Self.rewrite(
-          try entry.terminal.selectTab(.tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
+          try entry.terminal.selectTab(
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {
@@ -557,7 +563,8 @@ final class TerminalWindowRegistry {
       let entry = try entry(for: windowIndex)
       do {
         return Self.rewrite(
-          try entry.terminal.closeTab(.tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
+          try entry.terminal.closeTab(
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {
@@ -585,7 +592,8 @@ final class TerminalWindowRegistry {
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       let entry = try entry(for: windowIndex)
       let localRequest = TerminalSendTextRequest(
-        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
         text: request.text
       )
       do {
@@ -617,7 +625,8 @@ final class TerminalWindowRegistry {
       let localRequest = TerminalCapturePaneRequest(
         lines: request.lines,
         scope: request.scope,
-        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
       )
       do {
         return Self.rewrite(try entry.terminal.capturePane(localRequest), windowIndex: windowIndex)
@@ -648,7 +657,8 @@ final class TerminalWindowRegistry {
       let localRequest = TerminalResizePaneRequest(
         amount: request.amount,
         direction: request.direction,
-        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
       )
       do {
         return Self.rewrite(try entry.terminal.resizePane(localRequest), windowIndex: windowIndex)
@@ -688,7 +698,8 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
+  func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult
+  {
     switch request.target {
     case .contextPane:
       for (offset, entry) in activeEntries().enumerated() {
@@ -710,7 +721,37 @@ final class TerminalWindowRegistry {
         target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
       )
       do {
-        return Self.rewrite(try entry.terminal.equalizePanes(localRequest), windowIndex: windowIndex)
+        return Self.rewrite(
+          try entry.terminal.equalizePanes(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.tilePanes(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalTilePanesRequest(
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      )
+      do {
+        return Self.rewrite(try entry.terminal.tilePanes(localRequest), windowIndex: windowIndex)
       } catch let error as TerminalControlError {
         throw Self.rewrite(error, windowIndex: windowIndex)
       }
@@ -873,7 +914,8 @@ final class TerminalWindowRegistry {
     return try Self.rewrite(entry.terminal.nextSpace(request), windowIndex: 1)
   }
 
-  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
+  func previousSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult
+  {
     if request.contextPaneID != nil && request.windowIndex == nil {
       for (offset, entry) in activeEntries().enumerated() {
         do {
@@ -893,7 +935,8 @@ final class TerminalWindowRegistry {
       let entry = try entry(for: windowIndex)
       do {
         return Self.rewrite(
-          try entry.terminal.previousSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          try entry.terminal.previousSpace(
+            .init(contextPaneID: request.contextPaneID, windowIndex: 1)),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {
@@ -960,7 +1003,8 @@ final class TerminalWindowRegistry {
     do {
       return Self.rewrite(
         try entry.terminal.nextTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          .init(
+            contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
         ),
         windowIndex: windowIndex
       )
@@ -990,7 +1034,8 @@ final class TerminalWindowRegistry {
     do {
       return Self.rewrite(
         try entry.terminal.previousTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          .init(
+            contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
         ),
         windowIndex: windowIndex
       )
@@ -1020,7 +1065,8 @@ final class TerminalWindowRegistry {
     do {
       return Self.rewrite(
         try entry.terminal.lastTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          .init(
+            contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
         ),
         windowIndex: windowIndex
       )
@@ -1029,7 +1075,8 @@ final class TerminalWindowRegistry {
     }
   }
 
-  private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
+  private func createContextTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult
+  {
     for (offset, entry) in activeEntries().enumerated() {
       do {
         let result = try entry.terminal.createTab(request)
@@ -1061,7 +1108,8 @@ final class TerminalWindowRegistry {
       let localRequest = TerminalNotifyRequest(
         body: request.body,
         subtitle: request.subtitle,
-        target: .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
         title: request.title
       )
       do {
@@ -1186,7 +1234,9 @@ final class TerminalWindowRegistry {
     }
   }
 
-  private func createContextPane(_ request: TerminalCreatePaneRequest) throws -> SupatermNewPaneResult {
+  private func createContextPane(_ request: TerminalCreatePaneRequest) throws
+    -> SupatermNewPaneResult
+  {
     for (offset, entry) in activeEntries().enumerated() {
       do {
         let result = try entry.terminal.createPane(request)
@@ -1329,7 +1379,8 @@ final class TerminalWindowRegistry {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(agent: agent, sessionID: sessionID, context: context)
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent, sessionID: sessionID, context: context)
     for surfaceID in candidateSurfaceIDs {
       for entry in activeEntries() {
         if let activity {
@@ -1403,7 +1454,8 @@ final class TerminalWindowRegistry {
     if let keyWindow = NSApp.keyWindow, let entry = entry(for: keyWindow) {
       return entry
     }
-    return activeEntries().first(where: { $0.terminal.windowActivity.isKeyWindow }) ?? activeEntries().first
+    return activeEntries().first(where: { $0.terminal.windowActivity.isKeyWindow })
+      ?? activeEntries().first
   }
 
   private func shortcutEntry() -> Entry? {

@@ -879,7 +879,10 @@ struct SocketControlFeatureTests {
       #expect(records.first?.response == .ok(id: "agent-hook-1"))
       #expect(
         await desktopNotificationRecorder.snapshot()
-          == [.init(body: "Claude needs your attention", subtitle: "Needs input", title: "Claude Code")]
+          == [
+            .init(
+              body: "Claude needs your attention", subtitle: "Needs input", title: "Claude Code")
+          ]
       )
     }
   }
@@ -1333,6 +1336,59 @@ struct SocketControlFeatureTests {
                 windowIndex: 1,
                 spaceIndex: 2,
                 tabIndex: 3
+              )
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermTabTarget.self) == result)
+  }
+
+  @Test
+  func tilePanesRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "6B4FE4C0-4D0E-4205-8D07-66C5EAB4AC0A")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .tilePanes(
+        .init(
+          targetWindowIndex: 2,
+          targetSpaceIndex: 3,
+          targetTabIndex: 4
+        ),
+        id: "tile-panes-1"
+      )
+    )
+    let result = SupatermTabTarget(
+      windowIndex: 2,
+      spaceIndex: 3,
+      spaceID: UUID(uuidString: "9BA8A4E7-1958-48F5-BD2D-607552A3430E")!,
+      tabIndex: 4,
+      tabID: UUID(uuidString: "EB066866-4BA8-4789-88CE-FB75A921EA0F")!,
+      title: "Workers"
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.tilePanes = { request in
+        #expect(
+          request
+            == .init(
+              target: .tab(
+                windowIndex: 2,
+                spaceIndex: 3,
+                tabIndex: 4
               )
             )
         )

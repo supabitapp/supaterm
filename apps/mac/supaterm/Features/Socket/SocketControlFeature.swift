@@ -200,7 +200,8 @@ struct SocketControlFeature {
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
       @Shared(.appPrefs) var appPrefs = .default
-      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
+      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver
+      {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
@@ -347,6 +348,13 @@ struct SocketControlFeature {
     terminalWindowsClient: TerminalWindowsClient
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
+    case SupatermSocketMethod.terminalTilePanes:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let result = try await terminalWindowsClient.tilePanes(
+        .init(target: try createTabTarget(from: payload))
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
     case SupatermSocketMethod.terminalEqualizePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let result = try await terminalWindowsClient.equalizePanes(
@@ -376,17 +384,20 @@ struct SocketControlFeature {
 
     case SupatermSocketMethod.terminalNextTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.nextTab(createTabNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.nextTab(
+        createTabNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalPreviousTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.previousTab(createTabNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.previousTab(
+        createTabNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalLastTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.lastTab(createTabNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.lastTab(
+        createTabNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     default:
@@ -431,17 +442,20 @@ struct SocketControlFeature {
 
     case SupatermSocketMethod.terminalNextSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.nextSpace(createSpaceNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.nextSpace(
+        createSpaceNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalPreviousSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.previousSpace(createSpaceNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.previousSpace(
+        createSpaceNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalLastSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.lastSpace(createSpaceNavigationRequest(from: payload))
+      let result = try await terminalWindowsClient.lastSpace(
+        createSpaceNavigationRequest(from: payload))
       return try .ok(id: request.id, encodableResult: result)
 
     default:
@@ -827,7 +841,8 @@ struct SocketControlFeature {
       return .error(
         id: requestID,
         code: "not_found",
-        message: "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
+        message:
+          "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
       )
 
     case .spaceNotFound(let windowIndex, let spaceIndex):
@@ -897,7 +912,8 @@ struct SocketControlFeature {
       return .error(
         id: requestID,
         code: "not_found",
-        message: "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
+        message:
+          "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
       )
 
     case .resizeFailed:

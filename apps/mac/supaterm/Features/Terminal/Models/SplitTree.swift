@@ -182,6 +182,24 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return .init(root: newRoot, zoomed: zoomed)
   }
 
+  func tiled() -> Self {
+    guard let root else { return self }
+    let leaves = root.leaves()
+    guard !leaves.isEmpty else { return self }
+    let rowCount = min(
+      leaves.count,
+      max(1, Int(Double(leaves.count).squareRoot().rounded()))
+    )
+    let rowSizes = bucketSizes(total: leaves.count, bucketCount: rowCount)
+    var offset = 0
+    let rowNodes = rowSizes.map { rowSize in
+      defer { offset += rowSize }
+      let rowViews = Array(leaves[offset..<(offset + rowSize)])
+      return Node.arranged(rowViews.map(Self.leafNode), direction: .horizontal)
+    }
+    return .init(root: Node.arranged(rowNodes, direction: .vertical), zoomed: nil)
+  }
+
   func settingZoomed(_ node: Node?) -> Self {
     .init(root: root, zoomed: node)
   }
@@ -269,6 +287,18 @@ struct SplitTree<ViewType: NSView & Identifiable> {
 
   var structuralIdentity: StructuralIdentity {
     StructuralIdentity(self)
+  }
+
+  private static func leafNode(_ view: ViewType) -> Node {
+    .leaf(view: view)
+  }
+
+  private func bucketSizes(total: Int, bucketCount: Int) -> [Int] {
+    let base = total / bucketCount
+    let remainder = total % bucketCount
+    return (0..<bucketCount).map { index in
+      base + (index < remainder ? 1 : 0)
+    }
   }
 
   struct StructuralIdentity: Hashable {
@@ -528,6 +558,34 @@ extension SplitTree.Node {
     return equalizedNode
   }
 
+  static func arranged(
+    _ nodes: [Node],
+    direction: SplitTree.Direction
+  ) -> Node {
+    precondition(!nodes.isEmpty)
+    if nodes.count == 1 {
+      return nodes[0]
+    }
+
+    let midpoint = (nodes.count + 1) / 2
+    let leftNodes = Array(nodes[..<midpoint])
+    let rightNodes = Array(nodes[midpoint...])
+    let leftNode = arranged(leftNodes, direction: direction)
+    let rightNode = arranged(rightNodes, direction: direction)
+    let leftLeafCount = leftNode.leafCount()
+    let rightLeafCount = rightNode.leafCount()
+    let ratio = Double(leftLeafCount) / Double(leftLeafCount + rightLeafCount)
+
+    return .split(
+      Split(
+        direction: direction,
+        ratio: ratio,
+        left: leftNode,
+        right: rightNode
+      )
+    )
+  }
+
   private func equalizeWithWeight() -> (node: Node, weight: Int) {
     switch self {
     case .leaf:
@@ -558,6 +616,15 @@ extension SplitTree.Node {
         return split.left.weightForDirection(direction) + split.right.weightForDirection(direction)
       }
       return 1
+    }
+  }
+
+  private func leafCount() -> Int {
+    switch self {
+    case .leaf:
+      return 1
+    case .split(let split):
+      return split.left.leafCount() + split.right.leafCount()
     }
   }
 

@@ -502,7 +502,13 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: text
+            text: wrappedTeammatePaneCommand(
+              text,
+              spaceID: created.target.spaceID,
+              tabID: created.tabID,
+              paneID: created.paneID,
+              environment: environment
+            )
           )
         ),
         as: SupatermSendTextResult.self
@@ -581,7 +587,13 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: command
+            text: wrappedTeammatePaneCommand(
+              command,
+              spaceID: created.spaceID,
+              tabID: created.tabID,
+              paneID: created.paneID,
+              environment: environment
+            )
           )
         ),
         as: SupatermSendTextResult.self
@@ -642,7 +654,13 @@ private struct SPTmuxCommandRunner {
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
-            text: command
+            text: wrappedTeammatePaneCommand(
+              command,
+              spaceID: created.spaceID,
+              tabID: created.tabID,
+              paneID: created.paneID,
+              environment: environment
+            )
           )
         ),
         as: SupatermSendTextResult.self
@@ -893,16 +911,25 @@ private struct SPTmuxCommandRunner {
   private func runSelectLayout(_ arguments: [String]) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-t"], boolFlags: ["-E"])
     let targetTab = try topology().resolveTab(raw: parsed.value("-t"))
-    _ = try send(
-      .equalizePanes(
-        .init(
-          targetWindowIndex: targetTab.window.index,
-          targetSpaceIndex: targetTab.space.index,
-          targetTabIndex: targetTab.tab.index
-        )
-      ),
-      as: SupatermEqualizePanesResult.self
+    let target = SupatermTabTargetRequest(
+      targetWindowIndex: targetTab.window.index,
+      targetSpaceIndex: targetTab.space.index,
+      targetTabIndex: targetTab.tab.index
     )
+    let layout = parsed.positional.first?.trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    switch layout {
+    case nil, "", "tile", "tiled":
+      _ = try send(
+        .tilePanes(target),
+        as: SupatermTilePanesResult.self
+      )
+    default:
+      _ = try send(
+        .equalizePanes(target),
+        as: SupatermEqualizePanesResult.self
+      )
+    }
   }
 
   private func runWaitFor(_ arguments: [String]) throws {
@@ -1851,6 +1878,40 @@ private func tmuxShellCommandText(
     pieces.append(commandText)
   }
   return pieces.joined(separator: " && ") + "\r"
+}
+
+private func wrappedTeammatePaneCommand(
+  _ command: String,
+  spaceID: UUID,
+  tabID: UUID,
+  paneID: UUID,
+  environment: [String: String]
+) -> String {
+  guard environment["TMUX"] != nil else {
+    return command
+  }
+
+  let trimmedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !trimmedCommand.isEmpty else {
+    return command
+  }
+
+  let term = environment["TERM"].flatMap(trimmedNonEmpty) ?? "screen-256color"
+  let tmuxValue =
+    "/tmp/sp-tmux/\(spaceID.uuidString.lowercased()),\(tabID.uuidString.lowercased()),\(paneID.uuidString.lowercased())"
+  let tmuxPaneValue = "%\(paneID.uuidString.lowercased())"
+
+  return [
+    "env",
+    "-u",
+    "TERM_PROGRAM",
+    "TERM=\(shellQuoted(term))",
+    "TMUX=\(shellQuoted(tmuxValue))",
+    "TMUX_PANE=\(shellQuoted(tmuxPaneValue))",
+    "/bin/sh",
+    "-lc",
+    shellQuoted(trimmedCommand),
+  ].joined(separator: " ") + "\r"
 }
 
 func tmuxResizeDirection(flags: Set<String>) -> SupatermResizePaneDirection? {
