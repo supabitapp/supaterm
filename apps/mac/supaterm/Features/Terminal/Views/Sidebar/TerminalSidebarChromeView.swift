@@ -7,6 +7,21 @@ private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
 private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
 
+enum TerminalSidebarNotificationClickDebug {
+  private static var isEnabled: Bool {
+    ProcessInfo.processInfo.environment["SUPATERM_PRINT_SIDEBAR_NOTIFICATION_CLICKS"] == "1"
+  }
+
+  static func log(_ message: @autoclosure () -> String) {
+    guard isEnabled else { return }
+    FileHandle.standardError.write(Data((message() + "\n").utf8))
+  }
+
+  static func tabLabel(id: TerminalTabID, title: String) -> String {
+    "\(title) [\(id.rawValue.uuidString.prefix(8))]"
+  }
+}
+
 struct TerminalSidebarMeasuredTabFrame: Equatable {
   let zoneID: TerminalSidebarDropZoneID
   let scrollFrame: CGRect
@@ -762,6 +777,7 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
+  private let closeButtonReservedWidth: CGFloat = 28
 
   static func contextMenuItems(
     isPinned: Bool,
@@ -803,6 +819,11 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
+    let tabDescription = TerminalSidebarNotificationClickDebug.tabLabel(
+      id: tab.id,
+      title: tab.title
+    )
+
     Button(action: select) {
       HStack(spacing: 8) {
         let summary = TerminalSidebarTabSummaryView(
@@ -874,8 +895,24 @@ struct TerminalSidebarTabRow: View {
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
+    .overlay {
+      TerminalSidebarPrimaryClickBridgeView(
+        isEnabled: showsNotificationPopover && !isSelected,
+        excludedTrailingWidth: closeButtonReservedWidth,
+        tabDescription: tabDescription,
+        action: select
+      )
+    }
     .onHover { isHovering in
       self.isHovering = isHovering
+      TerminalSidebarNotificationClickDebug.log(
+        "sidebar.row.hover \(tabDescription) hovering=\(isHovering)"
+      )
+    }
+    .onChange(of: showsNotificationPopover) { _, isPresented in
+      TerminalSidebarNotificationClickDebug.log(
+        "sidebar.row.popover \(tabDescription) presented=\(isPresented)"
+      )
     }
     .contextMenu {
       ForEach(
@@ -978,7 +1015,14 @@ struct TerminalSidebarTabRow: View {
     )
   }
 
+  private var showsNotificationPopover: Bool {
+    notificationPopoverPresented.wrappedValue
+  }
+
   private func select() {
+    TerminalSidebarNotificationClickDebug.log(
+      "sidebar.row.select \(TerminalSidebarNotificationClickDebug.tabLabel(id: tab.id, title: tab.title))"
+    )
     _ = store.send(.tabSelected(tab.id))
   }
 
@@ -1026,6 +1070,12 @@ private struct TerminalSidebarNotificationPopover: View {
     .background {
       SidebarPopoverPassthroughView()
     }
+    .onAppear {
+      TerminalSidebarNotificationClickDebug.log("sidebar.popover.appear")
+    }
+    .onDisappear {
+      TerminalSidebarNotificationClickDebug.log("sidebar.popover.disappear")
+    }
     .compositingGroup()
     .clipShape(.rect(cornerRadius: cornerRadius))
     .overlay {
@@ -1044,6 +1094,12 @@ private struct SidebarPopoverPassthroughView: NSViewRepresentable {
   func updateNSView(_ nsView: NSView, context: Context) {
     DispatchQueue.main.async {
       nsView.window?.ignoresMouseEvents = true
+      if let window = nsView.window {
+        let windowClass = NSStringFromClass(type(of: window))
+        TerminalSidebarNotificationClickDebug.log(
+          "sidebar.popover.window num=\(window.windowNumber) class=\(windowClass) ignore=\(window.ignoresMouseEvents)"
+        )
+      }
     }
   }
 
@@ -1311,6 +1367,104 @@ private final class TerminalSidebarMiddleClickNSView: NSView {
   }
 
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+enum TerminalSidebarPrimaryClickBridge {
+  static func clickableBounds(
+    for bounds: CGRect,
+    excludedTrailingWidth: CGFloat
+  ) -> CGRect {
+    CGRect(
+      x: bounds.minX,
+      y: bounds.minY,
+      width: max(0, bounds.width - excludedTrailingWidth),
+      height: bounds.height
+    )
+  }
+}
+
+private struct TerminalSidebarPrimaryClickBridgeView: NSViewRepresentable {
+  let isEnabled: Bool
+  let excludedTrailingWidth: CGFloat
+  let tabDescription: String
+  let action: () -> Void
+
+  func makeNSView(context: Context) -> TerminalSidebarPrimaryClickBridgeNSView {
+    let view = TerminalSidebarPrimaryClickBridgeNSView()
+    update(view)
+    return view
+  }
+
+  func updateNSView(_ nsView: TerminalSidebarPrimaryClickBridgeNSView, context: Context) {
+    update(nsView)
+  }
+
+  static func dismantleNSView(
+    _ nsView: TerminalSidebarPrimaryClickBridgeNSView,
+    coordinator: ()
+  ) {
+    nsView.stopMonitoring()
+  }
+
+  private func update(_ view: TerminalSidebarPrimaryClickBridgeNSView) {
+    view.isEnabled = isEnabled
+    view.excludedTrailingWidth = excludedTrailingWidth
+    view.tabDescription = tabDescription
+    view.action = action
+    view.startMonitoring()
+  }
+}
+
+private final class TerminalSidebarPrimaryClickBridgeNSView: NSView {
+  var isEnabled = false
+  var excludedTrailingWidth: CGFloat = 0
+  var tabDescription = ""
+  var action: () -> Void = {}
+  private var localMonitor: Any?
+
+  override var isFlipped: Bool { true }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
+  func startMonitoring() {
+    guard localMonitor == nil else { return }
+    localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] event in
+      self?.handle(event)
+      return event
+    }
+  }
+
+  func stopMonitoring() {
+    if let localMonitor {
+      NSEvent.removeMonitor(localMonitor)
+    }
+    localMonitor = nil
+  }
+
+  override func viewWillMove(toWindow newWindow: NSWindow?) {
+    if newWindow == nil {
+      stopMonitoring()
+    }
+    super.viewWillMove(toWindow: newWindow)
+  }
+
+  private func handle(_ event: NSEvent) {
+    guard isEnabled, let window else { return }
+    let clickableBounds = TerminalSidebarPrimaryClickBridge.clickableBounds(
+      for: bounds,
+      excludedTrailingWidth: excludedTrailingWidth
+    )
+    let clickableFrame = window.convertToScreen(convert(clickableBounds, to: nil))
+    let mouseLocation = NSEvent.mouseLocation
+    guard clickableFrame.contains(mouseLocation) else { return }
+    let windowClass = event.window.map { NSStringFromClass(type(of: $0)) } ?? "nil"
+    TerminalSidebarNotificationClickDebug.log(
+      "sidebar.row.bridge \(tabDescription) window=\(windowClass) location=\(mouseLocation)"
+    )
+    action()
+  }
 }
 
 private struct TerminalSidebarSpaceBar: View {

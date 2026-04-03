@@ -208,6 +208,30 @@ struct TerminalSidebarChromeViewTests {
     )
   }
 
+  @Test
+  func primaryClickBridgeExcludesTrailingAccessoryRegion() {
+    let bounds = CGRect(x: 0, y: 0, width: 180, height: 40)
+
+    #expect(
+      TerminalSidebarPrimaryClickBridge.clickableBounds(
+        for: bounds,
+        excludedTrailingWidth: 28
+      ) == CGRect(x: 0, y: 0, width: 152, height: 40)
+    )
+  }
+
+  @Test
+  func primaryClickBridgeClampsExcludedWidthToZero() {
+    let bounds = CGRect(x: 0, y: 0, width: 20, height: 40)
+
+    #expect(
+      TerminalSidebarPrimaryClickBridge.clickableBounds(
+        for: bounds,
+        excludedTrailingWidth: 28
+      ) == CGRect(x: 0, y: 0, width: 0, height: 40)
+    )
+  }
+
   @MainActor
   @Test
   func focusedPaneIndeterminateProgressUsesActiveSpinner() {
