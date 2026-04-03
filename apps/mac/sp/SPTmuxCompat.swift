@@ -537,8 +537,8 @@ private struct SPTmuxCommandRunner {
     let created = try send(
       .newTab(
         .init(
-          command: command,
-          cwd: command == nil ? try resolvedWorkingDirectory(parsed.value("-c")) : nil,
+          command: nil,
+          cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
           targetWindowIndex: targetSpace.window.index,
           targetSpaceIndex: targetSpace.space.index
@@ -560,6 +560,23 @@ private struct SPTmuxCommandRunner {
           )
         ),
         as: SupatermRenameTabResult.self
+      )
+    }
+
+    if let command {
+      _ = try send(
+        .sendText(
+          .init(
+            target: .init(
+              targetWindowIndex: created.windowIndex,
+              targetSpaceIndex: created.spaceIndex,
+              targetTabIndex: created.tabIndex,
+              targetPaneIndex: created.paneIndex
+            ),
+            text: command
+          )
+        ),
+        as: SupatermSendTextResult.self
       )
     }
 
@@ -594,7 +611,7 @@ private struct SPTmuxCommandRunner {
     let created = try send(
       .newPane(
         .init(
-          command: command,
+          command: nil,
           direction: direction,
           focus: false,
           equalize: true,
@@ -606,6 +623,23 @@ private struct SPTmuxCommandRunner {
       ),
       as: SupatermNewPaneResult.self
     )
+
+    if let command {
+      _ = try send(
+        .sendText(
+          .init(
+            target: .init(
+              targetWindowIndex: created.windowIndex,
+              targetSpaceIndex: created.spaceIndex,
+              targetTabIndex: created.tabIndex,
+              targetPaneIndex: created.paneIndex
+            ),
+            text: command
+          )
+        ),
+        as: SupatermSendTextResult.self
+      )
+    }
 
     if parsed.hasFlag("-P") {
       let createdPane = try topology().locatePane(
