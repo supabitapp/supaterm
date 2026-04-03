@@ -208,6 +208,28 @@ struct TerminalSidebarChromeViewTests {
     )
   }
 
+  @Test
+  func notificationOverlayOriginKeepsLeadingGapWhenSpaceIsAvailable() {
+    let origin = TerminalSidebarNotificationOverlayLayout.origin(
+      for: CGRect(x: 24, y: 80, width: 196, height: 52),
+      containerWidth: 900
+    )
+
+    #expect(origin.x == 234)
+    #expect(origin.y == 80)
+  }
+
+  @Test
+  func notificationOverlayOriginClampsInsideContainerWidth() {
+    let origin = TerminalSidebarNotificationOverlayLayout.origin(
+      for: CGRect(x: 310, y: 40, width: 190, height: 48),
+      containerWidth: 540
+    )
+
+    #expect(origin.x == 208)
+    #expect(origin.y == 40)
+  }
+
   @MainActor
   @Test
   func focusedPaneIndeterminateProgressUsesActiveSpinner() {
