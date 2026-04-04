@@ -7,11 +7,13 @@ from unittest.mock import patch
 from bump_and_release import (
   PendingRelease,
   PushUpdate,
+  bump_and_release,
   create_annotated_tag_command,
   pending_release,
   parse_version_state,
   parse_push_update,
   release_state,
+  recover_pending_release,
   update_version_state,
   validate_pre_push,
   validate_release_tag,
@@ -180,6 +182,66 @@ class BumpAndReleaseTest(unittest.TestCase):
     release_commit_mock.return_value = "abc123"
 
     self.assertIsNone(pending_release())
+
+  @patch("bump_and_release.publish_release_tag")
+  @patch("bump_and_release.edit_release_notes")
+  @patch("bump_and_release.generate_release_notes")
+  @patch("bump_and_release.push_current_branch")
+  @patch("bump_and_release.current_commit")
+  @patch("bump_and_release.bump_version")
+  @patch("bump_and_release.pending_release")
+  def test_bump_and_release_pushes_branch_before_generating_notes(
+    self,
+    pending_release_mock,
+    bump_version_mock,
+    current_commit_mock,
+    push_current_branch_mock,
+    generate_release_notes_mock,
+    edit_release_notes_mock,
+    publish_release_tag_mock,
+  ) -> None:
+    events: list[str] = []
+    pending_release_mock.return_value = None
+    bump_version_mock.return_value = ("1.4.0", 27)
+    current_commit_mock.return_value = "abc123"
+    push_current_branch_mock.side_effect = lambda: events.append("push")
+    generate_release_notes_mock.side_effect = lambda *_: events.append("generate")
+    edit_release_notes_mock.side_effect = lambda *_: events.append("edit")
+    publish_release_tag_mock.side_effect = lambda *_: events.append("publish")
+
+    bump_and_release()
+
+    self.assertEqual(events, ["push", "generate", "edit", "publish"])
+
+  @patch("bump_and_release.sync_draft_release_notes")
+  @patch("bump_and_release.push_release_tag")
+  @patch("bump_and_release.create_annotated_tag")
+  @patch("bump_and_release.edit_release_notes")
+  @patch("bump_and_release.generate_release_notes")
+  @patch("bump_and_release.push_current_branch")
+  @patch("bump_and_release.prompt_for_confirmation")
+  def test_recover_pending_release_pushes_branch_before_generating_notes(
+    self,
+    prompt_for_confirmation_mock,
+    push_current_branch_mock,
+    generate_release_notes_mock,
+    edit_release_notes_mock,
+    create_annotated_tag_mock,
+    push_release_tag_mock,
+    sync_draft_release_notes_mock,
+  ) -> None:
+    events: list[str] = []
+    prompt_for_confirmation_mock.return_value = True
+    push_current_branch_mock.side_effect = lambda: events.append("push")
+    generate_release_notes_mock.side_effect = lambda *_: events.append("generate")
+    edit_release_notes_mock.side_effect = lambda *_: events.append("edit")
+    create_annotated_tag_mock.side_effect = lambda *_args, **_kwargs: events.append("tag")
+    push_release_tag_mock.side_effect = lambda *_args, **_kwargs: events.append("push-tag")
+    sync_draft_release_notes_mock.side_effect = lambda *_: events.append("sync")
+
+    recover_pending_release(PendingRelease(tag="v1.4.0", release_state="missing", commit="abc123"))
+
+    self.assertEqual(events, ["push", "generate", "edit", "tag", "push-tag"])
 
   def test_parse_push_update_reads_all_fields(self) -> None:
     self.assertEqual(
