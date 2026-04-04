@@ -876,6 +876,20 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexPostToolUseMarksTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+  }
+
+  @Test
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -950,6 +964,25 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexRunningTimesOutToIdleWithoutStop() async throws {
+    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    try? await ContinuousClock().sleep(for: .milliseconds(30))
+    await flushEffects()
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+  }
+
+  @Test
   func stopWithoutAssistantMessageOnlyMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -994,11 +1027,12 @@ struct TerminalWindowRegistryTests {
   }
 
   private func makeClaudeHookHarness(
+    agentRunningTimeout: Duration = .seconds(15),
     windowActivity: WindowActivityState = .init(isKeyWindow: true, isVisible: true)
   ) throws -> ClaudeHookHarness {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry()
+    let registry = TerminalWindowRegistry(agentRunningTimeout: agentRunningTimeout)
     let host = TerminalHostState()
     host.windowActivity = windowActivity
     let store = Store(initialState: AppFeature.State()) {
@@ -1013,7 +1047,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
     host.handleCommand(.ensureInitialTab(focusing: false))
 
     let surfaceID = try #require(host.selectedSurfaceView?.id)
@@ -1024,6 +1059,7 @@ struct TerminalWindowRegistryTests {
       registry: registry,
       store: store,
       tabID: tabID,
+      window: window,
       windowControllerID: windowControllerID
     )
   }
@@ -1034,6 +1070,7 @@ struct TerminalWindowRegistryTests {
     let registry: TerminalWindowRegistry
     let store: StoreOf<AppFeature>
     let tabID: TerminalTabID
+    let window: NSWindow
     let windowControllerID: UUID
   }
 }

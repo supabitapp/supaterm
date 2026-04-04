@@ -61,9 +61,21 @@ final class TerminalWindowRegistry {
     let subtitle: String
   }
 
+  private let agentRunningTimeout: Duration
   private var agentHookSessions: [AgentHookSessionKey: AgentHookSession] = [:]
+  private var agentRunningTimeoutTasks: [AgentHookSessionKey: Task<Void, Never>] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
+
+  init(agentRunningTimeout: Duration = .seconds(15)) {
+    self.agentRunningTimeout = agentRunningTimeout
+  }
+
+  deinit {
+    for task in agentRunningTimeoutTasks.values {
+      task.cancel()
+    }
+  }
 
   var hasShortcutSource: Bool {
     !entries.isEmpty
@@ -1239,10 +1251,16 @@ final class TerminalWindowRegistry {
     }
 
     switch event.hookEventName {
-    case .sessionStart, .unsupported:
+    case .sessionStart:
+      if let sessionID = event.sessionID {
+        cancelAgentRunningTimeout(agent: request.agent, sessionID: sessionID)
+      }
       return .init(desktopNotification: nil)
 
-    case .preToolUse:
+    case .unsupported:
+      return .init(desktopNotification: nil)
+
+    case .postToolUse, .preToolUse:
       guard let sessionID = event.sessionID else {
         return .init(desktopNotification: nil)
       }
@@ -1438,7 +1456,15 @@ final class TerminalWindowRegistry {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
+    let updated = updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
+    if updated {
+      if activity.phase == .running {
+        armAgentRunningTimeout(agent: agent, sessionID: sessionID, context: context)
+      } else {
+        cancelAgentRunningTimeout(agent: agent, sessionID: sessionID)
+      }
+    }
+    return updated
   }
 
   private func clearRecentStructuredNotifications(
@@ -1465,7 +1491,52 @@ final class TerminalWindowRegistry {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    updateAgentActivity(nil, agent: agent, sessionID: sessionID, context: context)
+    cancelAgentRunningTimeout(agent: agent, sessionID: sessionID)
+    return updateAgentActivity(nil, agent: agent, sessionID: sessionID, context: context)
+  }
+
+  private func armAgentRunningTimeout(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) {
+    let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+    agentRunningTimeoutTasks[key]?.cancel()
+    let timeout = agentRunningTimeout
+    agentRunningTimeoutTasks[key] = Task { [weak self] in
+      try? await ContinuousClock().sleep(for: timeout)
+      guard !Task.isCancelled else { return }
+      await self?.expireAgentRunningTimeout(
+        key: key,
+        agent: agent,
+        sessionID: sessionID,
+        context: context
+      )
+    }
+  }
+
+  private func cancelAgentRunningTimeout(
+    agent: SupatermAgentKind,
+    sessionID: String
+  ) {
+    let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+    agentRunningTimeoutTasks[key]?.cancel()
+    agentRunningTimeoutTasks.removeValue(forKey: key)
+  }
+
+  private func expireAgentRunningTimeout(
+    key: AgentHookSessionKey,
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) {
+    agentRunningTimeoutTasks.removeValue(forKey: key)
+    _ = updateAgentActivity(
+      .init(kind: agent, phase: .idle),
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
   }
 
   @discardableResult
@@ -1510,6 +1581,9 @@ final class TerminalWindowRegistry {
   }
 
   private func clearAgentHookSessions(for surfaceID: UUID) {
+    for key in agentHookSessions.keys where agentHookSessions[key]?.surfaceID == surfaceID {
+      cancelAgentRunningTimeout(agent: key.agent, sessionID: key.sessionID)
+    }
     agentHookSessions = agentHookSessions.filter { $0.value.surfaceID != surfaceID }
   }
 

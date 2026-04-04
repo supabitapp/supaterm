@@ -101,6 +101,7 @@ Codex now uses the same app-side bridge and tab-state model.
 
 - Supaterm's canonical Codex hook fragment is also available from `sp codex-hook-settings`.
 - The installed global hooks tell Codex to invoke `sp agent-hook --agent codex` for:
+  - `PostToolUse`
   - `SessionStart` with matcher `startup|resume`
   - `PreToolUse`
   - `UserPromptSubmit`
@@ -111,9 +112,11 @@ Codex now uses the same app-side bridge and tab-state model.
 The app binds Codex sessions to pane surfaces and turns Codex hook events into tab activity.
 
 - `SessionStart` binds the session to the current pane surface.
+- `PostToolUse` marks the tab as `running`.
 - `PreToolUse` marks the tab as `running`.
 - `UserPromptSubmit` marks the tab as `running`.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
+- If no newer event clears or refreshes `running`, Supaterm falls back to `idle` after 15 seconds.
 
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.
 
