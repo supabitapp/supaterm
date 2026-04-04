@@ -76,7 +76,21 @@ struct AppDelegateTests {
   @Test
   func initialWindowSessionsFallsBackToSingleBlankWindow() {
     let sessions = AppDelegate.initialWindowSessions(
-      from: TerminalSessionCatalog(windows: [])
+      from: TerminalSessionCatalog(windows: []),
+      restoreTerminalLayoutEnabled: true
+    )
+
+    #expect(sessions.count == 1)
+    #expect(sessions[0] == nil)
+  }
+
+  @Test
+  func initialWindowSessionsFallsBackToSingleBlankWindowWhenRestoreIsDisabled() {
+    let sessions = AppDelegate.initialWindowSessions(
+      from: TerminalSessionCatalog(
+        windows: [TerminalWindowSession(selectedSpaceID: TerminalSpaceID(), spaces: [])]
+      ),
+      restoreTerminalLayoutEnabled: false
     )
 
     #expect(sessions.count == 1)
@@ -95,7 +109,8 @@ struct AppDelegateTests {
     )
 
     let sessions = AppDelegate.initialWindowSessions(
-      from: TerminalSessionCatalog(windows: [first, second])
+      from: TerminalSessionCatalog(windows: [first, second]),
+      restoreTerminalLayoutEnabled: true
     )
 
     #expect(sessions == [first, second])

@@ -172,6 +172,8 @@ private struct SettingsAgentSectionHeader: View {
 }
 
 private struct SettingsGeneralView: View {
+  let store: StoreOf<SettingsFeature>
+
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
       get: { store.appearanceMode },
@@ -181,7 +183,14 @@ private struct SettingsGeneralView: View {
     )
   }
 
-  let store: StoreOf<SettingsFeature>
+  private var restoreTerminalLayoutEnabled: Binding<Bool> {
+    Binding(
+      get: { store.restoreTerminalLayoutEnabled },
+      set: { newValue in
+        _ = store.send(.restoreTerminalLayoutEnabledChanged(newValue))
+      }
+    )
+  }
 
   var body: some View {
     Form {
@@ -217,6 +226,14 @@ private struct SettingsGeneralView: View {
             subtitle: "Managed through your Ghostty config."
           )
         }
+      }
+
+      Section {
+        SettingsToggleRow(
+          title: "Restore Terminal Layout",
+          subtitle: "Reopen tabs, splits, and working directories from your last session.",
+          isOn: restoreTerminalLayoutEnabled
+        )
       }
     }
     .navigationTitle("General")

@@ -34,6 +34,7 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
+          restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip
         )
@@ -48,6 +49,7 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
+        $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
       }
@@ -151,6 +153,24 @@ struct SettingsFeatureTests {
       @Shared(.appPrefs) var appPrefs = .default
       #expect(!appPrefs.analyticsEnabled)
       #expect(!appPrefs.crashReportsEnabled)
+    }
+  }
+
+  @Test
+  func restoreTerminalLayoutSettingPersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.restoreTerminalLayoutEnabledChanged(false)) {
+        $0.restoreTerminalLayoutEnabled = false
+      }
+
+      @Shared(.appPrefs) var appPrefs = .default
+      #expect(!appPrefs.restoreTerminalLayoutEnabled)
     }
   }
 

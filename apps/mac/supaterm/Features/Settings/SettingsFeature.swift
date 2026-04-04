@@ -51,6 +51,7 @@ struct SettingsFeature {
     var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
     var codexHooksInstallState = SettingsAgentHooksInstallState.idle
     var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
+    var restoreTerminalLayoutEnabled = AppPrefs.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
     var systemNotificationsEnabled = AppPrefs.default.systemNotificationsEnabled
     var updateChannel = AppPrefs.default.updateChannel
@@ -68,6 +69,7 @@ struct SettingsFeature {
     case codexHooksInstallButtonTapped
     case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
     case crashReportsEnabledChanged(Bool)
+    case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(AppPrefs)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
     case systemNotificationsAuthorizationResult(DesktopNotificationClient.AuthorizationRequestResult)
@@ -159,6 +161,7 @@ struct SettingsFeature {
         state.appearanceMode = appPrefs.appearanceMode
         state.analyticsEnabled = appPrefs.analyticsEnabled
         state.crashReportsEnabled = appPrefs.crashReportsEnabled
+        state.restoreTerminalLayoutEnabled = appPrefs.restoreTerminalLayoutEnabled
         state.systemNotificationsEnabled = appPrefs.systemNotificationsEnabled
         state.updateChannel = appPrefs.updateChannel
         return .none
@@ -235,6 +238,10 @@ struct SettingsFeature {
 
       case .crashReportsEnabledChanged(let isEnabled):
         state.crashReportsEnabled = isEnabled
+        return persist(state)
+
+      case .restoreTerminalLayoutEnabledChanged(let isEnabled):
+        state.restoreTerminalLayoutEnabled = isEnabled
         return persist(state)
 
       case .systemNotificationsEnabledChanged(let isEnabled):
@@ -320,6 +327,7 @@ struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
+      restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.updateChannel
     )

@@ -12,6 +12,8 @@ protocol GhosttyAppActionPerforming: AnyObject {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
+  @Shared(.appPrefs)
+  private var appPrefs = .default
   @Shared(.terminalSessionCatalog)
   private var sessionCatalog = TerminalSessionCatalog.default
 
@@ -145,7 +147,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   private func restoreWindowsAtLaunch() {
     suppressesSessionSave = true
-    let sessions = Self.initialWindowSessions(from: sessionCatalog)
+    let sessions = Self.initialWindowSessions(
+      from: sessionCatalog,
+      restoreTerminalLayoutEnabled: appPrefs.restoreTerminalLayoutEnabled
+    )
     var lastController: TerminalWindowController?
     for session in sessions {
       lastController = createWindow(session: session)
@@ -206,8 +211,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   static func initialWindowSessions(
-    from sessionCatalog: TerminalSessionCatalog
+    from sessionCatalog: TerminalSessionCatalog,
+    restoreTerminalLayoutEnabled: Bool
   ) -> [TerminalWindowSession?] {
+    guard restoreTerminalLayoutEnabled else {
+      return [nil]
+    }
     if sessionCatalog.windows.isEmpty {
       return [nil]
     }
