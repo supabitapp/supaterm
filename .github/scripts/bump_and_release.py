@@ -347,7 +347,6 @@ def validate_pre_push(stdin: TextIO) -> None:
 
 def publish_release_tag(tag: str, notes_path: Path, force: bool = False) -> None:
   create_annotated_tag(tag, notes_path, force=force)
-  push_current_branch()
   push_release_tag(tag, force=force)
 
 
@@ -365,6 +364,7 @@ def recover_pending_release(release: PendingRelease) -> None:
   ) as handle:
     notes_path = Path(handle.name)
   try:
+    push_current_branch()
     generate_release_notes(release.tag, notes_path, release.commit)
     edit_release_notes(notes_path)
     create_annotated_tag(release.tag, notes_path, force=True, commit=release.commit)
@@ -391,6 +391,7 @@ def bump_and_release() -> None:
   ) as handle:
     notes_path = Path(handle.name)
   try:
+    push_current_branch()
     generate_release_notes(tag, notes_path, current_commit())
     edit_release_notes(notes_path)
     publish_release_tag(tag, notes_path)
