@@ -129,6 +129,12 @@ struct SPRawConnectionInvocation: Equatable {
   }
 }
 
+protocol SPTmuxTransport {
+  func send(_ request: SupatermSocketRequest) throws -> SupatermSocketResponse
+}
+
+extension SPSocketClient: SPTmuxTransport {}
+
 enum SPTmuxCompatibility {
   static func run(
     arguments: [String],
@@ -153,7 +159,7 @@ enum SPTmuxCompatibility {
       instance: instance
     )
     try SPTmuxCommandRunner(
-      client: client,
+      transport: client,
       environment: environment
     ).run(arguments: arguments)
   }
@@ -183,7 +189,7 @@ enum SPTeammateLauncher {
     )
     let client = try SPSocketClient(path: resolvedTarget.path)
     let focusedContext = try SPTmuxCommandRunner(
-      client: client,
+      transport: client,
       environment: environment
     ).focusedContext()
     let launcher = try configuredProcess(
@@ -367,8 +373,8 @@ private func freeCStringArray(_ pointer: UnsafeMutablePointer<UnsafeMutablePoint
   pointer.deallocate()
 }
 
-private struct SPTmuxCommandRunner {
-  let client: SPSocketClient
+struct SPTmuxCommandRunner {
+  let transport: any SPTmuxTransport
   let environment: [String: String]
 
   var context: SupatermCLIContext? {
@@ -1359,7 +1365,7 @@ private struct SPTmuxCommandRunner {
         "request_id": request.id,
       ]
     )
-    let response = try client.send(request)
+    let response = try transport.send(request)
     guard response.ok else {
       trace(
         "socket_error",
