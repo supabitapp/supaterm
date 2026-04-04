@@ -53,13 +53,21 @@ struct UpdatePhaseTests {
   }
 
   @Test
-  func deferredRestartKeepsRestartMenuActionWhileHidingSidebarSection() {
-    let phase = UpdatePhase.installing(.init(isAutoUpdate: true, showsPrompt: false))
+  func autoUpdateInstallingKeepsRestartMenuActionWhileHidingSidebarSection() {
+    let phase = UpdatePhase.installing(.init(isAutoUpdate: true))
 
     #expect(!phase.showsSidebarSection)
     #expect(phase.menuItemAction == .restartNow)
     #expect(phase.menuItemTitle == "Restart to Update...")
     #expect(phase.bypassesQuitConfirmation)
+  }
+
+  @Test
+  func manualInstallingKeepsSidebarSectionVisible() {
+    let phase = UpdatePhase.installing(.init(isAutoUpdate: false))
+
+    #expect(phase.showsSidebarSection)
+    #expect(phase.menuItemAction == .restartNow)
   }
 
   @Test
