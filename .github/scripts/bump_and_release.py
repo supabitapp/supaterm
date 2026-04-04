@@ -40,6 +40,7 @@ class PushUpdate:
 class PendingRelease:
   tag: str
   release_state: str
+  commit: str
 
 
 def parse_version_state(content: str) -> VersionState:
@@ -173,10 +174,6 @@ def current_commit() -> str:
   return run(["git", "rev-parse", "HEAD"])
 
 
-def current_commit_subject() -> str:
-  return run(["git", "log", "-1", "--pretty=%s"])
-
-
 def generate_release_notes(tag: str, notes_path: Path, target_commitish: str) -> None:
   repo = current_repository()
   previous_tag = previous_release_tag()
@@ -218,6 +215,10 @@ def release_state(tag: str) -> str:
   return "published"
 
 
+def release_commit(tag: str) -> str:
+  return run(["git", "log", "-1", "--format=%H", "--grep", f"^bump {re.escape(tag)}$"])
+
+
 def pending_release() -> PendingRelease | None:
   current_state = read_version_state()
   latest_published_tag = previous_release_tag()
@@ -226,27 +227,41 @@ def pending_release() -> PendingRelease | None:
   ):
     return None
   tag = f"v{current_state.marketing_version}"
-  if current_commit_subject() != f"bump {tag}":
+  try:
+    commit = release_commit(tag)
+  except subprocess.CalledProcessError:
     return None
   state = release_state(tag)
   if state == "published":
     return None
-  return PendingRelease(tag=tag, release_state=state)
+  return PendingRelease(tag=tag, release_state=state, commit=commit)
 
 
 def sync_draft_release_notes(tag: str, notes_path: Path) -> None:
   run_interactive(["gh", "release", "edit", tag, "--notes-file", str(notes_path)])
 
 
-def create_annotated_tag_command(tag: str, notes_path: Path, force: bool = False) -> list[str]:
+def create_annotated_tag_command(
+  tag: str,
+  notes_path: Path,
+  force: bool = False,
+  commit: str | None = None,
+) -> list[str]:
   command = ["git", "tag"]
   command.append("-fa" if force else "-a")
   command.extend([tag, "-F", str(notes_path)])
+  if commit is not None:
+    command.append(commit)
   return command
 
 
-def create_annotated_tag(tag: str, notes_path: Path, force: bool = False) -> None:
-  run_interactive(create_annotated_tag_command(tag, notes_path, force=force))
+def create_annotated_tag(
+  tag: str,
+  notes_path: Path,
+  force: bool = False,
+  commit: str | None = None,
+) -> None:
+  run_interactive(create_annotated_tag_command(tag, notes_path, force=force, commit=commit))
 
 
 def push_current_branch() -> None:
@@ -350,9 +365,10 @@ def recover_pending_release(release: PendingRelease) -> None:
   ) as handle:
     notes_path = Path(handle.name)
   try:
-    generate_release_notes(release.tag, notes_path, current_commit())
+    generate_release_notes(release.tag, notes_path, release.commit)
     edit_release_notes(notes_path)
-    publish_release_tag(release.tag, notes_path, force=True)
+    create_annotated_tag(release.tag, notes_path, force=True, commit=release.commit)
+    push_release_tag(release.tag, force=True)
     if release.release_state == "draft":
       sync_draft_release_notes(release.tag, notes_path)
   finally:
