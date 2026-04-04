@@ -20,6 +20,7 @@ struct AppPrefsTests {
     #expect(prefs.appearanceMode == .system)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
+    #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
   }
@@ -41,6 +42,7 @@ struct AppPrefsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
+    #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == UpdateChannel.stable)
   }
