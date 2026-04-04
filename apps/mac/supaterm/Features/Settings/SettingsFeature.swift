@@ -102,13 +102,13 @@ struct SettingsFeature {
       case .advanced:
         "gearshape.2"
       case .codingAgents:
-        "terminal"
+        "hammer"
       case .general:
-        "slider.horizontal.3"
+        "gearshape"
       case .notifications:
         "bell"
       case .updates:
-        "arrow.trianglehead.clockwise"
+        "arrow.down.circle"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -128,23 +128,6 @@ struct SettingsFeature {
         "Updates"
       case .about:
         "About"
-      }
-    }
-
-    var detail: String {
-      switch self {
-      case .advanced:
-        "Diagnostics and restart-required preferences"
-      case .codingAgents:
-        "Claude and Codex hook integration"
-      case .general:
-        "Appearance, privacy, and preferences"
-      case .notifications:
-        "macOS desktop notification delivery"
-      case .updates:
-        "Channel and automatic update preferences"
-      case .about:
-        "App logo and build information"
       }
     }
   }
