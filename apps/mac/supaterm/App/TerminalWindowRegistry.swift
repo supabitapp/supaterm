@@ -702,6 +702,39 @@ final class TerminalWindowRegistry {
     }
   }
 
+  func setPaneSize(_ request: TerminalSetPaneSizeRequest) throws -> SupatermSetPaneSizeResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.setPaneSize(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalSetPaneSizeRequest(
+        amount: request.amount,
+        axis: request.axis,
+        target: .pane(
+          windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex),
+        unit: request.unit
+      )
+      do {
+        return Self.rewrite(try entry.terminal.setPaneSize(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
     switch request.target {
     case .contextPane:
@@ -756,6 +789,38 @@ final class TerminalWindowRegistry {
       do {
         return Self.rewrite(
           try entry.terminal.equalizePanes(localRequest), windowIndex: windowIndex)
+      } catch let error as TerminalControlError {
+        throw Self.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func mainVerticalPanes(
+    _ request: TerminalMainVerticalPanesRequest
+  ) throws -> SupatermMainVerticalPanesResult {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.mainVerticalPanes(request)
+          return Self.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try entry(for: windowIndex)
+      let localRequest = TerminalMainVerticalPanesRequest(
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+      )
+      do {
+        return Self.rewrite(
+          try entry.terminal.mainVerticalPanes(localRequest), windowIndex: windowIndex)
       } catch let error as TerminalControlError {
         throw Self.rewrite(error, windowIndex: windowIndex)
       }

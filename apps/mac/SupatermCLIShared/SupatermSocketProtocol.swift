@@ -17,6 +17,7 @@ public enum SupatermSocketMethod {
   public static let terminalLastPane = "terminal.last_pane"
   public static let terminalLastSpace = "terminal.last_space"
   public static let terminalLastTab = "terminal.last_tab"
+  public static let terminalMainVerticalPanes = "terminal.main_vertical_panes"
   public static let terminalNewTab = "terminal.new_tab"
   public static let terminalNewPane = "terminal.new_pane"
   public static let terminalNextSpace = "terminal.next_space"
@@ -29,6 +30,7 @@ public enum SupatermSocketMethod {
   public static let terminalResizePane = "terminal.resize_pane"
   public static let terminalSelectSpace = "terminal.select_space"
   public static let terminalSelectTab = "terminal.select_tab"
+  public static let terminalSetPaneSize = "terminal.set_pane_size"
   public static let terminalSendKey = "terminal.send_key"
   public static let terminalSendText = "terminal.send_text"
   public static let terminalTilePanes = "terminal.tile_panes"
@@ -257,6 +259,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     )
   }
 
+  public static func mainVerticalPanes(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalMainVerticalPanes,
+      params: try JSONObject(payload)
+    )
+  }
+
   public static func lastSpace(
     _ payload: SupatermSpaceNavigationRequest,
     id: String = UUID().uuidString
@@ -385,6 +398,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalSelectTab,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func setPaneSize(
+    _ payload: SupatermSetPaneSizeRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalSetPaneSize,
       params: try JSONObject(payload)
     )
   }
@@ -1128,6 +1152,16 @@ public enum SupatermResizePaneDirection: String, Equatable, Sendable, Codable {
   case up
 }
 
+public enum SupatermPaneAxis: String, Equatable, Sendable, Codable {
+  case horizontal
+  case vertical
+}
+
+public enum SupatermPaneSizeUnit: String, Equatable, Sendable, Codable {
+  case cells
+  case percent
+}
+
 public struct SupatermResizePaneRequest: Equatable, Sendable, Codable {
   public let amount: UInt16
   public let direction: SupatermResizePaneDirection
@@ -1141,6 +1175,25 @@ public struct SupatermResizePaneRequest: Equatable, Sendable, Codable {
     self.amount = amount
     self.direction = direction
     self.target = target
+  }
+}
+
+public struct SupatermSetPaneSizeRequest: Equatable, Sendable, Codable {
+  public let amount: Double
+  public let axis: SupatermPaneAxis
+  public let target: SupatermPaneTargetRequest
+  public let unit: SupatermPaneSizeUnit
+
+  public init(
+    amount: Double,
+    axis: SupatermPaneAxis,
+    target: SupatermPaneTargetRequest,
+    unit: SupatermPaneSizeUnit
+  ) {
+    self.amount = amount
+    self.axis = axis
+    self.target = target
+    self.unit = unit
   }
 }
 
@@ -1427,7 +1480,9 @@ public typealias SupatermCloseSpaceResult = SupatermSpaceTarget
 public typealias SupatermCloseTabResult = SupatermTabTarget
 public typealias SupatermCreateSpaceResult = SupatermSelectSpaceResult
 public typealias SupatermEqualizePanesResult = SupatermTabTarget
+public typealias SupatermMainVerticalPanesResult = SupatermTabTarget
 public typealias SupatermResizePaneResult = SupatermPaneTarget
+public typealias SupatermSetPaneSizeResult = SupatermPaneTarget
 public typealias SupatermSendKeyResult = SupatermPaneTarget
 public typealias SupatermSendTextResult = SupatermPaneTarget
 public typealias SupatermTilePanesResult = SupatermTabTarget

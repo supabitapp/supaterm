@@ -1351,6 +1351,123 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func mainVerticalPanesRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "6D9F64D1-4C89-4CE5-8CA4-D5B8C1E4E4A2")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .mainVerticalPanes(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3
+        ),
+        id: "main-vertical-panes-1"
+      )
+    )
+    let result = SupatermTabTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      title: "Workers"
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.mainVerticalPanes = { request in
+        #expect(
+          request
+            == .init(
+              target: .tab(
+                windowIndex: 1,
+                spaceIndex: 2,
+                tabIndex: 3
+              )
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermTabTarget.self) == result)
+  }
+
+  @Test
+  func setPaneSizeRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "948F2A06-0726-4D1C-9F55-C6BA5740F356")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .setPaneSize(
+        .init(
+          amount: 30,
+          axis: .horizontal,
+          target: .init(
+            targetWindowIndex: 1,
+            targetSpaceIndex: 2,
+            targetTabIndex: 3,
+            targetPaneIndex: 4
+          ),
+          unit: .percent
+        ),
+        id: "set-pane-size-1"
+      )
+    )
+    let result = SupatermPaneTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.setPaneSize = { request in
+        #expect(
+          request
+            == .init(
+              amount: 30,
+              axis: .horizontal,
+              target: .pane(
+                windowIndex: 1,
+                spaceIndex: 2,
+                tabIndex: 3,
+                paneIndex: 4
+              ),
+              unit: .percent
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermPaneTarget.self) == result)
+  }
+
+  @Test
   func sendKeyRequestRepliesWithResolvedTarget() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "5D6996B2-28D4-4B30-9CDB-F18FD939E7B2")!

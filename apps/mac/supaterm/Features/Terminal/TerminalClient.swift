@@ -79,6 +79,10 @@ struct TerminalTilePanesRequest: Equatable, Sendable {
   let target: TerminalTabTarget
 }
 
+struct TerminalMainVerticalPanesRequest: Equatable, Sendable {
+  let target: TerminalTabTarget
+}
+
 struct TerminalSendTextRequest: Equatable, Sendable {
   let target: TerminalPaneTarget
   let text: String
@@ -99,6 +103,13 @@ struct TerminalResizePaneRequest: Equatable, Sendable {
   let amount: UInt16
   let direction: SupatermResizePaneDirection
   let target: TerminalPaneTarget
+}
+
+struct TerminalSetPaneSizeRequest: Equatable, Sendable {
+  let amount: Double
+  let axis: SupatermPaneAxis
+  let target: TerminalPaneTarget
+  let unit: SupatermPaneSizeUnit
 }
 
 struct TerminalRenameTabRequest: Equatable, Sendable {

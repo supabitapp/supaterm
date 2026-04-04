@@ -347,6 +347,18 @@ struct SocketControlFeature {
       )
       return try .ok(id: request.id, encodableResult: result)
 
+    case SupatermSocketMethod.terminalSetPaneSize:
+      let payload = try request.decodeParams(SupatermSetPaneSizeRequest.self)
+      let result = try await terminalWindowsClient.setPaneSize(
+        .init(
+          amount: payload.amount,
+          axis: payload.axis,
+          target: try createPaneTarget(from: payload.target),
+          unit: payload.unit
+        )
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
     default:
       return nil
     }
@@ -367,6 +379,13 @@ struct SocketControlFeature {
     case SupatermSocketMethod.terminalEqualizePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let result = try await terminalWindowsClient.equalizePanes(
+        .init(target: try createTabTarget(from: payload))
+      )
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalMainVerticalPanes:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let result = try await terminalWindowsClient.mainVerticalPanes(
         .init(target: try createTabTarget(from: payload))
       )
       return try .ok(id: request.id, encodableResult: result)
