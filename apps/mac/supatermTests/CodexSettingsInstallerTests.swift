@@ -18,7 +18,7 @@ struct CodexSettingsInstallerTests {
 
     let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
     let hooks = try #require(object["hooks"] as? [String: Any])
-    #expect(Set(hooks.keys) == ["PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(Set(hooks.keys) == ["PostToolUse", "PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
   }
 
   @Test

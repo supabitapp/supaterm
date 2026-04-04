@@ -16,6 +16,7 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendabl
 
 public enum SupatermAgentHookEventName: Equatable, Sendable {
   case notification
+  case postToolUse
   case preToolUse
   case sessionEnd
   case sessionStart
@@ -27,6 +28,8 @@ public enum SupatermAgentHookEventName: Equatable, Sendable {
     switch rawValue {
     case "Notification":
       self = .notification
+    case "PostToolUse":
+      self = .postToolUse
     case "PreToolUse":
       self = .preToolUse
     case "SessionEnd":
@@ -46,6 +49,8 @@ public enum SupatermAgentHookEventName: Equatable, Sendable {
     switch self {
     case .notification:
       return "Notification"
+    case .postToolUse:
+      return "PostToolUse"
     case .preToolUse:
       return "PreToolUse"
     case .sessionEnd:

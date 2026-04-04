@@ -27,6 +27,18 @@ enum CodexHookFixtures {
     }
     """
 
+  static let postToolUse = """
+    {
+      "session_id": "\(sessionID)",
+      "cwd": "\(cwd)",
+      "hook_event_name": "PostToolUse",
+      "tool_name": "Bash",
+      "tool_input": {
+        "command": "git status --short"
+      }
+    }
+    """
+
   static let userPromptSubmit = """
     {
       "session_id": "\(sessionID)",

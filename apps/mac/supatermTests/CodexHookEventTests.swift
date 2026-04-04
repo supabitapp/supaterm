@@ -15,12 +15,16 @@ struct CodexHookEventTests {
   }
 
   @Test
-  func preToolUseFixtureIgnoresUnknownToolInputFields() throws {
+  func toolFixturesIgnoreUnknownToolInputFields() throws {
     let event = try CodexHookFixtures.event(CodexHookFixtures.preToolUse)
+    let postToolUse = try CodexHookFixtures.event(CodexHookFixtures.postToolUse)
 
     #expect(event.hookEventName == .preToolUse)
     #expect(event.toolName == "Bash")
     #expect(event.toolInput == .init())
+    #expect(postToolUse.hookEventName == .postToolUse)
+    #expect(postToolUse.toolName == "Bash")
+    #expect(postToolUse.toolInput == .init())
   }
 
   @Test

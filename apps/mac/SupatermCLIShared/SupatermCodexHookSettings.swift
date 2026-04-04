@@ -29,6 +29,7 @@ public enum SupatermCodexHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
+      "PostToolUse": [.init(hooks: [.init(command: command, timeout: 5)])],
       "PreToolUse": [.init(hooks: [.init(command: command, timeout: 5)])],
       "SessionStart": [.init(matcher: "startup|resume", hooks: [.init(command: command, timeout: 10)])],
       "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
