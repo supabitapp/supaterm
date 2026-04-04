@@ -13,6 +13,8 @@ struct TerminalWindowsClient: Sendable {
   var createTab: @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var equalizePanes: @MainActor @Sendable (TerminalEqualizePanesRequest) async throws -> SupatermEqualizePanesResult
+  var mainVerticalPanes:
+    @MainActor @Sendable (TerminalMainVerticalPanesRequest) async throws -> SupatermMainVerticalPanesResult
   var notify: @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult
   var focusPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
   var lastPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
@@ -27,6 +29,7 @@ struct TerminalWindowsClient: Sendable {
   var renameSpace: @MainActor @Sendable (TerminalRenameSpaceRequest) async throws -> SupatermSpaceTarget
   var renameTab: @MainActor @Sendable (TerminalRenameTabRequest) async throws -> SupatermRenameTabResult
   var resizePane: @MainActor @Sendable (TerminalResizePaneRequest) async throws -> SupatermResizePaneResult
+  var setPaneSize: @MainActor @Sendable (TerminalSetPaneSizeRequest) async throws -> SupatermSetPaneSizeResult
   var selectSpace: @MainActor @Sendable (TerminalSpaceTarget) async throws -> SupatermSelectSpaceResult
   var selectTab: @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermSelectTabResult
   var sendKey: @MainActor @Sendable (TerminalSendKeyRequest) async throws -> SupatermSendKeyResult
@@ -36,99 +39,39 @@ struct TerminalWindowsClient: Sendable {
 
   static func live(registry: TerminalWindowRegistry) -> Self {
     Self(
-      agentHook: { request in
-        try registry.handleAgentHook(request)
-      },
-      capturePane: { request in
-        try registry.capturePane(request)
-      },
-      closeWindow: { windowID in
-        registry.closeWindow(windowID)
-      },
-      closeWindows: { windowIDs in
-        registry.closeWindows(windowIDs)
-      },
-      closePane: { target in
-        try registry.closePane(target)
-      },
-      closeSpace: { target in
-        try registry.closeSpace(target)
-      },
-      closeTab: { target in
-        try registry.closeTab(target)
-      },
-      createSpace: { request in
-        try registry.createSpace(request)
-      },
-      createTab: { request in
-        try registry.createTab(request)
-      },
-      createPane: { request in
-        try registry.createPane(request)
-      },
-      equalizePanes: { request in
-        try registry.equalizePanes(request)
-      },
-      notify: { request in
-        try registry.notify(request)
-      },
-      focusPane: { target in
-        try registry.focusPane(target)
-      },
-      lastPane: { target in
-        try registry.lastPane(target)
-      },
-      lastSpace: { request in
-        try registry.lastSpace(request)
-      },
-      lastTab: { request in
-        try registry.lastTab(request)
-      },
-      nextSpace: { request in
-        try registry.nextSpace(request)
-      },
-      nextTab: { request in
-        try registry.nextTab(request)
-      },
-      onboardingSnapshot: {
-        registry.onboardingSnapshot()
-      },
-      previousSpace: { request in
-        try registry.previousSpace(request)
-      },
-      previousTab: { request in
-        try registry.previousTab(request)
-      },
-      debugSnapshot: { request in
-        registry.debugSnapshot(request)
-      },
-      renameSpace: { request in
-        try registry.renameSpace(request)
-      },
-      renameTab: { request in
-        try registry.renameTab(request)
-      },
-      resizePane: { request in
-        try registry.resizePane(request)
-      },
-      selectSpace: { target in
-        try registry.selectSpace(target)
-      },
-      selectTab: { target in
-        try registry.selectTab(target)
-      },
-      sendKey: { request in
-        try registry.sendKey(request)
-      },
-      sendText: { request in
-        try registry.sendText(request)
-      },
-      tilePanes: { request in
-        try registry.tilePanes(request)
-      },
-      treeSnapshot: {
-        registry.treeSnapshot()
-      }
+      agentHook: { try registry.handleAgentHook($0) },
+      capturePane: { try registry.capturePane($0) },
+      closeWindow: { registry.closeWindow($0) },
+      closeWindows: { registry.closeWindows($0) },
+      closePane: { try registry.closePane($0) },
+      closeSpace: { try registry.closeSpace($0) },
+      closeTab: { try registry.closeTab($0) },
+      createSpace: { try registry.createSpace($0) },
+      createTab: { try registry.createTab($0) },
+      createPane: { try registry.createPane($0) },
+      equalizePanes: { try registry.equalizePanes($0) },
+      mainVerticalPanes: { try registry.mainVerticalPanes($0) },
+      notify: { try registry.notify($0) },
+      focusPane: { try registry.focusPane($0) },
+      lastPane: { try registry.lastPane($0) },
+      lastSpace: { try registry.lastSpace($0) },
+      lastTab: { try registry.lastTab($0) },
+      nextSpace: { try registry.nextSpace($0) },
+      nextTab: { try registry.nextTab($0) },
+      onboardingSnapshot: { registry.onboardingSnapshot() },
+      previousSpace: { try registry.previousSpace($0) },
+      previousTab: { try registry.previousTab($0) },
+      debugSnapshot: { registry.debugSnapshot($0) },
+      renameSpace: { try registry.renameSpace($0) },
+      renameTab: { try registry.renameTab($0) },
+      resizePane: { try registry.resizePane($0) },
+      setPaneSize: { try registry.setPaneSize($0) },
+      selectSpace: { try registry.selectSpace($0) },
+      selectTab: { try registry.selectTab($0) },
+      sendKey: { try registry.sendKey($0) },
+      sendText: { try registry.sendText($0) },
+      tilePanes: { try registry.tilePanes($0) },
+      treeSnapshot: { registry.treeSnapshot() }
     )
   }
 }
@@ -162,6 +105,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalCreatePaneError.creationFailed
     },
     equalizePanes: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
+    mainVerticalPanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
     notify: { _ in
@@ -200,6 +146,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalControlError.contextPaneNotFound
     },
     resizePane: { _ in
+      throw TerminalControlError.resizeFailed
+    },
+    setPaneSize: { _ in
       throw TerminalControlError.resizeFailed
     },
     selectSpace: { _ in
@@ -250,6 +199,9 @@ extension TerminalWindowsClient: DependencyKey {
     equalizePanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
+    mainVerticalPanes: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
     notify: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -286,6 +238,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalControlError.contextPaneNotFound
     },
     resizePane: { _ in
+      throw TerminalControlError.resizeFailed
+    },
+    setPaneSize: { _ in
       throw TerminalControlError.resizeFailed
     },
     selectSpace: { _ in

@@ -107,6 +107,14 @@ struct SPTmuxCompatTests {
   }
 
   @Test
+  func tmuxPaneAxisMatchesSplitDirection() {
+    #expect(tmuxPaneAxis(for: .left) == .horizontal)
+    #expect(tmuxPaneAxis(for: .right) == .horizontal)
+    #expect(tmuxPaneAxis(for: .up) == .vertical)
+    #expect(tmuxPaneAxis(for: .down) == .vertical)
+  }
+
+  @Test
   func tmuxSendKeysTextConvertsSpecialKeysToControlCharacters() {
     #expect(
       tmuxSendKeysText(

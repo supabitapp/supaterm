@@ -696,7 +696,7 @@ private struct SPTmuxCommandRunner {
           command: nil,
           direction: direction,
           focus: false,
-          equalize: true,
+          equalize: false,
           targetWindowIndex: targetPane.window.index,
           targetSpaceIndex: targetPane.space.index,
           targetTabIndex: targetPane.tab.index,
@@ -705,6 +705,22 @@ private struct SPTmuxCommandRunner {
       ),
       as: SupatermNewPaneResult.self
     )
+
+    if let sizeRequest = try tmuxSetPaneSizeRequest(
+      rawAmount: parsed.value("-l"),
+      axis: tmuxPaneAxis(for: direction),
+      target: .init(
+        targetWindowIndex: created.windowIndex,
+        targetSpaceIndex: created.spaceIndex,
+        targetTabIndex: created.tabIndex,
+        targetPaneIndex: created.paneIndex
+      )
+    ) {
+      _ = try send(
+        .setPaneSize(sizeRequest),
+        as: SupatermSetPaneSizeResult.self
+      )
+    }
 
     if let command {
       let wrappedText = wrappedTeammatePaneCommand(
@@ -963,10 +979,34 @@ private struct SPTmuxCommandRunner {
       valueFlags: ["-t", "-x", "-y"],
       boolFlags: ["-D", "-L", "-R", "-U"]
     )
+    let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
+    let target = SupatermPaneTargetRequest(
+      targetWindowIndex: targetPane.window.index,
+      targetSpaceIndex: targetPane.space.index,
+      targetTabIndex: targetPane.tab.index,
+      targetPaneIndex: targetPane.pane.index
+    )
+    let sizeRequest =
+      try tmuxSetPaneSizeRequest(
+      rawAmount: parsed.value("-x"),
+      axis: .horizontal,
+      target: target
+      )
+      ?? tmuxSetPaneSizeRequest(
+      rawAmount: parsed.value("-y"),
+      axis: .vertical,
+      target: target
+      )
+    if let sizeRequest {
+      _ = try send(
+        .setPaneSize(sizeRequest),
+        as: SupatermSetPaneSizeResult.self
+      )
+      return
+    }
     guard let direction = tmuxResizeDirection(flags: parsed.flags) else {
       return
     }
-    let targetPane = try topology().resolvePane(raw: parsed.value("-t"))
     let rawAmount = (parsed.value("-x") ?? parsed.value("-y") ?? "5")
       .replacingOccurrences(of: "%", with: "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -976,12 +1016,7 @@ private struct SPTmuxCommandRunner {
         .init(
           amount: amount,
           direction: direction,
-          target: .init(
-            targetWindowIndex: targetPane.window.index,
-            targetSpaceIndex: targetPane.space.index,
-            targetTabIndex: targetPane.tab.index,
-            targetPaneIndex: targetPane.pane.index
-          )
+          target: target
         )
       ),
       as: SupatermResizePaneResult.self
@@ -1004,12 +1039,38 @@ private struct SPTmuxCommandRunner {
         .tilePanes(target),
         as: SupatermTilePanesResult.self
       )
+    case "main-vertical":
+      _ = try send(
+        .mainVerticalPanes(target),
+        as: SupatermMainVerticalPanesResult.self
+      )
     default:
       _ = try send(
         .equalizePanes(target),
         as: SupatermEqualizePanesResult.self
       )
     }
+  }
+
+  private func tmuxSetPaneSizeRequest(
+    rawAmount: String?,
+    axis: SupatermPaneAxis,
+    target: SupatermPaneTargetRequest
+  ) throws -> SupatermSetPaneSizeRequest? {
+    guard let rawAmount = rawAmount?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !rawAmount.isEmpty
+    else {
+      return nil
+    }
+    let unit: SupatermPaneSizeUnit = rawAmount.hasSuffix("%") ? .percent : .cells
+    let amountString =
+      unit == .percent
+      ? String(rawAmount.dropLast())
+      : rawAmount
+    guard let amount = Double(amountString), amount > 0 else {
+      throw ValidationError("Invalid pane size: \(rawAmount).")
+    }
+    return .init(amount: amount, axis: axis, target: target, unit: unit)
   }
 
   private func runWaitFor(_ arguments: [String]) throws {
@@ -2055,6 +2116,15 @@ func tmuxResizeDirection(flags: Set<String>) -> SupatermResizePaneDirection? {
     return .right
   }
   return nil
+}
+
+func tmuxPaneAxis(for direction: SupatermPaneDirection) -> SupatermPaneAxis {
+  switch direction {
+  case .left, .right:
+    return .horizontal
+  case .down, .up:
+    return .vertical
+  }
 }
 
 func tmuxSpecialKeyText(_ token: String) -> String? {

@@ -66,6 +66,11 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     case spatial(SpatialDirection)
   }
 
+  enum SizeUnit {
+    case cells
+    case percent
+  }
+
   var isEmpty: Bool {
     root == nil
   }
@@ -200,6 +205,25 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return .init(root: Node.arranged(rowNodes, direction: .vertical), zoomed: nil)
   }
 
+  func mainVertical() -> Self {
+    guard let root else { return self }
+    let leaves = root.leaves()
+    guard leaves.count > 1 else { return self }
+    let leader = Self.leafNode(leaves[0])
+    let teammateNodes = Array(leaves.dropFirst()).map(Self.leafNode)
+    let teammates = Node.arranged(teammateNodes, direction: .vertical)
+    return .init(
+      root: .split(
+        .init(
+          direction: .horizontal,
+          ratio: 0.5,
+          left: leader,
+          right: teammates
+        )),
+      zoomed: nil
+    )
+  }
+
   func settingZoomed(_ node: Node?) -> Self {
     .init(root: root, zoomed: node)
   }
@@ -210,37 +234,16 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     in direction: SpatialDirection,
     with bounds: CGRect
   ) throws -> Self {
-    guard let root else { throw SplitError.viewNotFound }
-    guard let path = root.path(to: node) else { throw SplitError.viewNotFound }
-
     let targetSplitDirection: Direction =
       switch direction {
       case .up, .down: .vertical
       case .left, .right: .horizontal
       }
-
-    var splitPath: Path?
-    var splitNode: Node?
-
-    if !path.path.isEmpty {
-      for index in stride(from: path.path.count - 1, through: 0, by: -1) {
-        let parentPath = Path(path: Array(path.path.prefix(index)))
-        if let parent = root.node(at: parentPath), case .split(let split) = parent {
-          if split.direction == targetSplitDirection {
-            splitPath = parentPath
-            splitNode = parent
-            break
-          }
-        }
-      }
-    }
-
-    guard let splitPath,
-      let splitNode,
-      case .split(let split) = splitNode
-    else {
-      throw SplitError.viewNotFound
-    }
+    guard let root else { throw SplitError.viewNotFound }
+    let splitLocation = try nearestSplit(for: node, along: targetSplitDirection)
+    let splitPath = splitLocation.splitPath
+    let splitNode = splitLocation.splitNode
+    guard case .split(let split) = splitNode else { throw SplitError.viewNotFound }
 
     let spatial = root.spatial(within: bounds.size)
     guard let splitSlot = spatial.slots.first(where: { $0.node == splitNode }) else {
@@ -277,6 +280,65 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return .init(root: newRoot, zoomed: nil)
   }
 
+  func sizing(
+    node: Node,
+    to amount: Double,
+    along axis: Direction,
+    unit: SizeUnit,
+    with bounds: CGRect
+  ) throws -> Self {
+    guard let root else { throw SplitError.viewNotFound }
+    let splitLocation = try nearestSplit(for: node, along: axis)
+    let splitPath = splitLocation.splitPath
+    let splitNode = splitLocation.splitNode
+    let pathToNode = splitLocation.pathToNode
+    guard case .split(let split) = splitNode else { throw SplitError.viewNotFound }
+    let componentIndex = splitPath.path.count
+    guard pathToNode.path.indices.contains(componentIndex) else {
+      throw SplitError.viewNotFound
+    }
+    let targetSide = pathToNode.path[componentIndex]
+    let spatial = root.spatial(within: bounds.size)
+    guard let splitSlot = spatial.slots.first(where: { $0.node == splitNode }) else {
+      throw SplitError.viewNotFound
+    }
+
+    let totalDimension =
+      axis == .horizontal
+      ? max(bounds.width, 1)
+      : max(bounds.height, 1)
+    let splitDimension =
+      axis == .horizontal
+      ? max(splitSlot.bounds.width, 1)
+      : max(splitSlot.bounds.height, 1)
+    let desiredDimension =
+      switch unit {
+      case .cells:
+        amount
+      case .percent:
+        totalDimension * (amount / 100)
+      }
+    let rawRatio =
+      switch targetSide {
+      case .left:
+        desiredDimension / splitDimension
+      case .right:
+        1 - (desiredDimension / splitDimension)
+      }
+    let clampedRatio = max(0.1, min(0.9, rawRatio))
+    let newRoot = try root.replacingNode(
+      at: splitPath,
+      with: .split(
+        .init(
+          direction: split.direction,
+          ratio: clampedRatio,
+          left: split.left,
+          right: split.right
+        ))
+    )
+    return .init(root: newRoot, zoomed: nil)
+  }
+
   func viewBounds() -> CGSize {
     root?.viewBounds() ?? .zero
   }
@@ -299,6 +361,32 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return (0..<bucketCount).map { index in
       base + (index < remainder ? 1 : 0)
     }
+  }
+
+  private struct SplitLocation {
+    let pathToNode: Path
+    let splitNode: Node
+    let splitPath: Path
+  }
+
+  private func nearestSplit(
+    for node: Node,
+    along direction: Direction
+  ) throws -> SplitLocation {
+    guard let root else { throw SplitError.viewNotFound }
+    guard let pathToNode = root.path(to: node) else { throw SplitError.viewNotFound }
+    guard !pathToNode.path.isEmpty else { throw SplitError.viewNotFound }
+
+    for index in stride(from: pathToNode.path.count - 1, through: 0, by: -1) {
+      let candidatePath = Path(path: Array(pathToNode.path.prefix(index)))
+      guard let candidateNode = root.node(at: candidatePath) else { continue }
+      guard case .split(let split) = candidateNode else { continue }
+      if split.direction == direction {
+        return .init(pathToNode: pathToNode, splitNode: candidateNode, splitPath: candidatePath)
+      }
+    }
+
+    throw SplitError.viewNotFound
   }
 
   struct StructuralIdentity: Hashable {

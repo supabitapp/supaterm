@@ -817,6 +817,20 @@ struct SupatermSocketProtocolTests {
       ),
       id: "send-text-1"
     )
+    let setPaneSizeRequest = try SupatermSocketRequest.setPaneSize(
+      .init(
+        amount: 30,
+        axis: .horizontal,
+        target: .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3,
+          targetPaneIndex: 4
+        ),
+        unit: .percent
+      ),
+      id: "set-pane-size-1"
+    )
 
     #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
     #expect(
@@ -840,6 +854,21 @@ struct SupatermSocketProtocolTests {
             targetPaneIndex: 4
           ),
           text: "echo hello\n"
+        )
+    )
+    #expect(setPaneSizeRequest.method == SupatermSocketMethod.terminalSetPaneSize)
+    #expect(
+      try setPaneSizeRequest.decodeParams(SupatermSetPaneSizeRequest.self)
+        == .init(
+          amount: 30,
+          axis: .horizontal,
+          target: .init(
+            targetWindowIndex: 1,
+            targetSpaceIndex: 2,
+            targetTabIndex: 3,
+            targetPaneIndex: 4
+          ),
+          unit: .percent
         )
     )
   }
@@ -869,6 +898,14 @@ struct SupatermSocketProtocolTests {
       ),
       id: "tile-panes-1"
     )
+    let mainVerticalRequest = try SupatermSocketRequest.mainVerticalPanes(
+      .init(
+        targetWindowIndex: 7,
+        targetSpaceIndex: 8,
+        targetTabIndex: 9
+      ),
+      id: "main-vertical-panes-1"
+    )
 
     #expect(createSpaceRequest.method == SupatermSocketMethod.terminalCreateSpace)
     #expect(
@@ -894,6 +931,15 @@ struct SupatermSocketProtocolTests {
           targetWindowIndex: 4,
           targetSpaceIndex: 5,
           targetTabIndex: 6
+        )
+    )
+    #expect(mainVerticalRequest.method == SupatermSocketMethod.terminalMainVerticalPanes)
+    #expect(
+      try mainVerticalRequest.decodeParams(SupatermTabTargetRequest.self)
+        == .init(
+          targetWindowIndex: 7,
+          targetSpaceIndex: 8,
+          targetTabIndex: 9
         )
     )
   }

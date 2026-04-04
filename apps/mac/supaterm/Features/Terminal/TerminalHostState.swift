@@ -1425,6 +1425,28 @@ final class TerminalHostState {
     )
   }
 
+  func setPaneSize(_ request: TerminalSetPaneSizeRequest) throws -> SupatermSetPaneSizeResult {
+    let resolvedTarget = try resolvePaneTarget(request.target)
+    guard let node = resolvedTarget.tree.find(id: resolvedTarget.anchorSurface.id) else {
+      throw TerminalControlError.resizeFailed
+    }
+    let newTree = try resolvedTarget.tree.sizing(
+      node: node,
+      to: request.amount,
+      along: mapPaneAxis(request.axis),
+      unit: mapPaneSizeUnit(request.unit),
+      with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
+    )
+    trees[resolvedTarget.tabID] = newTree
+    sessionDidChange()
+    return try paneTarget(
+      spaceID: resolvedTarget.spaceID,
+      tabID: resolvedTarget.tabID,
+      surfaceID: resolvedTarget.anchorSurface.id,
+      tree: newTree
+    )
+  }
+
   func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     let title = Self.trimmedNonEmpty(request.title)
@@ -1445,6 +1467,15 @@ final class TerminalHostState {
   func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.tiled()
+    sessionDidChange()
+    return try tabTarget(for: resolvedTarget.tabID)
+  }
+
+  func mainVerticalPanes(
+    _ request: TerminalMainVerticalPanesRequest
+  ) throws -> SupatermMainVerticalPanesResult {
+    let resolvedTarget = try resolveTabTarget(request.target)
+    trees[resolvedTarget.tabID] = resolvedTarget.tree.mainVertical()
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -3378,6 +3409,28 @@ final class TerminalHostState {
       return .up
     case .down:
       return .down
+    }
+  }
+
+  private func mapPaneAxis(_ axis: SupatermPaneAxis)
+    -> SplitTree<GhosttySurfaceView>.Direction
+  {
+    switch axis {
+    case .horizontal:
+      return .horizontal
+    case .vertical:
+      return .vertical
+    }
+  }
+
+  private func mapPaneSizeUnit(_ unit: SupatermPaneSizeUnit)
+    -> SplitTree<GhosttySurfaceView>.SizeUnit
+  {
+    switch unit {
+    case .cells:
+      return .cells
+    case .percent:
+      return .percent
     }
   }
 
