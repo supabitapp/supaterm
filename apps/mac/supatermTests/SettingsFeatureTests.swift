@@ -16,10 +16,10 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func tabOrderIncludesAdvancedAfterGeneral() {
+  func tabOrderPlacesAdvancedBeforeAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .advanced, .notifications, .codingAgents, .updates, .about]
+        == [.general, .notifications, .codingAgents, .updates, .advanced, .about]
     )
   }
 

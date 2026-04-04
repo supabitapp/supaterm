@@ -89,10 +89,10 @@ struct SettingsFeature {
 
   enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
-    case advanced
     case notifications
     case codingAgents
     case updates
+    case advanced
     case about
 
     var id: String {
