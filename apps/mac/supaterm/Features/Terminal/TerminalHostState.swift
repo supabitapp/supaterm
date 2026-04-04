@@ -3013,7 +3013,12 @@ final class TerminalHostState {
     guard let surface = titleSurface(for: tabID) else {
       return fallbackTitle
     }
-    return surface.resolvedDisplayTitle(defaultValue: fallbackTitle)
+    return Self.resolvedTabDisplayTitle(
+      titleOverride: surface.bridge.state.titleOverride,
+      title: surface.bridge.state.title,
+      pwd: surface.bridge.state.pwd,
+      defaultValue: fallbackTitle
+    )
   }
 
   private func lockedTabTitle(for tabID: TerminalTabID) -> String? {
@@ -3541,6 +3546,24 @@ final class TerminalHostState {
     return defaultValue
   }
 
+  static func resolvedTabDisplayTitle(
+    titleOverride: String?,
+    title: String?,
+    pwd: String?,
+    defaultValue: String
+  ) -> String {
+    if let titleOverride {
+      return titleOverride
+    }
+    if let title = trimmedNonEmpty(title) {
+      return strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
+    }
+    if let pwd = trimmedNonEmpty(pwd) {
+      return pwd
+    }
+    return defaultValue
+  }
+
   static func paneFallbackTitle<Surface: NSView & Identifiable>(
     for surfaceID: UUID?,
     in tree: SplitTree<Surface>?
@@ -3880,6 +3903,44 @@ final class TerminalHostState {
   private static func trimmedNonEmpty(_ value: String?) -> String? {
     let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func strippedLeadingWorkingDirectory(
+    from title: String,
+    pwd: String?
+  ) -> String? {
+    guard let pwd = trimmedNonEmpty(pwd) else { return nil }
+    let normalizedPath = GhosttySurfaceView.normalizedWorkingDirectoryPath(pwd)
+    let abbreviatedPath = (normalizedPath as NSString).abbreviatingWithTildeInPath
+    let prefixes = Set([normalizedPath, abbreviatedPath]).sorted { $0.count > $1.count }
+
+    for prefix in prefixes where title.hasPrefix(prefix) {
+      let suffix = String(title.dropFirst(prefix.count))
+      guard let strippedSuffix = strippedTitleSeparator(from: suffix) else { continue }
+      return strippedSuffix
+    }
+
+    return nil
+  }
+
+  private static func strippedTitleSeparator(
+    from value: String
+  ) -> String? {
+    let separatorCharacters =
+      CharacterSet.whitespacesAndNewlines
+      .union(.punctuationCharacters)
+      .union(CharacterSet(charactersIn: "·•›»—–"))
+    guard let firstScalar = value.unicodeScalars.first,
+      separatorCharacters.contains(firstScalar)
+    else {
+      return nil
+    }
+
+    let stripped = String(
+      value.unicodeScalars.drop(while: { separatorCharacters.contains($0) })
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return stripped.isEmpty ? nil : stripped
   }
 }
 

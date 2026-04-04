@@ -41,6 +41,45 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func resolvedTabDisplayTitleStripsLeadingWorkingDirectoryPrefix() {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let pwd = "\(home)/code/github.com/supabitapp/supaterm"
+
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: nil,
+      title: "~/code/github.com/supabitapp/supaterm - fish",
+      pwd: pwd,
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "fish")
+  }
+
+  @Test
+  func resolvedTabDisplayTitleKeepsWorkingDirectoryWhenTitleIsOnlyPath() {
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: nil,
+      title: "/tmp/project",
+      pwd: "/tmp/project",
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "/tmp/project")
+  }
+
+  @Test
+  func resolvedTabDisplayTitlePreservesManualOverride() {
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: "Pinned",
+      title: "/tmp/project - fish",
+      pwd: "/tmp/project",
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "Pinned")
+  }
+
+  @Test
   func selectedPaneDisplayTitleFallsBackToFocusedPaneOrdinal() throws {
     let first = PaneTitleTestView()
     let second = PaneTitleTestView()
