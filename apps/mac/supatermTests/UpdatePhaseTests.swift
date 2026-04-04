@@ -5,6 +5,22 @@ import Testing
 
 struct UpdatePhaseTests {
   @Test
+  func backgroundUpdateFoundIsDismissedSilently() {
+    #expect(
+      UpdatePresentation.foundDecision(userInitiated: false)
+        == .dismissSilently
+    )
+  }
+
+  @Test
+  func userInitiatedUpdateFoundIsPresented() {
+    #expect(
+      UpdatePresentation.foundDecision(userInitiated: true)
+        == .present
+    )
+  }
+
+  @Test
   func updateAvailableUsesVersionBadgeAndDetail() {
     let phase = UpdatePhase.updateAvailable(
       .init(

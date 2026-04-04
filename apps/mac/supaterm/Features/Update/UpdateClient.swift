@@ -17,6 +17,19 @@ enum UpdateUserAction: Equatable, Sendable {
   case skipVersion
 }
 
+enum UpdateFoundDecision: Equatable, Sendable {
+  case dismissSilently
+  case present
+}
+
+enum UpdatePresentation {
+  static func foundDecision(
+    userInitiated: Bool
+  ) -> UpdateFoundDecision {
+    userInitiated ? .present : .dismissSilently
+  }
+}
+
 enum UpdatePhase: Equatable, Sendable {
   struct Available: Equatable, Sendable {
     var buildVersion: String?
@@ -378,12 +391,19 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     case installing(() -> Void)
   }
 
+  private enum SessionOrigin {
+    case background
+    case idle
+    case interactive
+  }
+
   private var automaticallyChecksForUpdatesObservation: NSKeyValueObservation?
   private var automaticallyDownloadsUpdatesObservation: NSKeyValueObservation?
   private var canCheckForUpdatesObservation: NSKeyValueObservation?
   private var continuations: [UUID: AsyncStream<UpdateClient.Snapshot>.Continuation] = [:]
   private var interaction: Interaction = .none
   private var phase: UpdatePhase = .idle
+  private var sessionOrigin: SessionOrigin = .idle
   private var started = false
   private var stubAutomaticallyChecksForUpdates = true
   private var stubAutomaticallyDownloadsUpdates = true
@@ -550,6 +570,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     cancel: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
+    sessionOrigin = .interactive
     interaction = .checking(cancel)
     phase = .checking
     publish()
@@ -560,6 +581,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     cancel: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin == .interactive else { return }
     interaction = .downloading(cancel)
     phase = .downloading(.init(expectedLength: nil, progress: 0))
     publish()
@@ -570,6 +592,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     _ expectedLength: UInt64,
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin == .interactive else { return }
     guard case .downloading(let cancel) = interaction else { return }
     interaction = .downloading(cancel)
     phase = .downloading(.init(expectedLength: expectedLength, progress: 0))
@@ -581,6 +604,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     _ length: UInt64,
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin == .interactive else { return }
     guard case .downloading(let cancel) = interaction else { return }
     let expectedLength: UInt64?
     let progress: UInt64
@@ -602,6 +626,13 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     retry: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin != .background else {
+      sessionOrigin = .idle
+      interaction = .none
+      phase = .idle
+      publish()
+      return
+    }
     interaction = .error(retry: retry)
     phase = .error(.init(message: message))
     publish()
@@ -611,6 +642,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   fileprivate func showExtracting(
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin == .interactive else { return }
     interaction = .none
     phase = .extracting(.init(progress: 0))
     publish()
@@ -621,6 +653,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     _ progress: Double,
     fallback: (() -> Void)?
   ) {
+    guard sessionOrigin == .interactive else { return }
     interaction = .none
     phase = .extracting(.init(progress: min(1, max(0, progress))))
     publish()
@@ -634,6 +667,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     version: String = "",
     fallback: (() -> Void)?
   ) {
+    sessionOrigin = isAutoUpdate ? .background : .interactive
     interaction = .installing(restart)
     phase = .installing(
       .init(
@@ -643,13 +677,16 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       )
     )
     publish()
-    fallback?()
+    if sessionOrigin == .interactive {
+      fallback?()
+    }
   }
 
   fileprivate func showNotFound(
     acknowledgement: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
+    sessionOrigin = .interactive
     interaction = .notFound(acknowledgement)
     phase = .notFound
     publish()
@@ -660,6 +697,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     reply: @escaping (SUUpdatePermissionResponse) -> Void,
     fallback: (() -> Void)?
   ) {
+    sessionOrigin = .interactive
     interaction = .permissionRequest(reply)
     phase = .permissionRequest
     publish()
@@ -668,19 +706,34 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   fileprivate func showUpdateAvailable(
     _ available: UpdatePhase.Available,
+    userInitiated: Bool,
     reply: @escaping (SPUUserUpdateChoice) -> Void,
     fallback: (() -> Void)?
   ) {
-    interaction = .updateAvailable(reply)
-    phase = .updateAvailable(available)
-    publish()
-    fallback?()
+    switch UpdatePresentation.foundDecision(
+      userInitiated: userInitiated
+    ) {
+    case .present:
+      sessionOrigin = .interactive
+      interaction = .updateAvailable(reply)
+      phase = .updateAvailable(available)
+      publish()
+      fallback?()
+
+    case .dismissSilently:
+      sessionOrigin = .background
+      interaction = .none
+      phase = .idle
+      publish()
+      reply(.dismiss)
+    }
   }
 
   fileprivate func finishInstalledUpdate(
     _ acknowledgement: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
+    sessionOrigin = .idle
     interaction = .none
     phase = .idle
     publish()
@@ -690,6 +743,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   fileprivate func dismissUpdateInstallation() {
     guard case .installing = interaction, case .installing(let installing) = phase else {
+      sessionOrigin = .idle
       interaction = .none
       phase = .idle
       publish()
@@ -716,6 +770,10 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     NSApp.windows.contains { window in
       window.isVisible && window.windowController is TerminalWindowController
     }
+  }
+
+  fileprivate var suppressesUpdateInterface: Bool {
+    sessionOrigin == .background
   }
 
   @objc private func handleWindowWillClose() {
@@ -765,6 +823,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func cancelInteraction() {
     switch interaction {
     case .checking(let cancel), .downloading(let cancel):
+      sessionOrigin = .idle
       interaction = .none
       phase = .idle
       publish()
@@ -777,16 +836,19 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func dismissInteraction() {
     switch interaction {
     case .updateAvailable(let reply):
+      sessionOrigin = .idle
       interaction = .none
       phase = .idle
       publish()
       reply(.dismiss)
     case .notFound(let acknowledgement):
+      sessionOrigin = .idle
       interaction = .none
       phase = .idle
       publish()
       acknowledgement()
     case .error:
+      sessionOrigin = .idle
       interaction = .none
       phase = .idle
       publish()
@@ -807,6 +869,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func respondToPermissionRequest(automaticChecks: Bool) {
     guard case .permissionRequest(let reply) = interaction else { return }
+    sessionOrigin = .idle
     interaction = .none
     phase = .idle
     publish()
@@ -847,6 +910,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func retryUpdate() {
     guard case .error(let retry) = interaction else { return }
+    sessionOrigin = .idle
     interaction = .none
     phase = .idle
     publish()
@@ -855,6 +919,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   private func skipVersion() {
     guard case .updateAvailable(let reply) = interaction else { return }
+    sessionOrigin = .idle
     interaction = .none
     phase = .idle
     publish()
@@ -875,6 +940,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       break
     }
 
+    sessionOrigin = .idle
     interaction = .none
     phase = .idle
     publish()
@@ -1002,6 +1068,10 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   }
 
   func showReady(toInstallAndRelaunch reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
+    if runtime?.suppressesUpdateInterface == true {
+      reply(.dismiss)
+      return
+    }
     guard runtime?.hasUnobtrusiveTarget == true else {
       standard.showReady(toInstallAndRelaunch: reply)
       return
@@ -1022,6 +1092,7 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
         releaseDate: appcastItem.date,
         version: appcastItem.displayVersionString
       ),
+      userInitiated: state.userInitiated,
       reply: reply,
       fallback: fallbackAction {
         self.standard.showUpdateFound(with: appcastItem, state: state, reply: reply)
@@ -1060,6 +1131,17 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
 
   func showUpdaterError(_ error: any Error, acknowledgement: @escaping () -> Void) {
+    if runtime?.suppressesUpdateInterface == true {
+      runtime?.showError(
+        error.localizedDescription,
+        retry: { [weak runtime] in
+          runtime?.perform(.checkForUpdates)
+        },
+        fallback: nil
+      )
+      acknowledgement()
+      return
+    }
     let fallback = fallbackAction {
       self.standard.showUpdaterError(error, acknowledgement: acknowledgement)
     }
