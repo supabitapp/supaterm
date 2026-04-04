@@ -102,7 +102,7 @@ Codex now uses the same app-side bridge and tab-state model.
 - Supaterm's canonical Codex hook fragment is also available from `sp codex-hook-settings`.
 - The installed global hooks tell Codex to invoke `sp agent-hook --agent codex` for:
   - `SessionStart` with matcher `startup|resume`
-  - `PreToolUse` with matcher `Bash`
+  - `PreToolUse`
   - `UserPromptSubmit`
   - `Stop`
 
