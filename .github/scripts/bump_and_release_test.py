@@ -1,13 +1,17 @@
 from io import StringIO
 from pathlib import Path
+import subprocess
 import unittest
 from unittest.mock import patch
 
 from bump_and_release import (
+  PendingRelease,
   PushUpdate,
   create_annotated_tag_command,
+  pending_release,
   parse_version_state,
   parse_push_update,
+  release_state,
   update_version_state,
   validate_pre_push,
   validate_release_tag,
@@ -61,6 +65,19 @@ class BumpAndReleaseTest(unittest.TestCase):
       ],
     )
 
+  def test_create_annotated_tag_command_force_updates_existing_tag(self) -> None:
+    self.assertEqual(
+      create_annotated_tag_command("v1.4.0", Path("/tmp/release-notes.md"), force=True),
+      [
+        "git",
+        "tag",
+        "-fa",
+        "v1.4.0",
+        "-F",
+        "/tmp/release-notes.md",
+      ],
+    )
+
   def test_validate_release_tag_requires_stable_format(self) -> None:
     with self.assertRaisesRegex(ValueError, "release tag must be in vX.Y.Z format"):
       validate_release_tag("v1.4")
@@ -90,6 +107,62 @@ class BumpAndReleaseTest(unittest.TestCase):
     ]
 
     validate_release_tag("v1.4.0")
+
+  @patch("bump_and_release.run")
+  def test_release_state_returns_missing_for_absent_release(self, run_mock) -> None:
+    run_mock.side_effect = subprocess.CalledProcessError(
+      1,
+      ["gh", "release", "view", "v1.4.0"],
+      stderr="release not found",
+    )
+
+    self.assertEqual(release_state("v1.4.0"), "missing")
+
+  @patch("bump_and_release.run")
+  def test_release_state_returns_draft_for_draft_release(self, run_mock) -> None:
+    run_mock.return_value = "true"
+
+    self.assertEqual(release_state("v1.4.0"), "draft")
+
+  @patch("bump_and_release.release_state")
+  @patch("bump_and_release.current_commit_subject")
+  @patch("bump_and_release.previous_release_tag")
+  @patch("bump_and_release.read_version_state")
+  def test_pending_release_detects_unreleased_bump_commit(
+    self,
+    read_version_state_mock,
+    previous_release_tag_mock,
+    current_commit_subject_mock,
+    release_state_mock,
+  ) -> None:
+    read_version_state_mock.return_value = parse_version_state(
+      "MARKETING_VERSION = 1.4.0\nCURRENT_PROJECT_VERSION = 27\n"
+    )
+    previous_release_tag_mock.return_value = "v1.3.9"
+    current_commit_subject_mock.return_value = "bump v1.4.0"
+    release_state_mock.return_value = "missing"
+
+    self.assertEqual(pending_release(), PendingRelease(tag="v1.4.0", release_state="missing"))
+
+  @patch("bump_and_release.release_state")
+  @patch("bump_and_release.current_commit_subject")
+  @patch("bump_and_release.previous_release_tag")
+  @patch("bump_and_release.read_version_state")
+  def test_pending_release_ignores_published_release(
+    self,
+    read_version_state_mock,
+    previous_release_tag_mock,
+    current_commit_subject_mock,
+    release_state_mock,
+  ) -> None:
+    read_version_state_mock.return_value = parse_version_state(
+      "MARKETING_VERSION = 1.4.0\nCURRENT_PROJECT_VERSION = 27\n"
+    )
+    previous_release_tag_mock.return_value = "v1.3.9"
+    current_commit_subject_mock.return_value = "bump v1.4.0"
+    release_state_mock.return_value = "published"
+
+    self.assertIsNone(pending_release())
 
   def test_parse_push_update_reads_all_fields(self) -> None:
     self.assertEqual(

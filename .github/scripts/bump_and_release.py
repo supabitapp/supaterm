@@ -36,6 +36,12 @@ class PushUpdate:
   remote_object_name: str
 
 
+@dataclass(frozen=True)
+class PendingRelease:
+  tag: str
+  release_state: str
+
+
 def parse_version_state(content: str) -> VersionState:
   marketing_match = re.search(r"^MARKETING_VERSION = ([0-9.]+)$", content, re.MULTILINE)
   build_match = re.search(r"^CURRENT_PROJECT_VERSION = ([0-9]+)$", content, re.MULTILINE)
@@ -94,6 +100,16 @@ def prompt_for_version(current: str) -> str:
     if error is None:
       return candidate
     print(f"error: {error}")
+
+
+def prompt_for_confirmation(prompt: str) -> bool:
+  while True:
+    response = input(prompt).strip().lower()
+    if response in {"y", "yes"}:
+      return True
+    if response in {"", "n", "no"}:
+      return False
+    print("error: please answer yes or no")
 
 
 def run(command: list[str], cwd: Path = REPO_ROOT) -> str:
@@ -157,6 +173,10 @@ def current_commit() -> str:
   return run(["git", "rev-parse", "HEAD"])
 
 
+def current_commit_subject() -> str:
+  return run(["git", "log", "-1", "--pretty=%s"])
+
+
 def generate_release_notes(tag: str, notes_path: Path, target_commitish: str) -> None:
   repo = current_repository()
   previous_tag = previous_release_tag()
@@ -185,20 +205,60 @@ def current_branch_remote() -> str:
   return run(["git", "config", f"branch.{branch}.remote"])
 
 
-def create_annotated_tag_command(tag: str, notes_path: Path) -> list[str]:
-  return ["git", "tag", "-a", tag, "-F", str(notes_path)]
+def release_state(tag: str) -> str:
+  try:
+    is_draft = run(["gh", "release", "view", tag, "--json", "isDraft", "--jq", ".isDraft"])
+  except subprocess.CalledProcessError as error:
+    stderr = error.stderr.lower()
+    if "release not found" in stderr or "not_found" in stderr or "http 404" in stderr:
+      return "missing"
+    raise
+  if is_draft == "true":
+    return "draft"
+  return "published"
 
 
-def create_annotated_tag(tag: str, notes_path: Path) -> None:
-  run_interactive(create_annotated_tag_command(tag, notes_path))
+def pending_release() -> PendingRelease | None:
+  current_state = read_version_state()
+  latest_published_tag = previous_release_tag()
+  if latest_published_tag and version_tuple(current_state.marketing_version) <= version_tuple(
+    release_tag_version(latest_published_tag)
+  ):
+    return None
+  tag = f"v{current_state.marketing_version}"
+  if current_commit_subject() != f"bump {tag}":
+    return None
+  state = release_state(tag)
+  if state == "published":
+    return None
+  return PendingRelease(tag=tag, release_state=state)
+
+
+def sync_draft_release_notes(tag: str, notes_path: Path) -> None:
+  run_interactive(["gh", "release", "edit", tag, "--notes-file", str(notes_path)])
+
+
+def create_annotated_tag_command(tag: str, notes_path: Path, force: bool = False) -> list[str]:
+  command = ["git", "tag"]
+  command.append("-fa" if force else "-a")
+  command.extend([tag, "-F", str(notes_path)])
+  return command
+
+
+def create_annotated_tag(tag: str, notes_path: Path, force: bool = False) -> None:
+  run_interactive(create_annotated_tag_command(tag, notes_path, force=force))
 
 
 def push_current_branch() -> None:
   run_interactive(["git", "push"])
 
 
-def push_release_tag(tag: str) -> None:
-  run_interactive(["git", "push", current_branch_remote(), tag])
+def push_release_tag(tag: str, force: bool = False) -> None:
+  command = ["git", "push"]
+  if force:
+    command.append("--force")
+  command.extend([current_branch_remote(), tag])
+  run_interactive(command)
 
 
 def release_tag_version(tag: str) -> str:
@@ -270,10 +330,42 @@ def validate_pre_push(stdin: TextIO) -> None:
     raise ValueError("\n".join(errors))
 
 
+def publish_release_tag(tag: str, notes_path: Path, force: bool = False) -> None:
+  create_annotated_tag(tag, notes_path, force=force)
+  push_current_branch()
+  push_release_tag(tag, force=force)
+
+
+def recover_pending_release(release: PendingRelease) -> None:
+  print(f"Detected unreleased bump commit for {release.tag}.")
+  if not prompt_for_confirmation(f"Re-tag and force-push {release.tag}? [y/N]: "):
+    print("Aborted")
+    return
+  with tempfile.NamedTemporaryFile(
+    mode="w+",
+    encoding="utf-8",
+    prefix=f"{release.tag}-",
+    suffix="-release-notes.md",
+    delete=False,
+  ) as handle:
+    notes_path = Path(handle.name)
+  try:
+    generate_release_notes(release.tag, notes_path, current_commit())
+    edit_release_notes(notes_path)
+    publish_release_tag(release.tag, notes_path, force=True)
+    if release.release_state == "draft":
+      sync_draft_release_notes(release.tag, notes_path)
+  finally:
+    notes_path.unlink(missing_ok=True)
+
+
 def bump_and_release() -> None:
+  release = pending_release()
+  if release is not None:
+    recover_pending_release(release)
+    return
   version, _ = bump_version()
   tag = f"v{version}"
-  push_current_branch()
   with tempfile.NamedTemporaryFile(
     mode="w+",
     encoding="utf-8",
@@ -285,8 +377,7 @@ def bump_and_release() -> None:
   try:
     generate_release_notes(tag, notes_path, current_commit())
     edit_release_notes(notes_path)
-    create_annotated_tag(tag, notes_path)
-    push_release_tag(tag)
+    publish_release_tag(tag, notes_path)
   finally:
     notes_path.unlink(missing_ok=True)
 
