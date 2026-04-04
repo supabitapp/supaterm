@@ -29,31 +29,11 @@ struct SettingsView: View {
       .navigationSplitViewColumnWidth(min: 220, ideal: 220, max: 220)
       .toolbar(removing: .sidebarToggle)
     } detail: {
-      SettingsDetailView {
-        SettingsTabContentView(store: store, tab: tab)
-          .navigationTitle(tab.title)
-          .navigationSubtitle(tab.detail)
-      }
+      SettingsTabContentView(store: store, tab: tab)
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
-    .ignoresSafeArea(.container, edges: .top)
     .alert(store: store.scope(state: \.$alert, action: \.alert))
-  }
-}
-
-private struct SettingsDetailView<Content: View>: View {
-  let content: Content
-
-  init(@ViewBuilder content: () -> Content) {
-    self.content = content()
-  }
-
-  var body: some View {
-    content
-      .scenePadding(.horizontal)
-      .scenePadding(.bottom)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -92,26 +72,46 @@ private struct SettingsCodingAgentsView: View {
 
   var body: some View {
     Form {
+      Section(
+        footer: Text("Hooks are optional and designed to extend Supaterm without affecting core functionality.")
+      ) {}
+
       Section {
         SettingsAgentInstallRow(
           action: { _ = store.send(.claudeHooksInstallButtonTapped) },
           buttonTitle: "Install",
           installState: claudeInstallState,
-          subtitle: "Install the Supaterm hook bridge in ~/.claude/settings.json.",
+          subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
+          title: "Integration"
+        )
+      } header: {
+        SettingsAgentSectionHeader(
+          imageName: "claude-code-mark",
           title: "Claude Code"
         )
+      } footer: {
+        Text("Applied to `~/.claude/settings.json`.")
+      }
 
+      Section {
         SettingsAgentInstallRow(
           action: { _ = store.send(.codexHooksInstallButtonTapped) },
           buttonTitle: "Install",
           installState: codexInstallState,
-          subtitle: "Install the Supaterm hook bridge in ~/.codex/hooks.json and enable hooks.",
+          subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
+          title: "Integration"
+        )
+      } header: {
+        SettingsAgentSectionHeader(
+          imageName: "codex-mark",
           title: "Codex"
         )
+      } footer: {
+        Text("Applied to `~/.codex/hooks.json`.")
       }
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationTitle("Coding Agents")
+    .settingsFormLayout()
   }
 }
 
@@ -153,6 +153,24 @@ private struct SettingsAgentInstallRow: View {
   }
 }
 
+private struct SettingsAgentSectionHeader: View {
+  let imageName: String
+  let title: String
+
+  var body: some View {
+    Label {
+      Text(title)
+    } icon: {
+      Image(imageName)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
+    }
+    .font(.headline)
+  }
+}
+
 private struct SettingsGeneralView: View {
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
@@ -168,7 +186,7 @@ private struct SettingsGeneralView: View {
   var body: some View {
     Form {
       Section {
-        LabeledContent {
+        LabeledContent("Appearance") {
           HStack(spacing: 12) {
             let selectedMode = appearanceMode.wrappedValue
             ForEach(AppearanceMode.allCases) { mode in
@@ -181,11 +199,6 @@ private struct SettingsGeneralView: View {
             }
           }
           .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-          SettingsRowLabel(
-            title: "Appearance",
-            subtitle: "Choose how Supaterm renders window chrome."
-          )
         }
 
         LabeledContent {
@@ -206,8 +219,8 @@ private struct SettingsGeneralView: View {
         }
       }
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationTitle("General")
+    .settingsFormLayout()
   }
 }
 
@@ -251,8 +264,8 @@ private struct SettingsAdvancedView: View {
         Text("Changes to analytics and crash reports require an app restart.")
       }
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationTitle("Advanced")
+    .settingsFormLayout()
   }
 }
 
@@ -280,8 +293,8 @@ private struct SettingsNotificationsView: View {
         Text("Turning this off only suppresses macOS delivery. Supaterm still tracks unread attention.")
       }
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationTitle("Notifications")
+    .settingsFormLayout()
   }
 }
 
@@ -350,13 +363,14 @@ private struct SettingsUpdatesView: View {
         Button("Check for Updates Now") {
           _ = store.send(.checkForUpdatesButtonTapped)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bordered)
         .controlSize(.large)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonBorderShape(.roundedRectangle)
+        .frame(maxWidth: .infinity)
       }
     }
-    .formStyle(.grouped)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .navigationTitle("Updates")
+    .settingsFormLayout()
   }
 }
 
@@ -414,6 +428,7 @@ private struct SettingsAboutView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .navigationTitle("About")
   }
 }
 
@@ -423,28 +438,27 @@ private struct AppearanceOptionCardView: View {
   let action: () -> Void
 
   var body: some View {
-    let strokeColor = isSelected ? Color.accentColor : Color.secondary.opacity(0.35)
-
     Button(action: action) {
-      VStack(spacing: 12) {
+      VStack(spacing: 4) {
         Image(mode.imageName)
           .resizable()
           .interpolation(.high)
-          .scaledToFit()
-          .accessibilityHidden(true)
+          .aspectRatio(contentMode: .fit)
+          .clipShape(.rect(cornerRadius: 8))
+          .accessibilityLabel(mode.title)
+          .overlay {
+            RoundedRectangle(cornerRadius: 8)
+              .strokeBorder(
+                isSelected ? Color.accentColor : .clear,
+                lineWidth: 2
+              )
+          }
         Text(mode.title)
-          .font(.headline)
+          .font(.callout)
+          .foregroundStyle(isSelected ? .primary : .secondary)
       }
-      .frame(minWidth: 112, maxWidth: 124)
-      .padding(12)
     }
     .buttonStyle(.plain)
-    .background(isSelected ? Color.accentColor.opacity(0.12) : .clear)
-    .clipShape(.rect(cornerRadius: 12))
-    .overlay {
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(strokeColor, lineWidth: isSelected ? 2 : 1)
-    }
   }
 }
 
@@ -460,5 +474,15 @@ private struct SettingsRowLabel: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+extension View {
+  fileprivate func settingsFormLayout() -> some View {
+    formStyle(.grouped)
+      .padding(.top, -20)
+      .padding(.leading, -8)
+      .padding(.trailing, -6)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
