@@ -57,8 +57,20 @@ enum UpdatePhase: Equatable, Sendable {
   struct Installing: Equatable, Sendable {
     var buildVersion: String?
     var isAutoUpdate: Bool
-    var showsPrompt = true
-    var version = ""
+    var showsPrompt: Bool
+    var version: String
+
+    init(
+      buildVersion: String? = nil,
+      isAutoUpdate: Bool,
+      showsPrompt: Bool? = nil,
+      version: String = ""
+    ) {
+      self.buildVersion = buildVersion
+      self.isAutoUpdate = isAutoUpdate
+      self.showsPrompt = showsPrompt ?? !isAutoUpdate
+      self.version = version
+    }
 
     var formattedVersion: String? {
       UpdatePhase.formattedVersion(version: version, buildVersion: buildVersion)
