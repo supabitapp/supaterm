@@ -523,6 +523,7 @@ private struct TerminalSidebarMorphingPreview: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentActivity: nil,
+      showsAgentActivityDetail: false,
       terminalProgress: nil,
       shortcutHint: nil,
       showsShortcutHint: false

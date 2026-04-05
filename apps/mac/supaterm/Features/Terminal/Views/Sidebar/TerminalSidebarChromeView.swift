@@ -437,6 +437,7 @@ struct TerminalSidebarTabSummaryView: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
+  let showsAgentActivityDetail: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -468,9 +469,11 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func secondaryContent(
     agentActivity: TerminalHostState.AgentActivity?,
+    showsAgentActivityDetail: Bool,
     notificationPreviewMarkdown: String?
   ) -> SecondaryContent? {
     if let agentActivity,
+      showsAgentActivityDetail,
       agentActivity.kind == .codex,
       agentActivity.phase == .running,
       let detail = agentActivity.detail
@@ -551,6 +554,7 @@ struct TerminalSidebarTabSummaryView: View {
 
         switch Self.secondaryContent(
           agentActivity: agentActivity,
+          showsAgentActivityDetail: showsAgentActivityDetail,
           notificationPreviewMarkdown: notificationPreviewMarkdown
         ) {
         case .activity(let detail):
@@ -787,6 +791,7 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let agentActivity: TerminalHostState.AgentActivity?
+    let showsAgentActivityDetail: Bool
     let notificationPreviewMarkdown: String?
     let notificationMarkdown: String?
     let paneWorkingDirectories: [String]
@@ -855,6 +860,7 @@ struct TerminalSidebarTabRow: View {
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           agentActivity: terminal.agentActivity(for: tab.id),
+          showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
           terminalProgress: terminalProgress,
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint
@@ -992,6 +998,7 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     .init(
       agentActivity: terminal.agentActivity(for: tab.id),
+      showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
       notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
       notificationMarkdown: notificationPresentation?.markdown,
       paneWorkingDirectories: paneWorkingDirectories,

@@ -272,6 +272,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       agentActivity: item.agentActivity,
+      showsAgentActivityDetail: true,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false

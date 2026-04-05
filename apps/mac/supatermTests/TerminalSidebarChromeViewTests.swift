@@ -147,6 +147,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
         agentActivity: .codex(.running, detail: "Bash · git status --short"),
+        showsAgentActivityDetail: true,
         notificationPreviewMarkdown: "Need approval"
       ) == .activity("Bash · git status --short")
     )
@@ -157,6 +158,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
         agentActivity: .codex(.needsInput, detail: "Bash · git status --short"),
+        showsAgentActivityDetail: false,
         notificationPreviewMarkdown: "Need approval"
       ) == .notification("Need approval")
     )
@@ -167,6 +169,18 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
         agentActivity: .claude(.running, detail: "Thinking"),
+        showsAgentActivityDetail: false,
+        notificationPreviewMarkdown: "Need approval"
+      ) == .notification("Need approval")
+    )
+  }
+
+  @Test
+  func notificationPreviewReturnsWhenCodexDetailIsHiddenForBackgroundPane() {
+    #expect(
+      TerminalSidebarTabSummaryView.secondaryContent(
+        agentActivity: .codex(.running, detail: "Bash · git status --short"),
+        showsAgentActivityDetail: false,
         notificationPreviewMarkdown: "Need approval"
       ) == .notification("Need approval")
     )
@@ -177,6 +191,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
         agentActivity: .codex(.running),
+        showsAgentActivityDetail: false,
         notificationPreviewMarkdown: nil
       ) == nil
     )

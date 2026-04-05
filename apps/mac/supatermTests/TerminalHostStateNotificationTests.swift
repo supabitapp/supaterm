@@ -362,6 +362,44 @@ struct TerminalHostStateNotificationTests {
       host.agentActivity(for: tabID)
         == .codex(.running, detail: "Bash · git status --short")
     )
+    #expect(host.showsAgentActivityDetail(for: tabID))
+  }
+
+  @Test
+  func agentActivityDetailHidesWhenFocusMovesToDifferentPaneInSameTab() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      .init(
+        command: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    #expect(
+      host.setAgentActivity(
+        .codex(.running, detail: "Bash · git status --short"),
+        for: firstSurface.id
+      )
+    )
+    #expect(host.showsAgentActivityDetail(for: tabID))
+
+    _ = try host.focusPane(.contextPane(secondPane.paneID))
+
+    #expect(!host.showsAgentActivityDetail(for: tabID))
+
+    _ = try host.focusPane(.contextPane(firstSurface.id))
+
+    #expect(host.showsAgentActivityDetail(for: tabID))
   }
 
   @Test
