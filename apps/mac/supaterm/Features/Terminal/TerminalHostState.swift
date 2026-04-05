@@ -363,7 +363,6 @@ final class TerminalHostState {
       .closeTabs,
       .requestCloseSurface,
       .requestCloseTab,
-      .requestCloseTabs,
       .requestCloseTabsBelow,
       .requestCloseOtherTabs:
       handleCloseCommand(command)
@@ -407,8 +406,6 @@ final class TerminalHostState {
       requestCloseSurface(surfaceID)
     case .requestCloseTab(let tabID):
       requestCloseTab(tabID)
-    case .requestCloseTabs(let tabIDs):
-      requestCloseTabs(tabIDs)
     case .requestCloseTabsBelow(let tabID):
       requestCloseTabsBelow(tabID)
     case .requestCloseOtherTabs(let tabID):

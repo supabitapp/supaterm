@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import GhosttyKit
 import Testing
@@ -191,13 +190,11 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func tabContextMenuIncludesChangeTabTitle() {
-    let items = TerminalSidebarTabRow.contextMenuItems(
+    let titles = TerminalSidebarTabRow.contextMenuItems(
       isPinned: false,
       hasTabsBelow: true,
-      hasOtherTabs: true,
-      selectedCount: 1
-    )
-    let titles = items.compactMap(\.title)
+      hasOtherTabs: true
+    ).compactMap(\.title)
 
     #expect(
       titles == [
@@ -209,36 +206,6 @@ struct TerminalSidebarChromeViewTests {
         "Close",
       ]
     )
-    #expect(items.filter { $0.title != nil }.map(\.isEnabled) == [true, true, true, true, true, true])
-  }
-
-  @Test
-  func multiTabContextMenuDisablesSingleTabActionsAndUsesBatchCloseTitle() {
-    let items = TerminalSidebarTabRow.contextMenuItems(
-      isPinned: false,
-      hasTabsBelow: true,
-      hasOtherTabs: true,
-      selectedCount: 2
-    )
-
-    #expect(
-      items.compactMap(\.title) == [
-        "New Tab",
-        "Pin Tab",
-        "Change Tab Title...",
-        "Close All Below",
-        "Close Others",
-        "Close Selected Tabs",
-      ])
-    #expect(items.filter { $0.title != nil }.map(\.isEnabled) == [true, false, false, false, false, true])
-  }
-
-  @MainActor
-  @Test
-  func sidebarDragSourceDoesNotConsumeHitTesting() {
-    let view = TerminalSidebarDragSourceNSView(frame: NSRect(x: 0, y: 0, width: 120, height: 36))
-
-    #expect(view.hitTest(NSPoint(x: 12, y: 12)) == nil)
   }
 
   @MainActor
