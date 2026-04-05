@@ -85,15 +85,12 @@ function App() {
             a socket-driven CLI that can steer the UI from inside the shell.
           </p>
           <div
-            className="supaterm-reveal mt-10 flex flex-col items-center gap-3"
+            className="supaterm-reveal mt-10 flex flex-col items-center"
             style={{ animationDelay: "280ms" }}
           >
             <a href={downloadHref} className={buttonVariants({ size: "lg" })}>
               Download for macOS
             </a>
-            <span className="font-mono text-xs text-muted-foreground">
-              Stable release served from GitHub
-            </span>
           </div>
         </section>
 
