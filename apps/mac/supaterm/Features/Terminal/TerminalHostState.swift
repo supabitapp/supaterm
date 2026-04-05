@@ -122,13 +122,30 @@ final class TerminalHostState {
   struct AgentActivity: Equatable, Sendable {
     let kind: SupatermAgentKind
     let phase: AgentActivityPhase
+    let detail: String?
 
-    static func claude(_ phase: AgentActivityPhase) -> Self {
-      .init(kind: .claude, phase: phase)
+    init(
+      kind: SupatermAgentKind,
+      phase: AgentActivityPhase,
+      detail: String? = nil
+    ) {
+      self.kind = kind
+      self.phase = phase
+      self.detail = Self.normalizedDetail(detail)
     }
 
-    static func codex(_ phase: AgentActivityPhase) -> Self {
-      .init(kind: .codex, phase: phase)
+    static func claude(
+      _ phase: AgentActivityPhase,
+      detail: String? = nil
+    ) -> Self {
+      .init(kind: .claude, phase: phase, detail: detail)
+    }
+
+    static func codex(
+      _ phase: AgentActivityPhase,
+      detail: String? = nil
+    ) -> Self {
+      .init(kind: .codex, phase: phase, detail: detail)
     }
 
     var tone: AgentActivityTone {
@@ -149,6 +166,14 @@ final class TerminalHostState {
       case .idle:
         return false
       }
+    }
+
+    private static func normalizedDetail(_ detail: String?) -> String? {
+      guard let detail = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty
+      else {
+        return nil
+      }
+      return detail
     }
   }
 

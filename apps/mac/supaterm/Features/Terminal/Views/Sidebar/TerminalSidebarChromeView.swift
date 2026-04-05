@@ -424,6 +424,11 @@ struct TerminalSidebarTabSummaryView: View {
     case unreadCount(Int)
   }
 
+  enum SecondaryContent: Equatable {
+    case activity(String)
+    case notification(String)
+  }
+
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
@@ -458,6 +463,23 @@ struct TerminalSidebarTabSummaryView: View {
   ) -> String? {
     guard !paneWorkingDirectories.isEmpty else { return nil }
     return paneWorkingDirectories.joined(separator: "\n")
+  }
+
+  static func secondaryContent(
+    agentActivity: TerminalHostState.AgentActivity?,
+    notificationPreviewMarkdown: String?
+  ) -> SecondaryContent? {
+    if let agentActivity,
+      agentActivity.kind == .codex,
+      agentActivity.phase == .running,
+      let detail = agentActivity.detail
+    {
+      return .activity(detail)
+    }
+    if let notificationPreviewMarkdown, !notificationPreviewMarkdown.isEmpty {
+      return .notification(notificationPreviewMarkdown)
+    }
+    return nil
   }
 
   var body: some View {
@@ -526,7 +548,23 @@ struct TerminalSidebarTabSummaryView: View {
           }
         }
 
-        if let notificationPreviewMarkdown, !notificationPreviewMarkdown.isEmpty {
+        switch Self.secondaryContent(
+          agentActivity: agentActivity,
+          notificationPreviewMarkdown: notificationPreviewMarkdown
+        ) {
+        case .activity(let detail):
+          Text(detail)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(notificationTextColor)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .multilineTextAlignment(.leading)
+            .contentTransition(.opacity)
+            .transition(
+              .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+            )
+
+        case .notification(let notificationPreviewMarkdown):
           InlineText(markdown: notificationPreviewMarkdown)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(notificationTextColor)
@@ -539,6 +577,9 @@ struct TerminalSidebarTabSummaryView: View {
             .transition(
               .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
             )
+
+        case nil:
+          EmptyView()
         }
 
         ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in

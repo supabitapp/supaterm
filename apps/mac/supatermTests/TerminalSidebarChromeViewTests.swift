@@ -142,6 +142,46 @@ struct TerminalSidebarChromeViewTests {
     )
   }
 
+  @Test
+  func runningCodexDetailTakesSecondaryLinePrecedenceOverNotificationPreview() {
+    #expect(
+      TerminalSidebarTabSummaryView.secondaryContent(
+        agentActivity: .codex(.running, detail: "Bash · git status --short"),
+        notificationPreviewMarkdown: "Need approval"
+      ) == .activity("Bash · git status --short")
+    )
+  }
+
+  @Test
+  func notificationPreviewReturnsWhenCodexNeedsInput() {
+    #expect(
+      TerminalSidebarTabSummaryView.secondaryContent(
+        agentActivity: .codex(.needsInput, detail: "Bash · git status --short"),
+        notificationPreviewMarkdown: "Need approval"
+      ) == .notification("Need approval")
+    )
+  }
+
+  @Test
+  func notificationPreviewRemainsForNonCodexActivity() {
+    #expect(
+      TerminalSidebarTabSummaryView.secondaryContent(
+        agentActivity: .claude(.running, detail: "Thinking"),
+        notificationPreviewMarkdown: "Need approval"
+      ) == .notification("Need approval")
+    )
+  }
+
+  @Test
+  func secondaryContentIsNilWithoutActivityDetailOrNotificationPreview() {
+    #expect(
+      TerminalSidebarTabSummaryView.secondaryContent(
+        agentActivity: .codex(.running),
+        notificationPreviewMarkdown: nil
+      ) == nil
+    )
+  }
+
   @MainActor
   @Test
   func notificationPopoverParserReturnsPartialDocumentForInvalidMarkdown() throws {
