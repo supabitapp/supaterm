@@ -229,22 +229,19 @@ enum CodexTranscriptMonitor {
 
   private static func functionCallUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
     guard let name = normalizedDetail(string(in: payload, key: "name")) else {
-      return plainDetailUpdate("Tool")
+      return plainDetailUpdate("Working...")
     }
-    if name == "apply_patch" {
-      return plainDetailUpdate("Patch · applying patch")
+    if name == "exec_command" {
+      return plainDetailUpdate(execCommandDetail(arguments: string(in: payload, key: "arguments")) ?? "Working...")
     }
-    if let detail = shellFunctionDetail(name: name, arguments: string(in: payload, key: "arguments")) {
-      return plainDetailUpdate(detail)
-    }
-    return plainDetailUpdate("Tool · \(name)")
+    return plainDetailUpdate(executingDetail(name: name) ?? "Working...")
   }
 
   private static func customToolCallUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
     guard let name = normalizedDetail(string(in: payload, key: "name")) else {
-      return plainDetailUpdate("Tool")
+      return plainDetailUpdate("Working...")
     }
-    return plainDetailUpdate("Tool · \(name)")
+    return plainDetailUpdate(executingDetail(name: name) ?? "Working...")
   }
 
   private static func toolSearchUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
@@ -284,27 +281,14 @@ enum CodexTranscriptMonitor {
     return labeledDetailUpdate(prefix: "Web", text: detail) ?? plainDetailUpdate("Web")
   }
 
-  private static func shellFunctionDetail(
-    name: String,
-    arguments: String?
-  ) -> String? {
-    guard let argumentsObject = object(fromJSONString: arguments) else {
-      return name == "shell" || name == "container.exec" || name == "shell_command" ? "Bash" : nil
-    }
-    switch name {
-    case "shell", "container.exec":
-      return labeledDetail(
-        prefix: "Bash",
-        text: commandText(from: arrayOfStrings(in: argumentsObject, key: "command"))
-      ) ?? "Bash"
-    case "shell_command":
-      return labeledDetail(
-        prefix: "Bash",
-        text: string(in: argumentsObject, key: "command")
-      ) ?? "Bash"
-    default:
-      return nil
-    }
+  private static func execCommandDetail(arguments: String?) -> String? {
+    guard let argumentsObject = object(fromJSONString: arguments) else { return nil }
+    return normalizedDetail(string(in: argumentsObject, key: "cmd"))
+  }
+
+  private static func executingDetail(name: String?) -> String? {
+    guard let name = normalizedDetail(name) else { return nil }
+    return #"Executing "\#(name)""#
   }
 
   private static func labeledDetailUpdate(
