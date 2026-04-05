@@ -67,7 +67,9 @@ struct SPTmuxCompatTests {
       focusedContext: context,
       environment: [
         "PATH": binDirectory.path,
-        "TERM_PROGRAM": "Apple_Terminal",
+        "TERM": "xterm-ghostty",
+        "COLORTERM": "truecolor",
+        "TERM_PROGRAM_VERSION": "1.2.3",
       ],
       executablePath: claudeURL.path,
       cliExecutablePath: spURL.path,
@@ -88,8 +90,10 @@ struct SPTmuxCompatTests {
     #expect(environment[SupatermCLIEnvironment.surfaceIDKey] == context.paneID.uuidString)
     #expect(environment[SupatermCLIEnvironment.tabIDKey] == context.tabID.uuidString)
     #expect(environment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1")
-    #expect(environment["TERM"] == "screen-256color")
-    #expect(environment["TERM_PROGRAM"] == nil)
+    #expect(environment["TERM"] == "xterm-ghostty")
+    #expect(environment["COLORTERM"] == "truecolor")
+    #expect(environment["TERM_PROGRAM"] == "ghostty")
+    #expect(environment["TERM_PROGRAM_VERSION"] == "1.2.3")
     #expect(environment["TMUX_PANE"] == "%2b8b3a57-d7f8-4ef7-930f-46b1f7281b2a")
     #expect(environment["PATH"]?.split(separator: ":").first.map(String.init) == shimDirectory.path)
     #expect(FileManager.default.isExecutableFile(atPath: shimURL.path))

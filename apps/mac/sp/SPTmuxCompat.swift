@@ -231,12 +231,18 @@ enum SPTeammateLauncher {
     processEnvironment[SupatermCLIEnvironment.surfaceIDKey] = focusedContext.paneID.uuidString
     processEnvironment[SupatermCLIEnvironment.tabIDKey] = focusedContext.tabID.uuidString
     processEnvironment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
-    processEnvironment["TERM"] = "screen-256color"
+    processEnvironment["TERM"] = trimmedNonEmpty(environment["TERM"]) ?? "xterm-256color"
+    processEnvironment["COLORTERM"] = trimmedNonEmpty(environment["COLORTERM"]) ?? "truecolor"
+    processEnvironment["TERM_PROGRAM"] = "ghostty"
+    if let termProgramVersion = trimmedNonEmpty(environment["TERM_PROGRAM_VERSION"]) {
+      processEnvironment["TERM_PROGRAM_VERSION"] = termProgramVersion
+    } else {
+      processEnvironment.removeValue(forKey: "TERM_PROGRAM_VERSION")
+    }
     processEnvironment["TMUX"] =
       "/tmp/sp-tmux/\(focusedContext.spaceID.uuidString.lowercased()),\(focusedContext.tabID.uuidString.lowercased()),\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["TMUX_PANE"] = "%\(focusedContext.paneID.uuidString.lowercased())"
     processEnvironment["PATH"] = prependPathEntries([shimDirectory.path], to: environment["PATH"])
-    processEnvironment.removeValue(forKey: "TERM_PROGRAM")
 
     SPTmuxTrace.write(
       category: "sp.claude-teams",
