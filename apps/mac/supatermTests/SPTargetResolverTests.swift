@@ -113,6 +113,28 @@ struct SPTargetResolverTests {
       )
     }
   }
+
+  @Test
+  func resolvePublicSpaceTargetDefaultsToSelectedSpaceInKeyWindow() throws {
+    let target = try resolvePublicSpaceTarget(
+      nil,
+      context: nil,
+      snapshot: treeSnapshot()
+    )
+
+    #expect(target == .space(windowIndex: 2, spaceIndex: 1))
+  }
+
+  @Test
+  func resolvePublicPaneTargetDefaultsToFocusedPaneInSelectedTabInKeyWindow() throws {
+    let target = try resolvePublicPaneTarget(
+      nil,
+      context: nil,
+      snapshot: treeSnapshot()
+    )
+
+    #expect(target == .pane(windowIndex: 2, spaceIndex: 1, tabIndex: 2, paneIndex: 1))
+  }
 }
 
 private func treeSnapshot() -> SupatermTreeSnapshot {

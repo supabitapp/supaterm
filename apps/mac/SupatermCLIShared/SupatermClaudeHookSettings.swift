@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SupatermClaudeHookSettings {
-  public static let command = SupatermAgentHookSettingsCommand.command(for: .claude)
+  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .claude)
 
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
@@ -71,10 +71,4 @@ public enum SupatermClaudeHookSettings {
 
 public enum SupatermClaudeHookSettingsError: Error {
   case invalidConfiguration
-}
-
-public enum SupatermAgentHookSettingsCommand {
-  public static func command(for agent: SupatermAgentKind) -> String {
-    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue) || true"#
-  }
 }
