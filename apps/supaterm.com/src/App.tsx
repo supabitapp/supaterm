@@ -55,7 +55,7 @@ function App() {
           style={{ animationDelay: "40ms" }}
         >
           <div className="flex items-center gap-3">
-            <img src="/favicon.svg" alt="Supaterm" className="size-9" />
+            <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-9 rounded-[10px]" />
             <span className="text-sm font-medium uppercase tracking-[0.3em] text-foreground">
               supaterm
             </span>
@@ -99,13 +99,12 @@ function App() {
 
         <section className="supaterm-reveal mb-24 md:mb-32" style={{ animationDelay: "360ms" }}>
           <div className="supaterm-glow relative overflow-hidden rounded-2xl border border-border/60 bg-card/80">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(150,120,255,0.14),transparent_48%)]" />
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
             <div className="relative flex justify-center px-8 py-14 md:px-16 md:py-16">
               <img
                 src={heroUrl}
                 alt="Supaterm workspace"
-                className="w-full max-w-[343px] md:max-w-[420px]"
+                className="w-full max-w-[343px] grayscale md:max-w-[420px]"
               />
             </div>
           </div>
@@ -153,7 +152,7 @@ function App() {
 
         <footer className="supaterm-reveal flex flex-col items-center gap-4 py-10 text-sm text-muted-foreground md:flex-row md:justify-between">
           <div className="flex items-center gap-3">
-            <img src="/favicon.svg" alt="Supaterm" className="size-5" />
+            <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-5 rounded-[6px]" />
             <span className="font-medium text-foreground">Supaterm</span>
           </div>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
