@@ -15,7 +15,7 @@ linear issue list --team SUP --sort manual --limit 50 --no-pager
 
 ## Documentation
 
-- `./docs/development.md` - general developmetn doc
+- `./docs/development.md` - general development doc
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the sp cli and the macOS app talk through socket IPC
 - Read `apps/supaterm.com/AGENTS.md` before working in the web app
