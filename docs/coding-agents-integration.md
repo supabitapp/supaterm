@@ -116,7 +116,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `PreToolUse` marks the tab as `running`.
 - `UserPromptSubmit` marks the tab as `running`.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
-- If no newer event clears or refreshes `running`, Supaterm falls back to `idle` after 15 seconds.
+- Supaterm keeps Codex `running` until `Stop`, `SessionEnd`, terminal exit, or the Codex transcript records a completed or aborted turn.
 
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.
 

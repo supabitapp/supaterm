@@ -4,6 +4,103 @@ import Foundation
 import SupatermCLIShared
 import SwiftUI
 
+private enum CodexTranscriptTurnStatus: Equatable {
+  case started(String?)
+  case completed(String?)
+  case aborted(String?)
+
+  var isFinal: Bool {
+    switch self {
+    case .started:
+      false
+    case .completed, .aborted:
+      true
+    }
+  }
+}
+
+private struct CodexTranscriptCursor {
+  var offset: UInt64
+}
+
+private enum CodexTranscript {
+  static func makeCursor(at path: String) -> CodexTranscriptCursor? {
+    guard let data = read(path: path, from: 0) else { return nil }
+    let (consumedBytes, _) = parse(data)
+    return .init(offset: UInt64(consumedBytes))
+  }
+
+  static func advance(
+    _ cursor: CodexTranscriptCursor,
+    at path: String
+  ) -> (CodexTranscriptCursor, CodexTranscriptTurnStatus?)? {
+    let fileURL = URL(fileURLWithPath: path)
+    guard
+      let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
+      let fileSize = values.fileSize
+    else {
+      return nil
+    }
+    if UInt64(fileSize) < cursor.offset {
+      guard let resetCursor = makeCursor(at: path) else { return nil }
+      return (resetCursor, nil)
+    }
+    guard let data = read(path: path, from: cursor.offset) else { return nil }
+    let (consumedBytes, latestStatus) = parse(data)
+    return (
+      .init(offset: cursor.offset + UInt64(consumedBytes)),
+      latestStatus
+    )
+  }
+
+  private static func read(path: String, from offset: UInt64) -> Data? {
+    do {
+      let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+      defer { try? handle.close() }
+      try handle.seek(toOffset: offset)
+      return try handle.readToEnd() ?? Data()
+    } catch {
+      return nil
+    }
+  }
+
+  private static func parse(_ data: Data) -> (Int, CodexTranscriptTurnStatus?) {
+    guard let newlineIndex = data.lastIndex(of: 0x0A) else {
+      return (0, nil)
+    }
+    let completeData = data.prefix(through: newlineIndex)
+    var latestStatus: CodexTranscriptTurnStatus?
+    for line in completeData.split(separator: 0x0A) {
+      if let status = status(in: Data(line)) {
+        latestStatus = status
+      }
+    }
+    return (completeData.count, latestStatus)
+  }
+
+  private static func status(in line: Data) -> CodexTranscriptTurnStatus? {
+    guard
+      let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+      object["type"] as? String == "event_msg",
+      let payload = object["payload"] as? [String: Any],
+      let eventType = payload["type"] as? String,
+      let eventPayload = payload["payload"] as? [String: Any]
+    else {
+      return nil
+    }
+    switch eventType {
+    case "task_started", "turn_started":
+      return .started(eventPayload["turn_id"] as? String)
+    case "task_complete", "turn_complete":
+      return .completed(eventPayload["turn_id"] as? String)
+    case "turn_aborted":
+      return .aborted(eventPayload["turn_id"] as? String)
+    default:
+      return nil
+    }
+  }
+}
+
 @MainActor
 final class TerminalWindowRegistry {
   struct CloseAllWindowsCandidate {
@@ -52,7 +149,8 @@ final class TerminalWindowRegistry {
   }
 
   private struct AgentHookSession {
-    var surfaceID: UUID
+    var surfaceID: UUID?
+    var transcriptPath: String?
   }
 
   private struct AgentHookNotification {
@@ -63,6 +161,7 @@ final class TerminalWindowRegistry {
 
   private let agentRunningTimeout: Duration
   private var agentHookSessions: [AgentHookSessionKey: AgentHookSession] = [:]
+  private var agentTranscriptMonitorTasks: [AgentHookSessionKey: Task<Void, Never>] = [:]
   private var agentRunningTimeoutTasks: [AgentHookSessionKey: Task<Void, Never>] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
@@ -72,6 +171,9 @@ final class TerminalWindowRegistry {
   }
 
   deinit {
+    for task in agentTranscriptMonitorTasks.values {
+      task.cancel()
+    }
     for task in agentRunningTimeoutTasks.values {
       task.cancel()
     }
@@ -1244,9 +1346,12 @@ final class TerminalWindowRegistry {
 
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     let event = request.event
-    if let sessionID = event.sessionID, let context = request.context {
-      agentHookSessions[.init(agent: request.agent, sessionID: sessionID)] = .init(
-        surfaceID: context.surfaceID
+    if let sessionID = event.sessionID {
+      recordAgentHookSession(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context,
+        transcriptPath: event.transcriptPath
       )
     }
 
@@ -1449,6 +1554,23 @@ final class TerminalWindowRegistry {
     return .init(desktopNotification: nil)
   }
 
+  private func recordAgentHookSession(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?,
+    transcriptPath: String?
+  ) {
+    let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+    var session = agentHookSessions[key] ?? .init(surfaceID: nil, transcriptPath: nil)
+    if let surfaceID = context?.surfaceID {
+      session.surfaceID = surfaceID
+    }
+    if let transcriptPath {
+      session.transcriptPath = transcriptPath
+    }
+    agentHookSessions[key] = session
+  }
+
   @discardableResult
   private func setAgentActivity(
     _ activity: TerminalHostState.AgentActivity,
@@ -1459,8 +1581,14 @@ final class TerminalWindowRegistry {
     let updated = updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
     if updated {
       if activity.phase == .running {
-        armAgentRunningTimeout(agent: agent, sessionID: sessionID, context: context)
+        if armAgentTranscriptMonitor(agent: agent, sessionID: sessionID, context: context) {
+          cancelAgentRunningTimeout(agent: agent, sessionID: sessionID)
+        } else {
+          cancelAgentTranscriptMonitor(agent: agent, sessionID: sessionID)
+          armAgentRunningTimeout(agent: agent, sessionID: sessionID, context: context)
+        }
       } else {
+        cancelAgentTranscriptMonitor(agent: agent, sessionID: sessionID)
         cancelAgentRunningTimeout(agent: agent, sessionID: sessionID)
       }
     }
@@ -1491,8 +1619,71 @@ final class TerminalWindowRegistry {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
+    cancelAgentTranscriptMonitor(agent: agent, sessionID: sessionID)
     cancelAgentRunningTimeout(agent: agent, sessionID: sessionID)
     return updateAgentActivity(nil, agent: agent, sessionID: sessionID, context: context)
+  }
+
+  private func armAgentTranscriptMonitor(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    guard agent == .codex else { return false }
+    let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+    guard
+      let transcriptPath = agentHookSessions[key]?.transcriptPath,
+      var cursor = CodexTranscript.makeCursor(at: transcriptPath)
+    else {
+      return false
+    }
+    agentTranscriptMonitorTasks[key]?.cancel()
+    agentTranscriptMonitorTasks[key] = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await ContinuousClock().sleep(for: .seconds(1))
+        guard !Task.isCancelled else { return }
+        guard let (updatedCursor, latestStatus) = CodexTranscript.advance(cursor, at: transcriptPath)
+        else {
+          continue
+        }
+        cursor = updatedCursor
+        guard let latestStatus, latestStatus.isFinal else {
+          continue
+        }
+        await self?.resolveAgentTranscriptCompletion(
+          key: key,
+          agent: agent,
+          sessionID: sessionID,
+          context: context
+        )
+        return
+      }
+    }
+    return true
+  }
+
+  private func cancelAgentTranscriptMonitor(
+    agent: SupatermAgentKind,
+    sessionID: String
+  ) {
+    let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
+    agentTranscriptMonitorTasks[key]?.cancel()
+    agentTranscriptMonitorTasks.removeValue(forKey: key)
+  }
+
+  private func resolveAgentTranscriptCompletion(
+    key: AgentHookSessionKey,
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) {
+    agentTranscriptMonitorTasks.removeValue(forKey: key)
+    _ = updateAgentActivity(
+      .init(kind: agent, phase: .idle),
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
   }
 
   private func armAgentRunningTimeout(
@@ -1582,6 +1773,7 @@ final class TerminalWindowRegistry {
 
   private func clearAgentHookSessions(for surfaceID: UUID) {
     for key in agentHookSessions.keys where agentHookSessions[key]?.surfaceID == surfaceID {
+      cancelAgentTranscriptMonitor(agent: key.agent, sessionID: key.sessionID)
       cancelAgentRunningTimeout(agent: key.agent, sessionID: key.sessionID)
     }
     agentHookSessions = agentHookSessions.filter { $0.value.surfaceID != surfaceID }

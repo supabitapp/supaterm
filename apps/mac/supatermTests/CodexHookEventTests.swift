@@ -10,6 +10,7 @@ struct CodexHookEventTests {
 
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
+    #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
     #expect(event.cwd == CodexHookFixtures.cwd)
     #expect(event.source == "resume")
   }
