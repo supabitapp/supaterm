@@ -117,6 +117,13 @@ struct TerminalSplitTreeViewTests {
 
   @Test
   func resizeOverlayStaysHiddenUntilAfterFirstResize() {
+    let overlayIsVisibleAfterResize =
+      TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: true,
+        lastSize: .init(width: 100, height: 100),
+        currentSize: .init(width: 120, height: 100)
+      ) == false
+
     #expect(
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: false,
@@ -131,13 +138,9 @@ struct TerminalSplitTreeViewTests {
         currentSize: .init(width: 100, height: 100)
       )
     )
-    #expect(
-      !TerminalSplitTreeView.resizeOverlayIsHidden(
-        ready: true,
-        lastSize: .init(width: 100, height: 100),
-        currentSize: .init(width: 120, height: 100)
-      )
-    )
+    if overlayIsVisibleAfterResize == false {
+      Issue.record("Expected resize overlay to become visible after the first resize")
+    }
     #expect(
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: true,
