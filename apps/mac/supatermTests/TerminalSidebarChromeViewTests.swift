@@ -190,11 +190,13 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func tabContextMenuIncludesChangeTabTitle() {
-    let titles = TerminalSidebarTabRow.contextMenuItems(
+    let items = TerminalSidebarTabRow.contextMenuItems(
       isPinned: false,
       hasTabsBelow: true,
-      hasOtherTabs: true
-    ).compactMap(\.title)
+      hasOtherTabs: true,
+      selectedCount: 1
+    )
+    let titles = items.compactMap(\.title)
 
     #expect(
       titles == [
@@ -206,6 +208,28 @@ struct TerminalSidebarChromeViewTests {
         "Close",
       ]
     )
+    #expect(items.filter { $0.title != nil }.map(\.isEnabled) == [true, true, true, true, true, true])
+  }
+
+  @Test
+  func multiTabContextMenuDisablesSingleTabActionsAndUsesBatchCloseTitle() {
+    let items = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: false,
+      hasTabsBelow: true,
+      hasOtherTabs: true,
+      selectedCount: 2
+    )
+
+    #expect(
+      items.compactMap(\.title) == [
+        "New Tab",
+        "Pin Tab",
+        "Change Tab Title...",
+        "Close All Below",
+        "Close Others",
+        "Close Selected Tabs",
+      ])
+    #expect(items.filter { $0.title != nil }.map(\.isEnabled) == [true, false, false, false, false, true])
   }
 
   @MainActor
