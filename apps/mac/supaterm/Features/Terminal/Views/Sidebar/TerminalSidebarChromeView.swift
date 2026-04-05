@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermCLIShared
 import SwiftUI
 import Textual
 
