@@ -43,6 +43,11 @@ struct TerminalSplitTreeView: View {
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
 
+  struct ResizeOverlayGridSize: Equatable {
+    let columns: Int
+    let rows: Int
+  }
+
   enum OuterEdgeBranch {
     case left
     case right
@@ -96,6 +101,31 @@ struct TerminalSplitTreeView: View {
       return nil
     }
     return provider
+  }
+
+  static func resizeOverlayGridSize(
+    backingSize: CGSize,
+    cellSize: CGSize
+  ) -> ResizeOverlayGridSize? {
+    guard cellSize.width > 0, cellSize.height > 0 else { return nil }
+    let backingWidth = max(1, Int(backingSize.width.rounded(.down)))
+    let backingHeight = max(1, Int(backingSize.height.rounded(.down)))
+    let cellWidth = max(1, Int(cellSize.width.rounded(.down)))
+    let cellHeight = max(1, Int(cellSize.height.rounded(.down)))
+    let columns = backingWidth / cellWidth
+    let rows = backingHeight / cellHeight
+    guard columns >= 5, rows >= 2 else { return nil }
+    return .init(columns: columns, rows: rows)
+  }
+
+  static func resizeOverlayIsHidden(
+    ready: Bool,
+    lastSize: CGSize?,
+    currentSize: CGSize
+  ) -> Bool {
+    guard ready else { return true }
+    guard let lastSize else { return true }
+    return lastSize == currentSize
   }
 
   var body: some View {
@@ -224,6 +254,12 @@ struct TerminalSplitTreeView: View {
               )
             }
           }
+          .overlay {
+            ResizeOverlay(
+              geoSize: geometry.size,
+              surfaceView: surfaceView
+            )
+          }
           .onHover { hovering in
             isPaneHovering = hovering
           }
@@ -335,6 +371,58 @@ struct TerminalSplitTreeView: View {
             notificationPulseOpacity = segment.targetOpacity
           }
         }
+      }
+    }
+  }
+
+  struct ResizeOverlay: View {
+    let geoSize: CGSize
+    let surfaceView: GhosttySurfaceView
+
+    @State private var lastSize: CGSize?
+    @State private var ready = false
+
+    private let padding: CGFloat = 5
+    private let durationMilliseconds: UInt64 = 750
+
+    private var hidden: Bool {
+      TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: ready,
+        lastSize: lastSize,
+        currentSize: geoSize
+      )
+    }
+
+    private var gridSize: TerminalSplitTreeView.ResizeOverlayGridSize? {
+      TerminalSplitTreeView.resizeOverlayGridSize(
+        backingSize: surfaceView.convertToBacking(geoSize),
+        cellSize: surfaceView.currentCellSize()
+      )
+    }
+
+    var body: some View {
+      if let gridSize {
+        Text(verbatim: "\(gridSize.columns) × \(gridSize.rows)")
+          .padding(.init(top: padding, leading: padding, bottom: padding, trailing: padding))
+          .background(
+            RoundedRectangle(cornerRadius: 4)
+              .fill(.background)
+              .shadow(radius: 3)
+          )
+          .lineLimit(1)
+          .truncationMode(.tail)
+          .allowsHitTesting(false)
+          .opacity(hidden ? 0 : 1)
+          .task {
+            try? await Task.sleep(for: .milliseconds(500))
+            ready = true
+          }
+          .task(id: geoSize) {
+            if ready {
+              try? await Task.sleep(for: .milliseconds(durationMilliseconds))
+            }
+            lastSize = geoSize
+          }
       }
     }
   }

@@ -88,4 +88,62 @@ struct TerminalSplitTreeViewTests {
 
     #expect(zone == .up)
   }
+
+  @Test
+  func resizeOverlayGridSizeUsesBackingPixelsAndCellSize() {
+    let gridSize = TerminalSplitTreeView.resizeOverlayGridSize(
+      backingSize: .init(width: 1728, height: 980),
+      cellSize: .init(width: 13, height: 20)
+    )
+
+    #expect(gridSize == .init(columns: 132, rows: 49))
+  }
+
+  @Test
+  func resizeOverlayGridSizeRequiresValidMinimumGrid() {
+    #expect(
+      TerminalSplitTreeView.resizeOverlayGridSize(
+        backingSize: .init(width: 40, height: 30),
+        cellSize: .init(width: 10, height: 20)
+      ) == nil
+    )
+    #expect(
+      TerminalSplitTreeView.resizeOverlayGridSize(
+        backingSize: .init(width: 400, height: 300),
+        cellSize: .zero
+      ) == nil
+    )
+  }
+
+  @Test
+  func resizeOverlayStaysHiddenUntilAfterFirstResize() {
+    #expect(
+      TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: false,
+        lastSize: nil,
+        currentSize: .init(width: 100, height: 100)
+      )
+    )
+    #expect(
+      TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: true,
+        lastSize: nil,
+        currentSize: .init(width: 100, height: 100)
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: true,
+        lastSize: .init(width: 100, height: 100),
+        currentSize: .init(width: 120, height: 100)
+      )
+    )
+    #expect(
+      TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: true,
+        lastSize: .init(width: 120, height: 100),
+        currentSize: .init(width: 120, height: 100)
+      )
+    )
+  }
 }
