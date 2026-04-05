@@ -288,7 +288,7 @@ enum CodexTranscriptMonitor {
 
   private static func executingDetail(name: String?) -> String? {
     guard let name = normalizedDetail(name) else { return nil }
-    return #"Executing "\#(name)""#
+    return "Executing \(name)"
   }
 
   private static func labeledDetailUpdate(
@@ -312,8 +312,8 @@ enum CodexTranscriptMonitor {
     _ text: String?,
     priority: CodexTranscriptDetailPriority = .reasoning
   ) -> CodexTranscriptUpdate? {
-    guard let text = normalizedDetail(text) else { return nil }
-    return .init(detail: "Thinking: \"\(text)\"", detailPriority: priority)
+    _ = text
+    return .init(detail: "Thinking...", detailPriority: priority)
   }
 
   private static func labeledDetail(
