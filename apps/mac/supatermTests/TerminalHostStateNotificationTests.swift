@@ -342,6 +342,29 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func setAgentActivityStoresNormalizedDetail() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    #expect(
+      host.setAgentActivity(
+        .codex(.running, detail: "  Bash · git status --short  "),
+        for: surface.id
+      )
+    )
+
+    #expect(
+      host.agentActivity(for: tabID)
+        == .codex(.running, detail: "Bash · git status --short")
+    )
+  }
+
+  @Test
   func commandFinishedClearsAgentActivity() throws {
     initializeGhosttyForTests()
 
@@ -351,7 +374,7 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
-    #expect(host.setAgentActivity(.claude(.running), for: surface.id))
+    #expect(host.setAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
 
     surface.bridge.onCommandFinished?()
 

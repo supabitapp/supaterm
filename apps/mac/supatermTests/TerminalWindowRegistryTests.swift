@@ -862,7 +862,7 @@ struct TerminalWindowRegistryTests {
       CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
 
     let result = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
@@ -886,7 +886,134 @@ struct TerminalWindowRegistryTests {
       CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
+  }
+
+  @Test
+  func codexTranscriptResponseItemsReplaceHookFallbackDetail() async throws {
+    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.preToolUse,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
+
+    try CodexTranscriptFixtures.append(
+      .localShellCall(command: ["git", "status", "--short"]),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Bash · git status --short")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Updating the registry and sidebar"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Message · Updating the registry and sidebar")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage(
+        "Final answer should stay out of the running subtitle",
+        phase: "final_answer"
+      ),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Message · Updating the registry and sidebar")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .taskComplete(turnID: "turn-1", lastAgentMessage: "Done."),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+  }
+
+  @Test
+  func codexTranscriptEventFallbackUpdatesDetailAndAbortedTurnClearsRunning() async throws {
+    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.userPromptSubmit,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+
+    try CodexTranscriptFixtures.append(
+      .agentReasoning("Inspecting transcript activity"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Reasoning · Inspecting transcript activity")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .agentMessage("Need approval?", phase: "commentary"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Message · Need approval?")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .turnAborted(turnID: "turn-1"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
 
   @Test
@@ -966,47 +1093,40 @@ struct TerminalWindowRegistryTests {
   @Test
   func codexTranscriptKeepsRunningUntilTranscriptCompletes() async throws {
     let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
-    let transcriptPath = try makeCodexTranscript()
-    try appendCodexTranscriptEvent(
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    try CodexTranscriptFixtures.append(
       .taskComplete(turnID: "turn-0"),
       to: transcriptPath
     )
 
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(
-        CodexHookFixtures.replacingTranscriptPath(
-          in: CodexHookFixtures.sessionStart,
-          with: transcriptPath.path
-        ),
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
         context: harness.context
       )
     )
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(
-        CodexHookFixtures.replacingTranscriptPath(
-          in: CodexHookFixtures.userPromptSubmit,
-          with: transcriptPath.path
-        )
-      )
+      codexHook(CodexHookFixtures.userPromptSubmit, transcriptPath: transcriptPath)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
 
     try? await ContinuousClock().sleep(for: .milliseconds(30))
     await flushEffects()
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
 
-    try appendCodexTranscriptEvent(
+    try CodexTranscriptFixtures.append(
       .taskStarted(turnID: "turn-1"),
       to: transcriptPath
     )
     try? await ContinuousClock().sleep(for: .milliseconds(1_100))
     await flushEffects()
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
 
-    try appendCodexTranscriptEvent(
+    try CodexTranscriptFixtures.append(
       .taskComplete(turnID: "turn-1"),
       to: transcriptPath
     )
@@ -1060,45 +1180,15 @@ struct TerminalWindowRegistryTests {
     }
   }
 
-  private enum CodexTranscriptEvent {
-    case taskStarted(turnID: String)
-    case taskComplete(turnID: String)
-
-    var json: String {
-      switch self {
-      case .taskStarted(let turnID):
-        """
-        {"timestamp":"2026-04-05T07:00:00.000Z","type":"event_msg","payload":{"type":"task_started",
-        "payload":{"turn_id":"\(turnID)","model_context_window":null,"collaboration_mode_kind":"default"}}}
-        """
-      case .taskComplete(let turnID):
-        """
-        {"timestamp":"2026-04-05T07:00:00.000Z","type":"event_msg","payload":{"type":"task_complete",
-        "payload":{"turn_id":"\(turnID)","last_agent_message":"Done."}}}
-        """
-      }
-    }
-  }
-
-  private func makeCodexTranscript() throws -> URL {
-    let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-      UUID().uuidString,
-      isDirectory: true
+  private func codexHook(
+    _ json: String,
+    transcriptPath: URL,
+    context: SupatermCLIContext? = nil
+  ) throws -> SupatermAgentHookRequest {
+    try CodexHookFixtures.request(
+      CodexHookFixtures.replacingTranscriptPath(in: json, with: transcriptPath.path),
+      context: context
     )
-    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-    let fileURL = directoryURL.appendingPathComponent("transcript.jsonl")
-    try Data().write(to: fileURL)
-    return fileURL
-  }
-
-  private func appendCodexTranscriptEvent(
-    _ event: CodexTranscriptEvent,
-    to fileURL: URL
-  ) throws {
-    let handle = try FileHandle(forWritingTo: fileURL)
-    defer { try? handle.close() }
-    try handle.seekToEnd()
-    try handle.write(contentsOf: Data((event.json + "\n").utf8))
   }
 
   private func makeClaudeHookHarness(
