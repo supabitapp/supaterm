@@ -10,4 +10,4 @@ $SUPATERM_CLI_PATH diagnostic
 
 Tests that exercise polling or timeout behavior should inject a clock and advance it instead of waiting on wall clock time.
 
-`TerminalWindowRegistry` supports this pattern for the Codex transcript monitor and running timeout. In tests, use `TestClock` from `Clocks` and call `advance(by:)` rather than sleeping for the production `1s` poll interval.
+In tests, use `TestClock` from `Clocks` and call `advance(by:)` rather than sleeping for a real poll interval or timeout.
