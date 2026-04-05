@@ -201,37 +201,43 @@ enum SPHelp {
       sp internal claude-teams --instance work-mac --help
     """
 
-  static let agentHookDiscussion = """
+  static let receiveAgentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Install Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp agent install`.
+    Install Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp agent install-hook`.
 
     Example:
-      sp agent install claude
-      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp internal agent-hook --agent claude
+      sp agent install-hook claude
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
-  static let installAgentHooksDiscussion = """
+  static let installAgentHookDiscussion = """
     Install Supaterm's hook bridge into the selected agent's user configuration.
 
     Example:
-      sp agent install claude
-      sp agent install codex
+      sp agent install-hook claude
+      sp agent install-hook codex
     """
 
-  static let installAgentHooksClaudeDiscussion = """
+  static let installAgentHookClaudeDiscussion = """
     Installs Supaterm hooks into ~/.claude/settings.json.
 
     Example:
-      sp agent install claude
+      sp agent install-hook claude
     """
 
-  static let installAgentHooksCodexDiscussion = """
+  static let installAgentHookCodexDiscussion = """
     Enables Codex hooks and installs Supaterm hooks into ~/.codex/hooks.json.
 
     Example:
-      sp agent install codex
+      sp agent install-hook codex
+    """
+
+  static let agentSettingsDiscussion = """
+    Example:
+      sp internal agent-settings claude
+      sp internal agent-settings codex
     """
 
   static let developmentDiscussion = """
@@ -370,14 +376,14 @@ enum SPHelp {
 
   static let agentDiscussion = """
     Example:
-      sp agent install claude
-      sp agent install codex
+      sp agent install-hook claude
+      sp agent install-hook codex
     """
 
   static let internalDiscussion = """
     Example:
       sp internal ping
-      sp internal agent-hook --agent claude
+      sp internal agent-settings claude
       sp internal dev claude session-start
     """
 }
