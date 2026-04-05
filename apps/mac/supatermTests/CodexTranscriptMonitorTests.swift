@@ -17,7 +17,7 @@ struct CodexTranscriptMonitorTests {
 
     #expect(result.0.offset > cursor.offset)
     #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == #"Thinking: "Inspecting the workspace""#)
+    #expect(result.1?.detail == "Thinking...")
   }
 
   @Test
@@ -87,7 +87,7 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == #"Executing "update_plan""#)
+    #expect(result.1?.detail == "Executing update_plan")
   }
 
   @Test
@@ -101,5 +101,24 @@ struct CodexTranscriptMonitorTests {
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
     #expect(result.1?.detail == "Working...")
+  }
+
+  @Test
+  func advanceShowsThinkingForEmptyReasoningPayload() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(
+      """
+      {"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{
+      "type":"reasoning","summary":[],"content":null}}
+      """,
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+
+    #expect(result.1?.detail == "Thinking...")
   }
 }

@@ -1081,7 +1081,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: #"Thinking: "Inspecting transcript activity""#)
+        == .codex(.running, detail: "Thinking...")
     )
 
     try CodexTranscriptFixtures.append(
