@@ -486,6 +486,22 @@ struct TerminalSidebarTabSummaryView: View {
     return nil
   }
 
+  static func popoverMarkdown(
+    agentActivity: TerminalHostState.AgentActivity?,
+    showsAgentActivityDetail: Bool,
+    notificationMarkdown: String?
+  ) -> String? {
+    if let agentActivity,
+      showsAgentActivityDetail,
+      agentActivity.kind == .codex,
+      agentActivity.phase == .running,
+      let detail = agentActivity.detail
+    {
+      return detail
+    }
+    return notificationMarkdown
+  }
+
   var body: some View {
     HStack(alignment: .top, spacing: 8) {
       switch Self.leadingIndicator(
@@ -909,9 +925,9 @@ struct TerminalSidebarTabRow: View {
     .animation(rowAnimation, value: animatedPresentation)
     .background {
       SidebarPopoverPresenter(
-        isPresented: showsNotificationPopover,
+        isPresented: showsPopover,
         palette: palette,
-        markdown: notificationMarkdown
+        markdown: popoverMarkdown
       )
     }
     .overlay(
@@ -1011,12 +1027,16 @@ struct TerminalSidebarTabRow: View {
     accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
   }
 
-  private var notificationMarkdown: String? {
-    notificationPresentation?.markdown
+  private var popoverMarkdown: String? {
+    TerminalSidebarTabSummaryView.popoverMarkdown(
+      agentActivity: terminal.agentActivity(for: tab.id),
+      showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
+      notificationMarkdown: notificationPresentation?.markdown
+    )
   }
 
-  private var showsNotificationPopover: Bool {
-    isHovering && notificationMarkdown != nil
+  private var showsPopover: Bool {
+    isHovering && popoverMarkdown != nil
   }
 
   private func select() {

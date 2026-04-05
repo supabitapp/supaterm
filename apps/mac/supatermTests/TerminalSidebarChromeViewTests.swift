@@ -197,6 +197,51 @@ struct TerminalSidebarChromeViewTests {
     )
   }
 
+  @Test
+  func runningCodexDetailTakesPopoverPrecedenceOverNotificationMarkdown() {
+    #expect(
+      TerminalSidebarTabSummaryView.popoverMarkdown(
+        agentActivity: .codex(.running, detail: "Inspecting transcript activity"),
+        showsAgentActivityDetail: true,
+        notificationMarkdown: """
+          Need approval
+
+          Full notification body
+          """
+      ) == "Inspecting transcript activity"
+    )
+  }
+
+  @Test
+  func notificationMarkdownReturnsWhenCodexDetailIsHiddenForPopover() {
+    #expect(
+      TerminalSidebarTabSummaryView.popoverMarkdown(
+        agentActivity: .codex(.running, detail: "Inspecting transcript activity"),
+        showsAgentActivityDetail: false,
+        notificationMarkdown: """
+          Need approval
+
+          Full notification body
+          """
+      ) == """
+        Need approval
+
+        Full notification body
+        """
+    )
+  }
+
+  @Test
+  func popoverMarkdownIsNilWithoutVisibleActivityDetailOrNotification() {
+    #expect(
+      TerminalSidebarTabSummaryView.popoverMarkdown(
+        agentActivity: .codex(.running),
+        showsAgentActivityDetail: false,
+        notificationMarkdown: nil
+      ) == nil
+    )
+  }
+
   @MainActor
   @Test
   func notificationPopoverParserReturnsPartialDocumentForInvalidMarkdown() throws {
