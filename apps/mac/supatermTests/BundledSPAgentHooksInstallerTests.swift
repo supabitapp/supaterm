@@ -29,7 +29,7 @@ struct BundledSPAgentHooksInstallerTests {
 
     let snapshot = capture.snapshot()
     #expect(snapshot.path == "/tmp/Supaterm.app/Contents/Resources/bin/sp")
-    #expect(snapshot.arguments == ["agent", "install", "claude"])
+    #expect(snapshot.arguments == ["agent", "install-hook", "claude"])
     #expect(snapshot.environment == ["PATH": "/usr/bin:/bin"])
   }
 

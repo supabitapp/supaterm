@@ -164,9 +164,10 @@ struct CodexSettingsInstallerTests {
   }
 
   @Test
-  func installReplacesLegacySupatermCommand() throws {
+  func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
 
     try writeCodexSettings(
       """
@@ -176,7 +177,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "[ -n \\"${SUPATERM_CLI_PATH:-}\\" ] && \\"$SUPATERM_CLI_PATH\\" agent-hook || true",
+                  "command": "\(command)",
                   "timeout": 99,
                   "type": "command"
                 }
@@ -201,7 +202,11 @@ struct CodexSettingsInstallerTests {
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
 
-    #expect(commands.filter { $0.contains("SUPATERM_CLI_PATH") && $0.contains("agent-hook") }.count == 1)
+    #expect(
+      commands.filter {
+        $0.contains("SUPATERM_CLI_PATH") && $0.contains("agent receive-agent-hook")
+      }.count == 1
+    )
     #expect(commands.contains(SupatermCodexHookSettings.command))
   }
 

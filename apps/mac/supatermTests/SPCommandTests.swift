@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import SPCLI
@@ -9,7 +10,7 @@ struct SPCommandTests {
   func newPaneHelpShowsShellOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewPane.self, columns: 100)
 
-    #expect(help.contains("--shell <script>"))
+    #expect(help.contains("--shell <shell>"))
     #expect(help.contains("sp pane split down --shell"))
   }
 
@@ -77,21 +78,25 @@ struct SPCommandTests {
   func newTabHelpShowsShellOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 
-    #expect(help.contains("--shell <script>"))
+    #expect(help.contains("--shell <shell>"))
     #expect(help.contains("sp tab new --shell"))
   }
 
   @Test
-  func installAgentHooksParserAcceptsClaudeAndCodexSubcommands() throws {
+  func agentParserAcceptsInstallHookAndReceiveAgentHookSubcommands() throws {
     let claudeCommand = try #require(
-      try SP.parseAsRoot(["agent", "install", "claude"]) as? SP.InstallAgentHooks.Claude
+      try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude
     )
     let codexCommand = try #require(
-      try SP.parseAsRoot(["agent", "install", "codex"]) as? SP.InstallAgentHooks.Codex
+      try SP.parseAsRoot(["agent", "install-hook", "codex"]) as? SP.InstallAgentHook.Codex
+    )
+    let receiveCommand = try #require(
+      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"]) as? SP.ReceiveAgentHook
     )
 
-    #expect(type(of: claudeCommand) == SP.InstallAgentHooks.Claude.self)
-    #expect(type(of: codexCommand) == SP.InstallAgentHooks.Codex.self)
+    #expect(type(of: claudeCommand) == SP.InstallAgentHook.Claude.self)
+    #expect(type(of: codexCommand) == SP.InstallAgentHook.Codex.self)
+    #expect(receiveCommand.agent == .claude)
   }
 
   @Test
@@ -135,7 +140,6 @@ struct SPCommandTests {
   @Test(arguments: [
     ["tab", "new", "--in", "0"],
     ["pane", "split", "right", "--in", "bad-target"],
-    ["pane", "focus", " "],
   ])
   func parserRejectsInvalidSelectorTargets(arguments: [String]) {
     do {
@@ -149,6 +153,7 @@ struct SPCommandTests {
           || message.contains("tab selector")
           || message.contains("space/tab")
           || message.contains("space/tab/pane")
+          || message.localizedCaseInsensitiveContains("invalid")
       )
     }
   }

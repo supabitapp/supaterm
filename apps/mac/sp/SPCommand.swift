@@ -92,9 +92,9 @@ extension SP {
   struct Agent: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "agent",
-      abstract: "Install Supaterm coding-agent integrations.",
+      abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
-      subcommands: [InstallAgentHooks.self]
+      subcommands: [InstallAgentHook.self, ReceiveAgentHook.self]
     )
 
     mutating func run() throws {
@@ -110,7 +110,6 @@ extension SP {
       shouldDisplay: false,
       subcommands: [
         Ping.self,
-        AgentHook.self,
         AgentSettings.self,
         Development.self,
         ClaudeTeams.self,
@@ -126,6 +125,7 @@ extension SP {
     static let configuration = CommandConfiguration(
       commandName: "agent-settings",
       abstract: "Print canonical Supaterm agent hook settings.",
+      discussion: SPHelp.agentSettingsDiscussion,
       subcommands: [ClaudeHookSettings.self, CodexHookSettings.self]
     )
 
@@ -654,11 +654,12 @@ extension SP {
     }
   }
 
-  struct AgentHook: ParsableCommand {
+  struct ReceiveAgentHook: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "agent-hook",
+      commandName: "receive-agent-hook",
       abstract: "Forward one agent hook event to Supaterm.",
-      discussion: SPHelp.agentHookDiscussion
+      discussion: SPHelp.receiveAgentHookDiscussion,
+      shouldDisplay: false
     )
 
     @Option(name: .long, help: "Agent that emitted the hook payload.")
@@ -689,11 +690,11 @@ extension SP {
     }
   }
 
-  struct InstallAgentHooks: ParsableCommand {
+  struct InstallAgentHook: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "install",
+      commandName: "install-hook",
       abstract: "Install Supaterm's hook bridge for a coding agent.",
-      discussion: SPHelp.installAgentHooksDiscussion,
+      discussion: SPHelp.installAgentHookDiscussion,
       subcommands: [Claude.self, Codex.self]
     )
 
@@ -751,12 +752,12 @@ extension SP {
   }
 }
 
-extension SP.InstallAgentHooks {
+extension SP.InstallAgentHook {
   struct Claude: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "claude",
       abstract: "Install Supaterm's Claude hook bridge.",
-      discussion: SPHelp.installAgentHooksClaudeDiscussion
+      discussion: SPHelp.installAgentHookClaudeDiscussion
     )
 
     mutating func run() throws {
@@ -773,7 +774,7 @@ extension SP.InstallAgentHooks {
     static let configuration = CommandConfiguration(
       commandName: "codex",
       abstract: "Install Supaterm's Codex hook bridge.",
-      discussion: SPHelp.installAgentHooksCodexDiscussion
+      discussion: SPHelp.installAgentHookCodexDiscussion
     )
 
     mutating func run() throws {
