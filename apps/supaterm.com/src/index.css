@@ -51,8 +51,6 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.45rem;
-  --brand-start: oklch(0.67 0.21 304);
-  --brand-end: oklch(0.72 0.16 260);
 }
 
 .dark {
@@ -132,11 +130,6 @@
         color-mix(in oklch, var(--muted) 36%, transparent),
         transparent 60%
       ),
-      radial-gradient(
-        800px 280px at 50% 10%,
-        color-mix(in oklch, var(--brand-start) 10%, transparent),
-        transparent 65%
-      ),
       linear-gradient(
         to right,
         color-mix(in oklch, var(--border) 30%, transparent) 1px,
@@ -148,7 +141,6 @@
         transparent 1px
       );
     background-size:
-      100% 100%,
       100% 100%,
       64px 64px,
       64px 64px;
@@ -172,8 +164,8 @@
 
 .supaterm-glow {
   box-shadow:
-    0 0 90px -34px color-mix(in oklch, var(--brand-start) 35%, transparent),
-    0 0 160px -56px color-mix(in oklch, var(--muted) 55%, transparent);
+    0 0 80px -20px color-mix(in oklch, var(--muted) 60%, transparent),
+    0 0 160px -40px color-mix(in oklch, var(--muted) 30%, transparent);
 }
 
 .supaterm-reveal {
