@@ -3595,7 +3595,13 @@ final class TerminalHostState {
       return titleOverride
     }
     if let title = trimmedNonEmpty(title) {
-      return strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
+      var resolved = strippedLeadingWorkingDirectory(from: title, pwd: pwd) ?? title
+      while let stripped = strippedDuplicatedTrailingCommandSuffix(from: resolved),
+        stripped != resolved
+      {
+        resolved = stripped
+      }
+      return resolved
     }
     if let pwd = trimmedNonEmpty(pwd) {
       return pwd
@@ -3980,6 +3986,31 @@ final class TerminalHostState {
     ).trimmingCharacters(in: .whitespacesAndNewlines)
 
     return stripped.isEmpty ? nil : stripped
+  }
+
+  private static func strippedDuplicatedTrailingCommandSuffix(
+    from title: String
+  ) -> String? {
+    guard let separatorRange = title.range(of: " - ", options: .backwards) else { return nil }
+    let prefix = String(title[..<separatorRange.lowerBound]).trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    let suffix = String(title[separatorRange.upperBound...]).trimmingCharacters(
+      in: .whitespacesAndNewlines)
+    guard
+      let prefixCommand = leadingCommandToken(in: prefix),
+      let suffixCommand = trimmedNonEmpty(suffix),
+      prefixCommand == suffixCommand
+    else {
+      return nil
+    }
+    return prefix
+  }
+
+  private static func leadingCommandToken(
+    in value: String
+  ) -> String? {
+    guard let trimmed = trimmedNonEmpty(value) else { return nil }
+    return trimmed.split(whereSeparator: \.isWhitespace).first.map(String.init)
   }
 }
 
