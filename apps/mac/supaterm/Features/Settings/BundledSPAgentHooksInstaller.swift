@@ -9,16 +9,23 @@ nonisolated struct BundledSPAgentHooksInstaller {
 
   let resourcesURL: URL?
   let isExecutableFile: @Sendable (String) -> Bool
-  let runInstallCommand: @Sendable (_ executablePath: String, _ arguments: [String]) throws -> CommandResult
+  let environment: [String: String]
+  let runInstallCommand:
+    @Sendable (_ executablePath: String, _ arguments: [String], _ environment: [String: String]) throws ->
+      CommandResult
 
   init(
     resourcesURL: URL? = Bundle.main.resourceURL,
     isExecutableFile: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-    runInstallCommand: @escaping @Sendable (_ executablePath: String, _ arguments: [String]) throws -> CommandResult =
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    runInstallCommand:
+      @escaping @Sendable (_ executablePath: String, _ arguments: [String], _ environment: [String: String]) throws
+      -> CommandResult =
       Self.runInstallCommand
   ) {
     self.resourcesURL = resourcesURL
     self.isExecutableFile = isExecutableFile
+    self.environment = environment
     self.runInstallCommand = runInstallCommand
   }
 
@@ -34,7 +41,8 @@ nonisolated struct BundledSPAgentHooksInstaller {
     do {
       commandResult = try runInstallCommand(
         cliPath,
-        ["agent", "install", agent.rawValue]
+        ["agent", "install", agent.rawValue],
+        Self.sanitizedEnvironment(environment)
       )
     } catch let error as BundledSPAgentHooksInstallerError {
       throw error
@@ -55,11 +63,13 @@ nonisolated struct BundledSPAgentHooksInstaller {
 
   static func runInstallCommand(
     executablePath: String,
-    arguments: [String]
+    arguments: [String],
+    environment: [String: String]
   ) throws -> CommandResult {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: executablePath)
     process.arguments = arguments
+    process.environment = environment
 
     let errorPipe = Pipe()
     process.standardError = errorPipe
@@ -76,6 +86,10 @@ nonisolated struct BundledSPAgentHooksInstaller {
       status: process.terminationStatus,
       standardError: standardError.trimmingCharacters(in: .whitespacesAndNewlines)
     )
+  }
+
+  static func sanitizedEnvironment(_ environment: [String: String]) -> [String: String] {
+    environment.filter { !$0.key.hasPrefix("SUPATERM_") }
   }
 }
 
