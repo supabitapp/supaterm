@@ -14,10 +14,13 @@ struct SPHelpTests {
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
-    #expect(help.contains("sp tree"))
-    #expect(help.contains("sp new-pane --space 1 --tab 1 down"))
-    #expect(help.contains("install-agent-hooks"))
-    #expect(help.contains("development"))
+    #expect(help.contains("sp ls"))
+    #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
+    #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
+    #expect(help.contains("sp doctor"))
+    #expect(help.contains("sp instance ls"))
+    #expect(!help.contains("install-agent-hooks"))
+    #expect(!help.contains("development"))
   }
 
   @Test
@@ -26,8 +29,13 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Tree.self, columns: 100),
       SP.helpMessage(for: SP.Onboard.self, columns: 100),
       SP.helpMessage(for: SP.Debug.self, columns: 100),
+      SP.helpMessage(for: SP.Instance.self, columns: 100),
       SP.helpMessage(for: SP.Instances.self, columns: 100),
+      SP.helpMessage(for: SP.Space.self, columns: 100),
+      SP.helpMessage(for: SP.SpaceNew.self, columns: 100),
+      SP.helpMessage(for: SP.Tab.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
+      SP.helpMessage(for: SP.Pane.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.FocusPane.self, columns: 100),
       SP.helpMessage(for: SP.SelectTab.self, columns: 100),
@@ -36,13 +44,17 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.SendText.self, columns: 100),
       SP.helpMessage(for: SP.CapturePane.self, columns: 100),
       SP.helpMessage(for: SP.ResizePane.self, columns: 100),
+      SP.helpMessage(for: SP.PaneLayout.self, columns: 100),
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
       SP.helpMessage(for: SP.Tmux.self, columns: 100),
       SP.helpMessage(for: SP.ClaudeTeams.self, columns: 100),
+      SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.AgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.Claude.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.Codex.self, columns: 100),
+      SP.helpMessage(for: SP.Internal.self, columns: 100),
+      SP.helpMessage(for: SP.AgentSettings.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.SessionStart.self, columns: 100),
@@ -54,31 +66,30 @@ struct SPHelpTests {
   }
 
   @Test
-  func newPaneHelpShowsSocketEnvironmentDefaultAmbientPaneTargetingAndExamples() {
+  func paneSplitHelpShowsAmbientTargetingAndExamples() {
     let help = SP.helpMessage(for: SP.NewPane.self, columns: 100)
 
     #expect(help.contains("--socket <socket>"))
     #expect(help.contains("default: $SUPATERM_SOCKET_PATH"))
-    #expect(help.contains("If you omit --space and --tab inside Supaterm"))
-    #expect(help.contains("1-based index or UUID"))
+    #expect(help.contains("If you omit --in inside Supaterm"))
+    #expect(help.contains("tab selector, a pane selector, or a UUID"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
-    #expect(help.contains("Example:"))
-    #expect(help.contains("--no-equalize"))
-    #expect(help.contains("sp new-pane down htop"))
-    #expect(help.contains("--tab <tab>"))
-    #expect(help.contains("sp new-pane --tab <tab-uuid> left"))
+    #expect(help.contains("sp pane split down -- htop"))
+    #expect(help.contains("sp pane split --layout keep right"))
+    #expect(help.contains("sp pane split --in 1/2 left"))
+    #expect(help.contains("sp pane split --in <tab-uuid> left"))
   }
 
   @Test
-  func newTabAndNotifyHelpMentionUUIDTargets() {
+  func newTabAndNotifyHelpMentionSelectorTargets() {
     let newTabHelp = SP.helpMessage(for: SP.NewTab.self, columns: 100)
     let notifyHelp = SP.helpMessage(for: SP.Notify.self, columns: 100)
 
-    #expect(newTabHelp.contains("1-based index or UUID"))
-    #expect(newTabHelp.contains("sp new-tab --space <space-uuid>"))
-    #expect(notifyHelp.contains("1-based index or UUID"))
-    #expect(notifyHelp.contains("sp notify --pane <pane-uuid>"))
+    #expect(newTabHelp.contains("space selector or UUID"))
+    #expect(newTabHelp.contains("sp tab new --in <space-uuid>"))
+    #expect(notifyHelp.contains("space/tab/pane"))
+    #expect(notifyHelp.contains("sp pane notify <pane-uuid>"))
   }
 
   @Test
@@ -86,15 +97,16 @@ struct SPHelpTests {
     let help = SP.helpMessage(for: SP.AgentHook.self, columns: 100)
 
     #expect(help.contains("Settings > Coding Agents"))
-    #expect(help.contains("sp install-agent-hooks"))
+    #expect(help.contains("sp agent install"))
+    #expect(help.contains("sp internal agent-hook --agent claude"))
   }
 
   @Test
   func installAgentHooksHelpShowsExamples() {
     let help = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
 
-    #expect(help.contains("sp install-agent-hooks claude"))
-    #expect(help.contains("sp install-agent-hooks codex"))
+    #expect(help.contains("sp agent install claude"))
+    #expect(help.contains("sp agent install codex"))
   }
 
   @Test
@@ -103,9 +115,9 @@ struct SPHelpTests {
 
     #expect(help.contains("development build"))
     #expect(help.contains("Run these commands inside the Supaterm pane"))
-    #expect(help.contains("sp development claude session-start"))
-    #expect(help.contains("sp development claude notification"))
-    #expect(help.contains("sp development claude session-end"))
+    #expect(help.contains("sp internal dev claude session-start"))
+    #expect(help.contains("sp internal dev claude notification"))
+    #expect(help.contains("sp internal dev claude session-end"))
   }
 
   @Test
@@ -115,7 +127,7 @@ struct SPHelpTests {
 
     #expect(tmuxHelp.contains("sp tmux split-window -h -P"))
     #expect(tmuxHelp.contains("--instance work-mac"))
-    #expect(teammateHelp.contains("claude-teams"))
+    #expect(teammateHelp.contains("sp internal claude-teams"))
     #expect(teammateHelp.contains("Example:"))
   }
 }

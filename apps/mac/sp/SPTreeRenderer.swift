@@ -17,6 +17,33 @@ enum SPTreeRenderer {
     return lines.joined(separator: "\n")
   }
 
+  static func renderPlain(_ snapshot: SupatermTreeSnapshot) -> String {
+    snapshot.windows.flatMap { window in
+      window.spaces.flatMap { space in
+        let spaceSelector = "\(space.index)"
+        let spaceFlags = space.isSelected ? "\tselected" : ""
+        let spaceLine = "\(spaceSelector)\tspace\t\(space.name)\(spaceFlags)"
+
+        let tabLines = space.tabs.flatMap { tab -> [String] in
+          let tabSelector = "\(space.index)/\(tab.index)"
+          let tabFlags = tab.isSelected ? "\tselected" : ""
+          let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(tabFlags)"
+
+          let paneLines = tab.panes.map { pane in
+            let paneSelector = "\(space.index)/\(tab.index)/\(pane.index)"
+            let paneFlags = pane.isFocused ? "\tfocused" : ""
+            return "\(paneSelector)\tpane\(paneFlags)"
+          }
+
+          return [tabLine] + paneLines
+        }
+
+        return [spaceLine] + tabLines
+      }
+    }
+    .joined(separator: "\n")
+  }
+
   private static func renderSpaces(_ spaces: [SupatermTreeSnapshot.Space]) -> [String] {
     spaces.enumerated().flatMap { spaceOffset, space in
       let isLastSpace = spaceOffset == spaces.count - 1

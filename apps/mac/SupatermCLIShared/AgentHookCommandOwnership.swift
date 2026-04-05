@@ -3,6 +3,9 @@ enum AgentHookCommandOwnership {
     guard let command else {
       return false
     }
-    return command.contains("SUPATERM_CLI_PATH") && command.contains("agent-hook")
+    guard command.contains("SUPATERM_CLI_PATH") else {
+      return false
+    }
+    return command.contains(" internal agent-hook ") || command.contains(" agent-hook ")
   }
 }

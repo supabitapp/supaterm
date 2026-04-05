@@ -79,16 +79,6 @@ public enum SPEntrypoint {
       }
       return true
 
-    case "claude-teams":
-      let invocation = try SPRawConnectionInvocation.parse(Array(commandArguments.dropFirst()))
-      try SPTeammateLauncher.run(
-        arguments: invocation.arguments,
-        explicitSocketPath: invocation.connection.explicitSocketPath,
-        instance: invocation.connection.instance,
-        environment: environment
-      )
-      return true
-
     default:
       return false
     }

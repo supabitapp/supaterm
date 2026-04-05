@@ -12,29 +12,16 @@ public struct SP: ParsableCommand {
   )
 
   private static let availableSubcommands: [ParsableCommand.Type] = [
-    Tree.self,
     Onboard.self,
+    Tree.self,
     Debug.self,
-    Instances.self,
-    NewTab.self,
-    NewPane.self,
-    FocusPane.self,
-    SelectTab.self,
-    ClosePane.self,
-    CloseTab.self,
-    SendText.self,
-    CapturePane.self,
-    ResizePane.self,
-    RenameTab.self,
+    Instance.self,
+    Space.self,
+    Tab.self,
+    Pane.self,
+    Agent.self,
     Tmux.self,
-    ClaudeTeams.self,
-    Notify.self,
-    AgentHook.self,
-    InstallAgentHooks.self,
-    Ping.self,
-    ClaudeHookSettings.self,
-    CodexHookSettings.self,
-    Development.self,
+    Internal.self,
   ]
 
   public init() {}
@@ -44,24 +31,126 @@ public struct SP: ParsableCommand {
   }
 }
 
+enum SPOutputMode {
+  case human
+  case json
+  case plain
+}
+
+struct SPOutputOptions: ParsableArguments {
+  @Flag(name: .long, help: "Print command output as JSON.")
+  var json = false
+
+  @Flag(name: .long, help: "Print plain stable output.")
+  var plain = false
+
+  @Flag(name: [.customShort("q"), .long], help: "Suppress successful command output.")
+  var quiet = false
+
+  @Flag(name: .long, help: "Disable styled output.")
+  var noColor = false
+
+  func validate() throws {
+    if json && plain {
+      throw ValidationError("--json and --plain cannot be used together.")
+    }
+  }
+
+  var mode: SPOutputMode {
+    if json {
+      return .json
+    }
+    if plain {
+      return .plain
+    }
+    return .human
+  }
+}
+
+struct SPCommandOptions: ParsableArguments {
+  @OptionGroup
+  var connection: SPConnectionOptions
+
+  @OptionGroup
+  var output: SPOutputOptions
+}
+
+extension SP {
+  struct Instance: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "instance",
+      abstract: "Inspect reachable Supaterm instances.",
+      discussion: SPHelp.instanceDiscussion,
+      subcommands: [Instances.self]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+
+  struct Agent: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "agent",
+      abstract: "Install Supaterm coding-agent integrations.",
+      discussion: SPHelp.agentDiscussion,
+      subcommands: [InstallAgentHooks.self]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+
+  struct Internal: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "internal",
+      abstract: "Run internal Supaterm CLI commands.",
+      discussion: SPHelp.internalDiscussion,
+      shouldDisplay: false,
+      subcommands: [
+        Ping.self,
+        AgentHook.self,
+        AgentSettings.self,
+        Development.self,
+        ClaudeTeams.self,
+      ]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+
+  struct AgentSettings: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "agent-settings",
+      abstract: "Print canonical Supaterm agent hook settings.",
+      subcommands: [ClaudeHookSettings.self, CodexHookSettings.self]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+}
+
 extension SP {
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "tree",
+      commandName: "ls",
       abstract: "Show the current Supaterm window, space, tab, and pane tree.",
       discussion: SPHelp.treeDiscussion
     )
 
-    @Flag(name: .long, help: "Print the tree as JSON.")
-    var json = false
-
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
     mutating func run() throws {
+      applyOutputStyle(options.output)
       let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
       )
       let response = try client.send(.tree())
       guard response.ok else {
@@ -69,9 +158,12 @@ extension SP {
       }
 
       let snapshot = try response.decodeResult(SupatermTreeSnapshot.self)
-      if json {
+      switch options.output.mode {
+      case .json:
         print(try jsonString(snapshot))
-      } else {
+      case .plain:
+        print(SPTreeRenderer.renderPlain(snapshot))
+      case .human:
         print(SPTreeRenderer.render(snapshot))
       }
     }
@@ -85,12 +177,13 @@ extension SP {
     )
 
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
     mutating func run() throws {
+      applyOutputStyle(options.output)
       let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
       )
       let response = try client.send(.onboarding())
       guard response.ok else {
@@ -98,28 +191,31 @@ extension SP {
       }
 
       let snapshot = try response.decodeResult(SupatermOnboardingSnapshot.self)
-      print(SPOnboardingRenderer.render(snapshot))
+      switch options.output.mode {
+      case .json:
+        print(try jsonString(snapshot))
+      case .plain, .human:
+        print(SPOnboardingRenderer.render(snapshot))
+      }
     }
   }
 
   struct Debug: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "debug",
+      commandName: "doctor",
       abstract: "Show live Supaterm diagnostics for the current application.",
       discussion: SPHelp.debugDiscussion
     )
 
-    @Flag(name: .long, help: "Print the report as JSON.")
-    var json = false
-
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
     mutating func run() throws {
+      applyOutputStyle(options.output)
       let context = SupatermCLIContext.current
       let diagnostics = SPSocketSelection.resolve(
-        explicitPath: connection.explicitSocketPath,
-        instance: connection.instance,
+        explicitPath: options.connection.explicitSocketPath,
+        instance: options.connection.instance,
         alwaysDiscover: true
       )
       var problems: [String] = []
@@ -185,9 +281,10 @@ extension SP {
         problems: problems
       )
 
-      if json {
+      switch options.output.mode {
+      case .json:
         print(try jsonString(report))
-      } else {
+      case .plain, .human:
         print(SPDebugRenderer.render(report))
       }
 
@@ -199,37 +296,47 @@ extension SP {
 
   struct Instances: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "instances",
+      commandName: "ls",
       abstract: "List reachable Supaterm instances.",
       discussion: SPHelp.instancesDiscussion
     )
 
-    @Flag(name: .long, help: "Print the instances as JSON.")
-    var json = false
+    @OptionGroup
+    var options: SPCommandOptions
 
     mutating func run() throws {
+      applyOutputStyle(options.output)
       let diagnostics = SPSocketSelection.resolve(
-        explicitPath: nil,
-        instance: nil,
+        explicitPath: options.connection.explicitSocketPath,
+        instance: options.connection.instance,
         alwaysDiscover: true
       )
       let endpoints = diagnostics.discoveredEndpoints
-      if json {
+      switch options.output.mode {
+      case .json:
         print(try jsonString(endpoints))
-        return
+      case .plain:
+        guard !endpoints.isEmpty else {
+          throw ValidationError("No reachable Supaterm instances were found.")
+        }
+        print(
+          endpoints.map {
+            "\($0.name)\t\($0.id.uuidString.lowercased())\t\($0.pid)\t\($0.path)"
+          }
+          .joined(separator: "\n")
+        )
+      case .human:
+        guard !endpoints.isEmpty else {
+          throw ValidationError("No reachable Supaterm instances were found.")
+        }
+        print(endpoints.map(SPSocketSelection.formatEndpoint).joined(separator: "\n"))
       }
-
-      guard !endpoints.isEmpty else {
-        throw ValidationError("No reachable Supaterm instances were found.")
-      }
-
-      print(endpoints.map(SPSocketSelection.formatEndpoint).joined(separator: "\n"))
     }
   }
 
   struct NewTab: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "new-tab",
+      commandName: "new",
       abstract: "Create a new tab inside a Supaterm space.",
       discussion: SPHelp.newTabDiscussion
     )
@@ -238,25 +345,19 @@ extension SP {
     var cwd: String?
 
     @Option(
-      name: .long,
-      help: "Target a space by its 1-based index or UUID.",
-      transform: parseSpaceTarget
+      name: .customLong("in"),
+      help: "Create the new tab in the specified space.",
+      transform: parseSpaceReference
     )
-    var space: SPTargetSelector?
-
-    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
-    var window: Int?
+    var space: SPSpaceReference?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
     var focus = false
 
-    @Flag(name: .long, help: "Print the result as JSON.")
-    var json = false
-
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
-    @Option(name: .long, help: "Raw shell script to run immediately in the new tab.")
+    @Option(name: .customLong("shell"), help: "Raw shell script to run immediately in the new tab.")
     var script: String?
 
     @Argument(help: "Optional shell command to run immediately in the new tab.")
@@ -264,10 +365,11 @@ extension SP {
 
     mutating func run() throws {
       try validate()
+      applyOutputStyle(options.output)
 
       let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
       )
       let response = try client.send(.newTab(try requestPayload(client: client)))
       guard response.ok else {
@@ -275,9 +377,16 @@ extension SP {
       }
 
       let result = try response.decodeResult(SupatermNewTabResult.self)
-      if json {
+      guard !options.output.quiet else {
+        return
+      }
+
+      switch options.output.mode {
+      case .json:
         print(try jsonString(result))
-      } else {
+      case .plain:
+        print(plainTabSelector(spaceIndex: result.spaceIndex, tabIndex: result.tabIndex))
+      case .human:
         print(
           "window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)"
         )
@@ -286,16 +395,15 @@ extension SP {
 
     func validate() throws {
       if script != nil && !command.isEmpty {
-        throw ValidationError("--script cannot be used with a trailing command.")
+        throw ValidationError("--shell cannot be used with a trailing command.")
       }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
       let command = try shellInput(script: script, tokens: command)
       let cwd = try resolvedWorkingDirectory(cwd)
-      switch try SPTargetResolver.resolveNewTabTarget(
-        window: window,
-        space: space,
+      switch try resolvePublicNewTabTarget(
+        space,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
@@ -321,7 +429,7 @@ extension SP {
 
   struct NewPane: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "new-pane",
+      commandName: "split",
       abstract: "Create a new pane beside an existing Supaterm pane.",
       discussion: SPHelp.newPaneDiscussion
     )
@@ -346,46 +454,34 @@ extension SP {
       }
     }
 
+    enum LayoutOption: String, CaseIterable, ExpressibleByArgument {
+      case equalize
+      case keep
+    }
+
     @Argument(help: "Direction for the new pane.")
     var direction: PaneDirectionArgument = .right
 
     @Option(
-      name: .long,
-      help: "Target a pane inside the specified tab by its 1-based index or UUID.",
-      transform: parsePaneTarget
+      name: .customLong("in"),
+      help: "Split inside the specified tab or beside the specified pane.",
+      transform: parseContainerReference
     )
-    var pane: SPTargetSelector?
+    var container: SPContainerReference?
 
-    @Option(
-      name: .long,
-      help: "Target a space by its 1-based index or UUID.",
-      transform: parseSpaceTarget
-    )
-    var space: SPTargetSelector?
-
-    @Option(
-      name: .long,
-      help: "Target a tab inside the specified space by its 1-based index or UUID.",
-      transform: parseTabTarget
-    )
-    var tab: SPTargetSelector?
-
-    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
-    var window: Int?
+    @Option(name: .long, help: "Start the new pane in the specified working directory.")
+    var cwd: String?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new pane after creating it.")
     var focus = true
 
-    @Flag(inversion: .prefixedNo, help: "Equalize panes after creating the new pane.")
-    var equalize = true
-
-    @Flag(name: .long, help: "Print the result as JSON.")
-    var json = false
+    @Option(name: .customLong("layout"), help: "Pane layout after splitting.")
+    var layout: LayoutOption = .equalize
 
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
-    @Option(name: .long, help: "Raw shell script to run immediately in the new pane.")
+    @Option(name: .customLong("shell"), help: "Raw shell script to run immediately in the new pane.")
     var script: String?
 
     @Argument(help: "Optional shell command to run immediately in the new pane.")
@@ -393,10 +489,11 @@ extension SP {
 
     mutating func run() throws {
       try validate()
+      applyOutputStyle(options.output)
 
       let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
       )
       let response = try client.send(.newPane(try requestPayload(client: client)))
       guard response.ok else {
@@ -404,9 +501,16 @@ extension SP {
       }
 
       let result = try response.decodeResult(SupatermNewPaneResult.self)
-      if json {
+      guard !options.output.quiet else {
+        return
+      }
+
+      switch options.output.mode {
+      case .json:
         print(try jsonString(result))
-      } else {
+      case .plain:
+        print(plainPaneSelector(spaceIndex: result.spaceIndex, tabIndex: result.tabIndex, paneIndex: result.paneIndex))
+      case .human:
         print(
           "window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)"
         )
@@ -415,17 +519,14 @@ extension SP {
 
     func validate() throws {
       if script != nil && !command.isEmpty {
-        throw ValidationError("--script cannot be used with a trailing command.")
+        throw ValidationError("--shell cannot be used with a trailing command.")
       }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
-      let command = try shellInput(script: script, tokens: command)
-      switch try SPTargetResolver.resolvePaneTarget(
-        window: window,
-        space: space,
-        tab: tab,
-        pane: pane,
+      let command = try paneShellInput(cwd: cwd, script: script, tokens: command)
+      switch try resolvePublicSplitTarget(
+        container,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
@@ -435,7 +536,7 @@ extension SP {
           contextPaneID: contextPaneID,
           direction: direction.direction,
           focus: focus,
-          equalize: equalize
+          equalize: layout == .equalize
         )
 
       case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
@@ -443,7 +544,7 @@ extension SP {
           command: command,
           direction: direction.direction,
           focus: focus,
-          equalize: equalize,
+          equalize: layout == .equalize,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex,
           targetTabIndex: tabIndex,
@@ -455,7 +556,7 @@ extension SP {
           command: command,
           direction: direction.direction,
           focus: focus,
-          equalize: equalize,
+          equalize: layout == .equalize,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex,
           targetTabIndex: tabIndex
@@ -478,44 +579,21 @@ extension SP {
     var subtitle = ""
 
     @Option(name: .long, help: "Notification body.")
-    var body = ""
+    var body: String?
 
-    @Option(
-      name: .long,
-      help: "Target a pane inside the specified tab by its 1-based index or UUID.",
-      transform: parsePaneTarget
-    )
-    var pane: SPTargetSelector?
-
-    @Option(
-      name: .long,
-      help: "Target a space by its 1-based index or UUID.",
-      transform: parseSpaceTarget
-    )
-    var space: SPTargetSelector?
-
-    @Option(
-      name: .long,
-      help: "Target a tab inside the specified space by its 1-based index or UUID.",
-      transform: parseTabTarget
-    )
-    var tab: SPTargetSelector?
-
-    @Option(name: .long, help: "Target a window by its 1-based index. Defaults to 1 when a space target is set.")
-    var window: Int?
-
-    @Flag(name: .long, help: "Print the result as JSON.")
-    var json = false
+    @Argument(help: "Optional pane target.")
+    var pane: SPPaneReference?
 
     @OptionGroup
-    var connection: SPConnectionOptions
+    var options: SPCommandOptions
 
     mutating func run() throws {
       try validate()
+      applyOutputStyle(options.output)
 
       let client = try socketClient(
-        path: connection.explicitSocketPath,
-        instance: connection.instance
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
       )
       let response = try client.send(.notify(try requestPayload(client: client)))
       guard response.ok else {
@@ -523,22 +601,33 @@ extension SP {
       }
 
       let result = try response.decodeResult(SupatermNotifyResult.self)
-      if json {
+      guard !options.output.quiet else {
+        return
+      }
+
+      switch options.output.mode {
+      case .json:
         print(try jsonString(result))
-      } else {
+      case .plain:
+        print(plainPaneSelector(spaceIndex: result.spaceIndex, tabIndex: result.tabIndex, paneIndex: result.paneIndex))
+      case .human:
         print("window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)")
       }
     }
 
     func validate() throws {
+      guard let body else {
+        throw ValidationError("--body is required.")
+      }
+      guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw ValidationError("--body must not be empty.")
+      }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNotifyRequest {
-      switch try SPTargetResolver.resolvePaneTarget(
-        window: window,
-        space: space,
-        tab: tab,
-        pane: pane,
+      let body = body ?? ""
+      switch try resolvePublicPaneTarget(
+        pane,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
@@ -561,15 +650,6 @@ extension SP {
           title: title
         )
 
-      case .tab(let windowIndex, let spaceIndex, let tabIndex):
-        return .init(
-          body: body,
-          subtitle: subtitle,
-          targetSpaceIndex: spaceIndex,
-          targetTabIndex: tabIndex,
-          targetWindowIndex: windowIndex,
-          title: title
-        )
       }
     }
   }
@@ -611,7 +691,7 @@ extension SP {
 
   struct InstallAgentHooks: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "install-agent-hooks",
+      commandName: "install",
       abstract: "Install Supaterm's hook bridge for a coding agent.",
       discussion: SPHelp.installAgentHooksDiscussion,
       subcommands: [Claude.self, Codex.self]
@@ -625,8 +705,7 @@ extension SP {
   struct Ping: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "ping",
-      abstract: "Check Supaterm socket liveness.",
-      shouldDisplay: false
+      abstract: "Check Supaterm socket liveness."
     )
 
     @Option(name: .long, help: "Socket response timeout in seconds.")
@@ -651,9 +730,8 @@ extension SP {
 
   struct ClaudeHookSettings: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "claude-hook-settings",
-      abstract: "Print the canonical Claude hook settings JSON.",
-      shouldDisplay: false
+      commandName: "claude",
+      abstract: "Print the canonical Claude hook settings JSON."
     )
 
     mutating func run() throws {
@@ -663,9 +741,8 @@ extension SP {
 
   struct CodexHookSettings: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "codex-hook-settings",
-      abstract: "Print the canonical Codex hook settings JSON.",
-      shouldDisplay: false
+      commandName: "codex",
+      abstract: "Print the canonical Codex hook settings JSON."
     )
 
     mutating func run() throws {
@@ -713,7 +790,7 @@ extension SP.InstallAgentHooks {
 extension SP {
   struct Development: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "development",
+      commandName: "dev",
       abstract: "Run development-only verification commands.",
       discussion: SPHelp.developmentDiscussion,
       subcommands: [Claude.self]
@@ -872,11 +949,38 @@ func shellCommandInput(_ tokens: [String]) -> String? {
 func shellInput(script: String?, tokens: [String]) throws -> String? {
   if let script {
     if script.isEmpty {
-      throw ValidationError("--script must not be empty.")
+      throw ValidationError("--shell must not be empty.")
     }
     return script
   }
   return shellCommandInput(tokens)
+}
+
+func paneShellInput(
+  cwd: String?,
+  script: String?,
+  tokens: [String]
+) throws -> String? {
+  let resolvedCwd = try resolvedWorkingDirectory(cwd)
+
+  if let script {
+    if script.isEmpty {
+      throw ValidationError("--shell must not be empty.")
+    }
+    guard let resolvedCwd else {
+      return script
+    }
+    return "cd \(shellEscapedToken(resolvedCwd))\n\(script)"
+  }
+
+  let command = shellCommandInput(tokens)
+  guard let resolvedCwd else {
+    return command
+  }
+  guard let command else {
+    return "cd \(shellEscapedToken(resolvedCwd))"
+  }
+  return "cd \(shellEscapedToken(resolvedCwd)) && \(command)"
 }
 
 func resolvedWorkingDirectory(_ path: String?) throws -> String? {
@@ -1134,11 +1238,36 @@ func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {
   return try response.decodeResult(SupatermTreeSnapshot.self)
 }
 
+func applyOutputStyle(_ options: SPOutputOptions) {
+  SPTerminalStyle.setEnabled(options.mode == .human && !options.noColor)
+}
+
+func plainSpaceSelector(spaceIndex: Int) -> String {
+  "\(spaceIndex)"
+}
+
+func plainTabSelector(spaceIndex: Int, tabIndex: Int) -> String {
+  "\(spaceIndex)/\(tabIndex)"
+}
+
+func plainPaneSelector(spaceIndex: Int, tabIndex: Int, paneIndex: Int) -> String {
+  "\(spaceIndex)/\(tabIndex)/\(paneIndex)"
+}
+
+func stdinHasPipedInput() -> Bool {
+  isatty(FileHandle.standardInput.fileDescriptor) == 0
+}
+
 private enum SPTerminalStyle {
-  private static let isEnabled = isatty(FileHandle.standardOutput.fileDescriptor) != 0
+  private static let isTTY = isatty(FileHandle.standardOutput.fileDescriptor) != 0
+  private nonisolated(unsafe) static var isEnabled = true
+
+  static func setEnabled(_ enabled: Bool) {
+    isEnabled = enabled
+  }
 
   static func bold(_ text: String) -> String {
-    guard isEnabled else { return text }
+    guard isTTY && isEnabled else { return text }
     return "\u{001B}[1m\(text)\u{001B}[0m"
   }
 }

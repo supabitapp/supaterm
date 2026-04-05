@@ -6,60 +6,62 @@ import Testing
 
 struct SPCommandTests {
   @Test
-  func newPaneHelpShowsScriptOptionAndExample() {
+  func newPaneHelpShowsShellOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewPane.self, columns: 100)
 
-    #expect(help.contains("--script <script>"))
-    #expect(help.contains("sp new-pane down --script"))
+    #expect(help.contains("--shell <script>"))
+    #expect(help.contains("sp pane split down --shell"))
   }
 
   @Test
-  func newPaneEqualizeDefaultsToTrueAndCanBeDisabled() throws {
+  func newPaneLayoutDefaultsToEqualizeAndCanKeepLayout() throws {
     let defaultCommand = try #require(
-      try SP.NewPane.parseAsRoot(["right", "--space", "1", "--tab", "1"]) as? SP.NewPane
+      try SP.parseAsRoot(["pane", "split", "right"]) as? SP.NewPane
     )
-    let noEqualizeCommand = try #require(
-      try SP.NewPane.parseAsRoot(["right", "--space", "1", "--tab", "1", "--no-equalize"]) as? SP.NewPane
+    let keepLayoutCommand = try #require(
+      try SP.parseAsRoot(["pane", "split", "--layout", "keep", "right"]) as? SP.NewPane
     )
 
-    #expect(defaultCommand.equalize)
-    #expect(!noEqualizeCommand.equalize)
+    #expect(defaultCommand.layout == .equalize)
+    #expect(keepLayoutCommand.layout == .keep)
   }
 
   @Test
   func newTabParserAcceptsUUIDSpaceTarget() throws {
     let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     let command = try #require(
-      try SP.NewTab.parseAsRoot(["--space", spaceID.uuidString]) as? SP.NewTab
+      try SP.parseAsRoot(["tab", "new", "--in", spaceID.uuidString]) as? SP.NewTab
     )
 
     #expect(command.space == .id(spaceID))
   }
 
   @Test
-  func newPaneParserAcceptsUUIDTargets() throws {
+  func newPaneParserAcceptsTabAndPaneTargets() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
-    let command = try #require(
-      try SP.NewPane.parseAsRoot(["right", "--pane", paneID.uuidString]) as? SP.NewPane
+    let tabCommand = try #require(
+      try SP.parseAsRoot(["pane", "split", "right", "--in", "1/2"]) as? SP.NewPane
+    )
+    let paneCommand = try #require(
+      try SP.parseAsRoot(["pane", "split", "right", "--in", paneID.uuidString]) as? SP.NewPane
     )
 
-    #expect(command.pane == .id(paneID))
+    #expect(tabCommand.container == .tab(.path(spaceIndex: 1, tabIndex: 2)))
+    #expect(paneCommand.container == .id(paneID))
   }
 
   @Test
-  func focusPaneAndSelectTabParsersAcceptUUIDTargets() throws {
+  func focusPaneAndSelectTabParsersAcceptSelectorTargets() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
-    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
-
     let focusPane = try #require(
-      try SP.FocusPane.parseAsRoot(["--pane", paneID.uuidString]) as? SP.FocusPane
+      try SP.parseAsRoot(["pane", "focus", paneID.uuidString]) as? SP.FocusPane
     )
     let selectTab = try #require(
-      try SP.SelectTab.parseAsRoot(["--tab", tabID.uuidString]) as? SP.SelectTab
+      try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
     )
 
     #expect(focusPane.pane == .id(paneID))
-    #expect(selectTab.tab == .id(tabID))
+    #expect(selectTab.tab == .path(spaceIndex: 1, tabIndex: 2))
   }
 
   @Test
@@ -72,63 +74,82 @@ struct SPCommandTests {
   }
 
   @Test
-  func newTabHelpShowsScriptOptionAndExample() {
+  func newTabHelpShowsShellOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 
-    #expect(help.contains("--script <script>"))
-    #expect(help.contains("sp new-tab --script"))
+    #expect(help.contains("--shell <script>"))
+    #expect(help.contains("sp tab new --shell"))
   }
 
   @Test
   func installAgentHooksParserAcceptsClaudeAndCodexSubcommands() throws {
     let claudeCommand = try #require(
-      try SP.parseAsRoot(["install-agent-hooks", "claude"]) as? SP.InstallAgentHooks.Claude
+      try SP.parseAsRoot(["agent", "install", "claude"]) as? SP.InstallAgentHooks.Claude
     )
     let codexCommand = try #require(
-      try SP.parseAsRoot(["install-agent-hooks", "codex"]) as? SP.InstallAgentHooks.Codex
+      try SP.parseAsRoot(["agent", "install", "codex"]) as? SP.InstallAgentHooks.Codex
     )
 
     #expect(type(of: claudeCommand) == SP.InstallAgentHooks.Claude.self)
     #expect(type(of: codexCommand) == SP.InstallAgentHooks.Codex.self)
   }
 
+  @Test
+  func tabFocusAndPaneSendParsersAcceptPublicShape() throws {
+    let focusCommand = try #require(
+      try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
+    )
+    let sendCommand = try #require(
+      try SP.parseAsRoot(["pane", "send", "1/2/3", "pwd"]) as? SP.SendText
+    )
+
+    #expect(focusCommand.tab == .path(spaceIndex: 1, tabIndex: 2))
+    #expect(sendCommand.arguments == ["1/2/3", "pwd"])
+  }
+
   @Test(arguments: [
-    ["new-pane", "right", "--script", "echo 1", "echo", "2"],
-    ["new-tab", "--script", "echo 1", "echo", "2"],
+    ["pane", "split", "right", "--shell", "echo 1", "echo", "2"],
+    ["tab", "new", "--shell", "echo 1", "echo", "2"],
   ])
-  func parserRejectsScriptWithTrailingCommand(arguments: [String]) {
+  func parserRejectsShellWithTrailingCommand(arguments: [String]) {
     do {
       _ = try SP.parseAsRoot(arguments)
-      Issue.record("Expected parsing to reject combining --script with a trailing command.")
+      Issue.record("Expected parsing to reject combining --shell with a trailing command.")
     } catch {
       let message = String(describing: error)
-      #expect(message.contains("--script cannot be used with a trailing command."))
+      #expect(message.contains("--shell cannot be used with a trailing command."))
     }
   }
 
   @Test
-  func shellInputRejectsEmptyScript() {
+  func shellInputRejectsEmptyShell() {
     do {
       _ = try shellInput(script: "", tokens: [])
-      Issue.record("Expected shellInput to reject an empty --script.")
+      Issue.record("Expected shellInput to reject an empty --shell.")
     } catch {
       let message = String(describing: error)
-      #expect(message.contains("--script must not be empty."))
+      #expect(message.contains("--shell must not be empty."))
     }
   }
 
   @Test(arguments: [
-    ["new-tab", "--space", "0"],
-    ["new-pane", "right", "--tab", "bad-target"],
-    ["notify", "--pane", " "],
+    ["tab", "new", "--in", "0"],
+    ["pane", "split", "right", "--in", "bad-target"],
+    ["pane", "focus", " "],
   ])
-  func parserRejectsInvalidIndexOrUUIDTargets(arguments: [String]) {
+  func parserRejectsInvalidSelectorTargets(arguments: [String]) {
     do {
       _ = try SP.parseAsRoot(arguments)
       Issue.record("Expected parsing to reject an invalid target.")
     } catch {
       let message = String(describing: error)
-      #expect(message.contains("1-based index or UUID") || message.contains("1 or greater"))
+      #expect(
+        message.contains("1 or greater")
+          || message.contains("space selector")
+          || message.contains("tab selector")
+          || message.contains("space/tab")
+          || message.contains("space/tab/pane")
+      )
     }
   }
 }
