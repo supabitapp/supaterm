@@ -75,6 +75,6 @@ public enum SupatermClaudeHookSettingsError: Error {
 
 public enum SupatermAgentHookSettingsCommand {
   public static func command(for agent: SupatermAgentKind) -> String {
-    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent-hook --agent \#(agent.rawValue) || true"#
+    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" internal agent-hook --agent \#(agent.rawValue) || true"#
   }
 }

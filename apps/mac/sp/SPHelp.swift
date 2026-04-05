@@ -12,20 +12,21 @@ enum SPHelp {
       \(SupatermCLIEnvironment.tabIDKey)  Auto-set in Supaterm panes. Current tab ID.
 
     Example:
-      sp tree
-      sp new-tab --space 1 --focus
-      sp new-pane --space 1 --tab 1 down
-      sp debug
-      sp instances
+      sp ls
+      sp tab new --focus -- ping 1.1.1.1
+      sp pane split down -- tail -f /tmp/server.log
+      sp doctor
+      sp instance ls
     """
 
   static let treeDiscussion = """
-    `sp tree --json` includes UUIDs for spaces, tabs, and panes.
+    `sp ls --json` includes UUIDs for spaces, tabs, and panes.
 
     Example:
-      sp tree
-      sp tree --json
-      sp tree --instance work-mac
+      sp ls
+      sp ls --json
+      sp ls --plain
+      sp ls --instance work-mac
     """
 
   static let onboardDiscussion = """
@@ -36,142 +37,146 @@ enum SPHelp {
 
   static let debugDiscussion = """
     Example:
-      sp debug
-      sp debug --json
-      sp debug --instance work-mac
+      sp doctor
+      sp doctor --json
+      sp doctor --instance work-mac
     """
 
   static let instancesDiscussion = """
     Example:
-      sp instances
-      sp instances --json
+      sp instance ls
+      sp instance ls --json
+      sp instance ls --plain
     """
 
   static let newPaneDiscussion = """
-    If you omit --space and --tab inside Supaterm, this command splits the current pane.
+    If you omit --in inside Supaterm, this command splits the current pane.
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    `--in` accepts a tab selector, a pane selector, or a UUID.
 
     Example:
-      sp new-pane right
-      sp new-pane down htop
-      sp new-pane down --script $'echo 1\necho 2'
-      sp new-pane --no-equalize right
-      sp new-pane --space 1 --tab 2 left
-      sp new-pane --tab <tab-uuid> left
-      sp new-pane --space 1 --tab 2 --pane 3 down tail -f /tmp/server.log
+      sp pane split right
+      sp pane split down -- htop
+      sp pane split down --shell $'echo 1\necho 2'
+      sp pane split --layout keep right
+      sp pane split --in 1/2 left
+      sp pane split --in <tab-uuid> left
+      sp pane split --in 1/2/3 down -- tail -f /tmp/server.log
     """
 
   static let newTabDiscussion = """
-    If you omit --space inside Supaterm, this command creates the tab in the current space.
+    If you omit --in inside Supaterm, this command creates the tab in the current space.
 
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
-    Explicit --space targets accept either a 1-based index or UUID.
+    `--in` accepts a space selector or UUID.
 
     Example:
-      sp new-tab ping 1.1.1.1
-      sp new-tab --script $'echo 1\necho 2'
-      sp new-tab --focus ping 1.1.1.1
-      sp new-tab --space 1 --cwd ~/tmp ping 1.1.1.1
-      sp new-tab --space <space-uuid> --cwd ~/tmp ping 1.1.1.1
+      sp tab new -- ping 1.1.1.1
+      sp tab new --shell $'echo 1\necho 2'
+      sp tab new --focus -- ping 1.1.1.1
+      sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
+      sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
     """
 
   static let notifyDiscussion = """
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    If you omit the pane target inside Supaterm, this command targets the current pane.
+
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp notify --body "All tests passed"
-      sp notify --space 1 --tab 2 --pane 3 --body "Deploy complete"
-      sp notify --pane <pane-uuid> --body "Deploy complete"
+      sp pane notify --body "All tests passed"
+      sp pane notify 1/2/3 --body "Deploy complete"
+      sp pane notify <pane-uuid> --body "Deploy complete"
     """
 
   static let focusPaneDiscussion = """
-    If you omit --space, --tab, and --pane inside Supaterm, this command focuses the current pane.
+    If you omit the pane target inside Supaterm, this command focuses the current pane.
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp focus-pane --space 1 --tab 2 --pane 3
-      sp focus-pane --pane <pane-uuid>
+      sp pane focus 1/2/3
+      sp pane focus <pane-uuid>
     """
 
   static let closePaneDiscussion = """
-    If you omit --space, --tab, and --pane inside Supaterm, this command closes the current pane.
+    If you omit the pane target inside Supaterm, this command closes the current pane.
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp close-pane
-      sp close-pane --space 1 --tab 2 --pane 3
-      sp close-pane --pane <pane-uuid>
+      sp pane close
+      sp pane close 1/2/3
+      sp pane close <pane-uuid>
     """
 
   static let selectTabDiscussion = """
-    If you omit --space and --tab inside Supaterm, this command selects the current tab.
+    If you omit the tab target inside Supaterm, this command focuses the current tab.
 
-    Explicit --space and --tab targets accept either a 1-based index or UUID.
+    Tab targets accept either a `space/tab` selector or a UUID.
 
     Example:
-      sp select-tab --space 1 --tab 2
-      sp select-tab --tab <tab-uuid>
+      sp tab focus 1/2
+      sp tab focus <tab-uuid>
     """
 
   static let closeTabDiscussion = """
-    If you omit --space and --tab inside Supaterm, this command closes the current tab.
+    If you omit the tab target inside Supaterm, this command closes the current tab.
 
-    Explicit --space and --tab targets accept either a 1-based index or UUID.
+    Tab targets accept either a `space/tab` selector or a UUID.
 
     Example:
-      sp close-tab
-      sp close-tab --space 1 --tab 2
-      sp close-tab --tab <tab-uuid>
+      sp tab close
+      sp tab close 1/2
+      sp tab close <tab-uuid>
     """
 
   static let sendTextDiscussion = """
-    If you omit --space, --tab, and --pane inside Supaterm, this command targets the current pane.
+    If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp send-text --text 'echo hello' --newline
-      sp send-text --space 1 --tab 2 --pane 3 --text 'pwd'
-      sp send-text --pane <pane-uuid> --text 'clear'
+      sp pane send --newline 'echo hello'
+      sp pane send 1/2/3 'pwd'
+      sp pane send <pane-uuid> 'clear'
+      printf 'pwd' | sp pane send
     """
 
   static let capturePaneDiscussion = """
-    If you omit --space, --tab, and --pane inside Supaterm, this command captures the current pane.
+    If you omit the pane target inside Supaterm, this command captures the current pane.
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp capture-pane
-      sp capture-pane --scrollback --lines 200
-      sp capture-pane --pane <pane-uuid> --json
+      sp pane capture
+      sp pane capture --scope scrollback --lines 200
+      sp pane capture <pane-uuid> --json
     """
 
   static let resizePaneDiscussion = """
-    If you omit --space, --tab, and --pane inside Supaterm, this command resizes the current pane.
+    If you omit the pane target inside Supaterm, this command resizes the current pane.
 
-    Explicit --space, --tab, and --pane targets accept either a 1-based index or UUID.
+    Pane targets accept either a `space/tab/pane` selector or a UUID.
 
     Example:
-      sp resize-pane right 10
-      sp resize-pane down 5 --space 1 --tab 2 --pane 3
-      sp resize-pane left 8 --pane <pane-uuid>
+      sp pane resize right 10
+      sp pane resize down 5 1/2/3
+      sp pane resize left 8 <pane-uuid>
     """
 
   static let renameTabDiscussion = """
-    If you omit --space and --tab inside Supaterm, this command renames the current tab.
+    If you omit the tab target inside Supaterm, this command renames the current tab.
 
-    Explicit --space and --tab targets accept either a 1-based index or UUID.
+    Tab targets accept either a `space/tab` selector or a UUID.
 
     Example:
-      sp rename-tab --title Build
-      sp rename-tab --space 1 --tab 2 --title Logs
-      sp rename-tab --tab <tab-uuid> --title ''
+      sp tab rename Build
+      sp tab rename Logs 1/2
+      sp tab rename '' <tab-uuid>
     """
 
   static let tmuxDiscussion = """
@@ -191,19 +196,19 @@ enum SPHelp {
     Connection options must come before Claude arguments.
 
     Example:
-      sp claude-teams
-      sp claude-teams --resume
-      sp claude-teams --instance work-mac --help
+      sp internal claude-teams
+      sp internal claude-teams --resume
+      sp internal claude-teams --instance work-mac --help
     """
 
   static let agentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Install Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp install-agent-hooks`.
+    Install Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp agent install`.
 
     Example:
-      sp install-agent-hooks claude
-      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent-hook --agent claude
+      sp agent install claude
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp internal agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
@@ -211,31 +216,31 @@ enum SPHelp {
     Install Supaterm's hook bridge into the selected agent's user configuration.
 
     Example:
-      sp install-agent-hooks claude
-      sp install-agent-hooks codex
+      sp agent install claude
+      sp agent install codex
     """
 
   static let installAgentHooksClaudeDiscussion = """
     Installs Supaterm hooks into ~/.claude/settings.json.
 
     Example:
-      sp install-agent-hooks claude
+      sp agent install claude
     """
 
   static let installAgentHooksCodexDiscussion = """
     Enables Codex hooks and installs Supaterm hooks into ~/.codex/hooks.json.
 
     Example:
-      sp install-agent-hooks codex
+      sp agent install codex
     """
 
   static let developmentDiscussion = """
     These commands require the connected Supaterm instance to report a development build.
 
     Example:
-      sp development claude session-start
-      sp development claude pre-tool-use
-      sp development claude notification
+      sp internal dev claude session-start
+      sp internal dev claude pre-tool-use
+      sp internal dev claude notification
     """
 
   static let developmentClaudeDiscussion = """
@@ -244,45 +249,136 @@ enum SPHelp {
     These commands require the connected Supaterm instance to report a development build.
 
     Verification flow:
-      sp development claude session-start
-      sp development claude pre-tool-use
-      sp development claude notification
-      sp development claude stop
-      sp development claude session-end
+      sp internal dev claude session-start
+      sp internal dev claude pre-tool-use
+      sp internal dev claude notification
+      sp internal dev claude stop
+      sp internal dev claude session-end
 
     Example:
-      sp development claude session-start
-      sp development claude notification
+      sp internal dev claude session-start
+      sp internal dev claude notification
     """
 
   static let developmentClaudeSessionStartDiscussion = """
     Example:
-      sp development claude session-start
+      sp internal dev claude session-start
     """
 
   static let developmentClaudePreToolUseDiscussion = """
     Example:
-      sp development claude pre-tool-use
+      sp internal dev claude pre-tool-use
     """
 
   static let developmentClaudeNotificationDiscussion = """
     Example:
-      sp development claude notification
+      sp internal dev claude notification
     """
 
   static let developmentClaudeUserPromptSubmitDiscussion = """
     Example:
-      sp development claude user-prompt-submit
+      sp internal dev claude user-prompt-submit
     """
 
   static let developmentClaudeStopDiscussion = """
     Example:
-      sp development claude stop
+      sp internal dev claude stop
     """
 
   static let developmentClaudeSessionEndDiscussion = """
     Example:
-      sp development claude session-end
+      sp internal dev claude session-end
+    """
+
+  static let instanceDiscussion = """
+    Example:
+      sp instance ls
+      sp instance ls --plain
+    """
+
+  static let spaceDiscussion = """
+    Example:
+      sp space new --focus
+      sp space focus 1
+      sp space rename Work 1
+      sp space next
+    """
+
+  static let tabDiscussion = """
+    Example:
+      sp tab new --focus -- ping 1.1.1.1
+      sp tab focus 1/2
+      sp tab rename Logs 1/2
+      sp tab next 1
+    """
+
+  static let paneDiscussion = """
+    Example:
+      sp pane split down -- htop
+      sp pane focus 1/2/3
+      sp pane send --newline 'echo hello'
+      sp pane layout equalize 1/2
+    """
+
+  static let spaceNewDiscussion = """
+    Example:
+      sp space new
+      sp space new --focus
+    """
+
+  static let spaceFocusDiscussion = """
+    Example:
+      sp space focus
+      sp space focus 1
+      sp space focus <space-uuid>
+    """
+
+  static let spaceCloseDiscussion = """
+    Example:
+      sp space close
+      sp space close 1
+      sp space close <space-uuid>
+    """
+
+  static let spaceRenameDiscussion = """
+    Example:
+      sp space rename Work
+      sp space rename Logs 1
+      sp space rename Build <space-uuid>
+    """
+
+  static let spaceNavigationDiscussion = """
+    Example:
+      sp space next
+      sp space prev
+      sp space last
+    """
+
+  static let tabNavigationDiscussion = """
+    Example:
+      sp tab next
+      sp tab prev 1
+      sp tab last <space-uuid>
+    """
+
+  static let paneLayoutDiscussion = """
+    Example:
+      sp pane layout equalize
+      sp pane layout tile 1/2
+      sp pane layout main-vertical <tab-uuid>
+    """
+
+  static let agentDiscussion = """
+    Example:
+      sp agent install claude
+      sp agent install codex
+    """
+
+  static let internalDiscussion = """
+    Example:
+      sp internal ping
+      sp internal agent-hook --agent claude
+      sp internal dev claude session-start
     """
 }
 

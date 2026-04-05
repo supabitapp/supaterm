@@ -34,7 +34,7 @@ nonisolated struct BundledSPAgentHooksInstaller {
     do {
       commandResult = try runInstallCommand(
         cliPath,
-        ["install-agent-hooks", agent.rawValue]
+        ["agent", "install", agent.rawValue]
       )
     } catch let error as BundledSPAgentHooksInstallerError {
       throw error
