@@ -21,6 +21,24 @@ struct TerminalSpaceRenameState: Equatable, Identifiable {
   var id: TerminalSpaceID { space.id }
 }
 
+struct TerminalSidebarTabSelection: Equatable {
+  var anchorTabID: TerminalTabID?
+  var tabIDs: Set<TerminalTabID> = []
+
+  mutating func prune(to visibleTabIDs: [TerminalTabID]) {
+    let visibleTabIDSet = Set(visibleTabIDs)
+    tabIDs = tabIDs.intersection(visibleTabIDSet)
+    if let anchorTabID, !visibleTabIDSet.contains(anchorTabID) {
+      self.anchorTabID = nil
+    }
+  }
+
+  mutating func selectOnly(_ tabID: TerminalTabID) {
+    anchorTabID = tabID
+    tabIDs = [tabID]
+  }
+}
+
 @Reducer
 struct TerminalWindowFeature {
   @ObservableState
@@ -29,8 +47,11 @@ struct TerminalWindowFeature {
     var confirmationRequest: ConfirmationRequest?
     var isFloatingSidebarVisible = false
     var isSidebarCollapsed = false
+    var lastSyncedActiveSidebarTabID: TerminalTabID?
     var pendingCloseRequest: PendingCloseRequest?
+    var pendingSidebarSelectionActiveTabID: TerminalTabID?
     var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
+    var sidebarTabSelection = TerminalSidebarTabSelection()
     var sidebarFraction: CGFloat = 0.2
     var windowID: ObjectIdentifier?
     var spaceRename: TerminalSpaceRenameState?
@@ -74,6 +95,7 @@ struct TerminalWindowFeature {
   enum Action {
     case bindingMenuItemSelected(SupatermCommand)
     case clientEvent(TerminalClient.Event)
+    case closeTabsRequested([TerminalTabID])
     case commandPaletteActivateSelection
     case commandPaletteCloseRequested
     case commandPaletteQueryChanged(String)
@@ -97,10 +119,19 @@ struct TerminalWindowFeature {
     case previousSpaceRequested
     case previousTabMenuItemSelected
     case regularTabOrderChanged([TerminalTabID])
+    case sidebarTabCommandClicked(tabID: TerminalTabID, activeTabID: TerminalTabID?)
+    case sidebarTabContextMenuRequested(tabID: TerminalTabID, activeTabID: TerminalTabID?)
+    case sidebarTabDragStarted(TerminalTabID)
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
     case selectSpaceButtonTapped(TerminalSpaceID)
     case selectSpaceMenuItemSelected(Int)
+    case sidebarTabRangeSelected(
+      tabID: TerminalTabID,
+      orderedTabIDs: [TerminalTabID],
+      activeTabID: TerminalTabID?
+    )
+    case sidebarTabSelectionSynced(activeTabID: TerminalTabID?, visibleTabIDs: [TerminalTabID])
     case sidebarTabSplitRequested(surfaceID: UUID, direction: SupatermPaneDirection)
     case sidebarTabMoveCommitted(
       tabID: TerminalTabID,
@@ -235,6 +266,13 @@ struct TerminalWindowFeature {
       case .closeTabRequested(let tabID):
         return sendCommand(.requestCloseTab(tabID))
 
+      case .closeTabsRequested(let tabIDs):
+        guard !tabIDs.isEmpty else { return .none }
+        if tabIDs.count == 1, let tabID = tabIDs.first {
+          return sendCommand(.requestCloseTab(tabID))
+        }
+        return sendCommand(.requestCloseTabs(tabIDs))
+
       case .closeTabsBelowRequested(let tabID):
         return sendCommand(.requestCloseTabsBelow(tabID))
 
@@ -277,6 +315,36 @@ struct TerminalWindowFeature {
       case .regularTabOrderChanged(let orderedIDs):
         return sendCommand(.setRegularTabOrder(orderedIDs))
 
+      case .sidebarTabCommandClicked(let tabID, let activeTabID):
+        if state.sidebarTabSelection.tabIDs.contains(tabID) {
+          guard tabID != activeTabID else { return .none }
+          state.pendingSidebarSelectionActiveTabID = nil
+          state.sidebarTabSelection.tabIDs.remove(tabID)
+          if state.sidebarTabSelection.anchorTabID == tabID {
+            state.sidebarTabSelection.anchorTabID = activeTabID
+          }
+          return .none
+        }
+        state.sidebarTabSelection.tabIDs.insert(tabID)
+        state.sidebarTabSelection.anchorTabID = tabID
+        state.pendingSidebarSelectionActiveTabID = tabID
+        return sendCommand(.selectTab(tabID))
+
+      case .sidebarTabContextMenuRequested(let tabID, let activeTabID):
+        guard !state.sidebarTabSelection.tabIDs.contains(tabID) else { return .none }
+        state.sidebarTabSelection.selectOnly(tabID)
+        if activeTabID == tabID {
+          state.pendingSidebarSelectionActiveTabID = nil
+          return .none
+        }
+        state.pendingSidebarSelectionActiveTabID = tabID
+        return sendCommand(.selectTab(tabID))
+
+      case .sidebarTabDragStarted(let tabID):
+        state.sidebarTabSelection.selectOnly(tabID)
+        state.pendingSidebarSelectionActiveTabID = tabID
+        return sendCommand(.selectTab(tabID))
+
       case .selectLastTabMenuItemSelected:
         return sendCommand(.selectLastTab)
 
@@ -288,6 +356,65 @@ struct TerminalWindowFeature {
 
       case .selectSpaceMenuItemSelected(let slot):
         return sendCommand(.selectSpaceSlot(slot))
+
+      case .sidebarTabRangeSelected(let tabID, let orderedTabIDs, _):
+        let anchorTabID = state.sidebarTabSelection.anchorTabID ?? tabID
+        let tabIDs = selectedTabIDs(
+          from: anchorTabID,
+          to: tabID,
+          in: orderedTabIDs
+        )
+        guard !tabIDs.isEmpty else {
+          state.sidebarTabSelection.selectOnly(tabID)
+          state.pendingSidebarSelectionActiveTabID = tabID
+          return sendCommand(.selectTab(tabID))
+        }
+        state.sidebarTabSelection.anchorTabID = anchorTabID
+        state.sidebarTabSelection.tabIDs = Set(tabIDs)
+        state.pendingSidebarSelectionActiveTabID = tabID
+        return sendCommand(.selectTab(tabID))
+
+      case .sidebarTabSelectionSynced(let activeTabID, let visibleTabIDs):
+        let previousActiveTabID = state.lastSyncedActiveSidebarTabID
+        state.lastSyncedActiveSidebarTabID = activeTabID
+        state.sidebarTabSelection.prune(to: visibleTabIDs)
+
+        if state.pendingSidebarSelectionActiveTabID == activeTabID {
+          state.pendingSidebarSelectionActiveTabID = nil
+          guard let activeTabID else {
+            state.sidebarTabSelection = .init()
+            return .none
+          }
+          if state.sidebarTabSelection.tabIDs.isEmpty {
+            state.sidebarTabSelection.selectOnly(activeTabID)
+          } else {
+            state.sidebarTabSelection.tabIDs.insert(activeTabID)
+            if state.sidebarTabSelection.anchorTabID == nil {
+              state.sidebarTabSelection.anchorTabID = activeTabID
+            }
+          }
+          return .none
+        }
+
+        state.pendingSidebarSelectionActiveTabID = nil
+
+        guard let activeTabID, visibleTabIDs.contains(activeTabID) else {
+          state.sidebarTabSelection = .init()
+          return .none
+        }
+
+        if previousActiveTabID != activeTabID
+          || state.sidebarTabSelection.tabIDs.isEmpty
+          || !state.sidebarTabSelection.tabIDs.contains(activeTabID)
+        {
+          state.sidebarTabSelection.selectOnly(activeTabID)
+          return .none
+        }
+
+        if state.sidebarTabSelection.anchorTabID == nil {
+          state.sidebarTabSelection.anchorTabID = activeTabID
+        }
+        return .none
 
       case .sidebarTabSplitRequested(let surfaceID, let direction):
         return .run { [terminalClient] _ in
@@ -316,6 +443,8 @@ struct TerminalWindowFeature {
         return sendCommand(.performSplitOperation(tabID: tabID, operation: operation))
 
       case .tabSelected(let tabID):
+        state.sidebarTabSelection.selectOnly(tabID)
+        state.pendingSidebarSelectionActiveTabID = tabID
         return sendCommand(.selectTab(tabID))
 
       case .task:
@@ -470,5 +599,22 @@ struct TerminalWindowFeature {
         confirmTitle: "Close All Windows"
       )
     }
+  }
+
+  private func selectedTabIDs(
+    from anchorTabID: TerminalTabID,
+    to tabID: TerminalTabID,
+    in orderedTabIDs: [TerminalTabID]
+  ) -> [TerminalTabID] {
+    guard
+      let startIndex = orderedTabIDs.firstIndex(of: anchorTabID),
+      let endIndex = orderedTabIDs.firstIndex(of: tabID)
+    else {
+      return [tabID]
+    }
+    if startIndex <= endIndex {
+      return Array(orderedTabIDs[startIndex...endIndex])
+    }
+    return Array(orderedTabIDs[endIndex...startIndex])
   }
 }

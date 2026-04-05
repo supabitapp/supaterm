@@ -550,6 +550,7 @@ private struct TerminalSidebarMorphingPreview: View {
 
 @MainActor
 final class TerminalSidebarDragSourceCoordinator: NSObject, NSDraggingSource {
+  var beforeDrag: () -> Void
   var item: TerminalSidebarDragItem
   var preview: TerminalSidebarDragPreviewItem
   var zoneID: TerminalSidebarDropZoneID
@@ -557,12 +558,14 @@ final class TerminalSidebarDragSourceCoordinator: NSObject, NSDraggingSource {
   let manager: TerminalSidebarDragSession
 
   init(
+    beforeDrag: @escaping () -> Void,
     item: TerminalSidebarDragItem,
     preview: TerminalSidebarDragPreviewItem,
     zoneID: TerminalSidebarDropZoneID,
     index: Int,
     manager: TerminalSidebarDragSession
   ) {
+    self.beforeDrag = beforeDrag
     self.item = item
     self.preview = preview
     self.zoneID = zoneID
@@ -616,6 +619,7 @@ final class TerminalSidebarDragSourceNSView: NSView {
     with event: NSEvent
   ) {
     guard let coordinator else { return }
+    coordinator.beforeDrag()
 
     coordinator.manager.beginDrag(
       item: coordinator.item,
@@ -639,6 +643,7 @@ final class TerminalSidebarDragSourceNSView: NSView {
 }
 
 private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
+  let beforeDrag: () -> Void
   let item: TerminalSidebarDragItem
   let preview: TerminalSidebarDragPreviewItem
   let zoneID: TerminalSidebarDropZoneID
@@ -658,6 +663,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
     _ nsView: TerminalSidebarDragSourceNSView,
     context: Context
   ) {
+    context.coordinator.beforeDrag = beforeDrag
     context.coordinator.item = item
     context.coordinator.preview = preview
     context.coordinator.zoneID = zoneID
@@ -673,6 +679,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
 
   func makeCoordinator() -> TerminalSidebarDragSourceCoordinator {
     TerminalSidebarDragSourceCoordinator(
+      beforeDrag: beforeDrag,
       item: item,
       preview: preview,
       zoneID: zoneID,
@@ -683,6 +690,7 @@ private struct TerminalSidebarDragSourceAnchor: NSViewRepresentable {
 }
 
 struct TerminalSidebarDragSourceView<Content: View>: View {
+  let beforeDrag: () -> Void
   let item: TerminalSidebarDragItem
   let preview: TerminalSidebarDragPreviewItem
   let zoneID: TerminalSidebarDropZoneID
@@ -694,6 +702,7 @@ struct TerminalSidebarDragSourceView<Content: View>: View {
     content()
       .background(
         TerminalSidebarDragSourceAnchor(
+          beforeDrag: beforeDrag,
           item: item,
           preview: preview,
           zoneID: zoneID,

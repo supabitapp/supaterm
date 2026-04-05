@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import ObjectiveC
 import SwiftUI
 import Textual
 
@@ -111,12 +112,19 @@ struct TerminalSidebarChromeView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       dragSession.colorScheme = colorScheme
+      syncSidebarTabSelection()
     }
     .onChange(of: colorScheme) { _, newValue in
       dragSession.colorScheme = newValue
     }
     .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
       handle(pendingReorder)
+    }
+    .onChange(of: terminal.selectedTabID) { _, _ in
+      syncSidebarTabSelection()
+    }
+    .onChange(of: terminal.visibleTabs.map(\.id)) { _, _ in
+      syncSidebarTabSelection()
     }
   }
 
@@ -279,47 +287,51 @@ struct TerminalSidebarChromeView: View {
     )
 
     TerminalSidebarDragSourceView(
+      beforeDrag: {
+        _ = store.send(.sidebarTabDragStarted(tab.id))
+      },
       item: TerminalSidebarDragItem(
         tabID: tab.id
       ),
       preview: preview,
       zoneID: zoneID,
       index: index,
-      manager: dragSession
-    ) {
-      TerminalSidebarTabRow(
-        store: store,
-        terminal: terminal,
-        tab: tab,
-        notificationPresentation: notificationPresentation,
-        paneWorkingDirectories: paneWorkingDirectories,
-        unreadCount: unreadCount,
-        terminalProgress: terminalProgress,
-        palette: palette,
-        shortcutHint: tabShortcutHintsByID[tab.id],
-        showsShortcutHint: commandHoldObserver.isPressed
-      )
-      .id(tab.id)
-      .background {
-        GeometryReader { geometry in
-          let measuredFrame = TerminalSidebarMeasuredTabFrame(
-            zoneID: zoneID,
-            scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
-            zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
-          )
-          Color.clear.preference(
-            key: TerminalSidebarTabFramePreferenceKey.self,
-            value: [tab.id: measuredFrame]
-          )
+      manager: dragSession,
+      content: {
+        TerminalSidebarTabRow(
+          store: store,
+          terminal: terminal,
+          tab: tab,
+          notificationPresentation: notificationPresentation,
+          paneWorkingDirectories: paneWorkingDirectories,
+          unreadCount: unreadCount,
+          terminalProgress: terminalProgress,
+          palette: palette,
+          shortcutHint: tabShortcutHintsByID[tab.id],
+          showsShortcutHint: commandHoldObserver.isPressed
+        )
+        .id(tab.id)
+        .background {
+          GeometryReader { geometry in
+            let measuredFrame = TerminalSidebarMeasuredTabFrame(
+              zoneID: zoneID,
+              scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
+              zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
+            )
+            Color.clear.preference(
+              key: TerminalSidebarTabFramePreferenceKey.self,
+              value: [tab.id: measuredFrame]
+            )
+          }
         }
+        .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
+        .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
+        .animation(
+          .spring(response: 0.3, dampingFraction: 0.8),
+          value: dragSession.insertionIndex[zoneID]
+        )
       }
-      .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
-      .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
-      .animation(
-        .spring(response: 0.3, dampingFraction: 0.8),
-        value: dragSession.insertionIndex[zoneID]
-      )
-    }
+    )
   }
 
   private var selectedTabFrame: CGRect? {
@@ -413,6 +425,15 @@ struct TerminalSidebarChromeView: View {
     }
 
     dragSession.pendingReorder = nil
+  }
+
+  private func syncSidebarTabSelection() {
+    _ = store.send(
+      .sidebarTabSelectionSynced(
+        activeTabID: terminal.selectedTabID,
+        visibleTabIDs: terminal.visibleTabs.map(\.id)
+      )
+    )
   }
 }
 
@@ -717,11 +738,11 @@ struct TerminalSidebarTabRow: View {
   enum ContextMenuItem: Equatable {
     case newTab
     case divider
-    case togglePinned(Bool)
-    case changeTabTitle
+    case togglePinned(isPinned: Bool, isEnabled: Bool)
+    case changeTabTitle(Bool)
     case closeTabsBelow(Bool)
     case closeOtherTabs(Bool)
-    case close
+    case close(String)
 
     var title: String? {
       switch self {
@@ -729,7 +750,7 @@ struct TerminalSidebarTabRow: View {
         "New Tab"
       case .divider:
         nil
-      case .togglePinned(let isPinned):
+      case .togglePinned(let isPinned, _):
         isPinned ? "Unpin Tab" : "Pin Tab"
       case .changeTabTitle:
         "Change Tab Title..."
@@ -737,8 +758,20 @@ struct TerminalSidebarTabRow: View {
         "Close All Below"
       case .closeOtherTabs:
         "Close Others"
-      case .close:
-        "Close"
+      case .close(let title):
+        title
+      }
+    }
+
+    var isEnabled: Bool {
+      switch self {
+      case .newTab, .divider, .close:
+        true
+      case .togglePinned(_, let isEnabled),
+        .changeTabTitle(let isEnabled),
+        .closeTabsBelow(let isEnabled),
+        .closeOtherTabs(let isEnabled):
+        isEnabled
       }
     }
   }
@@ -766,18 +799,20 @@ struct TerminalSidebarTabRow: View {
   static func contextMenuItems(
     isPinned: Bool,
     hasTabsBelow: Bool,
-    hasOtherTabs: Bool
+    hasOtherTabs: Bool,
+    selectedCount: Int
   ) -> [ContextMenuItem] {
-    [
+    let isBatchSelection = selectedCount > 1
+    return [
       .newTab,
       .divider,
-      .togglePinned(isPinned),
-      .changeTabTitle,
+      .togglePinned(isPinned: isPinned, isEnabled: !isBatchSelection),
+      .changeTabTitle(!isBatchSelection),
       .divider,
-      .closeTabsBelow(hasTabsBelow),
-      .closeOtherTabs(hasOtherTabs),
+      .closeTabsBelow(hasTabsBelow && !isBatchSelection),
+      .closeOtherTabs(hasOtherTabs && !isBatchSelection),
       .divider,
-      .close,
+      .close(isBatchSelection ? "Close Selected Tabs" : "Close"),
     ]
   }
 
@@ -789,8 +824,22 @@ struct TerminalSidebarTabRow: View {
     terminal.selectedTabID == tab.id
   }
 
+  private var isSidebarSelected: Bool {
+    store.sidebarTabSelection.tabIDs.contains(tab.id)
+  }
+
+  private var isSecondarySelected: Bool {
+    isSidebarSelected && !isSelected
+  }
+
   private var contextSurfaceID: UUID? {
     terminal.contextSurfaceID(for: tab.id)
+  }
+
+  private var effectiveSelectedTabIDs: [TerminalTabID] {
+    let selectedTabIDs = store.sidebarTabSelection.tabIDs
+    let targetTabIDs = selectedTabIDs.contains(tab.id) ? selectedTabIDs : [tab.id]
+    return terminal.visibleTabs.map(\.id).filter(targetTabIDs.contains)
   }
 
   private var hasTabsBelow: Bool {
@@ -803,61 +852,67 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
-    Button(action: select) {
-      HStack(spacing: 8) {
-        let summary = TerminalSidebarTabSummaryView(
-          tab: tab,
-          palette: palette,
-          isSelected: isSelected,
-          notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
-          paneWorkingDirectories: paneWorkingDirectories,
-          unreadCount: unreadCount,
-          agentActivity: terminal.agentActivity(for: tab.id),
-          terminalProgress: terminalProgress,
-          shortcutHint: shortcutHint,
-          showsShortcutHint: showsShortcutHint
-        )
-        .lineLimit(8)
-        if let helpText = TerminalSidebarTabSummaryView.helpText(
-          paneWorkingDirectories: paneWorkingDirectories
-        ) {
-          summary.help(helpText)
-        } else {
-          summary
-        }
-
-        if isHovering && !showsShortcutHint {
-          Button(action: close) {
-            Image(systemName: "xmark")
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-              .frame(width: 24, height: 24)
-              .accessibilityHidden(true)
-              .background(
-                isCloseHovering
-                  ? (isSelected ? palette.clearFill : palette.rowFill)
-                  : .clear,
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-              )
-          }
-          .buttonStyle(.plain)
-          .onHover { isCloseHovering = $0 }
-        }
+    HStack(spacing: 8) {
+      let summary = TerminalSidebarTabSummaryView(
+        tab: tab,
+        palette: palette,
+        isSelected: isSelected,
+        notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
+        paneWorkingDirectories: paneWorkingDirectories,
+        unreadCount: unreadCount,
+        agentActivity: terminal.agentActivity(for: tab.id),
+        terminalProgress: terminalProgress,
+        shortcutHint: shortcutHint,
+        showsShortcutHint: showsShortcutHint
+      )
+      .lineLimit(8)
+      if let helpText = TerminalSidebarTabSummaryView.helpText(
+        paneWorkingDirectories: paneWorkingDirectories
+      ) {
+        summary.help(helpText)
+      } else {
+        summary
       }
-      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-      .frame(maxWidth: .infinity)
-      .background(backgroundColor)
-      .clipShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
-      .contentShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
+
+      if isHovering && !showsShortcutHint {
+        Button(action: close) {
+          Image(systemName: "xmark")
+            .font(.system(size: 12, weight: .heavy))
+            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+            .frame(width: 24, height: 24)
+            .accessibilityHidden(true)
+            .background(
+              isCloseHovering
+                ? ((isSelected || isSecondarySelected) ? palette.clearFill : palette.rowFill)
+                : .clear,
+              in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isCloseHovering = $0 }
+      }
     }
-    .buttonStyle(.plain)
+    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+    .frame(maxWidth: .infinity)
+    .background(backgroundColor)
+    .overlay {
+      if isSecondarySelected {
+        RoundedRectangle(
+          cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+          style: .continuous
+        )
+        .stroke(palette.selectionStroke.opacity(0.8), lineWidth: 1)
+      }
+    }
+    .clipShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
+    .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
+    .contentShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
     .animation(rowAnimation, value: animatedPresentation)
     .background {
       SidebarPopoverPresenter(
@@ -866,80 +921,24 @@ struct TerminalSidebarTabRow: View {
         markdown: notificationMarkdown
       )
     }
-    .overlay(
-      TerminalSidebarMiddleClickActionView(action: close)
+    .background(
+      TerminalSidebarTabInteractionView(
+        onContextMenu: contextMenu,
+        onMiddleClick: close,
+        onPrimaryClick: select
+      )
     )
     .onHover { isHovering in
       self.isHovering = isHovering
-    }
-    .contextMenu {
-      ForEach(
-        Array(
-          Self.contextMenuItems(
-            isPinned: tab.isPinned,
-            hasTabsBelow: hasTabsBelow,
-            hasOtherTabs: hasOtherTabs
-          ).enumerated()
-        ),
-        id: \.offset
-      ) { _, item in
-        switch item {
-        case .newTab:
-          Button {
-            _ = store.send(
-              .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-            )
-          } label: {
-            Label("New Tab", systemImage: "plus")
-          }
-
-        case .divider:
-          Divider()
-
-        case .togglePinned(let isPinned):
-          Button {
-            _ = store.send(.togglePinned(tab.id))
-          } label: {
-            Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
-          }
-
-        case .changeTabTitle:
-          Button {
-            terminal.promptTabTitle(tab.id)
-          } label: {
-            Label("Change Tab Title...", systemImage: "pencil")
-          }
-
-        case .closeTabsBelow(let isEnabled):
-          Button {
-            _ = store.send(.closeTabsBelowRequested(tab.id))
-          } label: {
-            Label("Close All Below", systemImage: "arrow.down.to.line")
-          }
-          .disabled(!isEnabled)
-
-        case .closeOtherTabs(let isEnabled):
-          Button {
-            _ = store.send(.closeOtherTabsRequested(tab.id))
-          } label: {
-            Label("Close Others", systemImage: "xmark.circle")
-          }
-          .disabled(!isEnabled)
-
-        case .close:
-          Button(role: .destructive) {
-            _ = store.send(.closeTabRequested(tab.id))
-          } label: {
-            Label("Close", systemImage: "xmark")
-          }
-        }
-      }
     }
   }
 
   private var backgroundColor: Color {
     if isSelected {
       return palette.selectedFill
+    }
+    if isSecondarySelected {
+      return palette.rowFill
     }
     if isHovering {
       return palette.rowFill
@@ -970,7 +969,125 @@ struct TerminalSidebarTabRow: View {
     isHovering && notificationMarkdown != nil
   }
 
-  private func select() {
+  private func contextMenu() -> NSMenu {
+    _ = store.send(
+      .sidebarTabContextMenuRequested(tabID: tab.id, activeTabID: terminal.selectedTabID)
+    )
+
+    let menu = NSMenu()
+    for item in Self.contextMenuItems(
+      isPinned: tab.isPinned,
+      hasTabsBelow: hasTabsBelow,
+      hasOtherTabs: hasOtherTabs,
+      selectedCount: effectiveSelectedTabIDs.count
+    ) {
+      switch item {
+      case .divider:
+        menu.addItem(.separator())
+
+      case .newTab:
+        menu.addItem(
+          makeMenuItem(
+            title: "New Tab",
+            symbol: "plus"
+          ) {
+            _ = store.send(
+              .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
+            )
+          }
+        )
+
+      case .togglePinned(let isPinned, let isEnabled):
+        menu.addItem(
+          makeMenuItem(
+            title: isPinned ? "Unpin Tab" : "Pin Tab",
+            symbol: isPinned ? "pin.slash" : "pin",
+            isEnabled: isEnabled
+          ) {
+            _ = store.send(.togglePinned(tab.id))
+          }
+        )
+
+      case .changeTabTitle(let isEnabled):
+        menu.addItem(
+          makeMenuItem(
+            title: "Change Tab Title...",
+            symbol: "pencil",
+            isEnabled: isEnabled
+          ) {
+            terminal.promptTabTitle(tab.id)
+          }
+        )
+
+      case .closeTabsBelow(let isEnabled):
+        menu.addItem(
+          makeMenuItem(
+            title: "Close All Below",
+            symbol: "arrow.down.to.line",
+            isEnabled: isEnabled
+          ) {
+            _ = store.send(.closeTabsBelowRequested(tab.id))
+          }
+        )
+
+      case .closeOtherTabs(let isEnabled):
+        menu.addItem(
+          makeMenuItem(
+            title: "Close Others",
+            symbol: "xmark.circle",
+            isEnabled: isEnabled
+          ) {
+            _ = store.send(.closeOtherTabsRequested(tab.id))
+          }
+        )
+
+      case .close(let title):
+        menu.addItem(
+          makeMenuItem(
+            title: title,
+            symbol: "xmark"
+          ) {
+            _ = store.send(.closeTabsRequested(effectiveSelectedTabIDs))
+          }
+        )
+      }
+    }
+    return menu
+  }
+
+  private func makeMenuItem(
+    title: String,
+    symbol: String,
+    isEnabled: Bool = true,
+    action: @escaping () -> Void
+  ) -> NSMenuItem {
+    let menuItem = NSMenuItem(title: title, action: #selector(TerminalSidebarMenuAction.invoke(_:)), keyEquivalent: "")
+    let actionTarget = TerminalSidebarMenuAction(action: action)
+    menuItem.target = actionTarget
+    menuItem.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+    menuItem.isEnabled = isEnabled
+    return menuItem.retaining(actionTarget)
+  }
+
+  private func select(modifierFlags: NSEvent.ModifierFlags) {
+    if modifierFlags.contains(.shift) {
+      _ = store.send(
+        .sidebarTabRangeSelected(
+          tabID: tab.id,
+          orderedTabIDs: terminal.visibleTabs.map(\.id),
+          activeTabID: terminal.selectedTabID
+        )
+      )
+      return
+    }
+
+    if modifierFlags.contains(.command) {
+      _ = store.send(
+        .sidebarTabCommandClicked(tabID: tab.id, activeTabID: terminal.selectedTabID)
+      )
+      return
+    }
+
     _ = store.send(.tabSelected(tab.id))
   }
 
@@ -1194,45 +1311,99 @@ private struct TerminalSidebarRegularSectionHeader: View {
   }
 }
 
-private struct TerminalSidebarMiddleClickActionView: NSViewRepresentable {
+private var terminalSidebarMenuActionAssociationKey: UInt8 = 0
+
+private final class TerminalSidebarMenuAction: NSObject {
   let action: () -> Void
-
-  func makeNSView(context: Context) -> TerminalSidebarMiddleClickNSView {
-    TerminalSidebarMiddleClickNSView(action: action)
-  }
-
-  func updateNSView(_ nsView: TerminalSidebarMiddleClickNSView, context: Context) {
-    nsView.action = action
-  }
-}
-
-private final class TerminalSidebarMiddleClickNSView: NSView {
-  var action: () -> Void
 
   init(action: @escaping () -> Void) {
     self.action = action
-    super.init(frame: .zero)
   }
 
-  @available(*, unavailable)
-  required init?(coder: NSCoder) { fatalError() }
+  @objc func invoke(_ sender: Any?) {
+    action()
+  }
+}
+
+extension NSMenuItem {
+  fileprivate func retaining(_ object: AnyObject) -> Self {
+    let retainedObjects =
+      (objc_getAssociatedObject(self, &terminalSidebarMenuActionAssociationKey) as? NSMutableArray)
+      ?? NSMutableArray()
+    retainedObjects.add(object)
+    objc_setAssociatedObject(
+      self,
+      &terminalSidebarMenuActionAssociationKey,
+      retainedObjects,
+      .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+    )
+    return self
+  }
+}
+
+private struct TerminalSidebarTabInteractionView: NSViewRepresentable {
+  let onContextMenu: () -> NSMenu
+  let onMiddleClick: () -> Void
+  let onPrimaryClick: (NSEvent.ModifierFlags) -> Void
+
+  func makeNSView(context: Context) -> TerminalSidebarTabInteractionNSView {
+    let view = TerminalSidebarTabInteractionNSView()
+    update(view)
+    return view
+  }
+
+  func updateNSView(_ nsView: TerminalSidebarTabInteractionNSView, context: Context) {
+    update(nsView)
+  }
+
+  private func update(_ view: TerminalSidebarTabInteractionNSView) {
+    view.onContextMenu = onContextMenu
+    view.onMiddleClick = onMiddleClick
+    view.onPrimaryClick = onPrimaryClick
+  }
+}
+
+private final class TerminalSidebarTabInteractionNSView: NSView {
+  var onContextMenu: (() -> NSMenu)?
+  var onMiddleClick: (() -> Void)?
+  var onPrimaryClick: ((NSEvent.ModifierFlags) -> Void)?
 
   override func hitTest(_ point: NSPoint) -> NSView? {
-    guard let event = NSApp.currentEvent,
-      event.type == .otherMouseDown || event.type == .otherMouseUp
-    else { return nil }
-    return super.hitTest(point)
+    guard bounds.contains(point), let event = NSApp.currentEvent else { return nil }
+    switch event.type {
+    case .leftMouseDown, .leftMouseUp, .otherMouseDown, .otherMouseUp, .rightMouseDown, .rightMouseUp:
+      return self
+    default:
+      return nil
+    }
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    if event.modifierFlags.contains(.control) {
+      showContextMenu(with: event)
+      return
+    }
+    onPrimaryClick?(event.modifierFlags)
   }
 
   override func otherMouseUp(with event: NSEvent) {
     if event.buttonNumber == 2 {
-      action()
+      onMiddleClick?()
     } else {
       super.otherMouseUp(with: event)
     }
   }
 
+  override func rightMouseDown(with event: NSEvent) {
+    showContextMenu(with: event)
+  }
+
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+  private func showContextMenu(with event: NSEvent) {
+    guard let onContextMenu else { return }
+    NSMenu.popUpContextMenu(onContextMenu(), with: event, for: self)
+  }
 }
 
 private struct TerminalSidebarSpaceBar: View {
