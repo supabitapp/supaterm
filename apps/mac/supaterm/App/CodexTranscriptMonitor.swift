@@ -148,17 +148,15 @@ enum CodexTranscriptMonitor {
     case "turn_aborted":
       return .init(status: .aborted(string(in: eventPayload, key: "turn_id")))
     case "agent_reasoning":
-      return labeledDetailUpdate(
-        prefix: "Reasoning",
-        text: string(in: eventPayload, key: "text") ?? string(in: payload, key: "text"),
+      return thinkingDetailUpdate(
+        string(in: eventPayload, key: "text") ?? string(in: payload, key: "text"),
         priority: .reasoning
       )
     case "agent_message":
       let phase = string(in: eventPayload, key: "phase") ?? string(in: payload, key: "phase")
       guard phase != "final_answer" else { return nil }
-      return labeledDetailUpdate(
-        prefix: "Message",
-        text: string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"),
+      return plainDetailUpdate(
+        string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"),
         priority: .message
       )
     default:
@@ -199,7 +197,8 @@ enum CodexTranscriptMonitor {
         }
         .joined(separator: " ")
     )
-    return labeledDetailUpdate(prefix: "Message", text: text, priority: .message)
+    guard let text else { return nil }
+    return plainDetailUpdate(text, priority: .message)
   }
 
   private static func reasoningUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
@@ -209,9 +208,8 @@ enum CodexTranscriptMonitor {
     let content = array(in: payload, key: "content")?.compactMap { item in
       string(in: item, key: "text")
     }
-    return labeledDetailUpdate(
-      prefix: "Reasoning",
-      text: summary?.first ?? content?.first,
+    return thinkingDetailUpdate(
+      summary?.first ?? content?.first,
       priority: .reasoning
     )
   }
@@ -319,11 +317,19 @@ enum CodexTranscriptMonitor {
   }
 
   private static func plainDetailUpdate(
-    _ detail: String,
+    _ detail: String?,
     priority: CodexTranscriptDetailPriority = .tool
   ) -> CodexTranscriptUpdate? {
     guard let detail = normalizedDetail(detail) else { return nil }
     return .init(detail: detail, detailPriority: priority)
+  }
+
+  private static func thinkingDetailUpdate(
+    _ text: String?,
+    priority: CodexTranscriptDetailPriority = .reasoning
+  ) -> CodexTranscriptUpdate? {
+    guard let text = normalizedDetail(text) else { return nil }
+    return .init(detail: "Thinking: \"\(text)\"", detailPriority: priority)
   }
 
   private static func labeledDetail(
