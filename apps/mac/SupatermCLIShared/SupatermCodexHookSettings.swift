@@ -1,7 +1,7 @@
 import Foundation
 
 public enum SupatermCodexHookSettings {
-  public static let command = SupatermAgentHookSettingsCommand.command(for: .codex)
+  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .codex)
 
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()

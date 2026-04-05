@@ -185,9 +185,7 @@ struct ClaudeSettingsInstallerTests {
       .compactMap { $0["command"] as? String }
 
     #expect(
-      commands.filter {
-        $0.contains("SUPATERM_CLI_PATH") && $0.contains("agent receive-agent-hook")
-      }.count == 1
+      commands.filter(AgentHookCommandOwnership.isSupatermManagedCommand).count == 1
     )
     #expect(commands.contains(SupatermClaudeHookSettings.command))
   }

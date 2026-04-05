@@ -41,7 +41,7 @@ nonisolated struct BundledSPAgentHooksInstaller {
     do {
       commandResult = try runInstallCommand(
         cliPath,
-        ["agent", "install-hook", agent.rawValue],
+        SupatermManagedHookCommand.installArguments(for: agent),
         Self.sanitizedEnvironment(environment)
       )
     } catch let error as BundledSPAgentHooksInstallerError {

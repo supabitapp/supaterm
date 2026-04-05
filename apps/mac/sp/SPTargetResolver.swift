@@ -82,6 +82,212 @@ enum SPResolvedPaneTarget: Equatable {
   case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
 }
 
+private struct SPSpacePathKey: Hashable {
+  let windowIndex: Int
+  let spaceIndex: Int
+}
+
+private struct SPTabPathKey: Hashable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let tabIndex: Int
+}
+
+private struct SPTreeIndex {
+  let keyWindowIndex: Int?
+  let singleWindowIndex: Int?
+  let spacesByID: [UUID: SPSpaceLocation]
+  let tabsByID: [UUID: SPTabLocation]
+  let panesByID: [UUID: SPPaneLocation]
+  let selectedSpaceByWindow: [Int: SPSpaceLocation]
+  let firstSpaceByWindow: [Int: SPSpaceLocation]
+  let selectedTabBySpace: [SPSpacePathKey: SPTabLocation]
+  let firstTabBySpace: [SPSpacePathKey: SPTabLocation]
+  let focusedPaneByTab: [SPTabPathKey: SPPaneLocation]
+  let firstPaneByTab: [SPTabPathKey: SPPaneLocation]
+
+  init(snapshot: SupatermTreeSnapshot) {
+    var spacesByID: [UUID: SPSpaceLocation] = [:]
+    var tabsByID: [UUID: SPTabLocation] = [:]
+    var panesByID: [UUID: SPPaneLocation] = [:]
+    var selectedSpaceByWindow: [Int: SPSpaceLocation] = [:]
+    var firstSpaceByWindow: [Int: SPSpaceLocation] = [:]
+    var selectedTabBySpace: [SPSpacePathKey: SPTabLocation] = [:]
+    var firstTabBySpace: [SPSpacePathKey: SPTabLocation] = [:]
+    var focusedPaneByTab: [SPTabPathKey: SPPaneLocation] = [:]
+    var firstPaneByTab: [SPTabPathKey: SPPaneLocation] = [:]
+
+    for window in snapshot.windows {
+      for space in window.spaces {
+        let spaceLocation = SPSpaceLocation(windowIndex: window.index, spaceIndex: space.index)
+        spacesByID[space.id] = spaceLocation
+        firstSpaceByWindow[window.index] = firstSpaceByWindow[window.index] ?? spaceLocation
+        if space.isSelected {
+          selectedSpaceByWindow[window.index] = spaceLocation
+        }
+
+        let spaceKey = SPSpacePathKey(windowIndex: window.index, spaceIndex: space.index)
+        for tab in space.tabs {
+          let tabLocation = SPTabLocation(
+            windowIndex: window.index,
+            spaceIndex: space.index,
+            tabIndex: tab.index
+          )
+          tabsByID[tab.id] = tabLocation
+          firstTabBySpace[spaceKey] = firstTabBySpace[spaceKey] ?? tabLocation
+          if tab.isSelected {
+            selectedTabBySpace[spaceKey] = tabLocation
+          }
+
+          let tabKey = SPTabPathKey(
+            windowIndex: window.index,
+            spaceIndex: space.index,
+            tabIndex: tab.index
+          )
+          for pane in tab.panes {
+            let paneLocation = SPPaneLocation(
+              windowIndex: window.index,
+              spaceIndex: space.index,
+              tabIndex: tab.index,
+              paneIndex: pane.index
+            )
+            panesByID[pane.id] = paneLocation
+            firstPaneByTab[tabKey] = firstPaneByTab[tabKey] ?? paneLocation
+            if pane.isFocused {
+              focusedPaneByTab[tabKey] = paneLocation
+            }
+          }
+        }
+      }
+    }
+
+    self.keyWindowIndex = snapshot.windows.first(where: \.isKey)?.index
+    self.singleWindowIndex = snapshot.windows.count == 1 ? snapshot.windows.first?.index : nil
+    self.spacesByID = spacesByID
+    self.tabsByID = tabsByID
+    self.panesByID = panesByID
+    self.selectedSpaceByWindow = selectedSpaceByWindow
+    self.firstSpaceByWindow = firstSpaceByWindow
+    self.selectedTabBySpace = selectedTabBySpace
+    self.firstTabBySpace = firstTabBySpace
+    self.focusedPaneByTab = focusedPaneByTab
+    self.firstPaneByTab = firstPaneByTab
+  }
+
+  func spaceLocation(id: UUID) -> SPSpaceLocation? {
+    spacesByID[id]
+  }
+
+  func tabLocation(id: UUID) -> SPTabLocation? {
+    tabsByID[id]
+  }
+
+  func paneLocation(id: UUID) -> SPPaneLocation? {
+    panesByID[id]
+  }
+
+  func requireSpaceLocation(id: UUID) throws -> SPSpaceLocation {
+    guard let location = spaceLocation(id: id) else {
+      throw ValidationError("No space exists with UUID \(id.uuidString.lowercased()).")
+    }
+    return location
+  }
+
+  func requireTabLocation(id: UUID) throws -> SPTabLocation {
+    guard let location = tabLocation(id: id) else {
+      throw ValidationError("No tab exists with UUID \(id.uuidString.lowercased()).")
+    }
+    return location
+  }
+
+  func requirePaneLocation(id: UUID) throws -> SPPaneLocation {
+    guard let location = paneLocation(id: id) else {
+      throw ValidationError("No pane exists with UUID \(id.uuidString.lowercased()).")
+    }
+    return location
+  }
+
+  func defaultWindowIndex(context: SupatermCLIContext?) throws -> Int {
+    if let context {
+      if let paneLocation = paneLocation(id: context.surfaceID) {
+        return paneLocation.windowIndex
+      }
+      if let tabLocation = tabLocation(id: context.tabID) {
+        return tabLocation.windowIndex
+      }
+    }
+
+    if let keyWindowIndex {
+      return keyWindowIndex
+    }
+
+    if let singleWindowIndex {
+      return singleWindowIndex
+    }
+
+    throw ValidationError("Run this command inside Supaterm or target by UUID.")
+  }
+
+  func ambientSpaceLocation(context: SupatermCLIContext?) throws -> SPSpaceLocation {
+    if let context {
+      if let paneLocation = paneLocation(id: context.surfaceID) {
+        return .init(windowIndex: paneLocation.windowIndex, spaceIndex: paneLocation.spaceIndex)
+      }
+      if let tabLocation = tabLocation(id: context.tabID) {
+        return .init(windowIndex: tabLocation.windowIndex, spaceIndex: tabLocation.spaceIndex)
+      }
+    }
+
+    let windowIndex = try defaultWindowIndex(context: context)
+    guard let spaceLocation = selectedSpaceByWindow[windowIndex] ?? firstSpaceByWindow[windowIndex] else {
+      throw ValidationError("No space is available in the selected window.")
+    }
+    return spaceLocation
+  }
+
+  func ambientTabLocation(context: SupatermCLIContext?) throws -> SPTabLocation {
+    if let context {
+      if let paneLocation = paneLocation(id: context.surfaceID) {
+        return .init(
+          windowIndex: paneLocation.windowIndex,
+          spaceIndex: paneLocation.spaceIndex,
+          tabIndex: paneLocation.tabIndex
+        )
+      }
+      if let tabLocation = tabLocation(id: context.tabID) {
+        return tabLocation
+      }
+    }
+
+    let spaceLocation = try ambientSpaceLocation(context: context)
+    let spaceKey = SPSpacePathKey(
+      windowIndex: spaceLocation.windowIndex,
+      spaceIndex: spaceLocation.spaceIndex
+    )
+    guard let tabLocation = selectedTabBySpace[spaceKey] ?? firstTabBySpace[spaceKey] else {
+      throw ValidationError("No tab is available in the selected space.")
+    }
+    return tabLocation
+  }
+
+  func ambientPaneLocation(context: SupatermCLIContext?) throws -> SPPaneLocation {
+    if let context, let paneLocation = paneLocation(id: context.surfaceID) {
+      return paneLocation
+    }
+
+    let tabLocation = try ambientTabLocation(context: context)
+    let tabKey = SPTabPathKey(
+      windowIndex: tabLocation.windowIndex,
+      spaceIndex: tabLocation.spaceIndex,
+      tabIndex: tabLocation.tabIndex
+    )
+    guard let paneLocation = focusedPaneByTab[tabKey] ?? firstPaneByTab[tabKey] else {
+      throw ValidationError("No pane is available in the selected tab.")
+    }
+    return paneLocation
+  }
+}
+
 enum SPTargetResolver {
   static func resolveNewTabTarget(
     window: Int?,
@@ -89,6 +295,7 @@ enum SPTargetResolver {
     context: SupatermCLIContext?,
     snapshot: @autoclosure () throws -> SupatermTreeSnapshot
   ) throws -> SPResolvedNewTabTarget {
+    let index = SPTreeIndex(snapshot: try snapshot())
     if let window, window < 1 {
       throw ValidationError("--window must be 1 or greater.")
     }
@@ -111,7 +318,7 @@ enum SPTargetResolver {
       guard window == nil else {
         throw ValidationError("--window cannot be used when --space is a UUID.")
       }
-      let location = try snapshot().requireSpaceLocation(id: spaceID)
+      let location = try index.requireSpaceLocation(id: spaceID)
       return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
     }
   }
@@ -124,11 +331,12 @@ enum SPTargetResolver {
     context: SupatermCLIContext?,
     snapshot: @autoclosure () throws -> SupatermTreeSnapshot
   ) throws -> SPResolvedPaneTarget {
+    let index = SPTreeIndex(snapshot: try snapshot())
     if let paneID = pane?.uuid {
       guard tab == nil, space == nil, window == nil else {
         throw ValidationError("--pane cannot be combined with --tab, --space, or --window when using a UUID.")
       }
-      let location = try snapshot().requirePaneLocation(id: paneID)
+      let location = try index.requirePaneLocation(id: paneID)
       return .pane(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -141,7 +349,7 @@ enum SPTargetResolver {
       guard pane == nil, space == nil, window == nil else {
         throw ValidationError("--tab cannot be combined with --pane, --space, or --window when using a UUID.")
       }
-      let location = try snapshot().requireTabLocation(id: tabID)
+      let location = try index.requireTabLocation(id: tabID)
       return .tab(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -153,7 +361,7 @@ enum SPTargetResolver {
       guard window == nil else {
         throw ValidationError("--window cannot be used when --space is a UUID.")
       }
-      let location = try snapshot().requireSpaceLocation(id: spaceID)
+      let location = try index.requireSpaceLocation(id: spaceID)
       let tabIndex = tab?.index
       let paneIndex = pane?.index
       try validateTargetSelection(
@@ -226,6 +434,7 @@ enum SPTargetResolver {
     context: SupatermCLIContext?,
     snapshot: @autoclosure () throws -> SupatermTreeSnapshot
   ) throws -> SPResolvedSpaceTarget {
+    let index = SPTreeIndex(snapshot: try snapshot())
     if let window, window < 1 {
       throw ValidationError("--window must be 1 or greater.")
     }
@@ -248,7 +457,7 @@ enum SPTargetResolver {
       guard window == nil else {
         throw ValidationError("--window cannot be used when --space is a UUID.")
       }
-      let location = try snapshot().requireSpaceLocation(id: spaceID)
+      let location = try index.requireSpaceLocation(id: spaceID)
       return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
     }
   }
@@ -260,11 +469,12 @@ enum SPTargetResolver {
     context: SupatermCLIContext?,
     snapshot: @autoclosure () throws -> SupatermTreeSnapshot
   ) throws -> SPResolvedTabTarget {
+    let index = SPTreeIndex(snapshot: try snapshot())
     if let tabID = tab?.uuid {
       guard space == nil, window == nil else {
         throw ValidationError("--tab cannot be combined with --space or --window when using a UUID.")
       }
-      let location = try snapshot().requireTabLocation(id: tabID)
+      let location = try index.requireTabLocation(id: tabID)
       return .tab(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -276,7 +486,7 @@ enum SPTargetResolver {
       guard window == nil else {
         throw ValidationError("--window cannot be used when --space is a UUID.")
       }
-      let location = try snapshot().requireSpaceLocation(id: spaceID)
+      let location = try index.requireSpaceLocation(id: spaceID)
       guard let tabIndex = tab?.index else {
         throw ValidationError("--space requires --tab.")
       }
@@ -320,11 +530,12 @@ enum SPTargetResolver {
     context: SupatermCLIContext?,
     snapshot: @autoclosure () throws -> SupatermTreeSnapshot
   ) throws -> SPResolvedPaneOnlyTarget {
+    let index = SPTreeIndex(snapshot: try snapshot())
     if let paneID = pane?.uuid {
       guard tab == nil, space == nil, window == nil else {
         throw ValidationError("--pane cannot be combined with --tab, --space, or --window when using a UUID.")
       }
-      let location = try snapshot().requirePaneLocation(id: paneID)
+      let location = try index.requirePaneLocation(id: paneID)
       return .pane(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -337,7 +548,7 @@ enum SPTargetResolver {
       guard window == nil else {
         throw ValidationError("--window cannot be used when --space is a UUID.")
       }
-      let location = try snapshot().requireSpaceLocation(id: spaceID)
+      let location = try index.requireSpaceLocation(id: spaceID)
       guard let tabIndex = tab?.index else {
         throw ValidationError("--pane requires --tab.")
       }
@@ -535,22 +746,23 @@ func resolvePublicNewTabTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SPResolvedNewTabTarget {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .context(context.surfaceID)
     }
-    let location = try ambientSpaceLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientSpaceLocation(context: nil)
     return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 
   switch reference {
   case .index(let spaceIndex):
     return .space(
-      windowIndex: try defaultWindowIndex(context: context, snapshot: snapshot),
+      windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex
     )
   case .id(let spaceID):
-    let location = try snapshot.requireSpaceLocation(id: spaceID)
+    let location = try index.requireSpaceLocation(id: spaceID)
     return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 }
@@ -560,22 +772,23 @@ func resolvePublicSpaceTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SPResolvedSpaceTarget {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .context(context.surfaceID)
     }
-    let location = try ambientSpaceLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientSpaceLocation(context: nil)
     return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 
   switch reference {
   case .index(let spaceIndex):
     return .space(
-      windowIndex: try defaultWindowIndex(context: context, snapshot: snapshot),
+      windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex
     )
   case .id(let spaceID):
-    let location = try snapshot.requireSpaceLocation(id: spaceID)
+    let location = try index.requireSpaceLocation(id: spaceID)
     return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 }
@@ -585,11 +798,12 @@ func resolvePublicTabTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SPResolvedTabTarget {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .context(context.surfaceID)
     }
-    let location = try ambientTabLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientTabLocation(context: nil)
     return .tab(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
@@ -600,12 +814,12 @@ func resolvePublicTabTarget(
   switch reference {
   case .path(let spaceIndex, let tabIndex):
     return .tab(
-      windowIndex: try defaultWindowIndex(context: context, snapshot: snapshot),
+      windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       tabIndex: tabIndex
     )
   case .id(let tabID):
-    let location = try snapshot.requireTabLocation(id: tabID)
+    let location = try index.requireTabLocation(id: tabID)
     return .tab(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
@@ -619,11 +833,12 @@ func resolvePublicPaneTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SPResolvedPaneOnlyTarget {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .context(context.surfaceID)
     }
-    let location = try ambientPaneLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientPaneLocation(context: nil)
     return .pane(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
@@ -635,13 +850,13 @@ func resolvePublicPaneTarget(
   switch reference {
   case .path(let spaceIndex, let tabIndex, let paneIndex):
     return .pane(
-      windowIndex: try defaultWindowIndex(context: context, snapshot: snapshot),
+      windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       tabIndex: tabIndex,
       paneIndex: paneIndex
     )
   case .id(let paneID):
-    let location = try snapshot.requirePaneLocation(id: paneID)
+    let location = try index.requirePaneLocation(id: paneID)
     return .pane(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
@@ -656,11 +871,12 @@ func resolvePublicSplitTarget(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SPResolvedPaneTarget {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .context(context.surfaceID)
     }
-    let location = try ambientPaneLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientPaneLocation(context: nil)
     return .pane(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
@@ -692,7 +908,7 @@ func resolvePublicSplitTarget(
     }
 
   case .id(let id):
-    if let location = snapshot.paneLocation(id: id) {
+    if let location = index.paneLocation(id: id) {
       return .pane(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -700,7 +916,7 @@ func resolvePublicSplitTarget(
         paneIndex: location.paneIndex
       )
     }
-    if let location = snapshot.tabLocation(id: id) {
+    if let location = index.tabLocation(id: id) {
       return .tab(
         windowIndex: location.windowIndex,
         spaceIndex: location.spaceIndex,
@@ -715,11 +931,12 @@ func resolvePublicSpaceNavigationRequest(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SupatermSpaceNavigationRequest {
+  let index = SPTreeIndex(snapshot: snapshot)
   if let context {
     return .init(contextPaneID: context.surfaceID)
   }
   return .init(
-    targetWindowIndex: try defaultWindowIndex(context: nil, snapshot: snapshot)
+    targetWindowIndex: try index.defaultWindowIndex(context: nil)
   )
 }
 
@@ -728,11 +945,12 @@ func resolvePublicTabNavigationRequest(
   context: SupatermCLIContext?,
   snapshot: SupatermTreeSnapshot
 ) throws -> SupatermTabNavigationRequest {
+  let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     if let context {
       return .init(contextPaneID: context.surfaceID)
     }
-    let location = try ambientSpaceLocation(context: nil, snapshot: snapshot)
+    let location = try index.ambientSpaceLocation(context: nil)
     return .init(
       targetWindowIndex: location.windowIndex,
       targetSpaceIndex: location.spaceIndex
@@ -742,11 +960,11 @@ func resolvePublicTabNavigationRequest(
   switch reference {
   case .index(let spaceIndex):
     return .init(
-      targetWindowIndex: try defaultWindowIndex(context: context, snapshot: snapshot),
+      targetWindowIndex: try index.defaultWindowIndex(context: context),
       targetSpaceIndex: spaceIndex
     )
   case .id(let spaceID):
-    let location = try snapshot.requireSpaceLocation(id: spaceID)
+    let location = try index.requireSpaceLocation(id: spaceID)
     return .init(
       targetWindowIndex: location.windowIndex,
       targetSpaceIndex: location.spaceIndex
@@ -790,113 +1008,6 @@ func validateTargetSelection(
   }
 }
 
-private func defaultWindowIndex(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> Int {
-  if let context {
-    if let paneLocation = snapshot.paneLocation(id: context.surfaceID) {
-      return paneLocation.windowIndex
-    }
-    if let tabLocation = snapshot.tabLocation(id: context.tabID) {
-      return tabLocation.windowIndex
-    }
-  }
-
-  if let window = snapshot.windows.first(where: \.isKey) {
-    return window.index
-  }
-
-  if snapshot.windows.count == 1, let window = snapshot.windows.first {
-    return window.index
-  }
-
-  throw ValidationError("Run this command inside Supaterm or target by UUID.")
-}
-
-private func ambientSpaceLocation(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> SPSpaceLocation {
-  if let context {
-    if let paneLocation = snapshot.paneLocation(id: context.surfaceID) {
-      return .init(windowIndex: paneLocation.windowIndex, spaceIndex: paneLocation.spaceIndex)
-    }
-    if let tabLocation = snapshot.tabLocation(id: context.tabID) {
-      return .init(windowIndex: tabLocation.windowIndex, spaceIndex: tabLocation.spaceIndex)
-    }
-  }
-
-  let windowIndex = try defaultWindowIndex(context: context, snapshot: snapshot)
-  guard
-    let window = snapshot.windows.first(where: { $0.index == windowIndex }),
-    let space = window.spaces.first(where: \.isSelected) ?? window.spaces.first
-  else {
-    throw ValidationError("No space is available in the selected window.")
-  }
-
-  return .init(windowIndex: window.index, spaceIndex: space.index)
-}
-
-private func ambientTabLocation(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> SPTabLocation {
-  if let context {
-    if let paneLocation = snapshot.paneLocation(id: context.surfaceID) {
-      return .init(
-        windowIndex: paneLocation.windowIndex,
-        spaceIndex: paneLocation.spaceIndex,
-        tabIndex: paneLocation.tabIndex
-      )
-    }
-    if let tabLocation = snapshot.tabLocation(id: context.tabID) {
-      return tabLocation
-    }
-  }
-
-  let spaceLocation = try ambientSpaceLocation(context: nil, snapshot: snapshot)
-  guard
-    let window = snapshot.windows.first(where: { $0.index == spaceLocation.windowIndex }),
-    let space = window.spaces.first(where: { $0.index == spaceLocation.spaceIndex }),
-    let tab = space.tabs.first(where: \.isSelected) ?? space.tabs.first
-  else {
-    throw ValidationError("No tab is available in the selected space.")
-  }
-
-  return .init(
-    windowIndex: spaceLocation.windowIndex,
-    spaceIndex: space.index,
-    tabIndex: tab.index
-  )
-}
-
-private func ambientPaneLocation(
-  context: SupatermCLIContext?,
-  snapshot: SupatermTreeSnapshot
-) throws -> SPPaneLocation {
-  if let context, let paneLocation = snapshot.paneLocation(id: context.surfaceID) {
-    return paneLocation
-  }
-
-  let tabLocation = try ambientTabLocation(context: context, snapshot: snapshot)
-  guard
-    let window = snapshot.windows.first(where: { $0.index == tabLocation.windowIndex }),
-    let space = window.spaces.first(where: { $0.index == tabLocation.spaceIndex }),
-    let tab = space.tabs.first(where: { $0.index == tabLocation.tabIndex }),
-    let pane = tab.panes.first(where: \.isFocused) ?? tab.panes.first
-  else {
-    throw ValidationError("No pane is available in the selected tab.")
-  }
-
-  return .init(
-    windowIndex: tabLocation.windowIndex,
-    spaceIndex: tabLocation.spaceIndex,
-    tabIndex: tab.index,
-    paneIndex: pane.index
-  )
-}
-
 private struct SPSpaceLocation {
   let windowIndex: Int
   let spaceIndex: Int
@@ -913,69 +1024,4 @@ private struct SPPaneLocation {
   let spaceIndex: Int
   let tabIndex: Int
   let paneIndex: Int
-}
-
-private extension SupatermTreeSnapshot {
-  func requireSpaceLocation(id: UUID) throws -> SPSpaceLocation {
-    guard let location = spaceLocation(id: id) else {
-      throw ValidationError("No space exists with UUID \(id.uuidString.lowercased()).")
-    }
-    return location
-  }
-
-  func requireTabLocation(id: UUID) throws -> SPTabLocation {
-    guard let location = tabLocation(id: id) else {
-      throw ValidationError("No tab exists with UUID \(id.uuidString.lowercased()).")
-    }
-    return location
-  }
-
-  func requirePaneLocation(id: UUID) throws -> SPPaneLocation {
-    guard let location = paneLocation(id: id) else {
-      throw ValidationError("No pane exists with UUID \(id.uuidString.lowercased()).")
-    }
-    return location
-  }
-
-  func spaceLocation(id: UUID) -> SPSpaceLocation? {
-    for window in windows {
-      for space in window.spaces where space.id == id {
-        return .init(windowIndex: window.index, spaceIndex: space.index)
-      }
-    }
-    return nil
-  }
-
-  func tabLocation(id: UUID) -> SPTabLocation? {
-    for window in windows {
-      for space in window.spaces {
-        for tab in space.tabs where tab.id == id {
-          return .init(
-            windowIndex: window.index,
-            spaceIndex: space.index,
-            tabIndex: tab.index
-          )
-        }
-      }
-    }
-    return nil
-  }
-
-  func paneLocation(id: UUID) -> SPPaneLocation? {
-    for window in windows {
-      for space in window.spaces {
-        for tab in space.tabs {
-          for pane in tab.panes where pane.id == id {
-            return .init(
-              windowIndex: window.index,
-              spaceIndex: space.index,
-              tabIndex: tab.index,
-              paneIndex: pane.index
-            )
-          }
-        }
-      }
-    }
-    return nil
-  }
 }
