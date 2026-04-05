@@ -602,6 +602,10 @@ final class TerminalSidebarDragSourceNSView: NSView {
   var coordinator: TerminalSidebarDragSourceCoordinator?
   private(set) var registrationID: UUID?
 
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
   func registerWithManager() {
     guard let coordinator else { return }
     let registrationID = UUID()

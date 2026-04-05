@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import GhosttyKit
 import Testing
@@ -230,6 +231,14 @@ struct TerminalSidebarChromeViewTests {
         "Close Selected Tabs",
       ])
     #expect(items.filter { $0.title != nil }.map(\.isEnabled) == [true, false, false, false, false, true])
+  }
+
+  @MainActor
+  @Test
+  func sidebarDragSourceDoesNotConsumeHitTesting() {
+    let view = TerminalSidebarDragSourceNSView(frame: NSRect(x: 0, y: 0, width: 120, height: 36))
+
+    #expect(view.hitTest(NSPoint(x: 12, y: 12)) == nil)
   }
 
   @MainActor
