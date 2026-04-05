@@ -80,6 +80,42 @@ struct TerminalHostStateTitleTests {
   }
 
   @Test
+  func resolvedTabDisplayTitleStripsExactDuplicatedCommandSuffix() {
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: nil,
+      title: "codex - codex",
+      pwd: nil,
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "codex")
+  }
+
+  @Test
+  func resolvedTabDisplayTitleStripsDuplicatedCommandSuffixAfterArguments() {
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: nil,
+      title: "ping 1.1.1.1 - ping",
+      pwd: nil,
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "ping 1.1.1.1")
+  }
+
+  @Test
+  func resolvedTabDisplayTitleKeepsDistinctTrailingCommandSuffix() {
+    let title = TerminalHostState.resolvedTabDisplayTitle(
+      titleOverride: nil,
+      title: "codex - bash",
+      pwd: nil,
+      defaultValue: "Terminal"
+    )
+
+    #expect(title == "codex - bash")
+  }
+
+  @Test
   func selectedPaneDisplayTitleFallsBackToFocusedPaneOrdinal() throws {
     let first = PaneTitleTestView()
     let second = PaneTitleTestView()
