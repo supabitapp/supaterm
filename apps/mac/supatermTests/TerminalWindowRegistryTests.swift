@@ -964,19 +964,53 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexRunningTimesOutToIdleWithoutStop() async throws {
+  func codexTranscriptKeepsRunningUntilTranscriptCompletes() async throws {
     let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let transcriptPath = try makeCodexTranscript()
+    try appendCodexTranscriptEvent(
+      .taskComplete(turnID: "turn-0"),
+      to: transcriptPath
+    )
 
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+      CodexHookFixtures.request(
+        CodexHookFixtures.replacingTranscriptPath(
+          in: CodexHookFixtures.sessionStart,
+          with: transcriptPath.path
+        ),
+        context: harness.context
+      )
     )
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit)
+      CodexHookFixtures.request(
+        CodexHookFixtures.replacingTranscriptPath(
+          in: CodexHookFixtures.userPromptSubmit,
+          with: transcriptPath.path
+        )
+      )
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try? await ContinuousClock().sleep(for: .milliseconds(30))
+    await flushEffects()
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    try appendCodexTranscriptEvent(
+      .taskStarted(turnID: "turn-1"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
+    await flushEffects()
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    try appendCodexTranscriptEvent(
+      .taskComplete(turnID: "turn-1"),
+      to: transcriptPath
+    )
+    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
     await flushEffects()
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
@@ -1024,6 +1058,47 @@ struct TerminalWindowRegistryTests {
     for _ in 0..<5 {
       await Task.yield()
     }
+  }
+
+  private enum CodexTranscriptEvent {
+    case taskStarted(turnID: String)
+    case taskComplete(turnID: String)
+
+    var json: String {
+      switch self {
+      case .taskStarted(let turnID):
+        """
+        {"timestamp":"2026-04-05T07:00:00.000Z","type":"event_msg","payload":{"type":"task_started",
+        "payload":{"turn_id":"\(turnID)","model_context_window":null,"collaboration_mode_kind":"default"}}}
+        """
+      case .taskComplete(let turnID):
+        """
+        {"timestamp":"2026-04-05T07:00:00.000Z","type":"event_msg","payload":{"type":"task_complete",
+        "payload":{"turn_id":"\(turnID)","last_agent_message":"Done."}}}
+        """
+      }
+    }
+  }
+
+  private func makeCodexTranscript() throws -> URL {
+    let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+      UUID().uuidString,
+      isDirectory: true
+    )
+    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    let fileURL = directoryURL.appendingPathComponent("transcript.jsonl")
+    try Data().write(to: fileURL)
+    return fileURL
+  }
+
+  private func appendCodexTranscriptEvent(
+    _ event: CodexTranscriptEvent,
+    to fileURL: URL
+  ) throws {
+    let handle = try FileHandle(forWritingTo: fileURL)
+    defer { try? handle.close() }
+    try handle.seekToEnd()
+    try handle.write(contentsOf: Data((event.json + "\n").utf8))
   }
 
   private func makeClaudeHookHarness(
