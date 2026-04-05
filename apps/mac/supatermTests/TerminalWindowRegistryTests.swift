@@ -1,4 +1,5 @@
 import AppKit
+import Clocks
 import ComposableArchitecture
 import Testing
 
@@ -891,7 +892,11 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func codexTranscriptResponseItemsReplaceHookFallbackDetail() async throws {
-    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
     _ = try harness.registry.handleAgentHook(
@@ -915,8 +920,7 @@ struct TerminalWindowRegistryTests {
       .localShellCall(command: ["git", "status", "--short"]),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
@@ -927,8 +931,7 @@ struct TerminalWindowRegistryTests {
       .assistantMessage("Updating the registry and sidebar"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
@@ -942,8 +945,7 @@ struct TerminalWindowRegistryTests {
       ),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
@@ -954,15 +956,18 @@ struct TerminalWindowRegistryTests {
       .taskComplete(turnID: "turn-1", lastAgentMessage: "Done."),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
 
   @Test
   func codexTranscriptEventFallbackUpdatesDetailAndAbortedTurnClearsRunning() async throws {
-    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
     _ = try harness.registry.handleAgentHook(
@@ -986,8 +991,7 @@ struct TerminalWindowRegistryTests {
       .agentReasoning("Inspecting transcript activity"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
@@ -998,8 +1002,7 @@ struct TerminalWindowRegistryTests {
       .agentMessage("Need approval?", phase: "commentary"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
@@ -1010,8 +1013,7 @@ struct TerminalWindowRegistryTests {
       .turnAborted(turnID: "turn-1"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
@@ -1092,7 +1094,11 @@ struct TerminalWindowRegistryTests {
 
   @Test
   func codexTranscriptKeepsRunningUntilTranscriptCompletes() async throws {
-    let harness = try makeClaudeHookHarness(agentRunningTimeout: .milliseconds(10))
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
     try CodexTranscriptFixtures.append(
       .taskComplete(turnID: "turn-0"),
@@ -1112,7 +1118,6 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
 
-    try? await ContinuousClock().sleep(for: .milliseconds(30))
     await flushEffects()
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
@@ -1121,8 +1126,7 @@ struct TerminalWindowRegistryTests {
       .taskStarted(turnID: "turn-1"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
 
@@ -1130,8 +1134,7 @@ struct TerminalWindowRegistryTests {
       .taskComplete(turnID: "turn-1"),
       to: transcriptPath
     )
-    try? await ContinuousClock().sleep(for: .milliseconds(1_100))
-    await flushEffects()
+    await advanceClock(clock)
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
@@ -1180,6 +1183,15 @@ struct TerminalWindowRegistryTests {
     }
   }
 
+  private func advanceClock(
+    _ clock: TestClock<Duration>,
+    by duration: Duration = .seconds(1)
+  ) async {
+    await flushEffects()
+    await clock.advance(by: duration)
+    await flushEffects()
+  }
+
   private func codexHook(
     _ json: String,
     transcriptPath: URL,
@@ -1191,13 +1203,19 @@ struct TerminalWindowRegistryTests {
     )
   }
 
-  private func makeClaudeHookHarness(
+  private func makeClaudeHookHarness<C: Clock<Duration>>(
     agentRunningTimeout: Duration = .seconds(15),
+    transcriptPollInterval: Duration = .seconds(1),
+    clock: C = ContinuousClock(),
     windowActivity: WindowActivityState = .init(isKeyWindow: true, isVisible: true)
   ) throws -> ClaudeHookHarness {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry(agentRunningTimeout: agentRunningTimeout)
+    let registry = TerminalWindowRegistry(
+      agentRunningTimeout: agentRunningTimeout,
+      transcriptPollInterval: transcriptPollInterval,
+      clock: clock
+    )
     let host = TerminalHostState()
     host.windowActivity = windowActivity
     let store = Store(initialState: AppFeature.State()) {

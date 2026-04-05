@@ -424,14 +424,24 @@ final class TerminalWindowRegistry {
   }
 
   private let agentRunningTimeout: Duration
+  private let sleep: @Sendable (Duration) async throws -> Void
+  private let transcriptPollInterval: Duration
   private var agentHookSessions: [AgentHookSessionKey: AgentHookSession] = [:]
   private var agentTranscriptMonitorTasks: [AgentHookSessionKey: Task<Void, Never>] = [:]
   private var agentRunningTimeoutTasks: [AgentHookSessionKey: Task<Void, Never>] = [:]
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
 
-  init(agentRunningTimeout: Duration = .seconds(15)) {
+  init<C: Clock<Duration>>(
+    agentRunningTimeout: Duration = .seconds(15),
+    transcriptPollInterval: Duration = .seconds(1),
+    clock: C = ContinuousClock()
+  ) {
     self.agentRunningTimeout = agentRunningTimeout
+    self.transcriptPollInterval = transcriptPollInterval
+    sleep = { duration in
+      try await clock.sleep(for: duration)
+    }
   }
 
   deinit {
@@ -1938,9 +1948,11 @@ final class TerminalWindowRegistry {
       return false
     }
     agentTranscriptMonitorTasks[key]?.cancel()
+    let interval = transcriptPollInterval
+    let sleep = self.sleep
     agentTranscriptMonitorTasks[key] = Task { [weak self] in
       while !Task.isCancelled {
-        try? await ContinuousClock().sleep(for: .seconds(1))
+        try? await sleep(interval)
         guard !Task.isCancelled else { return }
         guard let (updatedCursor, update) = CodexTranscript.advance(cursor, at: transcriptPath)
         else {
@@ -2010,8 +2022,9 @@ final class TerminalWindowRegistry {
     let key = AgentHookSessionKey(agent: agent, sessionID: sessionID)
     agentRunningTimeoutTasks[key]?.cancel()
     let timeout = agentRunningTimeout
+    let sleep = self.sleep
     agentRunningTimeoutTasks[key] = Task { [weak self] in
-      try? await ContinuousClock().sleep(for: timeout)
+      try? await sleep(timeout)
       guard !Task.isCancelled else { return }
       await self?.expireAgentRunningTimeout(
         key: key,
