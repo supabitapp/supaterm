@@ -14,7 +14,7 @@ public struct SP: ParsableCommand {
   private static let availableSubcommands: [ParsableCommand.Type] = [
     Onboard.self,
     Tree.self,
-    Debug.self,
+    Diagnostic.self,
     Instance.self,
     Space.self,
     Tab.self,
@@ -200,11 +200,11 @@ extension SP {
     }
   }
 
-  struct Debug: ParsableCommand {
+  struct Diagnostic: ParsableCommand {
     static let configuration = CommandConfiguration(
-      commandName: "doctor",
+      commandName: "diagnostic",
       abstract: "Show live Supaterm diagnostics for the current application.",
-      discussion: SPHelp.debugDiscussion
+      discussion: SPHelp.diagnosticDiscussion
     )
 
     @OptionGroup
