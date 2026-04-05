@@ -15,16 +15,29 @@ enum CodexTranscriptTurnStatus: Equatable {
   }
 }
 
+enum CodexTranscriptDetailPriority: Int {
+  case tool
+  case reasoning
+  case message
+}
+
 struct CodexTranscriptUpdate: Equatable {
   var status: CodexTranscriptTurnStatus?
   var detail: String?
+  private var detailPriority: CodexTranscriptDetailPriority?
 
   init(
     status: CodexTranscriptTurnStatus? = nil,
-    detail: String? = nil
+    detail: String? = nil,
+    detailPriority: CodexTranscriptDetailPriority? = nil
   ) {
     self.status = status
     self.detail = detail
+    self.detailPriority = detailPriority
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.status == rhs.status && lhs.detail == rhs.detail
   }
 
   var hasChanges: Bool {
@@ -36,7 +49,13 @@ struct CodexTranscriptUpdate: Equatable {
       self.status = status
     }
     if let detail = update.detail {
+      let currentPriority = detailPriority ?? .tool
+      let incomingPriority = update.detailPriority ?? .tool
+      guard self.detail == nil || incomingPriority.rawValue >= currentPriority.rawValue else {
+        return
+      }
       self.detail = detail
+      self.detailPriority = incomingPriority
     }
   }
 }
@@ -131,14 +150,16 @@ enum CodexTranscriptMonitor {
     case "agent_reasoning":
       return labeledDetailUpdate(
         prefix: "Reasoning",
-        text: string(in: eventPayload, key: "text") ?? string(in: payload, key: "text")
+        text: string(in: eventPayload, key: "text") ?? string(in: payload, key: "text"),
+        priority: .reasoning
       )
     case "agent_message":
       let phase = string(in: eventPayload, key: "phase") ?? string(in: payload, key: "phase")
       guard phase != "final_answer" else { return nil }
       return labeledDetailUpdate(
         prefix: "Message",
-        text: string(in: eventPayload, key: "message") ?? string(in: payload, key: "message")
+        text: string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"),
+        priority: .message
       )
     default:
       return nil
@@ -178,7 +199,7 @@ enum CodexTranscriptMonitor {
         }
         .joined(separator: " ")
     )
-    return labeledDetailUpdate(prefix: "Message", text: text)
+    return labeledDetailUpdate(prefix: "Message", text: text, priority: .message)
   }
 
   private static func reasoningUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
@@ -190,7 +211,8 @@ enum CodexTranscriptMonitor {
     }
     return labeledDetailUpdate(
       prefix: "Reasoning",
-      text: summary?.first ?? content?.first
+      text: summary?.first ?? content?.first,
+      priority: .reasoning
     )
   }
 
@@ -289,15 +311,19 @@ enum CodexTranscriptMonitor {
 
   private static func labeledDetailUpdate(
     prefix: String,
-    text: String?
+    text: String?,
+    priority: CodexTranscriptDetailPriority = .tool
   ) -> CodexTranscriptUpdate? {
     guard let detail = labeledDetail(prefix: prefix, text: text) else { return nil }
-    return .init(detail: detail)
+    return .init(detail: detail, detailPriority: priority)
   }
 
-  private static func plainDetailUpdate(_ detail: String) -> CodexTranscriptUpdate? {
+  private static func plainDetailUpdate(
+    _ detail: String,
+    priority: CodexTranscriptDetailPriority = .tool
+  ) -> CodexTranscriptUpdate? {
     guard let detail = normalizedDetail(detail) else { return nil }
-    return .init(detail: detail)
+    return .init(detail: detail, detailPriority: priority)
   }
 
   private static func labeledDetail(
