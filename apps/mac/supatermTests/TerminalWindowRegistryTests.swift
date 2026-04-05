@@ -962,6 +962,51 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexTranscriptBatchPrefersAssistantMessageOverExecCommand() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.preToolUse,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Inspecting the transcript path"),
+      to: transcriptPath
+    )
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "exec_command",
+        arguments: [
+          "cmd": "sed -n '1,40p' docs/coding-agents-integration.md"
+        ]
+      ),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Message · Inspecting the transcript path")
+    )
+  }
+
+  @Test
   func codexTranscriptEventFallbackUpdatesDetailAndAbortedTurnClearsRunning() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(

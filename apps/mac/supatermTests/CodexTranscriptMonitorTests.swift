@@ -33,4 +33,26 @@ struct CodexTranscriptMonitorTests {
     #expect(result.1?.status == .completed("turn-1"))
     #expect(result.1?.status?.isFinal == true)
   }
+
+  @Test
+  func advancePrefersAssistantMessageOverToolCallWithinSingleRead() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "exec_command",
+        arguments: [
+          "cmd": "sed -n '1,40p' docs/coding-agents-integration.md"
+        ]
+      ),
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+
+    #expect(result.1?.detail == "Message · Inspecting the transcript path")
+  }
 }
