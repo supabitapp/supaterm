@@ -17,7 +17,7 @@ struct SPHelpTests {
     #expect(help.contains("sp ls"))
     #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
     #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
-    #expect(help.contains("sp doctor"))
+    #expect(help.contains("sp diagnostic"))
     #expect(help.contains("sp instance ls"))
     #expect(!help.contains("install-agent-hooks"))
     #expect(!help.contains("development"))
@@ -28,7 +28,7 @@ struct SPHelpTests {
     let helps = [
       SP.helpMessage(for: SP.Tree.self, columns: 100),
       SP.helpMessage(for: SP.Onboard.self, columns: 100),
-      SP.helpMessage(for: SP.Debug.self, columns: 100),
+      SP.helpMessage(for: SP.Diagnostic.self, columns: 100),
       SP.helpMessage(for: SP.Instance.self, columns: 100),
       SP.helpMessage(for: SP.Instances.self, columns: 100),
       SP.helpMessage(for: SP.Space.self, columns: 100),

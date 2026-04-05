@@ -15,7 +15,7 @@ enum SPHelp {
       sp ls
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
-      sp doctor
+      sp diagnostic
       sp instance ls
     """
 
@@ -35,11 +35,11 @@ enum SPHelp {
       sp onboard --instance work-mac
     """
 
-  static let debugDiscussion = """
+  static let diagnosticDiscussion = """
     Example:
-      sp doctor
-      sp doctor --json
-      sp doctor --instance work-mac
+      sp diagnostic
+      sp diagnostic --json
+      sp diagnostic --instance work-mac
     """
 
   static let instancesDiscussion = """
