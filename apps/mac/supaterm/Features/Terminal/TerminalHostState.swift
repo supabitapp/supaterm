@@ -205,6 +205,7 @@ final class TerminalHostState {
   private var previousFocusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
+  private var agentActivitySurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
   private var previousSelectedSpaceID: TerminalSpaceID?
   private var lastEmittedFocusSurfaceID: UUID?
@@ -653,10 +654,16 @@ final class TerminalHostState {
     agentActivityByTab[tabID]
   }
 
+  func showsAgentActivityDetail(for tabID: TerminalTabID) -> Bool {
+    guard let activitySurfaceID = agentActivitySurfaceIDByTab[tabID] else { return false }
+    return focusedSurfaceIDByTab[tabID] == activitySurfaceID
+  }
+
   @discardableResult
   func setAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID) else { return false }
     agentActivityByTab[tabID] = activity
+    agentActivitySurfaceIDByTab[tabID] = surfaceID
     return true
   }
 
@@ -664,6 +671,7 @@ final class TerminalHostState {
   func clearAgentActivity(for surfaceID: UUID) -> Bool {
     guard let tabID = tabID(containing: surfaceID) else { return false }
     agentActivityByTab.removeValue(forKey: tabID)
+    agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
     return true
   }
   private func ensureInitialTab(focusing: Bool) {
@@ -2341,6 +2349,7 @@ final class TerminalHostState {
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
       previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
       agentActivityByTab.removeValue(forKey: tabID)
+      agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
@@ -2355,6 +2364,10 @@ final class TerminalHostState {
     }
 
     trees[tabID] = newTree
+    if agentActivitySurfaceIDByTab[tabID] == surfaceID {
+      agentActivityByTab.removeValue(forKey: tabID)
+      agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+    }
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
     if focusedSurfaceIDByTab[tabID] == surfaceID {
@@ -2854,6 +2867,7 @@ final class TerminalHostState {
       surfaces.removeValue(forKey: surface.id)
     }
     agentActivityByTab.removeValue(forKey: tabID)
+    agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousSelectedTabIDBySpace = previousSelectedTabIDBySpace.filter { $0.value != tabID }
