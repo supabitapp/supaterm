@@ -21,18 +21,18 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func managedCommandDetectionRequiresExactCanonicalCommand() {
-    let nonCanonicalCommand =
-      #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" "#
-      + #"agent receive-agent-hook --agent claude --extra || true"#
+  func managedCommandDetectionMatchesAnySupatermCommand() {
+    let managedCommand = "echo SUPATERM bridge"
+    let unmanagedCommand = "echo terminal bridge"
 
     #expect(
       AgentHookCommandOwnership.isSupatermManagedCommand(
         SupatermManagedHookCommand.receiveHookCommand(for: .claude)
       )
     )
+    #expect(AgentHookCommandOwnership.isSupatermManagedCommand(managedCommand))
     #expect(
-      !AgentHookCommandOwnership.isSupatermManagedCommand(nonCanonicalCommand)
+      !AgentHookCommandOwnership.isSupatermManagedCommand(unmanagedCommand)
     )
   }
 }

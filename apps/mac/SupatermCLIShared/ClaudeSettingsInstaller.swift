@@ -19,6 +19,18 @@ public struct ClaudeSettingsInstaller {
     )
   }
 
+  public func hasSupatermHooks() throws -> Bool {
+    try fileInstaller.hasSupatermHooks(
+      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    )
+  }
+
+  public func removeSupatermHooks() throws {
+    try fileInstaller.removeSupatermHooks(
+      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    )
+  }
+
   public static func settingsURL(homeDirectoryURL: URL) -> URL {
     homeDirectoryURL
       .appendingPathComponent(".claude", isDirectory: true)

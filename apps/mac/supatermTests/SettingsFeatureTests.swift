@@ -42,6 +42,9 @@ struct SettingsFeatureTests {
 
       let store = TestStore(initialState: SettingsFeature.State()) {
         SettingsFeature()
+      } withDependencies: {
+        $0.claudeSettingsClient.hasSupatermHooks = { false }
+        $0.codexSettingsClient.hasSupatermHooks = { false }
       }
 
       await store.send(.task)
@@ -53,6 +56,18 @@ struct SettingsFeatureTests {
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
       }
+      await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
+        $0.claudeHooks.isPending = true
+      }
+      await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
+        $0.codexHooks.isPending = true
+      }
+      await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
+        $0.claudeHooks.isPending = false
+      }
+      await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
+        $0.codexHooks.isPending = false
+      }
     }
   }
 
@@ -63,12 +78,26 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
+      $0.claudeSettingsClient.hasSupatermHooks = { false }
+      $0.codexSettingsClient.hasSupatermHooks = { false }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
     }
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
+    await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
+      $0.claudeHooks.isPending = true
+    }
+    await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
+      $0.codexHooks.isPending = true
+    }
+    await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
+      $0.claudeHooks.isPending = false
+    }
+    await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
+      $0.codexHooks.isPending = false
+    }
 
     continuation.yield(
       .init(
@@ -423,24 +452,55 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func claudeHooksInstallButtonShowsSuccessState() async {
+  func taskLoadsAgentHookStatuses() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.claudeSettingsClient.installSupatermHooks = {}
+      $0.claudeSettingsClient.hasSupatermHooks = { true }
+      $0.codexSettingsClient.hasSupatermHooks = { false }
     }
 
-    await store.send(.claudeHooksInstallButtonTapped) {
-      $0.claudeHooksInstallState = .installing
+    await store.send(.task)
+    await store.receive(\.settingsLoaded)
+    await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
+      $0.claudeHooks.isPending = true
     }
-
-    await store.receive(.claudeHooksInstallFinished(.success)) {
-      $0.claudeHooksInstallState = .succeeded("Claude hooks installed in ~/.claude/settings.json.")
+    await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
+      $0.codexHooks.isPending = true
+    }
+    await store.receive(.agentHooksStatusRefreshed(.claude, .success(true))) {
+      $0.claudeHooks.confirmedEnabled = true
+      $0.claudeHooks.isEnabled = true
+      $0.claudeHooks.isPending = false
+    }
+    await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
+      $0.codexHooks.isPending = false
     }
   }
 
   @Test
-  func claudeHooksInstallButtonShowsFailureState() async {
+  func claudeHooksToggleOnShowsSuccessState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.claudeSettingsClient.installSupatermHooks = {}
+      $0.claudeSettingsClient.hasSupatermHooks = { true }
+    }
+
+    await store.send(.agentHooksToggled(.claude, true)) {
+      $0.claudeHooks.isEnabled = true
+      $0.claudeHooks.isPending = true
+    }
+
+    await store.receive(.agentHooksToggleFinished(.claude, .success(true))) {
+      $0.claudeHooks.confirmedEnabled = true
+      $0.claudeHooks.isEnabled = true
+      $0.claudeHooks.isPending = false
+    }
+  }
+
+  @Test
+  func claudeHooksToggleFailureRevertsToConfirmedState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
@@ -449,56 +509,77 @@ struct SettingsFeatureTests {
       }
     }
 
-    await store.send(.claudeHooksInstallButtonTapped) {
-      $0.claudeHooksInstallState = .installing
+    await store.send(.agentHooksToggled(.claude, true)) {
+      $0.claudeHooks.isEnabled = true
+      $0.claudeHooks.isPending = true
     }
 
     await store.receive(
-      .claudeHooksInstallFinished(.failure("Claude settings must be valid JSON before Supaterm can install hooks."))
+      .agentHooksToggleFinished(
+        .claude,
+        .failure("Claude settings must be valid JSON before Supaterm can install hooks.")
+      )
     ) {
-      $0.claudeHooksInstallState = .failed("Claude settings must be valid JSON before Supaterm can install hooks.")
+      $0.claudeHooks.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
+      $0.claudeHooks.isEnabled = false
+      $0.claudeHooks.isPending = false
     }
   }
 
   @Test
-  func codexHooksInstallButtonShowsSuccessState() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+  func codexHooksToggleOffShowsSuccessState() async {
+    var state = SettingsFeature.State()
+    state.codexHooks.confirmedEnabled = true
+    state.codexHooks.isEnabled = true
+
+    let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.codexSettingsClient.installSupatermHooks = {}
+      $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.codexSettingsClient.removeSupatermHooks = {}
     }
 
-    await store.send(.codexHooksInstallButtonTapped) {
-      $0.codexHooksInstallState = .installing
+    await store.send(.agentHooksToggled(.codex, false)) {
+      $0.codexHooks.isEnabled = false
+      $0.codexHooks.isPending = true
     }
 
-    await store.receive(.codexHooksInstallFinished(.success)) {
-      $0.codexHooksInstallState = .succeeded("Codex hooks installed in ~/.codex/hooks.json.")
+    await store.receive(.agentHooksToggleFinished(.codex, .success(false))) {
+      $0.codexHooks.confirmedEnabled = false
+      $0.codexHooks.isEnabled = false
+      $0.codexHooks.isPending = false
     }
   }
 
   @Test
-  func codexHooksInstallButtonShowsFailureState() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+  func codexHooksToggleFailureRevertsToConfirmedState() async {
+    var state = SettingsFeature.State()
+    state.codexHooks.confirmedEnabled = true
+    state.codexHooks.isEnabled = true
+
+    let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.codexSettingsClient.installSupatermHooks = {
+      $0.codexSettingsClient.removeSupatermHooks = {
         throw CodexSettingsInstallerError.codexUnavailable
       }
     }
 
-    await store.send(.codexHooksInstallButtonTapped) {
-      $0.codexHooksInstallState = .installing
+    await store.send(.agentHooksToggled(.codex, false)) {
+      $0.codexHooks.isEnabled = false
+      $0.codexHooks.isPending = true
     }
 
     await store.receive(
-      .codexHooksInstallFinished(
+      .agentHooksToggleFinished(
+        .codex,
         .failure("Codex must be installed and available in your login shell before Supaterm can install hooks.")
       )
     ) {
-      $0.codexHooksInstallState = .failed(
+      $0.codexHooks.errorMessage =
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
-      )
+      $0.codexHooks.isEnabled = true
+      $0.codexHooks.isPending = false
     }
   }
 }

@@ -1,44 +1,27 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupatermCLIShared
 
 private enum SettingsFeatureCancelID {
   static let updateObservation = "SettingsFeature.updateObservation"
 }
 
-enum SettingsAgentHooksInstallState: Equatable {
-  case idle
-  case failed(String)
-  case installing
-  case succeeded(String)
+struct SettingsAgentHooksState: Equatable {
+  let settingsPath: String
+  var confirmedEnabled = false
+  var errorMessage: String?
+  var isEnabled = false
+  var isPending = false
 
   var isFailure: Bool {
-    if case .failed = self {
-      return true
-    }
-    return false
-  }
-
-  var isInstalling: Bool {
-    if case .installing = self {
-      return true
-    }
-    return false
-  }
-
-  var message: String? {
-    switch self {
-    case .idle, .installing:
-      return nil
-    case .failed(let message), .succeeded(let message):
-      return message
-    }
+    errorMessage != nil
   }
 }
 
-enum SettingsAgentHooksInstallResult: Equatable {
+enum SettingsAgentHooksResult: Equatable {
   case failure(String)
-  case success
+  case success(Bool)
 }
 
 @Reducer
@@ -48,8 +31,8 @@ struct SettingsFeature {
     var appearanceMode = AppPrefs.default.appearanceMode
     var analyticsEnabled = AppPrefs.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
-    var claudeHooksInstallState = SettingsAgentHooksInstallState.idle
-    var codexHooksInstallState = SettingsAgentHooksInstallState.idle
+    var claudeHooks = SettingsAgentHooksState(settingsPath: "~/.claude/settings.json")
+    var codexHooks = SettingsAgentHooksState(settingsPath: "~/.codex/hooks.json")
     var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
     var restoreTerminalLayoutEnabled = AppPrefs.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
@@ -60,14 +43,14 @@ struct SettingsFeature {
   }
 
   enum Action: Equatable {
+    case agentHooksStatusRefreshRequested(SupatermAgentKind)
+    case agentHooksStatusRefreshed(SupatermAgentKind, SettingsAgentHooksResult)
+    case agentHooksToggled(SupatermAgentKind, Bool)
+    case agentHooksToggleFinished(SupatermAgentKind, SettingsAgentHooksResult)
     case alert(PresentationAction<Alert>)
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
-    case claudeHooksInstallButtonTapped
-    case claudeHooksInstallFinished(SettingsAgentHooksInstallResult)
-    case codexHooksInstallButtonTapped
-    case codexHooksInstallFinished(SettingsAgentHooksInstallResult)
     case crashReportsEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(AppPrefs)
@@ -147,6 +130,8 @@ struct SettingsFeature {
         @Shared(.appPrefs) var appPrefs = .default
         return .merge(
           .send(.settingsLoaded(appPrefs)),
+          .send(.agentHooksStatusRefreshRequested(.claude)),
+          .send(.agentHooksStatusRefreshRequested(.codex)),
           .run { [updateClient] send in
             await updateClient.start()
             let stream = await updateClient.observe()
@@ -192,48 +177,66 @@ struct SettingsFeature {
         state.analyticsEnabled = isEnabled
         return persist(state)
 
-      case .claudeHooksInstallButtonTapped:
-        guard !state.claudeHooksInstallState.isInstalling else {
+      case .agentHooksStatusRefreshRequested(let agent):
+        let keyPath = agentHooksKeyPath(for: agent)
+        guard !state[keyPath: keyPath].isPending else {
           return .none
         }
-        state.claudeHooksInstallState = .installing
-        return .run { [claudeSettingsClient] send in
+        state[keyPath: keyPath].isPending = true
+        let loadStatus = loadSupatermHooksOperation(for: agent)
+        return .run { send in
           do {
-            try await claudeSettingsClient.installSupatermHooks()
-            await send(.claudeHooksInstallFinished(.success))
+            await send(.agentHooksStatusRefreshed(agent, .success(try await loadStatus())))
           } catch {
-            await send(.claudeHooksInstallFinished(.failure(error.localizedDescription)))
+            await send(.agentHooksStatusRefreshed(agent, .failure(error.localizedDescription)))
           }
         }
 
-      case .claudeHooksInstallFinished(.success):
-        state.claudeHooksInstallState = .succeeded("Claude hooks installed in ~/.claude/settings.json.")
+      case .agentHooksStatusRefreshed(let agent, .success(let isEnabled)):
+        let keyPath = agentHooksKeyPath(for: agent)
+        state[keyPath: keyPath].confirmedEnabled = isEnabled
+        state[keyPath: keyPath].errorMessage = nil
+        state[keyPath: keyPath].isEnabled = isEnabled
+        state[keyPath: keyPath].isPending = false
         return .none
 
-      case .claudeHooksInstallFinished(.failure(let message)):
-        state.claudeHooksInstallState = .failed(message)
+      case .agentHooksStatusRefreshed(let agent, .failure(let message)):
+        let keyPath = agentHooksKeyPath(for: agent)
+        state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
+        state[keyPath: keyPath].isPending = false
         return .none
 
-      case .codexHooksInstallButtonTapped:
-        guard !state.codexHooksInstallState.isInstalling else {
+      case .agentHooksToggled(let agent, let isEnabled):
+        let keyPath = agentHooksKeyPath(for: agent)
+        guard !state[keyPath: keyPath].isPending else {
           return .none
         }
-        state.codexHooksInstallState = .installing
-        return .run { [codexSettingsClient] send in
+        state[keyPath: keyPath].errorMessage = nil
+        state[keyPath: keyPath].isEnabled = isEnabled
+        state[keyPath: keyPath].isPending = true
+        let updateStatus = updateSupatermHooksOperation(for: agent, isEnabled: isEnabled)
+        return .run { send in
           do {
-            try await codexSettingsClient.installSupatermHooks()
-            await send(.codexHooksInstallFinished(.success))
+            await send(.agentHooksToggleFinished(agent, .success(try await updateStatus())))
           } catch {
-            await send(.codexHooksInstallFinished(.failure(error.localizedDescription)))
+            await send(.agentHooksToggleFinished(agent, .failure(error.localizedDescription)))
           }
         }
 
-      case .codexHooksInstallFinished(.success):
-        state.codexHooksInstallState = .succeeded("Codex hooks installed in ~/.codex/hooks.json.")
+      case .agentHooksToggleFinished(let agent, .success(let isEnabled)):
+        let keyPath = agentHooksKeyPath(for: agent)
+        state[keyPath: keyPath].confirmedEnabled = isEnabled
+        state[keyPath: keyPath].errorMessage = nil
+        state[keyPath: keyPath].isEnabled = isEnabled
+        state[keyPath: keyPath].isPending = false
         return .none
 
-      case .codexHooksInstallFinished(.failure(let message)):
-        state.codexHooksInstallState = .failed(message)
+      case .agentHooksToggleFinished(let agent, .failure(let message)):
+        let keyPath = agentHooksKeyPath(for: agent)
+        state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
+        state[keyPath: keyPath].isPending = false
         return .none
 
       case .crashReportsEnabledChanged(let isEnabled):
@@ -339,6 +342,58 @@ struct SettingsFeature {
       analyticsClient.capture("settings_changed")
     }
     return .none
+  }
+
+  private func agentHooksKeyPath(
+    for agent: SupatermAgentKind
+  ) -> WritableKeyPath<State, SettingsAgentHooksState> {
+    switch agent {
+    case .claude:
+      return \.claudeHooks
+    case .codex:
+      return \.codexHooks
+    }
+  }
+
+  private func loadSupatermHooksOperation(
+    for agent: SupatermAgentKind
+  ) -> @Sendable () async throws -> Bool {
+    switch agent {
+    case .claude:
+      let client = claudeSettingsClient
+      return { try await client.hasSupatermHooks() }
+    case .codex:
+      let client = codexSettingsClient
+      return { try await client.hasSupatermHooks() }
+    }
+  }
+
+  private func updateSupatermHooksOperation(
+    for agent: SupatermAgentKind,
+    isEnabled: Bool
+  ) -> @Sendable () async throws -> Bool {
+    switch agent {
+    case .claude:
+      let client = claudeSettingsClient
+      return {
+        if isEnabled {
+          try await client.installSupatermHooks()
+        } else {
+          try await client.removeSupatermHooks()
+        }
+        return try await client.hasSupatermHooks()
+      }
+    case .codex:
+      let client = codexSettingsClient
+      return {
+        if isEnabled {
+          try await client.installSupatermHooks()
+        } else {
+          try await client.removeSupatermHooks()
+        }
+        return try await client.hasSupatermHooks()
+      }
+    }
   }
 
   private func notificationPermissionAlert(errorMessage: String?) -> AlertState<Alert> {

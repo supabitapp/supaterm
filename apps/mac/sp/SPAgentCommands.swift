@@ -8,7 +8,7 @@ extension SP {
       commandName: "agent",
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
-      subcommands: [InstallAgentHook.self, ReceiveAgentHook.self]
+      subcommands: [InstallAgentHook.self, RemoveAgentHook.self, ReceiveAgentHook.self]
     )
 
     mutating func run() throws {
@@ -64,6 +64,19 @@ extension SP {
       print(Self.helpMessage())
     }
   }
+
+  struct RemoveAgentHook: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "remove-hook",
+      abstract: "Remove Supaterm's hook bridge for a coding agent.",
+      discussion: SPHelp.removeAgentHookDiscussion,
+      subcommands: [Claude.self, Codex.self]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
 }
 
 extension SP.InstallAgentHook {
@@ -94,6 +107,42 @@ extension SP.InstallAgentHook {
     mutating func run() throws {
       do {
         try CodexSettingsInstaller().installSupatermHooks()
+      } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        throw ExitCode.failure
+      }
+    }
+  }
+}
+
+extension SP.RemoveAgentHook {
+  struct Claude: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "claude",
+      abstract: "Remove Supaterm's Claude hook bridge.",
+      discussion: SPHelp.removeAgentHookClaudeDiscussion
+    )
+
+    mutating func run() throws {
+      do {
+        try ClaudeSettingsInstaller().removeSupatermHooks()
+      } catch {
+        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+        throw ExitCode.failure
+      }
+    }
+  }
+
+  struct Codex: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "codex",
+      abstract: "Remove Supaterm's Codex hook bridge.",
+      discussion: SPHelp.removeAgentHookCodexDiscussion
+    )
+
+    mutating func run() throws {
+      do {
+        try CodexSettingsInstaller().removeSupatermHooks()
       } catch {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         throw ExitCode.failure

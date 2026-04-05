@@ -35,6 +35,25 @@ struct AgentHookSettingsFileInstaller {
     try data.write(to: settingsURL, options: .atomic)
   }
 
+  func hasSupatermHooks(settingsURL: URL) throws -> Bool {
+    let settingsObject = try loadSettingsObject(at: settingsURL)
+    return try settingsObjectContainsManagedHooks(settingsObject)
+  }
+
+  func removeSupatermHooks(settingsURL: URL) throws {
+    let settingsObject = try loadSettingsObject(at: settingsURL)
+    let prunedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    try fileManager.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(JSONValue.object(prunedObject))
+    try data.write(to: settingsURL, options: .atomic)
+  }
+
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {
     guard fileManager.fileExists(atPath: url.path) else {
       return [:]
@@ -59,26 +78,69 @@ struct AgentHookSettingsFileInstaller {
     from settingsObject: [String: JSONValue],
     hookGroupsByEvent: [String: [JSONValue]]
   ) throws -> [String: JSONValue] {
-    var mergedObject = settingsObject
-    var hooksObject: [String: JSONValue]
-
-    if let hooksValue = mergedObject["hooks"] {
-      guard let existingHooksObject = hooksValue.objectValue else {
-        throw errors.invalidHooksObject()
-      }
-      hooksObject = existingHooksObject
-    } else {
-      hooksObject = [:]
-    }
+    var mergedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    let hooksObject = mergedObject["hooks"]?.objectValue ?? [:]
+    var mergedHooksObject = hooksObject
 
     for (event, canonicalGroups) in hookGroupsByEvent {
-      let existingGroups = try existingGroups(for: event, hooksObject: hooksObject)
-      let filteredGroups = existingGroups.compactMap(prunedGroup(_:))
-      hooksObject[event] = .array(filteredGroups + canonicalGroups)
+      let existingGroups = try existingGroups(for: event, hooksObject: mergedHooksObject)
+      mergedHooksObject[event] = .array(existingGroups + canonicalGroups)
     }
 
-    mergedObject["hooks"] = .object(hooksObject)
+    mergedObject["hooks"] = .object(mergedHooksObject)
     return mergedObject
+  }
+
+  private func settingsObjectByRemovingManagedHooks(
+    from settingsObject: [String: JSONValue]
+  ) throws -> [String: JSONValue] {
+    var prunedObject = settingsObject
+    guard let hooksValue = prunedObject["hooks"] else {
+      return prunedObject
+    }
+    guard let hooksObject = hooksValue.objectValue else {
+      throw errors.invalidHooksObject()
+    }
+
+    var prunedHooksObject: [String: JSONValue] = [:]
+    for (event, value) in hooksObject {
+      guard let groups = value.arrayValue else {
+        throw errors.invalidEventHooks(event)
+      }
+      let filteredGroups = groups.compactMap(prunedGroup(_:))
+      guard !filteredGroups.isEmpty else {
+        continue
+      }
+      prunedHooksObject[event] = .array(filteredGroups)
+    }
+
+    if prunedHooksObject.isEmpty {
+      prunedObject.removeValue(forKey: "hooks")
+    } else {
+      prunedObject["hooks"] = .object(prunedHooksObject)
+    }
+    return prunedObject
+  }
+
+  private func settingsObjectContainsManagedHooks(
+    _ settingsObject: [String: JSONValue]
+  ) throws -> Bool {
+    guard let hooksValue = settingsObject["hooks"] else {
+      return false
+    }
+    guard let hooksObject = hooksValue.objectValue else {
+      throw errors.invalidHooksObject()
+    }
+
+    for (event, value) in hooksObject {
+      guard let groups = value.arrayValue else {
+        throw errors.invalidEventHooks(event)
+      }
+      if groups.contains(where: groupContainsManagedHooks(_:)) {
+        return true
+      }
+    }
+    return false
   }
 
   private func existingGroups(
@@ -92,6 +154,23 @@ struct AgentHookSettingsFileInstaller {
       throw errors.invalidEventHooks(event)
     }
     return groups
+  }
+
+  private func groupContainsManagedHooks(_ group: JSONValue) -> Bool {
+    guard
+      let groupObject = group.objectValue,
+      let hooksValue = groupObject["hooks"],
+      let hooks = hooksValue.arrayValue
+    else {
+      return false
+    }
+
+    return hooks.contains { hook in
+      guard let hookObject = hook.objectValue else {
+        return false
+      }
+      return AgentHookCommandOwnership.isSupatermManagedCommand(hookObject["command"]?.stringValue)
+    }
   }
 
   private func prunedGroup(_ group: JSONValue) -> JSONValue? {
