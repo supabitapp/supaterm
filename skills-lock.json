@@ -4,47 +4,47 @@
     "debug-generated-project": {
       "source": "tuist/agent-skills",
       "sourceType": "github",
-      "computedHash": "a794be2fba4b4d1c55ab734cac3d04f95985934c3929cf87414814254c5c1dee"
+      "computedHash": "75ab81107ddb79cf0bb4ebf71e63ec99533be5e1d3329fe1dc54e9f101601ac8"
     },
     "fix-flaky-tests": {
       "source": "tuist/agent-skills",
       "sourceType": "github",
-      "computedHash": "af47a2a6450bad638d573f326aa4a8f4d5e9caaf9584b79d01203713df1e58d3"
+      "computedHash": "6bb6d690e3d28dddd5f3dd7b12d77548faf447f0c709d6e4341d93a66a3552f5"
     },
     "linear-cli": {
       "source": "schpet/linear-cli",
       "sourceType": "github",
-      "computedHash": "0f19ff561f34fa21b54af2299c20821e7f12d29da421437b3112ab05f24e42bd"
+      "computedHash": "e8c962895723ffb89036107baadd44ef8a3f4944da3a58a4db73e654180568bc"
     },
     "migrating-to-tuist-generated-projects": {
       "source": "tuist/agent-skills",
       "sourceType": "github",
-      "computedHash": "458f8047ce1b93820c9d27d2267750904cd0384fd5a0e7f5b0f1079dbe9d19a9"
+      "computedHash": "e1fff42f7baa733b9e10a47d1cd5bedbf0d1a0791575a0b4d7e6d4733e618a28"
     },
-    "peekabo": {
-      "source": "git@github.com:khoi/skills.git",
-      "sourceType": "git",
-      "computedHash": "d186b38e3b54254c6bf45abeb615afcd7d598151799ef5c728599656aecac277"
+    "supaterm": {
+      "source": "/Users/Developer/code/github.com/supabitapp/supaterm/.agents/skills/supaterm",
+      "sourceType": "local",
+      "computedHash": "d4830026235445df3e7e2de6b3843105cf5d4a46aaab856f003188579f4c1023"
     },
     "swift-concurrency": {
       "source": "avdlee/swift-concurrency-agent-skill",
       "sourceType": "github",
-      "computedHash": "fb91a851df4a0aabcb8eb8f9b3af98aa2fda5775c0f2ebc9aa61e8206e37d6ef"
+      "computedHash": "caeba2c0ba844b496566d117d6becfc3566f4a23254c2d7d192a5d0b5076b1c3"
     },
     "swiftui-animation": {
       "source": "jamesrochabrun/skills",
       "sourceType": "github",
-      "computedHash": "39bffed75485bdf27dfa3dd704d6e98998e998d0134152d80853ff2713d89dac"
+      "computedHash": "43229009417575dc88080a686d0785d06ea9e73a71480c237138a39f17d976c4"
     },
     "swiftui-expert-skill": {
       "source": "avdlee/swiftui-agent-skill",
       "sourceType": "github",
-      "computedHash": "6ee49ef533bac7e930efb2e2e5ae61399de9ffb52645df311740cbe6b4108134"
+      "computedHash": "7ce4190ca5b602dee2ce67b49cdccd4a8d2d41f18a8910fe965071fb5493f74f"
     },
     "using-tuist-generated-projects": {
       "source": "tuist/agent-skills",
       "sourceType": "github",
-      "computedHash": "21a9a953d38f1e4ee12cba585f7f6e993d40bfe77052393dadfbad87cd8d4765"
+      "computedHash": "b378a819ded936a3a745a7ca3d93de381765d0cc627a9b4922e0d73070443846"
     }
   }
 }
