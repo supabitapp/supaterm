@@ -935,7 +935,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Message · Updating the registry and sidebar")
+        == .codex(.running, detail: "Updating the registry and sidebar")
     )
 
     try CodexTranscriptFixtures.append(
@@ -949,7 +949,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Message · Updating the registry and sidebar")
+        == .codex(.running, detail: "Updating the registry and sidebar")
     )
 
     try CodexTranscriptFixtures.append(
@@ -1002,7 +1002,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Message · Inspecting the transcript path")
+        == .codex(.running, detail: "Inspecting the transcript path")
     )
   }
 
@@ -1040,7 +1040,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Reasoning · Inspecting transcript activity")
+        == .codex(.running, detail: #"Thinking: "Inspecting transcript activity""#)
     )
 
     try CodexTranscriptFixtures.append(
@@ -1051,7 +1051,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Message · Need approval?")
+        == .codex(.running, detail: "Need approval?")
     )
 
     try CodexTranscriptFixtures.append(

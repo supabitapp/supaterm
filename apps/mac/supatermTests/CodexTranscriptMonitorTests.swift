@@ -17,7 +17,7 @@ struct CodexTranscriptMonitorTests {
 
     #expect(result.0.offset > cursor.offset)
     #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == "Reasoning · Inspecting the workspace")
+    #expect(result.1?.detail == #"Thinking: "Inspecting the workspace""#)
   }
 
   @Test
@@ -53,6 +53,6 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == "Message · Inspecting the transcript path")
+    #expect(result.1?.detail == "Inspecting the transcript path")
   }
 }
