@@ -55,4 +55,51 @@ struct CodexTranscriptMonitorTests {
 
     #expect(result.1?.detail == "Inspecting the transcript path")
   }
+
+  @Test
+  func advanceUsesExecCommandCmdForToolDetail() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "exec_command",
+        arguments: [
+          "cmd": "sed -n '1,40p' docs/coding-agents-integration.md"
+        ]
+      ),
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+
+    #expect(result.1?.detail == "sed -n '1,40p' docs/coding-agents-integration.md")
+  }
+
+  @Test
+  func advanceFormatsGenericToolCallsAsExecuting() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(.functionCall(name: "update_plan"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+
+    #expect(result.1?.detail == #"Executing "update_plan""#)
+  }
+
+  @Test
+  func advanceFallsBackToWorkingWhenExecCommandHasNoCmd() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(.functionCall(name: "exec_command"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+
+    #expect(result.1?.detail == "Working...")
+  }
 }
