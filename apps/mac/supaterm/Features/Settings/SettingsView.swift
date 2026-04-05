@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermCLIShared
 import SwiftUI
 
 struct SettingsView: View {
@@ -62,12 +63,30 @@ private struct SettingsTabContentView: View {
 private struct SettingsCodingAgentsView: View {
   let store: StoreOf<SettingsFeature>
 
-  private var claudeInstallState: SettingsAgentHooksInstallState {
-    store.claudeHooksInstallState
+  private var claudeHooks: SettingsAgentHooksState {
+    store.claudeHooks
   }
 
-  private var codexInstallState: SettingsAgentHooksInstallState {
-    store.codexHooksInstallState
+  private var codexHooks: SettingsAgentHooksState {
+    store.codexHooks
+  }
+
+  private var claudeToggle: Binding<Bool> {
+    Binding(
+      get: { store.claudeHooks.isEnabled },
+      set: { newValue in
+        _ = store.send(.agentHooksToggled(.claude, newValue))
+      }
+    )
+  }
+
+  private var codexToggle: Binding<Bool> {
+    Binding(
+      get: { store.codexHooks.isEnabled },
+      set: { newValue in
+        _ = store.send(.agentHooksToggled(.codex, newValue))
+      }
+    )
   }
 
   var body: some View {
@@ -77,10 +96,10 @@ private struct SettingsCodingAgentsView: View {
       ) {}
 
       Section {
-        SettingsAgentInstallRow(
-          action: { _ = store.send(.claudeHooksInstallButtonTapped) },
-          buttonTitle: "Install",
-          installState: claudeInstallState,
+        SettingsAgentToggleRow(
+          errorMessage: claudeHooks.errorMessage,
+          isOn: claudeToggle,
+          isPending: claudeHooks.isPending,
           subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
           title: "Integration"
         )
@@ -90,14 +109,14 @@ private struct SettingsCodingAgentsView: View {
           title: "Claude Code"
         )
       } footer: {
-        Text("Applied to `~/.claude/settings.json`.")
+        Text("Applied to `\(claudeHooks.settingsPath)`.")
       }
 
       Section {
-        SettingsAgentInstallRow(
-          action: { _ = store.send(.codexHooksInstallButtonTapped) },
-          buttonTitle: "Install",
-          installState: codexInstallState,
+        SettingsAgentToggleRow(
+          errorMessage: codexHooks.errorMessage,
+          isOn: codexToggle,
+          isPending: codexHooks.isPending,
           subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
           title: "Integration"
         )
@@ -107,7 +126,7 @@ private struct SettingsCodingAgentsView: View {
           title: "Codex"
         )
       } footer: {
-        Text("Applied to `~/.codex/hooks.json`.")
+        Text("Applied to `\(codexHooks.settingsPath)`.")
       }
     }
     .navigationTitle("Coding Agents")
@@ -115,10 +134,10 @@ private struct SettingsCodingAgentsView: View {
   }
 }
 
-private struct SettingsAgentInstallRow: View {
-  let action: () -> Void
-  let buttonTitle: String
-  let installState: SettingsAgentHooksInstallState
+private struct SettingsAgentToggleRow: View {
+  let errorMessage: String?
+  let isOn: Binding<Bool>
+  let isPending: Bool
   let subtitle: String
   let title: String
 
@@ -126,20 +145,17 @@ private struct SettingsAgentInstallRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      LabeledContent {
-        Button(installState.isInstalling ? "Installing..." : buttonTitle, action: action)
-          .disabled(installState.isInstalling)
-          .fixedSize()
-      } label: {
+      Toggle(isOn: isOn) {
         SettingsRowLabel(
           title: title,
           subtitle: subtitle
         )
       }
-      if let message = installState.message {
-        Text(message)
+      .disabled(isPending)
+      if let errorMessage {
+        Text(errorMessage)
           .font(.callout)
-          .foregroundStyle(installState.isFailure ? errorColor : .secondary)
+          .foregroundStyle(errorColor)
           .fixedSize(horizontal: false, vertical: true)
       }
     }

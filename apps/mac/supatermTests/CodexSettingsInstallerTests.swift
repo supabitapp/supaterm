@@ -209,6 +209,165 @@ struct CodexSettingsInstallerTests {
   }
 
   @Test
+  func installRemovesSupatermCommandsFromOtherEvents() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "LegacyEvent": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm old bridge",
+                  "timeout": 9,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+    )
+
+    try installer.installSupatermHooks()
+
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let hooks = try #require(object["hooks"] as? [String: Any])
+    #expect(hooks["LegacyEvent"] == nil)
+  }
+
+  @Test
+  func hasSupatermHooksMatchesAnySupatermSubstring() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [
+            {
+              "hooks": [
+                {
+                  "command": "echo SuPaTeRm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+    )
+
+    #expect(try installer.hasSupatermHooks())
+  }
+
+  @Test
+  func removeSupatermHooksPreservesUnrelatedHooksAndDoesNotRequireCodex() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                },
+                {
+                  "command": "echo keep",
+                  "timeout": 30,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: {
+        Issue.record("removeSupatermHooks should not invoke the enable hooks command.")
+        return .init(status: 0, standardError: "")
+      }
+    )
+
+    try installer.removeSupatermHooks()
+
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let commands = try codexEventGroupsValue("Stop", in: object)
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+
+    #expect(commands == ["echo keep"])
+    #expect(try installer.hasSupatermHooks() == false)
+  }
+
+  @Test
+  func removeSupatermHooksDropsEmptyHooksObject() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+    )
+
+    try installer.removeSupatermHooks()
+
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["hooks"] == nil)
+  }
+
+  @Test
   func installFailsWithoutOverwritingInvalidJSON() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

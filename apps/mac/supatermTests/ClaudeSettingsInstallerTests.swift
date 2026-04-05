@@ -191,6 +191,148 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
+  func installRemovesSupatermCommandsFromOtherEvents() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "CustomEvent": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm old bridge",
+                  "timeout": 9,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).installSupatermHooks()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    let hooks = try #require(object["hooks"] as? [String: Any])
+    #expect(hooks["CustomEvent"] == nil)
+  }
+
+  @Test
+  func hasSupatermHooksMatchesAnySupatermSubstring() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "Notification": [
+            {
+              "hooks": [
+                {
+                  "command": "echo SuPaTeRm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL)
+
+    #expect(try installer.hasSupatermHooks())
+  }
+
+  @Test
+  func removeSupatermHooksPreservesUnrelatedSettingsAndHooks() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeSettings(
+      """
+      {
+        "theme": "dark",
+        "hooks": {
+          "Notification": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                },
+                {
+                  "command": "echo keep",
+                  "timeout": 30,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL)
+    try installer.removeSupatermHooks()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["theme"] as? String == "dark")
+
+    let commands = try notificationGroupsValue(in: object)
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+
+    #expect(commands == ["echo keep"])
+    #expect(try installer.hasSupatermHooks() == false)
+  }
+
+  @Test
+  func removeSupatermHooksDropsEmptyHooksObject() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "Notification": [
+            {
+              "hooks": [
+                {
+                  "command": "echo supaterm bridge",
+                  "timeout": 10,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    try ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL).removeSupatermHooks()
+
+    let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
+    #expect(object["hooks"] == nil)
+  }
+
+  @Test
   func installFailsWithoutOverwritingInvalidJSON() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

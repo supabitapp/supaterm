@@ -98,6 +98,7 @@ struct SPHelpTests {
 
     #expect(help.contains("Settings > Coding Agents"))
     #expect(help.contains("sp agent install-hook"))
+    #expect(help.contains("sp agent remove-hook"))
     #expect(help.contains("receive-agent-hook --agent claude"))
   }
 
@@ -107,6 +108,14 @@ struct SPHelpTests {
 
     #expect(help.contains("sp agent install-hook claude"))
     #expect(help.contains("sp agent install-hook codex"))
+  }
+
+  @Test
+  func removeAgentHooksHelpShowsExamples() {
+    let help = SP.helpMessage(for: SP.RemoveAgentHook.self, columns: 100)
+
+    #expect(help.contains("sp agent remove-hook claude"))
+    #expect(help.contains("sp agent remove-hook codex"))
   }
 
   @Test

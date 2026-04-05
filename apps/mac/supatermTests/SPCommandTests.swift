@@ -83,12 +83,18 @@ struct SPCommandTests {
   }
 
   @Test
-  func agentParserAcceptsInstallHookAndReceiveAgentHookSubcommands() throws {
+  func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
     let claudeCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude
     )
     let codexCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hook", "codex"]) as? SP.InstallAgentHook.Codex
+    )
+    let removeClaudeCommand = try #require(
+      try SP.parseAsRoot(["agent", "remove-hook", "claude"]) as? SP.RemoveAgentHook.Claude
+    )
+    let removeCodexCommand = try #require(
+      try SP.parseAsRoot(["agent", "remove-hook", "codex"]) as? SP.RemoveAgentHook.Codex
     )
     let receiveCommand = try #require(
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"]) as? SP.ReceiveAgentHook
@@ -96,6 +102,8 @@ struct SPCommandTests {
 
     #expect(type(of: claudeCommand) == SP.InstallAgentHook.Claude.self)
     #expect(type(of: codexCommand) == SP.InstallAgentHook.Codex.self)
+    #expect(type(of: removeClaudeCommand) == SP.RemoveAgentHook.Claude.self)
+    #expect(type(of: removeCodexCommand) == SP.RemoveAgentHook.Codex.self)
     #expect(receiveCommand.agent == .claude)
   }
 

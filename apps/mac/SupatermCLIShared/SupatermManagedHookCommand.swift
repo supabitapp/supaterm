@@ -13,9 +13,7 @@ public enum SupatermManagedHookCommand {
     guard let normalizedCommand = normalized(command) else {
       return false
     }
-    return SupatermAgentKind.allCases.contains { agent in
-      normalizedCommand == normalized(receiveHookCommand(for: agent))
-    }
+    return normalizedCommand.lowercased().contains("supaterm")
   }
 
   private static func normalized(_ command: String?) -> String? {

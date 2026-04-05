@@ -204,10 +204,11 @@ enum SPHelp {
   static let receiveAgentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Install Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp agent install-hook`.
+    Manage Claude or Codex hooks from Supaterm Settings > Coding Agents or with `sp agent install-hook` and `sp agent remove-hook`.
 
     Example:
       sp agent install-hook claude
+      sp agent remove-hook claude
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
@@ -218,6 +219,14 @@ enum SPHelp {
     Example:
       sp agent install-hook claude
       sp agent install-hook codex
+    """
+
+  static let removeAgentHookDiscussion = """
+    Remove Supaterm's hook bridge from the selected agent's user configuration.
+
+    Example:
+      sp agent remove-hook claude
+      sp agent remove-hook codex
     """
 
   static let installAgentHookClaudeDiscussion = """
@@ -232,6 +241,20 @@ enum SPHelp {
 
     Example:
       sp agent install-hook codex
+    """
+
+  static let removeAgentHookClaudeDiscussion = """
+    Removes Supaterm hooks from ~/.claude/settings.json.
+
+    Example:
+      sp agent remove-hook claude
+    """
+
+  static let removeAgentHookCodexDiscussion = """
+    Removes Supaterm hooks from ~/.codex/hooks.json.
+
+    Example:
+      sp agent remove-hook codex
     """
 
   static let agentSettingsDiscussion = """

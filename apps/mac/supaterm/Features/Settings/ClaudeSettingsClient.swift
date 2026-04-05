@@ -3,18 +3,28 @@ import Foundation
 import SupatermCLIShared
 
 struct ClaudeSettingsClient: Sendable {
+  var hasSupatermHooks: @Sendable () async throws -> Bool
   var installSupatermHooks: @Sendable () async throws -> Void
+  var removeSupatermHooks: @Sendable () async throws -> Void
 }
 
 extension ClaudeSettingsClient: DependencyKey {
   static let liveValue = Self(
+    hasSupatermHooks: {
+      try ClaudeSettingsInstaller().hasSupatermHooks()
+    },
     installSupatermHooks: {
-      try BundledSPAgentHooksInstaller().installSupatermHooks(for: .claude)
+      try ClaudeSettingsInstaller().installSupatermHooks()
+    },
+    removeSupatermHooks: {
+      try ClaudeSettingsInstaller().removeSupatermHooks()
     }
   )
 
   static let testValue = Self(
-    installSupatermHooks: {}
+    hasSupatermHooks: { false },
+    installSupatermHooks: {},
+    removeSupatermHooks: {}
   )
 }
 
