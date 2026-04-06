@@ -281,13 +281,6 @@ private struct SettingsTerminalView: View {
     Form {
       Section {
         VStack(alignment: .leading, spacing: 16) {
-          Text(
-            "Ghostty typography is stored in your primary config file and applied immediately "
-              + "to both the preview and open terminals."
-          )
-          .font(.callout)
-          .foregroundStyle(.secondary)
-
           SettingsTerminalPreviewView(configPath: resolvedConfigPath)
             .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
             .id(resolvedConfigPath)
