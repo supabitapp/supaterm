@@ -663,8 +663,12 @@ private struct SettingsCompactToggleRow: View {
   let isOn: Binding<Bool>
 
   var body: some View {
-    Toggle(title, isOn: isOn)
-      .toggleStyle(.checkbox)
+    Toggle(isOn: isOn) {
+      Text(title)
+        .font(.callout)
+    }
+    .controlSize(.small)
+    .toggleStyle(.checkbox)
   }
 }
 
