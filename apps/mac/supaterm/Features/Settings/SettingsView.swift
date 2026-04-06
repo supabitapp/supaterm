@@ -511,83 +511,67 @@ private struct SettingsAboutView: View {
         }
 
         SettingsSurfaceCard {
-          VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .center) {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Updates")
-                  .font(.title3.weight(.semibold))
+          VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+              Text("Updates")
+                .font(.headline)
 
-                Text("Choose a release channel, tune automatic updates, and check manually when needed.")
-                  .font(.callout)
-                  .foregroundStyle(.secondary)
+              Text("Choose your release channel.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .top, spacing: 16) {
+              VStack(alignment: .leading, spacing: 4) {
+                Text("Channel")
+                  .font(.body.weight(.medium))
+
+                Text(
+                  store.updateChannel == .stable
+                    ? "Recommended for most users."
+                    : "Get the latest features early."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
               }
 
               Spacer(minLength: 0)
-            }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 18) {
-              VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 16) {
-                  VStack(alignment: .leading, spacing: 6) {
-                    Text("Channel")
-                      .font(.headline)
-
-                    Text(
-                      store.updateChannel == .stable
-                        ? "Recommended for most users."
-                        : "Get the latest features early."
-                    )
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                  }
-
-                  Spacer(minLength: 0)
-
-                  Picker("Channel", selection: updateChannel) {
-                    ForEach(UpdateChannel.allCases) { channel in
-                      Text(channel.title).tag(channel)
-                    }
-                  }
-                  .labelsHidden()
-                  .pickerStyle(.menu)
-                  .frame(width: 180, alignment: .trailing)
-                  .controlSize(.large)
+              Picker("Channel", selection: updateChannel) {
+                ForEach(UpdateChannel.allCases) { channel in
+                  Text(channel.title).tag(channel)
                 }
               }
+              .labelsHidden()
+              .pickerStyle(.menu)
+              .frame(width: 180, alignment: .trailing)
+              .controlSize(.large)
             }
           }
         }
 
         SettingsSurfaceCard {
-          VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
+          VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
               Text("Diagnostics")
-                .font(.title3.weight(.semibold))
+                .font(.headline)
 
-              Text("Control the anonymous data Supaterm sends back to improve the product.")
+              Text("Control anonymous analytics and crash reports.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 14) {
-              SettingsToggleRow(
+            VStack(alignment: .leading, spacing: 10) {
+              SettingsCompactToggleRow(
                 title: "Share analytics with Supaterm",
-                subtitle: "Anonymous usage data helps improve Supaterm.",
                 isOn: analyticsEnabled
               )
 
-              SettingsToggleRow(
+              SettingsCompactToggleRow(
                 title: "Share crash reports with Supaterm",
-                subtitle: "Anonymous crash reports help improve stability.",
                 isOn: crashReportsEnabled
               )
             }
-
-            Divider()
 
             Text("Changes to analytics and crash reports require an app restart.")
               .font(.callout)
