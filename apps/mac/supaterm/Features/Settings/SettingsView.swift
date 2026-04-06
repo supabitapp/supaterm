@@ -484,9 +484,26 @@ private struct SettingsAboutView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
 
-              Text("Updates and release settings now live here.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+              HStack(spacing: 12) {
+                Button("Check for Updates") {
+                  _ = store.send(.checkForUpdatesButtonTapped)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+              }
+
+              VStack(alignment: .leading, spacing: 12) {
+                SettingsCompactToggleRow(
+                  title: "Automatically check for updates",
+                  isOn: updatesAutomaticallyCheckForUpdates
+                )
+
+                SettingsCompactToggleRow(
+                  title: "Automatically download and install updates",
+                  isOn: updatesAutomaticallyDownloadUpdates
+                )
+                .disabled(!store.updatesAutomaticallyCheckForUpdates)
+              }
             }
 
             Spacer(minLength: 0)
@@ -506,12 +523,6 @@ private struct SettingsAboutView: View {
               }
 
               Spacer(minLength: 0)
-
-              Button("Check for Updates") {
-                _ = store.send(.checkForUpdatesButtonTapped)
-              }
-              .buttonStyle(.bordered)
-              .controlSize(.large)
             }
 
             Divider()
@@ -544,23 +555,6 @@ private struct SettingsAboutView: View {
                   .frame(width: 180, alignment: .trailing)
                   .controlSize(.large)
                 }
-              }
-
-              Divider()
-
-              VStack(alignment: .leading, spacing: 14) {
-                SettingsToggleRow(
-                  title: "Automatically check for updates",
-                  subtitle: "Periodically checks for new versions while Supaterm is running.",
-                  isOn: updatesAutomaticallyCheckForUpdates
-                )
-
-                SettingsToggleRow(
-                  title: "Automatically download and install updates",
-                  subtitle: "Downloads updates in the background and prompts for restart when needed.",
-                  isOn: updatesAutomaticallyDownloadUpdates
-                )
-                .disabled(!store.updatesAutomaticallyCheckForUpdates)
               }
             }
           }
@@ -621,6 +615,16 @@ private struct SettingsToggleRow: View {
         subtitle: subtitle
       )
     }
+  }
+}
+
+private struct SettingsCompactToggleRow: View {
+  let title: String
+  let isOn: Binding<Bool>
+
+  var body: some View {
+    Toggle(title, isOn: isOn)
+      .toggleStyle(.checkbox)
   }
 }
 
