@@ -14,6 +14,9 @@ struct GhosttyTerminalConfigFileTests {
     let configFile = GhosttyTerminalConfigFile(
       homeDirectoryURL: rootURL,
       environment: environment,
+      availableThemesProvider: {
+        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+      },
       availableFontFamiliesProvider: { ["JetBrains Mono", "SF Mono"] }
     )
 
@@ -24,9 +27,13 @@ struct GhosttyTerminalConfigFileTests {
     ).preferred
 
     #expect(snapshot.availableFontFamilies == ["JetBrains Mono", "SF Mono"])
+    #expect(snapshot.availableDarkThemes == ["Zenbones Dark"])
+    #expect(snapshot.availableLightThemes == ["Zenbones Light"])
     #expect(snapshot.configPath == configURL.path)
+    #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
     #expect(snapshot.fontSize == 15)
+    #expect(snapshot.lightTheme == "Zenbones Light")
     #expect(snapshot.warningMessage == nil)
     #expect(try String(contentsOf: configURL, encoding: .utf8) == GhosttyBootstrap.defaultConfigContents)
   }
@@ -70,17 +77,27 @@ struct GhosttyTerminalConfigFileTests {
       homeDirectoryURL: rootURL,
       environment: environment,
       notificationCenter: center,
+      availableThemesProvider: {
+        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light", "Builtin Light"])
+      },
       availableFontFamiliesProvider: { [] }
     )
 
-    let snapshot = try configFile.apply(fontFamily: "JetBrains Mono", fontSize: 18)
+    let snapshot = try configFile.apply(
+      fontFamily: "JetBrains Mono",
+      fontSize: 18,
+      lightTheme: "Builtin Light",
+      darkTheme: "Zenbones Dark"
+    )
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
+    #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == "JetBrains Mono")
     #expect(snapshot.fontSize == 18)
+    #expect(snapshot.lightTheme == "Builtin Light")
     #expect(snapshot.warningMessage == nil)
     #expect(contents.contains("# keep"))
-    #expect(contents.contains("theme = light:Zenbones Light,dark:Zenbones Dark"))
+    #expect(contents.contains("theme = light:Builtin Light,dark:Zenbones Dark"))
     #expect(contents.contains("cursor-style = beam"))
     #expect(contents.contains(#"font-family = "JetBrains Mono""#))
     #expect(contents.contains("font-size = 18"))
@@ -111,17 +128,60 @@ struct GhosttyTerminalConfigFileTests {
     let configFile = GhosttyTerminalConfigFile(
       homeDirectoryURL: rootURL,
       environment: environment,
+      availableThemesProvider: {
+        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+      },
       availableFontFamiliesProvider: { [] }
     )
 
-    let snapshot = try configFile.apply(fontFamily: nil, fontSize: 16)
+    let snapshot = try configFile.apply(
+      fontFamily: nil,
+      fontSize: 16,
+      lightTheme: "Zenbones Light",
+      darkTheme: "Zenbones Dark"
+    )
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
+    #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
     #expect(snapshot.fontSize == 16)
+    #expect(snapshot.lightTheme == "Zenbones Light")
     #expect(!contents.contains("font-family ="))
-    #expect(contents.contains("theme = dark:Zenbones Dark"))
+    #expect(contents.contains("theme = light:Zenbones Light,dark:Zenbones Dark"))
     #expect(contents.contains("font-size = 16"))
+  }
+
+  @Test
+  func loadMapsSingleThemeToLightAndDarkSelections() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    try writeGhosttyTerminalConfig(
+      """
+      theme = Builtin Dark
+      font-size = 17
+      """,
+      to: configURL
+    )
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      availableThemesProvider: {
+        .init(dark: ["Builtin Dark"], light: ["Builtin Light"])
+      },
+      availableFontFamiliesProvider: { [] }
+    )
+
+    let snapshot = try configFile.load()
+
+    #expect(snapshot.darkTheme == "Builtin Dark")
+    #expect(snapshot.lightTheme == "Builtin Dark")
   }
 
   @Test
@@ -190,11 +250,19 @@ struct GhosttyTerminalConfigFileTests {
       homeDirectoryURL: rootURL,
       environment: environment,
       notificationCenter: center,
+      availableThemesProvider: {
+        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+      },
       availableFontFamiliesProvider: { [] }
     )
 
     #expect(throws: GhosttyTerminalConfigFileError.self) {
-      try configFile.apply(fontFamily: "JetBrains Mono", fontSize: 18)
+      try configFile.apply(
+        fontFamily: "JetBrains Mono",
+        fontSize: 18,
+        lightTheme: "Zenbones Light",
+        darkTheme: "Zenbones Dark"
+      )
     }
 
     #expect(try String(contentsOf: configURL, encoding: .utf8) == originalContents)
