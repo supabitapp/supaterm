@@ -34,20 +34,34 @@ final class GhosttyRuntime {
     guard let config = Self.loadConfig(includeCLIArgs: true) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config, configPath: nil, includeCLIArgs: true)
+    self.init(
+      loadedConfig: config,
+      configPath: nil,
+      includeCLIArgs: true,
+      observesReloadRequests: true
+    )
   }
 
-  convenience init(configPath: String) {
+  convenience init(
+    configPath: String,
+    observesReloadRequests: Bool = true
+  ) {
     guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config, configPath: configPath, includeCLIArgs: false)
+    self.init(
+      loadedConfig: config,
+      configPath: configPath,
+      includeCLIArgs: false,
+      observesReloadRequests: observesReloadRequests
+    )
   }
 
   private init(
     loadedConfig config: ghostty_config_t,
     configPath: String?,
-    includeCLIArgs: Bool
+    includeCLIArgs: Bool,
+    observesReloadRequests: Bool
   ) {
     self.config = config
     self.configPath = configPath
@@ -102,16 +116,18 @@ final class GhosttyRuntime {
           self?.setAppFocus(false)
         }
       })
-    observers.append(
-      center.addObserver(
-        forName: .ghosttyRuntimeReloadRequested,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        MainActor.assumeIsolated {
-          self?.reloadAppConfig()
-        }
-      })
+    if observesReloadRequests {
+      observers.append(
+        center.addObserver(
+          forName: .ghosttyRuntimeReloadRequested,
+          object: nil,
+          queue: .main
+        ) { [weak self] _ in
+          MainActor.assumeIsolated {
+            self?.reloadAppConfig()
+          }
+        })
+    }
     observers.append(
       center.addObserver(
         forName: NSTextInputContext.keyboardSelectionDidChangeNotification,
@@ -199,6 +215,12 @@ final class GhosttyRuntime {
       soft: false,
       target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: .init())
     )
+  }
+
+  func reloadSurfaceConfig(_ surface: ghostty_surface_t) {
+    var target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    target.target.surface = surface
+    reloadConfig(soft: false, target: target)
   }
 
   private func applyConfig(
