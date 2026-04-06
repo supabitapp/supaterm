@@ -393,11 +393,9 @@ private struct SettingsTerminalView: View {
             .font(.callout.monospaced())
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
-
-          Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
-            .font(.callout)
-            .foregroundStyle(.secondary)
         }
+      } footer: {
+        Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
       }
     }
     .navigationTitle("Terminal")
