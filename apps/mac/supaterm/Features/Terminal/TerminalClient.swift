@@ -204,7 +204,7 @@ struct TerminalClient: Sendable {
     case createSpace
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
-    case ensureInitialTab(focusing: Bool)
+    case ensureInitialTab(focusing: Bool, initialInput: String?)
     case navigateSearch(GhosttySearchDirection)
     case moveSidebarTab(
       tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])

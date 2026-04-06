@@ -12,8 +12,15 @@ protocol GhosttyAppActionPerforming: AnyObject {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
+  struct LaunchWindowRequest: Equatable {
+    var session: TerminalWindowSession?
+    var startupInput: String?
+  }
+
   @Shared(.supatermSettings)
   private var supatermSettings = .default
+  @Shared(.lastAppLaunchedDate)
+  private var lastAppLaunchedDate: Date?
   @Shared(.terminalSessionCatalog)
   private var sessionCatalog = TerminalSessionCatalog.default
 
@@ -25,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var terminatingSessionCatalog: TerminalSessionCatalog?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
+
+  private static let onboardingStartupInput = "sp onboard\n"
 
   override init() {
     AppCrashReporting.setup()
@@ -59,6 +68,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     menuController.install()
     socketStore.send(.task)
     restoreWindowsAtLaunch()
+    $lastAppLaunchedDate.withLock {
+      $0 = Date()
+    }
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
@@ -147,13 +159,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   private func restoreWindowsAtLaunch() {
     suppressesSessionSave = true
-    let sessions = Self.initialWindowSessions(
+    let requests = Self.initialWindowRequests(
       from: sessionCatalog,
-      restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled
+      restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
+      lastAppLaunchedDate: lastAppLaunchedDate
     )
     var lastController: TerminalWindowController?
-    for session in sessions {
-      lastController = createWindow(session: session)
+    for request in requests {
+      lastController = createWindow(
+        session: request.session,
+        startupInput: request.startupInput
+      )
     }
     suppressesSessionSave = false
     saveSession()
@@ -164,11 +180,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   private func createWindow(
-    session: TerminalWindowSession? = nil
+    session: TerminalWindowSession? = nil,
+    startupInput: String? = nil
   ) -> TerminalWindowController {
     let controller = TerminalWindowController(
       registry: terminalWindowRegistry,
-      session: session
+      session: session,
+      startupInput: startupInput
     ) { [weak self] in
       self?.saveSession()
     }
@@ -221,6 +239,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       return [nil]
     }
     return sessionCatalog.windows.map(Optional.some)
+  }
+
+  static func initialWindowRequests(
+    from sessionCatalog: TerminalSessionCatalog,
+    restoreTerminalLayoutEnabled: Bool,
+    lastAppLaunchedDate: Date?
+  ) -> [LaunchWindowRequest] {
+    let sessions = initialWindowSessions(
+      from: sessionCatalog,
+      restoreTerminalLayoutEnabled: restoreTerminalLayoutEnabled
+    )
+    var didAssignStartupInput = false
+
+    return sessions.map { session in
+      let startupInput: String?
+      if !didAssignStartupInput, lastAppLaunchedDate == nil, session == nil {
+        startupInput = onboardingStartupInput
+        didAssignStartupInput = true
+      } else {
+        startupInput = nil
+      }
+      return LaunchWindowRequest(
+        session: session,
+        startupInput: startupInput
+      )
+    }
   }
 
   static func terminateReply(

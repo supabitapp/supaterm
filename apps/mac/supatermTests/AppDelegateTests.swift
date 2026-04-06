@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import Testing
 
 @testable import supaterm
@@ -114,6 +115,65 @@ struct AppDelegateTests {
     )
 
     #expect(sessions == [first, second])
+  }
+
+  @Test
+  func initialWindowRequestsInjectOnboardingIntoFirstBlankWindowOnFirstLaunch() {
+    let requests = AppDelegate.initialWindowRequests(
+      from: TerminalSessionCatalog(windows: []),
+      restoreTerminalLayoutEnabled: true,
+      lastAppLaunchedDate: nil
+    )
+
+    #expect(
+      requests == [
+        .init(
+          session: nil,
+          startupInput: "sp onboard\n",
+        ),
+      ]
+    )
+  }
+
+  @Test
+  func initialWindowRequestsSkipOnboardingAfterFirstLaunch() {
+    let requests = AppDelegate.initialWindowRequests(
+      from: TerminalSessionCatalog(windows: []),
+      restoreTerminalLayoutEnabled: true,
+      lastAppLaunchedDate: Date(timeIntervalSince1970: 123)
+    )
+
+    #expect(
+      requests == [
+        .init(
+          session: nil,
+          startupInput: nil,
+        ),
+      ]
+    )
+  }
+
+  @Test
+  func initialWindowRequestsDoNotInjectOnboardingIntoRestoredWindows() {
+    let session = TerminalWindowSession(
+      selectedSpaceID: TerminalSpaceID(),
+      spaces: []
+    )
+
+    let requests = AppDelegate.initialWindowRequests(
+      from: TerminalSessionCatalog(windows: [session]),
+      restoreTerminalLayoutEnabled: true,
+      lastAppLaunchedDate: nil
+    )
+
+    #expect(
+      requests == [
+        .init(
+          session: session,
+          startupInput: nil,
+        ),
+      ]
+    )
   }
 
   @Test
