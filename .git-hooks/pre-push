@@ -1,1 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
 mise run --raw validate-release-tags
+make web-check
+make web-test
+make mac-test
