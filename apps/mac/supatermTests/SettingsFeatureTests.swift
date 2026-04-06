@@ -16,10 +16,10 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func tabOrderPlacesAdvancedBeforeAbout() {
+  func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .codingAgents, .advanced, .about]
+        == [.general, .terminal, .notifications, .codingAgents, .about]
     )
   }
 
@@ -153,10 +153,6 @@ struct SettingsFeatureTests {
   func tabSelectionUpdatesState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
-    }
-
-    await store.send(.tabSelected(.advanced)) {
-      $0.selectedTab = .advanced
     }
 
     await store.send(.tabSelected(.terminal)) {

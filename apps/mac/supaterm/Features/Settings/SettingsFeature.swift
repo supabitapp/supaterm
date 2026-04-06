@@ -94,7 +94,6 @@ struct SettingsFeature {
     case terminal
     case notifications
     case codingAgents
-    case advanced
     case about
 
     var id: String {
@@ -103,8 +102,6 @@ struct SettingsFeature {
 
     var symbol: String {
       switch self {
-      case .advanced:
-        "gearshape.2"
       case .codingAgents:
         "hammer"
       case .general:
@@ -120,8 +117,6 @@ struct SettingsFeature {
 
     var title: String {
       switch self {
-      case .advanced:
-        "Advanced"
       case .codingAgents:
         "Coding Agents"
       case .general:

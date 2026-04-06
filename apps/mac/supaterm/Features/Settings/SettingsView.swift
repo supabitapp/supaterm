@@ -44,8 +44,6 @@ private struct SettingsTabContentView: View {
 
   var body: some View {
     switch tab {
-    case .advanced:
-      SettingsAdvancedView(store: store)
     case .codingAgents:
       SettingsCodingAgentsView(store: store)
     case .general:
@@ -236,51 +234,6 @@ private struct SettingsGeneralView: View {
       }
     }
     .navigationTitle("General")
-    .settingsFormLayout()
-  }
-}
-
-private struct SettingsAdvancedView: View {
-  let store: StoreOf<SettingsFeature>
-
-  private var analyticsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.analyticsEnabled },
-      set: { newValue in
-        _ = store.send(.analyticsEnabledChanged(newValue))
-      }
-    )
-  }
-
-  private var crashReportsEnabled: Binding<Bool> {
-    Binding(
-      get: { store.crashReportsEnabled },
-      set: { newValue in
-        _ = store.send(.crashReportsEnabledChanged(newValue))
-      }
-    )
-  }
-
-  var body: some View {
-    Form {
-      Section {
-        SettingsToggleRow(
-          title: "Share analytics with Supaterm",
-          subtitle: "Anonymous usage data helps improve Supaterm.",
-          isOn: analyticsEnabled
-        )
-        SettingsToggleRow(
-          title: "Share crash reports with Supaterm",
-          subtitle: "Anonymous crash reports help improve stability.",
-          isOn: crashReportsEnabled
-        )
-      } header: {
-        Text("Diagnostics")
-      } footer: {
-        Text("Changes to analytics and crash reports require an app restart.")
-      }
-    }
-    .navigationTitle("Advanced")
     .settingsFormLayout()
   }
 }
@@ -487,6 +440,24 @@ private struct SettingsAboutView: View {
     )
   }
 
+  private var analyticsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.analyticsEnabled },
+      set: { newValue in
+        _ = store.send(.analyticsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  private var crashReportsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.crashReportsEnabled },
+      set: { newValue in
+        _ = store.send(.crashReportsEnabledChanged(newValue))
+      }
+    )
+  }
+
   private var appName: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
@@ -599,6 +570,41 @@ private struct SettingsAboutView: View {
                 .disabled(!store.updatesAutomaticallyCheckForUpdates)
               }
             }
+          }
+        }
+
+        SettingsSurfaceCard {
+          VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text("Diagnostics")
+                .font(.title3.weight(.semibold))
+
+              Text("Control the anonymous data Supaterm sends back to improve the product.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 14) {
+              SettingsToggleRow(
+                title: "Share analytics with Supaterm",
+                subtitle: "Anonymous usage data helps improve Supaterm.",
+                isOn: analyticsEnabled
+              )
+
+              SettingsToggleRow(
+                title: "Share crash reports with Supaterm",
+                subtitle: "Anonymous crash reports help improve stability.",
+                isOn: crashReportsEnabled
+              )
+            }
+
+            Divider()
+
+            Text("Changes to analytics and crash reports require an app restart.")
+              .font(.callout)
+              .foregroundStyle(.secondary)
           }
         }
       }
