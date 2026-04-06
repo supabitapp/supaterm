@@ -359,7 +359,6 @@ private struct SettingsTerminalView: View {
             }
             .labelsHidden()
             .disabled(controlsDisabled)
-            .frame(maxWidth: .infinity)
 
             Picker(selection: darkThemeSelection) {
               if store.terminal.darkTheme == nil {
@@ -373,8 +372,8 @@ private struct SettingsTerminalView: View {
             }
             .labelsHidden()
             .disabled(controlsDisabled)
-            .frame(maxWidth: .infinity)
           }
+          .frame(maxWidth: .infinity, alignment: .trailing)
         }
 
         Picker(selection: fontFamilySelection) {
