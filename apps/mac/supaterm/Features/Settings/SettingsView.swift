@@ -531,26 +531,32 @@ private struct SettingsAboutView: View {
 
             VStack(alignment: .leading, spacing: 18) {
               VStack(alignment: .leading, spacing: 8) {
-                Text("Channel")
-                  .font(.headline)
+                HStack(alignment: .top, spacing: 16) {
+                  VStack(alignment: .leading, spacing: 6) {
+                    Text("Channel")
+                      .font(.headline)
 
-                Picker("Channel", selection: updateChannel) {
-                  ForEach(UpdateChannel.allCases) { channel in
-                    Text(channel.title).tag(channel)
+                    Text(
+                      store.updateChannel == .stable
+                        ? "Recommended for most users."
+                        : "Get the latest features early."
+                    )
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                   }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: 180, alignment: .leading)
-                .controlSize(.large)
 
-                Text(
-                  store.updateChannel == .stable
-                    ? "Recommended for most users."
-                    : "Get the latest features early."
-                )
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                  Spacer(minLength: 0)
+
+                  Picker("Channel", selection: updateChannel) {
+                    ForEach(UpdateChannel.allCases) { channel in
+                      Text(channel.title).tag(channel)
+                    }
+                  }
+                  .labelsHidden()
+                  .pickerStyle(.menu)
+                  .frame(width: 180, alignment: .trailing)
+                  .controlSize(.large)
+                }
               }
 
               Divider()
