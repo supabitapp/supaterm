@@ -660,15 +660,25 @@ private struct AppearanceOptionCardView: View {
 
 private struct SettingsRowLabel: View {
   let title: String
-  let subtitle: String
+  let subtitle: String?
+
+  init(
+    title: String,
+    subtitle: String? = nil
+  ) {
+    self.title = title
+    self.subtitle = subtitle
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       Text(title)
-      Text(subtitle)
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+      if let subtitle {
+        Text(subtitle)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 }
