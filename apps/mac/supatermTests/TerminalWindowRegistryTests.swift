@@ -219,10 +219,10 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let firstHost = TerminalHostState()
-      firstHost.handleCommand(.ensureInitialTab(focusing: false))
+      firstHost.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
 
       let secondHost = TerminalHostState()
-      secondHost.handleCommand(.ensureInitialTab(focusing: false))
+      secondHost.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
       secondHost.handleCommand(.createTab(inheritingFromSurfaceID: nil))
 
       let firstStore = Store(initialState: AppFeature.State()) {
@@ -1318,7 +1318,7 @@ struct TerminalWindowRegistryTests {
     )
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
-    host.handleCommand(.ensureInitialTab(focusing: false))
+    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
 
     let surfaceID = try #require(host.selectedSurfaceView?.id)
     let tabID = try #require(host.selectedTabID)

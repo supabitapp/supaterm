@@ -25,7 +25,7 @@ struct TerminalHostStateSessionRestoreTests {
       }
 
       let host = TerminalHostState()
-      host.handleCommand(.ensureInitialTab(focusing: false))
+      host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
 
       let firstSpaceID = try #require(host.selectedSpaceID)
       let firstSurfaceID = try #require(host.selectedSurfaceView?.id)

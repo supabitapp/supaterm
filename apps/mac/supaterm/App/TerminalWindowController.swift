@@ -54,6 +54,7 @@ final class TerminalWindowController: NSWindowController {
   init(
     registry: TerminalWindowRegistry,
     session: TerminalWindowSession? = nil,
+    startupInput: String? = nil,
     onSessionChange: @escaping @MainActor () -> Void = {}
   ) {
     self.registry = registry
@@ -66,7 +67,13 @@ final class TerminalWindowController: NSWindowController {
     if let session {
       _ = terminal.restore(from: session)
     }
-    let store = Store(initialState: AppFeature.State()) {
+    let store = Store(
+      initialState: AppFeature.State(
+        terminal: TerminalWindowFeature.State(
+          initialStartupInput: startupInput
+        )
+      )
+    ) {
       AppFeature()
         .logActions()
     } withDependencies: {
