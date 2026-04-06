@@ -28,12 +28,8 @@ struct SupatermSettingsSchemaTests {
     let fileURL = repoRootURL()
       .appendingPathComponent("apps/supaterm.com")
       .appendingPathComponent("public/data/supaterm-settings.schema.json")
-    let data = try Data(contentsOf: fileURL)
-    let committedSchema = try JSONDecoder().decode(JSONValue.self, from: data)
-    let generatedSchema = try JSONDecoder().decode(
-      JSONValue.self,
-      from: Data(try SupatermSettingsSchema.jsonString().utf8)
-    )
+    let committedSchema = try String(contentsOf: fileURL, encoding: .utf8)
+    let generatedSchema = try SupatermSettingsSchema.jsonString() + "\n"
 
     #expect(committedSchema == generatedSchema)
   }
