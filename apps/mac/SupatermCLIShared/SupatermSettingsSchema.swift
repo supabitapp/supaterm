@@ -1,6 +1,7 @@
 import Foundation
 
 public enum SupatermSettingsSchema {
+  static let schemaKey = "$schema"
   public static let url = "https://supaterm.com/data/supaterm-settings.schema.json"
 
   public static func jsonString() throws -> String {
@@ -23,8 +24,7 @@ public enum SupatermSettingsSchema {
 
   private static func properties() -> [String: JSONValue] {
     var properties = [
-      "$schema": schemaProperty(
-        type: "string",
+      schemaKey: schemaProperty(
         defaultValue: .string(url),
         description: "Optional schema URL for editor completion and validation.",
         format: "uri"
@@ -37,57 +37,22 @@ public enum SupatermSettingsSchema {
   }
 
   private static func schemaProperty(for key: AppPrefs.CodingKeys) -> JSONValue {
-    switch key {
-    case .appearanceMode:
-      return schemaProperty(
-        type: "string",
-        defaultValue: .string(AppPrefs.default.appearanceMode.rawValue),
-        description: "App appearance mode.",
-        enumValues: AppearanceMode.allCases.map(\.rawValue)
-      )
-    case .analyticsEnabled:
-      return schemaProperty(
-        type: "boolean",
-        defaultValue: .bool(AppPrefs.default.analyticsEnabled),
-        description: "Allow anonymous telemetry."
-      )
-    case .crashReportsEnabled:
-      return schemaProperty(
-        type: "boolean",
-        defaultValue: .bool(AppPrefs.default.crashReportsEnabled),
-        description: "Allow crash reports."
-      )
-    case .restoreTerminalLayoutEnabled:
-      return schemaProperty(
-        type: "boolean",
-        defaultValue: .bool(AppPrefs.default.restoreTerminalLayoutEnabled),
-        description: "Restore spaces, tabs, and panes on launch."
-      )
-    case .systemNotificationsEnabled:
-      return schemaProperty(
-        type: "boolean",
-        defaultValue: .bool(AppPrefs.default.systemNotificationsEnabled),
-        description: "Deliver desktop notifications for terminal activity."
-      )
-    case .updateChannel:
-      return schemaProperty(
-        type: "string",
-        defaultValue: .string(AppPrefs.default.updateChannel.rawValue),
-        description: "Select stable or tip updates.",
-        enumValues: UpdateChannel.allCases.map(\.rawValue)
-      )
-    }
+    let defaultValue = AppPrefs.default.value(for: key)
+    return schemaProperty(
+      defaultValue: defaultValue,
+      description: key.schemaDescription,
+      enumValues: key.schemaEnumValues
+    )
   }
 
   private static func schemaProperty(
-    type: String,
     defaultValue: JSONValue,
     description: String,
     format: String? = nil,
     enumValues: [String]? = nil
   ) -> JSONValue {
     var object: [String: JSONValue] = [
-      "type": .string(type),
+      "type": .string(jsonSchemaType(for: defaultValue)),
       "default": defaultValue,
       "description": .string(description),
     ]
@@ -98,5 +63,24 @@ public enum SupatermSettingsSchema {
       object["enum"] = .array(enumValues.map(JSONValue.string))
     }
     return .object(object)
+  }
+
+  private static func jsonSchemaType(for value: JSONValue) -> String {
+    switch value {
+    case .null:
+      return "null"
+    case .bool:
+      return "boolean"
+    case .int:
+      return "integer"
+    case .double:
+      return "number"
+    case .string:
+      return "string"
+    case .array:
+      return "array"
+    case .object:
+      return "object"
+    }
   }
 }
