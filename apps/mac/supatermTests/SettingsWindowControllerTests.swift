@@ -69,15 +69,12 @@ struct SettingsWindowControllerTests {
 
   @Test
   func showSelectsRequestedTab() {
+    initializeGhosttyForTests()
     let controller = SettingsWindowController()
     controller.show(tab: .about)
     defer { controller.window?.orderOut(nil) }
 
     #expect(controller.store.selectedTab == .about)
-
-    controller.show(tab: .updates)
-
-    #expect(controller.store.selectedTab == .updates)
 
     controller.show(tab: .notifications)
 
@@ -90,5 +87,9 @@ struct SettingsWindowControllerTests {
     controller.show(tab: .codingAgents)
 
     #expect(controller.store.selectedTab == .codingAgents)
+
+    controller.show(tab: .terminal)
+
+    #expect(controller.store.selectedTab == .terminal)
   }
 }

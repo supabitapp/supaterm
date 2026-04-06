@@ -1,0 +1,226 @@
+import Foundation
+import Testing
+
+@testable import supaterm
+
+@MainActor
+struct GhosttyTerminalConfigFileTests {
+  @Test
+  func loadSeedsMissingPreferredConfigFile() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      availableFontFamiliesProvider: { ["JetBrains Mono", "SF Mono"] }
+    )
+
+    let snapshot = try configFile.load()
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    #expect(snapshot.availableFontFamilies == ["JetBrains Mono", "SF Mono"])
+    #expect(snapshot.configPath == configURL.path)
+    #expect(snapshot.fontFamily == nil)
+    #expect(snapshot.fontSize == 15)
+    #expect(snapshot.warningMessage == nil)
+    #expect(try String(contentsOf: configURL, encoding: .utf8) == GhosttyBootstrap.defaultConfigContents)
+  }
+
+  @Test
+  func applyCanonicalizesManagedKeysAndPreservesUnrelatedLines() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    try writeGhosttyTerminalConfig(
+      """
+      # keep
+      theme = light:Zenbones Light,dark:Zenbones Dark
+      font-family = "Monaco"
+      font-size = 12
+      font-family = "Menlo"
+      cursor-style = beam
+      """,
+      to: configURL
+    )
+
+    let center = NotificationCenter()
+    var reloadCount = 0
+    let observer = center.addObserver(
+      forName: .ghosttyRuntimeReloadRequested,
+      object: nil,
+      queue: nil
+    ) { _ in
+      reloadCount += 1
+    }
+    defer {
+      center.removeObserver(observer)
+    }
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      notificationCenter: center,
+      availableFontFamiliesProvider: { [] }
+    )
+
+    let snapshot = try configFile.apply(fontFamily: "JetBrains Mono", fontSize: 18)
+    let contents = try String(contentsOf: configURL, encoding: .utf8)
+
+    #expect(snapshot.fontFamily == "JetBrains Mono")
+    #expect(snapshot.fontSize == 18)
+    #expect(snapshot.warningMessage == nil)
+    #expect(contents.contains("# keep"))
+    #expect(contents.contains("theme = light:Zenbones Light,dark:Zenbones Dark"))
+    #expect(contents.contains("cursor-style = beam"))
+    #expect(contents.contains(#"font-family = "JetBrains Mono""#))
+    #expect(contents.contains("font-size = 18"))
+    #expect(occurrenceCount(of: "font-family =", in: contents) == 1)
+    #expect(occurrenceCount(of: "font-size =", in: contents) == 1)
+    #expect(reloadCount == 1)
+  }
+
+  @Test
+  func applyDefaultRemovesManagedFontFamilyEntries() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    try writeGhosttyTerminalConfig(
+      """
+      font-family = "Monaco"
+      theme = dark:Zenbones Dark
+      font-size = 13
+      """,
+      to: configURL
+    )
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      availableFontFamiliesProvider: { [] }
+    )
+
+    let snapshot = try configFile.apply(fontFamily: nil, fontSize: 16)
+    let contents = try String(contentsOf: configURL, encoding: .utf8)
+
+    #expect(snapshot.fontFamily == nil)
+    #expect(snapshot.fontSize == 16)
+    #expect(!contents.contains("font-family ="))
+    #expect(contents.contains("theme = dark:Zenbones Dark"))
+    #expect(contents.contains("font-size = 16"))
+  }
+
+  @Test
+  func loadWarnsWhenPrimaryConfigIncludesRecursiveFiles() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    try writeGhosttyTerminalConfig(
+      """
+      config-file = other
+      font-size = 17
+      """,
+      to: configURL
+    )
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      availableFontFamiliesProvider: { [] }
+    )
+
+    let snapshot = try configFile.load()
+
+    #expect(snapshot.fontSize == 17)
+    #expect(
+      snapshot.warningMessage
+        == "This Ghostty config includes other config files. Settings only edits the primary file shown here."
+    )
+  }
+
+  @Test
+  func applyRejectsInvalidConfigAndDoesNotBroadcastReload() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    let originalContents = """
+      definitely-invalid-key = nope
+      font-size = 15
+      """
+    try writeGhosttyTerminalConfig(originalContents, to: configURL)
+
+    let center = NotificationCenter()
+    var reloadCount = 0
+    let observer = center.addObserver(
+      forName: .ghosttyRuntimeReloadRequested,
+      object: nil,
+      queue: nil
+    ) { _ in
+      reloadCount += 1
+    }
+    defer {
+      center.removeObserver(observer)
+    }
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      notificationCenter: center,
+      availableFontFamiliesProvider: { [] }
+    )
+
+    #expect(throws: GhosttyTerminalConfigFileError.self) {
+      try configFile.apply(fontFamily: "JetBrains Mono", fontSize: 18)
+    }
+
+    #expect(try String(contentsOf: configURL, encoding: .utf8) == originalContents)
+    #expect(reloadCount == 0)
+  }
+}
+
+private func ghosttyTerminalConfigEnvironment(rootURL: URL) -> [String: String] {
+  ["XDG_CONFIG_HOME": rootURL.appendingPathComponent("xdg", isDirectory: true).path]
+}
+
+private func makeGhosttyTerminalConfigTemporaryDirectory() throws -> URL {
+  let rootURL = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+  try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+  return rootURL
+}
+
+private func occurrenceCount(of substring: String, in string: String) -> Int {
+  string.components(separatedBy: substring).count - 1
+}
+
+private func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws {
+  try FileManager.default.createDirectory(
+    at: url.deletingLastPathComponent(),
+    withIntermediateDirectories: true
+  )
+  try contents.write(to: url, atomically: true, encoding: .utf8)
+}

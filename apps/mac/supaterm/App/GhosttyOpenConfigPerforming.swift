@@ -8,6 +8,6 @@ protocol GhosttyOpenConfigPerforming: AnyObject {
 extension AppDelegate: GhosttyOpenConfigPerforming {
   @discardableResult
   func performOpenConfig() -> Bool {
-    performShowSettings(tab: .general)
+    performShowSettings(tab: .terminal)
   }
 }

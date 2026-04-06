@@ -7,6 +7,17 @@ private enum SettingsFeatureCancelID {
   static let updateObservation = "SettingsFeature.updateObservation"
 }
 
+struct SettingsTerminalState: Equatable {
+  var availableFontFamilies: [String] = []
+  var configPath = ""
+  var errorMessage: String?
+  var fontFamily: String?
+  var fontSize = 15.0
+  var isApplying = false
+  var isLoading = false
+  var warningMessage: String?
+}
+
 struct SettingsAgentHooksState: Equatable {
   let settingsPath: String
   var confirmedEnabled = false
@@ -37,6 +48,7 @@ struct SettingsFeature {
     var restoreTerminalLayoutEnabled = AppPrefs.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
     var systemNotificationsEnabled = AppPrefs.default.systemNotificationsEnabled
+    var terminal = SettingsTerminalState()
     var updateChannel = AppPrefs.default.updateChannel
     var updatesAutomaticallyCheckForUpdates = true
     var updatesAutomaticallyDownloadUpdates = true
@@ -59,6 +71,13 @@ struct SettingsFeature {
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
+    case terminalFontFamilySelected(String?)
+    case terminalFontSizeChanged(Double)
+    case terminalSettingsApplied(GhosttyTerminalSettingsSnapshot)
+    case terminalSettingsApplyFailed(String)
+    case terminalSettingsLoadFailed(String)
+    case terminalSettingsLoadRequested
+    case terminalSettingsLoaded(GhosttyTerminalSettingsSnapshot)
     case updateChannelSelected(UpdateChannel)
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
     case updatesAutomaticallyCheckForUpdatesChanged(Bool)
@@ -72,9 +91,9 @@ struct SettingsFeature {
 
   enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
+    case terminal
     case notifications
     case codingAgents
-    case updates
     case advanced
     case about
 
@@ -90,10 +109,10 @@ struct SettingsFeature {
         "hammer"
       case .general:
         "gearshape"
+      case .terminal:
+        "terminal"
       case .notifications:
         "bell"
-      case .updates:
-        "arrow.down.circle"
       case .about:
         "sparkles.rectangle.stack"
       }
@@ -107,10 +126,10 @@ struct SettingsFeature {
         "Coding Agents"
       case .general:
         "General"
+      case .terminal:
+        "Terminal"
       case .notifications:
         "Notifications"
-      case .updates:
-        "Updates"
       case .about:
         "About"
       }
@@ -121,6 +140,7 @@ struct SettingsFeature {
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
+  @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
@@ -130,6 +150,7 @@ struct SettingsFeature {
         @Shared(.appPrefs) var appPrefs = .default
         return .merge(
           .send(.settingsLoaded(appPrefs)),
+          .send(.terminalSettingsLoadRequested),
           .send(.agentHooksStatusRefreshRequested(.claude)),
           .send(.agentHooksStatusRefreshRequested(.codex)),
           .run { [updateClient] send in
@@ -155,6 +176,58 @@ struct SettingsFeature {
         state.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
         state.updatesAutomaticallyDownloadUpdates = snapshot.automaticallyDownloadsUpdates
         return .none
+
+      case .terminalSettingsLoadRequested:
+        guard !state.terminal.isLoading else {
+          return .none
+        }
+        state.terminal.errorMessage = nil
+        state.terminal.isLoading = true
+        return .run { [ghosttyTerminalSettingsClient] send in
+          do {
+            await send(.terminalSettingsLoaded(try await ghosttyTerminalSettingsClient.load()))
+          } catch {
+            await send(.terminalSettingsLoadFailed(error.localizedDescription))
+          }
+        }
+
+      case .terminalSettingsLoaded(let snapshot), .terminalSettingsApplied(let snapshot):
+        updateTerminalState(&state.terminal, with: snapshot)
+        return .none
+
+      case .terminalSettingsLoadFailed(let message):
+        state.terminal.errorMessage = message
+        state.terminal.isLoading = false
+        return .none
+
+      case .terminalSettingsApplyFailed(let message):
+        state.terminal.errorMessage = message
+        state.terminal.isApplying = false
+        return .none
+
+      case .terminalFontFamilySelected(let fontFamily):
+        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+          return .none
+        }
+        state.terminal.errorMessage = nil
+        state.terminal.fontFamily = fontFamily
+        state.terminal.isApplying = true
+        return applyTerminalSettings(
+          fontFamily: fontFamily,
+          fontSize: state.terminal.fontSize
+        )
+
+      case .terminalFontSizeChanged(let fontSize):
+        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+          return .none
+        }
+        state.terminal.errorMessage = nil
+        state.terminal.fontSize = fontSize
+        state.terminal.isApplying = true
+        return applyTerminalSettings(
+          fontFamily: state.terminal.fontFamily,
+          fontSize: fontSize
+        )
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
         state.alert = nil
@@ -392,6 +465,33 @@ struct SettingsFeature {
           try await client.removeSupatermHooks()
         }
         return try await client.hasSupatermHooks()
+      }
+    }
+  }
+
+  private func updateTerminalState(
+    _ state: inout SettingsTerminalState,
+    with snapshot: GhosttyTerminalSettingsSnapshot
+  ) {
+    state.availableFontFamilies = snapshot.availableFontFamilies
+    state.configPath = snapshot.configPath
+    state.errorMessage = nil
+    state.fontFamily = snapshot.fontFamily
+    state.fontSize = snapshot.fontSize
+    state.isApplying = false
+    state.isLoading = false
+    state.warningMessage = snapshot.warningMessage
+  }
+
+  private func applyTerminalSettings(
+    fontFamily: String?,
+    fontSize: Double
+  ) -> Effect<Action> {
+    .run { [ghosttyTerminalSettingsClient] send in
+      do {
+        await send(.terminalSettingsApplied(try await ghosttyTerminalSettingsClient.apply(fontFamily, fontSize)))
+      } catch {
+        await send(.terminalSettingsApplyFailed(error.localizedDescription))
       }
     }
   }

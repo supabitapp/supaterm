@@ -50,12 +50,12 @@ private struct SettingsTabContentView: View {
       SettingsCodingAgentsView(store: store)
     case .general:
       SettingsGeneralView(store: store)
+    case .terminal:
+      SettingsTerminalView(store: store)
     case .notifications:
       SettingsNotificationsView(store: store)
-    case .updates:
-      SettingsUpdatesView(store: store)
     case .about:
-      SettingsAboutView()
+      SettingsAboutView(store: store)
     }
   }
 }
@@ -225,23 +225,6 @@ private struct SettingsGeneralView: View {
           }
           .frame(maxWidth: .infinity, alignment: .leading)
         }
-
-        LabeledContent {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Configure Ghostty directly to control terminal colors.")
-              .font(.callout)
-              .foregroundStyle(.secondary)
-            Text("theme = light:Monokai Pro Light Sun,dark:Dimmed Monokai")
-              .font(.callout.monospaced())
-              .textSelection(.enabled)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-          SettingsRowLabel(
-            title: "Terminal Theme",
-            subtitle: "Managed through your Ghostty config."
-          )
-        }
       }
 
       Section {
@@ -302,6 +285,147 @@ private struct SettingsAdvancedView: View {
   }
 }
 
+private struct SettingsTerminalView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private let defaultFontFamilyTag = "__supaterm_default_font_family__"
+
+  private var controlsDisabled: Bool {
+    store.terminal.isApplying || store.terminal.isLoading
+  }
+
+  private var fontFamilySelection: Binding<String> {
+    Binding(
+      get: { store.terminal.fontFamily ?? defaultFontFamilyTag },
+      set: { newValue in
+        _ = store.send(
+          .terminalFontFamilySelected(
+            newValue == defaultFontFamilyTag ? nil : newValue
+          )
+        )
+      }
+    )
+  }
+
+  private var fontSizeSelection: Binding<Double> {
+    Binding(
+      get: { store.terminal.fontSize },
+      set: { newValue in
+        _ = store.send(.terminalFontSizeChanged(newValue))
+      }
+    )
+  }
+
+  private var resolvedConfigPath: String {
+    if store.terminal.configPath.isEmpty {
+      GhosttyBootstrap.configFileLocations().preferred.path
+    } else {
+      store.terminal.configPath
+    }
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(
+            "Ghostty typography is stored in your primary config file and applied immediately "
+              + "to both the preview and open terminals."
+          )
+          .font(.callout)
+          .foregroundStyle(.secondary)
+
+          SettingsTerminalPreviewView(configPath: resolvedConfigPath)
+            .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
+            .id(resolvedConfigPath)
+        }
+      }
+
+      Section {
+        LabeledContent("Config File") {
+          Text(resolvedConfigPath)
+            .font(.callout.monospaced())
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+        }
+
+        if let warningMessage = store.terminal.warningMessage {
+          Text(warningMessage)
+            .font(.callout)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        if let errorMessage = store.terminal.errorMessage {
+          Text(errorMessage)
+            .font(.callout)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        if store.terminal.isLoading || store.terminal.isApplying {
+          ProgressView()
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+      }
+
+      Section {
+        Picker(selection: fontFamilySelection) {
+          Text("Default").tag(defaultFontFamilyTag)
+          ForEach(store.terminal.availableFontFamilies, id: \.self) { fontFamily in
+            Text(fontFamily).tag(fontFamily)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "Font",
+            subtitle: "Written to `font-family` in your Ghostty config."
+          )
+        }
+        .disabled(controlsDisabled)
+
+        LabeledContent {
+          Stepper(value: fontSizeSelection, in: 6...72, step: 1) {
+            Text("\(Int(store.terminal.fontSize.rounded())) pt")
+              .font(.callout.monospaced())
+              .frame(minWidth: 64, alignment: .trailing)
+          }
+          .disabled(controlsDisabled)
+        } label: {
+          SettingsRowLabel(
+            title: "Font Size",
+            subtitle: "Written to `font-size` in your Ghostty config."
+          )
+        }
+      }
+    }
+    .navigationTitle("Terminal")
+    .settingsFormLayout()
+  }
+}
+
+private struct SettingsTerminalPreviewView: View {
+  private let configPath: String
+  @StateObject private var controller: GhosttyTerminalPreviewController
+
+  init(configPath: String) {
+    self.configPath = configPath
+    _controller = StateObject(
+      wrappedValue: GhosttyTerminalPreviewController(configPath: configPath)
+    )
+  }
+
+  var body: some View {
+    GhosttyTerminalView(surfaceView: controller.surfaceView)
+      .allowsHitTesting(false)
+      .clipShape(.rect(cornerRadius: 12))
+      .overlay {
+        RoundedRectangle(cornerRadius: 12)
+          .strokeBorder(.quaternary, lineWidth: 1)
+      }
+  }
+}
+
 private struct SettingsNotificationsView: View {
   let store: StoreOf<SettingsFeature>
 
@@ -331,7 +455,7 @@ private struct SettingsNotificationsView: View {
   }
 }
 
-private struct SettingsUpdatesView: View {
+private struct SettingsAboutView: View {
   let store: StoreOf<SettingsFeature>
 
   private var updateChannel: Binding<UpdateChannel> {
@@ -361,68 +485,6 @@ private struct SettingsUpdatesView: View {
     )
   }
 
-  var body: some View {
-    Form {
-      Section {
-        Picker(selection: updateChannel) {
-          ForEach(UpdateChannel.allCases) { channel in
-            Text(channel.title).tag(channel)
-          }
-        } label: {
-          SettingsRowLabel(
-            title: "Channel",
-            subtitle: store.updateChannel == .stable
-              ? "Recommended for most users."
-              : "Get the latest features early."
-          )
-        }
-      }
-
-      Section("Automatic Updates") {
-        SettingsToggleRow(
-          title: "Check for updates automatically",
-          subtitle: "Periodically checks for new versions while Supaterm is running.",
-          isOn: updatesAutomaticallyCheckForUpdates
-        )
-        SettingsToggleRow(
-          title: "Download and install updates automatically",
-          subtitle: "Downloads updates in the background and prompts for restart when needed.",
-          isOn: updatesAutomaticallyDownloadUpdates
-        )
-        .disabled(!store.updatesAutomaticallyCheckForUpdates)
-      }
-
-      Section {
-        Button("Check for Updates Now") {
-          _ = store.send(.checkForUpdatesButtonTapped)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-        .buttonBorderShape(.roundedRectangle)
-        .frame(maxWidth: .infinity)
-      }
-    }
-    .navigationTitle("Updates")
-    .settingsFormLayout()
-  }
-}
-
-private struct SettingsToggleRow: View {
-  let title: String
-  let subtitle: String
-  let isOn: Binding<Bool>
-
-  var body: some View {
-    Toggle(isOn: isOn) {
-      SettingsRowLabel(
-        title: title,
-        subtitle: subtitle
-      )
-    }
-  }
-}
-
-private struct SettingsAboutView: View {
   private var appName: String {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
       ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
@@ -443,25 +505,119 @@ private struct SettingsAboutView: View {
   }
 
   var body: some View {
-    VStack(spacing: 24) {
-      Image(nsImage: NSApplication.shared.applicationIconImage)
-        .resizable()
-        .interpolation(.high)
-        .frame(width: 96, height: 96)
-        .accessibilityLabel("\(appName) app icon")
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        SettingsSurfaceCard {
+          HStack(alignment: .center, spacing: 24) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+              .resizable()
+              .interpolation(.high)
+              .frame(width: 96, height: 96)
+              .accessibilityLabel("\(appName) app icon")
 
-      VStack(spacing: 6) {
-        Text(appName)
-          .font(.title2.weight(.semibold))
+            VStack(alignment: .leading, spacing: 6) {
+              Text(appName)
+                .font(.system(size: 34, weight: .semibold))
 
-        Text(versionText)
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
+              Text(versionText)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+              Text("Updates and release settings now live here.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+          }
+        }
+
+        SettingsSurfaceCard {
+          VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center) {
+              VStack(alignment: .leading, spacing: 4) {
+                Text("Updates")
+                  .font(.title3.weight(.semibold))
+
+                Text("Choose a release channel, tune automatic updates, and check manually when needed.")
+                  .font(.callout)
+                  .foregroundStyle(.secondary)
+              }
+
+              Spacer(minLength: 0)
+
+              Button("Check for Updates") {
+                _ = store.send(.checkForUpdatesButtonTapped)
+              }
+              .buttonStyle(.borderedProminent)
+              .controlSize(.large)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 18) {
+              VStack(alignment: .leading, spacing: 8) {
+                Text("Channel")
+                  .font(.headline)
+
+                Picker("Channel", selection: updateChannel) {
+                  ForEach(UpdateChannel.allCases) { channel in
+                    Text(channel.title).tag(channel)
+                  }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+
+                Text(
+                  store.updateChannel == .stable
+                    ? "Recommended for most users."
+                    : "Get the latest features early."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+              }
+
+              Divider()
+
+              VStack(alignment: .leading, spacing: 14) {
+                SettingsToggleRow(
+                  title: "Automatically check for updates",
+                  subtitle: "Periodically checks for new versions while Supaterm is running.",
+                  isOn: updatesAutomaticallyCheckForUpdates
+                )
+
+                SettingsToggleRow(
+                  title: "Automatically download and install updates",
+                  subtitle: "Downloads updates in the background and prompts for restart when needed.",
+                  isOn: updatesAutomaticallyDownloadUpdates
+                )
+                .disabled(!store.updatesAutomaticallyCheckForUpdates)
+              }
+            }
+          }
+        }
       }
+      .padding(24)
+      .frame(maxWidth: 760, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .center)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .navigationTitle("About")
+  }
+}
+
+private struct SettingsToggleRow: View {
+  let title: String
+  let subtitle: String
+  let isOn: Binding<Bool>
+
+  var body: some View {
+    Toggle(isOn: isOn) {
+      SettingsRowLabel(
+        title: title,
+        subtitle: subtitle
+      )
+    }
   }
 }
 
@@ -507,6 +663,28 @@ private struct SettingsRowLabel: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+private struct SettingsSurfaceCard<Content: View>: View {
+  let content: Content
+
+  init(@ViewBuilder content: () -> Content) {
+    self.content = content()
+  }
+
+  var body: some View {
+    content
+      .padding(24)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+          .fill(Color(nsColor: .controlBackgroundColor))
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+          .strokeBorder(.quaternary, lineWidth: 1)
+      }
   }
 }
 

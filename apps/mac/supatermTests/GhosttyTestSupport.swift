@@ -46,3 +46,24 @@ func makeGhosttyRuntime(_ config: String) throws -> GhosttyRuntime {
   }
   return GhosttyRuntime(configPath: url.path)
 }
+
+struct GhosttyRuntimeFixture {
+  let cleanup: () -> Void
+  let configURL: URL
+  let runtime: GhosttyRuntime
+}
+
+func makePersistentGhosttyRuntime(_ config: String) throws -> GhosttyRuntimeFixture {
+  initializeGhosttyForTests()
+  let url = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString)
+    .appendingPathExtension("ghostty")
+  try config.write(to: url, atomically: true, encoding: .utf8)
+  return GhosttyRuntimeFixture(
+    cleanup: {
+      try? FileManager.default.removeItem(at: url)
+    },
+    configURL: url,
+    runtime: GhosttyRuntime(configPath: url.path)
+  )
+}

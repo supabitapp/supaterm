@@ -188,7 +188,7 @@ struct SupatermMenuControllerTests {
       )
 
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
-      #expect(tabs == [.general])
+      #expect(tabs == [.terminal])
     }
   }
 
