@@ -719,7 +719,7 @@ struct SettingsFeatureTests {
   }
 }
 
-private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
+private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
   .init(
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
     availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
@@ -733,7 +733,7 @@ private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
   )
 }
 
-private func terminalSettingsState(
+private nonisolated func terminalSettingsState(
   darkTheme: String? = "Zenbones Dark",
   errorMessage: String? = nil,
   fontFamily: String? = nil,
@@ -759,7 +759,7 @@ private func terminalSettingsState(
   )
 }
 
-private func terminalSettingsValues(
+private nonisolated func terminalSettingsValues(
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,

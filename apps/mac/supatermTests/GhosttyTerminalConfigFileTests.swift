@@ -55,7 +55,7 @@ struct GhosttyTerminalConfigFileTests {
       font-family = "Monaco"
       font-size = 12
       font-family = "Menlo"
-      cursor-style = beam
+      cursor-style = block
       """,
       to: configURL
     )
@@ -98,7 +98,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(snapshot.warningMessage == nil)
     #expect(contents.contains("# keep"))
     #expect(contents.contains("theme = light:Builtin Light,dark:Zenbones Dark"))
-    #expect(contents.contains("cursor-style = beam"))
+    #expect(contents.contains("cursor-style = block"))
     #expect(contents.contains(#"font-family = "JetBrains Mono""#))
     #expect(contents.contains("font-size = 18"))
     #expect(occurrenceCount(of: "font-family =", in: contents) == 1)
@@ -201,6 +201,12 @@ struct GhosttyTerminalConfigFileTests {
       """,
       to: configURL
     )
+    try writeGhosttyTerminalConfig(
+      """
+      cursor-style = block
+      """,
+      to: configURL.deletingLastPathComponent().appendingPathComponent("other", isDirectory: false)
+    )
 
     let configFile = GhosttyTerminalConfigFile(
       homeDirectoryURL: rootURL,
@@ -270,22 +276,22 @@ struct GhosttyTerminalConfigFileTests {
   }
 }
 
-private func ghosttyTerminalConfigEnvironment(rootURL: URL) -> [String: String] {
+private nonisolated func ghosttyTerminalConfigEnvironment(rootURL: URL) -> [String: String] {
   ["XDG_CONFIG_HOME": rootURL.appendingPathComponent("xdg", isDirectory: true).path]
 }
 
-private func makeGhosttyTerminalConfigTemporaryDirectory() throws -> URL {
+private nonisolated func makeGhosttyTerminalConfigTemporaryDirectory() throws -> URL {
   let rootURL = FileManager.default.temporaryDirectory
     .appendingPathComponent(UUID().uuidString, isDirectory: true)
   try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
   return rootURL
 }
 
-private func occurrenceCount(of substring: String, in string: String) -> Int {
+private nonisolated func occurrenceCount(of substring: String, in string: String) -> Int {
   string.components(separatedBy: substring).count - 1
 }
 
-private func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws {
+private nonisolated func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws {
   try FileManager.default.createDirectory(
     at: url.deletingLastPathComponent(),
     withIntermediateDirectories: true
@@ -293,14 +299,14 @@ private func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws 
   try contents.write(to: url, atomically: true, encoding: .utf8)
 }
 
-private final class NotificationReloadCounter: @unchecked Sendable {
+nonisolated final class NotificationReloadCounter: @unchecked Sendable {
   private let lock = NSLock()
   private var value = 0
 
   func count() -> Int {
     lock.lock()
     defer { lock.unlock() }
-    value
+    return value
   }
 
   func increment() {
