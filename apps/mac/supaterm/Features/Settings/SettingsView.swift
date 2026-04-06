@@ -585,33 +585,14 @@ private struct SettingsAboutView: View {
         }
 
         SettingsSurfaceCard {
-          VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 16) {
               Text("Updates")
                 .font(.headline)
 
-              Text("Choose your release channel.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .top, spacing: 16) {
-              VStack(alignment: .leading, spacing: 4) {
-                Text("Channel")
-                  .font(.body.weight(.medium))
-
-                Text(
-                  store.updateChannel == .stable
-                    ? "Recommended for most users."
-                    : "Get the latest features early."
-                )
-                .font(.callout)
-                .foregroundStyle(.secondary)
-              }
-
               Spacer(minLength: 0)
 
-              Picker("Channel", selection: updateChannel) {
+              Picker("Updates", selection: updateChannel) {
                 ForEach(UpdateChannel.allCases) { channel in
                   Text(channel.title).tag(channel)
                 }
@@ -621,6 +602,14 @@ private struct SettingsAboutView: View {
               .frame(width: 180, alignment: .trailing)
               .controlSize(.large)
             }
+
+            Text(
+              store.updateChannel == .stable
+                ? "Recommended for most users."
+                : "Get the latest features early."
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
           }
         }
 
