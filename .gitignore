@@ -75,3 +75,4 @@ fastlane/test_output
 __pycache__/
 
 execplans/
+plans/
