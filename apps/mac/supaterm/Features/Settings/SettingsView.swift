@@ -366,15 +366,16 @@ private struct SettingsTerminalView: View {
         .disabled(controlsDisabled)
 
         LabeledContent {
-          HStack {
+          HStack(spacing: 12) {
             Spacer(minLength: 0)
 
-            Stepper(value: fontSizeSelection, in: 6...72, step: 1) {
-              Text("\(Int(store.terminal.fontSize.rounded())) pt")
-                .font(.callout.monospaced())
-                .frame(minWidth: 64, alignment: .trailing)
-            }
-            .fixedSize()
+            Text("\(Int(store.terminal.fontSize.rounded())) pt")
+              .font(.callout.monospaced())
+              .frame(minWidth: 64, alignment: .trailing)
+
+            Stepper("", value: fontSizeSelection, in: 6...72, step: 1)
+              .labelsHidden()
+              .fixedSize()
           }
           .disabled(controlsDisabled)
         } label: {
