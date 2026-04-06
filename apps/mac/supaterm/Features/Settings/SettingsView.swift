@@ -391,6 +391,12 @@ private struct SettingsTerminalView: View {
           )
         }
       }
+
+      Section {
+        Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      }
     }
     .navigationTitle("Terminal")
     .settingsFormLayout()
