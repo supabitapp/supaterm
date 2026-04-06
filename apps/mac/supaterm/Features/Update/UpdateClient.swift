@@ -347,8 +347,8 @@ extension UpdateClient: DependencyKey {
       },
       start: {
         let updateChannel = await MainActor.run {
-          @Shared(.appPrefs) var appPrefs = .default
-          return appPrefs.updateChannel
+          @Shared(.supatermSettings) var supatermSettings = .default
+          return supatermSettings.updateChannel
         }
         await runtime.start(updateChannel: updateChannel)
       }

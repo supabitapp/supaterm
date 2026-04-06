@@ -3,7 +3,7 @@ import Sharing
 import SwiftUI
 
 struct AppAppearanceView<Content: View>: View {
-  @Shared(.appPrefs) private var appPrefs = .default
+  @Shared(.supatermSettings) private var supatermSettings = .default
   let content: Content
 
   init(@ViewBuilder content: () -> Content) {
@@ -12,9 +12,9 @@ struct AppAppearanceView<Content: View>: View {
 
   var body: some View {
     content
-      .preferredColorScheme(appPrefs.appearanceMode.colorScheme)
+      .preferredColorScheme(supatermSettings.appearanceMode.colorScheme)
       .background {
-        WindowAppearanceSetter(appearanceMode: appPrefs.appearanceMode)
+        WindowAppearanceSetter(appearanceMode: supatermSettings.appearanceMode)
       }
   }
 }

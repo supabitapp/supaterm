@@ -22,13 +22,13 @@ enum AppCrashReporting {
 
   @MainActor
   static func setup(
-    appPrefs: AppPrefs,
+    supatermSettings: SupatermSettings,
     infoDictionary: [String: Any]
   ) {
     #if DEBUG
       return
     #else
-      guard isEnabled(appPrefs: appPrefs, isDebugBuild: false) else { return }
+      guard isEnabled(supatermSettings: supatermSettings, isDebugBuild: false) else { return }
       guard let configuration = Configuration(infoDictionary: infoDictionary) else { return }
       SentrySDK.start { options in
         options.dsn = configuration.dsn
@@ -40,17 +40,17 @@ enum AppCrashReporting {
 
   @MainActor
   static func setup() {
-    @Shared(.appPrefs) var appPrefs = .default
+    @Shared(.supatermSettings) var supatermSettings = .default
     setup(
-      appPrefs: appPrefs,
+      supatermSettings: supatermSettings,
       infoDictionary: Bundle.main.infoDictionary ?? [:]
     )
   }
 
   static func isEnabled(
-    appPrefs: AppPrefs,
+    supatermSettings: SupatermSettings,
     isDebugBuild: Bool
   ) -> Bool {
-    appPrefs.crashReportsEnabled && !isDebugBuild
+    supatermSettings.crashReportsEnabled && !isDebugBuild
   }
 }

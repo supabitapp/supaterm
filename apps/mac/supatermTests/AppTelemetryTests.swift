@@ -46,10 +46,10 @@ struct AppTelemetryTests {
 
   @Test
   func isEnabledRequiresAnalyticsAndNonDebugBuild() {
-    #expect(AppTelemetry.isEnabled(appPrefs: .default, isDebugBuild: false))
+    #expect(AppTelemetry.isEnabled(supatermSettings: .default, isDebugBuild: false))
     #expect(
       !AppTelemetry.isEnabled(
-        appPrefs: AppPrefs(
+        supatermSettings: SupatermSettings(
           appearanceMode: .system,
           analyticsEnabled: false,
           crashReportsEnabled: true,
@@ -58,6 +58,6 @@ struct AppTelemetryTests {
         isDebugBuild: false
       )
     )
-    #expect(!AppTelemetry.isEnabled(appPrefs: .default, isDebugBuild: true))
+    #expect(!AppTelemetry.isEnabled(supatermSettings: .default, isDebugBuild: true))
   }
 }

@@ -28,9 +28,9 @@ struct SettingsFeatureTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      @Shared(.appPrefs) var appPrefs = .default
-      $appPrefs.withLock {
-        $0 = AppPrefs(
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
+        $0 = SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
@@ -49,7 +49,7 @@ struct SettingsFeatureTests {
       }
 
       await store.send(.task)
-      await store.receive(.settingsLoaded(appPrefs)) {
+      await store.receive(.settingsLoaded(supatermSettings)) {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
@@ -189,8 +189,8 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(appPrefs.appearanceMode == .dark)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.appearanceMode == .dark)
     }
   }
 
@@ -211,9 +211,9 @@ struct SettingsFeatureTests {
         $0.crashReportsEnabled = false
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(!appPrefs.analyticsEnabled)
-      #expect(!appPrefs.crashReportsEnabled)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.analyticsEnabled)
+      #expect(!supatermSettings.crashReportsEnabled)
     }
   }
 
@@ -230,8 +230,8 @@ struct SettingsFeatureTests {
         $0.restoreTerminalLayoutEnabled = false
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(!appPrefs.restoreTerminalLayoutEnabled)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.restoreTerminalLayoutEnabled)
     }
   }
 
@@ -251,8 +251,8 @@ struct SettingsFeatureTests {
       }
       await store.receive(.systemNotificationsAuthorizationChecked(.authorized))
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(appPrefs.systemNotificationsEnabled)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.systemNotificationsEnabled)
     }
   }
 
@@ -287,8 +287,8 @@ struct SettingsFeatureTests {
           "Supaterm cannot send system notifications.\n\nError: Mock request error")
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(!appPrefs.systemNotificationsEnabled)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.systemNotificationsEnabled)
       #expect(await recorder.requestCount() == 1)
     }
   }
@@ -325,8 +325,8 @@ struct SettingsFeatureTests {
         )
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(!appPrefs.systemNotificationsEnabled)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.systemNotificationsEnabled)
       #expect(await recorder.requestCount() == 0)
     }
   }
@@ -414,8 +414,8 @@ struct SettingsFeatureTests {
         $0.updateChannel = .tip
       }
 
-      @Shared(.appPrefs) var appPrefs = .default
-      #expect(appPrefs.updateChannel == .tip)
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.updateChannel == .tip)
       #expect(await recorder.recorded() == [.setUpdateChannel(.tip)])
     }
   }
@@ -709,7 +709,7 @@ struct SettingsFeatureTests {
   }
 }
 
-private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
+nonisolated(unsafe) private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
   .init(
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
     configPath: "/tmp/ghostty/config",

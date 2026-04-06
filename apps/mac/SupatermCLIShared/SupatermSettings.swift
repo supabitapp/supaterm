@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AppPrefs: Codable, Equatable, Sendable {
+public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var crashReportsEnabled: Bool

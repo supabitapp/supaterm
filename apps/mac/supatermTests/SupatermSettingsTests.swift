@@ -6,17 +6,17 @@ import Testing
 
 @testable import supaterm
 
-struct AppPrefsTests {
+struct SupatermSettingsTests {
   @Test
   func defaultURLUsesSupatermConfigPath() {
-    let url = AppPrefs.defaultURL(homeDirectoryPath: "/tmp/khoi")
+    let url = SupatermSettings.defaultURL(homeDirectoryPath: "/tmp/khoi")
 
     #expect(url.path == "/tmp/khoi/.config/supaterm/settings.json")
   }
 
   @Test
   func defaultPrefsUseStableUpdateChannel() {
-    let prefs = AppPrefs.default
+    let prefs = SupatermSettings.default
 
     #expect(prefs.appearanceMode == .system)
     #expect(prefs.analyticsEnabled)
@@ -38,7 +38,7 @@ struct AppPrefsTests {
       """#.utf8
     )
 
-    let prefs = try JSONDecoder().decode(AppPrefs.self, from: data)
+    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
@@ -50,7 +50,7 @@ struct AppPrefsTests {
 
   @Test
   func defaultPrefsEncodeWithSchemaURL() throws {
-    let data = try JSONEncoder().encode(AppPrefs.default)
+    let data = try JSONEncoder().encode(SupatermSettings.default)
     let value = try JSONDecoder().decode(JSONValue.self, from: data)
     let object = try #require(value.objectValue)
 
@@ -69,10 +69,10 @@ struct AppPrefsTests {
 
   @Test
   func prefsRoundTripWithSchemaURL() throws {
-    let data = try JSONEncoder().encode(AppPrefs.default)
-    let prefs = try JSONDecoder().decode(AppPrefs.self, from: data)
+    let data = try JSONEncoder().encode(SupatermSettings.default)
+    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
 
-    #expect(prefs == AppPrefs.default)
+    #expect(prefs == SupatermSettings.default)
   }
 
   @Test
@@ -86,7 +86,7 @@ struct AppPrefsTests {
       """#.utf8
     )
 
-    let prefs = try JSONDecoder().decode(AppPrefs.self, from: data)
+    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)

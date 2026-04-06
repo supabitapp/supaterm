@@ -199,8 +199,8 @@ struct SocketControlFeature {
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
-      @Shared(.appPrefs) var appPrefs = .default
-      if appPrefs.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      if supatermSettings.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
@@ -214,8 +214,8 @@ struct SocketControlFeature {
     case SupatermSocketMethod.terminalAgentHook:
       let payload = try request.decodeParams(SupatermAgentHookRequest.self)
       let result = try await terminalWindowsClient.agentHook(payload)
-      @Shared(.appPrefs) var appPrefs = .default
-      if appPrefs.systemNotificationsEnabled, let desktopNotification = result.desktopNotification {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      if supatermSettings.systemNotificationsEnabled, let desktopNotification = result.desktopNotification {
         await desktopNotificationClient.deliver(desktopNotification)
       }
       return .ok(id: request.id)

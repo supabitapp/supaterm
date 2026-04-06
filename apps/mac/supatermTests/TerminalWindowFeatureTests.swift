@@ -263,8 +263,8 @@ struct TerminalWindowFeatureTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      @Shared(.appPrefs) var appPrefs = .default
-      $appPrefs.withLock {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
         $0.systemNotificationsEnabled = true
       }
 
@@ -300,8 +300,8 @@ struct TerminalWindowFeatureTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
-      @Shared(.appPrefs) var appPrefs = .default
-      $appPrefs.withLock {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
         $0.systemNotificationsEnabled = true
       }
 
