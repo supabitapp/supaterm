@@ -317,10 +317,6 @@ private struct SettingsTerminalView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
 
-        if store.terminal.isLoading || store.terminal.isApplying {
-          ProgressView()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
       }
 
       Section {
