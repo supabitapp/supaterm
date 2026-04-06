@@ -18,6 +18,8 @@ final class GhosttyRuntime {
   }
 
   private var config: ghostty_config_t?
+  private let configPath: String?
+  private let includeCLIArgs: Bool
   private(set) var app: ghostty_app_t?
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
@@ -29,21 +31,27 @@ final class GhosttyRuntime {
   private static let minNotificationSaturation = 0.12
 
   convenience init() {
-    guard let config = Self.loadConfig() else {
+    guard let config = Self.loadConfig(includeCLIArgs: true) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config)
+    self.init(loadedConfig: config, configPath: nil, includeCLIArgs: true)
   }
 
   convenience init(configPath: String) {
     guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config)
+    self.init(loadedConfig: config, configPath: configPath, includeCLIArgs: false)
   }
 
-  private init(loadedConfig config: ghostty_config_t) {
+  private init(
+    loadedConfig config: ghostty_config_t,
+    configPath: String?,
+    includeCLIArgs: Bool
+  ) {
     self.config = config
+    self.configPath = configPath
+    self.includeCLIArgs = includeCLIArgs
 
     var runtimeConfig = ghostty_runtime_config_s(
       userdata: Unmanaged.passUnretained(self).toOpaque(),
@@ -92,6 +100,16 @@ final class GhosttyRuntime {
       ) { [weak self] _ in
         MainActor.assumeIsolated {
           self?.setAppFocus(false)
+        }
+      })
+    observers.append(
+      center.addObserver(
+        forName: .ghosttyRuntimeReloadRequested,
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        MainActor.assumeIsolated {
+          self?.reloadAppConfig()
         }
       })
     observers.append(
@@ -171,9 +189,16 @@ final class GhosttyRuntime {
       ghostty_config_free(clone)
       return
     }
-    guard let config = Self.loadConfig() else { return }
+    guard let config = Self.loadConfig(at: configPath, includeCLIArgs: includeCLIArgs) else { return }
     applyConfig(config, target: target, app: app)
     ghostty_config_free(config)
+  }
+
+  func reloadAppConfig() {
+    reloadConfig(
+      soft: false,
+      target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: .init())
+    )
   }
 
   private func applyConfig(
@@ -672,6 +697,7 @@ final class GhosttyRuntime {
 
 extension Notification.Name {
   static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
+  static let ghosttyRuntimeReloadRequested = Notification.Name("ghosttyRuntimeReloadRequested")
 }
 
 extension NSColor {

@@ -19,7 +19,7 @@ struct SettingsFeatureTests {
   func tabOrderPlacesAdvancedBeforeAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .notifications, .codingAgents, .updates, .advanced, .about]
+        == [.general, .terminal, .notifications, .codingAgents, .advanced, .about]
     )
   }
 
@@ -45,6 +45,7 @@ struct SettingsFeatureTests {
       } withDependencies: {
         $0.claudeSettingsClient.hasSupatermHooks = { false }
         $0.codexSettingsClient.hasSupatermHooks = { false }
+        $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       }
 
       await store.send(.task)
@@ -56,11 +57,26 @@ struct SettingsFeatureTests {
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
       }
+      await store.receive(.terminalSettingsLoadRequested) {
+        $0.terminal.isLoading = true
+      }
       await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
         $0.claudeHooks.isPending = true
       }
       await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
         $0.codexHooks.isPending = true
+      }
+      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+        $0.terminal = SettingsTerminalState(
+          availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+          configPath: "/tmp/ghostty/config",
+          errorMessage: nil,
+          fontFamily: nil,
+          fontSize: 15,
+          isApplying: false,
+          isLoading: false,
+          warningMessage: nil
+        )
       }
       await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
         $0.claudeHooks.isPending = false
@@ -80,17 +96,33 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { false }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
     }
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
+    await store.receive(.terminalSettingsLoadRequested) {
+      $0.terminal.isLoading = true
+    }
     await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
       $0.claudeHooks.isPending = true
     }
     await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
       $0.codexHooks.isPending = true
+    }
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+      $0.terminal = SettingsTerminalState(
+        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+        configPath: "/tmp/ghostty/config",
+        errorMessage: nil,
+        fontFamily: nil,
+        fontSize: 15,
+        isApplying: false,
+        isLoading: false,
+        warningMessage: nil
+      )
     }
     await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
       $0.claudeHooks.isPending = false
@@ -127,16 +159,16 @@ struct SettingsFeatureTests {
       $0.selectedTab = .advanced
     }
 
+    await store.send(.tabSelected(.terminal)) {
+      $0.selectedTab = .terminal
+    }
+
     await store.send(.tabSelected(.codingAgents)) {
       $0.selectedTab = .codingAgents
     }
 
     await store.send(.tabSelected(.notifications)) {
       $0.selectedTab = .notifications
-    }
-
-    await store.send(.tabSelected(.updates)) {
-      $0.selectedTab = .updates
     }
 
     await store.send(.tabSelected(.about)) {
@@ -458,15 +490,31 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { true }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
     }
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
+    await store.receive(.terminalSettingsLoadRequested) {
+      $0.terminal.isLoading = true
+    }
     await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
       $0.claudeHooks.isPending = true
     }
     await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
       $0.codexHooks.isPending = true
+    }
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+      $0.terminal = SettingsTerminalState(
+        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+        configPath: "/tmp/ghostty/config",
+        errorMessage: nil,
+        fontFamily: nil,
+        fontSize: 15,
+        isApplying: false,
+        isLoading: false,
+        warningMessage: nil
+      )
     }
     await store.receive(.agentHooksStatusRefreshed(.claude, .success(true))) {
       $0.claudeHooks.confirmedEnabled = true
@@ -475,6 +523,83 @@ struct SettingsFeatureTests {
     }
     await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
       $0.codexHooks.isPending = false
+    }
+  }
+
+  @Test
+  func terminalFontFamilySelectionAppliesImmediately() async {
+    var state = SettingsFeature.State()
+    state.terminal = SettingsTerminalState(
+      availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+      configPath: "/tmp/ghostty/config",
+      errorMessage: nil,
+      fontFamily: nil,
+      fontSize: 15,
+      isApplying: false,
+      isLoading: false,
+      warningMessage: nil
+    )
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize in
+        .init(
+          availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+          configPath: "/tmp/ghostty/config",
+          fontFamily: fontFamily,
+          fontSize: fontSize,
+          warningMessage: nil
+        )
+      }
+    }
+
+    await store.send(.terminalFontFamilySelected("JetBrains Mono")) {
+      $0.terminal.errorMessage = nil
+      $0.terminal.fontFamily = "JetBrains Mono"
+      $0.terminal.isApplying = true
+    }
+    await store.receive(
+      .terminalSettingsApplied(
+        .init(
+          availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+          configPath: "/tmp/ghostty/config",
+          fontFamily: "JetBrains Mono",
+          fontSize: 15,
+          warningMessage: nil
+        )
+      )
+    ) {
+      $0.terminal = SettingsTerminalState(
+        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+        configPath: "/tmp/ghostty/config",
+        errorMessage: nil,
+        fontFamily: "JetBrains Mono",
+        fontSize: 15,
+        isApplying: false,
+        isLoading: false,
+        warningMessage: nil
+      )
+    }
+  }
+
+  @Test
+  func terminalSettingsLoadFailureSurfacesError() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.load = {
+        throw GhosttyTerminalConfigFileError.invalidConfig("Broken config")
+      }
+    }
+
+    await store.send(.terminalSettingsLoadRequested) {
+      $0.terminal.errorMessage = nil
+      $0.terminal.isLoading = true
+    }
+    await store.receive(.terminalSettingsLoadFailed("Broken config")) {
+      $0.terminal.errorMessage = "Broken config"
+      $0.terminal.isLoading = false
     }
   }
 
@@ -582,6 +707,16 @@ struct SettingsFeatureTests {
       $0.codexHooks.isPending = false
     }
   }
+}
+
+private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
+  .init(
+    availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+    configPath: "/tmp/ghostty/config",
+    fontFamily: nil,
+    fontSize: 15,
+    warningMessage: nil
+  )
 }
 
 private func notificationPermissionAlert(_ message: String) -> AlertState<SettingsFeature.Alert> {

@@ -91,6 +91,31 @@ struct GhosttyRuntimeTests {
     #expect(!GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_PRESENT_TERMINAL, action: .init())))
   }
 
+  @Test
+  func reloadAppConfigUsesOriginalExplicitConfigPath() throws {
+    let fixture = try makePersistentGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      """
+    )
+    defer {
+      fixture.cleanup()
+    }
+
+    #expect(hexString(fixture.runtime.backgroundColor()) == "#101010")
+
+    try """
+    background = #202020
+    foreground = #E0E0E0
+    """
+    .write(to: fixture.configURL, atomically: true, encoding: .utf8)
+
+    fixture.runtime.reloadAppConfig()
+
+    #expect(hexString(fixture.runtime.backgroundColor()) == "#202020")
+  }
+
   private func hexString(_ color: NSColor) -> String {
     let rgb = color.usingColorSpace(.sRGB) ?? color
     let red = Int(round(rgb.redComponent * 255))
