@@ -225,6 +225,51 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
           ]
         ),
+        .post(
+          script: """
+            set -eu
+
+            destination_path="${SRCROOT}/../supaterm.com/public/data/supaterm-settings.schema.json"
+            destination_dir="$(dirname "${destination_path}")"
+            source_candidates=(
+              "${BUILT_PRODUCTS_DIR}/sp"
+              "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
+            )
+
+            source_path=""
+            for candidate in "${source_candidates[@]}"; do
+              if [ -x "${candidate}" ]; then
+                source_path="${candidate}"
+                break
+              fi
+            done
+
+            if [ -z "${source_path}" ]; then
+              echo "error: missing built sp executable" >&2
+              exit 1
+            fi
+
+            mkdir -p "${destination_dir}"
+            temp_path="$(mktemp "${TMPDIR:-/tmp}/supaterm-settings-schema.XXXXXX")"
+            trap 'rm -f "${temp_path}"' EXIT
+            env -u SUPATERM_CLI_PATH "${source_path}" internal generate-settings-schema > "${temp_path}"
+
+            if [ -f "${destination_path}" ] && cmp -s "${temp_path}" "${destination_path}"; then
+              exit 0
+            fi
+
+            mv "${temp_path}" "${destination_path}"
+            """,
+          name: "Generate Settings Schema",
+          inputPaths: [
+            "$(BUILT_PRODUCTS_DIR)/sp",
+            "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
+          ],
+          outputPaths: [
+            "$(SRCROOT)/../supaterm.com/public/data/supaterm-settings.schema.json",
+          ],
+          basedOnDependencyAnalysis: false
+        ),
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),

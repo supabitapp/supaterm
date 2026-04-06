@@ -22,4 +22,27 @@ struct SupatermSettingsSchemaTests {
     #expect(updateChannel["default"]?.stringValue == AppPrefs.default.updateChannel.rawValue)
     #expect(updateChannel["enum"]?.arrayValue == UpdateChannel.allCases.map { .string($0.rawValue) })
   }
+
+  @Test
+  func committedWebSchemaMatchesGeneratedSchema() throws {
+    let fileURL = repoRootURL()
+      .appendingPathComponent("apps/supaterm.com")
+      .appendingPathComponent("public/data/supaterm-settings.schema.json")
+    let data = try Data(contentsOf: fileURL)
+    let committedSchema = try JSONDecoder().decode(JSONValue.self, from: data)
+    let generatedSchema = try JSONDecoder().decode(
+      JSONValue.self,
+      from: Data(try SupatermSettingsSchema.jsonString().utf8)
+    )
+
+    #expect(committedSchema == generatedSchema)
+  }
+
+  private func repoRootURL(filePath: StaticString = #filePath) -> URL {
+    URL(fileURLWithPath: "\(filePath)")
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+  }
 }
