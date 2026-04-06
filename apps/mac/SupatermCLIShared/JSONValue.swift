@@ -117,6 +117,10 @@ extension JSONValue: CustomStringConvertible {
 }
 
 extension JSONValue {
+  public func stableJSONString() throws -> String {
+    try stableJSONString(indentation: 0)
+  }
+
   public var arrayValue: [Self]? {
     guard case .array(let value) = self else { return nil }
     return value
@@ -164,6 +168,58 @@ extension JSONValue {
     let decoder = JSONDecoder()
     let data = try encoder.encode(EncodableBox(value))
     self = try decoder.decode(Self.self, from: data)
+  }
+
+  private func stableJSONString(indentation: Int) throws -> String {
+    switch self {
+    case .array(let values):
+      return try stableJSONArrayString(values, indentation: indentation)
+    case .object(let values):
+      return try stableJSONObjectString(values, indentation: indentation)
+    default:
+      let encoder = JSONEncoder()
+      return String(decoding: try encoder.encode(self), as: UTF8.self)
+    }
+  }
+
+  private func stableJSONArrayString(_ values: [Self], indentation: Int) throws -> String {
+    guard !values.isEmpty else {
+      return "[]"
+    }
+    if values.allSatisfy(\.isScalar) {
+      let elements = try values.map { try $0.stableJSONString(indentation: indentation) }
+      return "[\(elements.joined(separator: ", "))]"
+    }
+    let childIndentation = String(repeating: " ", count: indentation + 2)
+    let closingIndentation = String(repeating: " ", count: indentation)
+    let elements = try values.map { "\(childIndentation)\(try $0.stableJSONString(indentation: indentation + 2))" }
+    return "[\n\(elements.joined(separator: ",\n"))\n\(closingIndentation)]"
+  }
+
+  private func stableJSONObjectString(_ values: [String: Self], indentation: Int) throws -> String {
+    guard !values.isEmpty else {
+      return "{}"
+    }
+    let childIndentation = String(repeating: " ", count: indentation + 2)
+    let closingIndentation = String(repeating: " ", count: indentation)
+    let lines = try values.keys.sorted().map { key in
+      guard let value = values[key] else {
+        fatalError("Missing value for key \(key)")
+      }
+      let encodedKey = try JSONValue.string(key).stableJSONString(indentation: indentation + 2)
+      let encodedValue = try value.stableJSONString(indentation: indentation + 2)
+      return "\(childIndentation)\(encodedKey): \(encodedValue)"
+    }
+    return "{\n\(lines.joined(separator: ",\n"))\n\(closingIndentation)}"
+  }
+
+  private var isScalar: Bool {
+    switch self {
+    case .null, .bool, .int, .double, .string:
+      return true
+    case .array, .object:
+      return false
+    }
   }
 }
 

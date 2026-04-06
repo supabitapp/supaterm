@@ -5,9 +5,7 @@ public enum SupatermSettingsSchema {
   public static let url = "https://supaterm.com/data/supaterm-settings.schema.json"
 
   public static func jsonString() throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    return String(decoding: try encoder.encode(schemaObject()), as: UTF8.self)
+    try schemaObject().stableJSONString()
   }
 
   private static func schemaObject() -> JSONValue {
