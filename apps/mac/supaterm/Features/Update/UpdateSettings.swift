@@ -1,13 +1,9 @@
 import Foundation
+import SupatermCLIShared
 
-nonisolated enum UpdateChannel: String, Codable, CaseIterable, Equatable, Hashable, Identifiable, Sendable {
-  case stable
-  case tip
+typealias UpdateChannel = SupatermCLIShared.UpdateChannel
 
-  var id: Self {
-    self
-  }
-
+extension UpdateChannel {
   var title: String {
     switch self {
     case .stable:
