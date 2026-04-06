@@ -250,19 +250,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       from: sessionCatalog,
       restoreTerminalLayoutEnabled: restoreTerminalLayoutEnabled
     )
-    var didAssignStartupInput = false
+    let onboardingWindowIndex: Int?
+    if lastAppLaunchedDate == nil {
+      onboardingWindowIndex = sessions.firstIndex(where: { $0 == nil })
+    } else {
+      onboardingWindowIndex = nil
+    }
 
-    return sessions.map { session in
-      let startupInput: String?
-      if !didAssignStartupInput, lastAppLaunchedDate == nil, session == nil {
-        startupInput = onboardingStartupInput
-        didAssignStartupInput = true
-      } else {
-        startupInput = nil
-      }
-      return LaunchWindowRequest(
+    return sessions.enumerated().map { index, session in
+      LaunchWindowRequest(
         session: session,
-        startupInput: startupInput
+        startupInput: index == onboardingWindowIndex ? onboardingStartupInput : nil
       )
     }
   }
