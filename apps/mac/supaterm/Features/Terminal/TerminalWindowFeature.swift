@@ -161,8 +161,8 @@ struct TerminalWindowFeature {
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
 
         case .notificationReceived(let event):
-          @Shared(.appPrefs) var appPrefs = .default
-          guard appPrefs.systemNotificationsEnabled else { return .none }
+          @Shared(.supatermSettings) var supatermSettings = .default
+          guard supatermSettings.systemNotificationsEnabled else { return .none }
           guard event.desktopNotificationDisposition.shouldDeliver else { return .none }
           return .run { [desktopNotificationClient] _ in
             await desktopNotificationClient.deliver(

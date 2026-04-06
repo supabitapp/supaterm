@@ -30,14 +30,14 @@ public enum SupatermSettingsSchema {
         format: "uri"
       )
     ]
-    for key in AppPrefs.CodingKeys.allCases {
+    for key in SupatermSettings.CodingKeys.allCases {
       properties[key.rawValue] = schemaProperty(for: key)
     }
     return properties
   }
 
-  private static func schemaProperty(for key: AppPrefs.CodingKeys) -> JSONValue {
-    let defaultValue = AppPrefs.default.value(for: key)
+  private static func schemaProperty(for key: SupatermSettings.CodingKeys) -> JSONValue {
+    let defaultValue = SupatermSettings.default.value(for: key)
     return schemaProperty(
       defaultValue: defaultValue,
       description: key.schemaDescription,

@@ -12,8 +12,8 @@ protocol GhosttyAppActionPerforming: AnyObject {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
-  @Shared(.appPrefs)
-  private var appPrefs = .default
+  @Shared(.supatermSettings)
+  private var supatermSettings = .default
   @Shared(.terminalSessionCatalog)
   private var sessionCatalog = TerminalSessionCatalog.default
 
@@ -149,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     suppressesSessionSave = true
     let sessions = Self.initialWindowSessions(
       from: sessionCatalog,
-      restoreTerminalLayoutEnabled: appPrefs.restoreTerminalLayoutEnabled
+      restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled
     )
     var lastController: TerminalWindowController?
     for session in sessions {

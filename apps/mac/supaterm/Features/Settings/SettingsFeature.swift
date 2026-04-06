@@ -39,17 +39,17 @@ enum SettingsAgentHooksResult: Equatable {
 struct SettingsFeature {
   @ObservableState
   struct State: Equatable {
-    var appearanceMode = AppPrefs.default.appearanceMode
-    var analyticsEnabled = AppPrefs.default.analyticsEnabled
+    var appearanceMode = SupatermSettings.default.appearanceMode
+    var analyticsEnabled = SupatermSettings.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
     var claudeHooks = SettingsAgentHooksState(settingsPath: "~/.claude/settings.json")
     var codexHooks = SettingsAgentHooksState(settingsPath: "~/.codex/hooks.json")
-    var crashReportsEnabled = AppPrefs.default.crashReportsEnabled
-    var restoreTerminalLayoutEnabled = AppPrefs.default.restoreTerminalLayoutEnabled
+    var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
+    var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
-    var systemNotificationsEnabled = AppPrefs.default.systemNotificationsEnabled
+    var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     var terminal = SettingsTerminalState()
-    var updateChannel = AppPrefs.default.updateChannel
+    var updateChannel = SupatermSettings.default.updateChannel
     var updatesAutomaticallyCheckForUpdates = true
     var updatesAutomaticallyDownloadUpdates = true
   }
@@ -65,7 +65,7 @@ struct SettingsFeature {
     case checkForUpdatesButtonTapped
     case crashReportsEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
-    case settingsLoaded(AppPrefs)
+    case settingsLoaded(SupatermSettings)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
     case systemNotificationsAuthorizationResult(DesktopNotificationClient.AuthorizationRequestResult)
     case systemNotificationsEnabledChanged(Bool)
@@ -147,9 +147,9 @@ struct SettingsFeature {
     Reduce { state, action in
       switch action {
       case .task:
-        @Shared(.appPrefs) var appPrefs = .default
+        @Shared(.supatermSettings) var supatermSettings = .default
         return .merge(
-          .send(.settingsLoaded(appPrefs)),
+          .send(.settingsLoaded(supatermSettings)),
           .send(.terminalSettingsLoadRequested),
           .send(.agentHooksStatusRefreshRequested(.claude)),
           .send(.agentHooksStatusRefreshRequested(.codex)),
@@ -163,13 +163,13 @@ struct SettingsFeature {
           .cancellable(id: SettingsFeatureCancelID.updateObservation, cancelInFlight: true)
         )
 
-      case .settingsLoaded(let appPrefs):
-        state.appearanceMode = appPrefs.appearanceMode
-        state.analyticsEnabled = appPrefs.analyticsEnabled
-        state.crashReportsEnabled = appPrefs.crashReportsEnabled
-        state.restoreTerminalLayoutEnabled = appPrefs.restoreTerminalLayoutEnabled
-        state.systemNotificationsEnabled = appPrefs.systemNotificationsEnabled
-        state.updateChannel = appPrefs.updateChannel
+      case .settingsLoaded(let supatermSettings):
+        state.appearanceMode = supatermSettings.appearanceMode
+        state.analyticsEnabled = supatermSettings.analyticsEnabled
+        state.crashReportsEnabled = supatermSettings.crashReportsEnabled
+        state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
+        state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
+        state.updateChannel = supatermSettings.updateChannel
         return .none
 
       case .updateClientSnapshotReceived(let snapshot):
@@ -399,7 +399,7 @@ struct SettingsFeature {
   }
 
   private func persist(_ state: State) -> Effect<Action> {
-    let appPrefs = AppPrefs(
+    let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
@@ -407,11 +407,11 @@ struct SettingsFeature {
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.updateChannel
     )
-    @Shared(.appPrefs) var sharedAppPrefs = .default
-    $sharedAppPrefs.withLock {
-      $0 = appPrefs
+    @Shared(.supatermSettings) var sharedSupatermSettings = .default
+    $sharedSupatermSettings.withLock {
+      $0 = supatermSettings
     }
-    if appPrefs.analyticsEnabled {
+    if supatermSettings.analyticsEnabled {
       analyticsClient.capture("settings_changed")
     }
     return .none

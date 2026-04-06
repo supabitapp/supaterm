@@ -31,10 +31,10 @@ struct AppCrashReportingTests {
 
   @Test
   func isEnabledRequiresCrashReportsAndNonDebugBuild() {
-    #expect(AppCrashReporting.isEnabled(appPrefs: .default, isDebugBuild: false))
+    #expect(AppCrashReporting.isEnabled(supatermSettings: .default, isDebugBuild: false))
     #expect(
       !AppCrashReporting.isEnabled(
-        appPrefs: AppPrefs(
+        supatermSettings: SupatermSettings(
           appearanceMode: .system,
           analyticsEnabled: true,
           crashReportsEnabled: false,
@@ -43,6 +43,6 @@ struct AppCrashReportingTests {
         isDebugBuild: false
       )
     )
-    #expect(!AppCrashReporting.isEnabled(appPrefs: .default, isDebugBuild: true))
+    #expect(!AppCrashReporting.isEnabled(supatermSettings: .default, isDebugBuild: true))
   }
 }
