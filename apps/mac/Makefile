@@ -11,6 +11,8 @@ CURRENT_MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CURRENT_MAKEFILE_DIR := $(patsubst %/,%,$(dir $(CURRENT_MAKEFILE_PATH)))
 PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
+SP_SCHEME := sp
+SCHEMA_OUTPUT_PATH := $(CURRENT_MAKEFILE_DIR)/../supaterm.com/public/data/supaterm-settings.schema.json
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
@@ -20,7 +22,7 @@ TUIST_GENERATE_CACHE_PROFILE ?= development
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
+.PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache generate-settings-schema
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -53,6 +55,22 @@ $(TUIST_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS)
 
 build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
+
+generate-settings-schema: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the CLI and write the hosted settings schema
+	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(SP_SCHEME)" -configuration Debug build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
+	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(SP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
+	build_dir="$$(echo "$$settings" | jq -r ".[0].buildSettings.BUILT_PRODUCTS_DIR")"; \
+	executable="$$build_dir/$(SP_SCHEME)"; \
+	destination="$(SCHEMA_OUTPUT_PATH)"; \
+	destination_dir="$$(dirname "$$destination")"; \
+	temp_path="$$(mktemp "$${TMPDIR:-/tmp}/supaterm-settings-schema.XXXXXX")"; \
+	trap 'rm -f "$$temp_path"' EXIT; \
+	mkdir -p "$$destination_dir"; \
+	env -u SUPATERM_CLI_PATH "$$executable" internal generate-settings-schema > "$$temp_path"; \
+	if [ -f "$$destination" ] && cmp -s "$$temp_path" "$$destination"; then \
+		exit 0; \
+	fi; \
+	mv "$$temp_path" "$$destination"
 
 run-app: build-app # Build then launch (Debug) with log streaming
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
