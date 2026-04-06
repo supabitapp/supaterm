@@ -320,8 +320,7 @@ private struct SettingsTerminalView: View {
           }
         } label: {
           SettingsRowLabel(
-            title: "Font",
-            subtitle: "Written to `font-family` in your Ghostty config."
+            title: "Font"
           )
         }
         .disabled(controlsDisabled)
@@ -335,8 +334,7 @@ private struct SettingsTerminalView: View {
           .disabled(controlsDisabled)
         } label: {
           SettingsRowLabel(
-            title: "Font Size",
-            subtitle: "Written to `font-size` in your Ghostty config."
+            title: "Font Size"
           )
         }
       }
