@@ -98,7 +98,7 @@ struct GhosttyTerminalConfigFile {
     let effectiveSize = try effectiveFontSize(at: validationURL)
     try updatedContents.write(to: configURL, atomically: true, encoding: .utf8)
     notificationCenter.post(name: .ghosttyRuntimeReloadRequested, object: nil)
-    return appliedValues(
+    return settingsValues(
       configURL: configURL,
       contents: updatedContents,
       fontSize: effectiveSize
@@ -111,21 +111,25 @@ struct GhosttyTerminalConfigFile {
     fontSize: Double,
     themes: GhosttyTerminalThemeCatalog
   ) -> GhosttyTerminalSettingsSnapshot {
-    let selection = selectedTheme(in: contents)
+    let values = settingsValues(
+      configURL: configURL,
+      contents: contents,
+      fontSize: fontSize
+    )
     return .init(
       availableFontFamilies: availableFontFamiliesProvider(),
       availableDarkThemes: themes.dark,
       availableLightThemes: themes.light,
-      configPath: configURL.path,
-      darkTheme: selection?.dark,
-      fontFamily: selectedFontFamily(in: contents),
-      fontSize: fontSize,
-      lightTheme: selection?.light,
-      warningMessage: warningMessage(in: contents)
+      configPath: values.configPath,
+      darkTheme: values.darkTheme,
+      fontFamily: values.fontFamily,
+      fontSize: values.fontSize,
+      lightTheme: values.lightTheme,
+      warningMessage: values.warningMessage
     )
   }
 
-  private func appliedValues(
+  private func settingsValues(
     configURL: URL,
     contents: String,
     fontSize: Double
@@ -453,20 +457,8 @@ struct GhosttyTerminalConfigFile {
     }
 
     return .init(
-      dark:
-        classifications
-        .filter { $0.value }
-        .map(\.key)
-        .sorted { lhs, rhs in
-          lhs.localizedStandardCompare(rhs) == .orderedAscending
-        },
-      light:
-        classifications
-        .filter { !$0.value }
-        .map(\.key)
-        .sorted { lhs, rhs in
-          lhs.localizedStandardCompare(rhs) == .orderedAscending
-        }
+      dark: sortedThemeNames(in: classifications, isDark: true),
+      light: sortedThemeNames(in: classifications, isDark: false)
     )
   }
 
@@ -508,6 +500,18 @@ struct GhosttyTerminalConfigFile {
     let blue = Double(color.b) / 255
     let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
     return luminance < 0.5
+  }
+
+  private static func sortedThemeNames(
+    in classifications: [String: Bool],
+    isDark: Bool
+  ) -> [String] {
+    classifications
+      .filter { $0.value == isDark }
+      .map(\.key)
+      .sorted { lhs, rhs in
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
+      }
   }
 
   private let managedKeys = Set(["font-family", "font-size", "theme"])

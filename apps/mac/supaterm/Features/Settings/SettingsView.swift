@@ -347,31 +347,16 @@ private struct SettingsTerminalView: View {
       Section {
         LabeledContent("Light/Dark Theme") {
           HStack(spacing: 12) {
-            Picker(selection: lightThemeSelection) {
-              if store.terminal.lightTheme == nil {
-                Text("Select Theme").tag(Optional<String>.none)
-              }
-              ForEach(availableLightThemes, id: \.self) { theme in
-                Text(theme).tag(theme as String?)
-              }
-            } label: {
-              EmptyView()
-            }
-            .labelsHidden()
-            .disabled(controlsDisabled)
-
-            Picker(selection: darkThemeSelection) {
-              if store.terminal.darkTheme == nil {
-                Text("Select Theme").tag(Optional<String>.none)
-              }
-              ForEach(availableDarkThemes, id: \.self) { theme in
-                Text(theme).tag(theme as String?)
-              }
-            } label: {
-              EmptyView()
-            }
-            .labelsHidden()
-            .disabled(controlsDisabled)
+            themePicker(
+              selection: lightThemeSelection,
+              themes: availableLightThemes,
+              selectedTheme: store.terminal.lightTheme
+            )
+            themePicker(
+              selection: darkThemeSelection,
+              themes: availableDarkThemes,
+              selectedTheme: store.terminal.darkTheme
+            )
           }
           .frame(maxWidth: .infinity, alignment: .trailing)
         }
@@ -414,6 +399,26 @@ private struct SettingsTerminalView: View {
       return themes
     }
     return [selected] + themes
+  }
+
+  @ViewBuilder
+  private func themePicker(
+    selection: Binding<String?>,
+    themes: [String],
+    selectedTheme: String?
+  ) -> some View {
+    Picker(selection: selection) {
+      if selectedTheme == nil {
+        Text("Select Theme").tag(Optional<String>.none)
+      }
+      ForEach(themes, id: \.self) { theme in
+        Text(theme).tag(theme as String?)
+      }
+    } label: {
+      EmptyView()
+    }
+    .labelsHidden()
+    .disabled(controlsDisabled)
   }
 }
 

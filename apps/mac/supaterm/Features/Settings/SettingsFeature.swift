@@ -20,6 +20,10 @@ struct SettingsTerminalState: Equatable {
   var isLoading = false
   var lightTheme: String?
   var warningMessage: String?
+
+  var isBusy: Bool {
+    isApplying || isLoading
+  }
 }
 
 struct SettingsAgentHooksState: Equatable {
@@ -211,11 +215,9 @@ struct SettingsFeature {
         return .none
 
       case .terminalLightThemeSelected(let lightTheme):
-        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+        guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
-        state.terminal.errorMessage = nil
-        state.terminal.isApplying = true
         state.terminal.lightTheme = lightTheme
         return applyTerminalSettings(
           fontFamily: state.terminal.fontFamily,
@@ -225,11 +227,9 @@ struct SettingsFeature {
         )
 
       case .terminalDarkThemeSelected(let darkTheme):
-        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+        guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
-        state.terminal.errorMessage = nil
-        state.terminal.isApplying = true
         state.terminal.darkTheme = darkTheme
         return applyTerminalSettings(
           fontFamily: state.terminal.fontFamily,
@@ -239,12 +239,10 @@ struct SettingsFeature {
         )
 
       case .terminalFontFamilySelected(let fontFamily):
-        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+        guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
-        state.terminal.errorMessage = nil
         state.terminal.fontFamily = fontFamily
-        state.terminal.isApplying = true
         return applyTerminalSettings(
           fontFamily: fontFamily,
           fontSize: state.terminal.fontSize,
@@ -253,12 +251,10 @@ struct SettingsFeature {
         )
 
       case .terminalFontSizeChanged(let fontSize):
-        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+        guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
-        state.terminal.errorMessage = nil
         state.terminal.fontSize = fontSize
-        state.terminal.isApplying = true
         return applyTerminalSettings(
           fontFamily: state.terminal.fontFamily,
           fontSize: fontSize,
@@ -537,6 +533,15 @@ struct SettingsFeature {
     state.isLoading = false
     state.lightTheme = values.lightTheme
     state.warningMessage = values.warningMessage
+  }
+
+  private func prepareTerminalSettingsApply(_ state: inout SettingsTerminalState) -> Bool {
+    guard !state.isBusy else {
+      return false
+    }
+    state.errorMessage = nil
+    state.isApplying = true
+    return true
   }
 
   private func applyTerminalSettings(

@@ -61,13 +61,13 @@ struct GhosttyTerminalConfigFileTests {
     )
 
     let center = NotificationCenter()
-    var reloadCount = 0
+    let reloadCounter = NotificationReloadCounter()
     let observer = center.addObserver(
       forName: .ghosttyRuntimeReloadRequested,
       object: nil,
       queue: nil
     ) { _ in
-      reloadCount += 1
+      reloadCounter.increment()
     }
     defer {
       center.removeObserver(observer)
@@ -103,7 +103,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(contents.contains("font-size = 18"))
     #expect(occurrenceCount(of: "font-family =", in: contents) == 1)
     #expect(occurrenceCount(of: "font-size =", in: contents) == 1)
-    #expect(reloadCount == 1)
+    #expect(reloadCounter.count() == 1)
   }
 
   @Test
@@ -234,13 +234,13 @@ struct GhosttyTerminalConfigFileTests {
     try writeGhosttyTerminalConfig(originalContents, to: configURL)
 
     let center = NotificationCenter()
-    var reloadCount = 0
+    let reloadCounter = NotificationReloadCounter()
     let observer = center.addObserver(
       forName: .ghosttyRuntimeReloadRequested,
       object: nil,
       queue: nil
     ) { _ in
-      reloadCount += 1
+      reloadCounter.increment()
     }
     defer {
       center.removeObserver(observer)
@@ -266,7 +266,7 @@ struct GhosttyTerminalConfigFileTests {
     }
 
     #expect(try String(contentsOf: configURL, encoding: .utf8) == originalContents)
-    #expect(reloadCount == 0)
+    #expect(reloadCounter.count() == 0)
   }
 }
 
@@ -291,4 +291,21 @@ private func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws 
     withIntermediateDirectories: true
   )
   try contents.write(to: url, atomically: true, encoding: .utf8)
+}
+
+private final class NotificationReloadCounter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value = 0
+
+  func count() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    value
+  }
+
+  func increment() {
+    lock.lock()
+    defer { lock.unlock() }
+    value += 1
+  }
 }
