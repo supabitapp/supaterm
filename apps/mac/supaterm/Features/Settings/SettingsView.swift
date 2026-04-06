@@ -269,6 +269,38 @@ private struct SettingsTerminalView: View {
     )
   }
 
+  private var lightThemeSelection: Binding<String?> {
+    Binding(
+      get: { store.terminal.lightTheme },
+      set: { newValue in
+        _ = store.send(.terminalLightThemeSelected(newValue))
+      }
+    )
+  }
+
+  private var darkThemeSelection: Binding<String?> {
+    Binding(
+      get: { store.terminal.darkTheme },
+      set: { newValue in
+        _ = store.send(.terminalDarkThemeSelected(newValue))
+      }
+    )
+  }
+
+  private var availableLightThemes: [String] {
+    themeOptions(
+      from: store.terminal.availableLightThemes,
+      selected: store.terminal.lightTheme
+    )
+  }
+
+  private var availableDarkThemes: [String] {
+    themeOptions(
+      from: store.terminal.availableDarkThemes,
+      selected: store.terminal.darkTheme
+    )
+  }
+
   private var resolvedConfigPath: String {
     if store.terminal.configPath.isEmpty {
       GhosttyBootstrap.configFileLocations().preferred.path
@@ -313,6 +345,34 @@ private struct SettingsTerminalView: View {
       }
 
       Section {
+        Picker(selection: lightThemeSelection) {
+          if store.terminal.lightTheme == nil {
+            Text("Select Theme").tag(Optional<String>.none)
+          }
+          ForEach(availableLightThemes, id: \.self) { theme in
+            Text(theme).tag(theme as String?)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "Light Theme"
+          )
+        }
+        .disabled(controlsDisabled)
+
+        Picker(selection: darkThemeSelection) {
+          if store.terminal.darkTheme == nil {
+            Text("Select Theme").tag(Optional<String>.none)
+          }
+          ForEach(availableDarkThemes, id: \.self) { theme in
+            Text(theme).tag(theme as String?)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "Dark Theme"
+          )
+        }
+        .disabled(controlsDisabled)
+
         Picker(selection: fontFamilySelection) {
           Text("Default").tag(defaultFontFamilyTag)
           ForEach(store.terminal.availableFontFamilies, id: \.self) { fontFamily in
@@ -341,6 +401,16 @@ private struct SettingsTerminalView: View {
     }
     .navigationTitle("Terminal")
     .settingsFormLayout()
+  }
+
+  private func themeOptions(from themes: [String], selected: String?) -> [String] {
+    guard let selected, !selected.isEmpty else {
+      return themes
+    }
+    guard !themes.contains(selected) else {
+      return themes
+    }
+    return [selected] + themes
   }
 }
 

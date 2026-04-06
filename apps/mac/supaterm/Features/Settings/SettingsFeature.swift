@@ -9,12 +9,16 @@ private enum SettingsFeatureCancelID {
 
 struct SettingsTerminalState: Equatable {
   var availableFontFamilies: [String] = []
+  var availableDarkThemes: [String] = []
+  var availableLightThemes: [String] = []
   var configPath = ""
+  var darkTheme: String?
   var errorMessage: String?
   var fontFamily: String?
   var fontSize = 15.0
   var isApplying = false
   var isLoading = false
+  var lightTheme: String?
   var warningMessage: String?
 }
 
@@ -71,9 +75,11 @@ struct SettingsFeature {
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
+    case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
     case terminalFontSizeChanged(Double)
-    case terminalSettingsApplied(GhosttyTerminalSettingsSnapshot)
+    case terminalLightThemeSelected(String?)
+    case terminalSettingsApplied(GhosttyTerminalSettingsValues)
     case terminalSettingsApplyFailed(String)
     case terminalSettingsLoadFailed(String)
     case terminalSettingsLoadRequested
@@ -186,8 +192,12 @@ struct SettingsFeature {
           }
         }
 
-      case .terminalSettingsLoaded(let snapshot), .terminalSettingsApplied(let snapshot):
+      case .terminalSettingsLoaded(let snapshot):
         updateTerminalState(&state.terminal, with: snapshot)
+        return .none
+
+      case .terminalSettingsApplied(let values):
+        updateTerminalState(&state.terminal, with: values)
         return .none
 
       case .terminalSettingsLoadFailed(let message):
@@ -200,6 +210,34 @@ struct SettingsFeature {
         state.terminal.isApplying = false
         return .none
 
+      case .terminalLightThemeSelected(let lightTheme):
+        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+          return .none
+        }
+        state.terminal.errorMessage = nil
+        state.terminal.isApplying = true
+        state.terminal.lightTheme = lightTheme
+        return applyTerminalSettings(
+          fontFamily: state.terminal.fontFamily,
+          fontSize: state.terminal.fontSize,
+          lightTheme: lightTheme,
+          darkTheme: state.terminal.darkTheme ?? lightTheme
+        )
+
+      case .terminalDarkThemeSelected(let darkTheme):
+        guard !state.terminal.isLoading, !state.terminal.isApplying else {
+          return .none
+        }
+        state.terminal.errorMessage = nil
+        state.terminal.isApplying = true
+        state.terminal.darkTheme = darkTheme
+        return applyTerminalSettings(
+          fontFamily: state.terminal.fontFamily,
+          fontSize: state.terminal.fontSize,
+          lightTheme: state.terminal.lightTheme ?? darkTheme,
+          darkTheme: darkTheme
+        )
+
       case .terminalFontFamilySelected(let fontFamily):
         guard !state.terminal.isLoading, !state.terminal.isApplying else {
           return .none
@@ -209,7 +247,9 @@ struct SettingsFeature {
         state.terminal.isApplying = true
         return applyTerminalSettings(
           fontFamily: fontFamily,
-          fontSize: state.terminal.fontSize
+          fontSize: state.terminal.fontSize,
+          lightTheme: state.terminal.lightTheme,
+          darkTheme: state.terminal.darkTheme
         )
 
       case .terminalFontSizeChanged(let fontSize):
@@ -221,7 +261,9 @@ struct SettingsFeature {
         state.terminal.isApplying = true
         return applyTerminalSettings(
           fontFamily: state.terminal.fontFamily,
-          fontSize: fontSize
+          fontSize: fontSize,
+          lightTheme: state.terminal.lightTheme,
+          darkTheme: state.terminal.darkTheme
         )
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
@@ -469,22 +511,52 @@ struct SettingsFeature {
     with snapshot: GhosttyTerminalSettingsSnapshot
   ) {
     state.availableFontFamilies = snapshot.availableFontFamilies
+    state.availableDarkThemes = snapshot.availableDarkThemes
+    state.availableLightThemes = snapshot.availableLightThemes
     state.configPath = snapshot.configPath
+    state.darkTheme = snapshot.darkTheme
     state.errorMessage = nil
     state.fontFamily = snapshot.fontFamily
     state.fontSize = snapshot.fontSize
     state.isApplying = false
     state.isLoading = false
+    state.lightTheme = snapshot.lightTheme
     state.warningMessage = snapshot.warningMessage
+  }
+
+  private func updateTerminalState(
+    _ state: inout SettingsTerminalState,
+    with values: GhosttyTerminalSettingsValues
+  ) {
+    state.configPath = values.configPath
+    state.darkTheme = values.darkTheme
+    state.errorMessage = nil
+    state.fontFamily = values.fontFamily
+    state.fontSize = values.fontSize
+    state.isApplying = false
+    state.isLoading = false
+    state.lightTheme = values.lightTheme
+    state.warningMessage = values.warningMessage
   }
 
   private func applyTerminalSettings(
     fontFamily: String?,
-    fontSize: Double
+    fontSize: Double,
+    lightTheme: String?,
+    darkTheme: String?
   ) -> Effect<Action> {
     .run { [ghosttyTerminalSettingsClient] send in
       do {
-        await send(.terminalSettingsApplied(try await ghosttyTerminalSettingsClient.apply(fontFamily, fontSize)))
+        await send(
+          .terminalSettingsApplied(
+            try await ghosttyTerminalSettingsClient.apply(
+              fontFamily,
+              fontSize,
+              lightTheme,
+              darkTheme
+            )
+          )
+        )
       } catch {
         await send(.terminalSettingsApplyFailed(error.localizedDescription))
       }

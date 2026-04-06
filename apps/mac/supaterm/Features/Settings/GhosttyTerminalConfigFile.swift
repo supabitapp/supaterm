@@ -2,6 +2,11 @@ import AppKit
 import Foundation
 import GhosttyKit
 
+struct GhosttyTerminalThemeCatalog: Equatable {
+  var dark: [String]
+  var light: [String]
+}
+
 enum GhosttyTerminalConfigFileError: LocalizedError {
   case failedToCreateGhosttyConfig
   case invalidConfig(String)
@@ -18,7 +23,13 @@ enum GhosttyTerminalConfigFileError: LocalizedError {
 
 @MainActor
 struct GhosttyTerminalConfigFile {
+  private struct ThemeSelection: Equatable {
+    var dark: String
+    var light: String
+  }
+
   private let availableFontFamiliesProvider: @MainActor () -> [String]
+  private let availableThemesProvider: () throws -> GhosttyTerminalThemeCatalog
   private let environment: [String: String]
   private let fileManager: FileManager
   private let homeDirectoryURL: URL
@@ -29,6 +40,7 @@ struct GhosttyTerminalConfigFile {
     environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default,
     notificationCenter: NotificationCenter = .default,
+    availableThemesProvider: (() throws -> GhosttyTerminalThemeCatalog)? = nil,
     availableFontFamiliesProvider: @escaping @MainActor () -> [String] = Self.availableFontFamilies
   ) {
     self.availableFontFamiliesProvider = availableFontFamiliesProvider
@@ -36,29 +48,44 @@ struct GhosttyTerminalConfigFile {
     self.fileManager = fileManager
     self.homeDirectoryURL = homeDirectoryURL
     self.notificationCenter = notificationCenter
+    self.availableThemesProvider =
+      availableThemesProvider ?? {
+        try Self.availableThemes(
+          homeDirectoryURL: homeDirectoryURL,
+          environment: environment,
+          fileManager: fileManager,
+          resourcesURL: Bundle.main.resourceURL
+        )
+      }
   }
 
   func load() throws -> GhosttyTerminalSettingsSnapshot {
     let configURL = try ensureConfigFile()
     let contents = try String(contentsOf: configURL, encoding: .utf8)
     let fontSize = try effectiveFontSize(at: configURL)
+    let themes = try availableThemesProvider()
     return snapshot(
       configURL: configURL,
       contents: contents,
-      fontSize: fontSize
+      fontSize: fontSize,
+      themes: themes
     )
   }
 
   func apply(
     fontFamily: String?,
-    fontSize: Double
-  ) throws -> GhosttyTerminalSettingsSnapshot {
+    fontSize: Double,
+    lightTheme: String?,
+    darkTheme: String?
+  ) throws -> GhosttyTerminalSettingsValues {
     let configURL = try ensureConfigFile()
     let contents = try String(contentsOf: configURL, encoding: .utf8)
     let updatedContents = updatedContents(
       from: contents,
       fontFamily: fontFamily,
-      fontSize: fontSize
+      fontSize: fontSize,
+      lightTheme: lightTheme,
+      darkTheme: darkTheme
     )
     let validationURL =
       configURL
@@ -71,7 +98,7 @@ struct GhosttyTerminalConfigFile {
     let effectiveSize = try effectiveFontSize(at: validationURL)
     try updatedContents.write(to: configURL, atomically: true, encoding: .utf8)
     notificationCenter.post(name: .ghosttyRuntimeReloadRequested, object: nil)
-    return snapshot(
+    return appliedValues(
       configURL: configURL,
       contents: updatedContents,
       fontSize: effectiveSize
@@ -81,13 +108,35 @@ struct GhosttyTerminalConfigFile {
   private func snapshot(
     configURL: URL,
     contents: String,
-    fontSize: Double
+    fontSize: Double,
+    themes: GhosttyTerminalThemeCatalog
   ) -> GhosttyTerminalSettingsSnapshot {
-    .init(
+    let selection = selectedTheme(in: contents)
+    return .init(
       availableFontFamilies: availableFontFamiliesProvider(),
+      availableDarkThemes: themes.dark,
+      availableLightThemes: themes.light,
       configPath: configURL.path,
+      darkTheme: selection?.dark,
       fontFamily: selectedFontFamily(in: contents),
       fontSize: fontSize,
+      lightTheme: selection?.light,
+      warningMessage: warningMessage(in: contents)
+    )
+  }
+
+  private func appliedValues(
+    configURL: URL,
+    contents: String,
+    fontSize: Double
+  ) -> GhosttyTerminalSettingsValues {
+    let selection = selectedTheme(in: contents)
+    return .init(
+      configPath: configURL.path,
+      darkTheme: selection?.dark,
+      fontFamily: selectedFontFamily(in: contents),
+      fontSize: fontSize,
+      lightTheme: selection?.light,
       warningMessage: warningMessage(in: contents)
     )
   }
@@ -161,10 +210,23 @@ struct GhosttyTerminalConfigFile {
       : nil
   }
 
+  private func selectedTheme(in contents: String) -> ThemeSelection? {
+    var selection: ThemeSelection?
+    for line in lines(in: contents) {
+      guard let directive = directive(in: line), directive.key == "theme" else {
+        continue
+      }
+      selection = parsedThemeSelection(from: directive.value)
+    }
+    return selection
+  }
+
   private func updatedContents(
     from contents: String,
     fontFamily: String?,
-    fontSize: Double
+    fontSize: Double,
+    lightTheme: String?,
+    darkTheme: String?
   ) -> String {
     let originalLines = lines(in: contents)
     let hadTrailingNewline = contents.hasSuffix("\n")
@@ -181,7 +243,9 @@ struct GhosttyTerminalConfigFile {
     }
     let replacementLines = canonicalManagedLines(
       fontFamily: fontFamily,
-      fontSize: fontSize
+      fontSize: fontSize,
+      lightTheme: lightTheme,
+      darkTheme: darkTheme
     )
     filteredLines.insert(contentsOf: replacementLines, at: insertionIndex ?? filteredLines.count)
     let joined = filteredLines.joined(separator: "\n")
@@ -193,14 +257,43 @@ struct GhosttyTerminalConfigFile {
 
   private func canonicalManagedLines(
     fontFamily: String?,
-    fontSize: Double
+    fontSize: Double,
+    lightTheme: String?,
+    darkTheme: String?
   ) -> [String] {
     var lines: [String] = []
+    if let themeSelection = canonicalThemeSelection(lightTheme: lightTheme, darkTheme: darkTheme) {
+      lines.append("theme = light:\(themeSelection.light),dark:\(themeSelection.dark)")
+    }
     if let fontFamily, !fontFamily.isEmpty {
       lines.append(#"font-family = "\#(escaped(fontFamily))""#)
     }
     lines.append("font-size = \(formatted(fontSize))")
     return lines
+  }
+
+  private func canonicalThemeSelection(
+    lightTheme: String?,
+    darkTheme: String?
+  ) -> ThemeSelection? {
+    let lightTheme = normalizedThemeName(lightTheme)
+    let darkTheme = normalizedThemeName(darkTheme)
+    switch (lightTheme, darkTheme) {
+    case (let light?, let dark?):
+      return .init(dark: dark, light: light)
+    case (let light?, nil):
+      return .init(dark: light, light: light)
+    case (nil, let dark?):
+      return .init(dark: dark, light: dark)
+    case (nil, nil):
+      return nil
+    }
+  }
+
+  private func normalizedThemeName(_ themeName: String?) -> String? {
+    guard let themeName else { return nil }
+    let trimmed = themeName.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
   }
 
   private func formatted(_ value: Double) -> String {
@@ -281,6 +374,41 @@ struct GhosttyTerminalConfigFile {
     return result.trimmingCharacters(in: .whitespaces)
   }
 
+  private func parsedThemeSelection(from rawValue: String) -> ThemeSelection? {
+    let value = parsedValue(from: rawValue)
+    if value.isEmpty {
+      return nil
+    }
+    if value.contains(",") || value.contains(":") || value.contains("=") {
+      var darkTheme: String?
+      var lightTheme: String?
+      for component in value.split(separator: ",", omittingEmptySubsequences: true) {
+        let parts = component.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else {
+          return nil
+        }
+        let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let themeName = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !themeName.isEmpty else {
+          return nil
+        }
+        switch key {
+        case "dark":
+          darkTheme = themeName
+        case "light":
+          lightTheme = themeName
+        default:
+          return nil
+        }
+      }
+      guard let darkTheme, let lightTheme else {
+        return nil
+      }
+      return .init(dark: darkTheme, light: lightTheme)
+    }
+    return .init(dark: value, light: value)
+  }
+
   private static func availableFontFamilies() -> [String] {
     Array(Set(NSFontManager.shared.availableFontFamilies))
       .sorted { lhs, rhs in
@@ -288,5 +416,99 @@ struct GhosttyTerminalConfigFile {
       }
   }
 
-  private let managedKeys = Set(["font-family", "font-size"])
+  private static func availableThemes(
+    homeDirectoryURL: URL,
+    environment: [String: String],
+    fileManager: FileManager,
+    resourcesURL: URL?
+  ) throws -> GhosttyTerminalThemeCatalog {
+    var directories = [themeDirectory(homeDirectoryURL: homeDirectoryURL, environment: environment)]
+    if let resourcesDirectory = resourcesURL?.appendingPathComponent("ghostty", isDirectory: true)
+      .appendingPathComponent("themes", isDirectory: true)
+    {
+      directories.append(resourcesDirectory)
+    }
+
+    var classifications: [String: Bool] = [:]
+    for directory in directories {
+      var isDirectory = ObjCBool(false)
+      guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+        continue
+      }
+      let urls = try fileManager.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles]
+      )
+      for url in urls {
+        guard classifications[url.lastPathComponent] == nil else {
+          continue
+        }
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true, let isDark = isDarkTheme(at: url) else {
+          continue
+        }
+        classifications[url.lastPathComponent] = isDark
+      }
+    }
+
+    return .init(
+      dark:
+        classifications
+        .filter { $0.value }
+        .map(\.key)
+        .sorted { lhs, rhs in
+          lhs.localizedStandardCompare(rhs) == .orderedAscending
+        },
+      light:
+        classifications
+        .filter { !$0.value }
+        .map(\.key)
+        .sorted { lhs, rhs in
+          lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+    )
+  }
+
+  private static func themeDirectory(
+    homeDirectoryURL: URL,
+    environment: [String: String]
+  ) -> URL {
+    let configRoot: URL
+    if let xdgConfigHome = environment["XDG_CONFIG_HOME"], !xdgConfigHome.isEmpty {
+      configRoot = URL(fileURLWithPath: xdgConfigHome, isDirectory: true)
+    } else {
+      configRoot = homeDirectoryURL.appendingPathComponent(".config", isDirectory: true)
+    }
+    return
+      configRoot
+      .appendingPathComponent("ghostty", isDirectory: true)
+      .appendingPathComponent("themes", isDirectory: true)
+  }
+
+  private static func isDarkTheme(at url: URL) -> Bool? {
+    guard let config = ghostty_config_new() else {
+      return nil
+    }
+    defer {
+      ghostty_config_free(config)
+    }
+    ghostty_config_load_file(config, url.path)
+    ghostty_config_finalize(config)
+    if ghostty_config_diagnostics_count(config) > 0 {
+      return nil
+    }
+    var color = ghostty_config_color_s()
+    let key = "background"
+    guard ghostty_config_get(config, &color, key, UInt(key.count)) else {
+      return nil
+    }
+    let red = Double(color.r) / 255
+    let green = Double(color.g) / 255
+    let blue = Double(color.b) / 255
+    let luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
+    return luminance < 0.5
+  }
+
+  private let managedKeys = Set(["font-family", "font-size", "theme"])
 }
