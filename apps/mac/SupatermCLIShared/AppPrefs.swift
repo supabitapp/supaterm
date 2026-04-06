@@ -40,7 +40,7 @@ public struct AppPrefs: Codable, Equatable, Sendable {
       .appendingPathComponent("settings.json", isDirectory: false)
   }
 
-  enum CodingKeys: String, CodingKey {
+  enum CodingKeys: String, CodingKey, CaseIterable {
     case appearanceMode
     case analyticsEnabled
     case crashReportsEnabled
