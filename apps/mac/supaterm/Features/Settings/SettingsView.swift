@@ -580,14 +580,6 @@ private struct SettingsAboutView: View {
                 .controlSize(.regular)
               }
 
-              Text(
-                store.updateChannel == .stable
-                  ? "Recommended for most users."
-                  : "Get the latest features early."
-              )
-              .font(.callout)
-              .foregroundStyle(.secondary)
-
               VStack(alignment: .leading, spacing: 8) {
                 SettingsCompactToggleRow(
                   title: "Automatically check for updates",
