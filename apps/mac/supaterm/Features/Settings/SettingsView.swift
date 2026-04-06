@@ -552,7 +552,7 @@ private struct SettingsAboutView: View {
               Button("Check for Updates") {
                 _ = store.send(.checkForUpdatesButtonTapped)
               }
-              .buttonStyle(.borderedProminent)
+              .buttonStyle(.bordered)
               .controlSize(.large)
             }
 
@@ -569,7 +569,9 @@ private struct SettingsAboutView: View {
                   }
                 }
                 .labelsHidden()
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
+                .frame(maxWidth: 180, alignment: .leading)
+                .controlSize(.large)
 
                 Text(
                   store.updateChannel == .stable
