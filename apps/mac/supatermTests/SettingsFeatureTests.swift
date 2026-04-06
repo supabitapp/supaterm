@@ -67,20 +67,7 @@ struct SettingsFeatureTests {
         $0.codexHooks.isPending = true
       }
       await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
-        $0.terminal = SettingsTerminalState(
-          availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-          availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-          availableLightThemes: ["Zenbones Light", "Builtin Light"],
-          configPath: "/tmp/ghostty/config",
-          darkTheme: "Zenbones Dark",
-          errorMessage: nil,
-          fontFamily: nil,
-          fontSize: 15,
-          isApplying: false,
-          isLoading: false,
-          lightTheme: "Zenbones Light",
-          warningMessage: nil
-        )
+        $0.terminal = terminalSettingsState()
       }
       await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
         $0.claudeHooks.isPending = false
@@ -117,20 +104,7 @@ struct SettingsFeatureTests {
       $0.codexHooks.isPending = true
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
-      $0.terminal = SettingsTerminalState(
-        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-        availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-        availableLightThemes: ["Zenbones Light", "Builtin Light"],
-        configPath: "/tmp/ghostty/config",
-        darkTheme: "Zenbones Dark",
-        errorMessage: nil,
-        fontFamily: nil,
-        fontSize: 15,
-        isApplying: false,
-        isLoading: false,
-        lightTheme: "Zenbones Light",
-        warningMessage: nil
-      )
+      $0.terminal = terminalSettingsState()
     }
     await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
       $0.claudeHooks.isPending = false
@@ -509,20 +483,7 @@ struct SettingsFeatureTests {
       $0.codexHooks.isPending = true
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
-      $0.terminal = SettingsTerminalState(
-        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-        availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-        availableLightThemes: ["Zenbones Light", "Builtin Light"],
-        configPath: "/tmp/ghostty/config",
-        darkTheme: "Zenbones Dark",
-        errorMessage: nil,
-        fontFamily: nil,
-        fontSize: 15,
-        isApplying: false,
-        isLoading: false,
-        lightTheme: "Zenbones Light",
-        warningMessage: nil
-      )
+      $0.terminal = terminalSettingsState()
     }
     await store.receive(.agentHooksStatusRefreshed(.claude, .success(true))) {
       $0.claudeHooks.confirmedEnabled = true
@@ -537,32 +498,17 @@ struct SettingsFeatureTests {
   @Test
   func terminalFontFamilySelectionAppliesImmediately() async {
     var state = SettingsFeature.State()
-    state.terminal = SettingsTerminalState(
-      availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-      availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-      availableLightThemes: ["Zenbones Light", "Builtin Light"],
-      configPath: "/tmp/ghostty/config",
-      darkTheme: "Zenbones Dark",
-      errorMessage: nil,
-      fontFamily: nil,
-      fontSize: 15,
-      isApplying: false,
-      isLoading: false,
-      lightTheme: "Zenbones Light",
-      warningMessage: nil
-    )
+    state.terminal = terminalSettingsState()
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
       $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
-        .init(
-          configPath: "/tmp/ghostty/config",
+        terminalSettingsValues(
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
           lightTheme: lightTheme,
-          warningMessage: nil
         )
       }
     }
@@ -574,62 +520,27 @@ struct SettingsFeatureTests {
     }
     await store.receive(
       .terminalSettingsApplied(
-        .init(
-          configPath: "/tmp/ghostty/config",
-          darkTheme: "Zenbones Dark",
-          fontFamily: "JetBrains Mono",
-          fontSize: 15,
-          lightTheme: "Zenbones Light",
-          warningMessage: nil
-        )
+        terminalSettingsValues(fontFamily: "JetBrains Mono")
       )
     ) {
-      $0.terminal = SettingsTerminalState(
-        availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-        availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-        availableLightThemes: ["Zenbones Light", "Builtin Light"],
-        configPath: "/tmp/ghostty/config",
-        darkTheme: "Zenbones Dark",
-        errorMessage: nil,
-        fontFamily: "JetBrains Mono",
-        fontSize: 15,
-        isApplying: false,
-        isLoading: false,
-        lightTheme: "Zenbones Light",
-        warningMessage: nil
-      )
+      $0.terminal = terminalSettingsState(fontFamily: "JetBrains Mono")
     }
   }
 
   @Test
   func terminalLightThemeSelectionAppliesImmediately() async {
     var state = SettingsFeature.State()
-    state.terminal = SettingsTerminalState(
-      availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-      availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-      availableLightThemes: ["Zenbones Light", "Builtin Light"],
-      configPath: "/tmp/ghostty/config",
-      darkTheme: "Zenbones Dark",
-      errorMessage: nil,
-      fontFamily: nil,
-      fontSize: 15,
-      isApplying: false,
-      isLoading: false,
-      lightTheme: "Zenbones Light",
-      warningMessage: nil
-    )
+    state.terminal = terminalSettingsState()
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
       $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
-        .init(
-          configPath: "/tmp/ghostty/config",
+        terminalSettingsValues(
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
           lightTheme: lightTheme,
-          warningMessage: nil
         )
       }
     }
@@ -641,14 +552,7 @@ struct SettingsFeatureTests {
     }
     await store.receive(
       .terminalSettingsApplied(
-        .init(
-          configPath: "/tmp/ghostty/config",
-          darkTheme: "Zenbones Dark",
-          fontFamily: nil,
-          fontSize: 15,
-          lightTheme: "Builtin Light",
-          warningMessage: nil
-        )
+        terminalSettingsValues(lightTheme: "Builtin Light")
       )
     ) {
       $0.terminal.isApplying = false
@@ -659,32 +563,17 @@ struct SettingsFeatureTests {
   @Test
   func terminalDarkThemeSelectionAppliesImmediately() async {
     var state = SettingsFeature.State()
-    state.terminal = SettingsTerminalState(
-      availableFontFamilies: ["JetBrains Mono", "SF Mono"],
-      availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
-      availableLightThemes: ["Zenbones Light", "Builtin Light"],
-      configPath: "/tmp/ghostty/config",
-      darkTheme: "Zenbones Dark",
-      errorMessage: nil,
-      fontFamily: nil,
-      fontSize: 15,
-      isApplying: false,
-      isLoading: false,
-      lightTheme: "Zenbones Light",
-      warningMessage: nil
-    )
+    state.terminal = terminalSettingsState()
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
       $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
-        .init(
-          configPath: "/tmp/ghostty/config",
+        terminalSettingsValues(
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
           lightTheme: lightTheme,
-          warningMessage: nil
         )
       }
     }
@@ -696,14 +585,7 @@ struct SettingsFeatureTests {
     }
     await store.receive(
       .terminalSettingsApplied(
-        .init(
-          configPath: "/tmp/ghostty/config",
-          darkTheme: "Builtin Dark",
-          fontFamily: nil,
-          fontSize: 15,
-          lightTheme: "Zenbones Light",
-          warningMessage: nil
-        )
+        terminalSettingsValues(darkTheme: "Builtin Dark")
       )
     ) {
       $0.terminal.darkTheme = "Builtin Dark"
@@ -848,6 +730,49 @@ private func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
     fontSize: 15,
     lightTheme: "Zenbones Light",
     warningMessage: nil
+  )
+}
+
+private func terminalSettingsState(
+  darkTheme: String? = "Zenbones Dark",
+  errorMessage: String? = nil,
+  fontFamily: String? = nil,
+  fontSize: Double = 15,
+  isApplying: Bool = false,
+  isLoading: Bool = false,
+  lightTheme: String? = "Zenbones Light",
+  warningMessage: String? = nil
+) -> SettingsTerminalState {
+  SettingsTerminalState(
+    availableFontFamilies: ["JetBrains Mono", "SF Mono"],
+    availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
+    availableLightThemes: ["Zenbones Light", "Builtin Light"],
+    configPath: "/tmp/ghostty/config",
+    darkTheme: darkTheme,
+    errorMessage: errorMessage,
+    fontFamily: fontFamily,
+    fontSize: fontSize,
+    isApplying: isApplying,
+    isLoading: isLoading,
+    lightTheme: lightTheme,
+    warningMessage: warningMessage
+  )
+}
+
+private func terminalSettingsValues(
+  darkTheme: String? = "Zenbones Dark",
+  fontFamily: String? = nil,
+  fontSize: Double = 15,
+  lightTheme: String? = "Zenbones Light",
+  warningMessage: String? = nil
+) -> GhosttyTerminalSettingsValues {
+  .init(
+    configPath: "/tmp/ghostty/config",
+    darkTheme: darkTheme,
+    fontFamily: fontFamily,
+    fontSize: fontSize,
+    lightTheme: lightTheme,
+    warningMessage: warningMessage
   )
 }
 
