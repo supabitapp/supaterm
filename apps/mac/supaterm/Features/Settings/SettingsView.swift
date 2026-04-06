@@ -345,33 +345,37 @@ private struct SettingsTerminalView: View {
       }
 
       Section {
-        Picker(selection: lightThemeSelection) {
-          if store.terminal.lightTheme == nil {
-            Text("Select Theme").tag(Optional<String>.none)
-          }
-          ForEach(availableLightThemes, id: \.self) { theme in
-            Text(theme).tag(theme as String?)
-          }
-        } label: {
-          SettingsRowLabel(
-            title: "Light Theme"
-          )
-        }
-        .disabled(controlsDisabled)
+        LabeledContent("Light/Dark Theme") {
+          HStack(spacing: 12) {
+            Picker(selection: lightThemeSelection) {
+              if store.terminal.lightTheme == nil {
+                Text("Select Theme").tag(Optional<String>.none)
+              }
+              ForEach(availableLightThemes, id: \.self) { theme in
+                Text(theme).tag(theme as String?)
+              }
+            } label: {
+              EmptyView()
+            }
+            .labelsHidden()
+            .disabled(controlsDisabled)
+            .frame(maxWidth: .infinity)
 
-        Picker(selection: darkThemeSelection) {
-          if store.terminal.darkTheme == nil {
-            Text("Select Theme").tag(Optional<String>.none)
+            Picker(selection: darkThemeSelection) {
+              if store.terminal.darkTheme == nil {
+                Text("Select Theme").tag(Optional<String>.none)
+              }
+              ForEach(availableDarkThemes, id: \.self) { theme in
+                Text(theme).tag(theme as String?)
+              }
+            } label: {
+              EmptyView()
+            }
+            .labelsHidden()
+            .disabled(controlsDisabled)
+            .frame(maxWidth: .infinity)
           }
-          ForEach(availableDarkThemes, id: \.self) { theme in
-            Text(theme).tag(theme as String?)
-          }
-        } label: {
-          SettingsRowLabel(
-            title: "Dark Theme"
-          )
         }
-        .disabled(controlsDisabled)
 
         Picker(selection: fontFamilySelection) {
           Text("Default").tag(defaultFontFamilyTag)
