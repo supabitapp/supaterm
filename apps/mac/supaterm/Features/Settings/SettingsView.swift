@@ -416,13 +416,15 @@ private struct SettingsTerminalPreviewView: View {
   }
 
   var body: some View {
-    GhosttyTerminalView(surfaceView: controller.surfaceView)
-      .allowsHitTesting(false)
-      .clipShape(.rect(cornerRadius: 12))
-      .overlay {
-        RoundedRectangle(cornerRadius: 12)
-          .strokeBorder(.quaternary, lineWidth: 1)
-      }
+    GhosttyColorSchemeSyncView(ghostty: controller.runtime) {
+      GhosttyTerminalView(surfaceView: controller.surfaceView)
+        .allowsHitTesting(false)
+        .clipShape(.rect(cornerRadius: 12))
+        .overlay {
+          RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(.quaternary, lineWidth: 1)
+        }
+    }
   }
 }
 
