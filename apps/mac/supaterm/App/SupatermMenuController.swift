@@ -591,6 +591,12 @@ final class SupatermMenuController: NSObject {
       .lazy
       .first { $0.shortcut.matches(event) })?.item
     guard let item else { return false }
+    if
+      item.identifier == MenuItemIdentifier.settings,
+      registry.keyboardShortcut(forAction: "open_config") != nil
+    {
+      return performShowSettings(.terminal)
+    }
     item.menu?.update()
     guard item.isEnabled else { return false }
     guard let action = item.action else { return false }

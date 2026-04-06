@@ -110,10 +110,8 @@ struct CodexTranscriptMonitorTests {
 
     let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
     try CodexTranscriptFixtures.append(
-      """
-      {"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{
-      "type":"reasoning","summary":[],"content":null}}
-      """,
+      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"# +
+        #""type":"reasoning","summary":[],"content":null}}"#,
       to: transcriptURL
     )
 
