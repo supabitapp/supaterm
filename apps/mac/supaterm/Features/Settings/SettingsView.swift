@@ -316,14 +316,6 @@ private struct SettingsTerminalView: View {
           SettingsTerminalPreviewView(configPath: resolvedConfigPath)
             .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
             .id(resolvedConfigPath)
-
-          LabeledContent("Config File") {
-            Text(resolvedConfigPath)
-              .font(.callout.monospaced())
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .textSelection(.enabled)
-          }
         }
       }
 
@@ -393,9 +385,19 @@ private struct SettingsTerminalView: View {
       }
 
       Section {
-        Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
-          .font(.callout)
-          .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Config File")
+            .font(.callout.weight(.semibold))
+
+          Text(resolvedConfigPath)
+            .font(.callout.monospaced())
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+
+          Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
       }
     }
     .navigationTitle("Terminal")
