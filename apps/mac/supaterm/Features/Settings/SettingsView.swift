@@ -541,19 +541,19 @@ private struct SettingsAboutView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         SettingsSurfaceCard {
-          HStack(alignment: .center, spacing: 24) {
+          HStack(alignment: .center, spacing: 20) {
             Image(nsImage: NSApplication.shared.applicationIconImage)
               .resizable()
               .interpolation(.high)
-              .frame(width: 96, height: 96)
+              .frame(width: 84, height: 84)
               .accessibilityLabel("\(appName) app icon")
 
             VStack(alignment: .leading, spacing: 6) {
               Text(appName)
-                .font(.system(size: 34, weight: .semibold))
+                .font(.system(size: 28, weight: .semibold))
 
               Text(versionText)
-                .font(.title3)
+                .font(.headline)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
 
@@ -562,10 +562,28 @@ private struct SettingsAboutView: View {
                   _ = store.send(.checkForUpdatesButtonTapped)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.large)
+                .controlSize(.regular)
+
+                Picker("Updates", selection: updateChannel) {
+                  ForEach(UpdateChannel.allCases) { channel in
+                    Text(channel.title).tag(channel)
+                  }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 150, alignment: .leading)
+                .controlSize(.regular)
               }
 
-              VStack(alignment: .leading, spacing: 12) {
+              Text(
+                store.updateChannel == .stable
+                  ? "Recommended for most users."
+                  : "Get the latest features early."
+              )
+              .font(.callout)
+              .foregroundStyle(.secondary)
+
+              VStack(alignment: .leading, spacing: 8) {
                 SettingsCompactToggleRow(
                   title: "Automatically check for updates",
                   isOn: updatesAutomaticallyCheckForUpdates
@@ -584,39 +602,10 @@ private struct SettingsAboutView: View {
         }
 
         SettingsSurfaceCard {
-          VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 16) {
-              Text("Updates")
-                .font(.headline)
-
-              Spacer(minLength: 0)
-
-              Picker("Updates", selection: updateChannel) {
-                ForEach(UpdateChannel.allCases) { channel in
-                  Text(channel.title).tag(channel)
-                }
-              }
-              .labelsHidden()
-              .pickerStyle(.menu)
-              .frame(width: 180, alignment: .trailing)
-              .controlSize(.large)
-            }
-
-            Text(
-              store.updateChannel == .stable
-                ? "Recommended for most users."
-                : "Get the latest features early."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-          }
-        }
-
-        SettingsSurfaceCard {
-          VStack(alignment: .leading, spacing: 14) {
+          VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
               Text("Diagnostics")
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
 
               Text("Control anonymous analytics and crash reports.")
                 .font(.callout)
