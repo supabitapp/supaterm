@@ -445,10 +445,10 @@ final class TerminalHostState {
     switch command {
     case .createTab(let inheritingFromSurfaceID):
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
-    case .ensureInitialTab(let focusing, let initialInput):
+    case .ensureInitialTab(let focusing, let startupInput):
       ensureInitialTab(
         focusing: focusing,
-        initialInput: initialInput
+        startupInput: startupInput
       )
     case .createSpace:
       createSpace()
@@ -679,12 +679,12 @@ final class TerminalHostState {
   }
   private func ensureInitialTab(
     focusing: Bool,
-    initialInput: String? = nil
+    startupInput: String? = nil
   ) {
     guard tabs.isEmpty else { return }
     _ = createTab(
       focusing: focusing,
-      initialInput: initialInput
+      initialInput: startupInput
     )
   }
 
