@@ -284,18 +284,18 @@ private struct SettingsTerminalView: View {
           SettingsTerminalPreviewView(configPath: resolvedConfigPath)
             .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
             .id(resolvedConfigPath)
+
+          LabeledContent("Config File") {
+            Text(resolvedConfigPath)
+              .font(.callout.monospaced())
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .textSelection(.enabled)
+          }
         }
       }
 
       Section {
-        LabeledContent("Config File") {
-          Text(resolvedConfigPath)
-            .font(.callout.monospaced())
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
-        }
-
         if let warningMessage = store.terminal.warningMessage {
           Text(warningMessage)
             .font(.callout)
