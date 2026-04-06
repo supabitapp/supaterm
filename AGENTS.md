@@ -23,7 +23,6 @@ linear issue list --team SUP --sort manual --limit 50 --no-pager
 ### Commands
 
 ```bash
-make mac-check          # format + lint
 make mac-build          # Debug build
 make mac-run            # Debug build + launch
 make mac-test           # full test suite
