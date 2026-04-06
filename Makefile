@@ -9,7 +9,7 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 GIT_HOOKS_DIR := .git-hooks
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release mac-generate mac-generate-sources mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release mac-generate mac-generate-sources mac-generate-settings-schema mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -27,6 +27,9 @@ mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
 
 mac-generate-sources:  # Generate the source-only macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project-sources
+
+mac-generate-settings-schema:  # Generate the hosted settings schema from the macOS CLI.
+	@$(MAKE) -C "$(MAC_APP_DIR)" generate-settings-schema
 
 mac-build:  # Build the macOS app in Debug.
 	@$(MAKE) -C "$(MAC_APP_DIR)" build-app
