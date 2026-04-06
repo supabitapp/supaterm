@@ -10,7 +10,7 @@ struct AppPrefsTests {
   func defaultURLUsesSupatermConfigPath() {
     let url = AppPrefs.defaultURL(homeDirectoryPath: "/tmp/khoi")
 
-    #expect(url.path == "/tmp/khoi/.config/supaterm/appprefs.json")
+    #expect(url.path == "/tmp/khoi/.config/supaterm/settings.json")
   }
 
   @Test

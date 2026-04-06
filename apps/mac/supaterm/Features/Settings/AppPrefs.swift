@@ -38,7 +38,7 @@ nonisolated struct AppPrefs: Codable, Equatable, Sendable {
     URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
       .appendingPathComponent(".config", isDirectory: true)
       .appendingPathComponent("supaterm", isDirectory: true)
-      .appendingPathComponent("appprefs.json", isDirectory: false)
+      .appendingPathComponent("settings.json", isDirectory: false)
   }
 
   static func fileStorageEncoder() -> JSONEncoder {
