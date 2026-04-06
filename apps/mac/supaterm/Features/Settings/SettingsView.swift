@@ -608,14 +608,8 @@ private struct SettingsAboutView: View {
 
         SettingsSurfaceCard {
           VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-              Text("Diagnostics")
-                .font(.subheadline.weight(.semibold))
-
-              Text("Control anonymous analytics and crash reports.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            }
+            Text("Diagnostics")
+              .font(.subheadline.weight(.semibold))
 
             VStack(alignment: .leading, spacing: 10) {
               SettingsCompactToggleRow(
@@ -629,7 +623,7 @@ private struct SettingsAboutView: View {
               )
             }
 
-            Text("Changes to analytics and crash reports require an app restart.")
+            Text("Help us improve Supaterm by allowing us to collect completely anonymous usage data.")
               .font(.callout)
               .foregroundStyle(.secondary)
           }
