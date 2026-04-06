@@ -1,15 +1,10 @@
 import AppKit
+import SupatermCLIShared
 import SwiftUI
 
-enum AppearanceMode: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
-  case system
-  case light
-  case dark
+typealias AppearanceMode = SupatermCLIShared.AppearanceMode
 
-  var id: String {
-    rawValue
-  }
-
+extension AppearanceMode {
   var colorScheme: ColorScheme? {
     switch self {
     case .system:

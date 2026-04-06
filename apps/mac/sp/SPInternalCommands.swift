@@ -11,6 +11,7 @@ extension SP {
       shouldDisplay: false,
       subcommands: [
         Ping.self,
+        GenerateSettingsSchema.self,
         AgentSettings.self,
         Development.self,
         ClaudeTeams.self,
@@ -45,6 +46,18 @@ extension SP {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
       print("pong")
+    }
+  }
+
+  struct GenerateSettingsSchema: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "generate-settings-schema",
+      abstract: "Print the Supaterm settings JSON schema.",
+      discussion: SPHelp.generateSettingsSchemaDiscussion
+    )
+
+    mutating func run() throws {
+      print(try SupatermSettingsSchema.jsonString())
     }
   }
 

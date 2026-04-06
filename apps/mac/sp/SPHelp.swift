@@ -263,6 +263,11 @@ enum SPHelp {
       sp internal agent-settings codex
     """
 
+  static let generateSettingsSchemaDiscussion = """
+    Example:
+      sp internal generate-settings-schema
+    """
+
   static let developmentDiscussion = """
     These commands require the connected Supaterm instance to report a development build.
 
@@ -406,6 +411,7 @@ enum SPHelp {
   static let internalDiscussion = """
     Example:
       sp internal ping
+      sp internal generate-settings-schema
       sp internal agent-settings claude
       sp internal dev claude session-start
     """

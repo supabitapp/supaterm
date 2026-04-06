@@ -54,6 +54,7 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.InstallAgentHook.Claude.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.Codex.self, columns: 100),
       SP.helpMessage(for: SP.Internal.self, columns: 100),
+      SP.helpMessage(for: SP.GenerateSettingsSchema.self, columns: 100),
       SP.helpMessage(for: SP.AgentSettings.self, columns: 100),
       SP.helpMessage(for: SP.Development.self, columns: 100),
       SP.helpMessage(for: SP.Development.Claude.self, columns: 100),
@@ -127,6 +128,15 @@ struct SPHelpTests {
     #expect(help.contains("sp internal dev claude session-start"))
     #expect(help.contains("sp internal dev claude notification"))
     #expect(help.contains("sp internal dev claude session-end"))
+  }
+
+  @Test
+  func internalHelpShowsSettingsSchemaExample() {
+    let help = SP.helpMessage(for: SP.Internal.self, columns: 100)
+    let schemaHelp = SP.helpMessage(for: SP.GenerateSettingsSchema.self, columns: 100)
+
+    #expect(help.contains("sp internal generate-settings-schema"))
+    #expect(schemaHelp.contains("sp internal generate-settings-schema"))
   }
 
   @Test

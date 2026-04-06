@@ -108,6 +108,15 @@ struct SPCommandTests {
   }
 
   @Test
+  func internalParserAcceptsGenerateSettingsSchemaSubcommand() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["internal", "generate-settings-schema"]) as? SP.GenerateSettingsSchema
+    )
+
+    #expect(type(of: command) == SP.GenerateSettingsSchema.self)
+  }
+
+  @Test
   func tabFocusAndPaneSendParsersAcceptPublicShape() throws {
     let focusCommand = try #require(
       try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
