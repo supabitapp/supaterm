@@ -13,8 +13,8 @@ protocol GhosttyAppActionPerforming: AnyObject {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
   struct LaunchWindowRequest: Equatable {
-    var session: TerminalWindowSession?
-    var startupInput: String?
+    let session: TerminalWindowSession?
+    let startupInput: String?
   }
 
   @Shared(.supatermSettings)

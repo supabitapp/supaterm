@@ -22,7 +22,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.task)
-    #expect(recorder.commands == [.ensureInitialTab(focusing: false, initialInput: nil)])
+    #expect(recorder.commands == [.ensureInitialTab(focusing: false, startupInput: nil)])
 
     continuation.yield(.newTabRequested(inheritingFromSurfaceID: surfaceID))
 
@@ -31,7 +31,7 @@ struct TerminalWindowFeatureTests {
 
     #expect(
       recorder.commands == [
-        .ensureInitialTab(focusing: false, initialInput: nil),
+        .ensureInitialTab(focusing: false, startupInput: nil),
         .createTab(inheritingFromSurfaceID: surfaceID),
       ])
 
@@ -44,7 +44,7 @@ struct TerminalWindowFeatureTests {
     let recorder = TerminalCommandRecorder()
     let store = TestStore(
       initialState: TerminalWindowFeature.State(
-        initialStartupInput: "sp onboard\n"
+        startupInput: "sp onboard\n"
       )
     ) {
       TerminalWindowFeature()
@@ -53,14 +53,14 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.task) {
-      $0.initialStartupInput = nil
+      $0.startupInput = nil
     }
 
     #expect(
       recorder.commands == [
         .ensureInitialTab(
           focusing: false,
-          initialInput: "sp onboard\n",
+          startupInput: "sp onboard\n",
         ),
       ]
     )
@@ -71,11 +71,11 @@ struct TerminalWindowFeatureTests {
       recorder.commands == [
         .ensureInitialTab(
           focusing: false,
-          initialInput: "sp onboard\n"
+          startupInput: "sp onboard\n"
         ),
         .ensureInitialTab(
           focusing: false,
-          initialInput: nil,
+          startupInput: nil,
         ),
       ]
     )

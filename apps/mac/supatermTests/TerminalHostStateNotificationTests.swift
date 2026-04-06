@@ -202,7 +202,7 @@ struct TerminalHostStateNotificationTests {
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
@@ -234,7 +234,7 @@ struct TerminalHostStateNotificationTests {
     host.windowActivity = .inactive
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -262,7 +262,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -290,7 +290,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -318,7 +318,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let expectedTitle = try #require(host.tabs.first(where: { $0.id == tabID })?.title)
@@ -347,7 +347,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -371,7 +371,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -408,7 +408,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -425,7 +425,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -458,7 +458,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .inactive
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -500,7 +500,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let firstTabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
@@ -546,7 +546,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
@@ -575,7 +575,7 @@ struct TerminalHostStateNotificationTests {
 
     let host = TerminalHostState()
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
-    host.handleCommand(.ensureInitialTab(focusing: false, initialInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
