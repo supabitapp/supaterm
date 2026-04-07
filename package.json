@@ -1,5 +1,5 @@
 {
-  "name": "@supabitapp/supaterm-pi",
+  "name": "@supabitapp/supaterm",
   "version": "0.1.0",
   "description": "Pi package for Supaterm integrations",
   "keywords": [
