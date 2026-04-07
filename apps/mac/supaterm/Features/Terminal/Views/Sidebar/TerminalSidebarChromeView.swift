@@ -229,6 +229,13 @@ struct TerminalSidebarChromeView: View {
       .coordinateSpace(name: TerminalSidebarDropZoneID.pinned.coordinateSpaceID)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .padding(
+      .top,
+      TerminalSidebarLayout.sectionTopInset(
+        zoneID: .pinned,
+        pinnedTabCount: terminal.pinnedTabs.count
+      )
+    )
     .onAppear {
       dragSession.updateTabIDs(terminal.pinnedTabs.map(\.id), for: .pinned)
     }
@@ -254,6 +261,13 @@ struct TerminalSidebarChromeView: View {
       .coordinateSpace(name: TerminalSidebarDropZoneID.regular.coordinateSpaceID)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .padding(
+      .top,
+      TerminalSidebarLayout.sectionTopInset(
+        zoneID: .regular,
+        pinnedTabCount: terminal.pinnedTabs.count
+      )
+    )
     .onAppear {
       dragSession.updateTabIDs(terminal.regularTabs.map(\.id), for: .regular)
     }
@@ -298,12 +312,7 @@ struct TerminalSidebarChromeView: View {
         terminalProgress: terminalProgress,
         palette: palette,
         shortcutHint: tabShortcutHintsByID[tab.id],
-        showsShortcutHint: commandHoldObserver.isPressed,
-        leadingContentInset: TerminalSidebarLayout.topRowLeadingInset(
-          zoneID: zoneID,
-          index: index,
-          pinnedTabCount: terminal.pinnedTabs.count
-        )
+        showsShortcutHint: commandHoldObserver.isPressed
       )
       .id(tab.id)
       .background {
@@ -833,7 +842,6 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
-  let leadingContentInset: CGFloat
 
   static func contextMenuItems(
     isPinned: Bool,
@@ -918,7 +926,6 @@ struct TerminalSidebarTabRow: View {
           .onHover { isCloseHovering = $0 }
         }
       }
-      .padding(.leading, leadingContentInset)
       .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
       .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
       .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)

@@ -44,21 +44,21 @@ enum TerminalSidebarLayout {
   static let tabRowHorizontalPadding: CGFloat = 10
   static let tabRowVerticalPadding: CGFloat = 8
   static let tabRowSpacing: CGFloat = 2
+  static let trafficLightTopPadding: CGFloat = 6
 
-  static func topRowLeadingInset(
+  static var firstVisibleSectionTopInset: CGFloat {
+    trafficLightTopPadding + WindowTrafficLightMetrics.topPadding + WindowTrafficLightMetrics.buttonSize + 4
+  }
+
+  static func sectionTopInset(
     zoneID: TerminalSidebarDropZoneID,
-    index: Int,
     pinnedTabCount: Int
   ) -> CGFloat {
-    let leadingInset = max(
-      0,
-      WindowTrafficLightMetrics.occupiedWidth - tabRowHorizontalPadding
-    )
     return switch zoneID {
     case .pinned:
-      index == 0 ? leadingInset : 0
+      pinnedTabCount > 0 ? firstVisibleSectionTopInset : 0
     case .regular:
-      pinnedTabCount == 0 && index == 0 ? leadingInset : 0
+      pinnedTabCount == 0 ? firstVisibleSectionTopInset : 0
     }
   }
 
