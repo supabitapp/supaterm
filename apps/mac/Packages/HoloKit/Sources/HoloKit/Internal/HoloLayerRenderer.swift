@@ -232,18 +232,18 @@ struct HoloLayerRenderer {
     switch tone {
     case .aurora:
       [
-        Color(red: 0.36, green: 0.9, blue: 0.96),
-        Color(red: 0.58, green: 0.96, blue: 0.78),
-        Color(red: 0.98, green: 0.56, blue: 0.84),
+        Color(red: 0.93, green: 0.61, blue: 0.71),
+        Color(red: 0.8, green: 0.67, blue: 0.44),
+        Color(red: 0.56, green: 0.77, blue: 0.84),
+        Color(red: 0.73, green: 0.55, blue: 0.81),
       ]
     case .spectrum:
       [
-        Color(red: 0.98, green: 0.45, blue: 0.78),
-        Color(red: 0.98, green: 0.72, blue: 0.42),
-        Color(red: 0.95, green: 0.9, blue: 0.4),
-        Color(red: 0.4, green: 0.94, blue: 0.64),
-        Color(red: 0.42, green: 0.82, blue: 1),
-        Color(red: 0.72, green: 0.58, blue: 1),
+        Color(red: 0.93, green: 0.61, blue: 0.71),
+        Color(red: 0.8, green: 0.67, blue: 0.44),
+        Color(red: 0.41, green: 0.89, blue: 0.65),
+        Color(red: 0.56, green: 0.77, blue: 0.84),
+        Color(red: 0.73, green: 0.55, blue: 0.81),
       ]
     }
   }

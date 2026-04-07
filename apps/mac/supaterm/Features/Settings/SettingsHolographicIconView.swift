@@ -36,40 +36,40 @@ struct SettingsAboutIconRecipe {
         scaledIcon(icon)
       },
       .prism(.aurora, pattern: .bands)
-        .intensity(0.48)
-        .scale(1.3)
-        .speed(0.4)
-        .opacity(0.9)
+        .intensity(0.28)
+        .scale(1.24)
+        .speed(0.36)
+        .opacity(0.62)
         .blendMode(.overlay),
     ]
 
     if showsPrismLayer {
       layers.append(
         .prism(.spectrum, pattern: .ripple)
-          .intensity(0.4)
-          .scale(1.65)
-          .speed(0.62)
-          .opacity(0.7)
-          .blendMode(.colorDodge)
+          .intensity(0.34)
+          .scale(1.52)
+          .speed(0.56)
+          .opacity(0.46)
+          .blendMode(.overlay)
       )
     }
 
     layers.append(
       .lightSweep(.white)
-        .intensity(0.92)
-        .size(0.38)
-        .falloff(1.8)
-        .opacity(0.95)
+        .intensity(0.8)
+        .size(0.34)
+        .falloff(1.6)
+        .opacity(0.82)
         .blendMode(.screen)
     )
 
     if showsGlintLayer {
       layers.append(
         .glintField()
-          .density(0.58)
-          .size(1.1)
-          .speed(3.2)
-          .opacity(0.72)
+          .density(0.52)
+          .size(0.96)
+          .speed(2.8)
+          .opacity(0.56)
           .blendMode(.plusLighter)
       )
     }
