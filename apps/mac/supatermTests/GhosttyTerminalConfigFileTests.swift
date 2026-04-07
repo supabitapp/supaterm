@@ -32,7 +32,6 @@ struct GhosttyTerminalConfigFileTests {
     #expect(snapshot.availableLightThemes == ["Zenbones Light"])
     #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
     #expect(snapshot.configPath == configURL.path)
-    #expect(snapshot.cursorBlinkStyle == .disabled)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
     #expect(snapshot.fontSize == 15)
@@ -92,7 +91,6 @@ struct GhosttyTerminalConfigFileTests {
     let snapshot = try configFile.apply(
       settings: terminalSettingsDraft(
         confirmCloseSurface: .always,
-        cursorBlinkStyle: .enabled,
         darkTheme: "Zenbones Dark",
         fontFamily: "JetBrains Mono",
         fontSize: 18,
@@ -102,7 +100,6 @@ struct GhosttyTerminalConfigFileTests {
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
     #expect(snapshot.confirmCloseSurface == .always)
-    #expect(snapshot.cursorBlinkStyle == .enabled)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == "JetBrains Mono")
     #expect(snapshot.fontSize == 18)
@@ -111,8 +108,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(contents.contains("# keep"))
     #expect(contents.contains("theme = light:Builtin Light,dark:Zenbones Dark"))
     #expect(contents.contains("cursor-style = block"))
-    #expect(!contents.contains("cursor-style-blink = false"))
-    #expect(contents.contains("cursor-style-blink = true"))
+    #expect(contents.contains("cursor-style-blink = false"))
     #expect(contents.contains(#"font-family = "JetBrains Mono""#))
     #expect(contents.contains("font-size = 18"))
     #expect(contents.contains("confirm-close-surface = always"))
@@ -155,7 +151,6 @@ struct GhosttyTerminalConfigFileTests {
     let snapshot = try configFile.apply(
       settings: terminalSettingsDraft(
         confirmCloseSurface: .whenNotAtPrompt,
-        cursorBlinkStyle: .disabled,
         darkTheme: "Zenbones Dark",
         fontFamily: nil,
         fontSize: 16,
@@ -165,7 +160,6 @@ struct GhosttyTerminalConfigFileTests {
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
     #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
-    #expect(snapshot.cursorBlinkStyle == .disabled)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
     #expect(snapshot.fontSize == 16)
@@ -174,7 +168,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(contents.contains("theme = light:Zenbones Light,dark:Zenbones Dark"))
     #expect(contents.contains("font-size = 16"))
     #expect(contents.contains("confirm-close-surface = true"))
-    #expect(contents.contains("cursor-style-blink = false"))
+    #expect(!contents.contains("cursor-style-blink ="))
   }
 
   @Test
@@ -208,7 +202,6 @@ struct GhosttyTerminalConfigFileTests {
     let snapshot = try configFile.load()
 
     #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
-    #expect(snapshot.cursorBlinkStyle == .terminalDefault)
     #expect(snapshot.darkTheme == "Builtin Dark")
     #expect(snapshot.lightTheme == "Builtin Dark")
   }
@@ -241,37 +234,6 @@ struct GhosttyTerminalConfigFileTests {
     let snapshot = try configFile.load()
 
     #expect(snapshot.confirmCloseSurface == .always)
-    #expect(snapshot.fontSize == 17)
-  }
-
-  @Test
-  func loadReadsCursorBlinkSelection() throws {
-    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
-    defer { try? FileManager.default.removeItem(at: rootURL) }
-    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
-      homeDirectoryURL: rootURL,
-      environment: environment
-    ).preferred
-
-    try writeGhosttyTerminalConfig(
-      """
-      cursor-style-blink =
-      font-size = 17
-      """,
-      to: configURL
-    )
-
-    let configFile = GhosttyTerminalConfigFile(
-      homeDirectoryURL: rootURL,
-      environment: environment,
-      effectiveFontSizeProvider: testEffectiveFontSize,
-      availableFontFamiliesProvider: { [] }
-    )
-
-    let snapshot = try configFile.load()
-
-    #expect(snapshot.cursorBlinkStyle == .terminalDefault)
     #expect(snapshot.fontSize == 17)
   }
 
@@ -359,7 +321,6 @@ struct GhosttyTerminalConfigFileTests {
       try configFile.apply(
         settings: terminalSettingsDraft(
           confirmCloseSurface: .always,
-          cursorBlinkStyle: .enabled,
           darkTheme: "Zenbones Dark",
           fontFamily: "JetBrains Mono",
           fontSize: 18,
@@ -390,7 +351,6 @@ private nonisolated func occurrenceCount(of substring: String, in string: String
 
 private nonisolated func terminalSettingsDraft(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
-  cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,
@@ -398,7 +358,6 @@ private nonisolated func terminalSettingsDraft(
 ) -> GhosttyTerminalSettingsDraft {
   .init(
     confirmCloseSurface: confirmCloseSurface,
-    cursorBlinkStyle: cursorBlinkStyle,
     darkTheme: darkTheme,
     fontFamily: fontFamily,
     fontSize: fontSize,

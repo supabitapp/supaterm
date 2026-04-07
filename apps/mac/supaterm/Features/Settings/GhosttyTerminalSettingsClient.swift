@@ -23,30 +23,8 @@ enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable
   }
 }
 
-enum GhosttyTerminalCursorBlinkStyle: String, CaseIterable, Equatable, Sendable, Identifiable {
-  case terminalDefault = ""
-  case enabled = "true"
-  case disabled = "false"
-
-  var id: Self {
-    self
-  }
-
-  var title: String {
-    switch self {
-    case .terminalDefault:
-      "default"
-    case .enabled:
-      "blink"
-    case .disabled:
-      "steady"
-    }
-  }
-}
-
 struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -59,7 +37,6 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var availableLightThemes: [String]
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
-  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -70,7 +47,6 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
 struct GhosttyTerminalSettingsValues: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
-  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -105,7 +81,6 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         availableLightThemes: ["Zenbones Light", "Builtin Light"],
         confirmCloseSurface: .whenNotAtPrompt,
         configPath: "/tmp/ghostty/config",
-        cursorBlinkStyle: .disabled,
         darkTheme: "Zenbones Dark",
         fontFamily: nil,
         fontSize: 15,
@@ -117,7 +92,6 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
       .init(
         confirmCloseSurface: settings.confirmCloseSurface,
         configPath: "/tmp/ghostty/config",
-        cursorBlinkStyle: settings.cursorBlinkStyle,
         darkTheme: settings.darkTheme,
         fontFamily: settings.fontFamily,
         fontSize: settings.fontSize,

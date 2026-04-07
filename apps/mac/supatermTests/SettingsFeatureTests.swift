@@ -649,33 +649,6 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func terminalCursorBlinkStyleSelectionAppliesImmediately() async {
-    var state = SettingsFeature.State()
-    state.terminal = terminalSettingsState()
-
-    let store = TestStore(initialState: state) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { settings in
-        await terminalSettingsValues(from: settings)
-      }
-    }
-
-    await store.send(.terminalCursorBlinkStyleSelected(.terminalDefault)) {
-      $0.terminal.cursorBlinkStyle = .terminalDefault
-      $0.terminal.errorMessage = nil
-      $0.terminal.isApplying = true
-    }
-    await store.receive(
-      .terminalSettingsApplied(
-        terminalSettingsValues(cursorBlinkStyle: .terminalDefault)
-      )
-    ) {
-      $0.terminal = terminalSettingsState(cursorBlinkStyle: .terminalDefault)
-    }
-  }
-
-  @Test
   func claudeIntegrationToggleOnShowsSuccessState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
@@ -834,7 +807,6 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
     confirmCloseSurface: .whenNotAtPrompt,
     configPath: "/tmp/ghostty/config",
-    cursorBlinkStyle: .disabled,
     darkTheme: "Zenbones Dark",
     fontFamily: nil,
     fontSize: 15,
@@ -845,7 +817,6 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
 
 private nonisolated func terminalSettingsState(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
-  cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
   darkTheme: String? = "Zenbones Dark",
   errorMessage: String? = nil,
   fontFamily: String? = nil,
@@ -861,7 +832,6 @@ private nonisolated func terminalSettingsState(
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
-    cursorBlinkStyle: cursorBlinkStyle,
     darkTheme: darkTheme,
     errorMessage: errorMessage,
     fontFamily: fontFamily,
@@ -875,7 +845,6 @@ private nonisolated func terminalSettingsState(
 
 private nonisolated func terminalSettingsValues(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
-  cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,
@@ -885,7 +854,6 @@ private nonisolated func terminalSettingsValues(
   .init(
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
-    cursorBlinkStyle: cursorBlinkStyle,
     darkTheme: darkTheme,
     fontFamily: fontFamily,
     fontSize: fontSize,
@@ -900,7 +868,6 @@ private func terminalSettingsValues(
 ) -> GhosttyTerminalSettingsValues {
   terminalSettingsValues(
     confirmCloseSurface: settings.confirmCloseSurface,
-    cursorBlinkStyle: settings.cursorBlinkStyle,
     darkTheme: settings.darkTheme,
     fontFamily: settings.fontFamily,
     fontSize: settings.fontSize,
