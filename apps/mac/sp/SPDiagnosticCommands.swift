@@ -269,10 +269,15 @@ struct SPOnboardingInteraction {
 
   func run() -> Result {
     var didWriteOutput = false
+    var didShowIntro = false
 
     for integration in integrations {
       if force {
-        guard shouldInstall(agent: integration.agent, didWriteOutput: &didWriteOutput) else { continue }
+        guard shouldInstall(
+          agent: integration.agent,
+          didShowIntro: &didShowIntro,
+          didWriteOutput: &didWriteOutput
+        ) else { continue }
         install(integration, didWriteOutput: &didWriteOutput)
         continue
       }
@@ -290,7 +295,11 @@ struct SPOnboardingInteraction {
       }
 
       guard !hasSupatermHooks else { continue }
-      guard shouldInstall(agent: integration.agent, didWriteOutput: &didWriteOutput) else { continue }
+      guard shouldInstall(
+        agent: integration.agent,
+        didShowIntro: &didShowIntro,
+        didWriteOutput: &didWriteOutput
+      ) else { continue }
       install(integration, didWriteOutput: &didWriteOutput)
     }
 
@@ -317,8 +326,17 @@ struct SPOnboardingInteraction {
 
   private func shouldInstall(
     agent: SupatermAgentKind,
+    didShowIntro: inout Bool,
     didWriteOutput: inout Bool
   ) -> Bool {
+    if !didShowIntro {
+      write(
+        "Glad to have you onboard with Supaterm, let's get you setup.\n",
+        didWriteOutput: &didWriteOutput
+      )
+      didShowIntro = true
+    }
+
     while true {
       write(
         "Configure Supaterm hooks for \(agent.notificationTitle)? [y/N] ",
