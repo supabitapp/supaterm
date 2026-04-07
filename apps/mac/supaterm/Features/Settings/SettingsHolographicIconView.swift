@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+private struct SettingsHolographicSparkle: Equatable {
+  let center: CGPoint
+  let diameter: CGFloat
+  let blurRadius: CGFloat
+  let travel: CGFloat
+  let opacity: Double
+}
+
 struct SettingsHolographicIconEffect: Equatable {
   static let restingPointerRatio = CGPoint(x: 0.5, y: 0.5)
   static let maxPitchDegrees: CGFloat = 7
@@ -58,6 +66,8 @@ struct SettingsHolographicIconEffect: Equatable {
 
 struct SettingsHolographicIconView: View {
   let appName: String
+  let enableSparkleEffect: Bool
+  let enableRainbowHolographicEffect: Bool
 
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var effect = SettingsHolographicIconEffect.resting
@@ -65,6 +75,45 @@ struct SettingsHolographicIconView: View {
   private let size = CGSize(width: 84, height: 84)
   private let cornerRadius: CGFloat = 21
   private let iconScale: CGFloat = 1.12
+  private let sparkleDriftDistance: CGFloat = 6
+
+  private static let sparkles = [
+    SettingsHolographicSparkle(
+      center: CGPoint(x: 0.2, y: 0.24),
+      diameter: 6,
+      blurRadius: 0.8,
+      travel: 0.7,
+      opacity: 0.52
+    ),
+    SettingsHolographicSparkle(
+      center: CGPoint(x: 0.72, y: 0.18),
+      diameter: 4.5,
+      blurRadius: 0.6,
+      travel: 0.9,
+      opacity: 0.48
+    ),
+    SettingsHolographicSparkle(
+      center: CGPoint(x: 0.64, y: 0.44),
+      diameter: 5.5,
+      blurRadius: 0.9,
+      travel: 0.8,
+      opacity: 0.44
+    ),
+    SettingsHolographicSparkle(
+      center: CGPoint(x: 0.3, y: 0.68),
+      diameter: 4,
+      blurRadius: 0.5,
+      travel: 1.1,
+      opacity: 0.4
+    ),
+    SettingsHolographicSparkle(
+      center: CGPoint(x: 0.78, y: 0.76),
+      diameter: 6.5,
+      blurRadius: 1.1,
+      travel: 0.65,
+      opacity: 0.46
+    ),
+  ]
 
   var body: some View {
     ZStack {
@@ -129,6 +178,10 @@ struct SettingsHolographicIconView: View {
       )
       .blendMode(.screen)
 
+      if enableSparkleEffect {
+        sparkleOverlay
+      }
+
       LinearGradient(
         stops: [
           .init(color: .clear, location: 0),
@@ -143,6 +196,10 @@ struct SettingsHolographicIconView: View {
       .scaleEffect(1.7)
       .rotationEffect(.degrees(22))
       .blendMode(.overlay)
+
+      if enableRainbowHolographicEffect {
+        rainbowOverlay
+      }
 
       LinearGradient(
         stops: [
@@ -159,6 +216,67 @@ struct SettingsHolographicIconView: View {
     }
     .opacity(effect.overlayOpacity)
     .compositingGroup()
+  }
+
+  private var rainbowOverlay: some View {
+    LinearGradient(
+      stops: [
+        .init(color: .clear, location: 0),
+        .init(color: Color(red: 1, green: 0.45, blue: 0.78).opacity(0.42), location: effect.foilCenter - 0.28),
+        .init(color: Color(red: 1, green: 0.71, blue: 0.38).opacity(0.36), location: effect.foilCenter - 0.16),
+        .init(color: Color(red: 0.95, green: 0.9, blue: 0.42).opacity(0.28), location: effect.foilCenter - 0.06),
+        .init(color: Color(red: 0.44, green: 0.94, blue: 0.65).opacity(0.34), location: effect.foilCenter + 0.04),
+        .init(color: Color(red: 0.42, green: 0.84, blue: 1).opacity(0.42), location: effect.foilCenter + 0.16),
+        .init(color: Color(red: 0.72, green: 0.58, blue: 1).opacity(0.4), location: effect.foilCenter + 0.28),
+        .init(color: .clear, location: 1),
+      ],
+      startPoint: .leading,
+      endPoint: .trailing
+    )
+    .scaleEffect(1.9)
+    .rotationEffect(.degrees(-18))
+    .blendMode(.colorDodge)
+    .opacity(effect.isHovering ? 0.72 : 0.3)
+  }
+
+  private var sparkleOverlay: some View {
+    ZStack {
+      ForEach(Array(Self.sparkles.enumerated()), id: \.offset) { _, sparkle in
+        sparkleView(sparkle)
+      }
+    }
+    .blendMode(.plusLighter)
+  }
+
+  private func sparkleView(_ sparkle: SettingsHolographicSparkle) -> some View {
+    let offset = sparkleOffset(for: sparkle)
+    let opacity = effect.isHovering ? sparkle.opacity : sparkle.opacity * 0.35
+
+    return ZStack {
+      Circle()
+        .fill(.white.opacity(opacity))
+        .frame(width: sparkle.diameter, height: sparkle.diameter)
+        .blur(radius: sparkle.blurRadius)
+
+      Capsule()
+        .fill(.white.opacity(opacity * 0.75))
+        .frame(width: sparkle.diameter * 2.2, height: 1.2)
+        .blur(radius: sparkle.blurRadius * 0.5)
+
+      Capsule()
+        .fill(.white.opacity(opacity * 0.75))
+        .frame(width: 1.2, height: sparkle.diameter * 2.2)
+        .blur(radius: sparkle.blurRadius * 0.5)
+    }
+    .position(x: sparkle.center.x * size.width, y: sparkle.center.y * size.height)
+    .offset(offset)
+  }
+
+  private func sparkleOffset(for sparkle: SettingsHolographicSparkle) -> CGSize {
+    CGSize(
+      width: (effect.pointerRatio.x - 0.5) * sparkle.travel * sparkleDriftDistance,
+      height: (effect.pointerRatio.y - 0.5) * sparkle.travel * sparkleDriftDistance
+    )
   }
 
   private func updateEffect(_ phase: HoverPhase) {

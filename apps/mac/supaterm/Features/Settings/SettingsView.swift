@@ -526,7 +526,11 @@ private struct SettingsAboutView: View {
       VStack(alignment: .leading, spacing: 20) {
         SettingsSurfaceCard {
           HStack(alignment: .center, spacing: 20) {
-            SettingsHolographicIconView(appName: appName)
+            SettingsHolographicIconView(
+              appName: appName,
+              enableSparkleEffect: true,
+              enableRainbowHolographicEffect: true
+            )
 
             VStack(alignment: .leading, spacing: 6) {
               Text(appName)

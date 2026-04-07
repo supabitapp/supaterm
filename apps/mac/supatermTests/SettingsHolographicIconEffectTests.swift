@@ -5,6 +5,18 @@ import Testing
 
 struct SettingsHolographicIconEffectTests {
   @Test
+  func viewExposesSparkleAndRainbowFlags() {
+    let view = SettingsHolographicIconView(
+      appName: "supaterm",
+      enableSparkleEffect: false,
+      enableRainbowHolographicEffect: true
+    )
+
+    #expect(!view.enableSparkleEffect)
+    #expect(view.enableRainbowHolographicEffect)
+  }
+
+  @Test
   func pointerRatioUsesCenterForMidpoint() {
     let ratio = SettingsHolographicIconEffect.pointerRatio(
       for: CGPoint(x: 42, y: 42),
