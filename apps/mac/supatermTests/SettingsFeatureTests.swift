@@ -503,14 +503,8 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
-        terminalSettingsValues(
-          confirmCloseSurface: confirmCloseSurface,
-          darkTheme: darkTheme,
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          lightTheme: lightTheme,
-        )
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
       }
     }
 
@@ -536,14 +530,8 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
-        terminalSettingsValues(
-          confirmCloseSurface: confirmCloseSurface,
-          darkTheme: darkTheme,
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          lightTheme: lightTheme,
-        )
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
       }
     }
 
@@ -570,14 +558,8 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
-        terminalSettingsValues(
-          confirmCloseSurface: confirmCloseSurface,
-          darkTheme: darkTheme,
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          lightTheme: lightTheme,
-        )
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
       }
     }
 
@@ -624,14 +606,8 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
-        terminalSettingsValues(
-          confirmCloseSurface: confirmCloseSurface,
-          darkTheme: darkTheme,
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          lightTheme: lightTheme,
-        )
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
       }
     }
 
@@ -646,6 +622,60 @@ struct SettingsFeatureTests {
       )
     ) {
       $0.terminal = terminalSettingsState(confirmCloseSurface: .always)
+    }
+  }
+
+  @Test
+  func terminalCursorStyleSelectionAppliesImmediately() async {
+    var state = SettingsFeature.State()
+    state.terminal = terminalSettingsState()
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
+      }
+    }
+
+    await store.send(.terminalCursorStyleSelected(.underline)) {
+      $0.terminal.cursorStyle = .underline
+      $0.terminal.errorMessage = nil
+      $0.terminal.isApplying = true
+    }
+    await store.receive(
+      .terminalSettingsApplied(
+        terminalSettingsValues(cursorStyle: .underline)
+      )
+    ) {
+      $0.terminal = terminalSettingsState(cursorStyle: .underline)
+    }
+  }
+
+  @Test
+  func terminalCursorBlinkStyleSelectionAppliesImmediately() async {
+    var state = SettingsFeature.State()
+    state.terminal = terminalSettingsState()
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
+      }
+    }
+
+    await store.send(.terminalCursorBlinkStyleSelected(.terminalDefault)) {
+      $0.terminal.cursorBlinkStyle = .terminalDefault
+      $0.terminal.errorMessage = nil
+      $0.terminal.isApplying = true
+    }
+    await store.receive(
+      .terminalSettingsApplied(
+        terminalSettingsValues(cursorBlinkStyle: .terminalDefault)
+      )
+    ) {
+      $0.terminal = terminalSettingsState(cursorBlinkStyle: .terminalDefault)
     }
   }
 
@@ -762,6 +792,8 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
     confirmCloseSurface: .whenNotAtPrompt,
     configPath: "/tmp/ghostty/config",
+    cursorBlinkStyle: .disabled,
+    cursorStyle: .block,
     darkTheme: "Zenbones Dark",
     fontFamily: nil,
     fontSize: 15,
@@ -772,6 +804,8 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
 
 private nonisolated func terminalSettingsState(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
+  cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
+  cursorStyle: GhosttyTerminalCursorStyle = .block,
   darkTheme: String? = "Zenbones Dark",
   errorMessage: String? = nil,
   fontFamily: String? = nil,
@@ -787,6 +821,8 @@ private nonisolated func terminalSettingsState(
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
+    cursorBlinkStyle: cursorBlinkStyle,
+    cursorStyle: cursorStyle,
     darkTheme: darkTheme,
     errorMessage: errorMessage,
     fontFamily: fontFamily,
@@ -800,6 +836,8 @@ private nonisolated func terminalSettingsState(
 
 private nonisolated func terminalSettingsValues(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
+  cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
+  cursorStyle: GhosttyTerminalCursorStyle = .block,
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,
@@ -809,10 +847,28 @@ private nonisolated func terminalSettingsValues(
   .init(
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
+    cursorBlinkStyle: cursorBlinkStyle,
+    cursorStyle: cursorStyle,
     darkTheme: darkTheme,
     fontFamily: fontFamily,
     fontSize: fontSize,
     lightTheme: lightTheme,
+    warningMessage: warningMessage
+  )
+}
+
+private func terminalSettingsValues(
+  from settings: GhosttyTerminalSettingsDraft,
+  warningMessage: String? = nil
+) -> GhosttyTerminalSettingsValues {
+  terminalSettingsValues(
+    confirmCloseSurface: settings.confirmCloseSurface,
+    cursorBlinkStyle: settings.cursorBlinkStyle,
+    cursorStyle: settings.cursorStyle,
+    darkTheme: settings.darkTheme,
+    fontFamily: settings.fontFamily,
+    fontSize: settings.fontSize,
+    lightTheme: settings.lightTheme,
     warningMessage: warningMessage
   )
 }

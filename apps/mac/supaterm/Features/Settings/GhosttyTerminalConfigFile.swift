@@ -23,14 +23,6 @@ enum GhosttyTerminalConfigFileError: LocalizedError {
 
 @MainActor
 struct GhosttyTerminalConfigFile {
-  private struct ManagedSettings: Equatable {
-    var confirmCloseSurface: GhosttyTerminalCloseConfirmation
-    var darkTheme: String?
-    var fontFamily: String?
-    var fontSize: Double
-    var lightTheme: String?
-  }
-
   private struct ThemeSelection: Equatable {
     var dark: String
     var light: String
@@ -83,22 +75,9 @@ struct GhosttyTerminalConfigFile {
     )
   }
 
-  func apply(
-    fontFamily: String?,
-    fontSize: Double,
-    lightTheme: String?,
-    darkTheme: String?,
-    confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  ) throws -> GhosttyTerminalSettingsValues {
+  func apply(settings: GhosttyTerminalSettingsDraft) throws -> GhosttyTerminalSettingsValues {
     let configURL = try ensureConfigFile()
     let contents = try String(contentsOf: configURL, encoding: .utf8)
-    let settings = ManagedSettings(
-      confirmCloseSurface: confirmCloseSurface,
-      darkTheme: darkTheme,
-      fontFamily: fontFamily,
-      fontSize: fontSize,
-      lightTheme: lightTheme
-    )
     let updatedContents = updatedContents(from: contents, settings: settings)
     let validationURL =
       configURL
@@ -135,6 +114,8 @@ struct GhosttyTerminalConfigFile {
       availableLightThemes: themes.light,
       confirmCloseSurface: values.confirmCloseSurface,
       configPath: values.configPath,
+      cursorBlinkStyle: values.cursorBlinkStyle,
+      cursorStyle: values.cursorStyle,
       darkTheme: values.darkTheme,
       fontFamily: values.fontFamily,
       fontSize: values.fontSize,
@@ -152,6 +133,8 @@ struct GhosttyTerminalConfigFile {
     return .init(
       confirmCloseSurface: selectedConfirmCloseSurface(in: contents) ?? .whenNotAtPrompt,
       configPath: configURL.path,
+      cursorBlinkStyle: selectedCursorBlinkStyle(in: contents) ?? .terminalDefault,
+      cursorStyle: selectedCursorStyle(in: contents) ?? .block,
       darkTheme: selection?.dark,
       fontFamily: selectedFontFamily(in: contents),
       fontSize: fontSize,
@@ -252,9 +235,33 @@ struct GhosttyTerminalConfigFile {
     return selection
   }
 
+  private func selectedCursorStyle(in contents: String) -> GhosttyTerminalCursorStyle? {
+    var selection: GhosttyTerminalCursorStyle?
+    for line in lines(in: contents) {
+      guard let directive = directive(in: line), directive.key == "cursor-style" else {
+        continue
+      }
+      let value = parsedValue(from: directive.value)
+      selection = GhosttyTerminalCursorStyle(rawValue: value)
+    }
+    return selection
+  }
+
+  private func selectedCursorBlinkStyle(in contents: String) -> GhosttyTerminalCursorBlinkStyle? {
+    var selection: GhosttyTerminalCursorBlinkStyle?
+    for line in lines(in: contents) {
+      guard let directive = directive(in: line), directive.key == "cursor-style-blink" else {
+        continue
+      }
+      let value = parsedValue(from: directive.value)
+      selection = GhosttyTerminalCursorBlinkStyle(rawValue: value)
+    }
+    return selection
+  }
+
   private func updatedContents(
     from contents: String,
-    settings: ManagedSettings
+    settings: GhosttyTerminalSettingsDraft
   ) -> String {
     let originalLines = lines(in: contents)
     let hadTrailingNewline = contents.hasSuffix("\n")
@@ -278,7 +285,7 @@ struct GhosttyTerminalConfigFile {
     return hadTrailingNewline || !contents.isEmpty ? joined + "\n" : joined
   }
 
-  private func canonicalManagedLines(settings: ManagedSettings) -> [String] {
+  private func canonicalManagedLines(settings: GhosttyTerminalSettingsDraft) -> [String] {
     var lines: [String] = []
     if let themeSelection = canonicalThemeSelection(
       lightTheme: settings.lightTheme,
@@ -291,6 +298,8 @@ struct GhosttyTerminalConfigFile {
     }
     lines.append("font-size = \(formatted(settings.fontSize))")
     lines.append("confirm-close-surface = \(settings.confirmCloseSurface.rawValue)")
+    lines.append("cursor-style = \(settings.cursorStyle.rawValue)")
+    lines.append("cursor-style-blink = \(settings.cursorBlinkStyle.rawValue)")
     return lines
   }
 
@@ -532,5 +541,12 @@ struct GhosttyTerminalConfigFile {
       }
   }
 
-  private let managedKeys = Set(["confirm-close-surface", "font-family", "font-size", "theme"])
+  private let managedKeys = Set([
+    "confirm-close-surface",
+    "cursor-style",
+    "cursor-style-blink",
+    "font-family",
+    "font-size",
+    "theme",
+  ])
 }
