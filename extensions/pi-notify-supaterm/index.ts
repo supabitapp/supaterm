@@ -87,7 +87,7 @@ async function sendSupatermHook(event: SupatermHookEvent): Promise<void> {
   }
 
   await new Promise<void>((resolve) => {
-    const child = spawn(supatermCLIPath, ["agent", "receive-agent-hook", "--agent", "claude"], {
+    const child = spawn(supatermCLIPath, ["agent", "receive-agent-hook", "--agent", "pi"], {
       env: process.env,
       stdio: ["pipe", "ignore", "ignore"],
     });

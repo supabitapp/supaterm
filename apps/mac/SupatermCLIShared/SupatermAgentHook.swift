@@ -3,6 +3,7 @@ import Foundation
 public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendable {
   case claude
   case codex
+  case pi
 
   public var notificationTitle: String {
     switch self {
@@ -10,6 +11,8 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendabl
       return "Claude Code"
     case .codex:
       return "Codex"
+    case .pi:
+      return "Pi"
     }
   }
 }

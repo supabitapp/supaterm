@@ -386,7 +386,7 @@ struct SPOnboardingInteraction {
     case invalid
   }
 
-  private static let liveIntegrations: [AgentIntegration] = SupatermAgentKind.allCases.map { agent in
+  private static let liveIntegrations: [AgentIntegration] = [SupatermAgentKind.claude, .codex].map { agent in
     switch agent {
     case .claude:
       return .init(
@@ -400,6 +400,8 @@ struct SPOnboardingInteraction {
         hasSupatermHooks: { try CodexSettingsInstaller().hasSupatermHooks() },
         installSupatermHooks: { try CodexSettingsInstaller().installSupatermHooks() }
       )
+    case .pi:
+      fatalError("Pi is not configured through sp onboard.")
     }
   }
 }

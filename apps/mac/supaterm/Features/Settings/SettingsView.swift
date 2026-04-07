@@ -61,28 +61,22 @@ private struct SettingsTabContentView: View {
 private struct SettingsCodingAgentsView: View {
   let store: StoreOf<SettingsFeature>
 
-  private var claudeHooks: SettingsAgentHooksState {
-    store.claudeHooks
+  private func integration(for agent: SupatermAgentKind) -> SettingsAgentIntegrationState {
+    switch agent {
+    case .claude:
+      return store.claudeIntegration
+    case .codex:
+      return store.codexIntegration
+    case .pi:
+      return store.piIntegration
+    }
   }
 
-  private var codexHooks: SettingsAgentHooksState {
-    store.codexHooks
-  }
-
-  private var claudeToggle: Binding<Bool> {
+  private func integrationToggle(for agent: SupatermAgentKind) -> Binding<Bool> {
     Binding(
-      get: { store.claudeHooks.isEnabled },
+      get: { integration(for: agent).isEnabled },
       set: { newValue in
-        _ = store.send(.agentHooksToggled(.claude, newValue))
-      }
-    )
-  }
-
-  private var codexToggle: Binding<Bool> {
-    Binding(
-      get: { store.codexHooks.isEnabled },
-      set: { newValue in
-        _ = store.send(.agentHooksToggled(.codex, newValue))
+        _ = store.send(.agentIntegrationToggled(agent, newValue))
       }
     )
   }
@@ -90,41 +84,28 @@ private struct SettingsCodingAgentsView: View {
   var body: some View {
     Form {
       Section(
-        footer: Text("Hooks are optional and designed to extend Supaterm without affecting core functionality.")
+        footer: Text("Integrations are optional and designed to extend Supaterm without affecting core functionality.")
       ) {}
 
-      Section {
-        SettingsAgentToggleRow(
-          errorMessage: claudeHooks.errorMessage,
-          isOn: claudeToggle,
-          isPending: claudeHooks.isPending,
-          subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
-          title: "Integration"
-        )
-      } header: {
-        SettingsAgentSectionHeader(
-          imageName: "claude-code-mark",
-          title: "Claude Code"
-        )
-      } footer: {
-        Text("Applied to `\(claudeHooks.settingsPath)`.")
-      }
-
-      Section {
-        SettingsAgentToggleRow(
-          errorMessage: codexHooks.errorMessage,
-          isOn: codexToggle,
-          isPending: codexHooks.isPending,
-          subtitle: "Display agent activity in tabs and forward notifications to Supaterm.",
-          title: "Integration"
-        )
-      } header: {
-        SettingsAgentSectionHeader(
-          imageName: "codex-mark",
-          title: "Codex"
-        )
-      } footer: {
-        Text("Applied to `\(codexHooks.settingsPath)`.")
+      ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
+        let integration = integration(for: agent)
+        Section {
+          SettingsAgentToggleRow(
+            errorMessage: integration.errorMessage,
+            isAvailable: integration.isAvailable,
+            isOn: integrationToggle(for: agent),
+            isPending: integration.isPending,
+            subtitle: agent.settingsSubtitle,
+            title: "Integration"
+          )
+        } header: {
+          SettingsAgentSectionHeader(
+            imageName: agent.settingsMarkImageName,
+            title: agent.notificationTitle
+          )
+        } footer: {
+          Text(agent.settingsFooterText)
+        }
       }
     }
     .navigationTitle("Coding Agents")
@@ -134,6 +115,7 @@ private struct SettingsCodingAgentsView: View {
 
 private struct SettingsAgentToggleRow: View {
   let errorMessage: String?
+  let isAvailable: Bool
   let isOn: Binding<Bool>
   let isPending: Bool
   let subtitle: String
@@ -149,7 +131,7 @@ private struct SettingsAgentToggleRow: View {
           subtitle: subtitle
         )
       }
-      .disabled(isPending)
+      .disabled(isPending || !isAvailable)
       if let errorMessage {
         Text(errorMessage)
           .font(.callout)

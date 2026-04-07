@@ -46,6 +46,7 @@ struct SettingsFeatureTests {
         $0.claudeSettingsClient.hasSupatermHooks = { false }
         $0.codexSettingsClient.hasSupatermHooks = { false }
         $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
+        $0.piSettingsClient.hasSupatermIntegration = { false }
       }
 
       await store.send(.task)
@@ -60,20 +61,26 @@ struct SettingsFeatureTests {
       await store.receive(.terminalSettingsLoadRequested) {
         $0.terminal.isLoading = true
       }
-      await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
-        $0.claudeHooks.isPending = true
+      await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+        $0.claudeIntegration.isPending = true
       }
-      await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
-        $0.codexHooks.isPending = true
+      await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+        $0.codexIntegration.isPending = true
+      }
+      await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+        $0.piIntegration.isPending = true
       }
       await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
         $0.terminal = terminalSettingsState()
       }
-      await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
-        $0.claudeHooks.isPending = false
+      await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false))) {
+        $0.claudeIntegration.isPending = false
       }
-      await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
-        $0.codexHooks.isPending = false
+      await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+        $0.codexIntegration.isPending = false
+      }
+      await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false))) {
+        $0.piIntegration.isPending = false
       }
     }
   }
@@ -88,6 +95,7 @@ struct SettingsFeatureTests {
       $0.claudeSettingsClient.hasSupatermHooks = { false }
       $0.codexSettingsClient.hasSupatermHooks = { false }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
+      $0.piSettingsClient.hasSupatermIntegration = { false }
       $0.updateClient.observe = { stream }
       $0.updateClient.start = {}
     }
@@ -97,20 +105,26 @@ struct SettingsFeatureTests {
     await store.receive(.terminalSettingsLoadRequested) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
-      $0.claudeHooks.isPending = true
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+      $0.claudeIntegration.isPending = true
     }
-    await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
-      $0.codexHooks.isPending = true
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+      $0.codexIntegration.isPending = true
+    }
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+      $0.piIntegration.isPending = true
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentHooksStatusRefreshed(.claude, .success(false))) {
-      $0.claudeHooks.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false))) {
+      $0.claudeIntegration.isPending = false
     }
-    await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
-      $0.codexHooks.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+      $0.codexIntegration.isPending = false
+    }
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false))) {
+      $0.piIntegration.isPending = false
     }
 
     continuation.yield(
@@ -462,13 +476,14 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func taskLoadsAgentHookStatuses() async {
+  func taskLoadsAgentIntegrationStatuses() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { true }
       $0.codexSettingsClient.hasSupatermHooks = { false }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
+      $0.piSettingsClient.hasSupatermIntegration = { true }
     }
 
     await store.send(.task)
@@ -476,22 +491,30 @@ struct SettingsFeatureTests {
     await store.receive(.terminalSettingsLoadRequested) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentHooksStatusRefreshRequested(.claude)) {
-      $0.claudeHooks.isPending = true
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+      $0.claudeIntegration.isPending = true
     }
-    await store.receive(.agentHooksStatusRefreshRequested(.codex)) {
-      $0.codexHooks.isPending = true
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+      $0.codexIntegration.isPending = true
+    }
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+      $0.piIntegration.isPending = true
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentHooksStatusRefreshed(.claude, .success(true))) {
-      $0.claudeHooks.confirmedEnabled = true
-      $0.claudeHooks.isEnabled = true
-      $0.claudeHooks.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true))) {
+      $0.claudeIntegration.confirmedEnabled = true
+      $0.claudeIntegration.isEnabled = true
+      $0.claudeIntegration.isPending = false
     }
-    await store.receive(.agentHooksStatusRefreshed(.codex, .success(false))) {
-      $0.codexHooks.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+      $0.codexIntegration.isPending = false
+    }
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(true))) {
+      $0.piIntegration.confirmedEnabled = true
+      $0.piIntegration.isEnabled = true
+      $0.piIntegration.isPending = false
     }
   }
 
@@ -626,6 +649,33 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func terminalCursorStyleSelectionAppliesImmediately() async {
+    var state = SettingsFeature.State()
+    state.terminal = terminalSettingsState()
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.apply = { settings in
+        await terminalSettingsValues(from: settings)
+      }
+    }
+
+    await store.send(.terminalCursorStyleSelected(.underline)) {
+      $0.terminal.cursorStyle = .underline
+      $0.terminal.errorMessage = nil
+      $0.terminal.isApplying = true
+    }
+    await store.receive(
+      .terminalSettingsApplied(
+        terminalSettingsValues(cursorStyle: .underline)
+      )
+    ) {
+      $0.terminal = terminalSettingsState(cursorStyle: .underline)
+    }
+  }
+
+  @Test
   func terminalCursorBlinkStyleSelectionAppliesImmediately() async {
     var state = SettingsFeature.State()
     state.terminal = terminalSettingsState()
@@ -653,7 +703,7 @@ struct SettingsFeatureTests {
   }
 
   @Test
-  func claudeHooksToggleOnShowsSuccessState() async {
+  func claudeIntegrationToggleOnShowsSuccessState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
@@ -661,20 +711,20 @@ struct SettingsFeatureTests {
       $0.claudeSettingsClient.hasSupatermHooks = { true }
     }
 
-    await store.send(.agentHooksToggled(.claude, true)) {
-      $0.claudeHooks.isEnabled = true
-      $0.claudeHooks.isPending = true
+    await store.send(.agentIntegrationToggled(.claude, true)) {
+      $0.claudeIntegration.isEnabled = true
+      $0.claudeIntegration.isPending = true
     }
 
-    await store.receive(.agentHooksToggleFinished(.claude, .success(true))) {
-      $0.claudeHooks.confirmedEnabled = true
-      $0.claudeHooks.isEnabled = true
-      $0.claudeHooks.isPending = false
+    await store.receive(.agentIntegrationToggleFinished(.claude, .success(true))) {
+      $0.claudeIntegration.confirmedEnabled = true
+      $0.claudeIntegration.isEnabled = true
+      $0.claudeIntegration.isPending = false
     }
   }
 
   @Test
-  func claudeHooksToggleFailureRevertsToConfirmedState() async {
+  func claudeIntegrationToggleFailureRevertsToConfirmedState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
@@ -683,28 +733,28 @@ struct SettingsFeatureTests {
       }
     }
 
-    await store.send(.agentHooksToggled(.claude, true)) {
-      $0.claudeHooks.isEnabled = true
-      $0.claudeHooks.isPending = true
+    await store.send(.agentIntegrationToggled(.claude, true)) {
+      $0.claudeIntegration.isEnabled = true
+      $0.claudeIntegration.isPending = true
     }
 
     await store.receive(
-      .agentHooksToggleFinished(
+      .agentIntegrationToggleFinished(
         .claude,
         .failure("Claude settings must be valid JSON before Supaterm can install hooks.")
       )
     ) {
-      $0.claudeHooks.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
-      $0.claudeHooks.isEnabled = false
-      $0.claudeHooks.isPending = false
+      $0.claudeIntegration.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
+      $0.claudeIntegration.isEnabled = false
+      $0.claudeIntegration.isPending = false
     }
   }
 
   @Test
-  func codexHooksToggleOffShowsSuccessState() async {
+  func codexIntegrationToggleOffShowsSuccessState() async {
     var state = SettingsFeature.State()
-    state.codexHooks.confirmedEnabled = true
-    state.codexHooks.isEnabled = true
+    state.codexIntegration.confirmedEnabled = true
+    state.codexIntegration.isEnabled = true
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
@@ -713,23 +763,23 @@ struct SettingsFeatureTests {
       $0.codexSettingsClient.removeSupatermHooks = {}
     }
 
-    await store.send(.agentHooksToggled(.codex, false)) {
-      $0.codexHooks.isEnabled = false
-      $0.codexHooks.isPending = true
+    await store.send(.agentIntegrationToggled(.codex, false)) {
+      $0.codexIntegration.isEnabled = false
+      $0.codexIntegration.isPending = true
     }
 
-    await store.receive(.agentHooksToggleFinished(.codex, .success(false))) {
-      $0.codexHooks.confirmedEnabled = false
-      $0.codexHooks.isEnabled = false
-      $0.codexHooks.isPending = false
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(false))) {
+      $0.codexIntegration.confirmedEnabled = false
+      $0.codexIntegration.isEnabled = false
+      $0.codexIntegration.isPending = false
     }
   }
 
   @Test
-  func codexHooksToggleFailureRevertsToConfirmedState() async {
+  func codexIntegrationToggleFailureRevertsToConfirmedState() async {
     var state = SettingsFeature.State()
-    state.codexHooks.confirmedEnabled = true
-    state.codexHooks.isEnabled = true
+    state.codexIntegration.confirmedEnabled = true
+    state.codexIntegration.isEnabled = true
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
@@ -739,21 +789,67 @@ struct SettingsFeatureTests {
       }
     }
 
-    await store.send(.agentHooksToggled(.codex, false)) {
-      $0.codexHooks.isEnabled = false
-      $0.codexHooks.isPending = true
+    await store.send(.agentIntegrationToggled(.codex, false)) {
+      $0.codexIntegration.isEnabled = false
+      $0.codexIntegration.isPending = true
     }
 
     await store.receive(
-      .agentHooksToggleFinished(
+      .agentIntegrationToggleFinished(
         .codex,
         .failure("Codex must be installed and available in your login shell before Supaterm can install hooks.")
       )
     ) {
-      $0.codexHooks.errorMessage =
+      $0.codexIntegration.errorMessage =
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
-      $0.codexHooks.isEnabled = true
-      $0.codexHooks.isPending = false
+      $0.codexIntegration.isEnabled = true
+      $0.codexIntegration.isPending = false
+    }
+  }
+
+  @Test
+  func piIntegrationUnavailableDisablesTheToggle() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.piSettingsClient.isPiAvailable = { false }
+    }
+
+    await store.send(.agentIntegrationStatusRefreshRequested(.pi)) {
+      $0.piIntegration.isPending = true
+    }
+
+    await store.receive(
+      .agentIntegrationStatusRefreshed(
+        .pi,
+        .unavailable("Pi must be installed and available in your login shell before Supaterm can manage the package.")
+      )
+    ) {
+      $0.piIntegration.errorMessage =
+        "Pi must be installed and available in your login shell before Supaterm can manage the package."
+      $0.piIntegration.isAvailable = false
+      $0.piIntegration.isPending = false
+    }
+  }
+
+  @Test
+  func piIntegrationToggleOnShowsSuccessState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.piSettingsClient.hasSupatermIntegration = { true }
+      $0.piSettingsClient.installSupatermIntegration = {}
+    }
+
+    await store.send(.agentIntegrationToggled(.pi, true)) {
+      $0.piIntegration.isEnabled = true
+      $0.piIntegration.isPending = true
+    }
+
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(true))) {
+      $0.piIntegration.confirmedEnabled = true
+      $0.piIntegration.isEnabled = true
+      $0.piIntegration.isPending = false
     }
   }
 }
@@ -766,6 +862,7 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
     confirmCloseSurface: .whenNotAtPrompt,
     configPath: "/tmp/ghostty/config",
     cursorBlinkStyle: .disabled,
+    cursorStyle: .block,
     darkTheme: "Zenbones Dark",
     fontFamily: nil,
     fontSize: 15,
@@ -777,6 +874,7 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
 private nonisolated func terminalSettingsState(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
   cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
+  cursorStyle: GhosttyTerminalCursorStyle = .block,
   darkTheme: String? = "Zenbones Dark",
   errorMessage: String? = nil,
   fontFamily: String? = nil,
@@ -793,6 +891,7 @@ private nonisolated func terminalSettingsState(
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
     cursorBlinkStyle: cursorBlinkStyle,
+    cursorStyle: cursorStyle,
     darkTheme: darkTheme,
     errorMessage: errorMessage,
     fontFamily: fontFamily,
@@ -807,6 +906,7 @@ private nonisolated func terminalSettingsState(
 private nonisolated func terminalSettingsValues(
   confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
   cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle = .disabled,
+  cursorStyle: GhosttyTerminalCursorStyle = .block,
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,
@@ -817,6 +917,7 @@ private nonisolated func terminalSettingsValues(
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
     cursorBlinkStyle: cursorBlinkStyle,
+    cursorStyle: cursorStyle,
     darkTheme: darkTheme,
     fontFamily: fontFamily,
     fontSize: fontSize,
@@ -832,6 +933,7 @@ private func terminalSettingsValues(
   terminalSettingsValues(
     confirmCloseSurface: settings.confirmCloseSurface,
     cursorBlinkStyle: settings.cursorBlinkStyle,
+    cursorStyle: settings.cursorStyle,
     darkTheme: settings.darkTheme,
     fontFamily: settings.fontFamily,
     fontSize: settings.fontSize,

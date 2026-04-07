@@ -106,21 +106,21 @@ struct SPCommandTests {
     #expect(
       rendered
         == """
-          Thank you for using supaterm!
+        Thank you for using supaterm!
 
-          Common Shortcuts
+        Common Shortcuts
 
-          ⌘S    Toggle sidebar
-          ⌘T    New tab
-          ⌘W    Close pane
-          ⌘⌥W   Close tab
-          ⌃1-0  Go to space 1-10
-          ⌘D    Split right
-          ⌘⇧D   Split down
-          ⌘F    Find
+        ⌘S    Toggle sidebar
+        ⌘T    New tab
+        ⌘W    Close pane
+        ⌘⌥W   Close tab
+        ⌃1-0  Go to space 1-10
+        ⌘D    Split right
+        ⌘⇧D   Split down
+        ⌘F    Find
 
-          Run "sp" for the list of available commands.
-          """
+        Run "sp" for the list of available commands.
+        """
     )
   }
 
@@ -147,15 +147,19 @@ struct SPCommandTests {
     let removeCodexCommand = try #require(
       try SP.parseAsRoot(["agent", "remove-hook", "codex"]) as? SP.RemoveAgentHook.Codex
     )
-    let receiveCommand = try #require(
+    let receiveClaudeCommand = try #require(
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"]) as? SP.ReceiveAgentHook
+    )
+    let receivePiCommand = try #require(
+      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi"]) as? SP.ReceiveAgentHook
     )
 
     #expect(type(of: claudeCommand) == SP.InstallAgentHook.Claude.self)
     #expect(type(of: codexCommand) == SP.InstallAgentHook.Codex.self)
     #expect(type(of: removeClaudeCommand) == SP.RemoveAgentHook.Claude.self)
     #expect(type(of: removeCodexCommand) == SP.RemoveAgentHook.Codex.self)
-    #expect(receiveCommand.agent == .claude)
+    #expect(receiveClaudeCommand.agent == .claude)
+    #expect(receivePiCommand.agent == .pi)
   }
 
   @Test

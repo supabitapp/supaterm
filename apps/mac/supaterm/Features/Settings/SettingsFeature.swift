@@ -14,6 +14,7 @@ struct SettingsTerminalState: Equatable {
   var confirmCloseSurface = GhosttyTerminalCloseConfirmation.whenNotAtPrompt
   var configPath = ""
   var cursorBlinkStyle = GhosttyTerminalCursorBlinkStyle.disabled
+  var cursorStyle = GhosttyTerminalCursorStyle.block
   var darkTheme: String?
   var errorMessage: String?
   var fontFamily: String?
@@ -28,10 +29,11 @@ struct SettingsTerminalState: Equatable {
   }
 }
 
-struct SettingsAgentHooksState: Equatable {
+struct SettingsAgentIntegrationState: Equatable {
   let settingsPath: String
   var confirmedEnabled = false
   var errorMessage: String?
+  var isAvailable = true
   var isEnabled = false
   var isPending = false
 
@@ -40,7 +42,8 @@ struct SettingsAgentHooksState: Equatable {
   }
 }
 
-enum SettingsAgentHooksResult: Equatable {
+enum SettingsAgentIntegrationResult: Equatable {
+  case unavailable(String)
   case failure(String)
   case success(Bool)
 }
@@ -52,8 +55,15 @@ struct SettingsFeature {
     var appearanceMode = SupatermSettings.default.appearanceMode
     var analyticsEnabled = SupatermSettings.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
-    var claudeHooks = SettingsAgentHooksState(settingsPath: "~/.claude/settings.json")
-    var codexHooks = SettingsAgentHooksState(settingsPath: "~/.codex/hooks.json")
+    var claudeIntegration = SettingsAgentIntegrationState(
+      settingsPath: SupatermAgentKind.claude.settingsPathDescription
+    )
+    var codexIntegration = SettingsAgentIntegrationState(
+      settingsPath: SupatermAgentKind.codex.settingsPathDescription
+    )
+    var piIntegration = SettingsAgentIntegrationState(
+      settingsPath: SupatermAgentKind.pi.settingsPathDescription
+    )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
@@ -65,10 +75,10 @@ struct SettingsFeature {
   }
 
   enum Action: Equatable {
-    case agentHooksStatusRefreshRequested(SupatermAgentKind)
-    case agentHooksStatusRefreshed(SupatermAgentKind, SettingsAgentHooksResult)
-    case agentHooksToggled(SupatermAgentKind, Bool)
-    case agentHooksToggleFinished(SupatermAgentKind, SettingsAgentHooksResult)
+    case agentIntegrationStatusRefreshRequested(SupatermAgentKind)
+    case agentIntegrationStatusRefreshed(SupatermAgentKind, SettingsAgentIntegrationResult)
+    case agentIntegrationToggled(SupatermAgentKind, Bool)
+    case agentIntegrationToggleFinished(SupatermAgentKind, SettingsAgentIntegrationResult)
     case alert(PresentationAction<Alert>)
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)
@@ -82,6 +92,7 @@ struct SettingsFeature {
     case tabSelected(Tab)
     case task
     case terminalCursorBlinkStyleSelected(GhosttyTerminalCursorBlinkStyle)
+    case terminalCursorStyleSelected(GhosttyTerminalCursorStyle)
     case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
     case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
@@ -147,6 +158,7 @@ struct SettingsFeature {
 
   @Dependency(ClaudeSettingsClient.self) var claudeSettingsClient
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
+  @Dependency(PiSettingsClient.self) var piSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
@@ -160,8 +172,9 @@ struct SettingsFeature {
         return .merge(
           .send(.settingsLoaded(supatermSettings)),
           .send(.terminalSettingsLoadRequested),
-          .send(.agentHooksStatusRefreshRequested(.claude)),
-          .send(.agentHooksStatusRefreshRequested(.codex)),
+          .send(.agentIntegrationStatusRefreshRequested(.claude)),
+          .send(.agentIntegrationStatusRefreshRequested(.codex)),
+          .send(.agentIntegrationStatusRefreshRequested(.pi)),
           .run { [updateClient] send in
             await updateClient.start()
             let stream = await updateClient.observe()
@@ -259,6 +272,13 @@ struct SettingsFeature {
         state.terminal.confirmCloseSurface = confirmCloseSurface
         return applyTerminalSettings(state.terminal.settingsDraft)
 
+      case .terminalCursorStyleSelected(let cursorStyle):
+        guard prepareTerminalSettingsApply(&state.terminal) else {
+          return .none
+        }
+        state.terminal.cursorStyle = cursorStyle
+        return applyTerminalSettings(state.terminal.settingsDraft)
+
       case .terminalCursorBlinkStyleSelected(let cursorBlinkStyle):
         guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
@@ -287,64 +307,106 @@ struct SettingsFeature {
         state.analyticsEnabled = isEnabled
         return persist(state)
 
-      case .agentHooksStatusRefreshRequested(let agent):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationStatusRefreshRequested(let agent):
+        let keyPath = agentIntegrationKeyPath(for: agent)
         guard !state[keyPath: keyPath].isPending else {
           return .none
         }
         state[keyPath: keyPath].isPending = true
-        let loadStatus = loadSupatermHooksOperation(for: agent)
+        let checkAvailability = loadAgentAvailabilityOperation(for: agent)
+        let loadStatus = loadSupatermIntegrationOperation(for: agent)
         return .run { send in
           do {
-            await send(.agentHooksStatusRefreshed(agent, .success(try await loadStatus())))
+            guard try await checkAvailability() else {
+              await send(
+                .agentIntegrationStatusRefreshed(
+                  agent,
+                  .unavailable(unavailableMessage(for: agent))
+                )
+              )
+              return
+            }
+            await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadStatus())))
           } catch {
-            await send(.agentHooksStatusRefreshed(agent, .failure(error.localizedDescription)))
+            await send(.agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
           }
         }
 
-      case .agentHooksStatusRefreshed(let agent, .success(let isEnabled)):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationStatusRefreshed(let agent, .success(let isEnabled)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
         state[keyPath: keyPath].confirmedEnabled = isEnabled
         state[keyPath: keyPath].errorMessage = nil
+        state[keyPath: keyPath].isAvailable = true
         state[keyPath: keyPath].isEnabled = isEnabled
         state[keyPath: keyPath].isPending = false
         return .none
 
-      case .agentHooksStatusRefreshed(let agent, .failure(let message)):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationStatusRefreshed(let agent, .unavailable(let message)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
+        state[keyPath: keyPath].confirmedEnabled = false
         state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isAvailable = false
+        state[keyPath: keyPath].isEnabled = false
+        state[keyPath: keyPath].isPending = false
+        return .none
+
+      case .agentIntegrationStatusRefreshed(let agent, .failure(let message)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
+        state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isAvailable = true
         state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
         state[keyPath: keyPath].isPending = false
         return .none
 
-      case .agentHooksToggled(let agent, let isEnabled):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationToggled(let agent, let isEnabled):
+        let keyPath = agentIntegrationKeyPath(for: agent)
         guard !state[keyPath: keyPath].isPending else {
           return .none
         }
         state[keyPath: keyPath].errorMessage = nil
         state[keyPath: keyPath].isEnabled = isEnabled
         state[keyPath: keyPath].isPending = true
-        let updateStatus = updateSupatermHooksOperation(for: agent, isEnabled: isEnabled)
+        let checkAvailability = loadAgentAvailabilityOperation(for: agent)
+        let updateStatus = updateSupatermIntegrationOperation(for: agent, isEnabled: isEnabled)
         return .run { send in
           do {
-            await send(.agentHooksToggleFinished(agent, .success(try await updateStatus())))
+            guard try await checkAvailability() else {
+              await send(
+                .agentIntegrationToggleFinished(
+                  agent,
+                  .unavailable(unavailableMessage(for: agent))
+                )
+              )
+              return
+            }
+            await send(.agentIntegrationToggleFinished(agent, .success(try await updateStatus())))
           } catch {
-            await send(.agentHooksToggleFinished(agent, .failure(error.localizedDescription)))
+            await send(.agentIntegrationToggleFinished(agent, .failure(error.localizedDescription)))
           }
         }
 
-      case .agentHooksToggleFinished(let agent, .success(let isEnabled)):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationToggleFinished(let agent, .success(let isEnabled)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
         state[keyPath: keyPath].confirmedEnabled = isEnabled
         state[keyPath: keyPath].errorMessage = nil
+        state[keyPath: keyPath].isAvailable = true
         state[keyPath: keyPath].isEnabled = isEnabled
         state[keyPath: keyPath].isPending = false
         return .none
 
-      case .agentHooksToggleFinished(let agent, .failure(let message)):
-        let keyPath = agentHooksKeyPath(for: agent)
+      case .agentIntegrationToggleFinished(let agent, .unavailable(let message)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
+        state[keyPath: keyPath].confirmedEnabled = false
         state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isAvailable = false
+        state[keyPath: keyPath].isEnabled = false
+        state[keyPath: keyPath].isPending = false
+        return .none
+
+      case .agentIntegrationToggleFinished(let agent, .failure(let message)):
+        let keyPath = agentIntegrationKeyPath(for: agent)
+        state[keyPath: keyPath].errorMessage = message
+        state[keyPath: keyPath].isAvailable = true
         state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
         state[keyPath: keyPath].isPending = false
         return .none
@@ -454,18 +516,32 @@ struct SettingsFeature {
     return .none
   }
 
-  private func agentHooksKeyPath(
+  private func agentIntegrationKeyPath(
     for agent: SupatermAgentKind
-  ) -> WritableKeyPath<State, SettingsAgentHooksState> {
+  ) -> WritableKeyPath<State, SettingsAgentIntegrationState> {
     switch agent {
     case .claude:
-      return \.claudeHooks
+      return \.claudeIntegration
     case .codex:
-      return \.codexHooks
+      return \.codexIntegration
+    case .pi:
+      return \.piIntegration
     }
   }
 
-  private func loadSupatermHooksOperation(
+  private func loadAgentAvailabilityOperation(
+    for agent: SupatermAgentKind
+  ) -> @Sendable () async throws -> Bool {
+    switch agent {
+    case .claude, .codex:
+      return { true }
+    case .pi:
+      let client = piSettingsClient
+      return { try await client.isPiAvailable() }
+    }
+  }
+
+  private func loadSupatermIntegrationOperation(
     for agent: SupatermAgentKind
   ) -> @Sendable () async throws -> Bool {
     switch agent {
@@ -475,10 +551,13 @@ struct SettingsFeature {
     case .codex:
       let client = codexSettingsClient
       return { try await client.hasSupatermHooks() }
+    case .pi:
+      let client = piSettingsClient
+      return { try await client.hasSupatermIntegration() }
     }
   }
 
-  private func updateSupatermHooksOperation(
+  private func updateSupatermIntegrationOperation(
     for agent: SupatermAgentKind,
     isEnabled: Bool
   ) -> @Sendable () async throws -> Bool {
@@ -503,6 +582,27 @@ struct SettingsFeature {
         }
         return try await client.hasSupatermHooks()
       }
+    case .pi:
+      let client = piSettingsClient
+      return {
+        if isEnabled {
+          try await client.installSupatermIntegration()
+        } else {
+          try await client.removeSupatermIntegration()
+        }
+        return try await client.hasSupatermIntegration()
+      }
+    }
+  }
+
+  private func unavailableMessage(
+    for agent: SupatermAgentKind
+  ) -> String {
+    switch agent {
+    case .claude, .codex:
+      return "\(agent.notificationTitle) is unavailable."
+    case .pi:
+      return PiSettingsInstallerError.piUnavailable.localizedDescription
     }
   }
 
@@ -516,6 +616,7 @@ struct SettingsFeature {
     state.confirmCloseSurface = snapshot.confirmCloseSurface
     state.configPath = snapshot.configPath
     state.cursorBlinkStyle = snapshot.cursorBlinkStyle
+    state.cursorStyle = snapshot.cursorStyle
     state.darkTheme = snapshot.darkTheme
     state.errorMessage = nil
     state.fontFamily = snapshot.fontFamily
@@ -533,6 +634,7 @@ struct SettingsFeature {
     state.confirmCloseSurface = values.confirmCloseSurface
     state.configPath = values.configPath
     state.cursorBlinkStyle = values.cursorBlinkStyle
+    state.cursorStyle = values.cursorStyle
     state.darkTheme = values.darkTheme
     state.errorMessage = nil
     state.fontFamily = values.fontFamily
@@ -595,6 +697,7 @@ extension SettingsTerminalState {
     .init(
       confirmCloseSurface: confirmCloseSurface,
       cursorBlinkStyle: cursorBlinkStyle,
+      cursorStyle: cursorStyle,
       darkTheme: darkTheme,
       fontFamily: fontFamily,
       fontSize: fontSize,
