@@ -101,7 +101,6 @@ Codex now uses the same app-side bridge and tab-state model.
 - The remove command only rewrites `~/.codex/hooks.json`; it does not disable the Codex hooks feature flag.
 
 ### Hook Injection
-
 - Supaterm's canonical Codex hook fragment is also available from `sp internal agent-settings codex`.
 - The installed global hooks tell Codex to invoke `sp agent receive-agent-hook --agent codex` for:
   - `PostToolUse`
@@ -128,3 +127,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.
 
 Supaterm currently treats a hook as Supaterm-managed when its `command`, lowercased, contains `supaterm`.
+
+## Pi
+
+Pi extension is managed in different repo at https://github.com/supabitapp/supaterm-pi
