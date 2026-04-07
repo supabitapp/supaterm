@@ -72,9 +72,6 @@ struct TerminalCommandPaletteOverlay: View {
                     .id(row.id)
                     .onHover { isHovering in
                       hoveredRowID = isHovering ? row.id : nil
-                      if isHovering {
-                        onSelectionChange(index)
-                      }
                     }
                   }
                 }
