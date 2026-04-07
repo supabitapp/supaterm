@@ -45,6 +45,19 @@ enum TerminalSidebarLayout {
   static let tabRowVerticalPadding: CGFloat = 8
   static let tabRowSpacing: CGFloat = 2
 
+  static func topRowLeadingInset(
+    zoneID: TerminalSidebarDropZoneID,
+    index: Int,
+    pinnedTabCount: Int
+  ) -> CGFloat {
+    switch zoneID {
+    case .pinned:
+      index == 0 ? WindowTrafficLightMetrics.pillLeadingPadding : 0
+    case .regular:
+      pinnedTabCount == 0 && index == 0 ? WindowTrafficLightMetrics.pillLeadingPadding : 0
+    }
+  }
+
   static func insertingID(
     _ id: TerminalTabID,
     into ids: [TerminalTabID],
