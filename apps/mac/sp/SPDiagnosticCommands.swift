@@ -59,6 +59,9 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
+    @Flag(name: .long, help: "Re-run interactive onboarding for all supported coding agents.")
+    var force = false
+
     mutating func run() throws {
       applyOutputStyle(options.output)
       let client = try socketClient(
@@ -77,7 +80,7 @@ extension SP {
         mode: options.output.mode,
         isQuiet: options.output.quiet
       ) {
-        let result = SPOnboardingInteraction().run()
+        let result = SPOnboardingInteraction(force: force).run()
         if result.didWriteOutput {
           print("")
         }
@@ -250,13 +253,16 @@ struct SPOnboardingInteraction {
     let didWriteOutput: Bool
   }
 
+  let force: Bool
   let integrations: [AgentIntegration]
   let io: IO
 
   init(
+    force: Bool = false,
     integrations: [AgentIntegration] = Self.liveIntegrations,
     io: IO = .live
   ) {
+    self.force = force
     self.integrations = integrations
     self.io = io
   }
@@ -265,6 +271,12 @@ struct SPOnboardingInteraction {
     var didWriteOutput = false
 
     for integration in integrations {
+      if force {
+        guard shouldInstall(agent: integration.agent, didWriteOutput: &didWriteOutput) else { continue }
+        install(integration, didWriteOutput: &didWriteOutput)
+        continue
+      }
+
       let hasSupatermHooks: Bool
 
       do {
@@ -279,22 +291,28 @@ struct SPOnboardingInteraction {
 
       guard !hasSupatermHooks else { continue }
       guard shouldInstall(agent: integration.agent, didWriteOutput: &didWriteOutput) else { continue }
-
-      do {
-        try integration.installSupatermHooks()
-        write(
-          "Configured \(integration.agent.notificationTitle) hooks.\n",
-          didWriteOutput: &didWriteOutput
-        )
-      } catch {
-        write(
-          "Could not configure \(integration.agent.notificationTitle) hooks: \(error.localizedDescription)\n",
-          didWriteOutput: &didWriteOutput
-        )
-      }
+      install(integration, didWriteOutput: &didWriteOutput)
     }
 
     return .init(didWriteOutput: didWriteOutput)
+  }
+
+  private func install(
+    _ integration: AgentIntegration,
+    didWriteOutput: inout Bool
+  ) {
+    do {
+      try integration.installSupatermHooks()
+      write(
+        "Configured \(integration.agent.notificationTitle) hooks.\n",
+        didWriteOutput: &didWriteOutput
+      )
+    } catch {
+      write(
+        "Could not configure \(integration.agent.notificationTitle) hooks: \(error.localizedDescription)\n",
+        didWriteOutput: &didWriteOutput
+      )
+    }
   }
 
   private func shouldInstall(
