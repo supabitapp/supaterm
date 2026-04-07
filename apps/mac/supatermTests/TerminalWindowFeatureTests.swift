@@ -484,26 +484,23 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     }
 
-    await store.send(.commandPaletteQueryChanged("split")) {
-      $0.commandPalette?.query = "split"
-      $0.commandPalette?.selectedIndex = 0
+    await store.send(.commandPaletteQueryChanged("pane")) {
+      $0.commandPalette?.updateQuery("pane")
     }
   }
 
   @Test
-  func commandPaletteSelectionMovedClampsToAvailableRows() async {
+  func commandPaletteSelectionMovedClampsToFilteredRows() async {
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init(query: "", selectedIndex: 0)
+    initialState.commandPalette = .init(query: "pane", selectedIndex: 0)
+    let expectedLastIndex = initialState.commandPalette!.visibleRows.count - 1
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     }
 
-    await store.send(.commandPaletteSelectionMoved(2)) {
-      $0.commandPalette?.selectedIndex = 2
-    }
     await store.send(.commandPaletteSelectionMoved(99)) {
-      $0.commandPalette?.selectedIndex = TerminalCommandPaletteRow.samples.count - 1
+      $0.commandPalette?.selectedIndex = expectedLastIndex
     }
     await store.send(.commandPaletteSelectionMoved(-99)) {
       $0.commandPalette?.selectedIndex = 0

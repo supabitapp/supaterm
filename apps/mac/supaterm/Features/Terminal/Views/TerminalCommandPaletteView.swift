@@ -20,7 +20,7 @@ struct TerminalCommandPaletteOverlay: View {
   private let minWidth: CGFloat = 200
 
   private var rows: [TerminalCommandPaletteRow] {
-    state.rows
+    state.visibleRows
   }
 
   private var theme: TerminalCommandPaletteTheme {
