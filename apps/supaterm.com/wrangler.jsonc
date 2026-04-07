@@ -9,6 +9,10 @@
       "pattern": "supaterm.com",
       "custom_domain": true,
     },
+    {
+      "pattern": "www.supaterm.com",
+      "custom_domain": true,
+    },
   ],
   "assets": {
     "binding": "ASSETS",
