@@ -418,16 +418,20 @@ struct TerminalSidebarChromeView: View {
 }
 
 struct TerminalSidebarTabSummaryView: View {
-  enum LeadingIndicator: Equatable {
+  enum StatusAccessory: Equatable {
     case agentActivity(TerminalHostState.AgentActivity)
     case terminalProgress(TerminalSidebarTerminalProgress)
-    case tabSymbol(String, TerminalTabIconStyle)
     case unreadCount(Int)
   }
 
   enum SecondaryContent: Equatable {
     case activity(String)
     case notification(String)
+  }
+
+  enum TitleAccessory: Equatable {
+    case shortcutHint(String)
+    case status(StatusAccessory)
   }
 
   let tab: TerminalTabItem
@@ -441,13 +445,13 @@ struct TerminalSidebarTabSummaryView: View {
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
+  let isRowHovering: Bool
 
-  static func leadingIndicator(
-    tab: TerminalTabItem,
+  static func statusAccessory(
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
     terminalProgress: TerminalSidebarTerminalProgress?
-  ) -> LeadingIndicator {
+  ) -> StatusAccessory? {
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
     }
@@ -457,7 +461,25 @@ struct TerminalSidebarTabSummaryView: View {
     if let agentActivity, agentActivity.showsLeadingIndicator {
       return .agentActivity(agentActivity)
     }
-    return .tabSymbol(tab.symbol, tab.iconStyle)
+    return nil
+  }
+
+  static func titleAccessory(
+    shortcutHint: String?,
+    showsShortcutHint: Bool,
+    isRowHovering: Bool,
+    statusAccessory: StatusAccessory?
+  ) -> TitleAccessory? {
+    if showsShortcutHint, let shortcutHint {
+      return .shortcutHint(shortcutHint)
+    }
+    if isRowHovering {
+      return nil
+    }
+    if let statusAccessory {
+      return .status(statusAccessory)
+    }
+    return nil
   }
 
   static func helpText(
@@ -503,141 +525,122 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   var body: some View {
-    HStack(alignment: .top, spacing: 8) {
-      switch Self.leadingIndicator(
-        tab: tab,
-        unreadCount: unreadCount,
-        agentActivity: agentActivity,
-        terminalProgress: terminalProgress
-      ) {
-      case .unreadCount(let unreadCount):
-        Text(unreadCount.formatted())
-          .font(.system(size: 9, weight: .bold))
-          .foregroundStyle(isSelected ? palette.selectedText : Color.white)
-          .padding(.horizontal, unreadCount > 9 ? 6 : 5)
-          .frame(minWidth: 16, minHeight: 16)
-          .background(
-            isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
-            in: Capsule(style: .continuous)
+    VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 6) {
+        Text(tab.title)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+          .lineLimit(1)
+          .truncationMode(.tail)
+
+        Spacer(minLength: 0)
+
+        switch Self.titleAccessory(
+          shortcutHint: shortcutHint,
+          showsShortcutHint: showsShortcutHint,
+          isRowHovering: isRowHovering,
+          statusAccessory: Self.statusAccessory(
+            unreadCount: unreadCount,
+            agentActivity: agentActivity,
+            terminalProgress: terminalProgress
           )
-
-      case .agentActivity(let activity):
-        TerminalSidebarAgentActivityView(
-          activity: activity,
-          isSelected: isSelected,
-          palette: palette
-        )
-
-      case .terminalProgress(let terminalProgress):
-        TerminalSidebarProgressIndicatorView(
-          progress: terminalProgress,
-          isSelected: isSelected,
-          palette: palette
-        )
-
-      case .tabSymbol(let symbol, let style):
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
-          .fill(symbolFill(for: style))
-          .frame(width: 16, height: 16)
-          .overlay {
-            Image(systemName: symbol)
-              .font(.system(size: 9, weight: .semibold))
-              .foregroundStyle(symbolForeground(for: style))
-              .accessibilityHidden(true)
-          }
-      }
-
-      VStack(alignment: .leading, spacing: 2) {
-        HStack(spacing: 6) {
-          Text(tab.title)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-            .lineLimit(1)
-            .truncationMode(.tail)
-
-          Spacer(minLength: 0)
-
-          if showsShortcutHint, let shortcutHint {
-            Text(shortcutHint)
-              .font(.system(size: 11, weight: .semibold))
-              .foregroundStyle(
-                isSelected
-                  ? palette.selectedText.opacity(0.72)
-                  : palette.secondaryText
-              )
-          }
-        }
-
-        switch Self.secondaryContent(
-          agentActivity: agentActivity,
-          showsAgentActivityDetail: showsAgentActivityDetail,
-          notificationPreviewMarkdown: notificationPreviewMarkdown
         ) {
-        case .activity(let detail):
-          Text(detail)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(notificationTextColor)
-            .lineLimit(2)
-            .truncationMode(.tail)
-            .multilineTextAlignment(.leading)
-            .contentTransition(.opacity)
-            .transition(
-              .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
-            )
-
-        case .notification(let notificationPreviewMarkdown):
-          InlineText(markdown: notificationPreviewMarkdown)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(notificationTextColor)
-            .textual.inlineStyle(notificationInlineStyle)
-            .allowsHitTesting(false)
-            .lineLimit(2)
-            .truncationMode(.tail)
-            .multilineTextAlignment(.leading)
-            .contentTransition(.opacity)
-            .transition(
-              .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
-            )
-
-        case nil:
-          EmptyView()
-        }
-
-        ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
-          Text(workingDirectory)
-            .font(.system(size: 11, weight: .regular, design: .monospaced))
+        case .shortcutHint(let shortcutHint):
+          Text(shortcutHint)
+            .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(
               isSelected
                 ? palette.selectedText.opacity(0.72)
                 : palette.secondaryText
             )
-            .lineLimit(1)
-            .truncationMode(.middle)
+
+        case .status(let statusAccessory):
+          statusAccessoryView(statusAccessory)
+
+        case nil:
+          EmptyView()
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+
+      switch Self.secondaryContent(
+        agentActivity: agentActivity,
+        showsAgentActivityDetail: showsAgentActivityDetail,
+        notificationPreviewMarkdown: notificationPreviewMarkdown
+      ) {
+      case .activity(let detail):
+        Text(detail)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(notificationTextColor)
+          .lineLimit(2)
+          .truncationMode(.tail)
+          .multilineTextAlignment(.leading)
+          .contentTransition(.opacity)
+          .transition(
+            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+          )
+
+      case .notification(let notificationPreviewMarkdown):
+        InlineText(markdown: notificationPreviewMarkdown)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(notificationTextColor)
+          .textual.inlineStyle(notificationInlineStyle)
+          .allowsHitTesting(false)
+          .lineLimit(2)
+          .truncationMode(.tail)
+          .multilineTextAlignment(.leading)
+          .contentTransition(.opacity)
+          .transition(
+            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+          )
+
+      case nil:
+        EmptyView()
+      }
+
+      ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
+        Text(workingDirectory)
+          .font(.system(size: 11, weight: .regular, design: .monospaced))
+          .foregroundStyle(
+            isSelected
+              ? palette.selectedText.opacity(0.72)
+              : palette.secondaryText
+          )
+          .lineLimit(1)
+          .truncationMode(.middle)
+      }
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func symbolFill(
-    for style: TerminalTabIconStyle
-  ) -> Color {
-    switch style {
-    case .accent(let tone):
-      return palette.fill(for: tone)
-    case .neutral:
-      return isSelected ? palette.selectedText.opacity(0.12) : palette.secondaryText.opacity(0.14)
-    }
-  }
+  @ViewBuilder
+  private func statusAccessoryView(
+    _ statusAccessory: StatusAccessory
+  ) -> some View {
+    switch statusAccessory {
+    case .unreadCount(let unreadCount):
+      Text(unreadCount.formatted())
+        .font(.system(size: 9, weight: .bold))
+        .foregroundStyle(isSelected ? palette.selectedText : Color.white)
+        .padding(.horizontal, unreadCount > 9 ? 6 : 5)
+        .frame(minWidth: 16, minHeight: 16)
+        .background(
+          isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
+          in: Capsule(style: .continuous)
+        )
 
-  private func symbolForeground(
-    for style: TerminalTabIconStyle
-  ) -> Color {
-    switch style {
-    case .accent:
-      return isSelected ? palette.selectedIcon : palette.primaryText
-    case .neutral:
-      return isSelected ? palette.selectedText.opacity(0.72) : palette.secondaryText
+    case .agentActivity(let activity):
+      TerminalSidebarAgentActivityView(
+        activity: activity,
+        isSelected: isSelected,
+        palette: palette
+      )
+
+    case .terminalProgress(let terminalProgress):
+      TerminalSidebarProgressIndicatorView(
+        progress: terminalProgress,
+        isSelected: isSelected,
+        palette: palette
+      )
     }
   }
 
@@ -879,7 +882,8 @@ struct TerminalSidebarTabRow: View {
           showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
           terminalProgress: terminalProgress,
           shortcutHint: shortcutHint,
-          showsShortcutHint: showsShortcutHint
+          showsShortcutHint: showsShortcutHint,
+          isRowHovering: isHovering
         )
         .lineLimit(8)
         if let helpText = TerminalSidebarTabSummaryView.helpText(

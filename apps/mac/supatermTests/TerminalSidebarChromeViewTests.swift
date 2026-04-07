@@ -8,11 +8,8 @@ import Textual
 struct TerminalSidebarChromeViewTests {
   @Test
   func unreadCountTakesPrecedenceOverAgentActivity() {
-    let tab = TerminalTabItem(title: "Build", icon: nil)
-
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 3,
         agentActivity: .claude(.needsInput),
         terminalProgress: nil
@@ -22,12 +19,10 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func terminalProgressTakesPrecedenceOverUnreadCount() {
-    let tab = TerminalTabItem(title: "Build", icon: nil, isDirty: true)
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 3,
         agentActivity: nil,
         terminalProgress: progress
@@ -36,12 +31,9 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentActivityTakesPrecedenceOverDefaultTabSymbol() {
-    let tab = TerminalTabItem(title: "Build", icon: "hammer")
-
+  func agentActivityAppearsWhenNoHigherPriorityStatusExists() {
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 0,
         agentActivity: .claude(.running),
         terminalProgress: nil
@@ -51,12 +43,10 @@ struct TerminalSidebarChromeViewTests {
 
   @Test
   func terminalProgressTakesPrecedenceOverAgentActivity() {
-    let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 0,
         agentActivity: .claude(.running),
         terminalProgress: progress
@@ -65,13 +55,11 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func terminalProgressTakesPrecedenceOverDefaultTabSymbol() {
-    let tab = TerminalTabItem(title: "Build", icon: "hammer", isDirty: true)
+  func terminalProgressAppearsWhenNoHigherPriorityStatusExists() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 0,
         agentActivity: nil,
         terminalProgress: progress
@@ -80,16 +68,13 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func idleAgentFallsBackToDefaultTabSymbol() {
-    let tab = TerminalTabItem(title: "Build", icon: "hammer")
-
+  func idleAgentShowsNoStatusAccessory() {
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 0,
         agentActivity: .claude(.idle),
         terminalProgress: nil
-      ) == .tabSymbol("hammer", .accent(tab.tone))
+      ) == nil
     )
   }
 
@@ -106,30 +91,38 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func defaultTabSymbolIsUsedWithoutUnreadOrAgentActivity() {
-    let tab = TerminalTabItem(title: "Build", icon: "hammer")
-
+  func quietTabShowsNoStatusAccessory() {
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
+      TerminalSidebarTabSummaryView.statusAccessory(
         unreadCount: 0,
         agentActivity: nil,
         terminalProgress: nil
-      ) == .tabSymbol("hammer", .accent(tab.tone))
+      ) == nil
     )
   }
 
   @Test
-  func genericTerminalSymbolUsesNeutralStyle() {
-    let tab = TerminalTabItem(title: "Build", icon: "terminal")
-
+  func shortcutHintOverridesStatusAccessory() {
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
     #expect(
-      TerminalSidebarTabSummaryView.leadingIndicator(
-        tab: tab,
-        unreadCount: 0,
-        agentActivity: nil,
-        terminalProgress: nil
-      ) == .tabSymbol("terminal", .neutral)
+      TerminalSidebarTabSummaryView.titleAccessory(
+        shortcutHint: "⌘1",
+        showsShortcutHint: true,
+        isRowHovering: false,
+        statusAccessory: .terminalProgress(progress)
+      ) == .shortcutHint("⌘1")
+    )
+  }
+
+  @Test
+  func rowHoverHidesStatusAccessory() {
+    #expect(
+      TerminalSidebarTabSummaryView.titleAccessory(
+        shortcutHint: nil,
+        showsShortcutHint: false,
+        isRowHovering: true,
+        statusAccessory: .unreadCount(2)
+      ) == nil
     )
   }
 
