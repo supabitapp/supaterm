@@ -13,6 +13,14 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
+  func receiveHookCommandBuildsPiCommand() {
+    #expect(
+      SupatermManagedHookCommand.receiveHookCommand(for: .pi)
+        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent pi || true"#
+    )
+  }
+
+  @Test
   func installArgumentsMatchAgentInstallHookInterface() {
     #expect(
       SupatermManagedHookCommand.installArguments(for: .codex)
