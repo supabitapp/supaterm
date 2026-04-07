@@ -127,34 +127,22 @@ enum WindowTrafficLightMetrics {
 }
 
 struct WindowTrafficLights: View {
-  @Environment(\.colorScheme) private var colorScheme
   @State private var isHovering = false
 
   var body: some View {
-    let appearance = WindowTrafficLightAppearance.make(
-      isHovering: isHovering,
-      colorScheme: colorScheme
-    )
     HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       ForEach(TrafficLight.allCases, id: \.self) { light in
         Button(
           action: { light.perform() },
           label: {
             Circle()
-              .fill(appearance.fillColor(accentColor: light.color, colorScheme: colorScheme))
+              .fill(light.color)
               .frame(
                 width: WindowTrafficLightMetrics.buttonSize,
                 height: WindowTrafficLightMetrics.buttonSize
               )
               .overlay {
-                Circle()
-                  .stroke(
-                    appearance.strokeColor(accentColor: light.color),
-                    lineWidth: appearance.strokeLineWidth
-                  )
-              }
-              .overlay {
-                if appearance.showsSymbol {
+                if isHovering {
                   Image(systemName: light.symbol)
                     .font(.system(size: WindowTrafficLightMetrics.symbolSize, weight: .black))
                     .foregroundStyle(.black.opacity(0.55))
@@ -174,51 +162,6 @@ struct WindowTrafficLights: View {
         isHovering = hovering
       }
     }
-  }
-}
-
-struct WindowTrafficLightAppearance: Equatable {
-  let fillOpacity: Double
-  let strokeOpacity: Double
-  let strokeLineWidth: CGFloat
-  let showsSymbol: Bool
-  let usesAccentFill: Bool
-
-  static func make(
-    isHovering: Bool,
-    colorScheme: ColorScheme
-  ) -> Self {
-    if isHovering {
-      return .init(
-        fillOpacity: 1,
-        strokeOpacity: 0,
-        strokeLineWidth: 0,
-        showsSymbol: true,
-        usesAccentFill: true
-      )
-    }
-
-    return .init(
-      fillOpacity: colorScheme == .dark ? 0.2 : 0.14,
-      strokeOpacity: 0.7,
-      strokeLineWidth: 1,
-      showsSymbol: false,
-      usesAccentFill: false
-    )
-  }
-
-  func fillColor(
-    accentColor: Color,
-    colorScheme: ColorScheme
-  ) -> Color {
-    if usesAccentFill {
-      return accentColor
-    }
-    return colorScheme == .dark ? .white.opacity(fillOpacity) : .black.opacity(fillOpacity)
-  }
-
-  func strokeColor(accentColor: Color) -> Color {
-    accentColor.opacity(strokeOpacity)
   }
 }
 
