@@ -626,9 +626,9 @@ private struct SettingsCompactToggleRow: View {
   var body: some View {
     Toggle(isOn: isOn) {
       Text(title)
-        .font(.caption)
+        .font(.callout)
     }
-    .controlSize(.mini)
+    .controlSize(.small)
     .toggleStyle(.checkbox)
   }
 }
