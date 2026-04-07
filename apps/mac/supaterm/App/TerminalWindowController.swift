@@ -5,8 +5,16 @@ import SwiftUI
 @MainActor
 private final class TerminalGestureWindow: NSWindow {
   var onModifierFlagsChanged: ((NSEvent.ModifierFlags) -> Void)?
+  var onPaletteShortcut: ((Int) -> Bool)?
   var onSwipeLeft: (() -> Void)?
   var onSwipeRight: (() -> Void)?
+
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if let slot = paletteShortcutSlot(for: event), onPaletteShortcut?(slot) == true {
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
 
   override func sendEvent(_ event: NSEvent) {
     if event.type == .flagsChanged {
@@ -16,6 +24,16 @@ private final class TerminalGestureWindow: NSWindow {
       return
     }
     super.sendEvent(event)
+  }
+
+  private func paletteShortcutSlot(for event: NSEvent) -> Int? {
+    guard event.type == .keyDown else { return nil }
+    guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else {
+      return nil
+    }
+    guard let characters = event.charactersIgnoringModifiers else { return nil }
+    guard let slot = Int(characters), (1...9).contains(slot) else { return nil }
+    return slot
   }
 
   private func handleSwipe(_ event: NSEvent) -> Bool {
@@ -119,6 +137,11 @@ final class TerminalWindowController: NSWindowController {
     window.titlebarAppearsTransparent = true
     window.onModifierFlagsChanged = { [commandHoldObserver] modifierFlags in
       commandHoldObserver.update(modifierFlags: modifierFlags)
+    }
+    window.onPaletteShortcut = { [store] slot in
+      guard store.withState({ $0.terminal.commandPalette != nil }) else { return false }
+      _ = store.send(.terminal(.commandPaletteSlotActivated(slot)))
+      return true
     }
     window.onSwipeLeft = { [store] in
       _ = store.send(.terminal(.nextSpaceRequested))

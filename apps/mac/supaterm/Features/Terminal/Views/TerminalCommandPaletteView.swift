@@ -11,6 +11,7 @@ struct TerminalCommandPaletteOverlay: View {
   let onSelectionChange: (Int) -> Void
 
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @FocusState private var isQueryFocused: Bool
   @State private var hoveredRowID: TerminalCommandPaletteRow.ID?
 
@@ -61,6 +62,7 @@ struct TerminalCommandPaletteOverlay: View {
                   ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     CommandPaletteRowButton(
                       row: row,
+                      shortcutHint: shortcutHint(for: index),
                       theme: theme,
                       isHovered: hoveredRowID == row.id,
                       isSelected: state.selectedIndex == index,
@@ -176,10 +178,18 @@ struct TerminalCommandPaletteOverlay: View {
       proxy.scrollTo(rows[state.selectedIndex].id, anchor: .center)
     }
   }
+
+  private func shortcutHint(for index: Int) -> String? {
+    guard commandHoldObserver.isPressed else { return nil }
+    let slot = index + 1
+    guard (1...9).contains(slot) else { return nil }
+    return "⌘\(slot)"
+  }
 }
 
 private struct CommandPaletteRowButton: View {
   let row: TerminalCommandPaletteRow
+  let shortcutHint: String?
   let theme: TerminalCommandPaletteTheme
   let isHovered: Bool
   let isSelected: Bool
@@ -220,6 +230,12 @@ private struct CommandPaletteRowButton: View {
         }
 
         Spacer()
+
+        if let shortcutHint {
+          Text(shortcutHint)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(shortcutHintColor)
+        }
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 11)
@@ -244,6 +260,13 @@ private struct CommandPaletteRowButton: View {
   private var subtitleColor: Color {
     if isSelected {
       return theme.selectedSecondaryText
+    }
+    return theme.secondaryText
+  }
+
+  private var shortcutHintColor: Color {
+    if isSelected {
+      return theme.selectedSecondaryText.opacity(0.72)
     }
     return theme.secondaryText
   }
@@ -397,6 +420,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
     }
     .frame(width: 840, height: 420)
     .environment(\.colorScheme, colorScheme)
+    .environment(CommandHoldObserver())
   }
 }
 

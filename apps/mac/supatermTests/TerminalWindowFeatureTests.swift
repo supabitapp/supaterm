@@ -522,6 +522,32 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func commandPaletteSlotActivatedClosesPaletteForVisibleRow() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(query: "pane")
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteSlotActivated(2)) {
+      $0.commandPalette = nil
+    }
+  }
+
+  @Test
+  func commandPaletteSlotActivatedKeepsPaletteOpenWhenRowIsMissing() async {
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(query: "pane")
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.commandPaletteSlotActivated(4))
+  }
+
+  @Test
   func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true
