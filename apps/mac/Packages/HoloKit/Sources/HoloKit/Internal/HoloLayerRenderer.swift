@@ -116,35 +116,50 @@ struct HoloLayerRenderer {
     layer: HoloLayer,
     tilt: HoloTilt
   ) -> some View {
-    let width = cardSize.width * CGFloat(layer.sweepConfiguration.size) * 1.6
-    let height = cardSize.height * 1.8
-    let offset = CGSize(
-      width: CGFloat(tilt.roll) * cardSize.width * 0.22,
-      height: CGFloat(-tilt.pitch) * cardSize.height * 0.22
+    let center = UnitPoint(
+      x: clampedUnit(0.44 + Double(tilt.roll) * 0.18),
+      y: clampedUnit(0.5 - Double(tilt.pitch) * 0.16)
+    )
+    let startPoint = UnitPoint(
+      x: clampedUnit(0.12 + Double(tilt.roll) * 0.08),
+      y: clampedUnit(0.06 - Double(tilt.pitch) * 0.1)
+    )
+    let endPoint = UnitPoint(
+      x: clampedUnit(0.88 + Double(tilt.roll) * 0.08),
+      y: clampedUnit(0.94 - Double(tilt.pitch) * 0.1)
     )
     let opacity = Double(layer.sweepConfiguration.intensity) * layer.layerOpacity
+    let radius = max(cardSize.width, cardSize.height) * (0.62 + CGFloat(layer.sweepConfiguration.size) * 0.8)
 
-    return Capsule()
-      .fill(
-        LinearGradient(
-          colors: [
-            .clear,
-            color.opacity(opacity * 0.2),
-            color.opacity(opacity),
-            color.opacity(opacity * 0.2),
-            .clear,
-          ],
-          startPoint: .top,
-          endPoint: .bottom
-        )
+    return ZStack {
+      LinearGradient(
+        colors: [
+          .clear,
+          color.opacity(opacity * 0.12),
+          color.opacity(opacity * 0.36),
+          color.opacity(opacity * 0.12),
+          .clear,
+        ],
+        startPoint: startPoint,
+        endPoint: endPoint
       )
-      .frame(width: width, height: height)
       .rotationEffect(.degrees(-28))
-      .blur(radius: CGFloat(layer.sweepConfiguration.falloff) * 2.4)
-      .offset(offset)
-      .frame(width: cardSize.width, height: cardSize.height)
-      .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-      .holoBlendMode(layer.layerBlendMode ?? .screen)
+
+      RadialGradient(
+        colors: [
+          color.opacity(opacity * 0.72),
+          color.opacity(opacity * 0.18),
+          .clear,
+        ],
+        center: center,
+        startRadius: 0,
+        endRadius: radius
+      )
+      .blur(radius: CGFloat(layer.sweepConfiguration.falloff) * 2.2)
+    }
+    .frame(width: cardSize.width, height: cardSize.height)
+    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    .holoBlendMode(layer.layerBlendMode ?? .screen)
   }
 
   private func glintLayer(layer: HoloLayer, tilt: HoloTilt, time: Float) -> some View {
