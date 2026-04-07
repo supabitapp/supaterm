@@ -102,7 +102,7 @@ struct TerminalSidebarView: View {
         terminal: terminal
       )
       WindowTrafficLights()
-        .padding(.top, sidebarTrafficLightTopPadding)
+        .padding(.top, TerminalSidebarLayout.trafficLightTopPadding)
     }
     .padding(.bottom, sidebarBottomPadding)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -333,5 +333,4 @@ private struct FloatingSidebarView: View {
   }
 }
 
-private let sidebarTrafficLightTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
