@@ -75,6 +75,38 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func topRowLeadingInsetOnlyAppliesToFirstVisibleTab() {
+    #expect(
+      TerminalSidebarLayout.topRowLeadingInset(
+        zoneID: .pinned,
+        index: 0,
+        pinnedTabCount: 2
+      ) == WindowTrafficLightMetrics.pillLeadingPadding
+    )
+    #expect(
+      TerminalSidebarLayout.topRowLeadingInset(
+        zoneID: .pinned,
+        index: 1,
+        pinnedTabCount: 2
+      ) == 0
+    )
+    #expect(
+      TerminalSidebarLayout.topRowLeadingInset(
+        zoneID: .regular,
+        index: 0,
+        pinnedTabCount: 0
+      ) == WindowTrafficLightMetrics.pillLeadingPadding
+    )
+    #expect(
+      TerminalSidebarLayout.topRowLeadingInset(
+        zoneID: .regular,
+        index: 0,
+        pinnedTabCount: 1
+      ) == 0
+    )
+  }
+
+  @Test
   func insertingIDClampsAndRemovesExistingOccurrence() {
     let first = TerminalTabID()
     let second = TerminalTabID()

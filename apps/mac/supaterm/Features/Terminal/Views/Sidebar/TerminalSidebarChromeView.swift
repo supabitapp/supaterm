@@ -300,6 +300,14 @@ struct TerminalSidebarChromeView: View {
         shortcutHint: tabShortcutHintsByID[tab.id],
         showsShortcutHint: commandHoldObserver.isPressed
       )
+      .padding(
+        .leading,
+        TerminalSidebarLayout.topRowLeadingInset(
+          zoneID: zoneID,
+          index: index,
+          pinnedTabCount: terminal.pinnedTabs.count
+        )
+      )
       .id(tab.id)
       .background {
         GeometryReader { geometry in

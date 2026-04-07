@@ -94,16 +94,15 @@ struct TerminalSidebarView: View {
   let terminal: TerminalHostState
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      SidebarHeaderView()
+    ZStack(alignment: .topLeading) {
       TerminalSidebarChromeView(
         store: store,
         updateStore: updateStore,
         palette: palette,
         terminal: terminal
       )
+      WindowTrafficLights()
     }
-    .padding(.top, sidebarTopPadding)
     .padding(.bottom, sidebarBottomPadding)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
@@ -333,15 +332,4 @@ private struct FloatingSidebarView: View {
   }
 }
 
-private struct SidebarHeaderView: View {
-  var body: some View {
-    HStack(spacing: 0) {
-      WindowTrafficLights()
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topLeading)
-  }
-}
-
-private let sidebarTopPadding: CGFloat = 6
 private let sidebarBottomPadding: CGFloat = 8
