@@ -4,6 +4,10 @@ import Testing
 @testable import supaterm
 
 struct TerminalSplitTreeViewTests {
+  final class MockSurfaceView: NSView, Identifiable {
+    let id = UUID()
+  }
+
   @Test
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
@@ -148,5 +152,68 @@ struct TerminalSplitTreeViewTests {
         currentSize: .init(width: 120, height: 100)
       )
     )
+  }
+
+  @Test
+  func dividerDescriptorsFollowSplitTreeOrder() {
+    let views = (0..<3).map { _ in MockSurfaceView() }
+    let tree = SplitTree(
+      root: .split(
+        .init(
+          direction: .horizontal,
+          ratio: 0.5,
+          left: .leaf(view: views[0]),
+          right: .split(
+            .init(
+              direction: .vertical,
+              ratio: 0.25,
+              left: .leaf(view: views[1]),
+              right: .leaf(view: views[2])
+            ))
+        )),
+      zoomed: nil
+    )
+
+    let descriptors = TerminalSplitAccessibility.dividerDescriptors(
+      for: tree.root,
+      in: CGRect(x: 0, y: 0, width: 200, height: 100)
+    )
+
+    #expect(descriptors.map(\.path) == [.root, .init(components: [.right])])
+    #expect(descriptors.map(\.accessibilityLabel) == ["Horizontal split divider", "Vertical split divider"])
+    #expect(descriptors.map(\.accessibilityHelp) == [
+      "Drag to resize the left and right panes",
+      "Drag to resize the top and bottom panes",
+    ])
+    #expect(descriptors[0].frameInParentSpace == CGRect(x: 96.5, y: 0, width: 7, height: 100))
+    #expect(descriptors[1].frameInParentSpace == CGRect(x: 100, y: 21.5, width: 100, height: 7))
+  }
+
+  @Test
+  func dividerAdjustmentUsesTenPointStep() {
+    let descriptor = TerminalSplitDividerAXDescriptor(
+      path: .root,
+      direction: .horizontal,
+      ratio: 0.5,
+      splitBounds: CGRect(x: 0, y: 0, width: 200, height: 100),
+      frameInParentSpace: .zero
+    )
+
+    #expect(descriptor.adjustedRatio(incrementing: true) == 0.55)
+    #expect(descriptor.adjustedRatio(incrementing: false) == 0.45)
+  }
+
+  @Test
+  func dividerAdjustmentClampsToMinimumPaneSize() {
+    let descriptor = TerminalSplitDividerAXDescriptor(
+      path: .root,
+      direction: .horizontal,
+      ratio: 0.12,
+      splitBounds: CGRect(x: 0, y: 0, width: 80, height: 100),
+      frameInParentSpace: .zero
+    )
+
+    #expect(descriptor.adjustedRatio(incrementing: false) == 0.125)
+    #expect(descriptor.adjustedRatio(incrementing: true) == 0.245)
   }
 }

@@ -1275,7 +1275,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   private static func contextMenuItem(title: String, action: Selector, symbol: String) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-    item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
     return item
   }
 

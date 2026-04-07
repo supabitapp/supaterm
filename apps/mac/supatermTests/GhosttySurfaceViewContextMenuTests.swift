@@ -27,4 +27,24 @@ struct GhosttySurfaceViewContextMenuTests {
 
     #expect(Array(menu.items.map(\.title).suffix(2)) == ["Change Tab Title...", "Change Terminal Title..."])
   }
+
+  @Test
+  func contextMenuUsesItemTitlesForImageAccessibilityDescriptions() {
+    let menu = GhosttySurfaceView.contextMenu(hasSelection: false)
+    let expectedTitles = Set([
+      "Split Right",
+      "Split Left",
+      "Split Down",
+      "Split Up",
+      "Close Pane",
+      "Reset Terminal",
+      "Change Tab Title...",
+      "Change Terminal Title...",
+    ])
+
+    for item in menu.items where expectedTitles.contains(item.title) {
+      #expect(item.image != nil)
+      #expect(item.image?.accessibilityDescription == item.title)
+    }
+  }
 }

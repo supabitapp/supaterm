@@ -897,7 +897,7 @@ final class SupatermMenuController: NSObject {
     item.identifier = identifier
     item.target = self
     if let symbol {
-      item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+      item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
     }
     return item
   }

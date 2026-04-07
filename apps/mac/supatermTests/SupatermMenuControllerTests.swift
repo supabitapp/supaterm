@@ -28,6 +28,33 @@ struct SupatermMenuControllerTests {
     try assertTabsMenu(app.mainMenu)
     try assertSpacesMenu(app.mainMenu)
     try assertWindowMenu(app.mainMenu)
+    try assertImageAccessibilityDescriptions(
+      app.mainMenu,
+      matching: [
+        "app.supabit.supaterm.file.newWindow",
+        "app.supabit.supaterm.file.newTab",
+        "app.supabit.supaterm.file.splitRight",
+        "app.supabit.supaterm.file.splitLeft",
+        "app.supabit.supaterm.file.splitDown",
+        "app.supabit.supaterm.file.splitUp",
+        "app.supabit.supaterm.file.close",
+        "app.supabit.supaterm.file.openCommandPalette",
+        "app.supabit.supaterm.view.changeTabTitle",
+        "app.supabit.supaterm.view.changeTerminalTitle",
+        "app.supabit.supaterm.window.zoomSplit",
+        "app.supabit.supaterm.window.previousSplit",
+        "app.supabit.supaterm.window.nextSplit",
+        "app.supabit.supaterm.window.selectSplitAbove",
+        "app.supabit.supaterm.window.selectSplitBelow",
+        "app.supabit.supaterm.window.selectSplitLeft",
+        "app.supabit.supaterm.window.selectSplitRight",
+        "app.supabit.supaterm.window.equalizeSplits",
+        "app.supabit.supaterm.window.moveSplitDividerUp",
+        "app.supabit.supaterm.window.moveSplitDividerDown",
+        "app.supabit.supaterm.window.moveSplitDividerLeft",
+        "app.supabit.supaterm.window.moveSplitDividerRight",
+      ]
+    )
   }
 
   @Test
@@ -680,6 +707,23 @@ struct SupatermMenuControllerTests {
         "Move Divider Left",
         "Move Divider Right",
       ])
+  }
+
+  private func assertImageAccessibilityDescriptions(
+    _ menu: NSMenu?,
+    matching identifiers: Set<String>
+  ) throws {
+    let menu = try #require(menu)
+    for item in menu.items {
+      if let identifier = item.identifier?.rawValue, identifiers.contains(identifier) {
+        #expect(item.image != nil)
+        let image = try #require(item.image)
+        #expect(image.accessibilityDescription == item.title)
+      }
+      if let submenu = item.submenu {
+        try assertImageAccessibilityDescriptions(submenu, matching: identifiers)
+      }
+    }
   }
 }
 
