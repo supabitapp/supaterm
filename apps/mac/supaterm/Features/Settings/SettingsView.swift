@@ -450,7 +450,10 @@ private struct SettingsTerminalView: View {
             .textSelection(.enabled)
         }
       } footer: {
-        Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Supaterm reads and writes your Ghostty config, so changes here stay in sync with Ghostty itself.")
+          Text("Some configurations require an app restart to take effect.")
+        }
       }
     }
     .navigationTitle("Terminal")
