@@ -7,18 +7,27 @@ import ProjectDescription
 let packageSettings = PackageSettings(
   productTypes: [
     "ComposableArchitecture": .staticFramework,
+    "HoloKit": .staticFramework,
     "PostHog": .framework,
     "Sentry": .framework,
     "Sharing": .staticFramework,
     "Sparkle": .framework,
     "Textual": .framework,
-  ]
+  ],
+  baseSettings: .settings(
+    configurations: [
+      .debug(name: .debug),
+      .release(name: .release),
+    ],
+    defaultSettings: .essential
+  )
 )
 #endif
 
 let package = Package(
   name: "supaterm",
   dependencies: [
+    .package(path: "../Packages/HoloKit"),
     .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.6.2"),
     .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.48.3"),
     .package(url: "https://github.com/getsentry/sentry-cocoa/", exact: "9.3.0"),

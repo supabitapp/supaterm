@@ -528,8 +528,8 @@ private struct SettingsAboutView: View {
           HStack(alignment: .center, spacing: 20) {
             SettingsHolographicIconView(
               appName: appName,
-              enableSparkleEffect: true,
-              enableRainbowHolographicEffect: true
+              showsGlintLayer: true,
+              showsPrismLayer: true
             )
 
             VStack(alignment: .leading, spacing: 6) {
