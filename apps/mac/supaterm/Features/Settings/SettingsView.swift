@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import SupatermCLIShared
 import SwiftUI
@@ -526,11 +527,11 @@ private struct SettingsAboutView: View {
       VStack(alignment: .leading, spacing: 20) {
         SettingsSurfaceCard {
           HStack(alignment: .center, spacing: 20) {
-            SettingsHolographicIconView(
-              appName: appName,
-              showsGlintLayer: true,
-              showsPrismLayer: true
-            )
+            Image(nsImage: NSApplication.shared.applicationIconImage ?? NSImage())
+              .resizable()
+              .interpolation(.high)
+              .frame(width: 84, height: 84)
+              .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
               Text(appName)

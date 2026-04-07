@@ -276,7 +276,6 @@ let project = Project(
         .target(name: "GhosttyKit"),
         .target(name: "sp"),
         .external(name: "ComposableArchitecture"),
-        .external(name: "HoloKit"),
         .external(name: "PostHog"),
         .external(name: "Sentry"),
         .external(name: "Sharing"),
