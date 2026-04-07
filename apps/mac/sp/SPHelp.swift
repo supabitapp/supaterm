@@ -34,6 +34,7 @@ enum SPHelp {
 
     Example:
       sp onboard
+      sp onboard --force
       sp onboard --instance work-mac
       sp onboard --plain
     """

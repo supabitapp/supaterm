@@ -44,6 +44,28 @@ struct SPOnboardingInteractionTests {
   }
 
   @Test
+  func runForcePromptsConfiguredAgentsAndInstallsWhenAccepted() {
+    let input = ScriptedInput(["yes", "n"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      force: true,
+      integrations: [
+        integration(agent: .claude, hasSupatermHooks: { true }, installs: installs),
+        integration(agent: .codex, hasSupatermHooks: { true }, installs: installs),
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(output.text.contains("Configure Supaterm hooks for Claude Code? [y/N] "))
+    #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
+    #expect(output.text.contains("Configured Claude Code hooks.\n"))
+    #expect(installs.agents == [.claude])
+  }
+
+  @Test
   func runRepromptsUntilItReceivesValidAnswer() {
     let input = ScriptedInput(["later", "yes"])
     let output = OutputRecorder()

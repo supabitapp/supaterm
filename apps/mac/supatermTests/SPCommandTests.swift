@@ -125,6 +125,15 @@ struct SPCommandTests {
   }
 
   @Test
+  func onboardParserAcceptsForceFlag() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["onboard", "--force"]) as? SP.Onboard
+    )
+
+    #expect(command.force)
+  }
+
+  @Test
   func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
     let claudeCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude
