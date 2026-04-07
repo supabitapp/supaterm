@@ -17,6 +17,7 @@ struct GhosttyTerminalConfigFileTests {
       availableThemesProvider: {
         .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { ["JetBrains Mono", "SF Mono"] }
     )
 
@@ -29,6 +30,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(snapshot.availableFontFamilies == ["JetBrains Mono", "SF Mono"])
     #expect(snapshot.availableDarkThemes == ["Zenbones Dark"])
     #expect(snapshot.availableLightThemes == ["Zenbones Light"])
+    #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
     #expect(snapshot.configPath == configURL.path)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
@@ -54,6 +56,7 @@ struct GhosttyTerminalConfigFileTests {
       theme = light:Zenbones Light,dark:Zenbones Dark
       font-family = "Monaco"
       font-size = 12
+      confirm-close-surface = false
       font-family = "Menlo"
       cursor-style = block
       """,
@@ -80,6 +83,7 @@ struct GhosttyTerminalConfigFileTests {
       availableThemesProvider: {
         .init(dark: ["Zenbones Dark"], light: ["Zenbones Light", "Builtin Light"])
       },
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
     )
 
@@ -87,10 +91,12 @@ struct GhosttyTerminalConfigFileTests {
       fontFamily: "JetBrains Mono",
       fontSize: 18,
       lightTheme: "Builtin Light",
-      darkTheme: "Zenbones Dark"
+      darkTheme: "Zenbones Dark",
+      confirmCloseSurface: .always
     )
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
+    #expect(snapshot.confirmCloseSurface == .always)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == "JetBrains Mono")
     #expect(snapshot.fontSize == 18)
@@ -101,6 +107,8 @@ struct GhosttyTerminalConfigFileTests {
     #expect(contents.contains("cursor-style = block"))
     #expect(contents.contains(#"font-family = "JetBrains Mono""#))
     #expect(contents.contains("font-size = 18"))
+    #expect(contents.contains("confirm-close-surface = always"))
+    #expect(occurrenceCount(of: "confirm-close-surface =", in: contents) == 1)
     #expect(occurrenceCount(of: "font-family =", in: contents) == 1)
     #expect(occurrenceCount(of: "font-size =", in: contents) == 1)
     #expect(reloadCounter.count() == 1)
@@ -131,6 +139,7 @@ struct GhosttyTerminalConfigFileTests {
       availableThemesProvider: {
         .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
     )
 
@@ -138,10 +147,12 @@ struct GhosttyTerminalConfigFileTests {
       fontFamily: nil,
       fontSize: 16,
       lightTheme: "Zenbones Light",
-      darkTheme: "Zenbones Dark"
+      darkTheme: "Zenbones Dark",
+      confirmCloseSurface: .whenNotAtPrompt
     )
     let contents = try String(contentsOf: configURL, encoding: .utf8)
 
+    #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
     #expect(snapshot.fontSize == 16)
@@ -149,6 +160,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(!contents.contains("font-family ="))
     #expect(contents.contains("theme = light:Zenbones Light,dark:Zenbones Dark"))
     #expect(contents.contains("font-size = 16"))
+    #expect(contents.contains("confirm-close-surface = true"))
   }
 
   @Test
@@ -175,13 +187,46 @@ struct GhosttyTerminalConfigFileTests {
       availableThemesProvider: {
         .init(dark: ["Builtin Dark"], light: ["Builtin Light"])
       },
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
     )
 
     let snapshot = try configFile.load()
 
+    #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
     #expect(snapshot.darkTheme == "Builtin Dark")
     #expect(snapshot.lightTheme == "Builtin Dark")
+  }
+
+  @Test
+  func loadReadsConfirmCloseSurfaceSelection() throws {
+    let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+    let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
+    let configURL = GhosttyBootstrap.configFileLocations(
+      homeDirectoryURL: rootURL,
+      environment: environment
+    ).preferred
+
+    try writeGhosttyTerminalConfig(
+      """
+      confirm-close-surface = always
+      font-size = 17
+      """,
+      to: configURL
+    )
+
+    let configFile = GhosttyTerminalConfigFile(
+      homeDirectoryURL: rootURL,
+      environment: environment,
+      effectiveFontSizeProvider: testEffectiveFontSize,
+      availableFontFamiliesProvider: { [] }
+    )
+
+    let snapshot = try configFile.load()
+
+    #expect(snapshot.confirmCloseSurface == .always)
+    #expect(snapshot.fontSize == 17)
   }
 
   @Test
@@ -211,6 +256,7 @@ struct GhosttyTerminalConfigFileTests {
     let configFile = GhosttyTerminalConfigFile(
       homeDirectoryURL: rootURL,
       environment: environment,
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
     )
 
@@ -259,6 +305,7 @@ struct GhosttyTerminalConfigFileTests {
       availableThemesProvider: {
         .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
+      effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
     )
 
@@ -267,7 +314,8 @@ struct GhosttyTerminalConfigFileTests {
         fontFamily: "JetBrains Mono",
         fontSize: 18,
         lightTheme: "Zenbones Light",
-        darkTheme: "Zenbones Dark"
+        darkTheme: "Zenbones Dark",
+        confirmCloseSurface: .always
       )
     }
 
@@ -289,6 +337,24 @@ private nonisolated func makeGhosttyTerminalConfigTemporaryDirectory() throws ->
 
 private nonisolated func occurrenceCount(of substring: String, in string: String) -> Int {
   string.components(separatedBy: substring).count - 1
+}
+
+private nonisolated func testEffectiveFontSize(_ url: URL) throws -> Double {
+  let contents = try String(contentsOf: url, encoding: .utf8)
+  if contents.contains("definitely-invalid-key") {
+    throw GhosttyTerminalConfigFileError.invalidConfig("Broken config")
+  }
+  for line in contents.components(separatedBy: "\n").reversed() {
+    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("font-size"),
+      let equalsIndex = trimmed.firstIndex(of: "="),
+      let value = Double(trimmed[trimmed.index(after: equalsIndex)...].trimmingCharacters(in: .whitespaces))
+    else {
+      continue
+    }
+    return value
+  }
+  return 15
 }
 
 private nonisolated func writeGhosttyTerminalConfig(_ contents: String, to url: URL) throws {

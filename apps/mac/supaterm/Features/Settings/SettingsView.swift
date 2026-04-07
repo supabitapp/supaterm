@@ -287,6 +287,15 @@ private struct SettingsTerminalView: View {
     )
   }
 
+  private var confirmCloseSurfaceSelection: Binding<GhosttyTerminalCloseConfirmation> {
+    Binding(
+      get: { store.terminal.confirmCloseSurface },
+      set: { newValue in
+        _ = store.send(.terminalConfirmCloseSurfaceSelected(newValue))
+      }
+    )
+  }
+
   private var availableLightThemes: [String] {
     themeOptions(
       from: store.terminal.availableLightThemes,
@@ -375,6 +384,18 @@ private struct SettingsTerminalView: View {
             title: "Font Size"
           )
         }
+
+        Picker(selection: confirmCloseSurfaceSelection) {
+          ForEach(GhosttyTerminalCloseConfirmation.allCases) { option in
+            Text(option.title).tag(option)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "Close Confirmation",
+            subtitle: "Choose when closing a tab, split, or window asks for confirmation."
+          )
+        }
+        .disabled(controlsDisabled)
       }
 
       Section {
