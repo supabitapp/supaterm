@@ -76,12 +76,16 @@ struct TerminalSidebarLayoutTests {
 
   @Test
   func topRowLeadingInsetOnlyAppliesToFirstVisibleTab() {
+    let expectedInset = max(
+      0,
+      WindowTrafficLightMetrics.occupiedWidth - TerminalSidebarLayout.tabRowHorizontalPadding
+    )
     #expect(
       TerminalSidebarLayout.topRowLeadingInset(
         zoneID: .pinned,
         index: 0,
         pinnedTabCount: 2
-      ) == WindowTrafficLightMetrics.pillLeadingPadding
+      ) == expectedInset
     )
     #expect(
       TerminalSidebarLayout.topRowLeadingInset(
@@ -95,7 +99,7 @@ struct TerminalSidebarLayoutTests {
         zoneID: .regular,
         index: 0,
         pinnedTabCount: 0
-      ) == WindowTrafficLightMetrics.pillLeadingPadding
+      ) == expectedInset
     )
     #expect(
       TerminalSidebarLayout.topRowLeadingInset(

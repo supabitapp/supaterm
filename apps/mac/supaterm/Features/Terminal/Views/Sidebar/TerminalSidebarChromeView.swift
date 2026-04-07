@@ -298,11 +298,8 @@ struct TerminalSidebarChromeView: View {
         terminalProgress: terminalProgress,
         palette: palette,
         shortcutHint: tabShortcutHintsByID[tab.id],
-        showsShortcutHint: commandHoldObserver.isPressed
-      )
-      .padding(
-        .leading,
-        TerminalSidebarLayout.topRowLeadingInset(
+        showsShortcutHint: commandHoldObserver.isPressed,
+        leadingContentInset: TerminalSidebarLayout.topRowLeadingInset(
           zoneID: zoneID,
           index: index,
           pinnedTabCount: terminal.pinnedTabs.count
@@ -836,6 +833,7 @@ struct TerminalSidebarTabRow: View {
   let palette: TerminalPalette
   let shortcutHint: String?
   let showsShortcutHint: Bool
+  let leadingContentInset: CGFloat
 
   static func contextMenuItems(
     isPinned: Bool,
@@ -920,6 +918,7 @@ struct TerminalSidebarTabRow: View {
           .onHover { isCloseHovering = $0 }
         }
       }
+      .padding(.leading, leadingContentInset)
       .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
       .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
       .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
