@@ -56,15 +56,16 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   }
 
   private var stateLabel: String? {
-    switch leadingIndicator {
+    guard let statusAccessory else {
+      return nil
+    }
+    switch statusAccessory {
     case .agentActivity(let activity):
       return "\(activity.kind.notificationTitle) \(phaseLabel(activity.phase))"
     case .terminalProgress:
       return "Terminal Progress"
     case .unreadCount(let count):
       return "Unread \(count)"
-    case .tabSymbol:
-      return nil
     }
   }
 
@@ -74,9 +75,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     return "\(count) pane\(count == 1 ? "" : "s")"
   }
 
-  private var leadingIndicator: TerminalSidebarTabSummaryView.LeadingIndicator {
-    TerminalSidebarTabSummaryView.leadingIndicator(
-      tab: tab,
+  private var statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory? {
+    TerminalSidebarTabSummaryView.statusAccessory(
       unreadCount: unreadCount,
       agentActivity: agentActivity,
       terminalProgress: terminalProgress
@@ -275,7 +275,8 @@ private struct TerminalSidebarTabPreviewRow: View {
       showsAgentActivityDetail: true,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
-      showsShortcutHint: false
+      showsShortcutHint: false,
+      isRowHovering: false
     )
     .lineLimit(10)
     .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
