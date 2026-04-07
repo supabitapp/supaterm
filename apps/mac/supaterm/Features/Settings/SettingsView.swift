@@ -296,15 +296,6 @@ private struct SettingsTerminalView: View {
     )
   }
 
-  private var cursorStyleSelection: Binding<GhosttyTerminalCursorStyle> {
-    Binding(
-      get: { store.terminal.cursorStyle },
-      set: { newValue in
-        _ = store.send(.terminalCursorStyleSelected(newValue))
-      }
-    )
-  }
-
   private var cursorBlinkStyleSelection: Binding<GhosttyTerminalCursorBlinkStyle> {
     Binding(
       get: { store.terminal.cursorBlinkStyle },
@@ -411,17 +402,6 @@ private struct SettingsTerminalView: View {
           SettingsRowLabel(
             title: "Close Confirmation",
             subtitle: "Choose when closing a tab, split, or window asks for confirmation."
-          )
-        }
-        .disabled(controlsDisabled)
-
-        Picker(selection: cursorStyleSelection) {
-          ForEach(GhosttyTerminalCursorStyle.allCases) { option in
-            Text(option.title).tag(option)
-          }
-        } label: {
-          SettingsRowLabel(
-            title: "Cursor style"
           )
         }
         .disabled(controlsDisabled)
