@@ -57,6 +57,25 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func advanceDoesNotDemoteAssistantMessageToReasoningAcrossReads() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let initialCursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptURL)
+
+    let firstResult = try #require(CodexTranscriptMonitor.advance(initialCursor, at: transcriptURL.path))
+
+    #expect(firstResult.1?.detail == "Inspecting the transcript path")
+
+    try CodexTranscriptFixtures.append(.reasoning("Planning the next step"), to: transcriptURL)
+
+    let secondResult = try #require(CodexTranscriptMonitor.advance(firstResult.0, at: transcriptURL.path))
+
+    #expect(secondResult.1 == nil)
+  }
+
+  @Test
   func advanceUsesExecCommandCmdForToolDetail() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
@@ -110,8 +129,8 @@ struct CodexTranscriptMonitorTests {
 
     let cursor = try #require(CodexTranscriptMonitor.makeCursor(at: transcriptURL.path))
     try CodexTranscriptFixtures.append(
-      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"# +
-        #""type":"reasoning","summary":[],"content":null}}"#,
+      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"type":"reasoning","# +
+        #""summary":[],"content":null}}"#,
       to: transcriptURL
     )
 
