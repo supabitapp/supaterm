@@ -33,6 +33,8 @@ playground.xcworkspace
 .derivedData/
 Derived/
 build/
+/node_modules/
+/package-lock.json
 supaterm.xcodeproj/
 supaterm.xcworkspace/
 Tuist/Dependencies/
