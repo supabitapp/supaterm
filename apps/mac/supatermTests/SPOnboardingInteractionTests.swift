@@ -5,6 +5,8 @@ import Testing
 @testable import SupatermCLIShared
 
 struct SPOnboardingInteractionTests {
+  private let intro = "Glad to have you onboard with Supaterm, let's get you setup.\n"
+
   @Test
   func runSkipsConfiguredAgents() {
     let input = ScriptedInput([])
@@ -38,6 +40,7 @@ struct SPOnboardingInteractionTests {
     ).run()
 
     #expect(result == .init(didWriteOutput: true))
+    #expect(output.text.contains(intro))
     #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
     #expect(output.text.contains("Configured Codex hooks.\n"))
     #expect(installs.agents == [.codex])
@@ -59,6 +62,7 @@ struct SPOnboardingInteractionTests {
     ).run()
 
     #expect(result == .init(didWriteOutput: true))
+    #expect(occurrenceCount(of: intro, in: output.text) == 1)
     #expect(output.text.contains("Configure Supaterm hooks for Claude Code? [y/N] "))
     #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
     #expect(output.text.contains("Configured Claude Code hooks.\n"))
@@ -81,6 +85,7 @@ struct SPOnboardingInteractionTests {
     let prompt = "Configure Supaterm hooks for Claude Code? [y/N] "
 
     #expect(result == .init(didWriteOutput: true))
+    #expect(occurrenceCount(of: intro, in: output.text) == 1)
     #expect(occurrenceCount(of: prompt, in: output.text) == 2)
     #expect(output.text.contains("Enter y or n.\n"))
     #expect(installs.agents == [.claude])
@@ -110,6 +115,7 @@ struct SPOnboardingInteractionTests {
         "Could not inspect Claude Code hooks: Claude settings must be valid JSON before Supaterm can install hooks.\n"
       )
     )
+    #expect(output.text.contains(intro))
     #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
     #expect(output.text.contains("Configured Codex hooks.\n"))
     #expect(installs.agents == [.codex])
@@ -143,6 +149,7 @@ struct SPOnboardingInteractionTests {
           + "Claude settings must be a JSON object before Supaterm can install hooks.\n"
       )
     )
+    #expect(occurrenceCount(of: intro, in: output.text) == 1)
     #expect(output.text.contains("Configured Codex hooks.\n"))
     #expect(installs.agents == [.claude, .codex])
   }
