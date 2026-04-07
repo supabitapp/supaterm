@@ -52,7 +52,7 @@ extension SP {
   struct Onboard: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "onboard",
-      abstract: "Show Supaterm's core onboarding shortcuts.",
+      abstract: "Interactively onboard Supaterm and show core shortcuts.",
       discussion: SPHelp.onboardDiscussion
     )
 
@@ -71,6 +71,18 @@ extension SP {
       }
 
       let snapshot = try response.decodeResult(SupatermOnboardingSnapshot.self)
+      guard !options.output.quiet else { return }
+
+      if shouldPromptInteractively(
+        mode: options.output.mode,
+        isQuiet: options.output.quiet
+      ) {
+        let result = SPOnboardingInteraction().run()
+        if result.didWriteOutput {
+          print("")
+        }
+      }
+
       switch options.output.mode {
       case .json:
         print(try jsonString(snapshot))
@@ -211,6 +223,147 @@ extension SP {
         }
         print(endpoints.map(SPSocketSelection.formatEndpoint).joined(separator: "\n"))
       }
+    }
+  }
+}
+
+struct SPOnboardingInteraction {
+  struct AgentIntegration {
+    let agent: SupatermAgentKind
+    let hasSupatermHooks: @Sendable () throws -> Bool
+    let installSupatermHooks: @Sendable () throws -> Void
+  }
+
+  struct IO {
+    let readLine: @Sendable () -> String?
+    let write: @Sendable (String) -> Void
+
+    static let live = Self(
+      readLine: { Swift.readLine(strippingNewline: true) },
+      write: { text in
+        FileHandle.standardOutput.write(Data(text.utf8))
+      }
+    )
+  }
+
+  struct Result: Equatable {
+    let didWriteOutput: Bool
+  }
+
+  let integrations: [AgentIntegration]
+  let io: IO
+
+  init(
+    integrations: [AgentIntegration] = Self.liveIntegrations,
+    io: IO = .live
+  ) {
+    self.integrations = integrations
+    self.io = io
+  }
+
+  func run() -> Result {
+    var didWriteOutput = false
+
+    for integration in integrations {
+      let hasSupatermHooks: Bool
+
+      do {
+        hasSupatermHooks = try integration.hasSupatermHooks()
+      } catch {
+        write(
+          "Could not inspect \(integration.agent.notificationTitle) hooks: \(error.localizedDescription)\n",
+          didWriteOutput: &didWriteOutput
+        )
+        continue
+      }
+
+      guard !hasSupatermHooks else { continue }
+      guard shouldInstall(agent: integration.agent, didWriteOutput: &didWriteOutput) else { continue }
+
+      do {
+        try integration.installSupatermHooks()
+        write(
+          "Configured \(integration.agent.notificationTitle) hooks.\n",
+          didWriteOutput: &didWriteOutput
+        )
+      } catch {
+        write(
+          "Could not configure \(integration.agent.notificationTitle) hooks: \(error.localizedDescription)\n",
+          didWriteOutput: &didWriteOutput
+        )
+      }
+    }
+
+    return .init(didWriteOutput: didWriteOutput)
+  }
+
+  private func shouldInstall(
+    agent: SupatermAgentKind,
+    didWriteOutput: inout Bool
+  ) -> Bool {
+    while true {
+      write(
+        "Configure Supaterm hooks for \(agent.notificationTitle)? [y/N] ",
+        didWriteOutput: &didWriteOutput
+      )
+
+      switch yesNoAnswer(from: io.readLine()) {
+      case .yes:
+        return true
+      case .no:
+        return false
+      case .invalid:
+        write("Enter y or n.\n", didWriteOutput: &didWriteOutput)
+      }
+    }
+  }
+
+  private func write(
+    _ text: String,
+    didWriteOutput: inout Bool
+  ) {
+    io.write(text)
+    didWriteOutput = true
+  }
+
+  private func yesNoAnswer(from value: String?) -> YesNoAnswer {
+    guard let normalizedValue = value?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    else {
+      return .no
+    }
+
+    switch normalizedValue {
+    case "", "n", "no":
+      return .no
+    case "y", "yes":
+      return .yes
+    default:
+      return .invalid
+    }
+  }
+
+  private enum YesNoAnswer {
+    case no
+    case yes
+    case invalid
+  }
+
+  private static let liveIntegrations: [AgentIntegration] = SupatermAgentKind.allCases.map { agent in
+    switch agent {
+    case .claude:
+      return .init(
+        agent: agent,
+        hasSupatermHooks: { try ClaudeSettingsInstaller().hasSupatermHooks() },
+        installSupatermHooks: { try ClaudeSettingsInstaller().installSupatermHooks() }
+      )
+    case .codex:
+      return .init(
+        agent: agent,
+        hasSupatermHooks: { try CodexSettingsInstaller().hasSupatermHooks() },
+        installSupatermHooks: { try CodexSettingsInstaller().installSupatermHooks() }
+      )
     }
   }
 }

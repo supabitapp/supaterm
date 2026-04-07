@@ -30,9 +30,12 @@ enum SPHelp {
     """
 
   static let onboardDiscussion = """
+    Interactive human sessions can offer to configure Supaterm coding-agent hooks before showing shortcuts.
+
     Example:
       sp onboard
       sp onboard --instance work-mac
+      sp onboard --plain
     """
 
   static let diagnosticDiscussion = """
