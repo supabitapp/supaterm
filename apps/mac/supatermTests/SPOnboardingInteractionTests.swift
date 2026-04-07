@@ -1,0 +1,210 @@
+import Foundation
+import Testing
+
+@testable import SPCLI
+@testable import SupatermCLIShared
+
+struct SPOnboardingInteractionTests {
+  @Test
+  func runSkipsConfiguredAgents() {
+    let input = ScriptedInput([])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        integration(agent: .claude, hasSupatermHooks: { true }, installs: installs),
+        integration(agent: .codex, hasSupatermHooks: { true }, installs: installs),
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: false))
+    #expect(output.text.isEmpty)
+    #expect(installs.agents.isEmpty)
+  }
+
+  @Test
+  func runPromptsForMissingAgentAndInstallsWhenAccepted() {
+    let input = ScriptedInput(["y"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs)
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
+    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(installs.agents == [.codex])
+  }
+
+  @Test
+  func runRepromptsUntilItReceivesValidAnswer() {
+    let input = ScriptedInput(["later", "yes"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        integration(agent: .claude, hasSupatermHooks: { false }, installs: installs)
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    let prompt = "Configure Supaterm hooks for Claude Code? [y/N] "
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(occurrenceCount(of: prompt, in: output.text) == 2)
+    #expect(output.text.contains("Enter y or n.\n"))
+    #expect(installs.agents == [.claude])
+  }
+
+  @Test
+  func runContinuesAfterInspectionFailure() {
+    let input = ScriptedInput(["y"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        .init(
+          agent: .claude,
+          hasSupatermHooks: { throw ClaudeSettingsInstallerError.invalidJSON },
+          installSupatermHooks: {}
+        ),
+        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs),
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(
+      output.text.contains(
+        "Could not inspect Claude Code hooks: Claude settings must be valid JSON before Supaterm can install hooks.\n"
+      )
+    )
+    #expect(output.text.contains("Configure Supaterm hooks for Codex? [y/N] "))
+    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(installs.agents == [.codex])
+  }
+
+  @Test
+  func runContinuesAfterInstallFailure() {
+    let input = ScriptedInput(["yes", "y"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        .init(
+          agent: .claude,
+          hasSupatermHooks: { false },
+          installSupatermHooks: {
+            installs.record(.claude)
+            throw ClaudeSettingsInstallerError.invalidRootObject
+          }
+        ),
+        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs),
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(
+      output.text.contains(
+        "Could not configure Claude Code hooks: "
+          + "Claude settings must be a JSON object before Supaterm can install hooks.\n"
+      )
+    )
+    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(installs.agents == [.claude, .codex])
+  }
+
+  @Test
+  func interactivePromptingRequiresHumanTTYAndVisibleOutput() {
+    #expect(shouldPromptInteractively(mode: .human, isQuiet: false, isInputTTY: true, isOutputTTY: true))
+    #expect(!shouldPromptInteractively(mode: .json, isQuiet: false, isInputTTY: true, isOutputTTY: true))
+    #expect(!shouldPromptInteractively(mode: .plain, isQuiet: false, isInputTTY: true, isOutputTTY: true))
+    #expect(!shouldPromptInteractively(mode: .human, isQuiet: true, isInputTTY: true, isOutputTTY: true))
+    #expect(!shouldPromptInteractively(mode: .human, isQuiet: false, isInputTTY: false, isOutputTTY: true))
+    #expect(!shouldPromptInteractively(mode: .human, isQuiet: false, isInputTTY: true, isOutputTTY: false))
+  }
+}
+
+private func integration(
+  agent: SupatermAgentKind,
+  hasSupatermHooks: @escaping @Sendable () throws -> Bool,
+  installs: InstallRecorder
+) -> SPOnboardingInteraction.AgentIntegration {
+  .init(
+    agent: agent,
+    hasSupatermHooks: hasSupatermHooks,
+    installSupatermHooks: {
+      installs.record(agent)
+    }
+  )
+}
+
+private func occurrenceCount(
+  of value: String,
+  in text: String
+) -> Int {
+  text.components(separatedBy: value).count - 1
+}
+
+nonisolated final class ScriptedInput: @unchecked Sendable {
+  private let lock = NSLock()
+  private var values: [String?]
+
+  init(_ values: [String?]) {
+    self.values = values
+  }
+
+  func readLine() -> String? {
+    lock.lock()
+    defer { lock.unlock() }
+    guard !values.isEmpty else { return nil }
+    return values.removeFirst()
+  }
+}
+
+nonisolated final class OutputRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value = ""
+
+  func write(_ value: String) {
+    lock.lock()
+    self.value += value
+    lock.unlock()
+  }
+
+  var text: String {
+    lock.lock()
+    let text = value
+    lock.unlock()
+    return text
+  }
+}
+
+nonisolated final class InstallRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value: [SupatermAgentKind] = []
+
+  func record(_ agent: SupatermAgentKind) {
+    lock.lock()
+    value.append(agent)
+    lock.unlock()
+  }
+
+  var agents: [SupatermAgentKind] {
+    lock.lock()
+    let agents = value
+    lock.unlock()
+    return agents
+  }
+}

@@ -104,6 +104,14 @@ struct SPHelpTests {
   }
 
   @Test
+  func onboardHelpMentionsInteractiveAgentSetup() {
+    let help = SP.helpMessage(for: SP.Onboard.self, columns: 100)
+
+    #expect(help.contains("coding-agent hooks"))
+    #expect(help.contains("sp onboard --plain"))
+  }
+
+  @Test
   func installAgentHooksHelpShowsExamples() {
     let help = SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100)
 

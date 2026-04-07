@@ -174,7 +174,24 @@ func plainPaneSelector(spaceIndex: Int, tabIndex: Int, paneIndex: Int) -> String
 }
 
 func stdinHasPipedInput() -> Bool {
-  isatty(FileHandle.standardInput.fileDescriptor) == 0
+  !stdinIsTTY()
+}
+
+func stdinIsTTY() -> Bool {
+  isatty(FileHandle.standardInput.fileDescriptor) != 0
+}
+
+func stdoutIsTTY() -> Bool {
+  isatty(FileHandle.standardOutput.fileDescriptor) != 0
+}
+
+func shouldPromptInteractively(
+  mode: SPOutputMode,
+  isQuiet: Bool,
+  isInputTTY: Bool = stdinIsTTY(),
+  isOutputTTY: Bool = stdoutIsTTY()
+) -> Bool {
+  mode == .human && !isQuiet && isInputTTY && isOutputTTY
 }
 
 private func shellEscapedToken(_ token: String) -> String {
@@ -190,7 +207,7 @@ private func shellEscapedToken(_ token: String) -> String {
 }
 
 private enum SPTerminalStyle {
-  private static let isTTY = isatty(FileHandle.standardOutput.fileDescriptor) != 0
+  private static let isTTY = stdoutIsTTY()
   private nonisolated(unsafe) static var isEnabled = true
 
   static func setEnabled(_ enabled: Bool) {
