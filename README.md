@@ -1,6 +1,20 @@
 # Supaterm
 A terminal for ur coding agents.
 
+## Pi
+
+Install the Pi extension package from this repo:
+
+```bash
+pi install git:github.com/supabitapp/supaterm
+```
+
+Install from a local checkout while developing:
+
+```bash
+pi install /absolute/path/to/supaterm
+```
+
 ## Development
 
 Just run `make` there are a bunch of commands there. 

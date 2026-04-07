@@ -130,4 +130,18 @@ Supaterm currently treats a hook as Supaterm-managed when its `command`, lowerca
 
 ## Pi
 
-Pi extension is managed in different repo at https://github.com/supabitapp/supaterm-pi
+Supaterm ships a Pi extension package from this repo.
+
+Install it with:
+
+```bash
+pi install git:github.com/supabitapp/supaterm
+```
+
+Install from a local checkout while developing:
+
+```bash
+pi install /absolute/path/to/supaterm
+```
+
+The Pi extension source lives in `extensions/pi-notify-supaterm`.
