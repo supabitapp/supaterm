@@ -50,11 +50,15 @@ enum TerminalSidebarLayout {
     index: Int,
     pinnedTabCount: Int
   ) -> CGFloat {
-    switch zoneID {
+    let leadingInset = max(
+      0,
+      WindowTrafficLightMetrics.occupiedWidth - tabRowHorizontalPadding
+    )
+    return switch zoneID {
     case .pinned:
-      index == 0 ? WindowTrafficLightMetrics.pillLeadingPadding : 0
+      index == 0 ? leadingInset : 0
     case .regular:
-      pinnedTabCount == 0 && index == 0 ? WindowTrafficLightMetrics.pillLeadingPadding : 0
+      pinnedTabCount == 0 && index == 0 ? leadingInset : 0
     }
   }
 

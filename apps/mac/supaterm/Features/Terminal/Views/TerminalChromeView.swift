@@ -120,9 +120,10 @@ enum WindowTrafficLightMetrics {
   static let leadingPadding: CGFloat = 8
   static let topPadding: CGFloat = 2
   static let symbolSize: CGFloat = 8
+  static let trailingGap: CGFloat = 6
 
-  static var pillLeadingPadding: CGFloat {
-    leadingPadding + (buttonSize * 3) + (buttonSpacing * 3)
+  static var occupiedWidth: CGFloat {
+    leadingPadding + (buttonSize * 3) + (buttonSpacing * 2) + trailingGap
   }
 }
 
