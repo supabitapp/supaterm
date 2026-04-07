@@ -14,6 +14,10 @@ public struct PiSettingsInstaller {
 
   static let canonicalPackageSource = "git:github.com/supabitapp/supaterm"
 
+  public static var canonicalInstallDisplayCommand: String {
+    installDisplayCommand(source: canonicalPackageSource)
+  }
+
   let homeDirectoryURL: URL
   let fileManager: FileManager
   let checkPiAvailable: @Sendable () throws -> Bool
@@ -104,6 +108,10 @@ public struct PiSettingsInstaller {
 
   static func installCommandArguments(source: String) -> [String] {
     ["-l", "-c", "pi install \(shellEscaped(source))"]
+  }
+
+  public static func installDisplayCommand(source: String) -> String {
+    "pi install \(source)"
   }
 
   static func removeCommandArguments(source: String) -> [String] {

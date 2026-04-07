@@ -30,7 +30,7 @@ enum SPHelp {
     """
 
   static let onboardDiscussion = """
-    Interactive human sessions can offer to configure Supaterm coding-agent hooks before showing shortcuts.
+    Interactive human sessions can offer to configure Supaterm coding-agent integrations before showing shortcuts.
 
     Example:
       sp onboard

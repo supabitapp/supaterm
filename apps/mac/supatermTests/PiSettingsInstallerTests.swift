@@ -81,6 +81,14 @@ struct PiSettingsInstallerTests {
   }
 
   @Test
+  func canonicalInstallDisplayCommandUsesCanonicalPackageSource() {
+    #expect(
+      PiSettingsInstaller.canonicalInstallDisplayCommand
+        == "pi install \(PiSettingsInstaller.canonicalPackageSource)"
+    )
+  }
+
+  @Test
   func removeUsesMatchedInstalledSources() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
