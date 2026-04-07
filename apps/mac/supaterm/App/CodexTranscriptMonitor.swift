@@ -24,7 +24,7 @@ enum CodexTranscriptDetailPriority: Int {
 struct CodexTranscriptUpdate: Equatable {
   var status: CodexTranscriptTurnStatus?
   var detail: String?
-  private var detailPriority: CodexTranscriptDetailPriority?
+  var detailPriority: CodexTranscriptDetailPriority?
 
   init(
     status: CodexTranscriptTurnStatus? = nil,
@@ -62,13 +62,14 @@ struct CodexTranscriptUpdate: Equatable {
 
 struct CodexTranscriptCursor {
   var offset: UInt64
+  var detailPriority: CodexTranscriptDetailPriority?
 }
 
 enum CodexTranscriptMonitor {
   static func makeCursor(at path: String) -> CodexTranscriptCursor? {
     guard let data = read(path: path, from: 0) else { return nil }
     let (consumedBytes, _) = parse(data)
-    return .init(offset: UInt64(consumedBytes))
+    return .init(offset: UInt64(consumedBytes), detailPriority: nil)
   }
 
   static func advance(
@@ -87,11 +88,16 @@ enum CodexTranscriptMonitor {
       return (resetCursor, nil)
     }
     guard let data = read(path: path, from: cursor.offset) else { return nil }
-    let (consumedBytes, latestStatus) = parse(data)
-    return (
-      .init(offset: cursor.offset + UInt64(consumedBytes)),
-      latestStatus
-    )
+    let (consumedBytes, latestUpdate) = parse(data)
+    var updatedCursor = cursor
+    updatedCursor.offset += UInt64(consumedBytes)
+    let filteredUpdate: CodexTranscriptUpdate?
+    if let latestUpdate {
+      filteredUpdate = mergedUpdate(latestUpdate, into: &updatedCursor)
+    } else {
+      filteredUpdate = nil
+    }
+    return (updatedCursor, filteredUpdate)
   }
 
   private static func read(path: String, from offset: UInt64) -> Data? {
@@ -117,6 +123,32 @@ enum CodexTranscriptMonitor {
       }
     }
     return (completeData.count, latestUpdate.hasChanges ? latestUpdate : nil)
+  }
+
+  private static func mergedUpdate(
+    _ update: CodexTranscriptUpdate,
+    into cursor: inout CodexTranscriptCursor
+  ) -> CodexTranscriptUpdate? {
+    var update = update
+
+    if case .started = update.status {
+      cursor.detailPriority = nil
+    }
+
+    if let detail = update.detail {
+      let incomingPriority = update.detailPriority ?? .tool
+      if let currentPriority = cursor.detailPriority, incomingPriority.rawValue < currentPriority.rawValue {
+        update.detail = nil
+      } else if !detail.isEmpty {
+        cursor.detailPriority = incomingPriority
+      }
+    }
+
+    if update.status?.isFinal == true {
+      cursor.detailPriority = nil
+    }
+
+    return update.hasChanges ? update : nil
   }
 
   private static func update(in line: Data) -> CodexTranscriptUpdate? {

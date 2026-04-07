@@ -1007,6 +1007,55 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexTranscriptDoesNotDemoteAssistantMessageToThinkingAcrossPolls() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.userPromptSubmit,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Inspecting the transcript path"),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Inspecting the transcript path")
+    )
+
+    try CodexTranscriptFixtures.append(
+      .reasoning("Planning the next step"),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Inspecting the transcript path")
+    )
+  }
+
+  @Test
   func codexTranscriptUsesExecCommandCmdForRunningDetail() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
