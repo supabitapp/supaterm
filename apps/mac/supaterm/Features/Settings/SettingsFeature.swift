@@ -14,7 +14,6 @@ struct SettingsTerminalState: Equatable {
   var confirmCloseSurface = GhosttyTerminalCloseConfirmation.whenNotAtPrompt
   var configPath = ""
   var cursorBlinkStyle = GhosttyTerminalCursorBlinkStyle.disabled
-  var cursorStyle = GhosttyTerminalCursorStyle.block
   var darkTheme: String?
   var errorMessage: String?
   var fontFamily: String?
@@ -92,7 +91,6 @@ struct SettingsFeature {
     case tabSelected(Tab)
     case task
     case terminalCursorBlinkStyleSelected(GhosttyTerminalCursorBlinkStyle)
-    case terminalCursorStyleSelected(GhosttyTerminalCursorStyle)
     case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
     case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
@@ -270,13 +268,6 @@ struct SettingsFeature {
           return .none
         }
         state.terminal.confirmCloseSurface = confirmCloseSurface
-        return applyTerminalSettings(state.terminal.settingsDraft)
-
-      case .terminalCursorStyleSelected(let cursorStyle):
-        guard prepareTerminalSettingsApply(&state.terminal) else {
-          return .none
-        }
-        state.terminal.cursorStyle = cursorStyle
         return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .terminalCursorBlinkStyleSelected(let cursorBlinkStyle):
@@ -616,7 +607,6 @@ struct SettingsFeature {
     state.confirmCloseSurface = snapshot.confirmCloseSurface
     state.configPath = snapshot.configPath
     state.cursorBlinkStyle = snapshot.cursorBlinkStyle
-    state.cursorStyle = snapshot.cursorStyle
     state.darkTheme = snapshot.darkTheme
     state.errorMessage = nil
     state.fontFamily = snapshot.fontFamily
@@ -634,7 +624,6 @@ struct SettingsFeature {
     state.confirmCloseSurface = values.confirmCloseSurface
     state.configPath = values.configPath
     state.cursorBlinkStyle = values.cursorBlinkStyle
-    state.cursorStyle = values.cursorStyle
     state.darkTheme = values.darkTheme
     state.errorMessage = nil
     state.fontFamily = values.fontFamily
@@ -697,7 +686,6 @@ extension SettingsTerminalState {
     .init(
       confirmCloseSurface: confirmCloseSurface,
       cursorBlinkStyle: cursorBlinkStyle,
-      cursorStyle: cursorStyle,
       darkTheme: darkTheme,
       fontFamily: fontFamily,
       fontSize: fontSize,
