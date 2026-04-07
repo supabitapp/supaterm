@@ -13,14 +13,7 @@ let packageSettings = PackageSettings(
     "Sharing": .staticFramework,
     "Sparkle": .framework,
     "Textual": .framework,
-  ],
-  baseSettings: .settings(
-    configurations: [
-      .debug(name: .debug),
-      .release(name: .release),
-    ],
-    defaultSettings: .essential
-  )
+  ]
 )
 #endif
 
