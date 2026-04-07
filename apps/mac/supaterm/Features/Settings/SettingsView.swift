@@ -526,11 +526,7 @@ private struct SettingsAboutView: View {
       VStack(alignment: .leading, spacing: 20) {
         SettingsSurfaceCard {
           HStack(alignment: .center, spacing: 20) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
-              .resizable()
-              .interpolation(.high)
-              .frame(width: 84, height: 84)
-              .accessibilityLabel("\(appName) app icon")
+            SettingsHolographicIconView(appName: appName)
 
             VStack(alignment: .leading, spacing: 6) {
               Text(appName)
