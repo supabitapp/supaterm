@@ -83,6 +83,48 @@ struct SPCommandTests {
   }
 
   @Test
+  func onboardRendererShowsThankYouShortcutsAndFollowUpCommand() {
+    let rendered = SPOnboardingRenderer.render(
+      .init(
+        items: [
+          .init(shortcut: "⌘S", title: "Toggle sidebar"),
+          .init(shortcut: "⌘T", title: "New tab"),
+          .init(shortcut: "⌘W", title: "Close pane"),
+          .init(shortcut: "⌘⌥W", title: "Close tab"),
+          .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
+          .init(shortcut: "⌘D", title: "Split right"),
+          .init(shortcut: "⌘⇧D", title: "Split down"),
+          .init(shortcut: "⌘F", title: "Find"),
+        ]
+      )
+    ).replacingOccurrences(
+      of: "\u{001B}\\[[0-9;]*m",
+      with: "",
+      options: .regularExpression
+    )
+
+    #expect(
+      rendered
+        == """
+          Thank you for using supaterm!
+
+          Common Shortcuts
+
+          ⌘S    Toggle sidebar
+          ⌘T    New tab
+          ⌘W    Close pane
+          ⌘⌥W   Close tab
+          ⌃1-0  Go to space 1-10
+          ⌘D    Split right
+          ⌘⇧D   Split down
+          ⌘F    Find
+
+          Run "sp" for the list of available commands.
+          """
+    )
+  }
+
+  @Test
   func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
     let claudeCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude

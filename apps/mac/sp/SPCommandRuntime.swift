@@ -248,7 +248,11 @@ struct SPConnectionOptions: ParsableArguments {
 enum SPOnboardingRenderer {
   static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
-    var lines = [SPTerminalStyle.bold("Common Shortcuts")]
+    var lines = [
+      "Thank you for using supaterm!",
+      "",
+      SPTerminalStyle.bold("Common Shortcuts"),
+    ]
 
     if !snapshot.items.isEmpty {
       lines.append("")
@@ -258,6 +262,9 @@ enum SPOnboardingRenderer {
         }
       )
     }
+
+    lines.append("")
+    lines.append(#"Run "sp" for the list of available commands."#)
 
     return lines.joined(separator: "\n")
   }
