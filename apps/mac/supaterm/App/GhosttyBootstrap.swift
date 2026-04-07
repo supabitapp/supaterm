@@ -20,7 +20,6 @@ enum GhosttyBootstrap {
     font-size = 15
     theme = light:Zenbones Light,dark:Zenbones Dark
     cursor-style = block
-    cursor-style-blink = false
     """
 
   private static let argv: [UnsafeMutablePointer<CChar>?] = {

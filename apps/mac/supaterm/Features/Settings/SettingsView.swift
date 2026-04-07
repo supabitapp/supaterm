@@ -278,15 +278,6 @@ private struct SettingsTerminalView: View {
     )
   }
 
-  private var cursorBlinkStyleSelection: Binding<GhosttyTerminalCursorBlinkStyle> {
-    Binding(
-      get: { store.terminal.cursorBlinkStyle },
-      set: { newValue in
-        _ = store.send(.terminalCursorBlinkStyleSelected(newValue))
-      }
-    )
-  }
-
   private var availableLightThemes: [String] {
     themeOptions(
       from: store.terminal.availableLightThemes,
@@ -388,17 +379,6 @@ private struct SettingsTerminalView: View {
         }
         .disabled(controlsDisabled)
 
-        Picker(selection: cursorBlinkStyleSelection) {
-          ForEach(GhosttyTerminalCursorBlinkStyle.allCases) { option in
-            Text(option.title).tag(option)
-          }
-        } label: {
-          SettingsRowLabel(
-            title: "Cursor blink style",
-            subtitle: "The `default` option defers to DEC mode 12 to determine blinking state."
-          )
-        }
-        .disabled(controlsDisabled)
       }
 
       Section {
