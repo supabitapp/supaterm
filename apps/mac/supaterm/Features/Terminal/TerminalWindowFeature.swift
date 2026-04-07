@@ -78,6 +78,7 @@ struct TerminalWindowFeature {
     case commandPaletteActivateSelection
     case commandPaletteCloseRequested
     case commandPaletteQueryChanged(String)
+    case commandPaletteSlotActivated(Int)
     case commandPaletteSelectionChanged(Int)
     case commandPaletteSelectionMoved(Int)
     case commandPaletteToggleRequested
@@ -190,6 +191,14 @@ struct TerminalWindowFeature {
       case .commandPaletteQueryChanged(let query):
         guard state.commandPalette != nil else { return .none }
         state.commandPalette?.updateQuery(query)
+        return .none
+
+      case .commandPaletteSlotActivated(let slot):
+        guard let commandPalette = state.commandPalette else { return .none }
+        let index = slot - 1
+        guard commandPalette.visibleRows.indices.contains(index) else { return .none }
+        state.commandPalette?.select(index)
+        state.commandPalette = nil
         return .none
 
       case .commandPaletteSelectionChanged(let index):
