@@ -8,10 +8,10 @@ struct SplitView<L: View, R: View>: View {
   let left: L
   let right: R
   let onEqualize: () -> Void
-  let minSize: CGFloat = 10
   @Binding var split: CGFloat
-  private let splitterVisibleSize: CGFloat = 1
-  private let splitterInvisibleSize: CGFloat = 6
+  private var minSize: CGFloat { TerminalSplitMetrics.minimumPaneSize }
+  private var splitterVisibleSize: CGFloat { TerminalSplitMetrics.dividerVisibleSize }
+  private var splitterInvisibleSize: CGFloat { TerminalSplitMetrics.dividerInvisibleSize }
 
   var body: some View {
     GeometryReader { geo in

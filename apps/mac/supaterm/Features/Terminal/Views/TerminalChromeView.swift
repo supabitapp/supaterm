@@ -2,7 +2,11 @@ import AppKit
 import SwiftUI
 
 enum TerminalSplitMetrics {
-  static let resizeHandleWidth: CGFloat = 24
+  nonisolated static let resizeHandleWidth: CGFloat = 24
+  nonisolated static let minimumPaneSize: CGFloat = 10
+  nonisolated static let dividerVisibleSize: CGFloat = 1
+  nonisolated static let dividerInvisibleSize: CGFloat = 6
+  nonisolated static let dividerHitboxSize: CGFloat = dividerVisibleSize + dividerInvisibleSize
 
   static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
     guard totalWidth > 0 else { return 0 }
