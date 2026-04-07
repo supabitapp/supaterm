@@ -23,12 +23,69 @@ enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable
   }
 }
 
+enum GhosttyTerminalCursorStyle: String, CaseIterable, Equatable, Sendable, Identifiable {
+  case block
+  case bar
+  case underline
+  case blockHollow = "block_hollow"
+
+  var id: Self {
+    self
+  }
+
+  var title: String {
+    switch self {
+    case .block:
+      "block"
+    case .bar:
+      "bar"
+    case .underline:
+      "underline"
+    case .blockHollow:
+      "hollow block"
+    }
+  }
+}
+
+enum GhosttyTerminalCursorBlinkStyle: String, CaseIterable, Equatable, Sendable, Identifiable {
+  case terminalDefault = ""
+  case enabled = "true"
+  case disabled = "false"
+
+  var id: Self {
+    self
+  }
+
+  var title: String {
+    switch self {
+    case .terminalDefault:
+      "default"
+    case .enabled:
+      "blink"
+    case .disabled:
+      "steady"
+    }
+  }
+}
+
+struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
+  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
+  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
+  var cursorStyle: GhosttyTerminalCursorStyle
+  var darkTheme: String?
+  var fontFamily: String?
+  var fontSize: Double
+  var lightTheme: String?
+}
+
 struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var availableFontFamilies: [String]
   var availableDarkThemes: [String]
   var availableLightThemes: [String]
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
+  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
+  var cursorStyle: GhosttyTerminalCursorStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -39,6 +96,8 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
 struct GhosttyTerminalSettingsValues: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
+  var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
+  var cursorStyle: GhosttyTerminalCursorStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -48,14 +107,7 @@ struct GhosttyTerminalSettingsValues: Equatable, Sendable {
 
 struct GhosttyTerminalSettingsClient: Sendable {
   var load: @Sendable () async throws -> GhosttyTerminalSettingsSnapshot
-  var apply:
-    @Sendable (
-      _ fontFamily: String?,
-      _ fontSize: Double,
-      _ lightTheme: String?,
-      _ darkTheme: String?,
-      _ confirmCloseSurface: GhosttyTerminalCloseConfirmation
-    ) async throws -> GhosttyTerminalSettingsValues
+  var apply: @Sendable (_ settings: GhosttyTerminalSettingsDraft) async throws -> GhosttyTerminalSettingsValues
 }
 
 extension GhosttyTerminalSettingsClient: DependencyKey {
@@ -65,15 +117,9 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         try GhosttyTerminalConfigFile().load()
       }
     },
-    apply: { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
+    apply: { settings in
       try await MainActor.run {
-        try GhosttyTerminalConfigFile().apply(
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          lightTheme: lightTheme,
-          darkTheme: darkTheme,
-          confirmCloseSurface: confirmCloseSurface
-        )
+        try GhosttyTerminalConfigFile().apply(settings: settings)
       }
     }
   )
@@ -86,6 +132,8 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         availableLightThemes: ["Zenbones Light", "Builtin Light"],
         confirmCloseSurface: .whenNotAtPrompt,
         configPath: "/tmp/ghostty/config",
+        cursorBlinkStyle: .disabled,
+        cursorStyle: .block,
         darkTheme: "Zenbones Dark",
         fontFamily: nil,
         fontSize: 15,
@@ -93,14 +141,16 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         warningMessage: nil
       )
     },
-    apply: { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
+    apply: { settings in
       .init(
-        confirmCloseSurface: confirmCloseSurface,
+        confirmCloseSurface: settings.confirmCloseSurface,
         configPath: "/tmp/ghostty/config",
-        darkTheme: darkTheme,
-        fontFamily: fontFamily,
-        fontSize: fontSize,
-        lightTheme: lightTheme,
+        cursorBlinkStyle: settings.cursorBlinkStyle,
+        cursorStyle: settings.cursorStyle,
+        darkTheme: settings.darkTheme,
+        fontFamily: settings.fontFamily,
+        fontSize: settings.fontSize,
+        lightTheme: settings.lightTheme,
         warningMessage: nil
       )
     }

@@ -13,6 +13,8 @@ struct SettingsTerminalState: Equatable {
   var availableLightThemes: [String] = []
   var confirmCloseSurface = GhosttyTerminalCloseConfirmation.whenNotAtPrompt
   var configPath = ""
+  var cursorBlinkStyle = GhosttyTerminalCursorBlinkStyle.disabled
+  var cursorStyle = GhosttyTerminalCursorStyle.block
   var darkTheme: String?
   var errorMessage: String?
   var fontFamily: String?
@@ -80,6 +82,8 @@ struct SettingsFeature {
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
+    case terminalCursorBlinkStyleSelected(GhosttyTerminalCursorBlinkStyle)
+    case terminalCursorStyleSelected(GhosttyTerminalCursorStyle)
     case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
     case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
@@ -221,65 +225,55 @@ struct SettingsFeature {
           return .none
         }
         state.terminal.lightTheme = lightTheme
-        return applyTerminalSettings(
-          fontFamily: state.terminal.fontFamily,
-          fontSize: state.terminal.fontSize,
-          lightTheme: lightTheme,
-          darkTheme: state.terminal.darkTheme ?? lightTheme,
-          confirmCloseSurface: state.terminal.confirmCloseSurface
-        )
+        if state.terminal.darkTheme == nil {
+          state.terminal.darkTheme = lightTheme
+        }
+        return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .terminalDarkThemeSelected(let darkTheme):
         guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
         state.terminal.darkTheme = darkTheme
-        return applyTerminalSettings(
-          fontFamily: state.terminal.fontFamily,
-          fontSize: state.terminal.fontSize,
-          lightTheme: state.terminal.lightTheme ?? darkTheme,
-          darkTheme: darkTheme,
-          confirmCloseSurface: state.terminal.confirmCloseSurface
-        )
+        if state.terminal.lightTheme == nil {
+          state.terminal.lightTheme = darkTheme
+        }
+        return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .terminalFontFamilySelected(let fontFamily):
         guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
         state.terminal.fontFamily = fontFamily
-        return applyTerminalSettings(
-          fontFamily: fontFamily,
-          fontSize: state.terminal.fontSize,
-          lightTheme: state.terminal.lightTheme,
-          darkTheme: state.terminal.darkTheme,
-          confirmCloseSurface: state.terminal.confirmCloseSurface
-        )
+        return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .terminalFontSizeChanged(let fontSize):
         guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
         state.terminal.fontSize = fontSize
-        return applyTerminalSettings(
-          fontFamily: state.terminal.fontFamily,
-          fontSize: fontSize,
-          lightTheme: state.terminal.lightTheme,
-          darkTheme: state.terminal.darkTheme,
-          confirmCloseSurface: state.terminal.confirmCloseSurface
-        )
+        return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .terminalConfirmCloseSurfaceSelected(let confirmCloseSurface):
         guard prepareTerminalSettingsApply(&state.terminal) else {
           return .none
         }
         state.terminal.confirmCloseSurface = confirmCloseSurface
-        return applyTerminalSettings(
-          fontFamily: state.terminal.fontFamily,
-          fontSize: state.terminal.fontSize,
-          lightTheme: state.terminal.lightTheme,
-          darkTheme: state.terminal.darkTheme,
-          confirmCloseSurface: confirmCloseSurface
-        )
+        return applyTerminalSettings(state.terminal.settingsDraft)
+
+      case .terminalCursorStyleSelected(let cursorStyle):
+        guard prepareTerminalSettingsApply(&state.terminal) else {
+          return .none
+        }
+        state.terminal.cursorStyle = cursorStyle
+        return applyTerminalSettings(state.terminal.settingsDraft)
+
+      case .terminalCursorBlinkStyleSelected(let cursorBlinkStyle):
+        guard prepareTerminalSettingsApply(&state.terminal) else {
+          return .none
+        }
+        state.terminal.cursorBlinkStyle = cursorBlinkStyle
+        return applyTerminalSettings(state.terminal.settingsDraft)
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
         state.alert = nil
@@ -530,6 +524,8 @@ struct SettingsFeature {
     state.availableLightThemes = snapshot.availableLightThemes
     state.confirmCloseSurface = snapshot.confirmCloseSurface
     state.configPath = snapshot.configPath
+    state.cursorBlinkStyle = snapshot.cursorBlinkStyle
+    state.cursorStyle = snapshot.cursorStyle
     state.darkTheme = snapshot.darkTheme
     state.errorMessage = nil
     state.fontFamily = snapshot.fontFamily
@@ -546,6 +542,8 @@ struct SettingsFeature {
   ) {
     state.confirmCloseSurface = values.confirmCloseSurface
     state.configPath = values.configPath
+    state.cursorBlinkStyle = values.cursorBlinkStyle
+    state.cursorStyle = values.cursorStyle
     state.darkTheme = values.darkTheme
     state.errorMessage = nil
     state.fontFamily = values.fontFamily
@@ -565,24 +563,12 @@ struct SettingsFeature {
     return true
   }
 
-  private func applyTerminalSettings(
-    fontFamily: String?,
-    fontSize: Double,
-    lightTheme: String?,
-    darkTheme: String?,
-    confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  ) -> Effect<Action> {
+  private func applyTerminalSettings(_ settings: GhosttyTerminalSettingsDraft) -> Effect<Action> {
     .run { [ghosttyTerminalSettingsClient] send in
       do {
         await send(
           .terminalSettingsApplied(
-            try await ghosttyTerminalSettingsClient.apply(
-              fontFamily,
-              fontSize,
-              lightTheme,
-              darkTheme,
-              confirmCloseSurface
-            )
+            try await ghosttyTerminalSettingsClient.apply(settings)
           )
         )
       } catch {
@@ -612,5 +598,19 @@ struct SettingsFeature {
     } message: {
       TextState(message)
     }
+  }
+}
+
+extension SettingsTerminalState {
+  fileprivate var settingsDraft: GhosttyTerminalSettingsDraft {
+    .init(
+      confirmCloseSurface: confirmCloseSurface,
+      cursorBlinkStyle: cursorBlinkStyle,
+      cursorStyle: cursorStyle,
+      darkTheme: darkTheme,
+      fontFamily: fontFamily,
+      fontSize: fontSize,
+      lightTheme: lightTheme
+    )
   }
 }
