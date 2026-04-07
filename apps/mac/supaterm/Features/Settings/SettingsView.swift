@@ -542,7 +542,7 @@ private struct SettingsAboutView: View {
                   _ = store.send(.checkForUpdatesButtonTapped)
                 }
                 .buttonStyle(.bordered)
-                .controlSize(.small)
+                .controlSize(.regular)
 
                 Picker("Updates", selection: updateChannel) {
                   ForEach(UpdateChannel.allCases) { channel in
@@ -552,7 +552,7 @@ private struct SettingsAboutView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(width: 150, alignment: .leading)
-                .controlSize(.small)
+                .controlSize(.regular)
               }
 
               VStack(alignment: .leading, spacing: 8) {
