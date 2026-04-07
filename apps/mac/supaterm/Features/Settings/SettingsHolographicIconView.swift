@@ -64,6 +64,7 @@ struct SettingsHolographicIconView: View {
 
   private let size = CGSize(width: 84, height: 84)
   private let cornerRadius: CGFloat = 21
+  private let iconScale: CGFloat = 1.12
 
   var body: some View {
     ZStack {
@@ -74,10 +75,6 @@ struct SettingsHolographicIconView: View {
     }
     .frame(width: size.width, height: size.height)
     .clipShape(.rect(cornerRadius: cornerRadius))
-    .overlay {
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .strokeBorder(.white.opacity(effect.isHovering ? 0.22 : 0.14), lineWidth: 1)
-    }
     .contentShape(.rect(cornerRadius: cornerRadius))
     .shadow(
       color: .black.opacity(effect.isHovering ? 0.28 : 0.18), radius: effect.isHovering ? 12 : 8,
@@ -103,6 +100,7 @@ struct SettingsHolographicIconView: View {
     Image(nsImage: NSApplication.shared.applicationIconImage ?? NSImage())
       .resizable()
       .interpolation(.high)
+      .scaleEffect(iconScale)
       .accessibilityHidden(true)
   }
 
