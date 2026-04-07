@@ -1,4 +1,3 @@
-import AppKit
 import ComposableArchitecture
 import SupatermCLIShared
 import SwiftUI
@@ -312,14 +311,6 @@ private struct SettingsTerminalView: View {
   var body: some View {
     Form {
       Section {
-        VStack(alignment: .leading, spacing: 16) {
-          SettingsTerminalPreviewView(configPath: resolvedConfigPath)
-            .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 180)
-            .id(resolvedConfigPath)
-        }
-      }
-
-      Section {
         if let warningMessage = store.terminal.warningMessage {
           Text(warningMessage)
             .font(.callout)
@@ -431,30 +422,6 @@ private struct SettingsTerminalView: View {
     }
     .labelsHidden()
     .disabled(controlsDisabled)
-  }
-}
-
-private struct SettingsTerminalPreviewView: View {
-  private let configPath: String
-  @StateObject private var controller: GhosttyTerminalPreviewController
-
-  init(configPath: String) {
-    self.configPath = configPath
-    _controller = StateObject(
-      wrappedValue: GhosttyTerminalPreviewController(configPath: configPath)
-    )
-  }
-
-  var body: some View {
-    GhosttyColorSchemeSyncView(ghostty: controller.runtime) {
-      GhosttyTerminalView(surfaceView: controller.surfaceView)
-        .allowsHitTesting(false)
-        .clipShape(.rect(cornerRadius: 12))
-        .overlay {
-          RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(.quaternary, lineWidth: 1)
-        }
-    }
   }
 }
 
