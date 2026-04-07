@@ -503,8 +503,9 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
+      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
         terminalSettingsValues(
+          confirmCloseSurface: confirmCloseSurface,
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
@@ -535,8 +536,9 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
+      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
         terminalSettingsValues(
+          confirmCloseSurface: confirmCloseSurface,
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
@@ -568,8 +570,9 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme in
+      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
         terminalSettingsValues(
+          confirmCloseSurface: confirmCloseSurface,
           darkTheme: darkTheme,
           fontFamily: fontFamily,
           fontSize: fontSize,
@@ -610,6 +613,39 @@ struct SettingsFeatureTests {
     await store.receive(.terminalSettingsLoadFailed("Broken config")) {
       $0.terminal.errorMessage = "Broken config"
       $0.terminal.isLoading = false
+    }
+  }
+
+  @Test
+  func terminalCloseConfirmationSelectionAppliesImmediately() async {
+    var state = SettingsFeature.State()
+    state.terminal = terminalSettingsState()
+
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.ghosttyTerminalSettingsClient.apply = { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
+        terminalSettingsValues(
+          confirmCloseSurface: confirmCloseSurface,
+          darkTheme: darkTheme,
+          fontFamily: fontFamily,
+          fontSize: fontSize,
+          lightTheme: lightTheme,
+        )
+      }
+    }
+
+    await store.send(.terminalConfirmCloseSurfaceSelected(.always)) {
+      $0.terminal.confirmCloseSurface = .always
+      $0.terminal.errorMessage = nil
+      $0.terminal.isApplying = true
+    }
+    await store.receive(
+      .terminalSettingsApplied(
+        terminalSettingsValues(confirmCloseSurface: .always)
+      )
+    ) {
+      $0.terminal = terminalSettingsState(confirmCloseSurface: .always)
     }
   }
 
@@ -724,6 +760,7 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
     availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
+    confirmCloseSurface: .whenNotAtPrompt,
     configPath: "/tmp/ghostty/config",
     darkTheme: "Zenbones Dark",
     fontFamily: nil,
@@ -734,6 +771,7 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
 }
 
 private nonisolated func terminalSettingsState(
+  confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
   darkTheme: String? = "Zenbones Dark",
   errorMessage: String? = nil,
   fontFamily: String? = nil,
@@ -747,6 +785,7 @@ private nonisolated func terminalSettingsState(
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
     availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
+    confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
     darkTheme: darkTheme,
     errorMessage: errorMessage,
@@ -760,6 +799,7 @@ private nonisolated func terminalSettingsState(
 }
 
 private nonisolated func terminalSettingsValues(
+  confirmCloseSurface: GhosttyTerminalCloseConfirmation = .whenNotAtPrompt,
   darkTheme: String? = "Zenbones Dark",
   fontFamily: String? = nil,
   fontSize: Double = 15,
@@ -767,6 +807,7 @@ private nonisolated func terminalSettingsValues(
   warningMessage: String? = nil
 ) -> GhosttyTerminalSettingsValues {
   .init(
+    confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
     darkTheme: darkTheme,
     fontFamily: fontFamily,

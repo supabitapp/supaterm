@@ -2,10 +2,32 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 
+enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable, Identifiable {
+  case never = "false"
+  case whenNotAtPrompt = "true"
+  case always
+
+  var id: Self {
+    self
+  }
+
+  var title: String {
+    switch self {
+    case .never:
+      "Never"
+    case .whenNotAtPrompt:
+      "When Not at Prompt"
+    case .always:
+      "Always"
+    }
+  }
+}
+
 struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var availableFontFamilies: [String]
   var availableDarkThemes: [String]
   var availableLightThemes: [String]
+  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
   var darkTheme: String?
   var fontFamily: String?
@@ -15,6 +37,7 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
 }
 
 struct GhosttyTerminalSettingsValues: Equatable, Sendable {
+  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
   var darkTheme: String?
   var fontFamily: String?
@@ -30,7 +53,8 @@ struct GhosttyTerminalSettingsClient: Sendable {
       _ fontFamily: String?,
       _ fontSize: Double,
       _ lightTheme: String?,
-      _ darkTheme: String?
+      _ darkTheme: String?,
+      _ confirmCloseSurface: GhosttyTerminalCloseConfirmation
     ) async throws -> GhosttyTerminalSettingsValues
 }
 
@@ -41,13 +65,14 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         try GhosttyTerminalConfigFile().load()
       }
     },
-    apply: { fontFamily, fontSize, lightTheme, darkTheme in
+    apply: { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
       try await MainActor.run {
         try GhosttyTerminalConfigFile().apply(
           fontFamily: fontFamily,
           fontSize: fontSize,
           lightTheme: lightTheme,
-          darkTheme: darkTheme
+          darkTheme: darkTheme,
+          confirmCloseSurface: confirmCloseSurface
         )
       }
     }
@@ -59,6 +84,7 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         availableFontFamilies: ["JetBrains Mono", "SF Mono"],
         availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
         availableLightThemes: ["Zenbones Light", "Builtin Light"],
+        confirmCloseSurface: .whenNotAtPrompt,
         configPath: "/tmp/ghostty/config",
         darkTheme: "Zenbones Dark",
         fontFamily: nil,
@@ -67,8 +93,9 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         warningMessage: nil
       )
     },
-    apply: { fontFamily, fontSize, lightTheme, darkTheme in
+    apply: { fontFamily, fontSize, lightTheme, darkTheme, confirmCloseSurface in
       .init(
+        confirmCloseSurface: confirmCloseSurface,
         configPath: "/tmp/ghostty/config",
         darkTheme: darkTheme,
         fontFamily: fontFamily,

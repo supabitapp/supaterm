@@ -23,6 +23,14 @@ enum GhosttyTerminalConfigFileError: LocalizedError {
 
 @MainActor
 struct GhosttyTerminalConfigFile {
+  private struct ManagedSettings: Equatable {
+    var confirmCloseSurface: GhosttyTerminalCloseConfirmation
+    var darkTheme: String?
+    var fontFamily: String?
+    var fontSize: Double
+    var lightTheme: String?
+  }
+
   private struct ThemeSelection: Equatable {
     var dark: String
     var light: String
@@ -30,6 +38,7 @@ struct GhosttyTerminalConfigFile {
 
   private let availableFontFamiliesProvider: @MainActor () -> [String]
   private let availableThemesProvider: () throws -> GhosttyTerminalThemeCatalog
+  private let effectiveFontSizeProvider: (URL) throws -> Double
   private let environment: [String: String]
   private let fileManager: FileManager
   private let homeDirectoryURL: URL
@@ -41,6 +50,7 @@ struct GhosttyTerminalConfigFile {
     fileManager: FileManager = .default,
     notificationCenter: NotificationCenter = .default,
     availableThemesProvider: (() throws -> GhosttyTerminalThemeCatalog)? = nil,
+    effectiveFontSizeProvider: ((URL) throws -> Double)? = nil,
     availableFontFamiliesProvider: @escaping @MainActor () -> [String] = Self.availableFontFamilies
   ) {
     self.availableFontFamiliesProvider = availableFontFamiliesProvider
@@ -48,6 +58,7 @@ struct GhosttyTerminalConfigFile {
     self.fileManager = fileManager
     self.homeDirectoryURL = homeDirectoryURL
     self.notificationCenter = notificationCenter
+    self.effectiveFontSizeProvider = effectiveFontSizeProvider ?? Self.effectiveFontSize
     self.availableThemesProvider =
       availableThemesProvider ?? {
         try Self.availableThemes(
@@ -62,7 +73,7 @@ struct GhosttyTerminalConfigFile {
   func load() throws -> GhosttyTerminalSettingsSnapshot {
     let configURL = try ensureConfigFile()
     let contents = try String(contentsOf: configURL, encoding: .utf8)
-    let fontSize = try effectiveFontSize(at: configURL)
+    let fontSize = try effectiveFontSizeProvider(configURL)
     let themes = try availableThemesProvider()
     return snapshot(
       configURL: configURL,
@@ -76,17 +87,19 @@ struct GhosttyTerminalConfigFile {
     fontFamily: String?,
     fontSize: Double,
     lightTheme: String?,
-    darkTheme: String?
+    darkTheme: String?,
+    confirmCloseSurface: GhosttyTerminalCloseConfirmation
   ) throws -> GhosttyTerminalSettingsValues {
     let configURL = try ensureConfigFile()
     let contents = try String(contentsOf: configURL, encoding: .utf8)
-    let updatedContents = updatedContents(
-      from: contents,
+    let settings = ManagedSettings(
+      confirmCloseSurface: confirmCloseSurface,
+      darkTheme: darkTheme,
       fontFamily: fontFamily,
       fontSize: fontSize,
-      lightTheme: lightTheme,
-      darkTheme: darkTheme
+      lightTheme: lightTheme
     )
+    let updatedContents = updatedContents(from: contents, settings: settings)
     let validationURL =
       configURL
       .deletingLastPathComponent()
@@ -95,7 +108,7 @@ struct GhosttyTerminalConfigFile {
     defer {
       try? fileManager.removeItem(at: validationURL)
     }
-    let effectiveSize = try effectiveFontSize(at: validationURL)
+    let effectiveSize = try effectiveFontSizeProvider(validationURL)
     try updatedContents.write(to: configURL, atomically: true, encoding: .utf8)
     notificationCenter.post(name: .ghosttyRuntimeReloadRequested, object: nil)
     return settingsValues(
@@ -120,6 +133,7 @@ struct GhosttyTerminalConfigFile {
       availableFontFamilies: availableFontFamiliesProvider(),
       availableDarkThemes: themes.dark,
       availableLightThemes: themes.light,
+      confirmCloseSurface: values.confirmCloseSurface,
       configPath: values.configPath,
       darkTheme: values.darkTheme,
       fontFamily: values.fontFamily,
@@ -136,6 +150,7 @@ struct GhosttyTerminalConfigFile {
   ) -> GhosttyTerminalSettingsValues {
     let selection = selectedTheme(in: contents)
     return .init(
+      confirmCloseSurface: selectedConfirmCloseSurface(in: contents) ?? .whenNotAtPrompt,
       configPath: configURL.path,
       darkTheme: selection?.dark,
       fontFamily: selectedFontFamily(in: contents),
@@ -157,7 +172,7 @@ struct GhosttyTerminalConfigFile {
     ).preferred
   }
 
-  private func effectiveFontSize(at url: URL) throws -> Double {
+  private static func effectiveFontSize(at url: URL) throws -> Double {
     guard let config = ghostty_config_new() else {
       throw GhosttyTerminalConfigFileError.failedToCreateGhosttyConfig
     }
@@ -177,7 +192,7 @@ struct GhosttyTerminalConfigFile {
     return Double(value)
   }
 
-  private func diagnosticsMessage(for config: ghostty_config_t) -> String {
+  private static func diagnosticsMessage(for config: ghostty_config_t) -> String {
     let count = Int(ghostty_config_diagnostics_count(config))
     guard count > 0 else { return "" }
     return (0..<count)
@@ -225,12 +240,21 @@ struct GhosttyTerminalConfigFile {
     return selection
   }
 
+  private func selectedConfirmCloseSurface(in contents: String) -> GhosttyTerminalCloseConfirmation? {
+    var selection: GhosttyTerminalCloseConfirmation?
+    for line in lines(in: contents) {
+      guard let directive = directive(in: line), directive.key == "confirm-close-surface" else {
+        continue
+      }
+      let value = parsedValue(from: directive.value)
+      selection = GhosttyTerminalCloseConfirmation(rawValue: value)
+    }
+    return selection
+  }
+
   private func updatedContents(
     from contents: String,
-    fontFamily: String?,
-    fontSize: Double,
-    lightTheme: String?,
-    darkTheme: String?
+    settings: ManagedSettings
   ) -> String {
     let originalLines = lines(in: contents)
     let hadTrailingNewline = contents.hasSuffix("\n")
@@ -245,12 +269,7 @@ struct GhosttyTerminalConfigFile {
         insertionIndex = filteredLines.count
       }
     }
-    let replacementLines = canonicalManagedLines(
-      fontFamily: fontFamily,
-      fontSize: fontSize,
-      lightTheme: lightTheme,
-      darkTheme: darkTheme
-    )
+    let replacementLines = canonicalManagedLines(settings: settings)
     filteredLines.insert(contentsOf: replacementLines, at: insertionIndex ?? filteredLines.count)
     let joined = filteredLines.joined(separator: "\n")
     if joined.isEmpty {
@@ -259,20 +278,19 @@ struct GhosttyTerminalConfigFile {
     return hadTrailingNewline || !contents.isEmpty ? joined + "\n" : joined
   }
 
-  private func canonicalManagedLines(
-    fontFamily: String?,
-    fontSize: Double,
-    lightTheme: String?,
-    darkTheme: String?
-  ) -> [String] {
+  private func canonicalManagedLines(settings: ManagedSettings) -> [String] {
     var lines: [String] = []
-    if let themeSelection = canonicalThemeSelection(lightTheme: lightTheme, darkTheme: darkTheme) {
+    if let themeSelection = canonicalThemeSelection(
+      lightTheme: settings.lightTheme,
+      darkTheme: settings.darkTheme
+    ) {
       lines.append("theme = light:\(themeSelection.light),dark:\(themeSelection.dark)")
     }
-    if let fontFamily, !fontFamily.isEmpty {
+    if let fontFamily = settings.fontFamily, !fontFamily.isEmpty {
       lines.append(#"font-family = "\#(escaped(fontFamily))""#)
     }
-    lines.append("font-size = \(formatted(fontSize))")
+    lines.append("font-size = \(formatted(settings.fontSize))")
+    lines.append("confirm-close-surface = \(settings.confirmCloseSurface.rawValue)")
     return lines
   }
 
@@ -514,5 +532,5 @@ struct GhosttyTerminalConfigFile {
       }
   }
 
-  private let managedKeys = Set(["font-family", "font-size", "theme"])
+  private let managedKeys = Set(["confirm-close-surface", "font-family", "font-size", "theme"])
 }

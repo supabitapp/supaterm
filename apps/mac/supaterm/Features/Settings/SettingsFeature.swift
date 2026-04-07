@@ -11,6 +11,7 @@ struct SettingsTerminalState: Equatable {
   var availableFontFamilies: [String] = []
   var availableDarkThemes: [String] = []
   var availableLightThemes: [String] = []
+  var confirmCloseSurface = GhosttyTerminalCloseConfirmation.whenNotAtPrompt
   var configPath = ""
   var darkTheme: String?
   var errorMessage: String?
@@ -79,6 +80,7 @@ struct SettingsFeature {
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
+    case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
     case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
     case terminalFontSizeChanged(Double)
@@ -223,7 +225,8 @@ struct SettingsFeature {
           fontFamily: state.terminal.fontFamily,
           fontSize: state.terminal.fontSize,
           lightTheme: lightTheme,
-          darkTheme: state.terminal.darkTheme ?? lightTheme
+          darkTheme: state.terminal.darkTheme ?? lightTheme,
+          confirmCloseSurface: state.terminal.confirmCloseSurface
         )
 
       case .terminalDarkThemeSelected(let darkTheme):
@@ -235,7 +238,8 @@ struct SettingsFeature {
           fontFamily: state.terminal.fontFamily,
           fontSize: state.terminal.fontSize,
           lightTheme: state.terminal.lightTheme ?? darkTheme,
-          darkTheme: darkTheme
+          darkTheme: darkTheme,
+          confirmCloseSurface: state.terminal.confirmCloseSurface
         )
 
       case .terminalFontFamilySelected(let fontFamily):
@@ -247,7 +251,8 @@ struct SettingsFeature {
           fontFamily: fontFamily,
           fontSize: state.terminal.fontSize,
           lightTheme: state.terminal.lightTheme,
-          darkTheme: state.terminal.darkTheme
+          darkTheme: state.terminal.darkTheme,
+          confirmCloseSurface: state.terminal.confirmCloseSurface
         )
 
       case .terminalFontSizeChanged(let fontSize):
@@ -259,7 +264,21 @@ struct SettingsFeature {
           fontFamily: state.terminal.fontFamily,
           fontSize: fontSize,
           lightTheme: state.terminal.lightTheme,
-          darkTheme: state.terminal.darkTheme
+          darkTheme: state.terminal.darkTheme,
+          confirmCloseSurface: state.terminal.confirmCloseSurface
+        )
+
+      case .terminalConfirmCloseSurfaceSelected(let confirmCloseSurface):
+        guard prepareTerminalSettingsApply(&state.terminal) else {
+          return .none
+        }
+        state.terminal.confirmCloseSurface = confirmCloseSurface
+        return applyTerminalSettings(
+          fontFamily: state.terminal.fontFamily,
+          fontSize: state.terminal.fontSize,
+          lightTheme: state.terminal.lightTheme,
+          darkTheme: state.terminal.darkTheme,
+          confirmCloseSurface: confirmCloseSurface
         )
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
@@ -509,6 +528,7 @@ struct SettingsFeature {
     state.availableFontFamilies = snapshot.availableFontFamilies
     state.availableDarkThemes = snapshot.availableDarkThemes
     state.availableLightThemes = snapshot.availableLightThemes
+    state.confirmCloseSurface = snapshot.confirmCloseSurface
     state.configPath = snapshot.configPath
     state.darkTheme = snapshot.darkTheme
     state.errorMessage = nil
@@ -524,6 +544,7 @@ struct SettingsFeature {
     _ state: inout SettingsTerminalState,
     with values: GhosttyTerminalSettingsValues
   ) {
+    state.confirmCloseSurface = values.confirmCloseSurface
     state.configPath = values.configPath
     state.darkTheme = values.darkTheme
     state.errorMessage = nil
@@ -548,7 +569,8 @@ struct SettingsFeature {
     fontFamily: String?,
     fontSize: Double,
     lightTheme: String?,
-    darkTheme: String?
+    darkTheme: String?,
+    confirmCloseSurface: GhosttyTerminalCloseConfirmation
   ) -> Effect<Action> {
     .run { [ghosttyTerminalSettingsClient] send in
       do {
@@ -558,7 +580,8 @@ struct SettingsFeature {
               fontFamily,
               fontSize,
               lightTheme,
-              darkTheme
+              darkTheme,
+              confirmCloseSurface
             )
           )
         )
