@@ -15,8 +15,9 @@ struct SPOnboardingInteractionTests {
 
     let result = SPOnboardingInteraction(
       integrations: [
-        integration(agent: .claude, hasSupatermHooks: { true }, installs: installs),
-        integration(agent: .codex, hasSupatermHooks: { true }, installs: installs),
+        integration(agent: .claude, isConfigured: { true }, installs: installs),
+        integration(agent: .codex, isConfigured: { true }, installs: installs),
+        integration(agent: .pi, isAvailable: { true }, isConfigured: { true }, installs: installs),
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -34,7 +35,7 @@ struct SPOnboardingInteractionTests {
 
     let result = SPOnboardingInteraction(
       integrations: [
-        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs)
+        integration(agent: .codex, isConfigured: { false }, installs: installs)
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -47,6 +48,27 @@ struct SPOnboardingInteractionTests {
   }
 
   @Test
+  func runPromptsForAvailablePiAndShowsInstallCommand() {
+    let input = ScriptedInput(["y"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      integrations: [
+        integration(agent: .pi, isAvailable: { true }, isConfigured: { false }, installs: installs)
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: true))
+    #expect(output.text.contains(intro))
+    #expect(output.text.contains("Install the Supaterm Pi package? [y/N] "))
+    #expect(output.text.contains("Running: \(PiSettingsInstaller.canonicalInstallDisplayCommand)\n"))
+    #expect(output.text.contains("Installed the Supaterm Pi package.\n"))
+    #expect(installs.agents == [.pi])
+  }
+
+  @Test
   func runForcePromptsConfiguredAgentsAndInstallsWhenAccepted() {
     let input = ScriptedInput(["yes", "n"])
     let output = OutputRecorder()
@@ -55,8 +77,8 @@ struct SPOnboardingInteractionTests {
     let result = SPOnboardingInteraction(
       force: true,
       integrations: [
-        integration(agent: .claude, hasSupatermHooks: { true }, installs: installs),
-        integration(agent: .codex, hasSupatermHooks: { true }, installs: installs),
+        integration(agent: .claude, isConfigured: { true }, installs: installs),
+        integration(agent: .codex, isConfigured: { true }, installs: installs),
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -70,6 +92,25 @@ struct SPOnboardingInteractionTests {
   }
 
   @Test
+  func runForceSkipsUnavailablePi() {
+    let input = ScriptedInput(["y"])
+    let output = OutputRecorder()
+    let installs = InstallRecorder()
+
+    let result = SPOnboardingInteraction(
+      force: true,
+      integrations: [
+        integration(agent: .pi, isAvailable: { false }, isConfigured: { false }, installs: installs)
+      ],
+      io: .init(readLine: input.readLine, write: output.write)
+    ).run()
+
+    #expect(result == .init(didWriteOutput: false))
+    #expect(output.text.isEmpty)
+    #expect(installs.agents.isEmpty)
+  }
+
+  @Test
   func runRepromptsUntilItReceivesValidAnswer() {
     let input = ScriptedInput(["later", "yes"])
     let output = OutputRecorder()
@@ -77,7 +118,7 @@ struct SPOnboardingInteractionTests {
 
     let result = SPOnboardingInteraction(
       integrations: [
-        integration(agent: .claude, hasSupatermHooks: { false }, installs: installs)
+        integration(agent: .claude, isConfigured: { false }, installs: installs)
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -100,11 +141,17 @@ struct SPOnboardingInteractionTests {
     let result = SPOnboardingInteraction(
       integrations: [
         .init(
-          agent: .claude,
-          hasSupatermHooks: { throw ClaudeSettingsInstallerError.invalidJSON },
-          installSupatermHooks: {}
+          installCommand: nil,
+          installFailureSubject: "Claude Code hooks",
+          installVerb: "configure",
+          isAvailable: { true },
+          isConfigured: { throw ClaudeSettingsInstallerError.invalidJSON },
+          prompt: "Configure Supaterm hooks for Claude Code? [y/N] ",
+          inspectionSubject: "Claude Code hooks",
+          successMessage: "Configured Claude Code hooks.\n",
+          install: {}
         ),
-        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs),
+        integration(agent: .codex, isConfigured: { false }, installs: installs),
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -130,14 +177,20 @@ struct SPOnboardingInteractionTests {
     let result = SPOnboardingInteraction(
       integrations: [
         .init(
-          agent: .claude,
-          hasSupatermHooks: { false },
-          installSupatermHooks: {
+          installCommand: nil,
+          installFailureSubject: "Claude Code hooks",
+          installVerb: "configure",
+          isAvailable: { true },
+          isConfigured: { false },
+          prompt: "Configure Supaterm hooks for Claude Code? [y/N] ",
+          inspectionSubject: "Claude Code hooks",
+          successMessage: "Configured Claude Code hooks.\n",
+          install: {
             installs.record(.claude)
             throw ClaudeSettingsInstallerError.invalidRootObject
           }
         ),
-        integration(agent: .codex, hasSupatermHooks: { false }, installs: installs),
+        integration(agent: .codex, isConfigured: { false }, installs: installs),
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
@@ -167,16 +220,54 @@ struct SPOnboardingInteractionTests {
 
 private func integration(
   agent: SupatermAgentKind,
-  hasSupatermHooks: @escaping @Sendable () throws -> Bool,
+  isAvailable: @escaping @Sendable () throws -> Bool = { true },
+  isConfigured: @escaping @Sendable () throws -> Bool,
   installs: InstallRecorder
 ) -> SPOnboardingInteraction.AgentIntegration {
-  .init(
-    agent: agent,
-    hasSupatermHooks: hasSupatermHooks,
-    installSupatermHooks: {
-      installs.record(agent)
-    }
-  )
+  switch agent {
+  case .claude:
+    return .init(
+      installCommand: nil,
+      installFailureSubject: "Claude Code hooks",
+      installVerb: "configure",
+      isAvailable: isAvailable,
+      isConfigured: isConfigured,
+      prompt: "Configure Supaterm hooks for Claude Code? [y/N] ",
+      inspectionSubject: "Claude Code hooks",
+      successMessage: "Configured Claude Code hooks.\n",
+      install: {
+        installs.record(.claude)
+      }
+    )
+  case .codex:
+    return .init(
+      installCommand: nil,
+      installFailureSubject: "Codex hooks",
+      installVerb: "configure",
+      isAvailable: isAvailable,
+      isConfigured: isConfigured,
+      prompt: "Configure Supaterm hooks for Codex? [y/N] ",
+      inspectionSubject: "Codex hooks",
+      successMessage: "Configured Codex hooks.\n",
+      install: {
+        installs.record(.codex)
+      }
+    )
+  case .pi:
+    return .init(
+      installCommand: PiSettingsInstaller.canonicalInstallDisplayCommand,
+      installFailureSubject: "the Supaterm Pi package",
+      installVerb: "install",
+      isAvailable: isAvailable,
+      isConfigured: isConfigured,
+      prompt: "Install the Supaterm Pi package? [y/N] ",
+      inspectionSubject: "Pi package",
+      successMessage: "Installed the Supaterm Pi package.\n",
+      install: {
+        installs.record(.pi)
+      }
+    )
+  }
 }
 
 private func occurrenceCount(
