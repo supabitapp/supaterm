@@ -23,30 +23,6 @@ enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable
   }
 }
 
-enum GhosttyTerminalCursorStyle: String, CaseIterable, Equatable, Sendable, Identifiable {
-  case block
-  case bar
-  case underline
-  case blockHollow = "block_hollow"
-
-  var id: Self {
-    self
-  }
-
-  var title: String {
-    switch self {
-    case .block:
-      "block"
-    case .bar:
-      "bar"
-    case .underline:
-      "underline"
-    case .blockHollow:
-      "hollow block"
-    }
-  }
-}
-
 enum GhosttyTerminalCursorBlinkStyle: String, CaseIterable, Equatable, Sendable, Identifiable {
   case terminalDefault = ""
   case enabled = "true"
@@ -71,7 +47,6 @@ enum GhosttyTerminalCursorBlinkStyle: String, CaseIterable, Equatable, Sendable,
 struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
-  var cursorStyle: GhosttyTerminalCursorStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -85,7 +60,6 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
   var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
-  var cursorStyle: GhosttyTerminalCursorStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -97,7 +71,6 @@ struct GhosttyTerminalSettingsValues: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
   var cursorBlinkStyle: GhosttyTerminalCursorBlinkStyle
-  var cursorStyle: GhosttyTerminalCursorStyle
   var darkTheme: String?
   var fontFamily: String?
   var fontSize: Double
@@ -133,7 +106,6 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         confirmCloseSurface: .whenNotAtPrompt,
         configPath: "/tmp/ghostty/config",
         cursorBlinkStyle: .disabled,
-        cursorStyle: .block,
         darkTheme: "Zenbones Dark",
         fontFamily: nil,
         fontSize: 15,
@@ -146,7 +118,6 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
         confirmCloseSurface: settings.confirmCloseSurface,
         configPath: "/tmp/ghostty/config",
         cursorBlinkStyle: settings.cursorBlinkStyle,
-        cursorStyle: settings.cursorStyle,
         darkTheme: settings.darkTheme,
         fontFamily: settings.fontFamily,
         fontSize: settings.fontSize,
