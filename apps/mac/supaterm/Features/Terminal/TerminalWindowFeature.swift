@@ -189,8 +189,7 @@ struct TerminalWindowFeature {
 
       case .commandPaletteQueryChanged(let query):
         guard state.commandPalette != nil else { return .none }
-        state.commandPalette?.query = query
-        state.commandPalette?.selectedIndex = 0
+        state.commandPalette?.updateQuery(query)
         return .none
 
       case .commandPaletteSelectionChanged(let index):
