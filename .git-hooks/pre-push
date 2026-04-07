@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-mise run --raw validate-release-tags
-make web-check
-make web-test
-make mac-test
+
+updates="$(cat)"
+printf '%s' "$updates" | mise run --raw validate-release-tags
+
+while IFS=' ' read -r local_ref _ remote_ref _; do
+  [[ -z "${local_ref:-}" ]] && continue
+  if [[ "$local_ref" != refs/tags/* && "$remote_ref" != refs/tags/* ]]; then
+    make web-check
+    make web-test
+    make mac-test
+    exit 0
+  fi
+done <<< "$updates"
