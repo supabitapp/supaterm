@@ -147,7 +147,6 @@ function App() {
         <footer className="supaterm-reveal flex flex-col items-center gap-4 py-10 text-sm text-muted-foreground md:flex-row md:justify-between">
           <div className="flex items-center gap-3">
             <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-5 rounded-[6px]" />
-            <span className="font-medium text-foreground">Supaterm</span>
           </div>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             <a href={githubHref} className="transition-colors hover:text-foreground">
