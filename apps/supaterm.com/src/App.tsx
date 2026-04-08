@@ -39,6 +39,12 @@ function App() {
             <a href={downloadHref} className={buttonVariants({ size: "lg" })}>
               Download for macOS
             </a>
+            <a
+              href={githubHref}
+              className="mt-4 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Checkout the source on GitHub
+            </a>
           </div>
         </section>
 
