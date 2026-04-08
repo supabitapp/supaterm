@@ -11,5 +11,5 @@ description: Start work on a Linear issue in a separated Git worktree and a fres
 2. Run the launcher:
 
 ```bash
-.agents/skills/supaterm-start-linear-task-on-a-new-tab/scripts/start-linear-task-on-a-new-tab.sh SUP-34
+.agents/skills/supaterm-start-linear-task/scripts/start-linear-task-on-a-new-tab.sh SUP-34
 ```
