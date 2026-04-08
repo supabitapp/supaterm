@@ -116,6 +116,22 @@ struct GhosttyRuntimeTests {
     #expect(hexString(fixture.runtime.backgroundColor()) == "#202020")
   }
 
+  @Test
+  func wakeupAfterRuntimeDeallocationIsIgnored() throws {
+    let userdataBits: UInt?
+    do {
+      let runtime = try makeGhosttyRuntime(
+        """
+        background = #101010
+        foreground = #E0E0E0
+        """
+      )
+      userdataBits = runtime.appUserdataBitsForTesting()
+    }
+
+    GhosttyRuntime.wakeupForTesting(userdataBits: userdataBits)
+  }
+
   private func hexString(_ color: NSColor) -> String {
     let rgb = color.usingColorSpace(.sRGB) ?? color
     let red = Int(round(rgb.redComponent * 255))
