@@ -34,6 +34,7 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
+          glowingPaneRingEnabled: false,
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip
@@ -54,6 +55,7 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
+        $0.glowingPaneRingEnabled = false
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
@@ -224,6 +226,24 @@ struct SettingsFeatureTests {
 
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(!supatermSettings.restoreTerminalLayoutEnabled)
+    }
+  }
+
+  @Test
+  func glowingPaneRingSettingPersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.glowingPaneRingEnabledChanged(false)) {
+        $0.glowingPaneRingEnabled = false
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.glowingPaneRingEnabled)
     }
   }
 

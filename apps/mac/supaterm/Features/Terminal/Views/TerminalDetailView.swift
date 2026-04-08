@@ -1,7 +1,9 @@
 import ComposableArchitecture
+import Sharing
 import SwiftUI
 
 struct TerminalDetailView: View {
+  @Shared(.supatermSettings) private var supatermSettings = .default
   let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
   let terminal: TerminalHostState
@@ -38,6 +40,7 @@ struct TerminalDetailView: View {
       TerminalDetailSurface(
         store: store,
         notificationColor: terminal.notificationAttentionColor,
+        showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
         terminal: terminal,
         selectedTabID: selectedTabID
       )
@@ -184,6 +187,7 @@ private struct SplitZoomButton: View {
 private struct TerminalDetailSurface: View {
   let store: StoreOf<TerminalWindowFeature>
   let notificationColor: Color
+  let showsGlowingPaneRing: Bool
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
@@ -191,6 +195,7 @@ private struct TerminalDetailSurface: View {
     TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
       TerminalSurfacePaneView(
         notificationColor: notificationColor,
+        showsGlowingPaneRing: showsGlowingPaneRing,
         store: store,
         terminal: terminal,
         tabID: tabID
@@ -202,6 +207,7 @@ private struct TerminalDetailSurface: View {
 
 private struct TerminalSurfacePaneView: View {
   let notificationColor: Color
+  let showsGlowingPaneRing: Bool
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
@@ -209,6 +215,7 @@ private struct TerminalSurfacePaneView: View {
   var body: some View {
     TerminalSplitTreeAXContainer(
       notificationColor: notificationColor,
+      showsGlowingPaneRing: showsGlowingPaneRing,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
