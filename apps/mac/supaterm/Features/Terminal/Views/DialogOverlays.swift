@@ -253,7 +253,17 @@ struct SpaceNameOverlay: View {
       .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
     }
     .task {
+      focusNameField()
+    }
+  }
+
+  private func focusNameField() {
+    isNameFieldFocused = false
+    Task { @MainActor in
+      await Task.yield()
       isNameFieldFocused = true
+      await Task.yield()
+      NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
     }
   }
 }
