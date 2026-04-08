@@ -61,9 +61,6 @@ function App() {
             <a href={githubHref} className="transition-colors hover:text-foreground">
               GitHub
             </a>
-            <a href={releasesHref} className="transition-colors hover:text-foreground">
-              Releases
-            </a>
           </div>
         </nav>
 
