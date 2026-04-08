@@ -16,10 +16,10 @@ struct TerminalCommandPaletteOverlay: View {
   @FocusState private var isQueryFocused: Bool
   @State private var hoveredRowID: TerminalCommandPaletteRow.ID?
 
-  private let cardHeight: CGFloat = 328
+  private let cardHeight: CGFloat = 296
   private let cardCornerRadius: CGFloat = 26
-  private let maxWidth: CGFloat = 765
-  private let minWidth: CGFloat = 200
+  private let maxWidth: CGFloat = 500
+  private let minWidth: CGFloat = 280
 
   private var selectedRowID: TerminalCommandPaletteRow.ID? {
     TerminalCommandPalettePresentation.normalizedSelection(state.selectedRowID, in: rows)
@@ -34,7 +34,8 @@ struct TerminalCommandPaletteOverlay: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let cardWidth = min(maxWidth, max(minWidth, geometry.size.width - 20))
+      let cardWidth = min(maxWidth, max(minWidth, geometry.size.width - 32))
+      let topInset = geometry.size.height * 0.05
 
       ZStack {
         Button(action: onClose) {
@@ -47,6 +48,7 @@ struct TerminalCommandPaletteOverlay: View {
 
         VStack {
           Spacer()
+            .frame(height: topInset)
 
           VStack(alignment: .leading, spacing: 6) {
             searchField
@@ -111,7 +113,7 @@ struct TerminalCommandPaletteOverlay: View {
 
           Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
       }
     }
     .task {
