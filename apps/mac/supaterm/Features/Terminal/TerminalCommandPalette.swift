@@ -56,7 +56,8 @@ struct TerminalCommandPaletteState: Equatable {
       return ScoredRow(index: index, row: row, score: match.score)
     }
 
-    return scoredRows
+    return
+      scoredRows
       .sorted { lhs, rhs in
         if lhs.score == rhs.score {
           return lhs.index < rhs.index

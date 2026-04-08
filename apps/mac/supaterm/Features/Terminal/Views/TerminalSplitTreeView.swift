@@ -940,8 +940,7 @@ nonisolated final class TerminalSplitAXDividerElement: NSAccessibilityElement {
   init(
     container: TerminalSplitAXContainerView,
     descriptor: TerminalSplitDividerAXDescriptor
-  )
-  {
+  ) {
     self.container = container
     self.descriptor = descriptor
     super.init()
