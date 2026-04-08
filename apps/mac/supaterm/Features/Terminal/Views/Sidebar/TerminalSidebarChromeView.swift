@@ -1460,13 +1460,17 @@ private struct TerminalSidebarSpaceItemView: View {
   var body: some View {
     Button(action: onSelect) {
       Group {
-        if compact && !isSelected {
+        if TerminalSidebarLayout.showsSpaceValue(
+          compact: compact,
+          isSelected: isSelected,
+          spacesCount: spacesCount
+        ) {
+          Text(monogram)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+        } else {
           Circle()
             .fill(palette.primaryText)
             .frame(width: 6, height: 6)
-        } else {
-          Text(monogram)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
         }
       }
       .frame(maxWidth: .infinity)
