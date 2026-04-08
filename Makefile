@@ -8,8 +8,10 @@ MAKEFLAGS += --no-builtin-rules
 MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 GIT_HOOKS_DIR := .git-hooks
+WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
+WORKTREE ?=
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release mac-generate mac-generate-sources mac-generate-settings-schema mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create mac-generate mac-generate-sources mac-generate-settings-schema mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -21,6 +23,28 @@ install-git-hooks:  # Install repo-local Git hooks.
 
 bump-and-release:  # Print the current version, ask for the next version, then push an annotated release tag for the stable build.
 	@python3 .github/scripts/bump_and_release.py
+
+worktree-create:
+	@test -n "$(WORKTREE)" || { echo "error: WORKTREE is required, example: make worktree-create WORKTREE=my-branch" >&2; exit 1; }; \
+	export PATH="$$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$$PATH"; \
+	wt_bin="$$(command -v wt || true)"; \
+	if [ -z "$$wt_bin" ]; then \
+		tmp="$$(mktemp)"; \
+		trap 'rm -f "$$tmp"' EXIT; \
+		if command -v curl >/dev/null 2>&1; then \
+			curl -fsSL "$(WT_INSTALL_URL)" -o "$$tmp"; \
+		elif command -v wget >/dev/null 2>&1; then \
+			wget -qO "$$tmp" "$(WT_INSTALL_URL)"; \
+		else \
+			echo "error: curl or wget is required to install wt" >&2; \
+			exit 1; \
+		fi; \
+		sh "$$tmp"; \
+		export PATH="$$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$$PATH"; \
+		wt_bin="$$(command -v wt || true)"; \
+	fi; \
+	test -n "$$wt_bin" || { echo "error: failed to install wt" >&2; exit 1; }; \
+	"$$wt_bin" switch "$(WORKTREE)" --from "$$(git rev-parse HEAD)" --copy-ignored --copy-untracked
 
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project
