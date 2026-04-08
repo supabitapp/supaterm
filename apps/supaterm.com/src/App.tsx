@@ -67,8 +67,8 @@ function App() {
             <a href={releasesHref} className="transition-colors hover:text-foreground">
               Releases
             </a>
-            <a href={downloadHref} className="transition-colors hover:text-foreground">
-              Download
+            <a href="https://x.com/khoiracle" className="transition-colors hover:text-foreground">
+              @khoiracle
             </a>
           </div>
         </footer>
