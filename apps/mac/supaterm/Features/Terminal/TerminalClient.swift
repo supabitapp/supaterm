@@ -195,8 +195,8 @@ enum TerminalControlError: Error, Equatable {
 }
 
 struct TerminalClient: Sendable {
-  var createPane:
-    @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var commandPaletteSnapshot: @MainActor @Sendable () -> TerminalCommandPaletteSnapshot
+  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
@@ -214,6 +214,7 @@ struct TerminalClient: Sendable {
       tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
     case nextSpace
     case nextTab
+    case performGhosttyBindingActionOnFocusedSurface(String)
     case performBindingActionOnFocusedSurface(SupatermCommand)
     case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case previousSpace
@@ -235,6 +236,7 @@ struct TerminalClient: Sendable {
   }
 
   enum Event: Equatable, Sendable {
+    case commandPaletteToggleRequested
     case closeRequested(TerminalCloseRequest)
     case gotoTabRequested(TerminalGotoTabTarget)
     case newTabRequested(inheritingFromSurfaceID: UUID?)
@@ -243,6 +245,9 @@ struct TerminalClient: Sendable {
 
   static func live(host: TerminalHostState) -> Self {
     Self(
+      commandPaletteSnapshot: {
+        host.commandPaletteSnapshot
+      },
       createPane: { request in
         try host.createPane(request)
       },
@@ -268,6 +273,7 @@ enum TerminalGotoTabTarget: Equatable, Sendable {
 
 extension TerminalClient: DependencyKey {
   static let liveValue = Self(
+    commandPaletteSnapshot: { .empty },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -277,6 +283,7 @@ extension TerminalClient: DependencyKey {
   )
 
   static let testValue = Self(
+    commandPaletteSnapshot: { .empty },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },

@@ -398,6 +398,7 @@ final class TerminalHostState {
       handleCreationCommand(command)
     case .navigateSearch,
       .nextTab,
+      .performGhosttyBindingActionOnFocusedSurface,
       .performBindingActionOnFocusedSurface,
       .performSplitOperation,
       .previousTab,
@@ -463,6 +464,8 @@ final class TerminalHostState {
       _ = navigateSearchOnFocusedSurface(direction)
     case .nextTab:
       nextTab()
+    case .performGhosttyBindingActionOnFocusedSurface(let action):
+      _ = performGhosttyBindingActionOnFocusedSurface(action)
     case .performBindingActionOnFocusedSurface(let command):
       _ = performBindingActionOnFocusedSurface(command)
     case .performSplitOperation(let tabID, let operation):
@@ -559,6 +562,28 @@ final class TerminalHostState {
 
   var selectedSurfaceState: GhosttySurfaceState? {
     selectedSurfaceView?.bridge.state
+  }
+
+  var commandPaletteSnapshot: TerminalCommandPaletteSnapshot {
+    _ = runtimeConfigGeneration
+
+    let ghosttyCommands = runtime?.commandPaletteEntries().filter(\.isSupported) ?? []
+    var ghosttyShortcutDisplayByAction: [String: String] = [:]
+    for command in ghosttyCommands {
+      if let shortcut = runtime?.keyboardShortcut(forAction: command.action)?.display {
+        ghosttyShortcutDisplayByAction[command.action] = shortcut
+      }
+    }
+
+    return .init(
+      ghosttyCommands: ghosttyCommands,
+      ghosttyShortcutDisplayByAction: ghosttyShortcutDisplayByAction,
+      hasFocusedSurface: selectedSurfaceView != nil,
+      selectedSpaceID: selectedSpaceID,
+      spaces: spaces,
+      selectedTabID: selectedTabID,
+      visibleTabs: visibleTabs
+    )
   }
 
   func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
@@ -1016,6 +1041,13 @@ final class TerminalHostState {
   private func performBindingActionOnFocusedSurface(_ command: SupatermCommand) -> Bool {
     guard let surface = selectedSurfaceView else { return false }
     surface.performBindingAction(command.ghosttyBindingAction)
+    return true
+  }
+
+  @discardableResult
+  private func performGhosttyBindingActionOnFocusedSurface(_ action: String) -> Bool {
+    guard let surface = selectedSurfaceView else { return false }
+    surface.performBindingAction(action)
     return true
   }
 
@@ -2452,6 +2484,11 @@ final class TerminalHostState {
       guard let self else { return false }
       guard let mappedTarget = self.mapGotoTabTarget(target) else { return false }
       self.emit(.gotoTabRequested(mappedTarget))
+      return true
+    }
+    view.bridge.onCommandPaletteToggle = { [weak self] in
+      guard let self else { return false }
+      self.emit(.commandPaletteToggleRequested)
       return true
     }
     view.bridge.onProgressReport = { [weak self] _ in

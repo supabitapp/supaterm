@@ -45,6 +45,22 @@ struct GhosttySurfaceBridgeTests {
   }
 
   @Test
+  func toggleCommandPaletteEmitsCallback() {
+    let bridge = GhosttySurfaceBridge()
+    var toggleCount = 0
+    bridge.onCommandPaletteToggle = {
+      toggleCount += 1
+      return true
+    }
+
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE, action: .init())
+
+    #expect(bridge.handleAction(target: target, action: action))
+    #expect(toggleCount == 1)
+  }
+
+  @Test
   func promptSurfaceTitleEmitsCallback() {
     let bridge = GhosttySurfaceBridge()
     var promptSurfaceTitle = 0

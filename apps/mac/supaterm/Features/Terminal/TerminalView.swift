@@ -93,9 +93,15 @@ struct TerminalView: View {
       }
       .overlay {
         if let commandPalette = store.commandPalette {
+          let snapshot = terminal.commandPaletteSnapshot
+          let rows = TerminalCommandPalettePresentation.visibleRows(
+            in: TerminalCommandPalettePresentation.rows(from: snapshot),
+            query: commandPalette.query
+          )
           TerminalCommandPaletteOverlay(
             palette: palette,
             state: commandPalette,
+            rows: rows,
             onActivate: {
               _ = store.send(.commandPaletteActivateSelection)
             },
