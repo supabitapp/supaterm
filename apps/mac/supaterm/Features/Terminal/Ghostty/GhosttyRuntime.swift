@@ -4,6 +4,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 final class GhosttyRuntime {
+  final class CallbackState {
+    weak var runtime: GhosttyRuntime?
+  }
+
   final class SurfaceReference {
     let surface: ghostty_surface_t
     var isValid = true
@@ -20,6 +24,7 @@ final class GhosttyRuntime {
   private var config: ghostty_config_t?
   private let configPath: String?
   private let includeCLIArgs: Bool
+  private let callbackState = CallbackState()
   private(set) var app: ghostty_app_t?
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
@@ -52,9 +57,10 @@ final class GhosttyRuntime {
     self.config = config
     self.configPath = configPath
     self.includeCLIArgs = includeCLIArgs
+    callbackState.runtime = self
 
     var runtimeConfig = ghostty_runtime_config_s(
-      userdata: Unmanaged.passUnretained(self).toOpaque(),
+      userdata: Unmanaged.passRetained(callbackState).toOpaque(),
       supports_selection_clipboard: true,
       wakeup_cb: { @Sendable userdata in
         GhosttyRuntime.wakeupCallback(userdata)
@@ -130,11 +136,16 @@ final class GhosttyRuntime {
     for observer in observers {
       center.removeObserver(observer)
     }
+    callbackState.runtime = nil
     if let app {
       ghostty_app_free(app)
     }
     if let config {
       ghostty_config_free(config)
+    }
+    let callbackStateHandle = Unmanaged.passUnretained(callbackState).toOpaque()
+    DispatchQueue.main.async {
+      Unmanaged<CallbackState>.fromOpaque(callbackStateHandle).release()
     }
   }
 
@@ -226,7 +237,7 @@ final class GhosttyRuntime {
 
   private static func runtime(from userdata: UnsafeMutableRawPointer?) -> GhosttyRuntime? {
     guard let userdata else { return nil }
-    return Unmanaged<GhosttyRuntime>.fromOpaque(userdata).takeUnretainedValue()
+    return Unmanaged<CallbackState>.fromOpaque(userdata).takeUnretainedValue().runtime
   }
 
   private static func runtime(fromApp app: ghostty_app_t) -> GhosttyRuntime? {
@@ -393,6 +404,14 @@ final class GhosttyRuntime {
     let userdata = userdataBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
     guard let runtime = runtime(from: userdata) else { return }
     runtime.tick()
+  }
+
+  func appUserdataBitsForTesting() -> UInt? {
+    UInt(bitPattern: Unmanaged.passUnretained(callbackState).toOpaque())
+  }
+
+  static func wakeupForTesting(userdataBits: UInt?) {
+    wakeup(userdataBits: userdataBits)
   }
 
   private static func handleAction(
