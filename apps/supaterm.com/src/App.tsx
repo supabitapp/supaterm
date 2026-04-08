@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 
 const downloadHref = "https://supaterm.com/download/latest/supaterm.dmg";
 const githubHref = "https://github.com/supabitapp/supaterm";
+const releasesHref = "https://github.com/supabitapp/supaterm/releases";
 
 function App() {
   return (
