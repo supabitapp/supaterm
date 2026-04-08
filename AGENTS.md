@@ -46,9 +46,10 @@ make web-build          # production build
 ```
 
 
-## Some rules
+## Miscs
 
 - When logic changes in a Reducer, always add tests
+- Only spawned a new worktree if the user asked for it, run make worktree-create WORKTREE="name-of-the-work-tree" to create it.
 
 ## Terminology
 
