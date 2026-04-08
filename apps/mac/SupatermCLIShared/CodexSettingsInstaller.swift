@@ -1,6 +1,22 @@
 import Darwin
 import Foundation
 
+enum LoginShellCommandAvailability {
+  static func isAvailable(_ commandNames: [String]) throws -> Bool {
+    let process = Process()
+    process.executableURL = CodexSettingsInstaller.loginShellURL()
+    process.arguments = commandArguments(for: commandNames)
+    try process.run()
+    process.waitUntilExit()
+    return process.terminationStatus == 0
+  }
+
+  static func commandArguments(for commandNames: [String]) -> [String] {
+    let checks = commandNames.map { "command -v \($0) >/dev/null 2>&1" }
+    return ["-l", "-c", checks.joined(separator: " || ")]
+  }
+}
+
 public struct CodexSettingsInstaller {
   struct CommandResult: Equatable, Sendable {
     let status: Int32
@@ -9,6 +25,7 @@ public struct CodexSettingsInstaller {
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
+  let checkCodexAvailable: @Sendable () throws -> Bool
   let runEnableHooksCommand: @Sendable () throws -> CommandResult
 
   public init(
@@ -18,6 +35,7 @@ public struct CodexSettingsInstaller {
     self.init(
       homeDirectoryURL: homeDirectoryURL,
       fileManager: fileManager,
+      checkCodexAvailable: Self.checkCodexAvailable,
       runEnableHooksCommand: Self.runEnableHooksCommand
     )
   }
@@ -25,11 +43,17 @@ public struct CodexSettingsInstaller {
   init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default,
+    checkCodexAvailable: @escaping @Sendable () throws -> Bool = Self.checkCodexAvailable,
     runEnableHooksCommand: @escaping @Sendable () throws -> CommandResult
   ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
+    self.checkCodexAvailable = checkCodexAvailable
     self.runEnableHooksCommand = runEnableHooksCommand
+  }
+
+  public func isCodexAvailable() throws -> Bool {
+    try checkCodexAvailable()
   }
 
   public func installSupatermHooks() throws {
@@ -60,6 +84,10 @@ public struct CodexSettingsInstaller {
     homeDirectoryURL
       .appendingPathComponent(".codex", isDirectory: true)
       .appendingPathComponent("hooks.json", isDirectory: false)
+  }
+
+  static func checkCodexAvailable() throws -> Bool {
+    try LoginShellCommandAvailability.isAvailable(["codex"])
   }
 
   static func runEnableHooksCommand() throws -> CommandResult {
@@ -105,6 +133,10 @@ public struct CodexSettingsInstaller {
       "-c",
       "codex features enable codex_hooks",
     ]
+  }
+
+  static func availabilityCommandArguments() -> [String] {
+    LoginShellCommandAvailability.commandArguments(for: ["codex"])
   }
 
   private static func currentUserShellPath() -> String? {

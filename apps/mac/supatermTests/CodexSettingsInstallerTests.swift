@@ -443,6 +443,14 @@ struct CodexSettingsInstallerTests {
         == ["-l", "-c", "codex features enable codex_hooks"]
     )
   }
+
+  @Test
+  func availabilityCommandArgumentsAreShellNeutral() {
+    #expect(
+      CodexSettingsInstaller.availabilityCommandArguments()
+        == ["-l", "-c", "command -v codex >/dev/null 2>&1"]
+    )
+  }
 }
 
 private func temporaryCodexHomeDirectory() throws -> URL {
