@@ -104,36 +104,22 @@ func shellInput(script: String?, tokens: [String]) throws -> String? {
     if script.isEmpty {
       throw ValidationError("--shell must not be empty.")
     }
-    return script
+    return "shell: \(script)"
   }
   return shellCommandInput(tokens)
 }
 
 func paneShellInput(
-  cwd: String?,
   script: String?,
   tokens: [String]
 ) throws -> String? {
-  let resolvedCwd = try resolvedWorkingDirectory(cwd)
-
   if let script {
     if script.isEmpty {
       throw ValidationError("--shell must not be empty.")
     }
-    guard let resolvedCwd else {
-      return script
-    }
-    return "cd \(shellEscapedToken(resolvedCwd))\n\(script)"
+    return "shell: \(script)"
   }
-
-  let command = shellCommandInput(tokens)
-  guard let resolvedCwd else {
-    return command
-  }
-  guard let command else {
-    return "cd \(shellEscapedToken(resolvedCwd))"
-  }
-  return "cd \(shellEscapedToken(resolvedCwd)) && \(command)"
+  return shellCommandInput(tokens)
 }
 
 func resolvedWorkingDirectory(_ path: String?) throws -> String? {

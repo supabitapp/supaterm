@@ -209,6 +209,17 @@ struct SPCommandTests {
     }
   }
 
+  @Test
+  func shellInputWrapsScriptsForShellExecution() throws {
+    #expect(try shellInput(script: "echo 1\necho 2", tokens: []) == "shell: echo 1\necho 2")
+  }
+
+  @Test
+  func paneShellInputLeavesCwdOutOfCommandText() throws {
+    #expect(try paneShellInput(script: nil, tokens: ["pwd"]) == "pwd")
+    #expect(try paneShellInput(script: "echo 1\necho 2", tokens: []) == "shell: echo 1\necho 2")
+  }
+
   @Test(arguments: [
     ["tab", "new", "--in", "0"],
     ["pane", "split", "right", "--in", "bad-target"],

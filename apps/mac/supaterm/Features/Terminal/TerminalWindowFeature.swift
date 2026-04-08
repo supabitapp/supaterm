@@ -348,6 +348,7 @@ struct TerminalWindowFeature {
           _ = try? await terminalClient.createPane(
             .init(
               command: nil,
+              cwd: nil,
               direction: direction,
               focus: false,
               equalize: false,

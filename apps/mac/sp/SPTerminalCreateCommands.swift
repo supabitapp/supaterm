@@ -193,7 +193,8 @@ extension SP {
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
-      let command = try paneShellInput(cwd: cwd, script: script, tokens: command)
+      let command = try paneShellInput(script: script, tokens: command)
+      let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicSplitTarget(
         container,
         context: SupatermCLIContext.current,
@@ -203,6 +204,7 @@ extension SP {
         return SupatermNewPaneRequest(
           command: command,
           contextPaneID: contextPaneID,
+          cwd: cwd,
           direction: direction.direction,
           focus: focus,
           equalize: layout == .equalize
@@ -211,6 +213,7 @@ extension SP {
       case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
           command: command,
+          cwd: cwd,
           direction: direction.direction,
           focus: focus,
           equalize: layout == .equalize,
@@ -223,6 +226,7 @@ extension SP {
       case .tab(let windowIndex, let spaceIndex, let tabIndex):
         return SupatermNewPaneRequest(
           command: command,
+          cwd: cwd,
           direction: direction.direction,
           focus: focus,
           equalize: layout == .equalize,

@@ -676,6 +676,7 @@ struct SupatermSocketProtocolTests {
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewPaneRequest(
       command: "pwd",
+      cwd: "/tmp/example",
       direction: .down,
       focus: false,
       equalize: false,

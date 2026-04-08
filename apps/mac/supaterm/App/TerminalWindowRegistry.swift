@@ -397,6 +397,7 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       let entry = try entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         command: request.command,
+        cwd: request.cwd,
         direction: request.direction,
         focus: request.focus,
         equalize: request.equalize,
@@ -413,6 +414,7 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       let entry = try entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         command: request.command,
+        cwd: request.cwd,
         direction: request.direction,
         focus: request.focus,
         equalize: request.equalize,

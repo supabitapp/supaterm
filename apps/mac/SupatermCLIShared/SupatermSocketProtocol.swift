@@ -999,6 +999,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let command: String?
   public let contextPaneID: UUID?
+  public let cwd: String?
   public let direction: SupatermPaneDirection
   public let focus: Bool
   public let equalize: Bool
@@ -1010,6 +1011,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public init(
     command: String? = nil,
     contextPaneID: UUID? = nil,
+    cwd: String? = nil,
     direction: SupatermPaneDirection,
     focus: Bool,
     equalize: Bool,
@@ -1020,6 +1022,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   ) {
     self.command = command
     self.contextPaneID = contextPaneID
+    self.cwd = cwd
     self.direction = direction
     self.focus = focus
     self.equalize = equalize
