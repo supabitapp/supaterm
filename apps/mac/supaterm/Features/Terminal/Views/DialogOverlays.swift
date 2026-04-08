@@ -178,9 +178,10 @@ private struct DialogActionButton: View {
   }
 }
 
-struct SpaceRenameOverlay: View {
+struct SpaceNameOverlay: View {
   let palette: TerminalPalette
   let title: String
+  let confirmTitle: String
   @Binding var name: String
   let isSaveEnabled: Bool
   let onSave: () -> Void
@@ -195,7 +196,7 @@ struct SpaceRenameOverlay: View {
           .ignoresSafeArea()
       }
       .buttonStyle(.plain)
-      .accessibilityLabel("Cancel space rename")
+      .accessibilityLabel("Cancel space naming")
 
       VStack(alignment: .leading, spacing: 0) {
         VStack(alignment: .leading, spacing: 16) {
@@ -229,7 +230,7 @@ struct SpaceRenameOverlay: View {
 
             DialogActionButton(
               palette: palette,
-              title: "Save",
+              title: confirmTitle,
               style: .secondary,
               shortcut: .symbol("return"),
               action: onSave

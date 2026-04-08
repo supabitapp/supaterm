@@ -450,8 +450,8 @@ final class TerminalHostState {
         focusing: focusing,
         startupInput: startupInput
       )
-    case .createSpace:
-      createSpace()
+    case .createSpace(let name):
+      _ = try? createSpace(named: name)
     default:
       return
     }
@@ -850,8 +850,16 @@ final class TerminalHostState {
     sessionDidChange()
   }
 
-  private func createSpace() {
-    let space = PersistedTerminalSpace(name: spaceManager.nextDefaultSpaceName())
+  @discardableResult
+  private func createSpace(named name: String) throws -> TerminalSpaceID {
+    guard let normalizedName = Self.trimmedNonEmpty(name) else {
+      throw TerminalControlError.invalidSpaceName
+    }
+    guard spaceManager.isNameAvailable(normalizedName) else {
+      throw TerminalControlError.spaceNameUnavailable
+    }
+
+    let space = PersistedTerminalSpace(name: normalizedName)
     var updatedSpaceCatalog = spaceCatalog
     updatedSpaceCatalog.defaultSelectedSpaceID = space.id
     updatedSpaceCatalog = TerminalSpaceCatalog(
@@ -859,9 +867,12 @@ final class TerminalHostState {
       spaces: updatedSpaceCatalog.spaces + [space]
     )
     _ = writeSpaceCatalog(updatedSpaceCatalog)
-    guard applySelectedSpace(space.id) else { return }
+    guard applySelectedSpace(space.id) else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
+    }
     finalizeSpaceSelectionChange()
     sessionDidChange()
+    return space.id
   }
 
   private func selectSpace(_ spaceID: TerminalSpaceID) {
@@ -1526,24 +1537,8 @@ final class TerminalHostState {
     if let windowIndex = request.target.windowIndex, windowIndex != 1 {
       throw TerminalControlError.windowNotFound(windowIndex)
     }
-    let name =
-      Self.trimmedNonEmpty(request.name)
-      .flatMap { spaceManager.isNameAvailable($0) ? $0 : nil }
-      ?? spaceManager.nextDefaultSpaceName()
-    let space = PersistedTerminalSpace(name: name)
-    var updatedSpaceCatalog = spaceCatalog
-    updatedSpaceCatalog.defaultSelectedSpaceID = space.id
-    updatedSpaceCatalog = TerminalSpaceCatalog(
-      defaultSelectedSpaceID: updatedSpaceCatalog.defaultSelectedSpaceID,
-      spaces: updatedSpaceCatalog.spaces + [space]
-    )
-    _ = writeSpaceCatalog(updatedSpaceCatalog)
-    guard applySelectedSpace(space.id) else {
-      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
-    }
-    finalizeSpaceSelectionChange()
-    sessionDidChange()
-    return try selectSpaceResult(for: space.id)
+    let spaceID = try createSpace(named: request.name)
+    return try selectSpaceResult(for: spaceID)
   }
 
   func selectSpace(_ target: TerminalSpaceTarget) throws -> SupatermSelectSpaceResult {
@@ -1556,12 +1551,7 @@ final class TerminalHostState {
     let resolvedTarget = try resolveSpaceTarget(target)
     let result = try spaceTarget(for: resolvedTarget.space.id)
     if spaces.count == 1 {
-      _ = try createSpace(
-        .init(
-          name: nil,
-          target: .init(contextPaneID: nil, windowIndex: nil)
-        )
-      )
+      throw TerminalControlError.onlyRemainingSpace
     }
     deleteSpace(resolvedTarget.space.id)
     return result

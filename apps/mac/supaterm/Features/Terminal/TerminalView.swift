@@ -39,18 +39,18 @@ struct TerminalView: View {
     )
   }
 
-  private var spaceRenameTextBinding: Binding<String> {
+  private var spaceEditorTextBinding: Binding<String> {
     Binding(
-      get: { store.spaceRename?.draftName ?? "" },
-      set: { _ = store.send(.spaceRenameTextChanged($0)) }
+      get: { store.spaceEditor?.draftName ?? "" },
+      set: { _ = store.send(.spaceEditorTextChanged($0)) }
     )
   }
 
-  private var spaceRenameIsValid: Bool {
-    guard let spaceRename = store.spaceRename else { return false }
+  private var spaceEditorIsValid: Bool {
+    guard let spaceEditor = store.spaceEditor else { return false }
     return terminal.isSpaceNameAvailable(
-      spaceRename.draftName,
-      excluding: spaceRename.space.id
+      spaceEditor.draftName,
+      excluding: spaceEditor.excludedSpaceID
     )
   }
 
@@ -131,18 +131,19 @@ struct TerminalView: View {
         }
       }
       .overlay {
-        if store.spaceRename != nil {
-          SpaceRenameOverlay(
+        if let spaceEditor = store.spaceEditor {
+          SpaceNameOverlay(
             palette: palette,
-            title: "Rename Space",
-            name: spaceRenameTextBinding,
-            isSaveEnabled: spaceRenameIsValid,
+            title: spaceEditor.title,
+            confirmTitle: spaceEditor.confirmTitle,
+            name: spaceEditorTextBinding,
+            isSaveEnabled: spaceEditorIsValid,
             onSave: {
-              guard spaceRenameIsValid else { return }
-              _ = store.send(.spaceRenameSaveButtonTapped)
+              guard spaceEditorIsValid else { return }
+              _ = store.send(.spaceEditorSaveButtonTapped)
             },
             onCancel: {
-              _ = store.send(.spaceRenameCancelButtonTapped)
+              _ = store.send(.spaceEditorCancelButtonTapped)
             }
           )
         }
@@ -178,7 +179,9 @@ struct TerminalView: View {
       .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
       .animation(.easeOut(duration: 0.12), value: store.commandPalette != nil)
       .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.confirmationRequest)
-      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id))
+      .animation(
+        .spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id)
+      )
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.spaces.map(\.id))
   }
 

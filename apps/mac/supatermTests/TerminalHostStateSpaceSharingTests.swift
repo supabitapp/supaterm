@@ -128,16 +128,77 @@ struct TerminalHostStateSpaceSharingTests {
       let firstHost = TerminalHostState(managesTerminalSurfaces: false)
       let secondHost = TerminalHostState(managesTerminalSurfaces: false)
 
-      firstHost.handleCommand(.createSpace)
+      firstHost.handleCommand(.createSpace("Build"))
       await flushSpaceCatalogObservation()
 
       let newSpace = try #require(firstHost.spaces.last)
-      #expect(firstHost.spaces.map(\.name) == ["A", "1"])
-      #expect(secondHost.spaces.map(\.name) == ["A", "1"])
+      #expect(firstHost.spaces.map(\.name) == ["A", "Build"])
+      #expect(secondHost.spaces.map(\.name) == ["A", "Build"])
       #expect(firstHost.selectedSpaceID == newSpace.id)
       #expect(secondHost.selectedSpaceID == catalog.spaces[0].id)
       #expect(secondHost.spaceManager.tabs(in: newSpace.id).isEmpty)
       #expect(sharedCatalog.defaultSelectedSpaceID == newSpace.id)
+    }
+  }
+
+  @Test
+  func closeSpaceRejectsOnlyRemainingSpace() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+
+      #expect(throws: TerminalControlError.onlyRemainingSpace) {
+        _ = try host.closeSpace(.space(windowIndex: 1, spaceIndex: 1))
+      }
+    }
+  }
+
+  @Test
+  func createSpaceRejectsBlankName() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+
+      #expect(throws: TerminalControlError.invalidSpaceName) {
+        _ = try host.createSpace(
+          .init(
+            name: "   ",
+            target: .init(contextPaneID: nil, windowIndex: 1)
+          )
+        )
+      }
+    }
+  }
+
+  @Test
+  func createSpaceRejectsDuplicateName() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+
+      #expect(throws: TerminalControlError.spaceNameUnavailable) {
+        _ = try host.createSpace(
+          .init(
+            name: "A",
+            target: .init(contextPaneID: nil, windowIndex: 1)
+          )
+        )
+      }
     }
   }
 

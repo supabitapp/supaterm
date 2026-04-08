@@ -146,18 +146,6 @@ final class TerminalSpaceManager {
     return nil
   }
 
-  func nextDefaultSpaceName() -> String {
-    let existingNames = Set(spaces.map(\.name))
-    var index = 1
-    while true {
-      let candidate = String(index)
-      if !existingNames.contains(candidate) {
-        return candidate
-      }
-      index += 1
-    }
-  }
-
   @discardableResult
   func restoreTabs(
     _ tabs: [TerminalTabItem],

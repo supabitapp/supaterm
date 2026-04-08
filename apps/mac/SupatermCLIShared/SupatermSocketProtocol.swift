@@ -1211,14 +1211,14 @@ public struct SupatermRenameTabRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermCreateSpaceRequest: Equatable, Sendable, Codable {
-  public let name: String?
+  public let name: String
   public let target: SupatermSpaceNavigationRequest
 
   public init(
-    name: String? = nil,
+    name: String,
     target: SupatermSpaceNavigationRequest = .init()
   ) {
-    self.name = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
     self.target = target
   }
 }

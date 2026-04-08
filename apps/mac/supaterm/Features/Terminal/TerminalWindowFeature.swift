@@ -14,11 +14,50 @@ struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
   var id: TerminalSpaceID { space.id }
 }
 
-struct TerminalSpaceRenameState: Equatable, Identifiable {
-  let space: TerminalSpaceItem
+enum TerminalSpaceEditorMode: Equatable {
+  case create
+  case rename(TerminalSpaceItem)
+}
+
+struct TerminalSpaceEditorState: Equatable, Identifiable {
+  let mode: TerminalSpaceEditorMode
   var draftName: String
 
-  var id: TerminalSpaceID { space.id }
+  var id: String {
+    switch mode {
+    case .create:
+      return "create"
+    case .rename(let space):
+      return space.id.rawValue.uuidString
+    }
+  }
+
+  var excludedSpaceID: TerminalSpaceID? {
+    switch mode {
+    case .create:
+      return nil
+    case .rename(let space):
+      return space.id
+    }
+  }
+
+  var title: String {
+    switch mode {
+    case .create:
+      return "Create Space"
+    case .rename:
+      return "Rename Space"
+    }
+  }
+
+  var confirmTitle: String {
+    switch mode {
+    case .create:
+      return "Create"
+    case .rename:
+      return "Save"
+    }
+  }
 }
 
 @Reducer
@@ -33,8 +72,8 @@ struct TerminalWindowFeature {
     var pendingCloseRequest: PendingCloseRequest?
     var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
     var sidebarFraction: CGFloat = 0.2
+    var spaceEditor: TerminalSpaceEditorState?
     var windowID: ObjectIdentifier?
-    var spaceRename: TerminalSpaceRenameState?
   }
 
   struct ConfirmationRequest: Equatable {
@@ -117,10 +156,10 @@ struct TerminalWindowFeature {
     case spaceDeleteCancelButtonTapped
     case spaceDeleteConfirmButtonTapped
     case spaceDeleteRequested(TerminalSpaceItem)
-    case spaceRenameCancelButtonTapped
+    case spaceEditorCancelButtonTapped
     case spaceRenameRequested(TerminalSpaceItem)
-    case spaceRenameSaveButtonTapped
-    case spaceRenameTextChanged(String)
+    case spaceEditorSaveButtonTapped
+    case spaceEditorTextChanged(String)
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
     case confirmationCancelButtonTapped
@@ -347,28 +386,34 @@ struct TerminalWindowFeature {
         )
 
       case .spaceCreateButtonTapped:
-        analyticsClient.capture("space_created")
-        return sendCommand(.createSpace)
+        state.spaceEditor = .init(mode: .create, draftName: "")
+        return .none
 
       case .spaceDeleteRequested(let space):
         state.pendingSpaceDeleteRequest = .init(space: space)
         return .none
 
-      case .spaceRenameCancelButtonTapped:
-        state.spaceRename = nil
+      case .spaceEditorCancelButtonTapped:
+        state.spaceEditor = nil
         return .none
 
       case .spaceRenameRequested(let space):
-        state.spaceRename = .init(space: space, draftName: space.name)
+        state.spaceEditor = .init(mode: .rename(space), draftName: space.name)
         return .none
 
-      case .spaceRenameSaveButtonTapped:
-        guard let spaceRename = state.spaceRename else { return .none }
-        state.spaceRename = nil
-        return sendCommand(.renameSpace(spaceRename.space.id, spaceRename.draftName))
+      case .spaceEditorSaveButtonTapped:
+        guard let spaceEditor = state.spaceEditor else { return .none }
+        state.spaceEditor = nil
+        switch spaceEditor.mode {
+        case .create:
+          analyticsClient.capture("space_created")
+          return sendCommand(.createSpace(spaceEditor.draftName))
+        case .rename(let space):
+          return sendCommand(.renameSpace(space.id, spaceEditor.draftName))
+        }
 
-      case .spaceRenameTextChanged(let text):
-        state.spaceRename?.draftName = text
+      case .spaceEditorTextChanged(let text):
+        state.spaceEditor?.draftName = text
         return .none
 
       case .togglePinned(let tabID):

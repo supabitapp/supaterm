@@ -1640,6 +1640,72 @@ struct SocketControlFeatureTests {
   }
 
   @Test
+  func createSpaceRequestRejectsDuplicateName() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "792A3E3C-9698-4175-B6F7-066A79CE2AE4")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .createSpace(
+        .init(
+          name: "Build",
+          target: .init(targetWindowIndex: 1)
+        ),
+        id: "create-space-duplicate"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.createSpace = { _ in
+        throw TerminalControlError.spaceNameUnavailable
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let response = try #require(await recorder.snapshot().first?.response)
+    #expect(response.error?.code == "invalid_request")
+    #expect(response.error?.message == "Space name is already in use.")
+  }
+
+  @Test
+  func closeSpaceRequestRejectsOnlyRemainingSpace() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "8BD6B25E-4EC6-425F-B5B9-28E37B8F7AB9")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .closeSpace(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 1
+        ),
+        id: "close-space-last"
+      )
+    )
+
+    let store = TestStore(initialState: SocketControlFeature.State()) {
+      SocketControlFeature()
+    } withDependencies: {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.closeSpace = { _ in
+        throw TerminalControlError.onlyRemainingSpace
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let response = try #require(await recorder.snapshot().first?.response)
+    #expect(response.error?.code == "invalid_request")
+    #expect(response.error?.message == "Cannot close the only remaining space.")
+  }
+
+  @Test
   func nextTabRequestRepliesWithSelection() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "B1B93F7A-0B86-4C42-B784-A84A56432530")!
