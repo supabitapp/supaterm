@@ -59,7 +59,12 @@ for tool in git jq linear sp codex make; do
   }
 done
 
-sp ping >/dev/null
+[[ -z "$window" ]] || {
+  echo "--window is no longer supported" >&2
+  exit 1
+}
+
+sp instance ls >/dev/null
 
 if [[ -z "${SUPATERM_SURFACE_ID:-}" && -z "${SUPATERM_TAB_ID:-}" && -z "$space" ]]; then
   echo "outside Supaterm, pass --space <n>" >&2
@@ -157,17 +162,13 @@ EOF
 )
 fi
 
-sp_args=(new-tab --json --no-focus --cwd "$repo_root")
+sp_args=(tab new --json --no-focus --cwd "$repo_root")
 
 if [[ -n "$space" ]]; then
-  sp_args+=(--space "$space")
+  sp_args+=(--in "$space")
 fi
 
-if [[ -n "$window" ]]; then
-  sp_args+=(--window "$window")
-fi
-
-sp_args+=(--script "$tab_script")
+sp_args+=(--shell "$tab_script")
 tab_json=$(sp "${sp_args[@]}")
 
 jq -n \
