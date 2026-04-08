@@ -4,6 +4,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var crashReportsEnabled: Bool
+  public var glowingPaneRingEnabled: Bool
   public var restoreTerminalLayoutEnabled: Bool
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
@@ -12,6 +13,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     crashReportsEnabled: Bool,
+    glowingPaneRingEnabled: Bool = true,
     restoreTerminalLayoutEnabled: Bool = true,
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel
@@ -19,6 +21,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.crashReportsEnabled = crashReportsEnabled
+    self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
@@ -28,6 +31,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: .system,
     analyticsEnabled: true,
     crashReportsEnabled: true,
+    glowingPaneRingEnabled: true,
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
     updateChannel: .stable
@@ -44,6 +48,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     case appearanceMode
     case analyticsEnabled
     case crashReportsEnabled
+    case glowingPaneRingEnabled
     case restoreTerminalLayoutEnabled
     case systemNotificationsEnabled
     case updateChannel
@@ -56,6 +61,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         return "Allow anonymous telemetry."
       case .crashReportsEnabled:
         return "Allow crash reports."
+      case .glowingPaneRingEnabled:
+        return "Show a glowing ring around panes with unread attention."
       case .restoreTerminalLayoutEnabled:
         return "Restore spaces, tabs, and panes on launch."
       case .systemNotificationsEnabled:
@@ -87,6 +94,9 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled,
       crashReportsEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled,
+      glowingPaneRingEnabled:
+        try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled)
+          ?? defaults.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalLayoutEnabled)
           ?? defaults.restoreTerminalLayoutEnabled,
@@ -120,6 +130,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       return .bool(analyticsEnabled)
     case .crashReportsEnabled:
       return .bool(crashReportsEnabled)
+    case .glowingPaneRingEnabled:
+      return .bool(glowingPaneRingEnabled)
     case .restoreTerminalLayoutEnabled:
       return .bool(restoreTerminalLayoutEnabled)
     case .systemNotificationsEnabled:

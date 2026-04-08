@@ -26,6 +26,11 @@
       "description": "Allow crash reports.",
       "type": "boolean"
     },
+    "glowingPaneRingEnabled": {
+      "default": true,
+      "description": "Show a glowing ring around panes with unread attention.",
+      "type": "boolean"
+    },
     "restoreTerminalLayoutEnabled": {
       "default": true,
       "description": "Restore spaces, tabs, and panes on launch.",
