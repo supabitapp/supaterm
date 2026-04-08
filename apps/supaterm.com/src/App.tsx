@@ -17,11 +17,6 @@ function App() {
           <div className="flex items-center gap-3">
             <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-9 rounded-[10px]" />
           </div>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <a href={githubHref} className="transition-colors hover:text-foreground">
-              GitHub
-            </a>
-          </div>
         </nav>
 
         <section className="mb-16 flex flex-col items-center text-center md:mb-24">
