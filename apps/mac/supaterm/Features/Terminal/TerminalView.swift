@@ -10,7 +10,7 @@ struct TerminalView: View {
 
   @State private var window: NSWindow?
 
-  private let minSidebarFraction: CGFloat = 0.16
+  private let minSidebarFraction: CGFloat = 0.10
   private let maxSidebarFraction: CGFloat = 0.30
 
   private var palette: TerminalPalette {
