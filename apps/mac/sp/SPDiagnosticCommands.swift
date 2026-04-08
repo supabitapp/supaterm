@@ -232,12 +232,13 @@ extension SP {
 
 struct SPOnboardingInteraction {
   struct AgentIntegration {
+    let displayName: String
     let installCommand: String?
     let installFailureSubject: String
     let installVerb: String
+    let progressMessage: String
     let isAvailable: @Sendable () throws -> Bool
     let isConfigured: @Sendable () throws -> Bool
-    let prompt: String
     let inspectionSubject: String
     let successMessage: String
     let install: @Sendable () throws -> Void
@@ -275,7 +276,46 @@ struct SPOnboardingInteraction {
 
   func run() -> Result {
     var didWriteOutput = false
-    var didShowIntro = false
+    let integrationsToInstall = actionableIntegrations(didWriteOutput: &didWriteOutput)
+
+    guard !integrationsToInstall.isEmpty else {
+      return .init(didWriteOutput: didWriteOutput)
+    }
+
+    guard shouldInstall(integrations: integrationsToInstall, didWriteOutput: &didWriteOutput) else {
+      return .init(didWriteOutput: didWriteOutput)
+    }
+
+    for integration in integrationsToInstall {
+      install(integration, didWriteOutput: &didWriteOutput)
+    }
+
+    return .init(didWriteOutput: didWriteOutput)
+  }
+
+  private func install(
+    _ integration: AgentIntegration,
+    didWriteOutput: inout Bool
+  ) {
+    do {
+      write(integration.progressMessage, didWriteOutput: &didWriteOutput)
+      if let installCommand = integration.installCommand {
+        write("Running: \(installCommand)\n", didWriteOutput: &didWriteOutput)
+      }
+      try integration.install()
+      write(integration.successMessage, didWriteOutput: &didWriteOutput)
+    } catch {
+      write(
+        "Could not \(integration.installVerb) \(integration.installFailureSubject): \(error.localizedDescription)\n",
+        didWriteOutput: &didWriteOutput
+      )
+    }
+  }
+
+  private func actionableIntegrations(
+    didWriteOutput: inout Bool
+  ) -> [AgentIntegration] {
+    var actionableIntegrations: [AgentIntegration] = []
 
     for integration in integrations {
       let isAvailable: Bool
@@ -293,12 +333,7 @@ struct SPOnboardingInteraction {
       guard isAvailable else { continue }
 
       if force {
-        guard shouldInstall(
-          integration: integration,
-          didShowIntro: &didShowIntro,
-          didWriteOutput: &didWriteOutput
-        ) else { continue }
-        install(integration, didWriteOutput: &didWriteOutput)
+        actionableIntegrations.append(integration)
         continue
       }
 
@@ -315,50 +350,25 @@ struct SPOnboardingInteraction {
       }
 
       guard !isConfigured else { continue }
-      guard shouldInstall(
-        integration: integration,
-        didShowIntro: &didShowIntro,
-        didWriteOutput: &didWriteOutput
-      ) else { continue }
-      install(integration, didWriteOutput: &didWriteOutput)
+      actionableIntegrations.append(integration)
     }
 
-    return .init(didWriteOutput: didWriteOutput)
-  }
-
-  private func install(
-    _ integration: AgentIntegration,
-    didWriteOutput: inout Bool
-  ) {
-    do {
-      if let installCommand = integration.installCommand {
-        write("Running: \(installCommand)\n", didWriteOutput: &didWriteOutput)
-      }
-      try integration.install()
-      write(integration.successMessage, didWriteOutput: &didWriteOutput)
-    } catch {
-      write(
-        "Could not \(integration.installVerb) \(integration.installFailureSubject): \(error.localizedDescription)\n",
-        didWriteOutput: &didWriteOutput
-      )
-    }
+    return actionableIntegrations
   }
 
   private func shouldInstall(
-    integration: AgentIntegration,
-    didShowIntro: inout Bool,
+    integrations: [AgentIntegration],
     didWriteOutput: inout Bool
   ) -> Bool {
-    if !didShowIntro {
-      write(
-        "Glad to have you onboard with Supaterm, let's get you setup.\n",
-        didWriteOutput: &didWriteOutput
-      )
-      didShowIntro = true
-    }
+    write(
+      "Glad to have you onboard with Supaterm, let's get you setup.\n",
+      didWriteOutput: &didWriteOutput
+    )
+
+    let prompt = installPrompt(for: integrations)
 
     while true {
-      write(integration.prompt, didWriteOutput: &didWriteOutput)
+      write(prompt, didWriteOutput: &didWriteOutput)
 
       switch yesNoAnswer(from: io.readLine()) {
       case .yes:
@@ -368,6 +378,28 @@ struct SPOnboardingInteraction {
       case .invalid:
         write("Enter y or n.\n", didWriteOutput: &didWriteOutput)
       }
+    }
+  }
+
+  private func installPrompt(
+    for integrations: [AgentIntegration]
+  ) -> String {
+    let subject = integrations.count == 1 ? "integration" : "integrations"
+    let names = integrations.map(\.displayName)
+    return "Set up Supaterm coding-agent \(subject) for \(humanJoined(names))? [y/N] "
+  }
+
+  private func humanJoined(_ values: [String]) -> String {
+    switch values.count {
+    case 0:
+      return ""
+    case 1:
+      return values[0]
+    case 2:
+      return "\(values[0]) and \(values[1])"
+    default:
+      let prefix = values.dropLast().joined(separator: ", ")
+      return "\(prefix), and \(values.last ?? "")"
     }
   }
 
@@ -405,34 +437,37 @@ struct SPOnboardingInteraction {
 
   private static let liveIntegrations: [AgentIntegration] = [
     .init(
+      displayName: "Claude Code",
       installCommand: nil,
       installFailureSubject: "Claude Code hooks",
       installVerb: "configure",
-      isAvailable: { true },
+      progressMessage: "Configuring Claude Code hooks...\n",
+      isAvailable: { try ClaudeSettingsInstaller().isClaudeAvailable() },
       isConfigured: { try ClaudeSettingsInstaller().hasSupatermHooks() },
-      prompt: "Configure Supaterm hooks for Claude Code? [y/N] ",
       inspectionSubject: "Claude Code hooks",
       successMessage: "Configured Claude Code hooks.\n",
       install: { try ClaudeSettingsInstaller().installSupatermHooks() }
     ),
     .init(
+      displayName: "Codex",
       installCommand: nil,
       installFailureSubject: "Codex hooks",
       installVerb: "configure",
-      isAvailable: { true },
+      progressMessage: "Configuring Codex hooks...\n",
+      isAvailable: { try CodexSettingsInstaller().isCodexAvailable() },
       isConfigured: { try CodexSettingsInstaller().hasSupatermHooks() },
-      prompt: "Configure Supaterm hooks for Codex? [y/N] ",
       inspectionSubject: "Codex hooks",
       successMessage: "Configured Codex hooks.\n",
       install: { try CodexSettingsInstaller().installSupatermHooks() }
     ),
     .init(
+      displayName: "Pi",
       installCommand: PiSettingsInstaller.canonicalInstallDisplayCommand,
       installFailureSubject: "the Supaterm Pi package",
       installVerb: "install",
+      progressMessage: "Installing the Supaterm Pi package...\n",
       isAvailable: { try PiSettingsInstaller().isPiAvailable() },
       isConfigured: { try PiSettingsInstaller().hasSupatermPackageInstalled() },
-      prompt: "Install the Supaterm Pi package? [y/N] ",
       inspectionSubject: "Pi package",
       successMessage: "Installed the Supaterm Pi package.\n",
       install: { try PiSettingsInstaller().installSupatermPackage() }

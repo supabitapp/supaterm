@@ -351,6 +351,14 @@ struct ClaudeSettingsInstallerTests {
     let contents = try String(contentsOf: settingsURL, encoding: .utf8)
     #expect(contents == invalidJSON)
   }
+
+  @Test
+  func availabilityCommandArgumentsCheckBothClaudeExecutables() {
+    #expect(
+      ClaudeSettingsInstaller.availabilityCommandArguments()
+        == ["-l", "-c", "command -v claude >/dev/null 2>&1 || command -v claude-code >/dev/null 2>&1"]
+    )
+  }
 }
 
 private func temporaryHomeDirectory() throws -> URL {

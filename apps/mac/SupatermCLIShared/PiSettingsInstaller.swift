@@ -103,7 +103,7 @@ public struct PiSettingsInstaller {
   }
 
   static func piAvailabilityCommandArguments() -> [String] {
-    ["-l", "-c", "command -v pi >/dev/null 2>&1"]
+    LoginShellCommandAvailability.commandArguments(for: ["pi"])
   }
 
   static func installCommandArguments(source: String) -> [String] {

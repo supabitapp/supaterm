@@ -3,13 +3,31 @@ import Foundation
 public struct ClaudeSettingsInstaller {
   let homeDirectoryURL: URL
   let fileManager: FileManager
+  let checkClaudeAvailable: @Sendable () throws -> Bool
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
+    self.init(
+      homeDirectoryURL: homeDirectoryURL,
+      fileManager: fileManager,
+      checkClaudeAvailable: Self.checkClaudeAvailable
+    )
+  }
+
+  init(
+    homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+    fileManager: FileManager = .default,
+    checkClaudeAvailable: @escaping @Sendable () throws -> Bool = Self.checkClaudeAvailable
+  ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
+    self.checkClaudeAvailable = checkClaudeAvailable
+  }
+
+  public func isClaudeAvailable() throws -> Bool {
+    try checkClaudeAvailable()
   }
 
   public func installSupatermHooks() throws {
@@ -35,6 +53,14 @@ public struct ClaudeSettingsInstaller {
     homeDirectoryURL
       .appendingPathComponent(".claude", isDirectory: true)
       .appendingPathComponent("settings.json", isDirectory: false)
+  }
+
+  static func checkClaudeAvailable() throws -> Bool {
+    try LoginShellCommandAvailability.isAvailable(["claude", "claude-code"])
+  }
+
+  static func availabilityCommandArguments() -> [String] {
+    LoginShellCommandAvailability.commandArguments(for: ["claude", "claude-code"])
   }
 
   private var fileInstaller: AgentHookSettingsFileInstaller {
