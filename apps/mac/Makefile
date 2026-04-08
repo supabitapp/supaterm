@@ -14,6 +14,7 @@ APP_SCHEME := supaterm
 SP_SCHEME := sp
 SCHEMA_OUTPUT_PATH := $(CURRENT_MAKEFILE_DIR)/../supaterm.com/public/data/supaterm-settings.schema.json
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
+TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development-release
@@ -39,17 +40,20 @@ generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) 
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
 
-$(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS)
+$(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
+	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
+	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
+	touch "$@"
+
+$(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist generate --no-open --cache-profile "$*"
 	touch "$@"
 
-$(TUIST_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS)
+$(TUIST_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
 	mise exec -- tuist generate --no-open --cache-profile development --configuration Release
 	touch "$@"
 
@@ -115,12 +119,10 @@ format: # Format code with swift format (local only)
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
 
-inspect-dependencies: # Check for implicit Tuist dependencies
-	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
+inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit Tuist dependencies
 	mise exec -- tuist inspect dependencies --only implicit
 
-warm-cache: # Warm Tuist module cache for external dependencies
-	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
+warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for external dependencies
 	mise exec -- tuist cache warm --external-only --configuration $(TUIST_CACHE_CONFIGURATION)
 
 check: format lint # Format and lint
