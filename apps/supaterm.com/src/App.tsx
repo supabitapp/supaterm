@@ -56,9 +56,6 @@ function App() {
         >
           <div className="flex items-center gap-3">
             <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-9 rounded-[10px]" />
-            <span className="text-sm font-medium uppercase tracking-[0.3em] text-foreground">
-              supaterm
-            </span>
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a href={githubHref} className="transition-colors hover:text-foreground">
@@ -75,7 +72,7 @@ function App() {
             className="supaterm-reveal max-w-4xl text-4xl font-semibold tracking-tight text-balance md:text-6xl lg:text-7xl"
             style={{ animationDelay: "120ms" }}
           >
-            The terminal command center for coding agents.
+            Meet Supaterm
           </h1>
           <p
             className="supaterm-reveal mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg"
