@@ -6,6 +6,16 @@ struct GhosttyCommand: Equatable, Sendable {
   let action: String
   let actionKey: String
 
+  var isSupported: Bool {
+    !Self.unsupportedActionKeys.contains(actionKey)
+  }
+
+  static let unsupportedActionKeys: [String] = [
+    "toggle_tab_overview",
+    "toggle_window_decorations",
+    "show_gtk_inspector",
+  ]
+
   init(
     title: String,
     description: String,

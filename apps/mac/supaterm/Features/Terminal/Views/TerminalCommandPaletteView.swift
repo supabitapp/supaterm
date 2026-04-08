@@ -4,6 +4,7 @@ import SwiftUI
 struct TerminalCommandPaletteOverlay: View {
   let palette: TerminalPalette
   let state: TerminalCommandPaletteState
+  let rows: [TerminalCommandPaletteRow]
   let onActivate: () -> Void
   let onClose: () -> Void
   let onQueryChange: (String) -> Void
@@ -20,8 +21,8 @@ struct TerminalCommandPaletteOverlay: View {
   private let maxWidth: CGFloat = 765
   private let minWidth: CGFloat = 200
 
-  private var rows: [TerminalCommandPaletteRow] {
-    state.visibleRows
+  private var selectedRowID: TerminalCommandPaletteRow.ID? {
+    TerminalCommandPalettePresentation.normalizedSelection(state.selectedRowID, in: rows)
   }
 
   private var theme: TerminalCommandPaletteTheme {
@@ -62,10 +63,10 @@ struct TerminalCommandPaletteOverlay: View {
                   ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     CommandPaletteRowButton(
                       row: row,
-                      shortcutHint: shortcutHint(for: index),
+                      shortcutHint: shortcutHint(for: row, index: index),
                       theme: theme,
                       isHovered: hoveredRowID == row.id,
-                      isSelected: state.selectedIndex == index,
+                      isSelected: selectedRowID == row.id,
                       action: {
                         onSelectionChange(index)
                         onActivate()
@@ -80,11 +81,11 @@ struct TerminalCommandPaletteOverlay: View {
               }
               .scrollIndicators(.hidden)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-              .animation(.easeInOut(duration: 0.15), value: state.selectedIndex)
+              .animation(.easeInOut(duration: 0.15), value: selectedRowID)
               .onAppear {
                 scrollSelection(into: proxy)
               }
-              .onChange(of: state.selectedIndex) { _, _ in
+              .onChange(of: selectedRowID) { _, _ in
                 scrollSelection(into: proxy)
               }
             }
@@ -173,17 +174,23 @@ struct TerminalCommandPaletteOverlay: View {
   }
 
   private func scrollSelection(into proxy: ScrollViewProxy) {
-    guard rows.indices.contains(state.selectedIndex) else { return }
+    guard let selectedRowID else { return }
     withAnimation(.easeOut(duration: 0.12)) {
-      proxy.scrollTo(rows[state.selectedIndex].id, anchor: .center)
+      proxy.scrollTo(selectedRowID, anchor: .center)
     }
   }
 
-  private func shortcutHint(for index: Int) -> String? {
-    guard commandHoldObserver.isPressed else { return nil }
-    let slot = index + 1
-    guard (1...9).contains(slot) else { return nil }
-    return "⌘\(slot)"
+  private func shortcutHint(
+    for row: TerminalCommandPaletteRow,
+    index: Int
+  ) -> String? {
+    if commandHoldObserver.isPressed {
+      let slot = index + 1
+      if (1...9).contains(slot) {
+        return "⌘\(slot)"
+      }
+    }
+    return row.shortcut
   }
 }
 
@@ -384,6 +391,53 @@ private struct TerminalCommandPaletteTheme {
 private struct TerminalCommandPalettePreviewColumn: View {
   let colorScheme: ColorScheme
 
+  private var rows: [TerminalCommandPaletteRow] {
+    TerminalCommandPalettePresentation.visibleRows(
+      in: [
+        .init(
+          id: "ghostty:new_split:right",
+          symbol: "rectangle.righthalf.inset.filled",
+          title: "Split Right",
+          subtitle: "Split the focused terminal to the right.",
+          shortcut: "⌘D",
+          command: .ghosttyBindingAction("new_split:right")
+        ),
+        .init(
+          id: "ghostty:new_split:down",
+          symbol: "rectangle.bottomhalf.inset.filled",
+          title: "Split Down",
+          subtitle: "Split the focused terminal below.",
+          shortcut: "⌘⇧D",
+          command: .ghosttyBindingAction("new_split:down")
+        ),
+        .init(
+          id: "supaterm:toggle-sidebar",
+          symbol: "sidebar.leading",
+          title: "Toggle Sidebar",
+          subtitle: "View",
+          shortcut: "⌘S",
+          command: .toggleSidebar
+        ),
+        .init(
+          id: "supaterm:rename-space",
+          symbol: "square.and.pencil",
+          title: "Rename Space",
+          subtitle: "Workspace Alpha",
+          shortcut: nil,
+          command: .renameSpace(.init(name: "Workspace Alpha"))
+        ),
+      ],
+      query: "split"
+    )
+  }
+
+  private var state: TerminalCommandPaletteState {
+    .init(
+      query: "split",
+      selectedRowID: rows.indices.contains(1) ? rows[1].id : rows.first?.id
+    )
+  }
+
   var body: some View {
     ZStack {
       Rectangle()
@@ -410,7 +464,8 @@ private struct TerminalCommandPalettePreviewColumn: View {
 
       TerminalCommandPaletteOverlay(
         palette: TerminalPalette(colorScheme: colorScheme),
-        state: .init(query: "split", selectedIndex: 1),
+        state: state,
+        rows: rows,
         onActivate: {},
         onClose: {},
         onQueryChange: { _ in },

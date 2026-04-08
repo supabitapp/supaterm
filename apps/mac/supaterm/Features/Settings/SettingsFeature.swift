@@ -63,6 +63,7 @@ struct SettingsFeature {
       settingsPath: SupatermAgentKind.pi.settingsPathDescription
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
+    var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
@@ -82,6 +83,7 @@ struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case crashReportsEnabledChanged(Bool)
+    case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
@@ -185,6 +187,7 @@ struct SettingsFeature {
         state.appearanceMode = supatermSettings.appearanceMode
         state.analyticsEnabled = supatermSettings.analyticsEnabled
         state.crashReportsEnabled = supatermSettings.crashReportsEnabled
+        state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
         state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
         state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
         state.updateChannel = supatermSettings.updateChannel
@@ -397,6 +400,10 @@ struct SettingsFeature {
         state.crashReportsEnabled = isEnabled
         return persist(state)
 
+      case .glowingPaneRingEnabledChanged(let isEnabled):
+        state.glowingPaneRingEnabled = isEnabled
+        return persist(state)
+
       case .restoreTerminalLayoutEnabledChanged(let isEnabled):
         state.restoreTerminalLayoutEnabled = isEnabled
         return persist(state)
@@ -484,6 +491,7 @@ struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
+      glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.updateChannel

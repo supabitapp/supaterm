@@ -459,12 +459,19 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func commandPaletteTogglePresentsPalette() async {
+    let snapshot = makeCommandPaletteSnapshot()
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
+
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
     }
 
     await store.send(.commandPaletteToggleRequested) {
-      $0.commandPalette = .init()
+      $0.commandPalette = .init(
+        selectedRowID: rows.first?.id
+      )
     }
   }
 
@@ -484,74 +491,132 @@ struct TerminalWindowFeatureTests {
 
   @Test
   func commandPaletteQueryChangedUpdatesDraftAndResetsSelection() async {
+    let snapshot = makeCommandPaletteSnapshot()
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
+    let visibleRows = TerminalCommandPalettePresentation.visibleRows(in: rows, query: "switch")
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init(query: "", selectedIndex: 3)
+    initialState.commandPalette = .init(
+      selectedRowID: rows[1].id
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
     }
 
-    await store.send(.commandPaletteQueryChanged("pane")) {
-      $0.commandPalette?.updateQuery("pane")
+    await store.send(.commandPaletteQueryChanged("switch")) {
+      $0.commandPalette?.query = "switch"
+      $0.commandPalette?.selectedRowID = visibleRows.first?.id
     }
   }
 
   @Test
   func commandPaletteSelectionMovedClampsToFilteredRows() async {
+    let snapshot = makeCommandPaletteSnapshot()
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
+    let visibleRows = TerminalCommandPalettePresentation.visibleRows(in: rows, query: "switch")
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init(query: "pane", selectedIndex: 0)
-    let expectedLastIndex = initialState.commandPalette!.visibleRows.count - 1
+    initialState.commandPalette = .init(
+      query: "switch",
+      selectedRowID: visibleRows.first?.id
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
     }
 
     await store.send(.commandPaletteSelectionMoved(99)) {
-      $0.commandPalette?.selectedIndex = expectedLastIndex
+      $0.commandPalette?.selectedRowID = visibleRows.last?.id
     }
     await store.send(.commandPaletteSelectionMoved(-99)) {
-      $0.commandPalette?.selectedIndex = 0
+      $0.commandPalette?.selectedRowID = visibleRows.first?.id
     }
   }
 
   @Test
-  func commandPaletteActivateSelectionClosesPalette() async {
+  func commandPaletteActivateSelectionExecutesGhosttyBindingActionAndClosesPalette() async {
+    let recorder = TerminalCommandRecorder()
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init()
+    initialState.commandPalette = .init(
+      selectedRowID: "ghostty:new_split:right"
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalClient.send = { recorder.record($0) }
     }
 
     await store.send(.commandPaletteActivateSelection) {
       $0.commandPalette = nil
     }
+
+    #expect(recorder.commands == [.performGhosttyBindingActionOnFocusedSurface("new_split:right")])
   }
 
   @Test
-  func commandPaletteSlotActivatedClosesPaletteForVisibleRow() async {
+  func commandPaletteActivateSelectionKeepsPaletteOpenWhenNoVisibleRowMatches() async {
     var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init(query: "pane")
+    initialState.commandPalette = .init(
+      query: "zzzzzz",
+      selectedRowID: "ghostty:new_split:right"
+    )
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+    }
+
+    await store.send(.commandPaletteActivateSelection)
+  }
+
+  @Test
+  func commandPaletteSlotActivatedExecutesFilteredRowThroughSharedPath() async {
+    let recorder = TerminalCommandRecorder()
+    let snapshot = makeCommandPaletteSnapshot()
+    let tabID = snapshot.visibleTabs[1].id
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      query: "switch",
+      selectedRowID: nil
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalClient.send = { recorder.record($0) }
     }
 
     await store.send(.commandPaletteSlotActivated(2)) {
       $0.commandPalette = nil
     }
+
+    #expect(recorder.commands == [.selectTab(tabID)])
   }
 
   @Test
-  func commandPaletteSlotActivatedKeepsPaletteOpenWhenRowIsMissing() async {
-    var initialState = TerminalWindowFeature.State()
-    initialState.commandPalette = .init(query: "pane")
+  func commandPaletteToggleFromClientEventRoutesToSameReducerPath() async {
+    let snapshot = makeCommandPaletteSnapshot()
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
 
-    let store = TestStore(initialState: initialState) {
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
     }
 
-    await store.send(.commandPaletteSlotActivated(4))
+    await store.send(.clientEvent(.commandPaletteToggleRequested))
+    await store.receive(.commandPaletteToggleRequested) {
+      $0.commandPalette = .init(
+        selectedRowID: rows.first?.id
+      )
+    }
   }
 
   @Test
@@ -911,6 +976,45 @@ private func makeEventStream() -> (
     capturedContinuation = continuation
   }
   return (stream, capturedContinuation!)
+}
+
+private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
+  let selectedSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!)
+  let otherSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!)
+  let selectedTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!)
+  let otherTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!)
+
+  return .init(
+    ghosttyCommands: [
+      .init(
+        title: "Split Right",
+        description: "Split the focused terminal to the right.",
+        action: "new_split:right",
+        actionKey: "new_split"
+      ),
+      .init(
+        title: "Open Config",
+        description: "Open the configuration file.",
+        action: "open_config",
+        actionKey: "open_config"
+      ),
+    ],
+    ghosttyShortcutDisplayByAction: [
+      "new_split:right": "⌘D",
+      "open_config": "⌘,",
+    ],
+    hasFocusedSurface: true,
+    selectedSpaceID: selectedSpaceID,
+    spaces: [
+      .init(id: selectedSpaceID, name: "Workspace Alpha"),
+      .init(id: otherSpaceID, name: "Workspace Beta"),
+    ],
+    selectedTabID: selectedTabID,
+    visibleTabs: [
+      .init(id: selectedTabID, title: "Main", icon: nil),
+      .init(id: otherTabID, title: "Logs", icon: "doc.plaintext"),
+    ]
+  )
 }
 
 private actor TerminalDesktopNotificationRecorder {
