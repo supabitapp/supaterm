@@ -152,14 +152,17 @@ EOF
 )
 
 quoted_branch_name=$(jq -rn --arg value "$branch_name" '$value | @sh')
-quoted_prompt=$(jq -rn --arg value "$prompt" '$value | @sh')
 quoted_repo_root=$(jq -rn --arg value "$repo_root" '$value | @sh')
+prompt_file=$(mktemp "${TMPDIR:-/tmp}/supaterm-linear-task-prompt.XXXXXX")
+printf '%s' "$prompt" >"$prompt_file"
+quoted_prompt_file=$(jq -rn --arg value "$prompt_file" '$value | @sh')
 
 if [[ "$worktree_existed" == true ]]; then
   quoted_worktree_path=$(jq -rn --arg value "$worktree_path" '$value | @sh')
   launch_script=$(cat <<EOF
 cd $quoted_worktree_path &&
-codex $quoted_prompt
+codex "\$(cat $quoted_prompt_file)" &&
+rm -f $quoted_prompt_file
 EOF
 )
 else
@@ -169,7 +172,8 @@ make worktree-create WORKTREE=$quoted_branch_name &&
 worktree_path=\$(git worktree list --porcelain | awk -v target="refs/heads/$branch_name" '\$1 == "worktree" { path = \$2; next } \$1 == "branch" && \$2 == target { print path; exit }') &&
 test -n "\$worktree_path" &&
 cd "\$worktree_path" &&
-codex $quoted_prompt
+codex "\$(cat $quoted_prompt_file)" &&
+rm -f $quoted_prompt_file
 EOF
 )
 fi
