@@ -45,8 +45,8 @@ function App() {
         <section className="supaterm-reveal mb-24 md:mb-32" style={{ animationDelay: "360ms" }}>
           <div className="supaterm-glow relative overflow-hidden rounded-2xl border border-border/60 bg-card/80">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-            <div className="relative flex justify-center px-8 py-14 md:px-16 md:py-16">
-              <video src={demoUrl} autoPlay loop muted playsInline className="w-full rounded-lg" />
+            <div className="relative flex justify-center">
+              <video src={demoUrl} autoPlay loop muted playsInline className="w-full" />
             </div>
           </div>
           <p className="mt-4 text-center text-sm text-muted-foreground">
