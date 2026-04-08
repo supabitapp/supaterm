@@ -45,6 +45,28 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func singleSpaceHidesSpaceValue() {
+    #expect(
+      !TerminalSidebarLayout.showsSpaceValue(
+        compact: false,
+        isSelected: true,
+        spacesCount: 1
+      )
+    )
+  }
+
+  @Test
+  func multipleSpacesShowValueForSelectedSpaceInNormalMode() {
+    #expect(
+      TerminalSidebarLayout.showsSpaceValue(
+        compact: false,
+        isSelected: true,
+        spacesCount: 2
+      )
+    )
+  }
+
+  @Test
   func reorderedIDsMovesItemForward() {
     let first = TerminalTabID()
     let second = TerminalTabID()
