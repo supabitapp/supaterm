@@ -34,15 +34,18 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
+      - name: Select Xcode 26.3
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
       - uses: ./.github/actions/setup-macos
       - name: Ensure Tuist token is configured
         shell: bash
         run: |
           if [ -z "${TUIST_TOKEN:-}" ]; then
-            echo "::error::TUIST_TOKEN is required to warm the Tuist remote cache."
+            echo "::error::TUIST_TOKEN is required for the release workflow."
             exit 1
           fi
-      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
       - name: Compute tip build number
         run: |
           BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' apps/mac/Configurations/Project.xcconfig)
