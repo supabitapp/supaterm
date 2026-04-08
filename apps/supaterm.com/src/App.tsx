@@ -63,8 +63,6 @@ function App() {
           </p>
         </section>
 
-        <Separator className="supaterm-reveal mb-24 md:mb-32" style={{ animationDelay: "420ms" }} />
-
         <Separator className="supaterm-reveal" />
 
         <footer className="supaterm-reveal flex flex-col items-center gap-4 py-10 text-sm text-muted-foreground md:flex-row md:justify-between">
