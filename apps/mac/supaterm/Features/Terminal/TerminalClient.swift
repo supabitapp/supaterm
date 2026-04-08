@@ -134,7 +134,7 @@ struct TerminalTabNavigationRequest: Equatable, Sendable {
 }
 
 struct TerminalCreateSpaceRequest: Equatable, Sendable {
-  let name: String?
+  let name: String
   let target: TerminalSpaceNavigationRequest
 }
 
@@ -181,18 +181,22 @@ enum TerminalCreateTabError: Error, Equatable {
 enum TerminalControlError: Error, Equatable {
   case captureFailed
   case contextPaneNotFound
+  case invalidSpaceName
   case lastPaneNotFound
   case lastSpaceNotFound
   case lastTabNotFound
+  case onlyRemainingSpace
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
   case resizeFailed
+  case spaceNameUnavailable
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   case windowNotFound(Int)
 }
 
 struct TerminalClient: Sendable {
-  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  var createPane:
+    @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
@@ -201,7 +205,7 @@ struct TerminalClient: Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
     case closeTabs([TerminalTabID])
-    case createSpace
+    case createSpace(String)
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupInput: String?)

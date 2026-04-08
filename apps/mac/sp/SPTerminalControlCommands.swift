@@ -79,6 +79,9 @@ extension SP {
     @Flag(name: .long, help: "Focus the new space after creating it.")
     var focus = false
 
+    @Argument(help: "Name for the new space.")
+    var name: String
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -98,10 +101,15 @@ extension SP {
         )
       }
 
+      let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmedName.isEmpty {
+        throw ValidationError("Space names must not be empty.")
+      }
+
       let response = try client.send(
         .createSpace(
           .init(
-            name: nil,
+            name: trimmedName,
             target: try resolvePublicSpaceNavigationRequest(
               context: SupatermCLIContext.current,
               snapshot: snapshot
@@ -440,7 +448,8 @@ extension SP {
       try emitMutatingResult(
         result,
         options: options.output,
-        plain: plainTabSelector(spaceIndex: result.target.spaceIndex, tabIndex: result.target.tabIndex),
+        plain: plainTabSelector(
+          spaceIndex: result.target.spaceIndex, tabIndex: result.target.tabIndex),
         human: render(result)
       )
     }
@@ -760,7 +769,8 @@ extension SP {
       try emitMutatingResult(
         result,
         options: options.output,
-        plain: plainTabSelector(spaceIndex: result.target.spaceIndex, tabIndex: result.target.tabIndex),
+        plain: plainTabSelector(
+          spaceIndex: result.target.spaceIndex, tabIndex: result.target.tabIndex),
         human: render(result.target)
       )
     }

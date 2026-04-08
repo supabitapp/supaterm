@@ -172,7 +172,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func spaceCreateCaptureRecordsAnalyticsAndSendsCommand() async {
+  func spaceCreateButtonTappedOpensEditorWithoutSendingCommand() async {
     let analyticsRecorder = AnalyticsEventRecorder()
     let recorder = TerminalCommandRecorder()
 
@@ -185,10 +185,12 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.spaceCreateButtonTapped)
+    await store.send(.spaceCreateButtonTapped) {
+      $0.spaceEditor = .init(mode: .create, draftName: "")
+    }
 
-    #expect(analyticsRecorder.recorded() == ["space_created"])
-    #expect(recorder.commands == [.createSpace])
+    #expect(analyticsRecorder.recorded().isEmpty)
+    #expect(recorder.commands.isEmpty)
   }
 
   @Test
@@ -199,7 +201,9 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     }
 
-    await store.send(.clientEvent(.closeRequested(.init(target: .tab(tabID), needsConfirmation: true)))) {
+    await store.send(
+      .clientEvent(.closeRequested(.init(target: .tab(tabID), needsConfirmation: true)))
+    ) {
       $0.pendingCloseRequest = .init(
         target: .tab(tabID),
         title: "Close Tab?",
@@ -265,7 +269,9 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     }
 
-    await store.send(.clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: true)))) {
+    await store.send(
+      .clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: true)))
+    ) {
       $0.pendingCloseRequest = .init(
         target: .surface(surfaceID),
         title: "Close Pane?",
@@ -285,7 +291,8 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: false))))
+    await store.send(
+      .clientEvent(.closeRequested(.init(target: .surface(surfaceID), needsConfirmation: false))))
 
     #expect(recorder.commands == [.closeSurface(surfaceID)])
   }
@@ -576,18 +583,52 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func spaceCreateButtonTappedSendsCreateSpaceCommand() async {
+  func spaceCreateFlowSendsCreateSpaceCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
     let recorder = TerminalCommandRecorder()
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.spaceCreateButtonTapped)
+    await store.send(.spaceCreateButtonTapped) {
+      $0.spaceEditor = .init(mode: .create, draftName: "")
+    }
+    await store.send(.spaceEditorTextChanged("Build")) {
+      $0.spaceEditor?.draftName = "Build"
+    }
+    await store.send(.spaceEditorSaveButtonTapped) {
+      $0.spaceEditor = nil
+    }
 
-    #expect(recorder.commands == [.createSpace])
+    #expect(analyticsRecorder.recorded() == ["space_created"])
+    #expect(recorder.commands == [.createSpace("Build")])
+  }
+
+  @Test
+  func spaceCreateCancelClearsEditorWithoutSendingCommand() async {
+    let recorder = TerminalCommandRecorder()
+
+    let store = TestStore(
+      initialState: TerminalWindowFeature.State(
+        spaceEditor: .init(mode: .create, draftName: "Build")
+      )
+    ) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.spaceEditorCancelButtonTapped) {
+      $0.spaceEditor = nil
+    }
+
+    #expect(recorder.commands.isEmpty)
   }
 
   @Test
@@ -761,13 +802,13 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.spaceRenameRequested(space)) {
-      $0.spaceRename = .init(space: space, draftName: "A")
+      $0.spaceEditor = .init(mode: .rename(space), draftName: "A")
     }
-    await store.send(.spaceRenameTextChanged("Shell")) {
-      $0.spaceRename?.draftName = "Shell"
+    await store.send(.spaceEditorTextChanged("Shell")) {
+      $0.spaceEditor?.draftName = "Shell"
     }
-    await store.send(.spaceRenameSaveButtonTapped) {
-      $0.spaceRename = nil
+    await store.send(.spaceEditorSaveButtonTapped) {
+      $0.spaceEditor = nil
     }
 
     #expect(recorder.commands == [.renameSpace(space.id, "Shell")])

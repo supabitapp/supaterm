@@ -200,7 +200,9 @@ struct SocketControlFeature {
       let notifyRequest = try notifyRequest(from: payload)
       let result = try await terminalWindowsClient.notify(notifyRequest)
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled && result.desktopNotificationDisposition.shouldDeliver {
+      if supatermSettings.systemNotificationsEnabled
+        && result.desktopNotificationDisposition.shouldDeliver
+      {
         await desktopNotificationClient.deliver(
           .init(
             body: payload.body,
@@ -215,7 +217,9 @@ struct SocketControlFeature {
       let payload = try request.decodeParams(SupatermAgentHookRequest.self)
       let result = try await terminalWindowsClient.agentHook(payload)
       @Shared(.supatermSettings) var supatermSettings = .default
-      if supatermSettings.systemNotificationsEnabled, let desktopNotification = result.desktopNotification {
+      if supatermSettings.systemNotificationsEnabled,
+        let desktopNotification = result.desktopNotification
+      {
         await desktopNotificationClient.deliver(desktopNotification)
       }
       return .ok(id: request.id)
@@ -915,6 +919,13 @@ struct SocketControlFeature {
         message: "The current pane could not be resolved."
       )
 
+    case .invalidSpaceName:
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Space name must not be empty."
+      )
+
     case .lastPaneNotFound:
       return .error(
         id: requestID,
@@ -936,6 +947,13 @@ struct SocketControlFeature {
         message: "No previously selected tab was found."
       )
 
+    case .onlyRemainingSpace:
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Cannot close the only remaining space."
+      )
+
     case .paneNotFound(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       return .error(
         id: requestID,
@@ -949,6 +967,13 @@ struct SocketControlFeature {
         id: requestID,
         code: "internal_error",
         message: "Failed to resize the pane."
+      )
+
+    case .spaceNameUnavailable:
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Space name is already in use."
       )
 
     case .spaceNotFound(let windowIndex, let spaceIndex):

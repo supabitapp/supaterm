@@ -1490,10 +1490,13 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    let updated = updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
+    let updated = updateAgentActivity(
+      activity, agent: agent, sessionID: sessionID, context: context)
     if updated {
       if activity.phase == .running {
-        if agentSessionStore.armTranscriptMonitor(agent: agent, sessionID: sessionID, context: context) {
+        if agentSessionStore.armTranscriptMonitor(
+          agent: agent, sessionID: sessionID, context: context)
+        {
           agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
         } else {
           agentSessionStore.cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
@@ -1825,12 +1828,16 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       return .captureFailed
     case .contextPaneNotFound:
       return .contextPaneNotFound
+    case .invalidSpaceName:
+      return .invalidSpaceName
     case .lastPaneNotFound:
       return .lastPaneNotFound
     case .lastSpaceNotFound:
       return .lastSpaceNotFound
     case .lastTabNotFound:
       return .lastTabNotFound
+    case .onlyRemainingSpace:
+      return .onlyRemainingSpace
     case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
       return .paneNotFound(
         windowIndex: windowIndex,
@@ -1840,6 +1847,8 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       )
     case .resizeFailed:
       return .resizeFailed
+    case .spaceNameUnavailable:
+      return .spaceNameUnavailable
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .tabNotFound(_, let spaceIndex, let tabIndex):

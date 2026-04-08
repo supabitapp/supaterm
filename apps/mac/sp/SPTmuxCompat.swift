@@ -515,32 +515,20 @@ struct SPTmuxCommandRunner {
     }
 
     let previousSpace = try topology().resolveSpace(raw: nil)
+    guard
+      let name = trimmedNonEmpty(parsed.value("-n") ?? parsed.value("-s"))
+    else {
+      throw ValidationError("new-session requires -n or -s for the new space name.")
+    }
     let created = try send(
       .createSpace(
         .init(
-          name: nil,
+          name: name,
           target: .init(targetWindowIndex: previousSpace.window.index)
         )
       ),
       as: SupatermCreateSpaceResult.self
     )
-
-    if let name = parsed.value("-n") ?? parsed.value("-s"),
-      let trimmedName = trimmedNonEmpty(name)
-    {
-      _ = try send(
-        .renameSpace(
-          .init(
-            target: .init(
-              targetWindowIndex: created.target.windowIndex,
-              targetSpaceIndex: created.target.spaceIndex
-            ),
-            name: trimmedName
-          )
-        ),
-        as: SupatermSpaceTarget.self
-      )
-    }
 
     if let text = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c")) {
       let wrappedText = wrappedTeammatePaneCommand(
@@ -1000,14 +988,14 @@ struct SPTmuxCommandRunner {
     )
     let sizeRequest =
       try tmuxSetPaneSizeRequest(
-      rawAmount: parsed.value("-x"),
-      axis: .horizontal,
-      target: target
+        rawAmount: parsed.value("-x"),
+        axis: .horizontal,
+        target: target
       )
       ?? tmuxSetPaneSizeRequest(
-      rawAmount: parsed.value("-y"),
-      axis: .vertical,
-      target: target
+        rawAmount: parsed.value("-y"),
+        axis: .vertical,
+        target: target
       )
     if let sizeRequest {
       _ = try send(
