@@ -16,7 +16,7 @@ jobs:
   build:
     runs-on: macos-26
     permissions:
-      contents: write
+      contents: read
     env:
       MISE_HTTP_TIMEOUT: 120
       MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -185,36 +185,11 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
-          if-no-files-found: ignore
+          if-no-files-found: error
           path: |
             apps/mac/build/supaterm.dmg
             apps/mac/build/supaterm.app.zip
             apps/mac/build/appcast.xml
-      - name: Force-move tip tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -fa tip -m "Latest Continuous Release" ${{ github.sha }}
-          git push --force origin tip
-      - name: Update tip release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
-          gh release edit tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" -R "${{ github.repository }}"
-          gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml --clobber -R "${{ github.repository }}"
-      - name: Merge tip item into stable appcast
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then
-            exit 0
-          fi
-          gh release download "$LATEST_TAG" -p "appcast.xml" -O stable_appcast.xml -R "${{ github.repository }}" 2>/dev/null || exit 0
-          python3 .github/scripts/merge_appcasts.py stable_appcast.xml apps/mac/build/appcast.xml merged_appcast.xml
-          mv merged_appcast.xml appcast.xml
-          gh release upload "$LATEST_TAG" appcast.xml --clobber -R "${{ github.repository }}"
 
   sentry-dsym:
     runs-on: ubuntu-latest
@@ -232,3 +207,40 @@ jobs:
           SENTRY_ORG: supabit
           SENTRY_PROJECT: supaterm
         run: sentry-cli debug-files upload --include-sources dsyms
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-artifacts
+          path: apps/mac/build
+      - name: Force-move tip tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa tip -m "Latest Continuous Release" ${{ github.sha }}
+          git push --force origin tip
+      - name: Update tip release
+        run: |
+          gh release create tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" --notes "" -R "${{ github.repository }}" 2>/dev/null || \
+          gh release edit tip --prerelease --title "Supaterm Tip" --target "${{ github.sha }}" -R "${{ github.repository }}"
+          gh release upload tip apps/mac/build/supaterm.dmg apps/mac/build/supaterm.app.zip apps/mac/build/appcast.xml --clobber -R "${{ github.repository }}"
+      - name: Merge tip item into stable appcast
+        run: |
+          LATEST_TAG=$(gh release list --exclude-drafts --exclude-pre-releases -R "${{ github.repository }}" --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+          if [ -z "$LATEST_TAG" ]; then
+            exit 0
+          fi
+          gh release download "$LATEST_TAG" -p "appcast.xml" -O stable_appcast.xml -R "${{ github.repository }}" 2>/dev/null || exit 0
+          python3 .github/scripts/merge_appcasts.py stable_appcast.xml apps/mac/build/appcast.xml merged_appcast.xml
+          mv merged_appcast.xml appcast.xml
+          gh release upload "$LATEST_TAG" appcast.xml --clobber -R "${{ github.repository }}"
