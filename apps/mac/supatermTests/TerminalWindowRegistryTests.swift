@@ -174,9 +174,7 @@ struct TerminalWindowRegistryTests {
     registry.updateWindow(makeWindow(), for: windowControllerID)
 
     #expect(registry.requestUpdateMenuActionInKeyWindow())
-    await flushEffects()
-
-    #expect(await recorder.actions() == [.checkForUpdates])
+    #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.checkForUpdates])
   }
 
   @Test
@@ -205,9 +203,7 @@ struct TerminalWindowRegistryTests {
     registry.updateWindow(makeWindow(), for: windowControllerID)
 
     #expect(registry.requestUpdateMenuActionInKeyWindow())
-    await flushEffects()
-
-    #expect(await recorder.actions() == [.restartNow])
+    #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.restartNow])
   }
 
   @Test
@@ -1316,6 +1312,23 @@ struct TerminalWindowRegistryTests {
     for _ in 0..<5 {
       await Task.yield()
     }
+  }
+
+  private func waitForUpdateMenuActions(
+    _ recorder: UpdateMenuActionRecorder,
+    count: Int,
+    timeout: Duration = .seconds(1)
+  ) async -> [UpdateUserAction] {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while clock.now < deadline {
+      let actions = await recorder.actions()
+      if actions.count >= count {
+        return actions
+      }
+      await Task.yield()
+    }
+    return await recorder.actions()
   }
 
   private func advanceClock(
