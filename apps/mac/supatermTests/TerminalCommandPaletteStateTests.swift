@@ -64,7 +64,7 @@ struct TerminalCommandPaletteStateTests {
     let row = TerminalCommandPalettePresentation.rowForSlot(2, in: visibleRows)
 
     #expect(row?.id == visibleRows[1].id)
-    #expect(row?.command == .selectTab(visibleTabs[1].id))
+    #expect(row?.command == .selectSpace(makeSnapshot().spaces[1].id))
   }
 
   private let visibleTabs: [TerminalTabItem] = [
