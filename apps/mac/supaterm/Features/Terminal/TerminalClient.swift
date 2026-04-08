@@ -22,10 +22,27 @@ struct TerminalCreatePaneRequest: Equatable, Sendable {
   }
 
   let command: String?
+  let cwd: String?
   let direction: SupatermPaneDirection
   let focus: Bool
   let equalize: Bool
   let target: Target
+
+  init(
+    command: String?,
+    cwd: String? = nil,
+    direction: SupatermPaneDirection,
+    focus: Bool,
+    equalize: Bool,
+    target: Target
+  ) {
+    self.command = command
+    self.cwd = cwd
+    self.direction = direction
+    self.focus = focus
+    self.equalize = equalize
+    self.target = target
+  }
 }
 
 struct TerminalNotifyRequest: Equatable, Sendable {

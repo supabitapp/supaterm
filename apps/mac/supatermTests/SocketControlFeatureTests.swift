@@ -461,6 +461,7 @@ struct SocketControlFeatureTests {
     let handle = UUID(uuidString: "0708C52C-64A0-4B3D-B469-3AB200CB4128")!
     let requestPayload = SupatermNewPaneRequest(
       command: "pwd",
+      cwd: "/tmp/example",
       direction: .down,
       focus: false,
       equalize: false,
@@ -497,6 +498,7 @@ struct SocketControlFeatureTests {
           request
             == .init(
               command: "pwd",
+              cwd: "/tmp/example",
               direction: .down,
               focus: false,
               equalize: false,

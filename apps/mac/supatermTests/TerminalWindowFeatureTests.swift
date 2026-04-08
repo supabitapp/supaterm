@@ -766,6 +766,7 @@ struct TerminalWindowFeatureTests {
       requests.first
         == .init(
           command: nil,
+          cwd: nil,
           direction: SupatermPaneDirection.right,
           focus: false,
           equalize: false,
@@ -814,6 +815,7 @@ struct TerminalWindowFeatureTests {
       requests.first
         == .init(
           command: nil,
+          cwd: nil,
           direction: SupatermPaneDirection.down,
           focus: false,
           equalize: false,

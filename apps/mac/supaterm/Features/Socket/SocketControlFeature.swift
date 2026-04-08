@@ -550,6 +550,7 @@ struct SocketControlFeature {
 
     return .init(
       command: payload.command,
+      cwd: payload.cwd,
       direction: payload.direction,
       focus: payload.focus,
       equalize: payload.equalize,
