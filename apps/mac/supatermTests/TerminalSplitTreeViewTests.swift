@@ -38,10 +38,67 @@ struct TerminalSplitTreeViewTests {
 
   @Test
   func notificationPulseTriggersOnlyWhenAttentionDismisses() {
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: false, to: false))
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: false, to: true))
-    #expect(!TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: true, to: true))
-    #expect(TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(from: true, to: false))
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(
+        from: false,
+        to: false,
+        reduceMotion: false
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(
+        from: false,
+        to: true,
+        reduceMotion: false
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(
+        from: true,
+        to: true,
+        reduceMotion: false
+      )
+    )
+    #expect(
+      TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(
+        from: true,
+        to: false,
+        reduceMotion: false
+      )
+    )
+  }
+
+  @Test
+  func notificationPulseStopsWhenReduceMotionIsEnabled() {
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldTriggerNotificationPulse(
+        from: true,
+        to: false,
+        reduceMotion: true
+      )
+    )
+  }
+
+  @Test
+  func visibleAttentionRequiresUnreadAndEnabledGlowingPaneRing() {
+    #expect(
+      TerminalSplitTreeView.LeafView.hasVisibleAttention(
+        isUnread: true,
+        showsGlowingPaneRing: true
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.hasVisibleAttention(
+        isUnread: false,
+        showsGlowingPaneRing: true
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.hasVisibleAttention(
+        isUnread: true,
+        showsGlowingPaneRing: false
+      )
+    )
   }
 
   @Test

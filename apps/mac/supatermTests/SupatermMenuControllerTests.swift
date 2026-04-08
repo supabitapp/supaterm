@@ -322,7 +322,14 @@ struct SupatermMenuControllerTests {
       }
       let windowControllerID = UUID()
       registry.register(
-        keyboardShortcutForAction: { _ in nil },
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "toggle_command_palette":
+            KeyboardShortcut("p", modifiers: [.command, .shift])
+          default:
+            nil
+          }
+        },
         windowControllerID: windowControllerID,
         store: store,
         terminal: host,
@@ -341,7 +348,7 @@ struct SupatermMenuControllerTests {
         NSEvent.keyEvent(
           with: .keyDown,
           location: .zero,
-          modifierFlags: [.command],
+          modifierFlags: [.command, .shift],
           timestamp: 0,
           windowNumber: 0,
           context: nil,
@@ -354,6 +361,90 @@ struct SupatermMenuControllerTests {
 
       #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
       #expect(store.withState(\.terminal.commandPalette) != nil)
+    }
+  }
+
+  @Test
+  func refreshUsesGhosttyShortcutForCommandPalette() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "toggle_command_palette":
+            KeyboardShortcut("y", modifiers: [.command, .option])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
+      let item = try #require(fileMenu.items.first(where: { $0.title == "Open Command Palette" }))
+      #expect(item.keyEquivalent == "y")
+      #expect(item.keyEquivalentModifierMask == [.command, .option])
+    }
+  }
+
+  @Test
+  func refreshClearsCommandPaletteShortcutWhenGhosttyLeavesActionUnbound() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { action in
+          switch action {
+          case "new_window":
+            KeyboardShortcut("u", modifiers: [.command, .option])
+          default:
+            nil
+          }
+        },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+
+      controller.install()
+      controller.refresh()
+
+      let fileMenu = try #require(app.mainMenu?.items.first(where: { $0.title == "File" })?.submenu)
+      let item = try #require(fileMenu.items.first(where: { $0.title == "Open Command Palette" }))
+      #expect(item.keyEquivalent.isEmpty)
+      #expect(item.keyEquivalentModifierMask.isEmpty)
     }
   }
 
@@ -625,7 +716,7 @@ struct SupatermMenuControllerTests {
     #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
     #expect(fileMenu.items[0].image != nil)
     #expect(fileMenu.items[2].keyEquivalent == "p")
-    #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command, .shift])
     #expect(fileMenu.items[2].image != nil)
     #expect(fileMenu.items[3].isSeparatorItem)
     #expect(fileMenu.items[9].keyEquivalent == "w")

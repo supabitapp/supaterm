@@ -39,6 +39,7 @@ enum TerminalNotificationPulsePattern {
 
 struct TerminalSplitTreeView: View {
   let notificationColor: Color
+  let showsGlowingPaneRing: Bool
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
@@ -133,6 +134,7 @@ struct TerminalSplitTreeView: View {
       SubtreeView(
         node: node,
         notificationColor: notificationColor,
+        showsGlowingPaneRing: showsGlowingPaneRing,
         unreadSurfaceIDs: unreadSurfaceIDs,
         outerEdges: .all,
         isRoot: node == tree.root,
@@ -151,6 +153,7 @@ struct TerminalSplitTreeView: View {
   struct SubtreeView: View {
     let node: SplitTree<GhosttySurfaceView>.Node
     let notificationColor: Color
+    let showsGlowingPaneRing: Bool
     let unreadSurfaceIDs: Set<UUID>
     let outerEdges: OuterEdges
     var isRoot: Bool = false
@@ -161,6 +164,7 @@ struct TerminalSplitTreeView: View {
       case .leaf(let leafView):
         LeafView(
           notificationColor: notificationColor,
+          showsGlowingPaneRing: showsGlowingPaneRing,
           surfaceView: leafView,
           isSplit: !isRoot,
           isUnread: unreadSurfaceIDs.contains(leafView.id),
@@ -188,6 +192,7 @@ struct TerminalSplitTreeView: View {
             SubtreeView(
               node: split.left,
               notificationColor: notificationColor,
+              showsGlowingPaneRing: showsGlowingPaneRing,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.left, in: split.direction),
               action: action
@@ -197,6 +202,7 @@ struct TerminalSplitTreeView: View {
             SubtreeView(
               node: split.right,
               notificationColor: notificationColor,
+              showsGlowingPaneRing: showsGlowingPaneRing,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.right, in: split.direction),
               action: action
@@ -212,6 +218,7 @@ struct TerminalSplitTreeView: View {
 
   struct LeafView: View {
     let notificationColor: Color
+    let showsGlowingPaneRing: Bool
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
     let isUnread: Bool
@@ -300,6 +307,7 @@ struct TerminalSplitTreeView: View {
                 radius: notificationPulseShadowRadius
               )
               .compositingGroup()
+              .opacity(showsGlowingPaneRing ? 1 : 0)
               .allowsHitTesting(false)
           }
           .overlay {
@@ -308,16 +316,24 @@ struct TerminalSplitTreeView: View {
                 .allowsHitTesting(false)
             }
           }
-          .onChange(of: hasVisibleAttention) { oldValue, newValue in
+          .onChange(of: isUnread) { oldValue, newValue in
             guard oldValue != newValue else { return }
-            notificationPulseAnimationGeneration &+= 1
-            notificationPulseOpacity = 0
-            guard Self.shouldTriggerNotificationPulse(from: oldValue, to: newValue) else { return }
-            triggerNotificationPulse()
+            updateNotificationPulse(
+              oldAttention: oldValue,
+              newAttention: newValue,
+              reduceMotion: reduceMotion
+            )
+          }
+          .onChange(of: showsGlowingPaneRing) { _, isEnabled in
+            guard !isEnabled else { return }
+            cancelNotificationPulse()
+          }
+          .onChange(of: reduceMotion) { _, newValue in
+            guard newValue else { return }
+            cancelNotificationPulse()
           }
           .onDisappear {
-            notificationPulseAnimationGeneration &+= 1
-            notificationPulseOpacity = 0
+            cancelNotificationPulse()
           }
       }
     }
@@ -327,7 +343,7 @@ struct TerminalSplitTreeView: View {
     }
 
     private var hasVisibleAttention: Bool {
-      isUnread
+      Self.hasVisibleAttention(isUnread: isUnread, showsGlowingPaneRing: showsGlowingPaneRing)
     }
 
     private var lineWidth: CGFloat {
@@ -354,12 +370,41 @@ struct TerminalSplitTreeView: View {
       1
     }
 
-    static func shouldTriggerNotificationPulse(from oldValue: Bool, to newValue: Bool) -> Bool {
-      oldValue && !newValue
+    static func hasVisibleAttention(isUnread: Bool, showsGlowingPaneRing: Bool) -> Bool {
+      isUnread && showsGlowingPaneRing
+    }
+
+    static func shouldTriggerNotificationPulse(
+      from oldValue: Bool,
+      to newValue: Bool,
+      reduceMotion: Bool
+    ) -> Bool {
+      !reduceMotion && oldValue && !newValue
+    }
+
+    private func updateNotificationPulse(
+      oldAttention: Bool,
+      newAttention: Bool,
+      reduceMotion: Bool
+    ) {
+      cancelNotificationPulse()
+      guard showsGlowingPaneRing else { return }
+      guard
+        Self.shouldTriggerNotificationPulse(
+          from: oldAttention,
+          to: newAttention,
+          reduceMotion: reduceMotion
+        )
+      else { return }
+      triggerNotificationPulse()
+    }
+
+    private func cancelNotificationPulse() {
+      notificationPulseAnimationGeneration &+= 1
+      notificationPulseOpacity = 0
     }
 
     private func triggerNotificationPulse() {
-      guard !reduceMotion else { return }
       notificationPulseOpacity = TerminalNotificationPulsePattern.initialOpacity
       notificationPulseAnimationGeneration &+= 1
       let generation = notificationPulseAnimationGeneration
@@ -756,6 +801,7 @@ enum TerminalSplitAccessibility {
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let notificationColor: Color
+  let showsGlowingPaneRing: Bool
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
@@ -771,6 +817,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
       rootView: AnyView(
         TerminalSplitTreeView(
           notificationColor: notificationColor,
+          showsGlowingPaneRing: showsGlowingPaneRing,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,
           action: action
