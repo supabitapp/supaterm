@@ -202,6 +202,6 @@ jq -n \
     worktree: $worktree,
     worktreeExisted: $worktreeExisted,
     launchMode: $launchMode,
-    direction: ($launchMode == "pane" ? $direction : null),
+    direction: (if $launchMode == "pane" then $direction else null end),
     surface: $surface
   }'
