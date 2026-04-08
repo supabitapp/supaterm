@@ -1,6 +1,16 @@
 {
   "images" : [
     {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "light"
+        }
+      ],
+      "filename" : "pi-mark-light.svg",
+      "idiom" : "universal"
+    },
+    {
       "filename" : "pi-mark.svg",
       "idiom" : "universal"
     }
