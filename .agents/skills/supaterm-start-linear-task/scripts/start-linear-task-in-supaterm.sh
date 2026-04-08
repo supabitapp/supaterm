@@ -152,38 +152,34 @@ EOF
 )
 
 quoted_branch_name=$(jq -rn --arg value "$branch_name" '$value | @sh')
-quoted_repo_root=$(jq -rn --arg value "$repo_root" '$value | @sh')
 prompt_file=$(mktemp "${TMPDIR:-/tmp}/supaterm-linear-task-prompt.XXXXXX")
 printf '%s' "$prompt" >"$prompt_file"
 quoted_prompt_file=$(jq -rn --arg value "$prompt_file" '$value | @sh')
+quoted_worktree_path=$(jq -rn --arg value "$worktree_path" '$value | @sh')
 
-if [[ "$worktree_existed" == true ]]; then
+if [[ "$worktree_existed" != true ]]; then
+  make worktree-create WORKTREE="$branch_name"
+  worktree_path=$(resolve_worktree_path "$branch_name")
+  [[ -n "$worktree_path" ]] || {
+    echo "failed to resolve worktree after creation" >&2
+    exit 1
+  }
   quoted_worktree_path=$(jq -rn --arg value "$worktree_path" '$value | @sh')
-  launch_script=$(cat <<EOF
+fi
+
+launch_script=$(cat <<EOF
 cd $quoted_worktree_path &&
 codex "\$(cat $quoted_prompt_file)" &&
 rm -f $quoted_prompt_file
 EOF
 )
-else
-  launch_script=$(cat <<EOF
-cd $quoted_repo_root &&
-make worktree-create WORKTREE=$quoted_branch_name &&
-worktree_path=\$(git worktree list --porcelain | awk -v target="refs/heads/$branch_name" '\$1 == "worktree" { path = \$2; next } \$1 == "branch" && \$2 == target { print path; exit }') &&
-test -n "\$worktree_path" &&
-cd "\$worktree_path" &&
-codex "\$(cat $quoted_prompt_file)" &&
-rm -f $quoted_prompt_file
-EOF
-)
-fi
 
 quoted_launch_script=$(jq -rn --arg value "$launch_script" '$value | @sh')
 
 if [[ "$launch_mode" == "pane" ]]; then
-  sp_args=(pane split --json --no-focus --cwd "$repo_root" "$direction" --shell "zsh -lc $quoted_launch_script")
+  sp_args=(pane split --json --no-focus --cwd "$worktree_path" "$direction" --shell "zsh -lc $quoted_launch_script")
 else
-  sp_args=(tab new --json --no-focus --cwd "$repo_root")
+  sp_args=(tab new --json --no-focus --cwd "$worktree_path")
   if [[ -n "$space" ]]; then
     sp_args+=(--in "$space")
   fi
