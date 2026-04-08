@@ -8,21 +8,23 @@ import Testing
 struct SupatermOnboardingSnapshotBuilderTests {
   @Test
   func snapshotIncludesOrderedCoreShortcuts() {
-    let shortcuts: [SupatermCommand: KeyboardShortcut] = [
-      .closeSurface: KeyboardShortcut("w", modifiers: .command),
-      .closeTab: KeyboardShortcut("w", modifiers: [.command, .shift]),
-      .newSplit(.down): KeyboardShortcut("d", modifiers: [.command, .shift]),
-      .newSplit(.right): KeyboardShortcut("d", modifiers: .command),
-      .newTab: KeyboardShortcut("t", modifiers: .command),
-      .startSearch: KeyboardShortcut("f", modifiers: .command),
+    let shortcuts: [String: KeyboardShortcut] = [
+      "toggle_command_palette": KeyboardShortcut("p", modifiers: [.command, .shift]),
+      SupatermCommand.closeSurface.ghosttyBindingAction: KeyboardShortcut("w", modifiers: .command),
+      SupatermCommand.closeTab.ghosttyBindingAction: KeyboardShortcut("w", modifiers: [.command, .shift]),
+      SupatermCommand.newSplit(.down).ghosttyBindingAction: KeyboardShortcut("d", modifiers: [.command, .shift]),
+      SupatermCommand.newSplit(.right).ghosttyBindingAction: KeyboardShortcut("d", modifiers: .command),
+      SupatermCommand.newTab.ghosttyBindingAction: KeyboardShortcut("t", modifiers: .command),
+      SupatermCommand.startSearch.ghosttyBindingAction: KeyboardShortcut("f", modifiers: .command),
     ]
 
-    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { command in
-      shortcuts[command]
+    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { action in
+      shortcuts[action]
     }
 
     #expect(
       snapshot.items == [
+        .init(shortcut: "⌘⇧P", title: "Open command palette"),
         .init(shortcut: "⌘S", title: "Toggle sidebar"),
         .init(shortcut: "⌘T", title: "New tab"),
         .init(shortcut: "⌘W", title: "Close pane"),
@@ -37,13 +39,14 @@ struct SupatermOnboardingSnapshotBuilderTests {
 
   @Test
   func snapshotFallsBackToDefaultCoreShortcuts() {
-    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { command in
-      guard command == .newTab else { return nil }
+    let snapshot = SupatermOnboardingSnapshotBuilder.snapshot { action in
+      guard action == SupatermCommand.newTab.ghosttyBindingAction else { return nil }
       return KeyboardShortcut("t", modifiers: .command)
     }
 
     #expect(
       snapshot.items == [
+        .init(shortcut: "⌘⇧P", title: "Open command palette"),
         .init(shortcut: "⌘S", title: "Toggle sidebar"),
         .init(shortcut: "⌘T", title: "New tab"),
         .init(shortcut: "⌘W", title: "Close pane"),
