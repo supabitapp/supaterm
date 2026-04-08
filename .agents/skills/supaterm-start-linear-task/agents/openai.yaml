@@ -1,4 +1,4 @@
 interface:
-  display_name: "Start Linear Task Tab"
-  short_description: "Open a Linear task in a repo worktree tab"
-  default_prompt: "Use $supaterm-start-linear-task to start SUP-34 in a new Supaterm tab using the repo worktree target."
+  display_name: "Start Linear Task"
+  short_description: "Open a Linear task in a repo worktree tab or pane"
+  default_prompt: "Use $supaterm-start-linear-task to start SUP-34 in Supaterm. Default to a new tab unless the user explicitly asks for a new pane."
