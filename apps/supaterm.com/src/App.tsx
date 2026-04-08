@@ -65,15 +65,6 @@ function App() {
 
         <Separator className="supaterm-reveal mb-24 md:mb-32" style={{ animationDelay: "420ms" }} />
 
-        <section className="supaterm-reveal mb-24 flex flex-col items-center gap-6 text-center md:mb-32">
-          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance md:text-4xl">
-            Ready to run agents without leaving the terminal?
-          </h2>
-          <a href={downloadHref} className={buttonVariants({ size: "lg" })}>
-            Download Supaterm
-          </a>
-        </section>
-
         <Separator className="supaterm-reveal" />
 
         <footer className="supaterm-reveal flex flex-col items-center gap-4 py-10 text-sm text-muted-foreground md:flex-row md:justify-between">
