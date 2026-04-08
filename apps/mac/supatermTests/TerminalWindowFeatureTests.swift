@@ -579,7 +579,7 @@ struct TerminalWindowFeatureTests {
   func commandPaletteSlotActivatedExecutesFilteredRowThroughSharedPath() async {
     let recorder = TerminalCommandRecorder()
     let snapshot = makeCommandPaletteSnapshot()
-    let tabID = snapshot.visibleTabs[1].id
+    let spaceID = snapshot.spaces[1].id
     var initialState = TerminalWindowFeature.State()
     initialState.commandPalette = .init(
       query: "switch",
@@ -597,7 +597,7 @@ struct TerminalWindowFeatureTests {
       $0.commandPalette = nil
     }
 
-    #expect(recorder.commands == [.selectTab(tabID)])
+    #expect(recorder.commands == [.selectSpace(spaceID)])
   }
 
   @Test
@@ -612,7 +612,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.clientEvent(.commandPaletteToggleRequested))
-    await store.receive(.commandPaletteToggleRequested) {
+    await store.receive(\.commandPaletteToggleRequested) {
       $0.commandPalette = .init(
         selectedRowID: rows.first?.id
       )

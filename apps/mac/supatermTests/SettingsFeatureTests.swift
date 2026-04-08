@@ -51,7 +51,7 @@ struct SettingsFeatureTests {
       }
 
       await store.send(.task)
-      await store.receive(.settingsLoaded(supatermSettings)) {
+      await store.receive(.settingsLoaded(supatermSettings), timeout: 0) {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
@@ -60,28 +60,28 @@ struct SettingsFeatureTests {
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
       }
-      await store.receive(.terminalSettingsLoadRequested) {
+      await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
         $0.terminal.isLoading = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
         $0.claudeIntegration.isPending = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
         $0.codexIntegration.isPending = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
         $0.piIntegration.isPending = true
       }
-      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
         $0.terminal = terminalSettingsState()
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false))) {
+      await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
         $0.claudeIntegration.isPending = false
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+      await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false)), timeout: 0) {
         $0.codexIntegration.isPending = false
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false))) {
+      await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false)), timeout: 0) {
         $0.piIntegration.isPending = false
       }
     }
@@ -104,28 +104,28 @@ struct SettingsFeatureTests {
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
-    await store.receive(.terminalSettingsLoadRequested) {
+    await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
       $0.claudeIntegration.isPending = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
       $0.codexIntegration.isPending = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
       $0.piIntegration.isPending = true
     }
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
       $0.claudeIntegration.isPending = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false)), timeout: 0) {
       $0.codexIntegration.isPending = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(false)), timeout: 0) {
       $0.piIntegration.isPending = false
     }
 
@@ -261,7 +261,7 @@ struct SettingsFeatureTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.authorized))
+      await store.receive(.systemNotificationsAuthorizationChecked(.authorized), timeout: 0)
 
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(supatermSettings.systemNotificationsEnabled)
@@ -288,7 +288,7 @@ struct SettingsFeatureTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined))
+      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined), timeout: 0)
       await store.receive(
         .systemNotificationsAuthorizationResult(
           .init(granted: false, errorMessage: "Mock request error")
@@ -325,7 +325,7 @@ struct SettingsFeatureTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.denied))
+      await store.receive(.systemNotificationsAuthorizationChecked(.denied), timeout: 0)
       await store.receive(
         .systemNotificationsAuthorizationResult(
           .init(granted: false, errorMessage: "Authorization status is denied.")
@@ -508,30 +508,30 @@ struct SettingsFeatureTests {
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
-    await store.receive(.terminalSettingsLoadRequested) {
+    await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.claude)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
       $0.claudeIntegration.isPending = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.codex)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
       $0.codexIntegration.isPending = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.pi)) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
       $0.piIntegration.isPending = true
     }
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot())) {
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true)), timeout: 0) {
       $0.claudeIntegration.confirmedEnabled = true
       $0.claudeIntegration.isEnabled = true
       $0.claudeIntegration.isPending = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false)), timeout: 0) {
       $0.codexIntegration.isPending = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(true))) {
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(true)), timeout: 0) {
       $0.piIntegration.confirmedEnabled = true
       $0.piIntegration.isEnabled = true
       $0.piIntegration.isPending = false
@@ -635,7 +635,7 @@ struct SettingsFeatureTests {
       $0.terminal.errorMessage = nil
       $0.terminal.isLoading = true
     }
-    await store.receive(.terminalSettingsLoadFailed("Broken config")) {
+    await store.receive(.terminalSettingsLoadFailed("Broken config"), timeout: 0) {
       $0.terminal.errorMessage = "Broken config"
       $0.terminal.isLoading = false
     }
@@ -682,7 +682,7 @@ struct SettingsFeatureTests {
       $0.claudeIntegration.isPending = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.claude, .success(true))) {
+    await store.receive(.agentIntegrationToggleFinished(.claude, .success(true)), timeout: 0) {
       $0.claudeIntegration.confirmedEnabled = true
       $0.claudeIntegration.isEnabled = true
       $0.claudeIntegration.isPending = false
@@ -734,7 +734,7 @@ struct SettingsFeatureTests {
       $0.codexIntegration.isPending = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.codex, .success(false))) {
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(false)), timeout: 0) {
       $0.codexIntegration.confirmedEnabled = false
       $0.codexIntegration.isEnabled = false
       $0.codexIntegration.isPending = false
@@ -812,7 +812,7 @@ struct SettingsFeatureTests {
       $0.piIntegration.isPending = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.pi, .success(true))) {
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(true)), timeout: 0) {
       $0.piIntegration.confirmedEnabled = true
       $0.piIntegration.isEnabled = true
       $0.piIntegration.isPending = false
