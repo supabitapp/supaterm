@@ -3,7 +3,6 @@ set -euo pipefail
 
 issue_identifier=""
 space=""
-window=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -15,16 +14,8 @@ while [[ $# -gt 0 ]]; do
       space="$2"
       shift 2
       ;;
-    --window)
-      [[ $# -ge 2 ]] || {
-        echo "missing value for --window" >&2
-        exit 1
-      }
-      window="$2"
-      shift 2
-      ;;
     -h|--help)
-      echo "usage: $(basename "$0") <ISSUE-ID> [--space N] [--window N]"
+      echo "usage: $(basename "$0") <ISSUE-ID> [--space N]"
       exit 0
       ;;
     -*)
@@ -47,22 +38,12 @@ done
   exit 1
 }
 
-[[ -z "$window" || -n "$space" ]] || {
-  echo "--window requires --space" >&2
-  exit 1
-}
-
 for tool in git jq linear sp codex make; do
   command -v "$tool" >/dev/null || {
     echo "missing required tool: $tool" >&2
     exit 1
   }
 done
-
-[[ -z "$window" ]] || {
-  echo "--window is no longer supported" >&2
-  exit 1
-}
 
 sp instance ls >/dev/null
 
