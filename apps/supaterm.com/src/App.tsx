@@ -78,8 +78,7 @@ function App() {
             className="supaterm-reveal mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg"
             style={{ animationDelay: "200ms" }}
           >
-            Supaterm is a native macOS terminal for agent-driven work, with spaces, tabs, panes, and
-            a socket-driven CLI that can steer the UI from inside the shell.
+            A tasteful native macOS terminal built for your coding agents.
           </p>
           <div
             className="supaterm-reveal mt-10 flex flex-col items-center"
