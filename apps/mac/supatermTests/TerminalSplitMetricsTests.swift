@@ -14,23 +14,23 @@ struct TerminalSplitMetricsTests {
   @Test
   func clampedFractionRespectsSidebarBounds() {
     #expect(
-      TerminalSplitMetrics.clampedFraction(0.1, minFraction: 0.16, maxFraction: 0.30) == 0.16
+      TerminalSplitMetrics.clampedFraction(0.08, minFraction: 0.10, maxFraction: 0.30) == 0.10
     )
     #expect(
-      TerminalSplitMetrics.clampedFraction(0.22, minFraction: 0.16, maxFraction: 0.30) == 0.22
+      TerminalSplitMetrics.clampedFraction(0.22, minFraction: 0.10, maxFraction: 0.30) == 0.22
     )
     #expect(
-      TerminalSplitMetrics.clampedFraction(0.4, minFraction: 0.16, maxFraction: 0.30) == 0.30
+      TerminalSplitMetrics.clampedFraction(0.4, minFraction: 0.10, maxFraction: 0.30) == 0.30
     )
   }
 
   @Test
   func previewCollapseAndHandleTrackingUseRawDragFraction() {
     #expect(
-      TerminalSplitMetrics.isCollapsePreviewActive(dragFraction: 0.12, minFraction: 0.16)
+      TerminalSplitMetrics.isCollapsePreviewActive(dragFraction: 0.08, minFraction: 0.10)
     )
     #expect(
-      !TerminalSplitMetrics.isCollapsePreviewActive(dragFraction: 0.20, minFraction: 0.16)
+      !TerminalSplitMetrics.isCollapsePreviewActive(dragFraction: 0.20, minFraction: 0.10)
     )
     #expect(
       TerminalSplitMetrics.handleFraction(
