@@ -105,30 +105,6 @@ function App() {
 
         <Separator className="supaterm-reveal mb-24 md:mb-32" style={{ animationDelay: "420ms" }} />
 
-        <section className="mb-24 md:mb-32">
-          <h2
-            className="supaterm-reveal mb-12 text-center text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground md:mb-16"
-            style={{ animationDelay: "480ms" }}
-          >
-            Built for flow
-          </h2>
-          <div className="grid gap-px overflow-hidden rounded-2xl border border-border/50 bg-border/50 md:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, index) => (
-              <div
-                key={feature.title}
-                className="supaterm-reveal flex flex-col gap-4 bg-background/95 p-8"
-                style={{ animationDelay: `${540 + index * 60}ms` }}
-              >
-                <Badge>{feature.badge}</Badge>
-                <h3 className="text-lg font-semibold tracking-tight">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
         <section className="supaterm-reveal mb-24 flex flex-col items-center gap-6 text-center md:mb-32">
           <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-balance md:text-4xl">
             Ready to run agents without leaving the terminal?
