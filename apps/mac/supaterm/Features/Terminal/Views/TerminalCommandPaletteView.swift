@@ -81,7 +81,6 @@ struct TerminalCommandPaletteOverlay: View {
               }
               .scrollIndicators(.hidden)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-              .animation(.easeInOut(duration: 0.15), value: selectedRowID)
               .onAppear {
                 scrollSelection(into: proxy)
               }
@@ -115,7 +114,6 @@ struct TerminalCommandPaletteOverlay: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    .transition(.scale(scale: 0.98).combined(with: .opacity))
     .task {
       focusQueryField()
     }
@@ -175,9 +173,7 @@ struct TerminalCommandPaletteOverlay: View {
 
   private func scrollSelection(into proxy: ScrollViewProxy) {
     guard let selectedRowID else { return }
-    withAnimation(.easeOut(duration: 0.12)) {
-      proxy.scrollTo(selectedRowID, anchor: .center)
-    }
+    proxy.scrollTo(selectedRowID, anchor: .center)
   }
 
   private func shortcutHint(
