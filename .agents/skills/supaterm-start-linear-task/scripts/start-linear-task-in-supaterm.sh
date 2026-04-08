@@ -177,13 +177,13 @@ fi
 quoted_launch_script=$(jq -rn --arg value "$launch_script" '$value | @sh')
 
 if [[ "$launch_mode" == "pane" ]]; then
-  sp_args=(pane split --json --no-focus --cwd "$repo_root" "$direction" --shell "bash -lc $quoted_launch_script")
+  sp_args=(pane split --json --no-focus --cwd "$repo_root" "$direction" --shell "zsh -lc $quoted_launch_script")
 else
   sp_args=(tab new --json --no-focus --cwd "$repo_root")
   if [[ -n "$space" ]]; then
     sp_args+=(--in "$space")
   fi
-  sp_args+=(--shell "bash -lc $quoted_launch_script")
+  sp_args+=(--shell "zsh -lc $quoted_launch_script")
 fi
 
 surface_json=$(sp "${sp_args[@]}")
