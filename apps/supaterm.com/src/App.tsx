@@ -1,50 +1,9 @@
 import heroUrl from "./assets/hero.png";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 const downloadHref = "https://supaterm.com/download/latest/supaterm.dmg";
 const githubHref = "https://github.com/supabitapp/supaterm";
-const releasesHref = "https://github.com/supabitapp/supaterm/releases";
-
-const features = [
-  {
-    title: "Native macOS runtime",
-    description:
-      "Built for macOS with window chrome, terminal rendering, and keyboard flow that stay fast under parallel work.",
-    badge: "macOS",
-  },
-  {
-    title: "Spaces, tabs, panes",
-    description:
-      "Split work across spaces, pin important tabs, and keep multiple panes visible without losing the thread.",
-    badge: "Layout",
-  },
-  {
-    title: "Agent hooks",
-    description:
-      "Install Claude and Codex hooks once, then let Supaterm surface running, idle, and needs-input state at the tab level.",
-    badge: "Hooks",
-  },
-  {
-    title: "Socket-driven CLI",
-    description:
-      "Use the sp CLI to create panes and tabs, focus targets, capture output, and automate the app from the shell.",
-    badge: "CLI",
-  },
-  {
-    title: "Parallel agent workflows",
-    description:
-      "Run multiple coding sessions side by side and keep each one isolated inside its own pane, tab, or space.",
-    badge: "Agents",
-  },
-  {
-    title: "Open source",
-    description:
-      "Inspect the code, script the app, and shape the workflow around your own tooling instead of a closed box.",
-    badge: "OSS",
-  },
-];
 
 function App() {
   return (
