@@ -115,15 +115,16 @@ function App() {
             </div>
 
             <div className="relative">
-              <div className="supaterm-stage">
-                <div className="supaterm-stage-video-wrap">
+              <div className="group relative overflow-hidden rounded-[2rem] border border-white/8 bg-black/70 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] max-sm:rounded-[1.45rem]">
+                <div className="pointer-events-none absolute inset-px rounded-[calc(2rem-1px)] border border-white/[0.03] max-sm:rounded-[calc(1.45rem-1px)]" />
+                <div className="relative flex aspect-[1.29] items-center justify-center overflow-hidden bg-black/70">
                   <video
                     src={demoUrl}
                     autoPlay
                     loop
                     muted
                     playsInline
-                    className="supaterm-stage-video"
+                    className="h-full w-full object-contain saturate-[1.02] contrast-[1.02] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.015] motion-reduce:transform-none motion-reduce:transition-none"
                   />
                 </div>
               </div>
@@ -175,44 +176,46 @@ function App() {
                 </ul>
               </div>
 
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-[0.76rem] tracking-[0.14em] text-white/62 uppercase">
-                  {section.placeholder}
-                </div>
-                <div className="text-[0.76rem] tracking-[0.14em] text-[#f1ede4]/68 uppercase">
-                  {section.accent}
-                </div>
-              </div>
-              <div className="supaterm-shot">
-                <div className="supaterm-shot-body">
-                  <div className="supaterm-shot-sidebar">
-                    <div className="supaterm-shot-tag" />
-                    <div className="supaterm-shot-stack">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="supaterm-shot-stack supaterm-shot-stack-muted">
-                      <span />
-                      <span />
-                    </div>
+              <div>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-[0.76rem] tracking-[0.14em] text-white/62 uppercase">
+                    {section.placeholder}
                   </div>
-                  <div className="supaterm-shot-canvas">
-                    <div className="supaterm-shot-row supaterm-shot-row-wide" />
-                    <div className="supaterm-shot-grid">
-                      <span />
-                      <span />
-                      <span />
+                  <div className="text-[0.76rem] tracking-[0.14em] text-[#f1ede4]/68 uppercase">
+                    {section.accent}
+                  </div>
+                </div>
+                <div className="group overflow-hidden rounded-[1.8rem] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none max-sm:rounded-[1.45rem]">
+                  <div className="grid min-h-[27rem] [grid-template-columns:0.36fr_0.64fr] max-[900px]:grid-cols-1">
+                    <div className="flex flex-col gap-6 border-r border-white/7 bg-white/[0.02] px-4 py-[1.35rem] pl-[1.2rem] max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:border-white/7">
+                      <div className="h-4 w-[74%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06))]" />
+                      <div className="grid gap-3">
+                        <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.78rem] w-[68%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="grid gap-3">
+                        <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
+                        <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
+                      </div>
                     </div>
-                    <div className="supaterm-shot-terminal">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="supaterm-shot-footer">
-                      <span />
-                      <span />
+                    <div className="flex flex-col gap-5 p-[1.4rem]">
+                      <div className="h-4 w-[72%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      <div className="grid grid-cols-3 gap-4">
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="grid gap-3.5 rounded-[1.35rem] border border-white/8 bg-black/22 p-5">
+                        <span className="block h-[0.9rem] w-[86%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[70%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[90%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[52%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="mt-auto grid grid-cols-[1.2fr_0.8fr] gap-4">
+                        <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
                     </div>
                   </div>
                 </div>
