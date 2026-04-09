@@ -115,16 +115,16 @@ function App() {
             </div>
 
             <div className="relative">
-              <div className="group relative overflow-hidden rounded-[2rem] border border-white/8 bg-black/70 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] max-sm:rounded-[1.45rem]">
+              <div className="group relative overflow-hidden rounded-[2rem] border border-white/8 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] max-sm:rounded-[1.45rem]">
                 <div className="pointer-events-none absolute inset-px rounded-[calc(2rem-1px)] border border-white/[0.03] max-sm:rounded-[calc(1.45rem-1px)]" />
-                <div className="relative flex aspect-[1.29] items-center justify-center overflow-hidden bg-black/70">
+                <div className="relative overflow-hidden">
                   <video
                     src={demoUrl}
                     autoPlay
                     loop
                     muted
                     playsInline
-                    className="h-full w-full object-contain saturate-[1.02] contrast-[1.02] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.015] motion-reduce:transform-none motion-reduce:transition-none"
+                    className="block h-auto w-full saturate-[1.02] contrast-[1.02] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.015] motion-reduce:transform-none motion-reduce:transition-none"
                   />
                 </div>
               </div>
