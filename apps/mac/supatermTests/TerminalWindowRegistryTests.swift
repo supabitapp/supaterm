@@ -993,6 +993,10 @@ struct TerminalWindowRegistryTests {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Updating the registry and sidebar")
     )
+    #expect(
+      harness.host.codexHoverMarkdown(for: harness.tabID)
+        == "Updating the registry and sidebar"
+    )
 
     try CodexTranscriptFixtures.append(
       .assistantMessage(
@@ -1005,7 +1009,11 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Updating the registry and sidebar")
+        == .codex(.running)
+    )
+    #expect(
+      harness.host.codexHoverMarkdown(for: harness.tabID)
+        == "Final answer should stay out of the running subtitle"
     )
 
     try CodexTranscriptFixtures.append(
@@ -1165,6 +1173,80 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexTranscriptAccumulatesHoverMessagesLatestFirst() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Inspecting the transcript path"),
+      to: transcriptPath
+    )
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Updating the registry and sidebar"),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.codexHoverMarkdown(for: harness.tabID) == """
+        Updating the registry and sidebar
+
+        ---
+
+        Inspecting the transcript path
+        """
+    )
+  }
+
+  @Test
+  func codexTranscriptKeepsFullHoverMessageWhenRunningDetailIsTruncated() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    let longMessage = Array(repeating: "message", count: 30).joined(separator: " ")
+    let truncatedMessage = String(longMessage.prefix(157)) + "..."
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage(longMessage),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: truncatedMessage)
+    )
+    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == longMessage)
+  }
+
+  @Test
   func codexTranscriptIgnoresExecCommandRunningDetail() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
@@ -1297,6 +1379,36 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
+    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == "Done.")
+  }
+
+  @Test
+  func codexStopReplacesHoverHistoryWithLastAssistantMessage() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock,
+      windowActivity: .inactive
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(.assistantMessage("Updating the registry and sidebar"), to: transcriptPath)
+    await advanceClock(clock)
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.stop, context: harness.context)
+    )
+
+    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == "Done.")
   }
 
   @Test
@@ -1410,6 +1522,7 @@ struct TerminalWindowRegistryTests {
     #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
     #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
     #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == nil)
   }
 
   private func makeWindow() -> NSWindow {

@@ -1369,6 +1369,15 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
         sessionID: sessionID,
         context: request.context
       )
+      if request.agent == .codex {
+        _ = updateCodexHoverMessages(
+          event.lastAssistantMessage.map { [$0] } ?? [],
+          replacing: true,
+          agent: request.agent,
+          sessionID: sessionID,
+          context: request.context
+        )
+      }
     }
     guard
       let body = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1395,6 +1404,13 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       return .init(desktopNotification: nil)
     }
     _ = clearAgentActivity(agent: request.agent, sessionID: sessionID, context: request.context)
+    if request.agent == .codex {
+      _ = clearCodexHoverMessages(
+        agent: request.agent,
+        context: request.context,
+        sessionID: sessionID
+      )
+    }
     agentSessionStore.clearSession(agent: request.agent, sessionID: sessionID)
     return .init(desktopNotification: nil)
   }
@@ -1548,6 +1564,47 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
   }
 
   @discardableResult
+  private func clearCodexHoverMessages(
+    agent: SupatermAgentKind,
+    context: SupatermCLIContext?,
+    sessionID: String
+  ) -> Bool {
+    updateCodexHoverMessages(
+      [],
+      replacing: true,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+  }
+
+  @discardableResult
+  private func updateCodexHoverMessages(
+    _ messages: [String],
+    replacing: Bool,
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    for surfaceID in candidateSurfaceIDs {
+      for entry in activeEntries()
+      where entry.terminal.recordCodexHoverMessages(
+        messages,
+        replacing: replacing,
+        for: surfaceID
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  @discardableResult
   private func clearAgentActivity(
     agent: SupatermAgentKind,
     sessionID: String,
@@ -1606,6 +1663,22 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
+    if update.status?.startsNewTurn == true {
+      _ = clearCodexHoverMessages(
+        agent: agent,
+        context: context,
+        sessionID: sessionID
+      )
+    }
+    if !update.messages.isEmpty {
+      _ = updateCodexHoverMessages(
+        update.messages,
+        replacing: update.replacesMessages,
+        agent: agent,
+        sessionID: sessionID,
+        context: context
+      )
+    }
     if update.status?.isFinal == true {
       _ = updateAgentActivity(
         .init(kind: agent, phase: .idle, detail: nil),

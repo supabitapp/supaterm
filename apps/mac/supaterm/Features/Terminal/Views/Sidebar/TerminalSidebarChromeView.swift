@@ -523,17 +523,15 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func popoverMarkdown(
-    agentActivity: TerminalHostState.AgentActivity?,
+    codexHoverMarkdown: String?,
     showsAgentActivityDetail: Bool,
     notificationMarkdown: String?
   ) -> String? {
-    if let agentActivity,
-      showsAgentActivityDetail,
-      agentActivity.kind == .codex,
-      agentActivity.phase == .running,
-      let detail = agentActivity.detail
+    if showsAgentActivityDetail,
+      let codexHoverMarkdown,
+      !codexHoverMarkdown.isEmpty
     {
-      return detail
+      return codexHoverMarkdown
     }
     return notificationMarkdown
   }
@@ -1047,7 +1045,7 @@ struct TerminalSidebarTabRow: View {
 
   private var popoverMarkdown: String? {
     TerminalSidebarTabSummaryView.popoverMarkdown(
-      agentActivity: terminal.agentActivity(for: tab.id),
+      codexHoverMarkdown: terminal.codexHoverMarkdown(for: tab.id),
       showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
       notificationMarkdown: notificationPresentation?.markdown
     )

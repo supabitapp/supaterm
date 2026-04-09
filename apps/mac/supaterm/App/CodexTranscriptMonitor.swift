@@ -27,17 +27,23 @@ enum CodexTranscriptTurnStatus: Equatable {
 struct CodexTranscriptUpdate: Equatable {
   var status: CodexTranscriptTurnStatus?
   var detail: String?
+  var messages: [String]
+  var replacesMessages: Bool
 
   init(
     status: CodexTranscriptTurnStatus? = nil,
-    detail: String? = nil
+    detail: String? = nil,
+    messages: [String] = [],
+    replacesMessages: Bool = false
   ) {
     self.status = status
     self.detail = detail
+    self.messages = messages
+    self.replacesMessages = replacesMessages
   }
 
   var hasChanges: Bool {
-    status != nil || detail != nil
+    status != nil || detail != nil || !messages.isEmpty
   }
 
   mutating func absorb(_ update: Self) {
@@ -46,6 +52,12 @@ struct CodexTranscriptUpdate: Equatable {
     }
     if let detail = update.detail {
       self.detail = detail
+    }
+    if update.replacesMessages {
+      messages = update.messages
+      replacesMessages = true
+    } else if !update.messages.isEmpty {
+      messages.append(contentsOf: update.messages)
     }
   }
 }
@@ -141,13 +153,22 @@ enum CodexTranscriptMonitor {
     case "task_started", "turn_started":
       return .init(status: .started(string(in: eventPayload, key: "turn_id")))
     case "task_complete", "turn_complete":
-      return .init(status: .completed(string(in: eventPayload, key: "turn_id")))
+      let messages = normalizedMessageList(string(in: eventPayload, key: "last_agent_message"))
+      return .init(
+        status: .completed(string(in: eventPayload, key: "turn_id")),
+        messages: messages,
+        replacesMessages: !messages.isEmpty
+      )
     case "turn_aborted":
       return .init(status: .aborted(string(in: eventPayload, key: "turn_id")))
     case "agent_message":
       let phase = string(in: eventPayload, key: "phase") ?? string(in: payload, key: "phase")
-      guard phase != "final_answer" else { return nil }
-      return detailUpdate(string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"))
+      if phase == "final_answer" {
+        return finalMessageUpdate(
+          string(in: eventPayload, key: "message") ?? string(in: payload, key: "message")
+        )
+      }
+      return liveMessageUpdate(string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"))
     default:
       return nil
     }
@@ -165,26 +186,55 @@ enum CodexTranscriptMonitor {
 
   private static func messageUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
     guard string(in: payload, key: "role") == "assistant" else { return nil }
-    guard string(in: payload, key: "phase") != "final_answer" else { return nil }
     let content = array(in: payload, key: "content")
-    let text = normalizedDetail(
+    let text = normalizedMessage(
       content?
         .compactMap { dictionaryValue in
           string(in: dictionaryValue, key: "text")
         }
         .joined(separator: " ")
     )
-    return detailUpdate(text)
+    if string(in: payload, key: "phase") == "final_answer" {
+      return finalMessageUpdate(text)
+    }
+    return liveMessageUpdate(text)
   }
 
-  private static func detailUpdate(
-    _ detail: String?
+  private static func liveMessageUpdate(
+    _ message: String?
   ) -> CodexTranscriptUpdate? {
-    guard let detail = normalizedDetail(detail) else { return nil }
-    return .init(detail: detail)
+    guard
+      let message = normalizedMessage(message),
+      let detail = normalizedDetail(message)
+    else {
+      return nil
+    }
+    return .init(detail: detail, messages: [message])
+  }
+
+  private static func finalMessageUpdate(
+    _ message: String?
+  ) -> CodexTranscriptUpdate? {
+    let messages = normalizedMessageList(message)
+    guard !messages.isEmpty else { return nil }
+    return .init(messages: messages, replacesMessages: true)
+  }
+
+  private static func normalizedMessageList(
+    _ message: String?
+  ) -> [String] {
+    normalizedMessage(message).map { [$0] } ?? []
   }
 
   private static func normalizedDetail(_ text: String?) -> String? {
+    guard let normalized = normalizedMessage(text) else { return nil }
+    if normalized.count <= 160 {
+      return normalized
+    }
+    return String(normalized.prefix(157)) + "..."
+  }
+
+  private static func normalizedMessage(_ text: String?) -> String? {
     guard let text else { return nil }
     let normalized =
       text
@@ -192,10 +242,7 @@ enum CodexTranscriptMonitor {
       .filter { !$0.isEmpty }
       .joined(separator: " ")
     guard !normalized.isEmpty else { return nil }
-    if normalized.count <= 160 {
-      return normalized
-    }
-    return String(normalized.prefix(157)) + "..."
+    return normalized
   }
 
   private static func dictionary(
