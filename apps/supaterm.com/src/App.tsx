@@ -88,18 +88,37 @@ function CtaLink({
 function App() {
   return (
     <main className="overflow-x-hidden">
-      <section className="relative isolate min-h-svh">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-6 md:px-10 md:pb-18 md:pt-8">
-          <header className="flex items-center justify-between gap-6">
-            <a href="/" className="flex items-center gap-3">
-              <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-10 rounded-[12px]" />
-              <span className="text-sm font-medium tracking-[0.2em] text-white/80 uppercase">
-                Supaterm
-              </span>
-            </a>
-          </header>
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
+        <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
+          <a href="/" className="flex items-center gap-2.5">
+            <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-8 rounded-[10px]" />
+            <span className="text-xs font-medium tracking-[0.18em] text-white/80 uppercase">
+              Supaterm
+            </span>
+          </a>
+          <div className="flex items-center gap-2.5">
+            <CtaLink
+              href={githubHref}
+              icon="github"
+              variant="outline"
+              className="h-9 rounded-full border-white/12 bg-white/6 px-4 text-[0.9rem] text-white/88 hover:border-white/18 hover:bg-white/10"
+            >
+              GitHub
+            </CtaLink>
+            <CtaLink
+              href={downloadHref}
+              icon="download"
+              className="h-9 rounded-full bg-[#f1ede4] px-4.5 text-[0.9rem] text-[#12100b] hover:bg-white"
+            >
+              Download for macOS
+            </CtaLink>
+          </div>
+        </div>
+      </header>
 
-          <div className="grid flex-1 items-center gap-10 pt-10 md:pt-14 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-18">
+      <section className="relative isolate min-h-svh">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-[84px] md:px-10 md:pb-18 md:pt-[92px]">
+          <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-12">
             <div className="max-w-[560px]">
               <div className="text-sm font-medium tracking-[0.22em] text-white/52 uppercase">
                 Native macOS terminal
