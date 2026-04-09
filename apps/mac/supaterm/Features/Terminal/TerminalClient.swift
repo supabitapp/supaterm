@@ -155,6 +155,24 @@ struct TerminalCreateSpaceRequest: Equatable, Sendable {
   let target: TerminalSpaceNavigationRequest
 }
 
+struct TerminalExecuteCustomCommandRequest: Equatable, Sendable {
+  let command: TerminalCustomCommandSnapshot
+  let isConfirmed: Bool
+
+  init(
+    command: TerminalCustomCommandSnapshot,
+    isConfirmed: Bool = false
+  ) {
+    self.command = command
+    self.isConfirmed = isConfirmed
+  }
+}
+
+enum TerminalExecuteCustomCommandResult: Sendable {
+  case executed
+  case confirmationRequired
+}
+
 struct TerminalNotificationEvent: Equatable, Sendable {
   let attentionState: SupatermNotificationAttentionState
   let body: String
@@ -215,6 +233,10 @@ struct TerminalClient: Sendable {
   var commandPaletteSnapshot: @MainActor @Sendable () -> TerminalCommandPaletteSnapshot
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
+  var executeCustomCommand:
+    @MainActor @Sendable (TerminalExecuteCustomCommandRequest) async throws
+      -> TerminalExecuteCustomCommandResult
+  var loadCustomCommands: @MainActor @Sendable () async -> TerminalCustomCommandCatalogResult
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
 
@@ -271,6 +293,12 @@ struct TerminalClient: Sendable {
       events: {
         host.eventStream()
       },
+      executeCustomCommand: { request in
+        try host.executeCustomCommand(request)
+      },
+      loadCustomCommands: {
+        host.loadCustomCommands()
+      },
       send: { command in
         host.handleCommand(command)
       },
@@ -295,6 +323,10 @@ extension TerminalClient: DependencyKey {
       throw TerminalCreatePaneError.creationFailed
     },
     events: { AsyncStream { $0.finish() } },
+    executeCustomCommand: { _ in
+      .executed
+    },
+    loadCustomCommands: { .empty },
     send: { _ in },
     treeSnapshot: { .init(windows: []) }
   )
@@ -305,6 +337,10 @@ extension TerminalClient: DependencyKey {
       throw TerminalCreatePaneError.creationFailed
     },
     events: { AsyncStream { $0.finish() } },
+    executeCustomCommand: { _ in
+      .executed
+    },
+    loadCustomCommands: { .empty },
     send: { _ in },
     treeSnapshot: { .init(windows: []) }
   )

@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "command": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/simpleCommand"
+        },
+        {
+          "$ref": "#/$defs/workspaceCommand"
+        }
+      ]
+    },
+    "leafPane": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "focus": {
+          "default": false,
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "leaf",
+          "type": "string"
+        }
+      },
+      "required": ["type"],
+      "type": "object"
+    },
+    "pane": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leafPane"
+        },
+        {
+          "$ref": "#/$defs/splitPane"
+        }
+      ]
+    },
+    "simpleCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "description": "Shell text to send to the focused pane.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Optional subtitle in the command palette.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable command identifier used for local-over-global overrides.",
+          "type": "string"
+        },
+        "keywords": {
+          "default": [],
+          "description": "Extra search terms for fuzzy matching.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "const": "command",
+          "type": "string"
+        },
+        "name": {
+          "description": "Visible title in the command palette.",
+          "type": "string"
+        }
+      },
+      "required": ["id", "kind", "name", "command"],
+      "type": "object"
+    },
+    "splitPane": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": ["left", "right", "up", "down"],
+          "type": "string"
+        },
+        "first": {
+          "$ref": "#/$defs/pane"
+        },
+        "ratio": {
+          "default": 0.5,
+          "type": "number"
+        },
+        "second": {
+          "$ref": "#/$defs/pane"
+        },
+        "type": {
+          "const": "split",
+          "type": "string"
+        }
+      },
+      "required": ["type", "direction", "first", "second"],
+      "type": "object"
+    },
+    "tab": {
+      "additionalProperties": false,
+      "properties": {
+        "cwd": {
+          "description": "Optional working directory for panes in this tab.",
+          "type": "string"
+        },
+        "rootPane": {
+          "$ref": "#/$defs/pane"
+        },
+        "selected": {
+          "default": false,
+          "description": "Whether this tab should be selected after launch.",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "The locked title for the tab.",
+          "type": "string"
+        }
+      },
+      "required": ["title", "rootPane"],
+      "type": "object"
+    },
+    "workspace": {
+      "additionalProperties": false,
+      "properties": {
+        "spaceName": {
+          "description": "The target space name for this workspace.",
+          "type": "string"
+        },
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/tab"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["spaceName", "tabs"],
+      "type": "object"
+    },
+    "workspaceCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "description": "Optional subtitle in the command palette.",
+          "type": "string"
+        },
+        "id": {
+          "description": "Stable command identifier used for local-over-global overrides.",
+          "type": "string"
+        },
+        "keywords": {
+          "default": [],
+          "description": "Extra search terms for fuzzy matching.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "const": "workspace",
+          "type": "string"
+        },
+        "name": {
+          "description": "Visible title in the command palette.",
+          "type": "string"
+        },
+        "restartBehavior": {
+          "default": "focus_existing",
+          "description": "What to do when a space with the same name already exists.",
+          "enum": ["focus_existing", "recreate", "confirm_recreate"],
+          "type": "string"
+        },
+        "workspace": {
+          "$ref": "#/$defs/workspace"
+        }
+      },
+      "required": ["id", "kind", "name", "workspace"],
+      "type": "object"
+    }
+  },
+  "$id": "https://supaterm.com/data/supaterm-custom-commands.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "User-defined command palette commands and workspaces for Supaterm.",
+  "properties": {
+    "$schema": {
+      "default": "https://supaterm.com/data/supaterm-custom-commands.schema.json",
+      "description": "Optional schema URL for editor completion and validation.",
+      "format": "uri",
+      "type": "string"
+    },
+    "commands": {
+      "description": "The command-palette commands available in this scope.",
+      "items": {
+        "$ref": "#/$defs/command"
+      },
+      "type": "array"
+    }
+  },
+  "required": ["commands"],
+  "title": "supaterm.json",
+  "type": "object"
+}

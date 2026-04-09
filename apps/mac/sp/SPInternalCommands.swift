@@ -12,6 +12,7 @@ extension SP {
       subcommands: [
         Ping.self,
         GenerateSettingsSchema.self,
+        GenerateCustomCommandsSchema.self,
         AgentSettings.self,
         Development.self,
         ClaudeTeams.self,
@@ -58,6 +59,18 @@ extension SP {
 
     mutating func run() throws {
       print(try SupatermSettingsSchema.jsonString())
+    }
+  }
+
+  struct GenerateCustomCommandsSchema: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "generate-custom-commands-schema",
+      abstract: "Print the Supaterm custom commands JSON schema.",
+      discussion: SPHelp.generateCustomCommandsSchemaDiscussion
+    )
+
+    mutating func run() throws {
+      print(try SupatermCustomCommandsSchema.jsonString())
     }
   }
 

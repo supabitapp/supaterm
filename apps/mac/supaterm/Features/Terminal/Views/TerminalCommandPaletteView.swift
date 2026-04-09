@@ -61,22 +61,26 @@ struct TerminalCommandPaletteOverlay: View {
 
             ScrollViewReader { proxy in
               ScrollView {
-                LazyVStack(spacing: 5) {
-                  ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    CommandPaletteRowButton(
-                      row: row,
-                      shortcutHint: shortcutHint(for: row, index: index),
-                      theme: theme,
-                      isHovered: hoveredRowID == row.id,
-                      isSelected: selectedRowID == row.id,
-                      action: {
-                        onSelectionChange(index)
-                        onActivate()
+                if rows.isEmpty {
+                  emptyState
+                } else {
+                  LazyVStack(spacing: 5) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                      CommandPaletteRowButton(
+                        row: row,
+                        shortcutHint: shortcutHint(for: row, index: index),
+                        theme: theme,
+                        isHovered: hoveredRowID == row.id,
+                        isSelected: selectedRowID == row.id,
+                        action: {
+                          onSelectionChange(index)
+                          onActivate()
+                        }
+                      )
+                      .id(row.id)
+                      .onHover { isHovering in
+                        hoveredRowID = isHovering ? row.id : nil
                       }
-                    )
-                    .id(row.id)
-                    .onHover { isHovering in
-                      hoveredRowID = isHovering ? row.id : nil
                     }
                   }
                 }
@@ -89,6 +93,19 @@ struct TerminalCommandPaletteOverlay: View {
               .onChange(of: selectedRowID) { _, _ in
                 scrollSelection(into: proxy)
               }
+            }
+
+            if let footerText {
+              RoundedRectangle(cornerRadius: 100, style: .continuous)
+                .fill(theme.separator)
+                .frame(height: 0.5)
+
+              Text(footerText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(theme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 2)
             }
           }
           .padding(10)
@@ -176,6 +193,30 @@ struct TerminalCommandPaletteOverlay: View {
   private func scrollSelection(into proxy: ScrollViewProxy) {
     guard let selectedRowID else { return }
     proxy.scrollTo(selectedRowID, anchor: .center)
+  }
+
+  private var emptyState: some View {
+    VStack(spacing: 8) {
+      Spacer()
+      Text("No commands found")
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(theme.primaryText)
+      if !state.query.isEmpty {
+        Text("Try a different search.")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(theme.secondaryText)
+      }
+      Spacer()
+    }
+    .frame(maxWidth: .infinity, minHeight: 160)
+  }
+
+  private var footerText: String? {
+    if state.isLoading {
+      return "Loading custom commands..."
+    }
+    guard !state.problems.isEmpty else { return nil }
+    return state.problems[0].message
   }
 
   private func shortcutHint(
@@ -398,6 +439,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           title: "Split Right",
           subtitle: "Split the focused terminal to the right.",
           shortcut: "⌘D",
+          keywords: [],
           command: .ghosttyBindingAction("new_split:right")
         ),
         .init(
@@ -406,6 +448,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           title: "Split Down",
           subtitle: "Split the focused terminal below.",
           shortcut: "⌘⇧D",
+          keywords: [],
           command: .ghosttyBindingAction("new_split:down")
         ),
         .init(
@@ -414,6 +457,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           title: "Toggle Sidebar",
           subtitle: "View",
           shortcut: "⌘S",
+          keywords: [],
           command: .toggleSidebar
         ),
         .init(
@@ -422,6 +466,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           title: "Rename Space",
           subtitle: "Workspace Alpha",
           shortcut: nil,
+          keywords: [],
           command: .renameSpace(.init(name: "Workspace Alpha"))
         ),
       ],

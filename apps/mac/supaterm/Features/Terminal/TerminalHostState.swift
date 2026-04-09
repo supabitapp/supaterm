@@ -589,6 +589,12 @@ final class TerminalHostState {
     )
   }
 
+  func loadCustomCommands() -> TerminalCustomCommandCatalogResult {
+    TerminalCustomCommandCatalog.load(
+      focusedWorkingDirectory: selectedSurfaceView.flatMap(workingDirectoryPath(for:))
+    )
+  }
+
   func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
     Self.sidebarTerminalProgress(
       state: focusedSurfaceIDByTab[tabID].flatMap { surfaceID in
@@ -1357,6 +1363,43 @@ final class TerminalHostState {
         spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw TerminalCreateTabError.creationFailed
+    }
+  }
+
+  func executeCustomCommand(
+    _ request: TerminalExecuteCustomCommandRequest
+  ) throws -> TerminalExecuteCustomCommandResult {
+    switch request.command.kind {
+    case .command(let command):
+      guard let surface = selectedSurfaceView else {
+        throw TerminalControlError.contextPaneNotFound
+      }
+      surface.bridge.sendCommand(command.command)
+      return .executed
+
+    case .workspace(let workspace):
+      if let existingSpace = existingSpace(named: workspace.spaceName) {
+        switch workspace.restartBehavior {
+        case .focusExisting:
+          selectSpace(existingSpace.id, persistDefaultSelection: true)
+          return .executed
+        case .confirmRecreate:
+          guard request.isConfirmed else {
+            return .confirmationRequired
+          }
+          try materializeCustomWorkspace(workspace, in: existingSpace.id)
+          return .executed
+        case .recreate:
+          try materializeCustomWorkspace(workspace, in: existingSpace.id)
+          return .executed
+        }
+      }
+
+      try materializeCustomWorkspace(
+        workspace,
+        in: createCustomWorkspaceSpace(named: workspace.spaceName)
+      )
+      return .executed
     }
   }
 
@@ -2439,7 +2482,8 @@ final class TerminalHostState {
     initialInput: String?,
     inheritingFromSurfaceID: UUID?,
     workingDirectory: URL? = nil,
-    context: ghostty_surface_context_e
+    context: ghostty_surface_context_e,
+    additionalEnvironmentVariables: [SupatermCLIEnvironmentVariable] = []
   ) -> GhosttySurfaceView {
     guard let runtime else {
       preconditionFailure("TerminalHostState cannot create surfaces without a GhosttyRuntime")
@@ -2453,6 +2497,7 @@ final class TerminalHostState {
       initialInput: initialInput,
       fontSize: inherited.fontSize,
       context: context,
+      additionalEnvironmentVariables: additionalEnvironmentVariables,
       managesWindowAppearance: false
     )
     configureBridgeCallbacks(for: view, tabID: tabID)
@@ -3321,6 +3366,165 @@ final class TerminalHostState {
     }
   }
 
+  private struct CustomWorkspaceNodeBuildResult {
+    let leafSurfaceIDs: [UUID]
+    let node: SplitTree<GhosttySurfaceView>.Node
+  }
+
+  private func materializeCustomWorkspace(
+    _ workspace: TerminalCustomWorkspaceSnapshot,
+    in spaceID: TerminalSpaceID
+  ) throws {
+    try withSessionChangesSuppressed {
+      renameSpace(spaceID, to: workspace.spaceName)
+
+      let previousTabIDs = spaceManager.tabs(in: spaceID).map(\.id)
+      removeTrees(for: previousTabIDs)
+      _ = spaceManager.restoreTabs([], selectedTabID: nil, in: spaceID)
+
+      let tabs = workspace.tabs.map { tab in
+        TerminalTabItem(
+          title: tab.title,
+          icon: "terminal",
+          isPinned: false,
+          isTitleLocked: true
+        )
+      }
+      let selectedTabID =
+        tabs.indices.contains(workspace.selectedTabIndex)
+        ? tabs[workspace.selectedTabIndex].id
+        : tabs[0].id
+      _ = spaceManager.restoreTabs(tabs, selectedTabID: selectedTabID, in: spaceID)
+
+      for (index, tab) in tabs.enumerated() {
+        let buildResult = buildCustomWorkspaceNode(
+          workspace.tabs[index].rootPane,
+          in: tab.id,
+          context: index == 0 ? GHOSTTY_SURFACE_CONTEXT_WINDOW : GHOSTTY_SURFACE_CONTEXT_TAB
+        )
+        trees[tab.id] = .init(root: buildResult.node, zoomed: nil)
+
+        let focusedLeafIndex =
+          buildResult.leafSurfaceIDs.indices.contains(workspace.tabs[index].focusedLeafIndex)
+          ? workspace.tabs[index].focusedLeafIndex
+          : 0
+        applyFocusedSurface(buildResult.leafSurfaceIDs[focusedLeafIndex], in: tab.id)
+        updateRunningState(for: tab.id)
+        updateTabTitle(for: tab.id)
+      }
+
+      _ = applySelectedSpace(spaceID)
+      applySelectedTab(selectedTabID, in: spaceID)
+      persistDefaultSelectedSpaceID(spaceID)
+      finalizeSpaceSelectionChange()
+      sessionDidChange()
+    }
+  }
+
+  private func createCustomWorkspaceSpace(
+    named name: String
+  ) throws -> TerminalSpaceID {
+    guard let normalizedName = Self.trimmedNonEmpty(name) else {
+      throw TerminalControlError.invalidSpaceName
+    }
+    guard spaceManager.isNameAvailable(normalizedName) else {
+      throw TerminalControlError.spaceNameUnavailable
+    }
+
+    let space = PersistedTerminalSpace(name: normalizedName)
+    var updatedSpaceCatalog = spaceCatalog
+    updatedSpaceCatalog.defaultSelectedSpaceID = space.id
+    updatedSpaceCatalog = .init(
+      defaultSelectedSpaceID: updatedSpaceCatalog.defaultSelectedSpaceID,
+      spaces: updatedSpaceCatalog.spaces + [space]
+    )
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+    return space.id
+  }
+
+  private func existingSpace(named name: String) -> TerminalSpaceItem? {
+    spaces.first {
+      $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+    }
+  }
+
+  private func buildCustomWorkspaceNode(
+    _ pane: TerminalCustomWorkspacePaneSnapshot,
+    in tabID: TerminalTabID,
+    context: ghostty_surface_context_e
+  ) -> CustomWorkspaceNodeBuildResult {
+    switch pane {
+    case .leaf(let leaf):
+      let surface = createSurface(
+        tabID: tabID,
+        command: leaf.command,
+        initialInput: nil,
+        inheritingFromSurfaceID: nil,
+        workingDirectory: workspaceWorkingDirectoryURL(for: leaf.workingDirectoryPath),
+        context: context,
+        additionalEnvironmentVariables: leaf.environmentVariables
+      )
+      surface.setTitleOverride(leaf.title)
+      return .init(
+        leafSurfaceIDs: [surface.id],
+        node: .leaf(view: surface)
+      )
+
+    case .split(let split):
+      let first = buildCustomWorkspaceNode(
+        split.first,
+        in: tabID,
+        context: GHOSTTY_SURFACE_CONTEXT_SPLIT
+      )
+      let second = buildCustomWorkspaceNode(
+        split.second,
+        in: tabID,
+        context: GHOSTTY_SURFACE_CONTEXT_SPLIT
+      )
+
+      let direction: SplitTree<GhosttySurfaceView>.Direction
+      let left: CustomWorkspaceNodeBuildResult
+      let right: CustomWorkspaceNodeBuildResult
+      switch split.direction {
+      case .left:
+        direction = .horizontal
+        left = second
+        right = first
+      case .right:
+        direction = .horizontal
+        left = first
+        right = second
+      case .up:
+        direction = .vertical
+        left = second
+        right = first
+      case .down:
+        direction = .vertical
+        left = first
+        right = second
+      }
+
+      return .init(
+        leafSurfaceIDs: left.leafSurfaceIDs + right.leafSurfaceIDs,
+        node: .split(
+          .init(
+            direction: direction,
+            ratio: split.ratio,
+            left: left.node,
+            right: right.node
+          )
+        )
+      )
+    }
+  }
+
+  private func workspaceWorkingDirectoryURL(
+    for path: String?
+  ) -> URL? {
+    guard let path = Self.trimmedNonEmpty(path) else { return nil }
+    return URL(fileURLWithPath: path, isDirectory: true)
+  }
+
   private func clearSessionState() {
     let existingTabIDs = spaces.flatMap { spaceManager.tabs(in: $0.id).map(\.id) }
     removeTrees(for: existingTabIDs)
@@ -3339,13 +3543,13 @@ final class TerminalHostState {
   }
 
   private func withSessionChangesSuppressed<Result>(
-    _ body: () -> Result
-  ) -> Result {
+    _ body: () throws -> Result
+  ) rethrows -> Result {
     suppressesSessionChanges += 1
     defer {
       suppressesSessionChanges -= 1
     }
-    return body()
+    return try body()
   }
 
   private func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {

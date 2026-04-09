@@ -5,9 +5,13 @@ import SwiftUI
 struct TerminalCommandPaletteState: Equatable {
   var query = ""
   var selectedRowID: TerminalCommandPaletteRow.ID?
+  var customRows: [TerminalCommandPaletteRow] = []
+  var problems: [TerminalCustomCommandProblem] = []
+  var isLoading = false
 }
 
 enum TerminalCommandPaletteCommand: Equatable, Sendable {
+  case customCommand(TerminalCustomCommandSnapshot)
   case ghosttyBindingAction(String)
   case toggleSidebar
   case createSpace
@@ -22,10 +26,11 @@ struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
   let title: String
   let subtitle: String
   let shortcut: String?
+  let keywords: [String]
   let command: TerminalCommandPaletteCommand
 
   var searchableText: String {
-    "\(title) \(subtitle)"
+    ([title, subtitle] + keywords).joined(separator: " ")
   }
 }
 
@@ -54,6 +59,13 @@ enum TerminalCommandPalettePresentation {
   private static let toggleSidebarShortcut = KeyboardShortcut("s", modifiers: .command).display
 
   static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
+    rows(from: snapshot, customRows: [])
+  }
+
+  static func rows(
+    from snapshot: TerminalCommandPaletteSnapshot,
+    customRows: [TerminalCommandPaletteRow]
+  ) -> [TerminalCommandPaletteRow] {
     var rows: [TerminalCommandPaletteRow] = []
 
     if snapshot.hasFocusedSurface {
@@ -67,12 +79,24 @@ enum TerminalCommandPalettePresentation {
     }
 
     rows.append(
+      contentsOf: customRows.filter { row in
+        switch row.command {
+        case .customCommand(let command):
+          return snapshot.hasFocusedSurface || !command.requiresFocusedSurface
+        default:
+          return true
+        }
+      }
+    )
+
+    rows.append(
       .init(
         id: "supaterm:toggle-sidebar",
         symbol: "sidebar.leading",
         title: "Toggle Sidebar",
         subtitle: "View",
         shortcut: toggleSidebarShortcut,
+        keywords: [],
         command: .toggleSidebar
       )
     )
@@ -83,6 +107,7 @@ enum TerminalCommandPalettePresentation {
         title: "Create Space",
         subtitle: "Spaces",
         shortcut: nil,
+        keywords: [],
         command: .createSpace
       )
     )
@@ -97,6 +122,7 @@ enum TerminalCommandPalettePresentation {
           title: "Rename Space",
           subtitle: selectedSpace.name,
           shortcut: nil,
+          keywords: [],
           command: .renameSpace(selectedSpace)
         )
       )
@@ -111,6 +137,7 @@ enum TerminalCommandPalettePresentation {
           title: "Switch to \(space.name)",
           subtitle: "Space",
           shortcut: nil,
+          keywords: [],
           command: .selectSpace(space.id)
         )
       })
@@ -124,6 +151,7 @@ enum TerminalCommandPalettePresentation {
           title: "Switch to \(tab.title)",
           subtitle: "Tab",
           shortcut: nil,
+          keywords: [],
           command: .selectTab(tab.id)
         )
       })
@@ -207,6 +235,26 @@ enum TerminalCommandPalettePresentation {
   }
 
   private static func ghosttyRow(
+    _ command: TerminalCustomCommandSnapshot
+  ) -> TerminalCommandPaletteRow {
+    .init(
+      id: "custom:\(command.id)",
+      symbol: symbol(for: command),
+      title: command.title,
+      subtitle: command.subtitle,
+      shortcut: nil,
+      keywords: command.keywords,
+      command: .customCommand(command)
+    )
+  }
+
+  static func customRows(
+    from commands: [TerminalCustomCommandSnapshot]
+  ) -> [TerminalCommandPaletteRow] {
+    commands.map(ghosttyRow)
+  }
+
+  private static func ghosttyRow(
     _ command: GhosttyCommand,
     shortcut: String?
   ) -> TerminalCommandPaletteRow {
@@ -216,6 +264,7 @@ enum TerminalCommandPalettePresentation {
       title: command.title,
       subtitle: command.description.isEmpty ? "Terminal" : command.description,
       shortcut: shortcut,
+      keywords: [],
       command: .ghosttyBindingAction(command.action)
     )
   }
@@ -255,6 +304,15 @@ enum TerminalCommandPalettePresentation {
       return "arrow.up.left.and.arrow.down.right"
     default:
       return "terminal"
+    }
+  }
+
+  private static func symbol(for command: TerminalCustomCommandSnapshot) -> String {
+    switch command.kind {
+    case .command:
+      return "terminal"
+    case .workspace:
+      return "square.3.layers.3d.top.filled"
     }
   }
 }

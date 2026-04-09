@@ -208,12 +208,15 @@ enum SPHelp {
   static let receiveAgentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
-    Manage coding-agent integrations from Supaterm Settings > Coding Agents. Use `sp agent install-hook` and `sp agent remove-hook` for Claude or Codex.
+    Manage coding-agent integrations from Supaterm Settings > Coding Agents.
+    Use `sp agent install-hook` and `sp agent remove-hook`
+    for Claude or Codex.
 
     Example:
       sp agent install-hook claude
       sp agent remove-hook claude
-      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent receive-agent-hook --agent claude
+      printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' |
+        sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
     """
 
@@ -270,6 +273,11 @@ enum SPHelp {
   static let generateSettingsSchemaDiscussion = """
     Example:
       sp internal generate-settings-schema
+    """
+
+  static let generateCustomCommandsSchemaDiscussion = """
+    Example:
+      sp internal generate-custom-commands-schema
     """
 
   static let developmentDiscussion = """
@@ -416,6 +424,7 @@ enum SPHelp {
     Example:
       sp internal ping
       sp internal generate-settings-schema
+      sp internal generate-custom-commands-schema
       sp internal agent-settings claude
       sp internal dev claude session-start
     """

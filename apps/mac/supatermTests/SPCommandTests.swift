@@ -176,6 +176,15 @@ struct SPCommandTests {
   }
 
   @Test
+  func internalParserAcceptsGenerateCustomCommandsSchemaSubcommand() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["internal", "generate-custom-commands-schema"]) as? SP.GenerateCustomCommandsSchema
+    )
+
+    #expect(type(of: command) == SP.GenerateCustomCommandsSchema.self)
+  }
+
+  @Test
   func tabFocusAndPaneSendParsersAcceptPublicShape() throws {
     let focusCommand = try #require(
       try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
