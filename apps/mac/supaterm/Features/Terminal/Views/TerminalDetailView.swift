@@ -14,6 +14,7 @@ struct TerminalDetailView: View {
       TerminalDetailTopBar(
         canEqualize: terminal.selectedTree?.isSplit ?? false,
         canSplit: terminal.selectedSurfaceView != nil,
+        githubPullRequest: terminal.selectedPaneGithubPullRequestPresentation,
         isPaneZoomed: terminal.selectedPaneIsZoomed,
         isSidebarCollapsed: store.isSidebarCollapsed,
         palette: palette,
@@ -53,6 +54,7 @@ struct TerminalDetailView: View {
 private struct TerminalDetailTopBar: View {
   let canEqualize: Bool
   let canSplit: Bool
+  let githubPullRequest: GithubPullRequestPresentation?
   let isPaneZoomed: Bool
   let isSidebarCollapsed: Bool
   let palette: TerminalPalette
@@ -63,6 +65,8 @@ private struct TerminalDetailTopBar: View {
   let splitDown: () -> Void
   let splitRight: () -> Void
   let togglePaneZoom: () -> Void
+
+  @Environment(\.openURL) private var openURL
 
   var body: some View {
     HStack(spacing: 0) {
@@ -80,6 +84,32 @@ private struct TerminalDetailTopBar: View {
         .lineLimit(1)
         .truncationMode(.middle)
         .padding(.leading, 8)
+
+      if let githubPullRequest {
+        Button {
+          openURL(githubPullRequest.url)
+        } label: {
+          Text(githubPullRequest.label)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Color.accentColor)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .frame(height: 22)
+            .background(
+              Color.accentColor.opacity(0.12),
+              in: Capsule(style: .continuous)
+            )
+            .overlay {
+              Capsule(style: .continuous)
+                .stroke(Color.accentColor.opacity(0.22), lineWidth: 1)
+            }
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 8)
+        .help("Open \(githubPullRequest.label)")
+        .accessibilityLabel("Open \(githubPullRequest.label)")
+      }
 
       Spacer(minLength: 8)
       HStack(spacing: 4) {

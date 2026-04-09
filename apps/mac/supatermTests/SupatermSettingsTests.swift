@@ -21,6 +21,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .system)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
+    #expect(prefs.githubPullRequestsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
@@ -44,6 +45,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
+    #expect(prefs.githubPullRequestsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
@@ -63,6 +65,7 @@ struct SupatermSettingsTests {
         "analyticsEnabled",
         "appearanceMode",
         "crashReportsEnabled",
+        "githubPullRequestsEnabled",
         "glowingPaneRingEnabled",
         "restoreTerminalLayoutEnabled",
         "systemNotificationsEnabled",
@@ -94,6 +97,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
+    #expect(prefs.githubPullRequestsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)

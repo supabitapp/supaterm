@@ -46,6 +46,8 @@ private struct SettingsTabContentView: View {
     switch tab {
     case .codingAgents:
       SettingsCodingAgentsView(store: store)
+    case .github:
+      SettingsGithubView(store: store)
     case .general:
       SettingsGeneralView(store: store)
     case .terminal:
@@ -55,6 +57,72 @@ private struct SettingsTabContentView: View {
     case .about:
       SettingsAboutView(store: store)
     }
+  }
+}
+
+private struct SettingsGithubView: View {
+  let store: StoreOf<SettingsFeature>
+
+  private var pullRequestsEnabled: Binding<Bool> {
+    Binding(
+      get: { store.github.pullRequestsEnabled },
+      set: { newValue in
+        _ = store.send(.githubPullRequestsEnabledChanged(newValue))
+      }
+    )
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        SettingsToggleRow(
+          title: "Pull request surfaces",
+          subtitle:
+            "Show pull request links in the sidebar and selected pane top bar "
+            + "when the active repository has an open GitHub pull request.",
+          isOn: pullRequestsEnabled
+        )
+      } footer: {
+        Text("Supaterm checks the current repository and branch through git and GitHub CLI.")
+      }
+
+      Section {
+        HStack {
+          Text("Diagnostics")
+            .font(.callout.weight(.semibold))
+          Spacer(minLength: 12)
+          Button("Refresh") {
+            _ = store.send(.githubDiagnosticsRefreshRequested)
+          }
+          .disabled(store.github.isLoadingDiagnostics)
+        }
+
+        if let diagnostics = store.github.diagnostics {
+          SettingsGithubDiagnosticRow(
+            title: "Git",
+            status: diagnostics.gitStatus
+          )
+          SettingsGithubDiagnosticRow(
+            title: "GitHub CLI",
+            status: diagnostics.ghStatus
+          )
+          SettingsGithubAuthenticationRow(
+            status: diagnostics.authenticationStatus
+          )
+        } else if store.github.isLoadingDiagnostics {
+          ProgressView()
+            .controlSize(.small)
+        } else {
+          Text("Diagnostics have not been loaded yet.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+      } footer: {
+        Text("If pull request surfaces do not appear, start here.")
+      }
+    }
+    .navigationTitle("GitHub")
+    .settingsFormLayout()
   }
 }
 
@@ -645,6 +713,71 @@ private struct SettingsToggleRow: View {
         title: title,
         subtitle: subtitle
       )
+    }
+  }
+}
+
+private struct SettingsGithubDiagnosticRow: View {
+  let title: String
+  let status: GithubBinaryStatus
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: status.isAvailable ? "checkmark.circle.fill" : "xmark.circle.fill")
+        .foregroundStyle(status.isAvailable ? .green : .red)
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+          .font(.callout.weight(.semibold))
+        Text(status.detail)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.vertical, 2)
+  }
+}
+
+private struct SettingsGithubAuthenticationRow: View {
+  let status: GithubAuthenticationStatus
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      Image(systemName: symbolName)
+        .foregroundStyle(symbolColor)
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Authentication")
+          .font(.callout.weight(.semibold))
+        Text(status.detail)
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.vertical, 2)
+  }
+
+  private var symbolColor: Color {
+    switch status {
+    case .authenticated:
+      return .green
+    case .unavailable:
+      return .orange
+    case .unauthenticated:
+      return .red
+    }
+  }
+
+  private var symbolName: String {
+    switch status {
+    case .authenticated:
+      return "checkmark.circle.fill"
+    case .unavailable:
+      return "exclamationmark.circle.fill"
+    case .unauthenticated:
+      return "xmark.circle.fill"
     }
   }
 }

@@ -40,6 +40,12 @@ struct SettingsAgentIntegrationState: Equatable {
   }
 }
 
+struct SettingsGithubState: Equatable {
+  var diagnostics: GithubDiagnostics?
+  var isLoadingDiagnostics = false
+  var pullRequestsEnabled = SupatermSettings.default.githubPullRequestsEnabled
+}
+
 enum SettingsAgentIntegrationResult: Equatable {
   case unavailable(String)
   case failure(String)
@@ -63,6 +69,7 @@ struct SettingsFeature {
       settingsPath: SupatermAgentKind.pi.settingsPathDescription
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
+    var github = SettingsGithubState()
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
@@ -83,6 +90,9 @@ struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case crashReportsEnabledChanged(Bool)
+    case githubDiagnosticsRefreshRequested
+    case githubDiagnosticsResponse(GithubDiagnostics)
+    case githubPullRequestsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
@@ -116,6 +126,7 @@ struct SettingsFeature {
     case general
     case terminal
     case notifications
+    case github
     case codingAgents
     case about
 
@@ -127,6 +138,8 @@ struct SettingsFeature {
       switch self {
       case .codingAgents:
         "hammer"
+      case .github:
+        "point.3.connected.trianglepath.dotted"
       case .general:
         "gearshape"
       case .terminal:
@@ -142,6 +155,8 @@ struct SettingsFeature {
       switch self {
       case .codingAgents:
         "Coding Agents"
+      case .github:
+        "GitHub"
       case .general:
         "General"
       case .terminal:
@@ -160,6 +175,7 @@ struct SettingsFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
+  @Dependency(GithubClient.self) var githubClient
   @Dependency(UpdateClient.self) var updateClient
 
   var body: some Reducer<State, Action> {
@@ -170,6 +186,7 @@ struct SettingsFeature {
         return .merge(
           .send(.settingsLoaded(supatermSettings)),
           .send(.terminalSettingsLoadRequested),
+          .send(.githubDiagnosticsRefreshRequested),
           .send(.agentIntegrationStatusRefreshRequested(.claude)),
           .send(.agentIntegrationStatusRefreshRequested(.codex)),
           .send(.agentIntegrationStatusRefreshRequested(.pi)),
@@ -187,6 +204,7 @@ struct SettingsFeature {
         state.appearanceMode = supatermSettings.appearanceMode
         state.analyticsEnabled = supatermSettings.analyticsEnabled
         state.crashReportsEnabled = supatermSettings.crashReportsEnabled
+        state.github.pullRequestsEnabled = supatermSettings.githubPullRequestsEnabled
         state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
         state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
         state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
@@ -400,6 +418,24 @@ struct SettingsFeature {
         state.crashReportsEnabled = isEnabled
         return persist(state)
 
+      case .githubDiagnosticsRefreshRequested:
+        guard !state.github.isLoadingDiagnostics else {
+          return .none
+        }
+        state.github.isLoadingDiagnostics = true
+        return .run { [githubClient] send in
+          await send(.githubDiagnosticsResponse(await githubClient.diagnostics()))
+        }
+
+      case .githubDiagnosticsResponse(let diagnostics):
+        state.github.diagnostics = diagnostics
+        state.github.isLoadingDiagnostics = false
+        return .none
+
+      case .githubPullRequestsEnabledChanged(let isEnabled):
+        state.github.pullRequestsEnabled = isEnabled
+        return persist(state)
+
       case .glowingPaneRingEnabledChanged(let isEnabled):
         state.glowingPaneRingEnabled = isEnabled
         return persist(state)
@@ -454,6 +490,9 @@ struct SettingsFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
+        if tab == .github {
+          return .send(.githubDiagnosticsRefreshRequested)
+        }
         return .none
 
       case .updateChannelSelected(let updateChannel):
@@ -491,6 +530,7 @@ struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
+      githubPullRequestsEnabled: state.github.pullRequestsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,

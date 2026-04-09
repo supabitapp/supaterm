@@ -26,6 +26,11 @@
       "description": "Allow crash reports.",
       "type": "boolean"
     },
+    "githubPullRequestsEnabled": {
+      "default": true,
+      "description": "Show GitHub pull request surfaces in the terminal UI.",
+      "type": "boolean"
+    },
     "glowingPaneRingEnabled": {
       "default": true,
       "description": "Show a glowing ring around panes with unread attention.",

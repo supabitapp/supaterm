@@ -4,6 +4,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var crashReportsEnabled: Bool
+  public var githubPullRequestsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var restoreTerminalLayoutEnabled: Bool
   public var systemNotificationsEnabled: Bool
@@ -13,6 +14,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     crashReportsEnabled: Bool,
+    githubPullRequestsEnabled: Bool = true,
     glowingPaneRingEnabled: Bool = true,
     restoreTerminalLayoutEnabled: Bool = true,
     systemNotificationsEnabled: Bool = false,
@@ -21,6 +23,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.crashReportsEnabled = crashReportsEnabled
+    self.githubPullRequestsEnabled = githubPullRequestsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.systemNotificationsEnabled = systemNotificationsEnabled
@@ -31,6 +34,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: .system,
     analyticsEnabled: true,
     crashReportsEnabled: true,
+    githubPullRequestsEnabled: true,
     glowingPaneRingEnabled: true,
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
@@ -48,6 +52,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     case appearanceMode
     case analyticsEnabled
     case crashReportsEnabled
+    case githubPullRequestsEnabled
     case glowingPaneRingEnabled
     case restoreTerminalLayoutEnabled
     case systemNotificationsEnabled
@@ -61,6 +66,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         return "Allow anonymous telemetry."
       case .crashReportsEnabled:
         return "Allow crash reports."
+      case .githubPullRequestsEnabled:
+        return "Show GitHub pull request surfaces in the terminal UI."
       case .glowingPaneRingEnabled:
         return "Show a glowing ring around panes with unread attention."
       case .restoreTerminalLayoutEnabled:
@@ -94,6 +101,9 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled,
       crashReportsEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled,
+      githubPullRequestsEnabled:
+        try container.decodeIfPresent(Bool.self, forKey: .githubPullRequestsEnabled)
+          ?? defaults.githubPullRequestsEnabled,
       glowingPaneRingEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled)
           ?? defaults.glowingPaneRingEnabled,
@@ -130,6 +140,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       return .bool(analyticsEnabled)
     case .crashReportsEnabled:
       return .bool(crashReportsEnabled)
+    case .githubPullRequestsEnabled:
+      return .bool(githubPullRequestsEnabled)
     case .glowingPaneRingEnabled:
       return .bool(glowingPaneRingEnabled)
     case .restoreTerminalLayoutEnabled:
