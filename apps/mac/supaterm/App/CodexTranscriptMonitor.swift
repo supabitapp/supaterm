@@ -5,6 +5,15 @@ enum CodexTranscriptTurnStatus: Equatable {
   case completed(String?)
   case aborted(String?)
 
+  var startsNewTurn: Bool {
+    switch self {
+    case .started:
+      true
+    case .completed, .aborted:
+      false
+    }
+  }
+
   var isFinal: Bool {
     switch self {
     case .started:
@@ -126,9 +135,11 @@ enum CodexTranscriptMonitor {
     let completeData = data.prefix(through: newlineIndex)
     var latestUpdate = CodexTranscriptUpdate()
     for line in completeData.split(separator: 0x0A) {
-      if let update = update(in: Data(line)) {
-        latestUpdate.absorb(update)
+      guard let update = update(in: Data(line)) else { continue }
+      if update.status?.startsNewTurn == true {
+        latestUpdate = CodexTranscriptUpdate()
       }
+      latestUpdate.absorb(update)
     }
     return (completeData.count, latestUpdate.hasChanges ? latestUpdate : nil)
   }

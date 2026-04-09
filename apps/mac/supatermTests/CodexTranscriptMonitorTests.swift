@@ -38,6 +38,37 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func startDoesNotReusePreviousTurnDetailWhenNewTurnOnlyStarted() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.assistantMessage("Finished the previous turn"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+
+    #expect(result.1?.status == .started("turn-1"))
+    #expect(result.1?.detail == nil)
+  }
+
+  @Test
+  func startDoesNotReusePreviousTurnMessagePriorityForNewTurnReasoning() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.assistantMessage("Finished the previous turn"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.reasoning("Planning the next step"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+
+    #expect(result.1?.status == .started("turn-1"))
+    #expect(result.1?.detail == "Thinking...")
+  }
+
+  @Test
   func advancePrefersAssistantMessageOverToolCallWithinSingleRead() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
