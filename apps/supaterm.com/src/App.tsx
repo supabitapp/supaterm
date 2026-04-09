@@ -97,23 +97,6 @@ function App() {
                 Supaterm
               </span>
             </a>
-            <div className="flex items-center gap-3">
-              <CtaLink
-                href={githubHref}
-                icon="github"
-                variant="outline"
-                className="rounded-full border-white/12 bg-white/6 px-5 text-white/88 hover:border-white/18 hover:bg-white/10"
-              >
-                GitHub
-              </CtaLink>
-              <CtaLink
-                href={downloadHref}
-                icon="download"
-                className="rounded-full bg-[#f1ede4] px-6 text-[#12100b] hover:bg-white"
-              >
-                Download for macOS
-              </CtaLink>
-            </div>
           </header>
 
           <div className="grid flex-1 items-center gap-10 pt-10 md:pt-14 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-18">
