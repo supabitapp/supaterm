@@ -64,6 +64,7 @@ struct ClaudeSettingsInstallerTests {
   func installCanonicalizesDriftedSupatermEntries() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = try jsonStringLiteral(SupatermClaudeHookSettings.command)
 
     try writeSettings(
       """
@@ -75,7 +76,7 @@ struct ClaudeSettingsInstallerTests {
               "hooks": [
                 {
                   "async": false,
-                  "command": "\(SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -105,7 +106,7 @@ struct ClaudeSettingsInstallerTests {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
-    let escapedCommand = SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermClaudeHookSettings.command)
     try writeSettings(
       """
       {
@@ -115,7 +116,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 10,
                   "type": "command"
                 }
@@ -125,7 +126,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 20,
                   "type": "command"
                 }
@@ -153,7 +154,7 @@ struct ClaudeSettingsInstallerTests {
   func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let command = SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermClaudeHookSettings.command)
 
     try writeSettings(
       """
@@ -164,7 +165,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(command)",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }

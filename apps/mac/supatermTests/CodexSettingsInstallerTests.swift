@@ -70,6 +70,7 @@ struct CodexSettingsInstallerTests {
   func installCanonicalizesDriftedSupatermEntries() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = try jsonStringLiteral(SupatermCodexHookSettings.command)
 
     try writeCodexSettings(
       """
@@ -80,7 +81,7 @@ struct CodexSettingsInstallerTests {
               "matcher": ".*",
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -116,7 +117,7 @@ struct CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
-    let escapedCommand = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermCodexHookSettings.command)
     try writeCodexSettings(
       """
       {
@@ -125,7 +126,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 10,
                   "type": "command"
                 }
@@ -134,7 +135,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 20,
                   "type": "command"
                 }
@@ -167,7 +168,7 @@ struct CodexSettingsInstallerTests {
   func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermCodexHookSettings.command)
 
     try writeCodexSettings(
       """
@@ -177,7 +178,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(command)",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }
