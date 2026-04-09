@@ -14,6 +14,7 @@ type CloudflareRequestInit = RequestInit & {
 };
 
 const cacheControl = "public, max-age=300";
+const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
 const downloadRoutes = [
   {
     prefix: "/download/latest/",
@@ -37,6 +38,7 @@ const notFound = () => new Response("Not Found", { status: 404 });
 const getAssets = (env: Env) => env.ASSETS;
 const getDownloadRoute = (pathname: string) =>
   downloadRoutes.find((route) => pathname.startsWith(route.prefix));
+const isVideoAsset = (pathname: string) => pathname.endsWith(".mp4");
 
 const withCacheControl = (response: Response) => {
   const headers = new Headers(response.headers);
@@ -44,6 +46,97 @@ const withCacheControl = (response: Response) => {
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
+    headers,
+  });
+};
+
+const withAcceptRanges = (response: Response) => {
+  const headers = new Headers(response.headers);
+  headers.set("accept-ranges", "bytes");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
+const parseByteRange = (header: string, size: number) => {
+  if (header.includes(",")) {
+    return null;
+  }
+
+  const match = byteRangePattern.exec(header);
+  if (!match) {
+    return null;
+  }
+
+  const [, startValue, endValue] = match;
+
+  if (!startValue && !endValue) {
+    return null;
+  }
+
+  if (!startValue) {
+    const suffixLength = Number(endValue);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) {
+      return null;
+    }
+
+    const start = Math.max(size - suffixLength, 0);
+    return { start, end: size - 1 };
+  }
+
+  const start = Number(startValue);
+  const end = endValue ? Number(endValue) : size - 1;
+
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end < start ||
+    start >= size
+  ) {
+    return null;
+  }
+
+  return { start, end: Math.min(end, size - 1) };
+};
+
+const serveVideoAsset = async (request: Request, assets: AssetBinding) => {
+  const rangeHeader = request.headers.get("range");
+  const assetHeaders = new Headers(request.headers);
+  assetHeaders.delete("range");
+
+  const assetRequest = new Request(request, {
+    headers: assetHeaders,
+  });
+  const assetResponse = await assets.fetch(assetRequest);
+
+  if (!rangeHeader || !assetResponse.ok) {
+    return withAcceptRanges(assetResponse);
+  }
+
+  const buffer = await assetResponse.arrayBuffer();
+  const range = parseByteRange(rangeHeader, buffer.byteLength);
+
+  if (!range) {
+    return new Response(null, {
+      status: 416,
+      headers: {
+        "accept-ranges": "bytes",
+        "content-range": `bytes */${buffer.byteLength}`,
+      },
+    });
+  }
+
+  const { start, end } = range;
+  const headers = new Headers(assetResponse.headers);
+  headers.set("accept-ranges", "bytes");
+  headers.set("content-length", String(end - start + 1));
+  headers.set("content-range", `bytes ${start}-${end}/${buffer.byteLength}`);
+
+  return new Response(request.method === "HEAD" ? null : buffer.slice(start, end + 1), {
+    status: 206,
     headers,
   });
 };
@@ -99,6 +192,10 @@ export default {
     const assets = getAssets(env);
     if (!assets) {
       return new Response("ASSETS binding not available", { status: 500 });
+    }
+
+    if (isVideoAsset(new URL(request.url).pathname)) {
+      return serveVideoAsset(request, assets);
     }
 
     return assets.fetch(request);

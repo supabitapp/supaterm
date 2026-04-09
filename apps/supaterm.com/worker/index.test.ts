@@ -123,6 +123,68 @@ describe("worker", () => {
     await expect(response.text()).resolves.toBe("site");
   });
 
+  it("serves MP4 range requests with partial content", async () => {
+    const assetsFetch = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]), {
+        headers: { "content-type": "video/mp4" },
+      }),
+    );
+
+    const response = await worker.fetch(
+      new Request("https://supaterm.com/assets/demo.mp4", {
+        headers: { Range: "bytes=2-5" },
+      }),
+      {
+        ASSETS: { fetch: assetsFetch } as AssetBinding,
+      },
+    );
+
+    expect(assetsFetch).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(206);
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("content-range")).toBe("bytes 2-5/8");
+    expect(response.headers.get("content-length")).toBe("4");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([2, 3, 4, 5]));
+  });
+
+  it("advertises byte ranges for MP4 assets without a range request", async () => {
+    const assetsFetch = vi.fn().mockResolvedValue(
+      new Response("video", {
+        headers: { "content-type": "video/mp4" },
+      }),
+    );
+
+    const response = await worker.fetch(new Request("https://supaterm.com/assets/demo.mp4"), {
+      ASSETS: { fetch: assetsFetch } as AssetBinding,
+    });
+
+    expect(assetsFetch).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    await expect(response.text()).resolves.toBe("video");
+  });
+
+  it("returns 416 for invalid MP4 range requests", async () => {
+    const assetsFetch = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([0, 1, 2, 3]), {
+        headers: { "content-type": "video/mp4" },
+      }),
+    );
+
+    const response = await worker.fetch(
+      new Request("https://supaterm.com/assets/demo.mp4", {
+        headers: { Range: "bytes=8-9" },
+      }),
+      {
+        ASSETS: { fetch: assetsFetch } as AssetBinding,
+      },
+    );
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("content-range")).toBe("bytes */4");
+  });
+
   it("returns 404 when the download path is missing an asset name", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
