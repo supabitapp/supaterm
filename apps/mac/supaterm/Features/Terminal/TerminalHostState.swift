@@ -186,9 +186,6 @@ final class TerminalHostState {
   @Shared(.supatermSettings)
   var supatermSettings = .default
   @ObservationIgnored
-  @Shared(.supatermSettings)
-  private var supatermSettings = .default
-  @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   @ObservationIgnored
   @Shared(.terminalSpaceCatalog)
