@@ -185,7 +185,7 @@ function App() {
                     {section.accent}
                   </div>
                 </div>
-                <div className="group overflow-hidden rounded-[1.8rem] border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none max-sm:rounded-[1.45rem]">
+                <div className="group overflow-hidden border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none">
                   <div className="grid min-h-[27rem] [grid-template-columns:0.36fr_0.64fr] max-[900px]:grid-cols-1">
                     <div className="flex flex-col gap-6 border-r border-white/7 bg-white/[0.02] px-4 py-[1.35rem] pl-[1.2rem] max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:border-white/7">
                       <div className="h-4 w-[74%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06))]" />
