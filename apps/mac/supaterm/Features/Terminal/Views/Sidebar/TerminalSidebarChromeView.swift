@@ -1360,54 +1360,7 @@ private struct TerminalSidebarSpaceBar: View {
   private var spaceList: some View {
     Color.clear
       .overlay {
-        HStack(spacing: 0) {
-          ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
-            TerminalSidebarSpaceItemView(
-              space: space,
-              monogram: TerminalSidebarLayout.spaceMonogram(
-                for: space.name,
-                fallbackIndex: index
-              ),
-              isSelected: terminal.selectedSpaceID == space.id,
-              compact: layoutMode == .compact,
-              palette: palette,
-              spacesCount: terminal.spaces.count,
-              onHoverChange: { isHovering in
-                if isHovering {
-                  hoveredSpaceID = space.id
-                  if !showPreview {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                      if hoveredSpaceID == space.id && isHoveringList {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                          showPreview = true
-                        }
-                      }
-                    }
-                  }
-                } else if hoveredSpaceID == space.id {
-                  hoveredSpaceID = nil
-                }
-              },
-              onSelect: {
-                withAnimation(.easeOut(duration: 0.1)) {
-                  _ = store.send(.selectSpaceButtonTapped(space.id))
-                }
-              },
-              onRename: {
-                _ = store.send(.spaceRenameRequested(space))
-              },
-              onDelete: {
-                _ = store.send(.spaceDeleteRequested(space))
-              }
-            )
-
-            if index != terminal.spaces.count - 1 {
-              Spacer()
-                .frame(minWidth: 1, maxWidth: 8)
-                .layoutPriority(-1)
-            }
-          }
-        }
+        spaceItems
         .onHover { hovering in
           isHoveringList = hovering
           if !hovering {
@@ -1441,6 +1394,60 @@ private struct TerminalSidebarSpaceBar: View {
       }
       .frame(maxWidth: .infinity)
   }
+
+  @ViewBuilder
+  private var spaceItems: some View {
+    if TerminalSidebarLayout.showsSpaceList(spacesCount: terminal.spaces.count) {
+      HStack(spacing: 0) {
+        ForEach(Array(terminal.spaces.enumerated()), id: \.element.id) { index, space in
+          TerminalSidebarSpaceItemView(
+            space: space,
+            monogram: TerminalSidebarLayout.spaceMonogram(
+              for: space.name,
+              fallbackIndex: index
+            ),
+            isSelected: terminal.selectedSpaceID == space.id,
+            compact: layoutMode == .compact,
+            palette: palette,
+            spacesCount: terminal.spaces.count,
+            onHoverChange: { isHovering in
+              if isHovering {
+                hoveredSpaceID = space.id
+                if !showPreview {
+                  DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                    if hoveredSpaceID == space.id && isHoveringList {
+                      withAnimation(.easeInOut(duration: 0.2)) {
+                        showPreview = true
+                      }
+                    }
+                  }
+                }
+              } else if hoveredSpaceID == space.id {
+                hoveredSpaceID = nil
+              }
+            },
+            onSelect: {
+              withAnimation(.easeOut(duration: 0.1)) {
+                _ = store.send(.selectSpaceButtonTapped(space.id))
+              }
+            },
+            onRename: {
+              _ = store.send(.spaceRenameRequested(space))
+            },
+            onDelete: {
+              _ = store.send(.spaceDeleteRequested(space))
+            }
+          )
+
+          if index != terminal.spaces.count - 1 {
+            Spacer()
+              .frame(minWidth: 1, maxWidth: 8)
+              .layoutPriority(-1)
+          }
+        }
+      }
+    }
+  }
 }
 
 private struct TerminalSidebarSpaceItemView: View {
@@ -1459,20 +1466,8 @@ private struct TerminalSidebarSpaceItemView: View {
 
   var body: some View {
     Button(action: onSelect) {
-      Group {
-        if TerminalSidebarLayout.showsSpaceValue(
-          compact: compact,
-          isSelected: isSelected,
-          spacesCount: spacesCount
-        ) {
-          Text(monogram)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-        } else {
-          Circle()
-            .fill(palette.primaryText)
-            .frame(width: 6, height: 6)
-        }
-      }
+      Text(monogram)
+        .font(.system(size: 12, weight: .semibold, design: .rounded))
       .frame(maxWidth: .infinity)
       .foregroundStyle(palette.primaryText)
       .opacity(isSelected ? 1 : 0.7)

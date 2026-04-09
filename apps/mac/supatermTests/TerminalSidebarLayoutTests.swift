@@ -55,35 +55,16 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func singleSelectedSpaceShowsSpaceValue() {
+  func singleSpaceHidesSpaceList() {
     #expect(
-      TerminalSidebarLayout.showsSpaceValue(
-        compact: false,
-        isSelected: true,
-        spacesCount: 1
-      )
+      !TerminalSidebarLayout.showsSpaceList(spacesCount: 1)
     )
   }
 
   @Test
-  func compactUnselectedSpaceHidesSpaceValue() {
+  func multipleSpacesShowSpaceList() {
     #expect(
-      !TerminalSidebarLayout.showsSpaceValue(
-        compact: true,
-        isSelected: false,
-        spacesCount: 3
-      )
-    )
-  }
-
-  @Test
-  func multipleSpacesShowValueForSelectedSpaceInNormalMode() {
-    #expect(
-      TerminalSidebarLayout.showsSpaceValue(
-        compact: false,
-        isSelected: true,
-        spacesCount: 2
-      )
+      TerminalSidebarLayout.showsSpaceList(spacesCount: 2)
     )
   }
 
