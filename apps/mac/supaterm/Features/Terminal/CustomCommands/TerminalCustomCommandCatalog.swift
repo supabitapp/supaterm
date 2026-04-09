@@ -269,8 +269,7 @@ enum TerminalCustomCommandCatalog {
       pane: tab.rootPane,
       inheritedWorkingDirectory: tab.cwd,
       sourceURL: sourceURL,
-      commandID: commandID,
-      problems: &problems
+      commandID: commandID
     )
     let focusedLeafIndexes = focusedLeafIndexes(in: resolvedPane)
     if focusedLeafIndexes.count > 1 {
@@ -297,8 +296,7 @@ enum TerminalCustomCommandCatalog {
     pane: SupatermWorkspacePaneDefinition,
     inheritedWorkingDirectory: String?,
     sourceURL: URL,
-    commandID: String,
-    problems: inout [String]
+    commandID: String
   ) throws -> FocusMarkedPane {
     switch pane {
     case .leaf(let leaf):
@@ -327,15 +325,13 @@ enum TerminalCustomCommandCatalog {
           pane: split.first,
           inheritedWorkingDirectory: inheritedWorkingDirectory,
           sourceURL: sourceURL,
-          commandID: commandID,
-          problems: &problems
+          commandID: commandID
         ),
         second: try resolve(
           pane: split.second,
           inheritedWorkingDirectory: inheritedWorkingDirectory,
           sourceURL: sourceURL,
-          commandID: commandID,
-          problems: &problems
+          commandID: commandID
         )
       )
     }
@@ -386,13 +382,13 @@ enum TerminalCustomCommandCatalog {
     _ environment: SupatermWorkspaceEnvironment,
     commandID: String
   ) throws -> [SupatermCLIEnvironmentVariable] {
-    try environment.values.keys.sorted().map { key in
+    try environment.values.sorted { $0.key < $1.key }.map { key, value in
       if isReservedEnvironmentKey(key) {
         throw CatalogError.invalid("reserved environment key \(key) in command \(commandID)")
       }
       return .init(
         key: key,
-        value: environment.values[key] ?? ""
+        value: value
       )
     }
   }

@@ -234,7 +234,7 @@ enum TerminalCommandPalettePresentation {
     row(atVisibleIndex: slot - 1, in: visibleRows)
   }
 
-  private static func ghosttyRow(
+  private static func customCommandRow(
     _ command: TerminalCustomCommandSnapshot
   ) -> TerminalCommandPaletteRow {
     .init(
@@ -251,7 +251,7 @@ enum TerminalCommandPalettePresentation {
   static func customRows(
     from commands: [TerminalCustomCommandSnapshot]
   ) -> [TerminalCommandPaletteRow] {
-    commands.map(ghosttyRow)
+    commands.map(customCommandRow)
   }
 
   private static func ghosttyRow(
