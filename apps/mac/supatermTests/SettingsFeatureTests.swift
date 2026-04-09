@@ -79,9 +79,6 @@ struct SettingsFeatureTests {
         $0.piIntegration.isPending = true
       }
       await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
-      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
-        $0.terminal = terminalSettingsState()
-      }
       await store.receive(
         .githubIntegrationStatusRefreshed(
           .authenticated(username: "khoi", host: "github.com")
@@ -89,6 +86,9 @@ struct SettingsFeatureTests {
         timeout: 0
       ) {
         $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
+      }
+      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+        $0.terminal = terminalSettingsState()
       }
       await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
         $0.claudeIntegration.isPending = false
@@ -134,9 +134,6 @@ struct SettingsFeatureTests {
       $0.piIntegration.isPending = true
     }
     await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
-      $0.terminal = terminalSettingsState()
-    }
     await store.receive(
       .githubIntegrationStatusRefreshed(
         .authenticated(username: "khoi", host: "github.com")
@@ -144,6 +141,9 @@ struct SettingsFeatureTests {
       timeout: 0
     ) {
       $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
+    }
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+      $0.terminal = terminalSettingsState()
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
       $0.claudeIntegration.isPending = false
@@ -391,7 +391,8 @@ struct SettingsFeatureTests {
   func notificationPermissionAlertOpensSystemSettings() async {
     let recorder = SettingsNotificationPermissionRecorder()
     var state = SettingsFeature.State()
-    state.alert = notificationPermissionAlert("Supaterm cannot send system notifications.\n\nError: Mock request error")
+    state.alert = notificationPermissionAlert(
+      "Supaterm cannot send system notifications.\n\nError: Mock request error")
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
@@ -567,9 +568,6 @@ struct SettingsFeatureTests {
       $0.piIntegration.isPending = true
     }
     await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
-      $0.terminal = terminalSettingsState()
-    }
     await store.receive(
       .githubIntegrationStatusRefreshed(
         .authenticated(username: "khoi", host: "github.com")
@@ -577,6 +575,9 @@ struct SettingsFeatureTests {
       timeout: 0
     ) {
       $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
+    }
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+      $0.terminal = terminalSettingsState()
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true)), timeout: 0) {
       $0.claudeIntegration.confirmedEnabled = true
@@ -661,7 +662,9 @@ struct SettingsFeatureTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.example.com") }
+      $0.githubCLIClient.authStatus = {
+        GithubAuthStatus(username: "khoi", host: "github.example.com")
+      }
       $0.githubCLIClient.isAvailable = { true }
     }
 
@@ -673,6 +676,26 @@ struct SettingsFeatureTests {
       timeout: 0
     ) {
       $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.example.com")
+    }
+  }
+
+  @Test
+  func githubIntegrationCommandFailureShowsFailure() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.githubCLIClient.authStatus = { throw GithubCLIError.commandFailed("boom") }
+      $0.githubCLIClient.isAvailable = { true }
+    }
+
+    await store.send(.githubIntegrationStatusRefreshRequested)
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .failure("boom")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .failure("boom")
     }
   }
 
@@ -848,7 +871,8 @@ struct SettingsFeatureTests {
         .failure("Claude settings must be valid JSON before Supaterm can install hooks.")
       )
     ) {
-      $0.claudeIntegration.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
+      $0.claudeIntegration.errorMessage =
+        "Claude settings must be valid JSON before Supaterm can install hooks."
       $0.claudeIntegration.isEnabled = false
       $0.claudeIntegration.isPending = false
     }
@@ -901,7 +925,9 @@ struct SettingsFeatureTests {
     await store.receive(
       .agentIntegrationToggleFinished(
         .codex,
-        .failure("Codex must be installed and available in your login shell before Supaterm can install hooks.")
+        .failure(
+          "Codex must be installed and available in your login shell before Supaterm can install hooks."
+        )
       )
     ) {
       $0.codexIntegration.errorMessage =
@@ -926,7 +952,9 @@ struct SettingsFeatureTests {
     await store.receive(
       .agentIntegrationStatusRefreshed(
         .pi,
-        .unavailable("Pi must be installed and available in your login shell before Supaterm can manage the package.")
+        .unavailable(
+          "Pi must be installed and available in your login shell before Supaterm can manage the package."
+        )
       )
     ) {
       $0.piIntegration.errorMessage =

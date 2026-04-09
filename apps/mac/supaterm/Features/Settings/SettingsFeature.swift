@@ -111,7 +111,8 @@ struct SettingsFeature {
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
-    case systemNotificationsAuthorizationResult(DesktopNotificationClient.AuthorizationRequestResult)
+    case systemNotificationsAuthorizationResult(
+      DesktopNotificationClient.AuthorizationRequestResult)
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
@@ -214,7 +215,8 @@ struct SettingsFeature {
         state.analyticsEnabled = supatermSettings.analyticsEnabled
         state.crashReportsEnabled = supatermSettings.crashReportsEnabled
         state.githubIntegrationEnabled = supatermSettings.githubIntegrationEnabled
-        state.githubIntegrationStatus = supatermSettings.githubIntegrationEnabled ? .checking : .disabled
+        state.githubIntegrationStatus =
+          supatermSettings.githubIntegrationEnabled ? .checking : .disabled
         state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
         state.newTabPosition = supatermSettings.newTabPosition
         state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
@@ -342,7 +344,8 @@ struct SettingsFeature {
             }
             await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadStatus())))
           } catch {
-            await send(.agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
+            await send(
+              .agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
           }
         }
 
@@ -447,53 +450,12 @@ struct SettingsFeature {
         }
         state.githubIntegrationStatus = .checking
         let githubCLIClient = githubCLIClient
-        return .run { send in
-          guard await githubCLIClient.isAvailable() else {
-            await send(
-              .githubIntegrationStatusRefreshed(
-                .unavailable("Install `gh` to enable pull request integration.")
-              )
+        return .run { [loadGithubIntegrationStatus] send in
+          await send(
+            .githubIntegrationStatusRefreshed(
+              await loadGithubIntegrationStatus(githubCLIClient)
             )
-            return
-          }
-          do {
-            if let status = try await githubCLIClient.authStatus() {
-              await send(
-                .githubIntegrationStatusRefreshed(
-                  .authenticated(username: status.username, host: status.host)
-                )
-              )
-            } else {
-              await send(
-                .githubIntegrationStatusRefreshed(
-                  .unauthenticated("Run `gh auth login` in a terminal to authenticate.")
-                )
-              )
-            }
-          } catch let error as GithubCLIError {
-            switch error {
-            case .unavailable:
-              await send(
-                .githubIntegrationStatusRefreshed(
-                  .unavailable("Install `gh` to enable pull request integration.")
-                )
-              )
-            case .outdated:
-              await send(
-                .githubIntegrationStatusRefreshed(
-                  .failure(error.localizedDescription)
-                )
-              )
-            case .commandFailed:
-              await send(
-                .githubIntegrationStatusRefreshed(
-                  .failure(error.localizedDescription)
-                )
-              )
-            }
-          } catch {
-            await send(.githubIntegrationStatusRefreshed(.failure(error.localizedDescription)))
-          }
+          )
         }
 
       case .githubIntegrationStatusRefreshed(let status):
@@ -704,6 +666,39 @@ struct SettingsFeature {
     case .pi:
       return PiSettingsInstallerError.piUnavailable.localizedDescription
     }
+  }
+
+  private func loadGithubIntegrationStatus(
+    using githubCLIClient: GithubCLIClient
+  ) async -> SettingsGithubIntegrationStatus {
+    guard await githubCLIClient.isAvailable() else {
+      return .unavailable(githubIntegrationUnavailableMessage)
+    }
+    do {
+      guard let status = try await githubCLIClient.authStatus() else {
+        return .unauthenticated(githubIntegrationUnauthenticatedMessage)
+      }
+      return .authenticated(username: status.username, host: status.host)
+    } catch {
+      return githubIntegrationStatus(for: error)
+    }
+  }
+
+  private func githubIntegrationStatus(
+    for error: Error
+  ) -> SettingsGithubIntegrationStatus {
+    if case GithubCLIError.unavailable = error {
+      return .unavailable(githubIntegrationUnavailableMessage)
+    }
+    return .failure(error.localizedDescription)
+  }
+
+  private var githubIntegrationUnavailableMessage: String {
+    "Install `gh` to enable pull request integration."
+  }
+
+  private var githubIntegrationUnauthenticatedMessage: String {
+    "Run `gh auth login` in a terminal to authenticate."
   }
 
   private func updateTerminalState(

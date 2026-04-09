@@ -32,27 +32,13 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
     let normalizedRepo = repo.lowercased()
     var results: [String: GithubPullRequest] = [:]
     for (alias, connection) in data.repository.pullRequestsByAlias {
-      guard let branch = aliasMap[alias] else { continue }
-      let upstreamCandidates = connection.nodes.filter {
-        $0.matches(owner: normalizedOwner, repo: normalizedRepo)
+      guard
+        let branch = aliasMap[alias],
+        let node = connection.preferredNode(owner: normalizedOwner, repo: normalizedRepo)
+      else {
+        continue
       }
-      let candidates =
-        upstreamCandidates.isEmpty
-        ? connection.nodes.filter { $0.headRepository != nil }
-        : upstreamCandidates
-      if let node = candidates.max(by: { left, right in
-        if left.stateRank != right.stateRank {
-          return left.stateRank < right.stateRank
-        }
-        let leftDate = left.updatedAt ?? .distantPast
-        let rightDate = right.updatedAt ?? .distantPast
-        if leftDate != rightDate {
-          return leftDate < rightDate
-        }
-        return left.number < right.number
-      }) {
-        results[branch] = node.pullRequest
-      }
+      results[branch] = node.pullRequest
     }
     return results
   }
@@ -91,6 +77,12 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
 
   struct PullRequestConnection: Decodable {
     let nodes: [PullRequestNode]
+
+    func preferredNode(owner: String, repo: String) -> PullRequestNode? {
+      let matchingNodes = nodes.filter { $0.matches(owner: owner, repo: repo) }
+      let candidates = matchingNodes.isEmpty ? nodes.filter(\.hasHeadRepository) : matchingNodes
+      return candidates.max(by: { $0.isLowerPriority(than: $1) })
+    }
   }
 
   struct PullRequestNode: Decodable {
@@ -107,6 +99,10 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
     let baseRefName: String?
     let statusCheckRollup: GithubPullRequestStatusCheckRollup?
     let headRepository: HeadRepository?
+
+    var hasHeadRepository: Bool {
+      headRepository != nil
+    }
 
     var pullRequest: GithubPullRequest {
       GithubPullRequest(
@@ -134,6 +130,18 @@ nonisolated struct GithubGraphQLPullRequestResponse: Decodable {
       default:
         return 0
       }
+    }
+
+    func isLowerPriority(than other: PullRequestNode) -> Bool {
+      if stateRank != other.stateRank {
+        return stateRank < other.stateRank
+      }
+      let updatedAt = updatedAt ?? .distantPast
+      let otherUpdatedAt = other.updatedAt ?? .distantPast
+      if updatedAt != otherUpdatedAt {
+        return updatedAt < otherUpdatedAt
+      }
+      return number < other.number
     }
 
     func matches(owner: String, repo: String) -> Bool {

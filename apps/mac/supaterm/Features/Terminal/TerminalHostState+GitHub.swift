@@ -83,53 +83,56 @@ extension TerminalHostState {
 
   private func refreshGithubWorkspace(for tabID: TerminalTabID) async {
     githubWorkspaceRefreshTasksByTab.removeValue(forKey: tabID)
-    guard supatermSettings.githubIntegrationEnabled else {
-      clearGithubWorkspace(for: tabID)
-      return
-    }
-    guard managesTerminalSurfaces else {
-      clearGithubWorkspace(for: tabID)
-      return
-    }
     guard
-      let surfaceID = contextSurfaceID(for: tabID),
-      let surface = surfaces[surfaceID],
-      let workingDirectoryPath = workingDirectoryPath(for: surface)
+      supatermSettings.githubIntegrationEnabled,
+      let workspace = await loadGithubWorkspace(for: tabID)
     else {
       clearGithubWorkspace(for: tabID)
       return
     }
-    let workingDirectoryURL = URL(fileURLWithPath: workingDirectoryPath, isDirectory: true)
-    guard let repositoryRootURL = await gitRepositoryClient.repositoryRoot(workingDirectoryURL) else {
-      clearGithubWorkspace(for: tabID)
-      return
-    }
-    let branchName = await gitRepositoryClient.branchName(workingDirectoryURL)
-    let remotes = await gitRepositoryClient.githubRemotes(repositoryRootURL)
-    let headURL = gitRepositoryClient.headURL(workingDirectoryURL)
     let previousWorkspace = githubWorkspaceByTab[tabID]
-    let workspace = TerminalGithubWorkspace(
-      tabID: tabID,
-      surfaceID: surfaceID,
-      workingDirectoryURL: workingDirectoryURL,
-      repositoryRootURL: repositoryRootURL,
-      branchName: branchName,
-      headURL: headURL,
-      remotes: remotes
-    )
     githubWorkspaceByTab[tabID] = workspace
     if previousWorkspace?.repositoryRootURL != workspace.repositoryRootURL
       || previousWorkspace?.branchName != workspace.branchName
     {
       githubPullRequestByTab.removeValue(forKey: tabID)
     }
-    updateGithubHeadWatcher(for: tabID, headURL: headURL)
+    updateGithubHeadWatcher(for: tabID, headURL: workspace.headURL)
     if let previousWorkspace, previousWorkspace.repositoryRootURL != workspace.repositoryRootURL {
       refreshGithubRepositorySchedule(for: previousWorkspace.repositoryRootURL)
       requestGithubRepositoryRefresh(previousWorkspace.repositoryRootURL)
     }
     refreshGithubRepositorySchedule(for: workspace.repositoryRootURL)
     requestGithubRepositoryRefresh(workspace.repositoryRootURL)
+  }
+
+  private func loadGithubWorkspace(for tabID: TerminalTabID) async -> TerminalGithubWorkspace? {
+    guard managesTerminalSurfaces else {
+      return nil
+    }
+    guard
+      let surfaceID = contextSurfaceID(for: tabID),
+      let surface = surfaces[surfaceID],
+      let workingDirectoryPath = workingDirectoryPath(for: surface)
+    else {
+      return nil
+    }
+    let workingDirectoryURL = URL(fileURLWithPath: workingDirectoryPath, isDirectory: true)
+    guard let repositoryRootURL = await gitRepositoryClient.repositoryRoot(workingDirectoryURL)
+    else {
+      return nil
+    }
+    async let branchName = gitRepositoryClient.branchName(workingDirectoryURL)
+    async let remotes = gitRepositoryClient.githubRemotes(repositoryRootURL)
+    return TerminalGithubWorkspace(
+      tabID: tabID,
+      surfaceID: surfaceID,
+      workingDirectoryURL: workingDirectoryURL,
+      repositoryRootURL: repositoryRootURL,
+      branchName: await branchName,
+      headURL: gitRepositoryClient.headURL(workingDirectoryURL),
+      remotes: await remotes
+    )
   }
 
   func clearGithubWorkspace(for tabID: TerminalTabID) {
@@ -203,7 +206,9 @@ extension TerminalHostState {
       return
     }
     let interval = githubRefreshInterval(for: repositoryRootURL)
-    if let existing = githubRepositoryRefreshTasksByRootURL[repositoryRootURL], existing.interval == interval {
+    if let existing = githubRepositoryRefreshTasksByRootURL[repositoryRootURL],
+      existing.interval == interval
+    {
       return
     }
     githubRepositoryRefreshTasksByRootURL.removeValue(forKey: repositoryRootURL)?.task.cancel()
