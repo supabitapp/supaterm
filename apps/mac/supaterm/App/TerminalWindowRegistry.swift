@@ -156,7 +156,7 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
         hasSurface: entry.terminal.selectedSurfaceView != nil
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
-      hasSearch: entry.terminal.selectedSurfaceState?.searchState != nil,
+      hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,

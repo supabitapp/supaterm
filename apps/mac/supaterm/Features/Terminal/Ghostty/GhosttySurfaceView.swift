@@ -1096,16 +1096,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  static func shouldBypassKeyEquivalentHandling(firstResponder: NSResponder?) -> Bool {
-    guard let textView = firstResponder as? NSTextView else { return false }
-    return textView.isFieldEditor
-  }
-
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     guard event.type == .keyDown else { return false }
     guard let surface else { return false }
     guard focused else { return false }
-    guard !Self.shouldBypassKeyEquivalentHandling(firstResponder: window?.firstResponder) else { return false }
 
     if let bindingFlags = bindingFlags(for: event, surface: surface) {
       if shouldAttemptMenu(for: bindingFlags),

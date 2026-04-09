@@ -25,7 +25,10 @@ final class GhosttySurfaceState {
   var colorChangeR: UInt8?
   var colorChangeG: UInt8?
   var colorChangeB: UInt8?
-  var searchState: GhosttySurfaceSearchState?
+  var searchNeedle: String?
+  var searchTotal: Int?
+  var searchSelected: Int?
+  var searchFocusCount = 0
   var sizeLimitMinWidth: UInt32?
   var sizeLimitMinHeight: UInt32?
   var sizeLimitMaxWidth: UInt32?
