@@ -849,45 +849,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexPreToolUseAndStopUpdateCodexActivity() throws {
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
-
-    let result = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.stop)
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
-    #expect(result.desktopNotification == nil)
-    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
-    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID) == Set([harness.context.surfaceID]))
-    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Done.")
-  }
-
-  @Test
-  func codexPostToolUseMarksTabRunning() throws {
-    let harness = try makeClaudeHookHarness()
-
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
-  }
-
-  @Test
-  func codexTranscriptResponseItemsReplaceHookFallbackDetail() async throws {
+  func codexSessionStartTracksTranscriptLifecycleWithoutHookFallback() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -902,15 +864,12 @@ struct TerminalWindowRegistryTests {
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.preToolUse,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try CodexTranscriptFixtures.append(
       .localShellCall(command: ["git", "status", "--short"]),
@@ -958,6 +917,71 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexSessionStartShowsAlreadyRunningTranscriptSnapshot() throws {
+    let harness = try makeClaudeHookHarness()
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(.assistantMessage("Resuming active rollout"), to: transcriptPath)
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Resuming active rollout")
+    )
+  }
+
+  @Test
+  func codexPreToolUseDoesNotMarkTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func codexPostToolUseDoesNotMarkTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func codexUserPromptSubmitDoesNotMarkTabRunning() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+  }
+
+  @Test
   func codexTranscriptBatchPrefersAssistantMessageOverExecCommand() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
@@ -973,13 +997,8 @@ struct TerminalWindowRegistryTests {
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.preToolUse,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
 
     try CodexTranscriptFixtures.append(
       .assistantMessage("Inspecting the transcript path"),
@@ -1018,15 +1037,8 @@ struct TerminalWindowRegistryTests {
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.userPromptSubmit,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
-
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
 
     try CodexTranscriptFixtures.append(
       .assistantMessage("Inspecting the transcript path"),
@@ -1067,13 +1079,8 @@ struct TerminalWindowRegistryTests {
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.preToolUse,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
 
     try CodexTranscriptFixtures.append(
       .functionCall(
@@ -1108,15 +1115,10 @@ struct TerminalWindowRegistryTests {
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
-      codexHook(
-        CodexHookFixtures.userPromptSubmit,
-        transcriptPath: transcriptPath,
-        context: harness.context
-      )
-    )
+    try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try CodexTranscriptFixtures.append(
       .agentReasoning("Inspecting transcript activity"),
@@ -1150,14 +1152,39 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexTurnCompleteMarksTabIdle() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
+
+    _ = try harness.registry.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    try CodexTranscriptFixtures.append(.turnComplete(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+  }
+
+  @Test
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
     _ = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
     )
     let result = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
@@ -1185,9 +1212,6 @@ struct TerminalWindowRegistryTests {
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
 
@@ -1206,9 +1230,6 @@ struct TerminalWindowRegistryTests {
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
     _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
     _ = try harness.registry.handleAgentHook(
@@ -1224,7 +1245,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexTranscriptKeepsRunningUntilTranscriptCompletes() async throws {
+  func codexTranscriptIgnoresStaleFinalSnapshotUntilNextTurnCompletes() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1247,11 +1268,11 @@ struct TerminalWindowRegistryTests {
       codexHook(CodexHookFixtures.userPromptSubmit, transcriptPath: transcriptPath)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
     await flushEffects()
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
     try CodexTranscriptFixtures.append(
       .taskStarted(turnID: "turn-1"),
@@ -1259,7 +1280,7 @@ struct TerminalWindowRegistryTests {
     )
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Thinking"))
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try CodexTranscriptFixtures.append(
       .taskComplete(turnID: "turn-1"),
@@ -1276,9 +1297,6 @@ struct TerminalWindowRegistryTests {
 
     _ = try harness.registry.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
-    )
-    _ = try harness.registry.handleAgentHook(
-      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
     )
     let result = try harness.registry.handleAgentHook(
       .init(

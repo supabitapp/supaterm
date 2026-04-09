@@ -111,22 +111,34 @@ final class TerminalAgentSessionStore {
     sessions = sessions.filter { $0.value.surfaceID != surfaceID }
   }
 
-  func armTranscriptMonitor(
-    agent: SupatermAgentKind,
+  @discardableResult
+  func beginCodexTracking(
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    guard agent == .codex else { return false }
+    let agent: SupatermAgentKind = .codex
     let key = SessionKey(agent: agent, sessionID: sessionID)
     guard
       let transcriptPath = sessions[key]?.transcriptPath,
-      var cursor = CodexTranscriptMonitor.makeCursor(at: transcriptPath)
+      let startup = CodexTranscriptMonitor.start(at: transcriptPath)
     else {
       return false
     }
+    let (initialCursor, initialUpdate) = startup
+    var cursor = initialCursor
     let interval = transcriptPollInterval
     let sleep = self.sleep
     transcriptMonitorTasks[key]?.cancel()
+    cancelRunningTimeout(agent: agent, sessionID: sessionID)
+    if let initialUpdate {
+      handleTranscriptUpdate(
+        initialUpdate,
+        key: key,
+        agent: agent,
+        sessionID: sessionID,
+        context: context
+      )
+    }
     transcriptMonitorTasks[key] = Task { [weak self] in
       while !Task.isCancelled {
         try? await sleep(interval)

@@ -81,6 +81,71 @@ struct TerminalAgentSessionStoreTests {
     #expect(delegate.expirations.isEmpty)
   }
 
+  @Test
+  func beginCodexTrackingPublishesActiveTranscriptSnapshot() throws {
+    let delegate = SessionStoreDelegateSpy()
+    let store = TerminalAgentSessionStore(
+      agentRunningTimeout: .seconds(5),
+      transcriptPollInterval: .seconds(1),
+      sleep: { _ in }
+    )
+    store.delegate = delegate
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    store.recordSession(
+      agent: .codex,
+      sessionID: "session-1",
+      context: context,
+      transcriptPath: transcriptURL.path
+    )
+
+    #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
+    #expect(delegate.transcriptUpdates.count == 1)
+    #expect(delegate.transcriptUpdates.first?.0 == .started("turn-1"))
+    #expect(delegate.transcriptUpdates.first?.1 == nil)
+  }
+
+  @Test
+  func beginCodexTrackingIgnoresStaleFinalSnapshotAndPublishesLaterTurn() async throws {
+    let clock = TestClock()
+    let delegate = SessionStoreDelegateSpy()
+    let store = TerminalAgentSessionStore(
+      agentRunningTimeout: .seconds(5),
+      transcriptPollInterval: .seconds(1),
+      sleep: { duration in
+        try await clock.sleep(for: duration)
+      }
+    )
+    store.delegate = delegate
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    store.recordSession(
+      agent: .codex,
+      sessionID: "session-1",
+      context: context,
+      transcriptPath: transcriptURL.path
+    )
+
+    #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
+    #expect(delegate.transcriptUpdates.isEmpty)
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+
+    await flushEffects()
+    await clock.advance(by: .seconds(1))
+    await flushEffects()
+
+    #expect(delegate.transcriptUpdates.count == 1)
+    #expect(delegate.transcriptUpdates.first?.0 == .started("turn-1"))
+    #expect(delegate.transcriptUpdates.first?.1 == nil)
+  }
+
   private func flushEffects() async {
     for _ in 0..<5 {
       await Task.yield()
@@ -91,6 +156,7 @@ struct TerminalAgentSessionStoreTests {
 @MainActor
 private final class SessionStoreDelegateSpy: TerminalAgentSessionStoreDelegate {
   var expirations: [(SupatermAgentKind, String)] = []
+  var transcriptUpdates: [(CodexTranscriptTurnStatus?, String?)] = []
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
@@ -98,7 +164,9 @@ private final class SessionStoreDelegateSpy: TerminalAgentSessionStoreDelegate {
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
-  ) {}
+  ) {
+    transcriptUpdates.append((update.status, update.detail))
+  }
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,

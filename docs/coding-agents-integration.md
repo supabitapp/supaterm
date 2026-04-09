@@ -103,9 +103,7 @@ Codex now uses the same app-side bridge and tab-state model.
 ### Hook Injection
 - Supaterm's canonical Codex hook fragment is also available from `sp internal agent-settings codex`.
 - The installed global hooks tell Codex to invoke `sp agent receive-agent-hook --agent codex` for:
-  - `PostToolUse`
   - `SessionStart` with matcher `startup|resume`
-  - `PreToolUse`
   - `UserPromptSubmit`
   - `Stop`
 
@@ -113,12 +111,13 @@ Codex now uses the same app-side bridge and tab-state model.
 
 The app binds Codex sessions to pane surfaces and turns Codex hook events into tab activity.
 
-- `SessionStart` binds the session to the current pane surface.
-- `PostToolUse` marks the tab as `running`.
-- `PreToolUse` marks the tab as `running`.
-- `UserPromptSubmit` marks the tab as `running`.
+- `SessionStart` binds the session to the current pane surface and starts transcript observation for the recorded `transcript_path`.
+- `UserPromptSubmit` re-arms transcript observation for the next turn and clears structured completion suppression without marking the tab as `running` on its own.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
-- Supaterm keeps Codex `running` until `Stop`, `SessionEnd`, terminal exit, or the Codex transcript records a completed or aborted turn.
+- Codex `running` and `idle` now come from transcript lifecycle events instead of `PreToolUse` or `PostToolUse`.
+- `task_started` and `turn_started` mark the tab as `running`.
+- `task_complete`, `turn_complete`, and `turn_aborted` mark the tab as `idle`.
+- Resume and startup read the current transcript snapshot before polling, so an already-active Codex turn appears as `running` immediately.
 - While a Codex turn is running, Supaterm tails the Codex rollout file from `transcript_path`.
 - `event_msg` lines drive lifecycle and fallback text.
 - `response_item` lines drive live activity detail such as `Bash · git status --short`, `Reasoning · ...`, or `Message · ...`.
