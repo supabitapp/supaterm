@@ -7,6 +7,8 @@ MAKEFLAGS += --no-builtin-rules
 
 MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
+WEB_INSTALL_PREREQS := $(WEB_APP_DIR)/package.json $(WEB_APP_DIR)/pnpm-lock.yaml
+WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
 GIT_HOOKS_DIR := .git-hooks
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
@@ -94,32 +96,35 @@ mac-warm-cache:  # Warm the macOS Tuist external dependency cache.
 web-help:  # Show available Vite+ commands for the web app.
 	@cd "$(WEB_APP_DIR)" && vp help
 
-web-install:  # Install web app dependencies.
+$(WEB_NODE_MODULES_STAMP): $(WEB_INSTALL_PREREQS)
 	@cd "$(WEB_APP_DIR)" && vp install
 
-web-dev:  # Run the web development server.
+web-install: $(WEB_NODE_MODULES_STAMP)  # Install web app dependencies.
+	@:
+
+web-dev: $(WEB_NODE_MODULES_STAMP)  # Run the web development server.
 	@cd "$(WEB_APP_DIR)" && vp dev
 
-web-worker-dev:  # Run the Cloudflare Worker with built assets.
+web-worker-dev: $(WEB_NODE_MODULES_STAMP)  # Run the Cloudflare Worker with built assets.
 	@cd "$(WEB_APP_DIR)" && vp exec wrangler dev
 
-web-check:  # Run formatting, linting, and type checks for the web app.
+web-check: $(WEB_NODE_MODULES_STAMP)  # Run formatting, linting, and type checks for the web app.
 	@cd "$(WEB_APP_DIR)" && vp check
 
-web-lint:  # Lint the web app.
+web-lint: $(WEB_NODE_MODULES_STAMP)  # Lint the web app.
 	@cd "$(WEB_APP_DIR)" && vp lint
 
-web-fmt:  # Format web app files.
+web-fmt: $(WEB_NODE_MODULES_STAMP)  # Format web app files.
 	@cd "$(WEB_APP_DIR)" && vp fmt
 
-web-test:  # Run the web app test suite.
+web-test: $(WEB_NODE_MODULES_STAMP)  # Run the web app test suite.
 	@cd "$(WEB_APP_DIR)" && vp test
 
-web-build:  # Build the web app for production.
+web-build: $(WEB_NODE_MODULES_STAMP)  # Build the web app for production.
 	@cd "$(WEB_APP_DIR)" && vp build
 
-web-preview:  # Preview the built web app.
+web-preview: $(WEB_NODE_MODULES_STAMP)  # Preview the built web app.
 	@cd "$(WEB_APP_DIR)" && vp preview
 
-web-deploy:  # Deploy the web app to Cloudflare Workers.
+web-deploy: $(WEB_NODE_MODULES_STAMP)  # Deploy the web app to Cloudflare Workers.
 	@cd "$(WEB_APP_DIR)" && vp exec wrangler deploy
