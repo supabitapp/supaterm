@@ -64,6 +64,7 @@ struct SettingsFeature {
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
+    var newTabPosition = SupatermSettings.default.newTabPosition
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
@@ -84,6 +85,7 @@ struct SettingsFeature {
     case checkForUpdatesButtonTapped
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
+    case newTabPositionSelected(NewTabPosition)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
@@ -188,6 +190,7 @@ struct SettingsFeature {
         state.analyticsEnabled = supatermSettings.analyticsEnabled
         state.crashReportsEnabled = supatermSettings.crashReportsEnabled
         state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
+        state.newTabPosition = supatermSettings.newTabPosition
         state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
         state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
         state.updateChannel = supatermSettings.updateChannel
@@ -404,6 +407,10 @@ struct SettingsFeature {
         state.glowingPaneRingEnabled = isEnabled
         return persist(state)
 
+      case .newTabPositionSelected(let newTabPosition):
+        state.newTabPosition = newTabPosition
+        return persist(state)
+
       case .restoreTerminalLayoutEnabledChanged(let isEnabled):
         state.restoreTerminalLayoutEnabled = isEnabled
         return persist(state)
@@ -492,6 +499,7 @@ struct SettingsFeature {
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
+      newTabPosition: state.newTabPosition,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.updateChannel

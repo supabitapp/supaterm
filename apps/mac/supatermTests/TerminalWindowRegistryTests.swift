@@ -258,6 +258,110 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func createTabUsesSelectedTabAsInsertionAnchorForExplicitSpaceTarget() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
+        $0.newTabPosition = .current
+      }
+
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let firstTabID = try #require(host.selectedTabID)
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let secondTabID = try #require(host.selectedTabID)
+      host.handleCommand(.selectTab(firstTabID))
+
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      let result = try registry.createTab(
+        .init(
+          command: nil,
+          cwd: nil,
+          focus: false,
+          target: .space(windowIndex: 1, spaceIndex: 1)
+        )
+      )
+
+      #expect(result.tabIndex == 2)
+      #expect(
+        host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
+          == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
+      )
+      #expect(host.selectedTabID == firstTabID)
+    }
+  }
+
+  @Test
+  func createTabUsesContextPaneTabAsInsertionAnchor() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
+        $0.newTabPosition = .current
+      }
+
+      let registry = TerminalWindowRegistry()
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let firstTabID = try #require(host.selectedTabID)
+      let firstPaneID = try #require(host.selectedSurfaceView?.id)
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let secondTabID = try #require(host.selectedTabID)
+
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      let result = try registry.createTab(
+        .init(
+          command: nil,
+          cwd: nil,
+          focus: false,
+          target: .contextPane(firstPaneID)
+        )
+      )
+
+      #expect(result.tabIndex == 2)
+      #expect(
+        host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
+          == [firstTabID.rawValue, result.tabID, secondTabID.rawValue]
+      )
+      #expect(host.selectedTabID == secondTabID)
+    }
+  }
+
+  @Test
   func requestCloseTabInKeyWindowDispatchesReducerCommand() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

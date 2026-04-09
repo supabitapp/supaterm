@@ -35,6 +35,7 @@ struct SettingsFeatureTests {
           analyticsEnabled: false,
           crashReportsEnabled: true,
           glowingPaneRingEnabled: false,
+          newTabPosition: .current,
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip
@@ -56,6 +57,7 @@ struct SettingsFeatureTests {
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
+        $0.newTabPosition = .current
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
         $0.updateChannel = .tip
@@ -226,6 +228,24 @@ struct SettingsFeatureTests {
 
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(!supatermSettings.restoreTerminalLayoutEnabled)
+    }
+  }
+
+  @Test
+  func newTabPositionSettingPersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.newTabPositionSelected(.current)) {
+        $0.newTabPosition = .current
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.newTabPosition == .current)
     }
   }
 
