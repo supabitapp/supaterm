@@ -280,7 +280,7 @@ function App() {
               Releases
             </a>
             <a href="https://x.com/khoiracle" className="transition-colors hover:text-white/78">
-              @khoiracle
+              Made by @khoiracle
             </a>
           </div>
         </div>
