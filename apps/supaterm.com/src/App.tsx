@@ -116,14 +116,6 @@ function App() {
 
             <div className="relative">
               <div className="supaterm-stage">
-                <div className="supaterm-stage-bar">
-                  <div className="supaterm-stage-dots">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                  <div className="supaterm-stage-title">supaterm.app</div>
-                </div>
                 <div className="supaterm-stage-video-wrap">
                   <video
                     src={demoUrl}
@@ -183,16 +175,15 @@ function App() {
                 </ul>
               </div>
 
-              <div className="supaterm-shot">
-                <div className="supaterm-shot-bar">
-                  <div className="supaterm-shot-dots">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                  <div className="supaterm-shot-label">{section.placeholder}</div>
-                  <div className="supaterm-shot-accent">{section.accent}</div>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-[0.76rem] tracking-[0.14em] text-white/62 uppercase">
+                  {section.placeholder}
                 </div>
+                <div className="text-[0.76rem] tracking-[0.14em] text-[#f1ede4]/68 uppercase">
+                  {section.accent}
+                </div>
+              </div>
+              <div className="supaterm-shot">
                 <div className="supaterm-shot-body">
                   <div className="supaterm-shot-sidebar">
                     <div className="supaterm-shot-tag" />
