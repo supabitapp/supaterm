@@ -36,8 +36,8 @@ let project = Project(
       bundleId: "app.supabit.supaterm.cli-shared",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
-      sources: [
-        "SupatermCLIShared/**",
+      buildableFolders: [
+        "SupatermCLIShared",
       ],
       settings: .settings(
         base: [
