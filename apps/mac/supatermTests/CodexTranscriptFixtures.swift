@@ -3,7 +3,9 @@ import Foundation
 enum CodexTranscriptFixtures {
   enum Line {
     case taskStarted(turnID: String)
+    case turnStarted(turnID: String)
     case taskComplete(turnID: String, lastAgentMessage: String? = nil)
+    case turnComplete(turnID: String)
     case turnAborted(turnID: String)
     case localShellCall(command: [String])
     case functionCall(name: String, arguments: [String: Any]? = nil)
@@ -27,12 +29,28 @@ enum CodexTranscriptFixtures {
           ]
         )
 
+      case .turnStarted(let turnID):
+        object = event(
+          type: "turn_started",
+          payload: [
+            "turn_id": turnID,
+          ]
+        )
+
       case .taskComplete(let turnID, let lastAgentMessage):
         var payload: [String: Any] = ["turn_id": turnID]
         if let lastAgentMessage {
           payload["last_agent_message"] = lastAgentMessage
         }
         object = event(type: "task_complete", payload: payload)
+
+      case .turnComplete(let turnID):
+        object = event(
+          type: "turn_complete",
+          payload: [
+            "turn_id": turnID,
+          ]
+        )
 
       case .turnAborted(let turnID):
         object = event(

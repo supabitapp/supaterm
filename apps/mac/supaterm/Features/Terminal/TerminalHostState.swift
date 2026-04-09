@@ -6,6 +6,14 @@ import Sharing
 import SupatermCLIShared
 import SwiftUI
 
+private func normalizedTerminalAgentDetail(_ detail: String?) -> String? {
+  guard let detail = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty
+  else {
+    return nil
+  }
+  return detail
+}
+
 @MainActor
 @Observable
 final class TerminalHostState {
@@ -131,7 +139,7 @@ final class TerminalHostState {
     ) {
       self.kind = kind
       self.phase = phase
-      self.detail = Self.normalizedDetail(detail)
+      self.detail = normalizedTerminalAgentDetail(detail)
     }
 
     static func claude(
@@ -167,14 +175,6 @@ final class TerminalHostState {
         return false
       }
     }
-
-    private static func normalizedDetail(_ detail: String?) -> String? {
-      guard let detail = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty
-      else {
-        return nil
-      }
-      return detail
-    }
   }
 
   @ObservationIgnored
@@ -209,6 +209,7 @@ final class TerminalHostState {
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
   private var agentActivitySurfaceIDByTab: [TerminalTabID: UUID] = [:]
+  private var codexHoverMessagesByTab: [TerminalTabID: [String]] = [:]
   private var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
   private var previousSelectedSpaceID: TerminalSpaceID?
   private var lastEmittedFocusSurfaceID: UUID?
@@ -685,6 +686,11 @@ final class TerminalHostState {
     agentActivityByTab[tabID]
   }
 
+  func codexHoverMarkdown(for tabID: TerminalTabID) -> String? {
+    guard let messages = codexHoverMessagesByTab[tabID], !messages.isEmpty else { return nil }
+    return messages.reversed().joined(separator: "\n\n---\n\n")
+  }
+
   func showsAgentActivityDetail(for tabID: TerminalTabID) -> Bool {
     guard let activitySurfaceID = agentActivitySurfaceIDByTab[tabID] else { return false }
     return focusedSurfaceIDByTab[tabID] == activitySurfaceID
@@ -703,6 +709,32 @@ final class TerminalHostState {
     guard let tabID = tabID(containing: surfaceID) else { return false }
     agentActivityByTab.removeValue(forKey: tabID)
     agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+    return true
+  }
+
+  @discardableResult
+  func clearCodexHoverMessages(for surfaceID: UUID) -> Bool {
+    guard let tabID = tabID(containing: surfaceID) else { return false }
+    codexHoverMessagesByTab.removeValue(forKey: tabID)
+    return true
+  }
+
+  @discardableResult
+  func recordCodexHoverMessages(
+    _ messages: [String],
+    replacing: Bool,
+    for surfaceID: UUID
+  ) -> Bool {
+    guard let tabID = tabID(containing: surfaceID) else { return false }
+    var nextMessages = replacing ? [] : (codexHoverMessagesByTab[tabID] ?? [])
+    for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
+      nextMessages.append(message)
+    }
+    if nextMessages.isEmpty {
+      codexHoverMessagesByTab.removeValue(forKey: tabID)
+    } else {
+      codexHoverMessagesByTab[tabID] = nextMessages
+    }
     return true
   }
   private func ensureInitialTab(
@@ -2401,6 +2433,7 @@ final class TerminalHostState {
       previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
       agentActivityByTab.removeValue(forKey: tabID)
       agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+      codexHoverMessagesByTab.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
@@ -2418,6 +2451,7 @@ final class TerminalHostState {
     if agentActivitySurfaceIDByTab[tabID] == surfaceID {
       agentActivityByTab.removeValue(forKey: tabID)
       agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+      codexHoverMessagesByTab.removeValue(forKey: tabID)
     }
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
@@ -2974,6 +3008,7 @@ final class TerminalHostState {
     }
     agentActivityByTab.removeValue(forKey: tabID)
     agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+    codexHoverMessagesByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousSelectedTabIDBySpace = previousSelectedTabIDBySpace.filter { $0.value != tabID }

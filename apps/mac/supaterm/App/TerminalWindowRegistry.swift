@@ -1254,14 +1254,26 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
     case .sessionStart:
       if let sessionID = event.sessionID {
         agentSessionStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+        if request.agent == .codex {
+          _ = agentSessionStore.beginCodexTracking(
+            sessionID: sessionID,
+            context: request.context
+          )
+        }
       }
       return .init(desktopNotification: nil)
 
     case .unsupported:
       return .init(desktopNotification: nil)
 
-    case .postToolUse, .preToolUse, .userPromptSubmit:
+    case .postToolUse, .preToolUse:
+      if request.agent == .codex {
+        return .init(desktopNotification: nil)
+      }
       return handleRunningAgentHook(request)
+
+    case .userPromptSubmit:
+      return handleUserPromptSubmitAgentHook(request)
 
     case .stop:
       return try handleStopAgentHook(request)
@@ -1309,29 +1321,40 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
   private func handleRunningAgentHook(
     _ request: SupatermAgentHookRequest
   ) -> TerminalAgentHookResult {
-    let event = request.event
-    guard let sessionID = event.sessionID else {
+    guard let sessionID = prepareAgentTurn(request) else {
       return .init(desktopNotification: nil)
     }
-    clearRecentStructuredNotifications(
-      agent: request.agent,
-      context: request.context,
-      sessionID: sessionID
-    )
     _ = setAgentActivity(
       .init(
         kind: request.agent,
-        phase: .running,
-        detail: hookRunningDetail(
-          agent: request.agent,
-          eventName: event.hookEventName,
-          toolName: event.toolName
-        )
+        phase: .running
       ),
       agent: request.agent,
       sessionID: sessionID,
       context: request.context
     )
+    return .init(desktopNotification: nil)
+  }
+
+  private func handleUserPromptSubmitAgentHook(
+    _ request: SupatermAgentHookRequest
+  ) -> TerminalAgentHookResult {
+    guard let sessionID = prepareAgentTurn(request) else {
+      return .init(desktopNotification: nil)
+    }
+    if request.agent == .codex {
+      _ = agentSessionStore.beginCodexTracking(
+        sessionID: sessionID,
+        context: request.context
+      )
+    } else {
+      _ = setAgentActivity(
+        .init(kind: request.agent, phase: .running),
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context
+      )
+    }
     return .init(desktopNotification: nil)
   }
 
@@ -1346,6 +1369,15 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
         sessionID: sessionID,
         context: request.context
       )
+      if request.agent == .codex {
+        _ = updateCodexHoverMessages(
+          event.lastAssistantMessage.map { [$0] } ?? [],
+          replacing: true,
+          agent: request.agent,
+          sessionID: sessionID,
+          context: request.context
+        )
+      }
     }
     guard
       let body = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1372,6 +1404,13 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       return .init(desktopNotification: nil)
     }
     _ = clearAgentActivity(agent: request.agent, sessionID: sessionID, context: request.context)
+    if request.agent == .codex {
+      _ = clearCodexHoverMessages(
+        agent: request.agent,
+        context: request.context,
+        sessionID: sessionID
+      )
+    }
     agentSessionStore.clearSession(agent: request.agent, sessionID: sessionID)
     return .init(desktopNotification: nil)
   }
@@ -1469,20 +1508,17 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
 
     return .init(desktopNotification: nil)
   }
-  private func hookRunningDetail(
-    agent: SupatermAgentKind,
-    eventName: SupatermAgentHookEventName,
-    toolName: String?
+
+  private func prepareAgentTurn(
+    _ request: SupatermAgentHookRequest
   ) -> String? {
-    guard agent == .codex else { return nil }
-    switch eventName {
-    case .preToolUse, .postToolUse:
-      return toolName?.trimmingCharacters(in: .whitespacesAndNewlines)
-    case .userPromptSubmit:
-      return "Thinking"
-    default:
-      return nil
-    }
+    guard let sessionID = request.event.sessionID else { return nil }
+    clearRecentStructuredNotifications(
+      agent: request.agent,
+      context: request.context,
+      sessionID: sessionID
+    )
+    return sessionID
   }
 
   @discardableResult
@@ -1492,24 +1528,21 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    let updated = updateAgentActivity(
-      activity, agent: agent, sessionID: sessionID, context: context)
-    if updated {
-      if activity.phase == .running {
-        if agentSessionStore.armTranscriptMonitor(
-          agent: agent, sessionID: sessionID, context: context)
-        {
-          agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
-        } else {
-          agentSessionStore.cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
-          agentSessionStore.armRunningTimeout(agent: agent, sessionID: sessionID, context: context)
-        }
-      } else {
-        agentSessionStore.cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
-        agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
-      }
+    guard updateAgentActivity(activity, agent: agent, sessionID: sessionID, context: context)
+    else {
+      return false
     }
-    return updated
+    switch activity.phase {
+    case .running where agent == .codex:
+      agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
+    case .running:
+      agentSessionStore.cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
+      agentSessionStore.armRunningTimeout(agent: agent, sessionID: sessionID, context: context)
+    default:
+      agentSessionStore.cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
+      agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
+    }
+    return true
   }
 
   private func clearRecentStructuredNotifications(
@@ -1528,6 +1561,47 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
         break
       }
     }
+  }
+
+  @discardableResult
+  private func clearCodexHoverMessages(
+    agent: SupatermAgentKind,
+    context: SupatermCLIContext?,
+    sessionID: String
+  ) -> Bool {
+    updateCodexHoverMessages(
+      [],
+      replacing: true,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+  }
+
+  @discardableResult
+  private func updateCodexHoverMessages(
+    _ messages: [String],
+    replacing: Bool,
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    for surfaceID in candidateSurfaceIDs {
+      for entry in activeEntries()
+      where entry.terminal.recordCodexHoverMessages(
+        messages,
+        replacing: replacing,
+        for: surfaceID
+      ) {
+        return true
+      }
+    }
+    return false
   }
 
   @discardableResult
@@ -1589,6 +1663,22 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
+    if update.status?.startsNewTurn == true {
+      _ = clearCodexHoverMessages(
+        agent: agent,
+        context: context,
+        sessionID: sessionID
+      )
+    }
+    if !update.messages.isEmpty {
+      _ = updateCodexHoverMessages(
+        update.messages,
+        replacing: update.replacesMessages,
+        agent: agent,
+        sessionID: sessionID,
+        context: context
+      )
+    }
     if update.status?.isFinal == true {
       _ = updateAgentActivity(
         .init(kind: agent, phase: .idle, detail: nil),
@@ -1598,9 +1688,8 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
       )
       return
     }
-    guard let detail = update.detail else { return }
     _ = updateAgentActivity(
-      .init(kind: agent, phase: .running, detail: detail),
+      .init(kind: agent, phase: .running, detail: update.detail),
       agent: agent,
       sessionID: sessionID,
       context: context

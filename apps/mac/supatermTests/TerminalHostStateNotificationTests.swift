@@ -366,6 +366,48 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func codexHoverMarkdownShowsLatestMessageFirstWithDivider() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    #expect(host.recordCodexHoverMessages(["First message"], replacing: false, for: surface.id))
+    #expect(host.recordCodexHoverMessages(["Second message"], replacing: false, for: surface.id))
+
+    #expect(
+      host.codexHoverMarkdown(for: tabID) == """
+        Second message
+
+        ---
+
+        First message
+        """
+    )
+  }
+
+  @Test
+  func replacingCodexHoverMarkdownDropsEarlierMessages() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    #expect(host.recordCodexHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
+    #expect(host.recordCodexHoverMessages(["Final answer"], replacing: true, for: surface.id))
+
+    #expect(host.codexHoverMarkdown(for: tabID) == "Final answer")
+  }
+
+  @Test
   func agentActivityDetailHidesWhenFocusMovesToDifferentPaneInSameTab() throws {
     initializeGhosttyForTests()
 
