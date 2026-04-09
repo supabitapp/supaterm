@@ -140,7 +140,7 @@ function App() {
 
       <section className="px-6 pb-16 md:px-10 md:pb-24">
         <div className="mx-auto flex max-w-[1440px] flex-col items-center border-t border-white/8 px-0 pt-18 text-center md:pt-24">
-          <div className="supaterm-reveal text-[clamp(2.6rem,6.8vw,5.6rem)] leading-[0.92] font-medium tracking-[-0.07em] text-balance text-[#f4f0e8]">
+          <div className="supaterm-reveal text-[clamp(1.7rem,3.5vw,2.8rem)] leading-[1] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
             Ready to meet your new terminal?
           </div>
           <div className="supaterm-reveal mt-8 flex flex-col gap-4 sm:flex-row">
