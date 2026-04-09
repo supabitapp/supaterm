@@ -22,6 +22,7 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
+    #expect(prefs.newTabPosition == .end)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
@@ -45,6 +46,7 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
+    #expect(prefs.newTabPosition == .end)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == UpdateChannel.stable)
@@ -64,6 +66,7 @@ struct SupatermSettingsTests {
         "appearanceMode",
         "crashReportsEnabled",
         "glowingPaneRingEnabled",
+        "newTabPosition",
         "restoreTerminalLayoutEnabled",
         "systemNotificationsEnabled",
         "updateChannel",
@@ -72,10 +75,33 @@ struct SupatermSettingsTests {
 
   @Test
   func prefsRoundTripWithSchemaURL() throws {
-    let data = try JSONEncoder().encode(SupatermSettings.default)
+    let data = try JSONEncoder().encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: false,
+        crashReportsEnabled: false,
+        glowingPaneRingEnabled: false,
+        newTabPosition: .current,
+        restoreTerminalLayoutEnabled: false,
+        systemNotificationsEnabled: true,
+        updateChannel: .tip
+      )
+    )
     let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
 
-    #expect(prefs == SupatermSettings.default)
+    #expect(
+      prefs
+        == SupatermSettings(
+          appearanceMode: .dark,
+          analyticsEnabled: false,
+          crashReportsEnabled: false,
+          glowingPaneRingEnabled: false,
+          newTabPosition: .current,
+          restoreTerminalLayoutEnabled: false,
+          systemNotificationsEnabled: true,
+          updateChannel: .tip
+        )
+    )
   }
 
   @Test
@@ -95,6 +121,7 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
+    #expect(prefs.newTabPosition == .end)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)

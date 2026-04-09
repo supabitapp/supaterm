@@ -31,6 +31,12 @@
       "description": "Show a glowing ring around panes with unread attention.",
       "type": "boolean"
     },
+    "newTabPosition": {
+      "default": "end",
+      "description": "Choose whether new tabs open after the current tab or at the end.",
+      "enum": ["current", "end"],
+      "type": "string"
+    },
     "restoreTerminalLayoutEnabled": {
       "default": true,
       "description": "Restore spaces, tabs, and panes on launch.",

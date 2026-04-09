@@ -182,6 +182,9 @@ final class TerminalHostState {
   @ObservationIgnored
   private let managesTerminalSurfaces: Bool
   @ObservationIgnored
+  @Shared(.supatermSettings)
+  private var supatermSettings = .default
+  @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   @ObservationIgnored
   @Shared(.terminalSpaceCatalog)
@@ -721,13 +724,17 @@ final class TerminalHostState {
     inheritingFromSurfaceID: UUID? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
-    guard let selectedSpaceID = spaceManager.selectedSpaceID else { return nil }
+    guard let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    else {
+      return nil
+    }
     return createTab(
-      in: selectedSpaceID,
+      in: target.spaceID,
       focusing: focusing,
       command: command,
       initialInput: initialInput,
-      inheritingFromSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
+      inheritingFromSurfaceID: target.inheritedSurfaceID,
+      insertion: resolvedNewTabInsertion(anchorTabID: target.anchorTabID),
       sessionChangesEnabled: sessionChangesEnabled
     )
   }
@@ -740,6 +747,7 @@ final class TerminalHostState {
     initialInput: String? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
+    insertion: TerminalTabManager.Insertion = .end,
     sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
@@ -750,7 +758,8 @@ final class TerminalHostState {
       : GHOSTTY_SURFACE_CONTEXT_TAB
     let tabID = tabManager.createTab(
       title: "Terminal \(nextTabIndex(in: spaceID))",
-      icon: "terminal"
+      icon: "terminal",
+      insertion: insertion
     )
     let tree = splitTree(
       for: tabID,
@@ -1260,6 +1269,7 @@ final class TerminalHostState {
           initialInput: nil,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
+          insertion: resolvedNewTabInsertion(anchorTabID: resolvedTarget.anchorTabID),
           sessionChangesEnabled: false,
           synchronizesFocus: Self.shouldSyncFocusDuringTabCreation(
             targetSpaceID: resolvedTarget.space.id,
@@ -2602,8 +2612,15 @@ final class TerminalHostState {
   }
 
   private struct ResolvedCreateTabTarget {
+    let anchorTabID: TerminalTabID?
     let inheritedSurfaceID: UUID?
     let space: TerminalSpaceItem
+  }
+
+  private struct ResolvedLocalCreateTabTarget {
+    let anchorTabID: TerminalTabID?
+    let inheritedSurfaceID: UUID?
+    let spaceID: TerminalSpaceID
   }
 
   private struct ResolvedCreatePaneTarget {
@@ -2632,6 +2649,7 @@ final class TerminalHostState {
       }
 
       return ResolvedCreateTabTarget(
+        anchorTabID: tabID,
         inheritedSurfaceID: paneID,
         space: space
       )
@@ -2644,9 +2662,49 @@ final class TerminalHostState {
         throw TerminalCreateTabError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
       }
       return ResolvedCreateTabTarget(
+        anchorTabID: spaceManager.selectedTabID(in: space.id),
         inheritedSurfaceID: inheritedSurfaceID(in: space.id),
         space: space
       )
+    }
+  }
+
+  private func resolveLocalCreateTabTarget(
+    inheritingFromSurfaceID: UUID?
+  ) -> ResolvedLocalCreateTabTarget? {
+    if let inheritingFromSurfaceID,
+      let anchorTabID = tabID(containing: inheritingFromSurfaceID),
+      let space = spaceManager.space(for: anchorTabID)
+    {
+      return .init(
+        anchorTabID: anchorTabID,
+        inheritedSurfaceID: inheritingFromSurfaceID,
+        spaceID: space.id
+      )
+    }
+
+    guard let spaceID = spaceManager.selectedSpaceID else {
+      return nil
+    }
+
+    return .init(
+      anchorTabID: spaceManager.selectedTabID(in: spaceID),
+      inheritedSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
+      spaceID: spaceID
+    )
+  }
+
+  private func resolvedNewTabInsertion(
+    anchorTabID: TerminalTabID?
+  ) -> TerminalTabManager.Insertion {
+    switch supatermSettings.newTabPosition {
+    case .current:
+      guard let anchorTabID else {
+        return .end
+      }
+      return .after(anchorTabID)
+    case .end:
+      return .end
     }
   }
 

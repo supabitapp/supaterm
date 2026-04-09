@@ -5,6 +5,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var analyticsEnabled: Bool
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
+  public var newTabPosition: NewTabPosition
   public var restoreTerminalLayoutEnabled: Bool
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
@@ -14,6 +15,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     analyticsEnabled: Bool,
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
+    newTabPosition: NewTabPosition = .end,
     restoreTerminalLayoutEnabled: Bool = true,
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel
@@ -22,6 +24,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.analyticsEnabled = analyticsEnabled
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
+    self.newTabPosition = newTabPosition
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
@@ -32,6 +35,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     analyticsEnabled: true,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
+    newTabPosition: .end,
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
     updateChannel: .stable
@@ -49,6 +53,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     case analyticsEnabled
     case crashReportsEnabled
     case glowingPaneRingEnabled
+    case newTabPosition
     case restoreTerminalLayoutEnabled
     case systemNotificationsEnabled
     case updateChannel
@@ -63,6 +68,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         return "Allow crash reports."
       case .glowingPaneRingEnabled:
         return "Show a glowing ring around panes with unread attention."
+      case .newTabPosition:
+        return "Choose whether new tabs open after the current tab or at the end."
       case .restoreTerminalLayoutEnabled:
         return "Restore spaces, tabs, and panes on launch."
       case .systemNotificationsEnabled:
@@ -76,6 +83,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       switch self {
       case .appearanceMode:
         return AppearanceMode.allCases.map(\.rawValue)
+      case .newTabPosition:
+        return NewTabPosition.allCases.map(\.rawValue)
       case .updateChannel:
         return UpdateChannel.allCases.map(\.rawValue)
       default:
@@ -97,6 +106,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       glowingPaneRingEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled)
           ?? defaults.glowingPaneRingEnabled,
+      newTabPosition:
+        try container.decodeIfPresent(NewTabPosition.self, forKey: .newTabPosition) ?? defaults.newTabPosition,
       restoreTerminalLayoutEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalLayoutEnabled)
           ?? defaults.restoreTerminalLayoutEnabled,
@@ -132,6 +143,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       return .bool(crashReportsEnabled)
     case .glowingPaneRingEnabled:
       return .bool(glowingPaneRingEnabled)
+    case .newTabPosition:
+      return .string(newTabPosition.rawValue)
     case .restoreTerminalLayoutEnabled:
       return .bool(restoreTerminalLayoutEnabled)
     case .systemNotificationsEnabled:
