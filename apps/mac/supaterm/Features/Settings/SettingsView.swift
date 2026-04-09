@@ -188,6 +188,15 @@ private struct SettingsGeneralView: View {
     )
   }
 
+  private var newTabPosition: Binding<NewTabPosition> {
+    Binding(
+      get: { store.newTabPosition },
+      set: { newValue in
+        _ = store.send(.newTabPositionSelected(newValue))
+      }
+    )
+  }
+
   var body: some View {
     Form {
       Section {
@@ -208,6 +217,17 @@ private struct SettingsGeneralView: View {
       }
 
       Section {
+        Picker(selection: newTabPosition) {
+          ForEach(NewTabPosition.allCases) { position in
+            Text(position.title).tag(position)
+          }
+        } label: {
+          SettingsRowLabel(
+            title: "New Tab Position",
+            subtitle: "Choose whether new tabs open after the current tab or at the end."
+          )
+        }
+
         SettingsToggleRow(
           title: "Restore Terminal Layout",
           subtitle: "Reopen tabs, splits, and working directories from your last session.",

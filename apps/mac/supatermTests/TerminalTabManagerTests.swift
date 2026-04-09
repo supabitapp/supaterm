@@ -163,4 +163,54 @@ struct TerminalTabManagerTests {
     #expect(manager.regularTabs.map(\.id) == [regularB])
     #expect(manager.tabs.map(\.id) == [regularA, pinned, regularB])
   }
+
+  @Test
+  func createTabWithCurrentInsertionAddsAfterSelectedRegularTab() {
+    let manager = TerminalTabManager()
+
+    let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let second = manager.createTab(title: "Terminal 2", icon: "terminal")
+
+    let third = manager.createTab(
+      title: "Terminal 3",
+      icon: "terminal",
+      insertion: .after(first)
+    )
+
+    #expect(manager.tabs.map(\.id) == [first, third, second])
+    #expect(manager.selectedTabId == third)
+  }
+
+  @Test
+  func createTabAfterPinnedAnchorInsertsAtFirstRegularPosition() {
+    let manager = TerminalTabManager()
+
+    let pinnedA = manager.createTab(title: "Pinned A", icon: "terminal", isPinned: true)
+    let pinnedB = manager.createTab(title: "Pinned B", icon: "terminal", isPinned: true)
+    let regular = manager.createTab(title: "Regular", icon: "terminal")
+
+    let inserted = manager.createTab(
+      title: "Inserted",
+      icon: "terminal",
+      insertion: .after(pinnedA)
+    )
+
+    #expect(manager.tabs.map(\.id) == [pinnedA, pinnedB, inserted, regular])
+  }
+
+  @Test
+  func createTabWithMissingAnchorFallsBackToEnd() {
+    let manager = TerminalTabManager()
+
+    let first = manager.createTab(title: "Terminal 1", icon: "terminal")
+    let second = manager.createTab(title: "Terminal 2", icon: "terminal")
+
+    let inserted = manager.createTab(
+      title: "Terminal 3",
+      icon: "terminal",
+      insertion: .after(TerminalTabID())
+    )
+
+    #expect(manager.tabs.map(\.id) == [first, second, inserted])
+  }
 }

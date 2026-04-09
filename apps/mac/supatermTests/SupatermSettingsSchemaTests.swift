@@ -11,6 +11,7 @@ struct SupatermSettingsSchemaTests {
     let object = try #require(value.objectValue)
     let properties = try #require(object["properties"]?.objectValue)
     let appearanceMode = try #require(properties["appearanceMode"]?.objectValue)
+    let newTabPosition = try #require(properties["newTabPosition"]?.objectValue)
     let updateChannel = try #require(properties["updateChannel"]?.objectValue)
     let expectedKeys = Set(SupatermSettings.CodingKeys.allCases.map(\.rawValue)).union(["$schema"])
 
@@ -19,6 +20,8 @@ struct SupatermSettingsSchemaTests {
     #expect(Set(properties.keys) == expectedKeys)
     #expect(appearanceMode["default"]?.stringValue == SupatermSettings.default.appearanceMode.rawValue)
     #expect(appearanceMode["enum"]?.arrayValue == AppearanceMode.allCases.map { .string($0.rawValue) })
+    #expect(newTabPosition["default"]?.stringValue == SupatermSettings.default.newTabPosition.rawValue)
+    #expect(newTabPosition["enum"]?.arrayValue == NewTabPosition.allCases.map { .string($0.rawValue) })
     #expect(updateChannel["default"]?.stringValue == SupatermSettings.default.updateChannel.rawValue)
     #expect(updateChannel["enum"]?.arrayValue == UpdateChannel.allCases.map { .string($0.rawValue) })
   }
