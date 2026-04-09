@@ -164,6 +164,7 @@ function App() {
                 <div className="relative overflow-hidden">
                   <video
                     src={demoUrl}
+                    controls
                     autoPlay
                     loop
                     muted
