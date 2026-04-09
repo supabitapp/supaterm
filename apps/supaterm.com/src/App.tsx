@@ -1,3 +1,6 @@
+import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import type { ReactNode } from "react";
 import demoUrl from "./assets/demo.mp4";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -46,6 +49,42 @@ const featureSections: FeatureSection[] = [
   },
 ];
 
+const ctaIcons = {
+  download: AppleIcon,
+  github: GithubIcon,
+} as const;
+
+type CtaLinkProps = {
+  href: string;
+  icon: keyof typeof ctaIcons;
+  children: ReactNode;
+  className?: string;
+  variant?: "default" | "outline";
+  size?: "lg";
+};
+
+function CtaLink({
+  href,
+  icon,
+  children,
+  className,
+  variant = "default",
+  size = "lg",
+}: CtaLinkProps) {
+  return (
+    <a href={href} className={cn(buttonVariants({ variant, size }), "gap-3", className)}>
+      <HugeiconsIcon
+        icon={ctaIcons[icon]}
+        size={22}
+        strokeWidth={1.8}
+        className="shrink-0"
+        color="currentColor"
+      />
+      <span>{children}</span>
+    </a>
+  );
+}
+
 function App() {
   return (
     <main className="overflow-x-hidden">
@@ -59,24 +98,21 @@ function App() {
               </span>
             </a>
             <div className="flex items-center gap-3">
-              <a
+              <CtaLink
                 href={githubHref}
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "rounded-full border-white/12 bg-white/6 px-5 text-white/88 hover:border-white/18 hover:bg-white/10",
-                )}
+                icon="github"
+                variant="outline"
+                className="rounded-full border-white/12 bg-white/6 px-5 text-white/88 hover:border-white/18 hover:bg-white/10"
               >
                 GitHub
-              </a>
-              <a
+              </CtaLink>
+              <CtaLink
                 href={downloadHref}
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "rounded-full bg-[#f1ede4] px-6 text-[#12100b] hover:bg-white",
-                )}
+                icon="download"
+                className="rounded-full bg-[#f1ede4] px-6 text-[#12100b] hover:bg-white"
               >
                 Download for macOS
-              </a>
+              </CtaLink>
             </div>
           </header>
 
@@ -93,24 +129,21 @@ function App() {
                 you can stay in control while the work fans out.
               </p>
               <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-                <a
+                <CtaLink
                   href={downloadHref}
-                  className={cn(
-                    buttonVariants({ size: "lg" }),
-                    "rounded-full bg-[#f1ede4] px-7 text-base text-[#12100b] hover:bg-white",
-                  )}
+                  icon="download"
+                  className="rounded-full bg-[#f1ede4] px-7 text-base text-[#12100b] hover:bg-white"
                 >
                   Download for macOS
-                </a>
-                <a
+                </CtaLink>
+                <CtaLink
                   href={githubHref}
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "lg" }),
-                    "rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10",
-                  )}
+                  icon="github"
+                  variant="outline"
+                  className="rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
                 >
                   GitHub
-                </a>
+                </CtaLink>
               </div>
             </div>
 
@@ -231,24 +264,21 @@ function App() {
             Try Supaterm now.
           </div>
           <div className="supaterm-reveal mt-8 flex flex-col gap-4 sm:flex-row">
-            <a
+            <CtaLink
               href={downloadHref}
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]",
-              )}
+              icon="download"
+              className="min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]"
             >
               Download for macOS
-            </a>
-            <a
+            </CtaLink>
+            <CtaLink
               href={githubHref}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "min-w-0 rounded-full border-white/10 bg-white/6 px-8 py-7 text-[1.15rem] text-white/88 hover:border-white/18 hover:bg-white/10 md:min-w-[19rem]",
-              )}
+              icon="github"
+              variant="outline"
+              className="min-w-0 rounded-full border-white/10 bg-white/6 px-8 py-7 text-[1.15rem] text-white/88 hover:border-white/18 hover:bg-white/10 md:min-w-[19rem]"
             >
               View on GitHub
-            </a>
+            </CtaLink>
           </div>
         </div>
       </section>
