@@ -798,8 +798,7 @@ final class TerminalHostState {
     moveAgentActivity(surfaceID: surfaceID, from: sourceTabID, to: destinationTabID)
 
     if updatedSourceTree.isEmpty {
-      removeTabMetadata(for: sourceTabID)
-      spaceManager.tabManager(for: sourceSpace.id)?.closeTab(sourceTabID)
+      removeTab(sourceTabID, from: sourceSpace.id)
     } else {
       trees[sourceTabID] = updatedSourceTree
       updateSourceTabFocusAfterRemovingSurface(
@@ -2432,10 +2431,8 @@ final class TerminalHostState {
     recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
-      removeTabMetadata(for: tabID)
-      spaceManager.space(for: tabID)
-        .flatMap { spaceManager.tabManager(for: $0.id) }?
-        .closeTab(tabID)
+      guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
+      removeTab(tabID, from: spaceID)
       if tabs.isEmpty {
         _ = createTab(focusing: false, sessionChangesEnabled: false)
       } else if let selectedTabID = selectedTabID {
@@ -2501,47 +2498,27 @@ final class TerminalHostState {
 
   private func configureBridgeTitleCallbacks(for view: GhosttySurfaceView) {
     view.bridge.onTitleChange = { [weak self, weak view] _ in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return
+      self?.withViewTab(view) { this, _, tabID in
+        this.updateTabTitle(for: tabID)
+        this.sessionDidChange()
       }
-      self.updateTabTitle(for: tabID)
-      self.sessionDidChange()
     }
     view.bridge.onPathChange = { [weak self, weak view] in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return
+      self?.withViewTab(view) { this, _, tabID in
+        this.updateTabTitle(for: tabID)
+        this.sessionDidChange()
       }
-      self.updateTabTitle(for: tabID)
-      self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self, weak view] title in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return false
-      }
-      self.setLockedTabTitle(title, for: tabID)
-      return true
+      self?.withViewTab(view) { this, _, tabID in
+        this.setLockedTabTitle(title, for: tabID)
+        return true
+      } ?? false
     }
     view.bridge.onPromptTabTitle = { [weak self, weak view] in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return
+      self?.withViewTab(view) { this, view, tabID in
+        this.promptTabTitle(for: tabID, using: view)
       }
-      self.promptTabTitle(for: tabID, using: view)
     }
     view.bridge.onCopyTitleToClipboard = { [weak self, weak view] in
       guard let self, let view else { return false }
@@ -2565,15 +2542,10 @@ final class TerminalHostState {
       return true
     }
     view.bridge.onCloseTab = { [weak self, weak view] _ in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return false
-      }
-      self.requestCloseTab(tabID)
-      return true
+      self?.withViewTab(view) { this, _, tabID in
+        this.requestCloseTab(tabID)
+        return true
+      } ?? false
     }
   }
 
@@ -2590,14 +2562,9 @@ final class TerminalHostState {
       return true
     }
     view.bridge.onProgressReport = { [weak self, weak view] _ in
-      guard
-        let self,
-        let view,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return
+      self?.withViewTab(view) { this, _, tabID in
+        this.updateRunningState(for: tabID)
       }
-      self.updateRunningState(for: tabID)
     }
     view.bridge.onCommandFinished = { [weak self, weak view] in
       guard let self, let view else { return }
@@ -2624,20 +2591,15 @@ final class TerminalHostState {
       self.handleDirectInteraction(on: view.id)
     }
     view.onFocusChange = { [weak self, weak view] focused in
-      guard
-        let self,
-        let view,
-        focused,
-        let tabID = self.tabID(containing: view.id)
-      else {
-        return
+      guard focused else { return }
+      self?.withViewTab(view) { this, view, tabID in
+        this.applyFocusedSurface(view.id, in: tabID)
+        this.updateTabTitle(for: tabID)
+        this.updateRunningState(for: tabID)
+        this.clearNotificationAttention(for: view.id)
+        this.emitFocusChangedIfNeeded(view.id)
+        this.sessionDidChange()
       }
-      self.applyFocusedSurface(view.id, in: tabID)
-      self.updateTabTitle(for: tabID)
-      self.updateRunningState(for: tabID)
-      self.clearNotificationAttention(for: view.id)
-      self.emitFocusChangedIfNeeded(view.id)
-      self.sessionDidChange()
     }
   }
 
@@ -2683,6 +2645,40 @@ final class TerminalHostState {
       icon: "terminal",
       selecting: selecting
     )
+  }
+
+  private func withViewTab(
+    _ view: GhosttySurfaceView?,
+    _ body: (TerminalHostState, GhosttySurfaceView, TerminalTabID) -> Void
+  ) {
+    guard
+      let view,
+      let tabID = tabID(containing: view.id)
+    else {
+      return
+    }
+    body(self, view, tabID)
+  }
+
+  private func withViewTab<T>(
+    _ view: GhosttySurfaceView?,
+    _ body: (TerminalHostState, GhosttySurfaceView, TerminalTabID) -> T
+  ) -> T? {
+    guard
+      let view,
+      let tabID = tabID(containing: view.id)
+    else {
+      return nil
+    }
+    return body(self, view, tabID)
+  }
+
+  private func removeTab(
+    _ tabID: TerminalTabID,
+    from spaceID: TerminalSpaceID
+  ) {
+    removeTabMetadata(for: tabID)
+    spaceManager.tabManager(for: spaceID)?.closeTab(tabID)
   }
 
   private func inheritedSurfaceID(in spaceID: TerminalSpaceID) -> UUID? {
