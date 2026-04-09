@@ -133,7 +133,7 @@ function App() {
                 Native macOS terminal
               </div>
               <h1 className="mt-5 text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
-                The terminal built for parallel agent work.
+                The terminal with skills.
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
                 Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
