@@ -50,6 +50,7 @@ Claude is the current first-class coding agent integration.
 - On open, Settings reads `~/.claude/settings.json` to reflect whether Supaterm-managed hooks are currently present.
 - The CLI command preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm Claude hooks into the user settings file.
 - The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes.
+- When `SUPATERM_CLI_PATH` is missing, the managed hook command falls back to emitting an OSC 777 terminal notification for `Notification` and `Stop` so SSH sessions can still raise local Supaterm notifications.
 
 ### Hook Injection
 
@@ -108,6 +109,7 @@ Codex now uses the same app-side bridge and tab-state model.
   - `PreToolUse`
   - `UserPromptSubmit`
   - `Stop`
+- When `SUPATERM_CLI_PATH` is missing, the managed hook command falls back to emitting an OSC 777 terminal notification for `Stop` so SSH sessions can still raise local Supaterm notifications.
 
 ### App Behavior
 

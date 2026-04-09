@@ -5,10 +5,25 @@ import Testing
 
 struct SupatermClaudeHookSettingsTests {
   @Test
-  func commandStaysStable() {
+  func commandStaysStableForNotificationAndStopFallbacks() {
+    let notificationCommand = SupatermClaudeHookSettings.command(for: .notification)
+    let expectedNotification = expectedManagedNotificationCommand(
+      agent: "claude",
+      title: "Claude Code",
+      body: "Needs input"
+    )
+    let stopCommand = SupatermClaudeHookSettings.command(for: .stop)
+    let expectedStop = expectedManagedNotificationCommand(
+      agent: "claude",
+      title: "Claude Code",
+      body: "Turn complete"
+    )
+
     #expect(
-      SupatermClaudeHookSettings.command
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent claude || true"#
+      notificationCommand == expectedNotification
+    )
+    #expect(
+      stopCommand == expectedStop
     )
   }
 
@@ -30,7 +45,17 @@ struct SupatermClaudeHookSettingsTests {
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
     #expect(
-      try commandHook(in: hooks, event: "Notification")["command"] as? String == SupatermClaudeHookSettings.command)
+      try commandHook(in: hooks, event: "Notification")["command"] as? String
+        == SupatermClaudeHookSettings.command(for: .notification)
+    )
+    #expect(
+      try commandHook(in: hooks, event: "PreToolUse")["command"] as? String
+        == SupatermClaudeHookSettings.command(for: .preToolUse)
+    )
+    #expect(
+      try commandHook(in: hooks, event: "Stop")["command"] as? String
+        == SupatermClaudeHookSettings.command(for: .stop)
+    )
   }
 }
 
