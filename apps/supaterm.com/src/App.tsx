@@ -61,6 +61,7 @@ type CtaLinkProps = {
   className?: string;
   variant?: "default" | "outline";
   size?: "lg";
+  showIcon?: boolean;
 };
 
 function CtaLink({
@@ -70,16 +71,22 @@ function CtaLink({
   className,
   variant = "default",
   size = "lg",
+  showIcon = true,
 }: CtaLinkProps) {
   return (
-    <a href={href} className={cn(buttonVariants({ variant, size }), "gap-3", className)}>
-      <HugeiconsIcon
-        icon={ctaIcons[icon]}
-        size={22}
-        strokeWidth={1.8}
-        className="shrink-0"
-        color="currentColor"
-      />
+    <a
+      href={href}
+      className={cn(buttonVariants({ variant, size }), showIcon ? "gap-3" : "gap-0", className)}
+    >
+      {showIcon ? (
+        <HugeiconsIcon
+          icon={ctaIcons[icon]}
+          size={22}
+          strokeWidth={1.8}
+          className="shrink-0"
+          color="currentColor"
+        />
+      ) : null}
       <span>{children}</span>
     </a>
   );
@@ -101,14 +108,16 @@ function App() {
               href={githubHref}
               icon="github"
               variant="outline"
-              className="h-9 rounded-full border-white/12 bg-white/6 px-4 text-[0.9rem] text-white/88 hover:border-white/18 hover:bg-white/10"
+              showIcon={false}
+              className="h-8 rounded-full border-white/12 bg-white/4 px-4 text-[0.82rem] font-normal text-white/82 hover:border-white/18 hover:bg-white/8"
             >
               GitHub
             </CtaLink>
             <CtaLink
               href={downloadHref}
               icon="download"
-              className="h-9 rounded-full bg-[#f1ede4] px-4.5 text-[0.9rem] text-[#12100b] hover:bg-white"
+              showIcon={false}
+              className="h-8 rounded-full bg-[#f1ede4] px-4 text-[0.82rem] font-normal text-[#12100b] hover:bg-white"
             >
               Download for macOS
             </CtaLink>
