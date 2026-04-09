@@ -13,11 +13,14 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func receiveHookCommandBuildsPiCommand() {
-    #expect(
-      SupatermManagedHookCommand.receiveHookCommand(for: .pi)
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent pi || true"#
-    )
+  func receiveHookCommandIncludesLocalAndRemoteBranches() {
+    let command = SupatermManagedHookCommand.receiveHookCommand(for: .pi)
+
+    #expect(command.contains(SupatermManagedHookCommand.localCommandCondition))
+    #expect(command.contains(SupatermManagedHookCommand.remoteCommandCondition))
+    #expect(command.contains(#"agent receive-agent-hook --agent pi"#))
+    #expect(command.contains("python3"))
+    #expect(command.contains("]777;notify;"))
   }
 
   @Test
