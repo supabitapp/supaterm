@@ -28,7 +28,7 @@ public enum SupatermManagedHookCommand {
   }
 
   static func remoteReceiveHookCommand(for agent: SupatermAgentKind) -> String {
-    #"python3 -c \#(shellQuoted(remoteNotificationPythonSource())) \#(shellQuoted(agent.notificationTitle)) || true;"#
+    #"python3 -c \#(shellQuoted(remoteNotificationPythonSource)) \#(shellQuoted(agent.notificationTitle)) || true;"#
   }
 
   static func isManagedCommand(_ command: String?) -> Bool {
@@ -49,26 +49,24 @@ public enum SupatermManagedHookCommand {
     return trimmed
   }
 
-  private static func remoteNotificationPythonSource() -> String {
-    [
-      "import json, re, sys",
-      "event = json.load(sys.stdin)",
-      "if event.get(\"hook_event_name\") not in (\"Notification\", \"Stop\"):",
-      "    raise SystemExit(0)",
-      "def clean(value):",
-      "    if not isinstance(value, str):",
-      "        return \"\"",
-      "    value = re.sub(r\"[\\x00-\\x1f\\x7f\\x9b;]+\", \" \", value)",
-      "    value = re.sub(r\"\\s+\", \" \", value).strip()",
-      "    return value",
-      "agent_title = clean(sys.argv[1])",
-      "title = clean(event.get(\"title\")) or agent_title",
-      "body = clean(event.get(\"message\") or event.get(\"last_assistant_message\"))",
-      "if not body:",
-      "    raise SystemExit(0)",
-      "sys.stdout.write(f\"\\033]777;notify;{title};{body}\\a\")",
-    ].joined(separator: "\n")
-  }
+  private static let remoteNotificationPythonSource = #"""
+import json, re, sys
+event = json.load(sys.stdin)
+if event.get("hook_event_name") not in ("Notification", "Stop"):
+    raise SystemExit(0)
+def clean(value):
+    if not isinstance(value, str):
+        return ""
+    value = re.sub(r"[\x00-\x1f\x7f\x9b;]+", " ", value)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+agent_title = clean(sys.argv[1])
+title = clean(event.get("title")) or agent_title
+body = clean(event.get("message") or event.get("last_assistant_message"))
+if not body:
+    raise SystemExit(0)
+sys.stdout.write(f"\033]777;notify;{title};{body}\a")
+"""#
 
   private static func shellQuoted(_ value: String) -> String {
     "'" + value.replacingOccurrences(of: "'", with: #"'\"'\"'"#) + "'"
