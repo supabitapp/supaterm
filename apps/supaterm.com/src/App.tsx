@@ -85,7 +85,7 @@ function App() {
               <div className="text-sm font-medium tracking-[0.22em] text-white/52 uppercase">
                 Native macOS terminal
               </div>
-              <h1 className="mt-5 text-[clamp(2.9rem,6.6vw,5.9rem)] leading-[0.92] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
+              <h1 className="mt-5 text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
                 The terminal built for parallel agent work.
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
