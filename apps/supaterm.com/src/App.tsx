@@ -50,11 +50,8 @@ function App() {
   return (
     <main className="overflow-x-hidden">
       <section className="relative isolate min-h-svh">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-18 pt-6 md:px-10 md:pb-24 md:pt-8">
-          <header
-            className="supaterm-reveal flex items-center justify-between gap-6"
-            style={{ animationDelay: "40ms" }}
-          >
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-6 md:px-10 md:pb-18 md:pt-8">
+          <header className="flex items-center justify-between gap-6">
             <a href="/" className="flex items-center gap-3">
               <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-10 rounded-[12px]" />
               <span className="text-sm font-medium tracking-[0.2em] text-white/80 uppercase">
@@ -83,31 +80,19 @@ function App() {
             </div>
           </header>
 
-          <div className="grid flex-1 items-end gap-14 pt-16 md:pt-20 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] xl:gap-10 xl:pt-24">
+          <div className="grid flex-1 items-center gap-10 pt-10 md:pt-14 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-18">
             <div className="max-w-[560px]">
-              <div
-                className="supaterm-reveal text-sm font-medium tracking-[0.22em] text-white/52 uppercase"
-                style={{ animationDelay: "120ms" }}
-              >
+              <div className="text-sm font-medium tracking-[0.22em] text-white/52 uppercase">
                 Native macOS terminal
               </div>
-              <h1
-                className="supaterm-reveal mt-5 text-[clamp(2.9rem,6.6vw,5.9rem)] leading-[0.92] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]"
-                style={{ animationDelay: "180ms" }}
-              >
+              <h1 className="mt-5 text-[clamp(2.9rem,6.6vw,5.9rem)] leading-[0.92] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
                 The terminal built for parallel agent work.
               </h1>
-              <p
-                className="supaterm-reveal mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]"
-                style={{ animationDelay: "240ms" }}
-              >
+              <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
                 Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
                 you can stay in control while the work fans out.
               </p>
-              <div
-                className="supaterm-reveal mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center"
-                style={{ animationDelay: "300ms" }}
-              >
+              <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <a
                   href={downloadHref}
                   className={cn(
@@ -129,7 +114,7 @@ function App() {
               </div>
             </div>
 
-            <div className="supaterm-reveal relative" style={{ animationDelay: "360ms" }}>
+            <div className="relative">
               <div className="supaterm-stage">
                 <div className="supaterm-stage-bar">
                   <div className="supaterm-stage-dots">
