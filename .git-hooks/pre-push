@@ -3,7 +3,7 @@
 set -euo pipefail
 
 updates="$(cat)"
-printf '%s' "$updates" | mise run --raw validate-release-tags
+PRE_PUSH_REMOTE="${1:-origin}" mise run --raw validate-pre-push <<<"$updates"
 
 while IFS=' ' read -r local_ref _ remote_ref _; do
   [[ -z "${local_ref:-}" ]] && continue

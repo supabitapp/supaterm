@@ -20,6 +20,7 @@ VERSION_STATE_PATH = XCCONFIG_PATH.relative_to(REPO_ROOT).as_posix()
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)$")
 ZERO_OID_PATTERN = re.compile(r"^0+$")
+MAX_NON_LFS_BLOB_BYTES = 2 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,18 @@ def run(command: list[str], cwd: Path = REPO_ROOT) -> str:
     check=True,
     capture_output=True,
     text=True,
+  )
+  return result.stdout.strip()
+
+
+def run_input(command: list[str], stdin: str, cwd: Path = REPO_ROOT) -> str:
+  result = subprocess.run(
+    command,
+    cwd=cwd,
+    check=True,
+    capture_output=True,
+    text=True,
+    input=stdin,
   )
   return result.stdout.strip()
 
@@ -294,6 +307,67 @@ def read_object_type(reference: str) -> str:
     raise ValueError(f"{reference} could not be resolved locally") from error
 
 
+def resolve_commit(reference: str) -> str | None:
+  try:
+    return run(["git", "rev-parse", "--verify", f"{reference}^{{commit}}"])
+  except subprocess.CalledProcessError:
+    return None
+
+
+def pushed_commit_revisions(update: PushUpdate, remote_name: str) -> list[str]:
+  local_commit = resolve_commit(update.local_object_name)
+  if local_commit is None:
+    return []
+  revisions = [local_commit]
+  if not is_zero_object_name(update.remote_object_name):
+    remote_commit = resolve_commit(update.remote_object_name)
+    if remote_commit is not None:
+      revisions.append(f"^{remote_commit}")
+      return revisions
+  remote_selector = f"--remotes={remote_name}" if remote_name else "--remotes"
+  return [*revisions, "--not", remote_selector]
+
+
+def pushed_object_paths(updates: list[PushUpdate], remote_name: str) -> dict[str, str]:
+  objects: dict[str, str] = {}
+  for update in updates:
+    revisions = pushed_commit_revisions(update, remote_name)
+    if not revisions:
+      continue
+    output = run(["git", "rev-list", "--objects", *revisions])
+    for line in output.splitlines():
+      object_name, _, path = line.partition(" ")
+      if not path:
+        continue
+      objects.setdefault(object_name, path)
+  return objects
+
+
+def read_object_metadata(object_names: list[str]) -> dict[str, tuple[str, int]]:
+  if not object_names:
+    return {}
+  output = run_input(
+    ["git", "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
+    "\n".join(object_names),
+  )
+  metadata: dict[str, tuple[str, int]] = {}
+  for line in output.splitlines():
+    object_name, object_type, object_size = line.split(" ", 2)
+    metadata[object_name] = (object_type, int(object_size))
+  return metadata
+
+
+def oversized_pushed_blobs(updates: list[PushUpdate], remote_name: str) -> list[str]:
+  object_paths = pushed_object_paths(updates, remote_name)
+  metadata = read_object_metadata(list(object_paths))
+  violations: list[str] = []
+  for object_name, path in sorted(object_paths.items(), key=lambda item: item[1]):
+    object_type, object_size = metadata[object_name]
+    if object_type == "blob" and object_size > MAX_NON_LFS_BLOB_BYTES:
+      violations.append(f"{path} ({object_size} bytes)")
+  return violations
+
+
 def validate_release_tag(tag: str, reference: str | None = None) -> None:
   expected_version = release_tag_version(tag)
   resolved_reference = reference or f"refs/tags/{tag}"
@@ -325,12 +399,14 @@ def pushed_tag(update: PushUpdate) -> tuple[str, str] | None:
   return None
 
 
-def validate_pre_push(stdin: TextIO) -> None:
+def validate_pre_push(stdin: TextIO, remote_name: str = "origin") -> None:
   errors: list[str] = []
+  updates: list[PushUpdate] = []
   for line in stdin:
     if not line.strip():
       continue
     update = parse_push_update(line)
+    updates.append(update)
     release_tag = pushed_tag(update)
     if release_tag is None:
       continue
@@ -341,6 +417,11 @@ def validate_pre_push(stdin: TextIO) -> None:
       validate_release_tag(tag, reference)
     except ValueError as error:
       errors.append(f"{tag}: {error}")
+  violations = oversized_pushed_blobs(updates, remote_name)
+  if violations:
+    errors.append(
+      "files larger than 2097152 bytes must be stored in Git LFS:\n" + "\n".join(violations)
+    )
   if errors:
     raise ValueError("\n".join(errors))
 
@@ -412,7 +493,7 @@ def main() -> int:
     if args.command == "validate-release-tag":
       validate_release_tag(args.tag, args.ref)
     elif args.command == "validate-pre-push":
-      validate_pre_push(sys.stdin)
+      validate_pre_push(sys.stdin, os.environ.get("PRE_PUSH_REMOTE", "origin"))
     else:
       bump_and_release()
   except ValueError as error:
