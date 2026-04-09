@@ -1,4 +1,5 @@
 import AppKit
+import Dispatch
 import Foundation
 import GhosttyKit
 import Observation
@@ -180,7 +181,10 @@ final class TerminalHostState {
   @ObservationIgnored
   private let runtime: GhosttyRuntime?
   @ObservationIgnored
-  private let managesTerminalSurfaces: Bool
+  let managesTerminalSurfaces: Bool
+  @ObservationIgnored
+  @Shared(.supatermSettings)
+  var supatermSettings = .default
   @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
   @ObservationIgnored
@@ -189,9 +193,15 @@ final class TerminalHostState {
   @ObservationIgnored
   private var spaceCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
+  var supatermSettingsObservationTask: Task<Void, Never>?
+  @ObservationIgnored
   private var runtimeConfigObserver: NSObjectProtocol?
   @ObservationIgnored
   private var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
+  @ObservationIgnored
+  let gitRepositoryClient: GitRepositoryClient
+  @ObservationIgnored
+  let githubCLIClient: GithubCLIClient
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
   @ObservationIgnored
@@ -200,12 +210,14 @@ final class TerminalHostState {
 
   private var pendingEvents: [TerminalClient.Event] = []
   private var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
-  private var surfaces: [UUID: GhosttySurfaceView] = [:]
+  var surfaces: [UUID: GhosttySurfaceView] = [:]
   private var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var previousFocusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   private var paneNotifications: [UUID: [PaneNotification]] = [:]
   private var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
   private var agentActivitySurfaceIDByTab: [TerminalTabID: UUID] = [:]
+  var githubPullRequestByTab: [TerminalTabID: GithubPullRequest] = [:]
+  var githubWorkspaceByTab: [TerminalTabID: TerminalGithubWorkspace] = [:]
   private var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
   private var previousSelectedSpaceID: TerminalSpaceID?
   private var lastEmittedFocusSurfaceID: UUID?
@@ -213,15 +225,31 @@ final class TerminalHostState {
   private var suppressesSessionChanges = 0
   @ObservationIgnored
   private var recentStructuredNotificationsBySurfaceID: [UUID: RecentStructuredNotification] = [:]
+  @ObservationIgnored
+  var githubWorkspaceRefreshTasksByTab: [TerminalTabID: Task<Void, Never>] = [:]
+  @ObservationIgnored
+  var githubHeadWatchersByTab: [TerminalTabID: TerminalGithubHeadWatcher] = [:]
+  @ObservationIgnored
+  var githubHeadWatcherRestartTasksByTab: [TerminalTabID: Task<Void, Never>] = [:]
+  @ObservationIgnored
+  var githubRepositoryRefreshTasksByRootURL: [URL: TerminalGithubRefreshTask] = [:]
+  @ObservationIgnored
+  var githubRepositoryRefreshOperationsByRootURL: [URL: Task<Void, Never>] = [:]
+  @ObservationIgnored
+  var queuedGithubRepositoryRefreshRootURLs: Set<URL> = []
 
   var windowActivity = WindowActivityState.inactive
 
   init(
     runtime: GhosttyRuntime? = nil,
-    managesTerminalSurfaces: Bool = true
+    managesTerminalSurfaces: Bool = true,
+    gitRepositoryClient: GitRepositoryClient = .liveValue,
+    githubCLIClient: GithubCLIClient = .liveValue
   ) {
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
+    self.gitRepositoryClient = gitRepositoryClient
+    self.githubCLIClient = githubCLIClient
 
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(spaceCatalog)
     if initialSpaceCatalog != spaceCatalog {
@@ -234,10 +262,12 @@ final class TerminalHostState {
     )
     observeRuntimeConfig()
     observeSpaceCatalog()
+    observeSupatermSettings()
   }
 
   isolated deinit {
     spaceCatalogObservationTask?.cancel()
+    supatermSettingsObservationTask?.cancel()
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
@@ -682,6 +712,15 @@ final class TerminalHostState {
     agentActivityByTab[tabID]
   }
 
+  func githubPullRequest(for tabID: TerminalTabID) -> GithubPullRequest? {
+    githubPullRequestByTab[tabID]
+  }
+
+  func githubCheckSummary(for tabID: TerminalTabID) -> String? {
+    guard let checks = githubPullRequestByTab[tabID]?.statusCheckRollup?.checks else { return nil }
+    return GithubPullRequestCheckBreakdown(checks: checks).summaryText
+  }
+
   func showsAgentActivityDetail(for tabID: TerminalTabID) -> Bool {
     guard let activitySurfaceID = agentActivitySurfaceIDByTab[tabID] else { return false }
     return focusedSurfaceIDByTab[tabID] == activitySurfaceID
@@ -771,6 +810,7 @@ final class TerminalHostState {
     if sessionChangesEnabled {
       sessionDidChange()
     }
+    scheduleGithubWorkspaceRefresh(for: tabID)
     return tabID
   }
 
@@ -805,6 +845,7 @@ final class TerminalHostState {
     applySelectedTab(tabID, in: space.id)
     focusSurface(in: tabID)
     syncFocus(windowActivity)
+    refreshGithubRepositorySchedules()
     sessionDidChange()
   }
 
@@ -900,6 +941,7 @@ final class TerminalHostState {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
     }
     finalizeSpaceSelectionChange()
+    refreshGithubRepositorySchedules()
     sessionDidChange()
     return space.id
   }
@@ -917,6 +959,7 @@ final class TerminalHostState {
       persistDefaultSelectedSpaceID(spaceID)
     }
     finalizeSpaceSelectionChange()
+    refreshGithubRepositorySchedules()
     sessionDidChange()
   }
 
@@ -963,6 +1006,7 @@ final class TerminalHostState {
     )
     _ = writeSpaceCatalog(updatedSpaceCatalog)
     finalizeSpaceSelectionChange()
+    refreshGithubRepositorySchedules()
     sessionDidChange()
   }
 
@@ -1058,6 +1102,7 @@ final class TerminalHostState {
   private func updateWindowActivity(_ activity: WindowActivityState) {
     windowActivity = activity
     syncFocus(activity)
+    refreshGithubRepositorySchedules()
     clearUnreadOnFocusedSurfaceIfNeeded()
   }
 
@@ -2463,6 +2508,7 @@ final class TerminalHostState {
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.scheduleGithubWorkspaceRefresh(for: tabID)
       self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in
@@ -2510,6 +2556,7 @@ final class TerminalHostState {
     view.bridge.onCommandFinished = { [weak self, weak view] in
       guard let self, let view else { return }
       _ = self.clearAgentActivity(for: view.id)
+      self.scheduleGithubWorkspaceRefresh(for: tabID)
       self.onCommandFinished(view.id)
     }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
@@ -2834,6 +2881,8 @@ final class TerminalHostState {
     applyFocusedSurface(surface.id, in: tabID)
     updateTabTitle(for: tabID)
     clearNotificationAttention(for: surface.id)
+    scheduleGithubWorkspaceRefresh(for: tabID)
+    refreshGithubRepositorySchedules()
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
     GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
@@ -2907,6 +2956,7 @@ final class TerminalHostState {
   }
 
   private func removeTree(for tabID: TerminalTabID) {
+    clearGithubWorkspace(for: tabID)
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
       paneNotifications.removeValue(forKey: surface.id)
@@ -2914,6 +2964,7 @@ final class TerminalHostState {
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
+    githubPullRequestByTab.removeValue(forKey: tabID)
     agentActivityByTab.removeValue(forKey: tabID)
     agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
@@ -3273,6 +3324,8 @@ final class TerminalHostState {
     previousSelectedTabIDBySpace.removeAll()
     previousSelectedSpaceID = nil
     lastEmittedFocusSurfaceID = nil
+    githubPullRequestByTab.removeAll()
+    githubWorkspaceByTab.removeAll()
   }
 
   private func sessionDidChange() {
@@ -3290,7 +3343,7 @@ final class TerminalHostState {
     return body()
   }
 
-  private func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {
+  func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {
     guard let path = Self.trimmedNonEmpty(surface.bridge.state.pwd) else { return nil }
     return GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
   }

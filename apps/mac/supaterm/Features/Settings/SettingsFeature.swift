@@ -46,6 +46,22 @@ enum SettingsAgentIntegrationResult: Equatable {
   case success(Bool)
 }
 
+enum SettingsGithubIntegrationStatus: Equatable {
+  case disabled
+  case checking
+  case unavailable(String)
+  case unauthenticated(String)
+  case authenticated(username: String, host: String)
+  case failure(String)
+
+  var isChecking: Bool {
+    if case .checking = self {
+      return true
+    }
+    return false
+  }
+}
+
 @Reducer
 struct SettingsFeature {
   @ObservableState
@@ -63,6 +79,9 @@ struct SettingsFeature {
       settingsPath: SupatermAgentKind.pi.settingsPathDescription
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
+    var githubIntegrationEnabled = SupatermSettings.default.githubIntegrationEnabled
+    var githubIntegrationStatus: SettingsGithubIntegrationStatus =
+      SupatermSettings.default.githubIntegrationEnabled ? .checking : .disabled
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     var selectedTab = Tab.general
@@ -83,6 +102,9 @@ struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case crashReportsEnabledChanged(Bool)
+    case githubIntegrationEnabledChanged(Bool)
+    case githubIntegrationStatusRefreshRequested
+    case githubIntegrationStatusRefreshed(SettingsGithubIntegrationStatus)
     case glowingPaneRingEnabledChanged(Bool)
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
@@ -159,6 +181,7 @@ struct SettingsFeature {
   @Dependency(PiSettingsClient.self) var piSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
+  @Dependency(GithubCLIClient.self) var githubCLIClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
   @Dependency(UpdateClient.self) var updateClient
 
@@ -173,6 +196,7 @@ struct SettingsFeature {
           .send(.agentIntegrationStatusRefreshRequested(.claude)),
           .send(.agentIntegrationStatusRefreshRequested(.codex)),
           .send(.agentIntegrationStatusRefreshRequested(.pi)),
+          .send(.githubIntegrationStatusRefreshRequested),
           .run { [updateClient] send in
             await updateClient.start()
             let stream = await updateClient.observe()
@@ -187,6 +211,8 @@ struct SettingsFeature {
         state.appearanceMode = supatermSettings.appearanceMode
         state.analyticsEnabled = supatermSettings.analyticsEnabled
         state.crashReportsEnabled = supatermSettings.crashReportsEnabled
+        state.githubIntegrationEnabled = supatermSettings.githubIntegrationEnabled
+        state.githubIntegrationStatus = supatermSettings.githubIntegrationEnabled ? .checking : .disabled
         state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
         state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
         state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
@@ -400,6 +426,81 @@ struct SettingsFeature {
         state.crashReportsEnabled = isEnabled
         return persist(state)
 
+      case .githubIntegrationEnabledChanged(let isEnabled):
+        state.githubIntegrationEnabled = isEnabled
+        state.githubIntegrationStatus = isEnabled ? state.githubIntegrationStatus : .disabled
+        if isEnabled {
+          return .merge(
+            persist(state),
+            .send(.githubIntegrationStatusRefreshRequested)
+          )
+        }
+        return persist(state)
+
+      case .githubIntegrationStatusRefreshRequested:
+        guard state.githubIntegrationEnabled else {
+          state.githubIntegrationStatus = .disabled
+          return .none
+        }
+        state.githubIntegrationStatus = .checking
+        let githubCLIClient = githubCLIClient
+        return .run { send in
+          guard await githubCLIClient.isAvailable() else {
+            await send(
+              .githubIntegrationStatusRefreshed(
+                .unavailable("Install `gh` to enable pull request integration.")
+              )
+            )
+            return
+          }
+          do {
+            if let status = try await githubCLIClient.authStatus() {
+              await send(
+                .githubIntegrationStatusRefreshed(
+                  .authenticated(username: status.username, host: status.host)
+                )
+              )
+            } else {
+              await send(
+                .githubIntegrationStatusRefreshed(
+                  .unauthenticated("Run `gh auth login` in a terminal to authenticate.")
+                )
+              )
+            }
+          } catch let error as GithubCLIError {
+            switch error {
+            case .unavailable:
+              await send(
+                .githubIntegrationStatusRefreshed(
+                  .unavailable("Install `gh` to enable pull request integration.")
+                )
+              )
+            case .outdated:
+              await send(
+                .githubIntegrationStatusRefreshed(
+                  .failure(error.localizedDescription)
+                )
+              )
+            case .commandFailed:
+              await send(
+                .githubIntegrationStatusRefreshed(
+                  .failure(error.localizedDescription)
+                )
+              )
+            }
+          } catch {
+            await send(.githubIntegrationStatusRefreshed(.failure(error.localizedDescription)))
+          }
+        }
+
+      case .githubIntegrationStatusRefreshed(let status):
+        guard state.githubIntegrationEnabled else {
+          state.githubIntegrationStatus = .disabled
+          return .none
+        }
+        state.githubIntegrationStatus = status
+        return .none
+
       case .glowingPaneRingEnabledChanged(let isEnabled):
         state.glowingPaneRingEnabled = isEnabled
         return persist(state)
@@ -491,6 +592,7 @@ struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       crashReportsEnabled: state.crashReportsEnabled,
+      githubIntegrationEnabled: state.githubIntegrationEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,

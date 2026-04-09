@@ -26,6 +26,11 @@
       "description": "Allow crash reports.",
       "type": "boolean"
     },
+    "githubIntegrationEnabled": {
+      "default": true,
+      "description": "Enable GitHub pull request integration in terminal tabs.",
+      "type": "boolean"
+    },
     "glowingPaneRingEnabled": {
       "default": true,
       "description": "Show a glowing ring around panes with unread attention.",

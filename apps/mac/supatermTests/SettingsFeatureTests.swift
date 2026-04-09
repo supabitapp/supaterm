@@ -34,6 +34,7 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
+          githubIntegrationEnabled: true,
           glowingPaneRingEnabled: false,
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
@@ -46,6 +47,8 @@ struct SettingsFeatureTests {
       } withDependencies: {
         $0.claudeSettingsClient.hasSupatermHooks = { false }
         $0.codexSettingsClient.hasSupatermHooks = { false }
+        $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.com") }
+        $0.githubCLIClient.isAvailable = { true }
         $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
         $0.piSettingsClient.hasSupatermIntegration = { false }
       }
@@ -55,6 +58,7 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
+        $0.githubIntegrationEnabled = true
         $0.glowingPaneRingEnabled = false
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
@@ -72,8 +76,17 @@ struct SettingsFeatureTests {
       await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
         $0.piIntegration.isPending = true
       }
+      await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
       await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
         $0.terminal = terminalSettingsState()
+      }
+      await store.receive(
+        .githubIntegrationStatusRefreshed(
+          .authenticated(username: "khoi", host: "github.com")
+        ),
+        timeout: 0
+      ) {
+        $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
       }
       await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
         $0.claudeIntegration.isPending = false
@@ -96,6 +109,8 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { false }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.com") }
+      $0.githubCLIClient.isAvailable = { true }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       $0.piSettingsClient.hasSupatermIntegration = { false }
       $0.updateClient.observe = { stream }
@@ -116,8 +131,17 @@ struct SettingsFeatureTests {
     await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
       $0.piIntegration.isPending = true
     }
+    await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
+    }
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .authenticated(username: "khoi", host: "github.com")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
       $0.claudeIntegration.isPending = false
@@ -502,6 +526,8 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { true }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.com") }
+      $0.githubCLIClient.isAvailable = { true }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       $0.piSettingsClient.hasSupatermIntegration = { true }
     }
@@ -520,8 +546,17 @@ struct SettingsFeatureTests {
     await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
       $0.piIntegration.isPending = true
     }
+    await store.receive(.githubIntegrationStatusRefreshRequested, timeout: 0)
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
+    }
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .authenticated(username: "khoi", host: "github.com")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.com")
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true)), timeout: 0) {
       $0.claudeIntegration.confirmedEnabled = true
@@ -535,6 +570,89 @@ struct SettingsFeatureTests {
       $0.piIntegration.confirmedEnabled = true
       $0.piIntegration.isEnabled = true
       $0.piIntegration.isPending = false
+    }
+  }
+
+  @Test
+  func githubIntegrationTogglePersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      } withDependencies: {
+        $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.com") }
+        $0.githubCLIClient.isAvailable = { true }
+      }
+
+      await store.send(.githubIntegrationEnabledChanged(false)) {
+        $0.githubIntegrationEnabled = false
+        $0.githubIntegrationStatus = .disabled
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.githubIntegrationEnabled)
+    }
+  }
+
+  @Test
+  func githubIntegrationUnavailableShowsExplicitState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.githubCLIClient.isAvailable = { false }
+    }
+
+    await store.send(.githubIntegrationStatusRefreshRequested)
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .unavailable("Install `gh` to enable pull request integration.")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .unavailable("Install `gh` to enable pull request integration.")
+    }
+  }
+
+  @Test
+  func githubIntegrationUnauthenticatedShowsExplicitState() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.githubCLIClient.authStatus = { nil }
+      $0.githubCLIClient.isAvailable = { true }
+    }
+
+    await store.send(.githubIntegrationStatusRefreshRequested)
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .unauthenticated("Run `gh auth login` in a terminal to authenticate.")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .unauthenticated(
+        "Run `gh auth login` in a terminal to authenticate."
+      )
+    }
+  }
+
+  @Test
+  func githubIntegrationAuthenticatedShowsAccount() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.githubCLIClient.authStatus = { GithubAuthStatus(username: "khoi", host: "github.example.com") }
+      $0.githubCLIClient.isAvailable = { true }
+    }
+
+    await store.send(.githubIntegrationStatusRefreshRequested)
+    await store.receive(
+      .githubIntegrationStatusRefreshed(
+        .authenticated(username: "khoi", host: "github.example.com")
+      ),
+      timeout: 0
+    ) {
+      $0.githubIntegrationStatus = .authenticated(username: "khoi", host: "github.example.com")
     }
   }
 
