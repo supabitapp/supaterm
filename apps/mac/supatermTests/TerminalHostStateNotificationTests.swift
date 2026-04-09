@@ -257,6 +257,36 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func desktopNotificationCallbackPreservesExplicitTitleAndBody() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .inactive
+    let stream = host.eventStream()
+    var iterator = stream.makeAsyncIterator()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    surface.bridge.onDesktopNotification?("Needs input", "Claude needs your attention")
+
+    let event = try #require(await iterator.next())
+    guard case .notificationReceived(let notification) = event else {
+      Issue.record("Expected notificationReceived event.")
+      return
+    }
+
+    #expect(notification.attentionState == .unread)
+    #expect(notification.body == "Claude needs your attention")
+    #expect(notification.desktopNotificationDisposition == .deliver)
+    #expect(notification.resolvedTitle == "Needs input")
+    #expect(notification.sourceSurfaceID == surface.id)
+    #expect(notification.subtitle == "")
+    #expect(host.unreadNotificationCount(for: tabID) == 1)
+    #expect(host.latestNotificationText(for: tabID) == "Claude needs your attention")
+  }
+
+  @Test
   func desktopNotificationCallbackKeepsDistinctNotificationAfterStructuredCompletion() throws {
     initializeGhosttyForTests()
 

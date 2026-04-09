@@ -6,10 +6,11 @@ import Testing
 struct SupatermClaudeHookSettingsTests {
   @Test
   func commandStaysStable() {
-    #expect(
-      SupatermClaudeHookSettings.command
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent claude || true"#
-    )
+    let command = SupatermClaudeHookSettings.command
+
+    #expect(command == SupatermManagedHookCommand.receiveHookCommand(for: .claude))
+    #expect(command.contains(SupatermManagedHookCommand.localCommandCondition))
+    #expect(command.contains(SupatermManagedHookCommand.remoteCommandCondition))
   }
 
   @Test

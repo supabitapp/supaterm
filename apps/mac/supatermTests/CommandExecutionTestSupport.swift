@@ -4,6 +4,12 @@ import Testing
 
 @testable import SupatermCLIShared
 
+struct CommandExecutionResult: Equatable {
+  let status: Int32
+  let standardError: String
+  let standardOutput: String
+}
+
 func writeExecutable(
   at url: URL,
   script: String
@@ -62,6 +68,51 @@ func runExecutable(
     Issue.record("Command failed with status \(process.terminationStatus): \(stderr)")
   }
   return stdout
+}
+
+func runExecutable(
+  at executableURL: URL,
+  arguments: [String],
+  environment: [String: String],
+  standardInput: String
+) throws -> CommandExecutionResult {
+  let process = Process()
+  process.executableURL = executableURL
+  process.arguments = arguments
+  var processEnvironment = ProcessInfo.processInfo.environment
+  for (key, value) in environment {
+    processEnvironment[key] = value
+  }
+  process.environment = processEnvironment
+
+  let stdinPipe = Pipe()
+  let stdoutPipe = Pipe()
+  let stderrPipe = Pipe()
+  process.standardInput = stdinPipe
+  process.standardOutput = stdoutPipe
+  process.standardError = stderrPipe
+
+  try process.run()
+  stdinPipe.fileHandleForWriting.write(Data(standardInput.utf8))
+  try stdinPipe.fileHandleForWriting.close()
+  process.waitUntilExit()
+
+  let standardOutput =
+    String(
+      data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(),
+      encoding: .utf8
+    ) ?? ""
+  let standardError =
+    String(
+      data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
+      encoding: .utf8
+    ) ?? ""
+
+  return .init(
+    status: process.terminationStatus,
+    standardError: standardError,
+    standardOutput: standardOutput
+  )
 }
 
 func makeCommandExecutionTemporaryDirectory() throws -> URL {
