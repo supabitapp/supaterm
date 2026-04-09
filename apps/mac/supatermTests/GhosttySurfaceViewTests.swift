@@ -31,4 +31,35 @@ struct GhosttySurfaceViewTests {
       )
     )
   }
+
+  @Test
+  func bypassesKeyEquivalentHandlingForFieldEditor() {
+    let fieldEditor = NSTextView()
+    fieldEditor.isFieldEditor = true
+
+    #expect(
+      GhosttySurfaceView.shouldBypassKeyEquivalentHandling(
+        firstResponder: fieldEditor
+      )
+    )
+  }
+
+  @Test
+  func keepsKeyEquivalentHandlingForNonFieldEditorResponder() {
+    #expect(
+      !GhosttySurfaceView.shouldBypassKeyEquivalentHandling(
+        firstResponder: NSView(frame: .zero)
+      )
+    )
+    #expect(
+      !GhosttySurfaceView.shouldBypassKeyEquivalentHandling(
+        firstResponder: NSTextView()
+      )
+    )
+    #expect(
+      !GhosttySurfaceView.shouldBypassKeyEquivalentHandling(
+        firstResponder: nil
+      )
+    )
+  }
 }
