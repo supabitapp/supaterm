@@ -66,10 +66,19 @@ struct CodexTranscriptCursor {
 }
 
 enum CodexTranscriptMonitor {
-  static func makeCursor(at path: String) -> CodexTranscriptCursor? {
+  static func start(
+    at path: String
+  ) -> (CodexTranscriptCursor, CodexTranscriptUpdate?)? {
     guard let data = read(path: path, from: 0) else { return nil }
-    let (consumedBytes, _) = parse(data)
-    return .init(offset: UInt64(consumedBytes), detailPriority: nil)
+    let (consumedBytes, latestUpdate) = parse(data)
+    var cursor = CodexTranscriptCursor(offset: UInt64(consumedBytes), detailPriority: nil)
+    guard let latestUpdate, let update = mergedUpdate(latestUpdate, into: &cursor) else {
+      return (cursor, nil)
+    }
+    if update.status?.isFinal == true {
+      return (cursor, nil)
+    }
+    return (cursor, update)
   }
 
   static func advance(
@@ -84,8 +93,7 @@ enum CodexTranscriptMonitor {
       return nil
     }
     if UInt64(fileSize) < cursor.offset {
-      guard let resetCursor = makeCursor(at: path) else { return nil }
-      return (resetCursor, nil)
+      return start(at: path)
     }
     guard let data = read(path: path, from: cursor.offset) else { return nil }
     let (consumedBytes, latestUpdate) = parse(data)

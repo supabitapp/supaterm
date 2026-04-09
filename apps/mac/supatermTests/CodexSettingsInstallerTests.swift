@@ -18,7 +18,7 @@ struct CodexSettingsInstallerTests {
 
     let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
     let hooks = try #require(object["hooks"] as? [String: Any])
-    #expect(Set(hooks.keys) == ["PostToolUse", "PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(Set(hooks.keys) == ["SessionStart", "Stop", "UserPromptSubmit"])
   }
 
   @Test
@@ -62,8 +62,60 @@ struct CodexSettingsInstallerTests {
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
 
-    #expect(commands.contains("echo keep"))
-    #expect(commands.contains(SupatermCodexHookSettings.command))
+    #expect(commands == ["echo keep"])
+  }
+
+  @Test
+  func installRemovesManagedPreAndPostToolUseHooks() throws {
+    let homeDirectoryURL = try temporaryCodexHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    try writeCodexSettings(
+      """
+      {
+        "hooks": {
+          "PostToolUse": [
+            {
+              "hooks": [
+                {
+                  "command": "\(command)",
+                  "timeout": 5,
+                  "type": "command"
+                }
+              ]
+            }
+          ],
+          "PreToolUse": [
+            {
+              "hooks": [
+                {
+                  "command": "\(command)",
+                  "timeout": 5,
+                  "type": "command"
+                }
+              ]
+            }
+          ]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = CodexSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+    )
+
+    try installer.installSupatermHooks()
+
+    let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
+    let hooks = try #require(object["hooks"] as? [String: Any])
+
+    #expect(hooks["PostToolUse"] == nil)
+    #expect(hooks["PreToolUse"] == nil)
+    #expect(Set(hooks.keys) == ["SessionStart", "Stop", "UserPromptSubmit"])
   }
 
   @Test
