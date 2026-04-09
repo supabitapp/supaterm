@@ -84,7 +84,7 @@ function App() {
           </header>
 
           <div className="grid flex-1 items-end gap-14 pt-16 md:pt-20 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] xl:gap-10 xl:pt-24">
-            <div className="max-w-[640px]">
+            <div className="max-w-[560px]">
               <div
                 className="supaterm-reveal text-sm font-medium tracking-[0.22em] text-white/52 uppercase"
                 style={{ animationDelay: "120ms" }}
@@ -92,13 +92,13 @@ function App() {
                 Native macOS terminal
               </div>
               <h1
-                className="supaterm-reveal mt-5 text-[clamp(3.6rem,8vw,7.4rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]"
+                className="supaterm-reveal mt-5 text-[clamp(2.9rem,6.6vw,5.9rem)] leading-[0.92] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]"
                 style={{ animationDelay: "180ms" }}
               >
                 The terminal built for parallel agent work.
               </h1>
               <p
-                className="supaterm-reveal mt-7 max-w-[32rem] text-[1.04rem] leading-7 text-white/62 md:text-lg"
+                className="supaterm-reveal mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]"
                 style={{ animationDelay: "240ms" }}
               >
                 Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
