@@ -19,7 +19,7 @@ struct SettingsFeatureTests {
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .codingAgents, .about]
+        == [.general, .terminal, .notifications, .github, .codingAgents, .about]
     )
   }
 
@@ -34,6 +34,7 @@ struct SettingsFeatureTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           crashReportsEnabled: true,
+          githubPullRequestsEnabled: false,
           glowingPaneRingEnabled: false,
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
@@ -46,6 +47,7 @@ struct SettingsFeatureTests {
       } withDependencies: {
         $0.claudeSettingsClient.hasSupatermHooks = { false }
         $0.codexSettingsClient.hasSupatermHooks = { false }
+        $0.githubClient.diagnostics = { githubDiagnostics() }
         $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
         $0.piSettingsClient.hasSupatermIntegration = { false }
       }
@@ -55,6 +57,7 @@ struct SettingsFeatureTests {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
+        $0.github.pullRequestsEnabled = false
         $0.glowingPaneRingEnabled = false
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
@@ -62,6 +65,9 @@ struct SettingsFeatureTests {
       }
       await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
         $0.terminal.isLoading = true
+      }
+      await store.receive(.githubDiagnosticsRefreshRequested, timeout: 0) {
+        $0.github.isLoadingDiagnostics = true
       }
       await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
         $0.claudeIntegration.isPending = true
@@ -74,6 +80,10 @@ struct SettingsFeatureTests {
       }
       await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
         $0.terminal = terminalSettingsState()
+      }
+      await store.receive(.githubDiagnosticsResponse(githubDiagnostics()), timeout: 0) {
+        $0.github.diagnostics = githubDiagnostics()
+        $0.github.isLoadingDiagnostics = false
       }
       await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
         $0.claudeIntegration.isPending = false
@@ -96,6 +106,7 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { false }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.githubClient.diagnostics = { githubDiagnostics() }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       $0.piSettingsClient.hasSupatermIntegration = { false }
       $0.updateClient.observe = { stream }
@@ -106,6 +117,9 @@ struct SettingsFeatureTests {
     await store.receive(\.settingsLoaded)
     await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
       $0.terminal.isLoading = true
+    }
+    await store.receive(.githubDiagnosticsRefreshRequested, timeout: 0) {
+      $0.github.isLoadingDiagnostics = true
     }
     await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
       $0.claudeIntegration.isPending = true
@@ -118,6 +132,10 @@ struct SettingsFeatureTests {
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
+    }
+    await store.receive(.githubDiagnosticsResponse(githubDiagnostics()), timeout: 0) {
+      $0.github.diagnostics = githubDiagnostics()
+      $0.github.isLoadingDiagnostics = false
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(false)), timeout: 0) {
       $0.claudeIntegration.isPending = false
@@ -151,6 +169,8 @@ struct SettingsFeatureTests {
   func tabSelectionUpdatesState() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
+    } withDependencies: {
+      $0.githubClient.diagnostics = { githubDiagnostics() }
     }
 
     await store.send(.tabSelected(.terminal)) {
@@ -159,6 +179,17 @@ struct SettingsFeatureTests {
 
     await store.send(.tabSelected(.codingAgents)) {
       $0.selectedTab = .codingAgents
+    }
+
+    await store.send(.tabSelected(.github)) {
+      $0.selectedTab = .github
+    }
+    await store.receive(.githubDiagnosticsRefreshRequested, timeout: 0) {
+      $0.github.isLoadingDiagnostics = true
+    }
+    await store.receive(.githubDiagnosticsResponse(githubDiagnostics()), timeout: 0) {
+      $0.github.diagnostics = githubDiagnostics()
+      $0.github.isLoadingDiagnostics = false
     }
 
     await store.send(.tabSelected(.notifications)) {
@@ -208,6 +239,24 @@ struct SettingsFeatureTests {
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(!supatermSettings.analyticsEnabled)
       #expect(!supatermSettings.crashReportsEnabled)
+    }
+  }
+
+  @Test
+  func githubPullRequestSettingPersistsPrefs() async throws {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.githubPullRequestsEnabledChanged(false)) {
+        $0.github.pullRequestsEnabled = false
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.githubPullRequestsEnabled)
     }
   }
 
@@ -502,6 +551,7 @@ struct SettingsFeatureTests {
     } withDependencies: {
       $0.claudeSettingsClient.hasSupatermHooks = { true }
       $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.githubClient.diagnostics = { githubDiagnostics() }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
       $0.piSettingsClient.hasSupatermIntegration = { true }
     }
@@ -510,6 +560,9 @@ struct SettingsFeatureTests {
     await store.receive(\.settingsLoaded)
     await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
       $0.terminal.isLoading = true
+    }
+    await store.receive(.githubDiagnosticsRefreshRequested, timeout: 0) {
+      $0.github.isLoadingDiagnostics = true
     }
     await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
       $0.claudeIntegration.isPending = true
@@ -522,6 +575,10 @@ struct SettingsFeatureTests {
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
+    }
+    await store.receive(.githubDiagnosticsResponse(githubDiagnostics()), timeout: 0) {
+      $0.github.diagnostics = githubDiagnostics()
+      $0.github.isLoadingDiagnostics = false
     }
     await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true)), timeout: 0) {
       $0.claudeIntegration.confirmedEnabled = true
@@ -832,6 +889,14 @@ private nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSn
     fontSize: 15,
     lightTheme: "Zenbones Light",
     warningMessage: nil
+  )
+}
+
+private nonisolated func githubDiagnostics() -> GithubDiagnostics {
+  .init(
+    authenticationStatus: .authenticated("Authenticated with GitHub CLI."),
+    ghStatus: .available("Found at /opt/homebrew/bin/gh"),
+    gitStatus: .available("Found at /usr/bin/git")
   )
 }
 

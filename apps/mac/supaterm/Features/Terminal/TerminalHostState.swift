@@ -182,7 +182,14 @@ final class TerminalHostState {
   @ObservationIgnored
   private let managesTerminalSurfaces: Bool
   @ObservationIgnored
+  private var githubRefreshCoordinator: GithubPullRequestRefreshCoordinator! = nil
+  @ObservationIgnored
   private var eventContinuation: AsyncStream<TerminalClient.Event>.Continuation?
+  @ObservationIgnored
+  @Shared(.supatermSettings)
+  private var supatermSettings = SupatermSettings.default
+  @ObservationIgnored
+  private var supatermSettingsObservationTask: Task<Void, Never>?
   @ObservationIgnored
   @Shared(.terminalSpaceCatalog)
   private var spaceCatalog = TerminalSpaceCatalog.default
@@ -211,6 +218,7 @@ final class TerminalHostState {
   private var lastEmittedFocusSurfaceID: UUID?
   private var runtimeConfigGeneration = 0
   private var suppressesSessionChanges = 0
+  private var githubPullRequestBySurfaceID: [UUID: GithubPullRequestSnapshot] = [:]
   @ObservationIgnored
   private var recentStructuredNotificationsBySurfaceID: [UUID: RecentStructuredNotification] = [:]
 
@@ -218,10 +226,15 @@ final class TerminalHostState {
 
   init(
     runtime: GhosttyRuntime? = nil,
+    githubClient: GithubClient = .liveValue,
     managesTerminalSurfaces: Bool = true
   ) {
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
+    githubRefreshCoordinator = GithubPullRequestRefreshCoordinator(client: githubClient) { [weak self] snapshots in
+      guard let self else { return }
+      self.applyResolvedGithubPullRequests(snapshots)
+    }
 
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(spaceCatalog)
     if initialSpaceCatalog != spaceCatalog {
@@ -233,10 +246,13 @@ final class TerminalHostState {
       initialSelectedSpaceID: initialSpaceCatalog.defaultSelectedSpaceID
     )
     observeRuntimeConfig()
+    observeSupatermSettings()
     observeSpaceCatalog()
+    applyObservedSupatermSettings(supatermSettings)
   }
 
   isolated deinit {
+    supatermSettingsObservationTask?.cancel()
     spaceCatalogObservationTask?.cancel()
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
@@ -364,6 +380,19 @@ final class TerminalHostState {
     ) { [weak self] _ in
       MainActor.assumeIsolated {
         self?.runtimeConfigGeneration &+= 1
+      }
+    }
+  }
+
+  private func observeSupatermSettings() {
+    supatermSettingsObservationTask?.cancel()
+    supatermSettingsObservationTask = Task { @MainActor [weak self] in
+      let observations = Observations { [weak self] in
+        self?.supatermSettings ?? .default
+      }
+      for await supatermSettings in observations {
+        guard let self else { return }
+        self.applyObservedSupatermSettings(supatermSettings)
       }
     }
   }
@@ -611,6 +640,14 @@ final class TerminalHostState {
     )
   }
 
+  var selectedPaneGithubPullRequestPresentation: GithubPullRequestPresentation? {
+    let surfaceID =
+      currentFocusedSurfaceID()
+      ?? selectedTree?.root?.leftmostLeaf().id
+    guard let surfaceID else { return nil }
+    return githubPullRequestBySurfaceID[surfaceID].map(GithubPullRequestPresentation.init(snapshot:))
+  }
+
   func contextSurfaceID(for tabID: TerminalTabID) -> UUID? {
     if let focusedSurfaceID = focusedSurfaceIDByTab[tabID], surfaces[focusedSurfaceID] != nil {
       return focusedSurfaceID
@@ -623,6 +660,13 @@ final class TerminalHostState {
       in: splitTree(for: tabID),
       pwd: { $0.bridge.state.pwd }
     )
+  }
+
+  func githubPullRequestPresentation(
+    for tabID: TerminalTabID
+  ) -> GithubPullRequestPresentation? {
+    guard let surfaceID = contextSurfaceID(for: tabID) else { return nil }
+    return githubPullRequestBySurfaceID[surfaceID].map(GithubPullRequestPresentation.init(snapshot:))
   }
 
   var terminalBackgroundColor: Color {
@@ -1057,6 +1101,7 @@ final class TerminalHostState {
 
   private func updateWindowActivity(_ activity: WindowActivityState) {
     windowActivity = activity
+    githubRefreshCoordinator.updateWindowActivity(activity)
     syncFocus(activity)
     clearUnreadOnFocusedSurfaceIfNeeded()
   }
@@ -2382,6 +2427,7 @@ final class TerminalHostState {
     let newTree = tree.removing(node)
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
+    githubPullRequestBySurfaceID.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
     recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
 
@@ -2400,6 +2446,7 @@ final class TerminalHostState {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
+      syncGithubRefreshRequests()
       sessionDidChange()
       return
     }
@@ -2420,6 +2467,7 @@ final class TerminalHostState {
       }
     }
     syncFocus(windowActivity)
+    syncGithubRefreshRequests()
     sessionDidChange()
   }
 
@@ -2448,6 +2496,7 @@ final class TerminalHostState {
     configureBridgeCallbacks(for: view, tabID: tabID)
     configureSurfaceCallbacks(for: view, tabID: tabID)
     surfaces[view.id] = view
+    syncGithubRefreshRequests()
     return view
   }
 
@@ -2455,14 +2504,17 @@ final class TerminalHostState {
     for view: GhosttySurfaceView,
     tabID: TerminalTabID
   ) {
+    let surfaceID = view.id
     view.bridge.onTitleChange = { [weak self] _ in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.handleGithubTitleChange(for: surfaceID)
       self.sessionDidChange()
     }
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.handleGithubPathChange(for: surfaceID)
       self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in
@@ -2909,6 +2961,7 @@ final class TerminalHostState {
   private func removeTree(for tabID: TerminalTabID) {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
+      githubPullRequestBySurfaceID.removeValue(forKey: surface.id)
       paneNotifications.removeValue(forKey: surface.id)
       recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
       surface.closeSurface()
@@ -2919,6 +2972,7 @@ final class TerminalHostState {
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousSelectedTabIDBySpace = previousSelectedTabIDBySpace.filter { $0.value != tabID }
+    syncGithubRefreshRequests()
   }
 
   private func notifications(for tabID: TerminalTabID) -> [UUID: [PaneNotification]] {
@@ -3304,6 +3358,99 @@ final class TerminalHostState {
     }
     guard isDirectory.boolValue else { return nil }
     return URL(fileURLWithPath: normalizedPath, isDirectory: true)
+  }
+
+  private func applyObservedSupatermSettings(
+    _ supatermSettings: SupatermSettings
+  ) {
+    if !supatermSettings.githubPullRequestsEnabled {
+      githubPullRequestBySurfaceID.removeAll()
+    }
+    githubRefreshCoordinator.setEnabled(supatermSettings.githubPullRequestsEnabled)
+    syncGithubRefreshRequests()
+  }
+
+  private func applyResolvedGithubPullRequests(
+    _ pullRequestsBySurfaceID: [UUID: GithubPullRequestSnapshot?]
+  ) {
+    for (surfaceID, snapshot) in pullRequestsBySurfaceID {
+      guard surfaces[surfaceID] != nil else { continue }
+      if let snapshot {
+        githubPullRequestBySurfaceID[surfaceID] = snapshot
+      } else {
+        githubPullRequestBySurfaceID.removeValue(forKey: surfaceID)
+      }
+    }
+  }
+
+  private func handleGithubPathChange(
+    for surfaceID: UUID
+  ) {
+    clearGithubPullRequestIfRepositoryChanged(for: surfaceID)
+    syncGithubRefreshRequests()
+    githubRefreshCoordinator.markDirty(surfaceIDs: [surfaceID])
+  }
+
+  private func handleGithubTitleChange(
+    for surfaceID: UUID
+  ) {
+    githubRefreshCoordinator.markDirty(surfaceIDs: [surfaceID])
+  }
+
+  private func clearGithubPullRequestIfRepositoryChanged(
+    for surfaceID: UUID
+  ) {
+    guard let snapshot = githubPullRequestBySurfaceID[surfaceID] else { return }
+    guard let workingDirectory = surfaces[surfaceID]?.bridge.state.pwd else {
+      githubPullRequestBySurfaceID.removeValue(forKey: surfaceID)
+      return
+    }
+
+    let normalizedWorkingDirectory = GhosttySurfaceView.normalizedWorkingDirectoryPath(workingDirectory)
+    let normalizedRepositoryRoot = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+      snapshot.repositoryIdentity.repoRoot
+    )
+
+    guard normalizedWorkingDirectory.hasPrefix(normalizedRepositoryRoot) else {
+      githubPullRequestBySurfaceID.removeValue(forKey: surfaceID)
+      return
+    }
+
+    let boundaryIndex = normalizedWorkingDirectory.index(
+      normalizedWorkingDirectory.startIndex,
+      offsetBy: normalizedRepositoryRoot.count,
+      limitedBy: normalizedWorkingDirectory.endIndex
+    )
+    guard let boundaryIndex else { return }
+    guard boundaryIndex == normalizedWorkingDirectory.endIndex
+      || normalizedWorkingDirectory[boundaryIndex] == "/"
+    else {
+      githubPullRequestBySurfaceID.removeValue(forKey: surfaceID)
+      return
+    }
+  }
+
+  private func syncGithubRefreshRequests() {
+    guard supatermSettings.githubPullRequestsEnabled else {
+      githubRefreshCoordinator.replaceRequests([:])
+      return
+    }
+    githubRefreshCoordinator.replaceRequests(githubLookupRequests())
+  }
+
+  private func githubLookupRequests() -> [UUID: GithubPullRequestLookupRequest] {
+    Dictionary(
+      uniqueKeysWithValues: surfaces.compactMap { surfaceID, surface in
+        guard let workingDirectory = Self.trimmedNonEmpty(surface.bridge.state.pwd) else { return nil }
+        return (
+          surfaceID,
+          .init(
+            surfaceID: surfaceID,
+            workingDirectory: GhosttySurfaceView.normalizedWorkingDirectoryPath(workingDirectory)
+          )
+        )
+      }
+    )
   }
 
   private func observeSpaceCatalog() {

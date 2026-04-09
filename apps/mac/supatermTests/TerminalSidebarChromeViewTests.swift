@@ -136,6 +136,23 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func githubPullRequestPresentationFormatsThePullRequestNumber() {
+    let presentation = GithubPullRequestPresentation(
+      snapshot: .init(
+        number: 123,
+        repositoryIdentity: .init(
+          branch: "feature",
+          repoRoot: "/tmp/project"
+        ),
+        url: URL(string: "https://github.com/supabitapp/supaterm/pull/123")!
+      )
+    )
+
+    #expect(presentation.label == "PR #123")
+    #expect(presentation.url.absoluteString == "https://github.com/supabitapp/supaterm/pull/123")
+  }
+
+  @Test
   func runningCodexDetailTakesSecondaryLinePrecedenceOverNotificationPreview() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(

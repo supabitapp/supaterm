@@ -284,6 +284,7 @@ struct TerminalSidebarChromeView: View {
   ) -> some View {
     let notificationPresentation = terminal.latestSidebarNotificationPresentation(for: tab.id)
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
+    let githubPullRequest = terminal.githubPullRequestPresentation(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
@@ -306,6 +307,7 @@ struct TerminalSidebarChromeView: View {
         store: store,
         terminal: terminal,
         tab: tab,
+        githubPullRequest: githubPullRequest,
         notificationPresentation: notificationPresentation,
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
@@ -824,6 +826,7 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let agentActivity: TerminalHostState.AgentActivity?
+    let githubPullRequestLabel: String?
     let showsAgentActivityDetail: Bool
     let notificationPreviewMarkdown: String?
     let notificationMarkdown: String?
@@ -835,6 +838,7 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let githubPullRequest: GithubPullRequestPresentation?
   let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -862,6 +866,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+  @Environment(\.openURL) private var openURL
   @State private var isHovering = false
   @State private var isCloseHovering = false
 
@@ -883,63 +888,84 @@ struct TerminalSidebarTabRow: View {
   }
 
   var body: some View {
-    Button(action: select) {
-      HStack(spacing: 8) {
-        let summary = TerminalSidebarTabSummaryView(
-          tab: tab,
-          palette: palette,
-          isSelected: isSelected,
-          notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
-          paneWorkingDirectories: paneWorkingDirectories,
-          unreadCount: unreadCount,
-          agentActivity: terminal.agentActivity(for: tab.id),
-          showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
-          terminalProgress: terminalProgress,
-          shortcutHint: shortcutHint,
-          showsShortcutHint: showsShortcutHint,
-          isRowHovering: isHovering
-        )
-        .lineLimit(8)
-        if let helpText = TerminalSidebarTabSummaryView.helpText(
-          paneWorkingDirectories: paneWorkingDirectories
-        ) {
-          summary.help(helpText)
-        } else {
-          summary
+    HStack(alignment: .top, spacing: 8) {
+      VStack(alignment: .leading, spacing: 4) {
+        Button(action: select) {
+          let summary = TerminalSidebarTabSummaryView(
+            tab: tab,
+            palette: palette,
+            isSelected: isSelected,
+            notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
+            paneWorkingDirectories: paneWorkingDirectories,
+            unreadCount: unreadCount,
+            agentActivity: terminal.agentActivity(for: tab.id),
+            showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
+            terminalProgress: terminalProgress,
+            shortcutHint: shortcutHint,
+            showsShortcutHint: showsShortcutHint,
+            isRowHovering: isHovering
+          )
+          .lineLimit(8)
+          if let helpText = TerminalSidebarTabSummaryView.helpText(
+            paneWorkingDirectories: paneWorkingDirectories
+          ) {
+            summary.help(helpText)
+          } else {
+            summary
+          }
         }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
 
-        if isHovering && !showsShortcutHint {
-          Button(action: close) {
-            Image(systemName: "xmark")
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-              .frame(width: 24, height: 24)
+        if let githubPullRequest {
+          Button {
+            openURL(githubPullRequest.url)
+          } label: {
+            Text(githubPullRequest.label)
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(isSelected ? palette.selectedText : Color.accentColor)
+              .lineLimit(1)
+              .truncationMode(.tail)
+              .frame(maxWidth: .infinity, alignment: .leading)
               .accessibilityHidden(true)
-              .background(
-                isCloseHovering
-                  ? (isSelected ? palette.clearFill : palette.rowFill)
-                  : .clear,
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-              )
           }
           .buttonStyle(.plain)
-          .onHover { isCloseHovering = $0 }
+          .help("Open \(githubPullRequest.label)")
+          .accessibilityLabel("Open \(githubPullRequest.label)")
         }
       }
-      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-      .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-      .frame(maxWidth: .infinity)
-      .background(backgroundColor)
-      .clipShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
-      .contentShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      if isHovering && !showsShortcutHint {
+        Button(action: close) {
+          Image(systemName: "xmark")
+            .font(.system(size: 12, weight: .heavy))
+            .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+            .frame(width: 24, height: 24)
+            .accessibilityHidden(true)
+            .background(
+              isCloseHovering
+                ? (isSelected ? palette.clearFill : palette.rowFill)
+                : .clear,
+              in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isCloseHovering = $0 }
+      }
     }
-    .buttonStyle(.plain)
+    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+    .frame(maxWidth: .infinity)
+    .background(backgroundColor)
+    .clipShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
+    .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
+    .contentShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
     .animation(rowAnimation, value: animatedPresentation)
     .background {
       SidebarPopoverPresenter(
@@ -1032,6 +1058,7 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     .init(
       agentActivity: terminal.agentActivity(for: tab.id),
+      githubPullRequestLabel: githubPullRequest?.label,
       showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
       notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
       notificationMarkdown: notificationPresentation?.markdown,
