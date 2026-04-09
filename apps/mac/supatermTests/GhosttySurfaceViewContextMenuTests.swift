@@ -36,6 +36,7 @@ struct GhosttySurfaceViewContextMenuTests {
       "Split Left",
       "Split Down",
       "Split Up",
+      "Move to New Tab",
       "Close Pane",
       "Reset Terminal",
       "Change Tab Title...",
@@ -46,5 +47,14 @@ struct GhosttySurfaceViewContextMenuTests {
       #expect(item.image != nil)
       #expect(item.image?.accessibilityDescription == item.title)
     }
+  }
+
+  @Test
+  func contextMenuIncludesMoveToNewTabBeforeClosePane() {
+    let menu = GhosttySurfaceView.contextMenu(hasSelection: false)
+    let titles = menu.items.map(\.title)
+
+    #expect(titles.firstIndex(of: "Move to New Tab") == 6)
+    #expect(titles.firstIndex(of: "Close Pane") == 7)
   }
 }

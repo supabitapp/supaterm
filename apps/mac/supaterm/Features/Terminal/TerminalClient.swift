@@ -226,6 +226,7 @@ struct TerminalClient: Sendable {
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupInput: String?)
+    case moveSurfaceToNewTab(UUID)
     case navigateSearch(GhosttySearchDirection)
     case moveSidebarTab(
       tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
@@ -256,6 +257,7 @@ struct TerminalClient: Sendable {
     case commandPaletteToggleRequested
     case closeRequested(TerminalCloseRequest)
     case gotoTabRequested(TerminalGotoTabTarget)
+    case moveSurfaceToNewTabRequested(UUID)
     case newTabRequested(inheritingFromSurfaceID: UUID?)
     case notificationReceived(TerminalNotificationEvent)
   }

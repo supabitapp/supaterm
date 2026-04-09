@@ -1257,6 +1257,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
       ))
     menu.addItem(
       contextMenuItem(
+        title: "Move to New Tab",
+        action: #selector(GhosttySurfaceView.moveToNewTab(_:)),
+        symbol: "macwindow.on.rectangle"
+      ))
+    menu.addItem(
+      contextMenuItem(
         title: "Close Pane",
         action: #selector(GhosttySurfaceView.closePane(_:)),
         symbol: "xmark"
@@ -1304,6 +1310,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   @IBAction func splitUp(_ sender: Any?) {
     _ = bridge.onSplitAction?(.newSplit(direction: .up))
+  }
+
+  @IBAction func moveToNewTab(_ sender: Any?) {
+    _ = bridge.onMoveSurfaceToNewTab?()
   }
 
   @IBAction func closePane(_ sender: Any?) {
@@ -2006,10 +2016,11 @@ final class GhosttySurfaceScrollView: NSView {
   }
 
   override func mouseMoved(with event: NSEvent) {
-    guard Self.shouldFlashLegacyScrollers(
-      scrollerStyle: NSScroller.preferredScrollerStyle,
-      reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    )
+    guard
+      Self.shouldFlashLegacyScrollers(
+        scrollerStyle: NSScroller.preferredScrollerStyle,
+        reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      )
     else { return }
     scrollView.flashScrollers()
   }

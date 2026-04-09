@@ -135,6 +135,7 @@ struct SPTargetResolverTests {
 
     #expect(target == .pane(windowIndex: 2, spaceIndex: 1, tabIndex: 2, paneIndex: 1))
   }
+
 }
 
 private func treeSnapshot() -> SupatermTreeSnapshot {

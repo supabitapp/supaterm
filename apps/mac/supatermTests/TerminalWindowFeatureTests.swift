@@ -82,6 +82,23 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func clientMoveSurfaceEventRoutesIntoMoveCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let surfaceID = UUID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.clientEvent(.moveSurfaceToNewTabRequested(surfaceID)))
+    await store.receive(\.moveSurfaceToNewTabRequested)
+
+    #expect(recorder.commands == [.moveSurfaceToNewTab(surfaceID)])
+  }
+
+  @Test
   func closeTabRequestedAsksHostToResolveClose() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
@@ -852,6 +869,22 @@ struct TerminalWindowFeatureTests {
     )
 
     #expect(recorder.commands == [expected])
+  }
+
+  @Test
+  func moveSurfaceToNewTabRequestedSendsMoveCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let surfaceID = UUID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.moveSurfaceToNewTabRequested(surfaceID))
+
+    #expect(recorder.commands == [.moveSurfaceToNewTab(surfaceID)])
   }
 
   @Test

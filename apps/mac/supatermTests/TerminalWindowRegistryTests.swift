@@ -636,6 +636,32 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeEventsFollowMovedSurfaceWhenContextTabIsStale() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+
+    harness.host.handleCommand(.moveSurfaceToNewTab(harness.context.surfaceID))
+
+    let destinationTabID = try #require(harness.host.selectedTabID)
+    _ = try harness.registry.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.notification, context: harness.context)
+    )
+
+    #expect(destinationTabID != harness.tabID)
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentActivity(for: destinationTabID) == .claude(.needsInput))
+    #expect(harness.host.unreadNotificationCount(for: destinationTabID) == 1)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: destinationTabID) == Set([harness.context.surfaceID]))
+    #expect(harness.host.latestNotificationText(for: destinationTabID) == "Claude needs your attention")
+  }
+
+  @Test
   func commandFinishedClearsAgentActivityAndStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 

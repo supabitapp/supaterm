@@ -81,7 +81,7 @@ struct SupatermDebugSnapshotResolverTests {
   }
 
   @Test
-  func resolveReturnsTabContextAndProblemWhenPaneIsMissing() {
+  func resolveReturnsProblemWhenPaneIsMissing() {
     let spaceID = UUID(uuidString: "6C6B0B59-B32D-4F5B-B8FD-F6D6D26924B2")!
     let tabID = UUID(uuidString: "9B9391CD-A14D-4FC8-AFA3-03A8E5DBA04A")!
     let context = SupatermCLIContext(
@@ -122,23 +122,74 @@ struct SupatermDebugSnapshotResolverTests {
       context: context
     )
 
-    #expect(
-      resolution.currentTarget
-        == .init(
-          windowIndex: 1,
-          spaceIndex: 1,
-          spaceID: spaceID,
-          spaceName: "A",
-          tabIndex: 1,
-          tabID: tabID,
-          tabTitle: "shell",
-          paneIndex: nil,
-          paneID: nil
-        )
+    _ = spaceID
+    _ = tabID
+    #expect(resolution.currentTarget == nil)
+    #expect(resolution.problems == ["Context pane \(context.surfaceID.uuidString) was not found."])
+  }
+
+  @Test
+  func resolveUsesLivePaneLocationWhenContextTabIsStale() {
+    let oldTabID = UUID(uuidString: "9B9391CD-A14D-4FC8-AFA3-03A8E5DBA04A")!
+    let newTabID = UUID(uuidString: "B841A963-E06A-4B72-8C53-F496BB944164")!
+    let paneID = UUID(uuidString: "51BCF751-312F-43A3-B2D4-138E76618AE2")!
+    let context = SupatermCLIContext(surfaceID: paneID, tabID: oldTabID)
+    let pane = SupatermAppDebugSnapshot.Pane(
+      index: 1,
+      id: paneID,
+      isFocused: true,
+      displayTitle: "shell",
+      pwd: "/tmp",
+      isReadOnly: false,
+      hasSecureInput: false,
+      bellCount: 0,
+      isRunning: true,
+      progressState: "indeterminate",
+      progressValue: nil,
+      needsCloseConfirmation: false,
+      lastCommandExitCode: nil,
+      lastCommandDurationMs: nil,
+      lastChildExitCode: nil,
+      lastChildExitTimeMs: nil
     )
-    #expect(
-      resolution.problems
-        == ["Context pane \(context.surfaceID.uuidString) was not found in tab \(tabID.uuidString)."]
+    let tab = SupatermAppDebugSnapshot.Tab(
+      index: 2,
+      id: newTabID,
+      title: "shell",
+      isSelected: true,
+      isPinned: false,
+      isDirty: true,
+      isTitleLocked: false,
+      hasRunningActivity: true,
+      hasBell: false,
+      hasReadOnly: false,
+      hasSecureInput: false,
+      panes: [pane]
     )
+    let space = SupatermAppDebugSnapshot.Space(
+      index: 1,
+      id: UUID(uuidString: "6B537788-BE46-4D8F-9BA9-D2A60A70B468")!,
+      name: "A",
+      isSelected: true,
+      tabs: [tab]
+    )
+    let window = SupatermAppDebugSnapshot.Window(
+      index: 1,
+      isKey: true,
+      isVisible: true,
+      spaces: [space]
+    )
+
+    let resolution = SupatermDebugSnapshotResolver.resolve(
+      windows: [window],
+      context: context
+    )
+    let problem =
+      "Context tab \(oldTabID.uuidString) is stale. "
+      + "Pane \(paneID.uuidString) now belongs to tab \(newTabID.uuidString)."
+
+    #expect(resolution.currentTarget?.tabID == newTabID)
+    #expect(resolution.currentTarget?.paneID == paneID)
+    #expect(resolution.problems == [problem])
   }
 }

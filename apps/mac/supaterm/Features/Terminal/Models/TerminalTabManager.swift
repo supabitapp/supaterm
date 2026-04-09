@@ -22,7 +22,8 @@ final class TerminalTabManager {
     title: String,
     icon: String?,
     isPinned: Bool = false,
-    isTitleLocked: Bool = false
+    isTitleLocked: Bool = false,
+    selecting: Bool = true
   ) -> TerminalTabID {
     let tab = TerminalTabItem(
       title: title,
@@ -35,7 +36,9 @@ final class TerminalTabManager {
     } else {
       tabs = pinnedTabs + regularTabs + [tab]
     }
-    selectedTabId = tab.id
+    if selecting {
+      selectedTabId = tab.id
+    }
     return tab.id
   }
 

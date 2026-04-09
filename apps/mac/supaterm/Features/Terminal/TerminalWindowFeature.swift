@@ -142,6 +142,7 @@ struct TerminalWindowFeature {
     case floatingSidebarVisibilityChanged(Bool)
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
+    case moveSurfaceToNewTabRequested(UUID)
     case nextSpaceRequested
     case nextTabMenuItemSelected
     case pinnedTabOrderChanged([TerminalTabID])
@@ -210,6 +211,9 @@ struct TerminalWindowFeature {
           case .previous:
             return .send(.previousTabMenuItemSelected)
           }
+
+        case .moveSurfaceToNewTabRequested(let surfaceID):
+          return .send(.moveSurfaceToNewTabRequested(surfaceID))
 
         case .newTabRequested(let inheritingFromSurfaceID):
           return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
@@ -312,6 +316,10 @@ struct TerminalWindowFeature {
       case .newTabButtonTapped(let inheritingFromSurfaceID):
         analyticsClient.capture("terminal_tab_created")
         return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
+
+      case .moveSurfaceToNewTabRequested(let surfaceID):
+        analyticsClient.capture("terminal_tab_created")
+        return sendCommand(.moveSurfaceToNewTab(surfaceID))
 
       case .nextSpaceRequested:
         return sendCommand(.nextSpace)
