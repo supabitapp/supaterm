@@ -169,9 +169,7 @@
   overflow: hidden;
   border: 1px solid color-mix(in oklch, white 8%, transparent);
   border-radius: 2rem;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, white 7%, transparent), transparent 14%),
-    color-mix(in oklch, black 72%, var(--background));
+  background: color-mix(in oklch, black 72%, var(--background));
   box-shadow:
     0 40px 140px -44px rgb(0 0 0 / 0.9),
     0 8px 30px -10px rgb(0 0 0 / 0.5),
@@ -185,37 +183,6 @@
   border-radius: calc(2rem - 1px);
   border: 1px solid rgb(255 255 255 / 0.03);
   pointer-events: none;
-}
-
-.supaterm-stage-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.1rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.03);
-}
-
-.supaterm-stage-dots,
-.supaterm-shot-dots {
-  display: flex;
-  gap: 0.45rem;
-}
-
-.supaterm-stage-dots span,
-.supaterm-shot-dots span {
-  width: 0.72rem;
-  height: 0.72rem;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.18);
-}
-
-.supaterm-stage-title {
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgb(255 255 255 / 0.42);
 }
 
 .supaterm-stage-video-wrap {
@@ -262,32 +229,6 @@
 .supaterm-shot:hover {
   transform: translateY(-4px);
   border-color: rgb(255 255 255 / 0.14);
-}
-
-.supaterm-shot-bar {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 1.15rem;
-  border-bottom: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.03);
-}
-
-.supaterm-shot-label,
-.supaterm-shot-accent {
-  font-size: 0.76rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.supaterm-shot-label {
-  color: rgb(255 255 255 / 0.62);
-}
-
-.supaterm-shot-accent {
-  color: rgb(241 237 228 / 0.68);
-  text-align: right;
 }
 
 .supaterm-shot-body {
