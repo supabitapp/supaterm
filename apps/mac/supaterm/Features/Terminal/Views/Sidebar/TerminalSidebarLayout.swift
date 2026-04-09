@@ -94,9 +94,9 @@ enum TerminalSidebarLayout {
   static func showsSpaceValue(
     compact: Bool,
     isSelected: Bool,
-    spacesCount: Int
+    spacesCount _: Int
   ) -> Bool {
-    spacesCount > 1 && !(compact && !isSelected)
+    return !(compact && !isSelected)
   }
 
   static func reorderedIDs(

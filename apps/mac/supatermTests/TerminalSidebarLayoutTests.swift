@@ -35,6 +35,16 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func spaceMonogramPreservesLeadingEmoji() {
+    #expect(
+      TerminalSidebarLayout.spaceMonogram(
+        for: "  🚀 launch",
+        fallbackIndex: 2
+      ) == "🚀"
+    )
+  }
+
+  @Test
   func spaceMonogramFallsBackToOrdinalForBlankName() {
     #expect(
       TerminalSidebarLayout.spaceMonogram(
@@ -45,12 +55,23 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func singleSpaceHidesSpaceValue() {
+  func singleSelectedSpaceShowsSpaceValue() {
     #expect(
-      !TerminalSidebarLayout.showsSpaceValue(
+      TerminalSidebarLayout.showsSpaceValue(
         compact: false,
         isSelected: true,
         spacesCount: 1
+      )
+    )
+  }
+
+  @Test
+  func compactUnselectedSpaceHidesSpaceValue() {
+    #expect(
+      !TerminalSidebarLayout.showsSpaceValue(
+        compact: true,
+        isSelected: false,
+        spacesCount: 3
       )
     )
   }
