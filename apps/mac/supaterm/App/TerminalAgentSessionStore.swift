@@ -116,25 +116,22 @@ final class TerminalAgentSessionStore {
     sessionID: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    let agent: SupatermAgentKind = .codex
-    let key = SessionKey(agent: agent, sessionID: sessionID)
+    let key = SessionKey(agent: .codex, sessionID: sessionID)
     guard
       let transcriptPath = sessions[key]?.transcriptPath,
-      let startup = CodexTranscriptMonitor.start(at: transcriptPath)
+      let (initialCursor, initialUpdate) = CodexTranscriptMonitor.start(at: transcriptPath)
     else {
       return false
     }
-    let (initialCursor, initialUpdate) = startup
     var cursor = initialCursor
     let interval = transcriptPollInterval
     let sleep = self.sleep
     transcriptMonitorTasks[key]?.cancel()
-    cancelRunningTimeout(agent: agent, sessionID: sessionID)
+    cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
     if let initialUpdate {
       handleTranscriptUpdate(
         initialUpdate,
         key: key,
-        agent: agent,
         sessionID: sessionID,
         context: context
       )
@@ -155,7 +152,6 @@ final class TerminalAgentSessionStore {
         self?.handleTranscriptUpdate(
           update,
           key: key,
-          agent: agent,
           sessionID: sessionID,
           context: context
         )
@@ -209,18 +205,17 @@ final class TerminalAgentSessionStore {
   private func handleTranscriptUpdate(
     _ update: CodexTranscriptUpdate,
     key: SessionKey,
-    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) {
     if update.status?.isFinal == true {
       transcriptMonitorTasks.removeValue(forKey: key)
-      cancelRunningTimeout(agent: agent, sessionID: sessionID)
+      cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
     }
     delegate?.terminalAgentSessionStore(
       self,
       didReceiveCodexTranscriptUpdate: update,
-      agent: agent,
+      agent: key.agent,
       sessionID: sessionID,
       context: context
     )
