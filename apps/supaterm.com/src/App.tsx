@@ -103,13 +103,13 @@ function App() {
               Supaterm
             </span>
           </a>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <CtaLink
               href={githubHref}
               icon="github"
               variant="outline"
               showIcon={false}
-              className="h-8 rounded-full border-white/12 bg-white/4 px-4 text-[0.82rem] font-normal text-white/82 hover:border-white/18 hover:bg-white/8"
+              className="h-6 rounded-full border-white/12 bg-white/4 px-3 text-[0.7rem] leading-none font-normal text-white/82 hover:border-white/18 hover:bg-white/8"
             >
               GitHub
             </CtaLink>
@@ -117,7 +117,7 @@ function App() {
               href={downloadHref}
               icon="download"
               showIcon={false}
-              className="h-8 rounded-full bg-[#f1ede4] px-4 text-[0.82rem] font-normal text-[#12100b] hover:bg-white"
+              className="h-6 rounded-full bg-[#f1ede4] px-3 text-[0.7rem] leading-none font-normal text-[#12100b] hover:bg-white"
             >
               Download for macOS
             </CtaLink>
