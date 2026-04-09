@@ -89,6 +89,8 @@ struct SPCommandTests {
         items: [
           .init(shortcut: "⌘S", title: "Toggle sidebar"),
           .init(shortcut: "⌘T", title: "New tab"),
+          .init(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
+          .init(shortcut: "⌘9", title: "Last tab"),
           .init(shortcut: "⌘W", title: "Close pane"),
           .init(shortcut: "⌘⌥W", title: "Close tab"),
           .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
@@ -112,6 +114,8 @@ struct SPCommandTests {
 
         ⌘S    Toggle sidebar
         ⌘T    New tab
+        ⌘1-8  Go to tabs 1-8
+        ⌘9    Last tab
         ⌘W    Close pane
         ⌘⌥W   Close tab
         ⌃1-0  Go to space 1-10

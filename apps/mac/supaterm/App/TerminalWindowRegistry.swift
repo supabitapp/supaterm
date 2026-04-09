@@ -317,7 +317,7 @@ final class TerminalWindowRegistry: TerminalAgentSessionStoreDelegate {
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
     guard let entry = entries.first else { return nil }
-    return SupatermOnboardingSnapshotBuilder.snapshot { action in
+    return SupatermOnboardingSnapshotBuilder.snapshot(hasShortcutSource: true) { action in
       entry.keyboardShortcutForAction(action)
     }
   }
