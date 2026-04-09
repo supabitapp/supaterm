@@ -7,6 +7,7 @@ const supatermSurfaceID = process.env.SUPATERM_SURFACE_ID;
 const supatermSessionID = supatermSurfaceID
   ? `pi-notify-supaterm-${supatermSurfaceID.toLowerCase()}`
   : undefined;
+const supatermRunningHeartbeatMs = 5000;
 const taskCompleteThresholdMs = 15000;
 const defaultPermissionMode = "acceptEdits";
 const titleFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -330,6 +331,8 @@ export default function (pi: ExtensionAPI) {
   let currentTool: string | undefined;
   let spinnerFrameIndex = 0;
   let spinnerTimer: ReturnType<typeof setInterval> | undefined;
+  let supatermHeartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  let pendingSupatermHeartbeat = Promise.resolve();
   let titleContext: TitleContext | undefined;
 
   function setTitle(title: string): void {
@@ -372,6 +375,37 @@ export default function (pi: ExtensionAPI) {
     }, 250);
   }
 
+  function queueSupatermRunningHeartbeat(): Promise<void> {
+    if (!isSupatermPane()) {
+      return Promise.resolve();
+    }
+
+    pendingSupatermHeartbeat = pendingSupatermHeartbeat.then(() =>
+      sendSupatermHook(
+        supatermHookEvent("PreToolUse", {
+          permission_mode: defaultPermissionMode,
+        })
+      )
+    );
+    return pendingSupatermHeartbeat;
+  }
+
+  function startSupatermRunningHeartbeat(): void {
+    stopSupatermRunningHeartbeat();
+    void queueSupatermRunningHeartbeat();
+    supatermHeartbeatTimer = setInterval(() => {
+      void queueSupatermRunningHeartbeat();
+    }, supatermRunningHeartbeatMs);
+  }
+
+  async function stopSupatermRunningHeartbeat(): Promise<void> {
+    if (supatermHeartbeatTimer) {
+      clearInterval(supatermHeartbeatTimer);
+      supatermHeartbeatTimer = undefined;
+    }
+    await pendingSupatermHeartbeat;
+  }
+
   pi.on("session_start", async (_event, ctx) => {
     if (!hasTitleUI(ctx)) {
       return;
@@ -400,11 +434,7 @@ export default function (pi: ExtensionAPI) {
           title: "Pi",
         })
       );
-      await sendSupatermHook(
-        supatermHookEvent("PreToolUse", {
-          permission_mode: defaultPermissionMode,
-        })
-      );
+      startSupatermRunningHeartbeat();
     }
   });
 
@@ -490,6 +520,7 @@ export default function (pi: ExtensionAPI) {
     updateIdleTitle(state);
 
     if (isSupatermPane()) {
+      await stopSupatermRunningHeartbeat();
       await sendSupatermHook(
         supatermHookEvent("Notification", {
           message: body,
@@ -510,6 +541,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (_event, ctx) => {
     stopSpinner();
+    await stopSupatermRunningHeartbeat();
 
     if (hasTitleUI(ctx)) {
       titleContext = ctx;
