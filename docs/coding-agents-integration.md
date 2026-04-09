@@ -119,8 +119,8 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 - `task_complete`, `turn_complete`, and `turn_aborted` mark the tab as `idle`.
 - Resume and startup read the current transcript snapshot before polling, so an already-active Codex turn appears as `running` immediately.
 - While a Codex turn is running, Supaterm tails the Codex rollout file from `transcript_path`.
-- `event_msg` lines drive lifecycle and fallback text.
-- `response_item` lines drive live activity detail such as `Bash · git status --short`, `Reasoning · ...`, or `Message · ...`.
+- `event_msg` lines drive lifecycle, and non-final `agent_message` events can update live activity detail.
+- `response_item` lines only update live activity detail for non-final assistant messages.
 - While Codex is `running`, the sidebar tab row uses its secondary line for live activity detail only when the Codex pane is the focused pane in that tab. Background Codex panes keep the tab-level running badge, but the secondary line falls back to the unread notification preview instead of exposing live internal progress.
 
 The same shared activity model powers both agents, and desktop notification titles now derive from the explicit agent kind instead of assuming one agent.

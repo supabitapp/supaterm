@@ -981,10 +981,7 @@ struct TerminalWindowRegistryTests {
     )
     await advanceClock(clock)
 
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Bash · git status --short")
-    )
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try CodexTranscriptFixtures.append(
       .assistantMessage("Updating the registry and sidebar"),
@@ -1086,7 +1083,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexTranscriptBatchPrefersAssistantMessageOverExecCommand() async throws {
+  func codexTranscriptIgnoresToolCallsAfterAssistantMessage() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1126,7 +1123,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexTranscriptDoesNotDemoteAssistantMessageToThinkingAcrossPolls() async throws {
+  func codexTranscriptIgnoresReasoningAfterAssistantMessageAcrossPolls() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1168,7 +1165,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexTranscriptUsesExecCommandCmdForRunningDetail() async throws {
+  func codexTranscriptIgnoresExecCommandRunningDetail() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1197,10 +1194,7 @@ struct TerminalWindowRegistryTests {
     )
     await advanceClock(clock)
 
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "git status --short")
-    )
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
   }
 
   @Test
@@ -1230,10 +1224,7 @@ struct TerminalWindowRegistryTests {
     )
     await advanceClock(clock)
 
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running, detail: "Thinking...")
-    )
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
 
     try CodexTranscriptFixtures.append(
       .agentMessage("Need approval?", phase: "commentary"),

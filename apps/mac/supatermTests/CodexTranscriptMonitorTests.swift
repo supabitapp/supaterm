@@ -10,13 +10,13 @@ struct CodexTranscriptMonitorTests {
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(.reasoning("Inspecting the workspace"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the workspace"), to: transcriptURL)
 
     let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
 
     #expect(result.0.offset > 0)
     #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == "Thinking...")
+    #expect(result.1?.detail == "Inspecting the workspace")
   }
 
   @Test
@@ -53,7 +53,7 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
-  func startDoesNotReusePreviousTurnMessagePriorityForNewTurnReasoning() throws {
+  func startDoesNotReusePreviousTurnDetailForNewTurnReasoning() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -65,7 +65,7 @@ struct CodexTranscriptMonitorTests {
     let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
 
     #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == "Thinking...")
+    #expect(result.1?.detail == nil)
   }
 
   @Test
@@ -92,7 +92,7 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
-  func advanceDoesNotDemoteAssistantMessageToReasoningAcrossReads() throws {
+  func advanceIgnoresReasoningAfterAssistantMessageAcrossReads() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -112,7 +112,7 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
-  func advanceUsesExecCommandCmdForToolDetail() throws {
+  func advanceIgnoresExecCommandToolDetail() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -130,11 +130,11 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == "sed -n '1,40p' docs/coding-agents-integration.md")
+    #expect(result.1 == nil)
   }
 
   @Test
-  func advanceFormatsGenericToolCallsAsExecuting() throws {
+  func advanceIgnoresGenericToolCalls() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -144,11 +144,11 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == "Executing update_plan")
+    #expect(result.1 == nil)
   }
 
   @Test
-  func advanceFallsBackToWorkingWhenExecCommandHasNoCmd() throws {
+  func advanceIgnoresExecCommandWithoutCommandText() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -158,11 +158,11 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == "Working...")
+    #expect(result.1 == nil)
   }
 
   @Test
-  func advanceShowsThinkingForEmptyReasoningPayload() throws {
+  func advanceIgnoresReasoningPayloadWithoutMessageText() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -176,7 +176,7 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
 
-    #expect(result.1?.detail == "Thinking...")
+    #expect(result.1 == nil)
   }
 
   @Test
