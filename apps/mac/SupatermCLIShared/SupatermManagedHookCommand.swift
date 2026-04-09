@@ -2,18 +2,18 @@ import Foundation
 
 public enum SupatermManagedHookCommand {
   public static func receiveHookCommand(for agent: SupatermAgentKind) -> String {
-    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue) || true"#
+    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && \#(receiveAgentHookCommand(for: agent)) || true"#
   }
 
   public static func receiveHookCommand(
     for agent: SupatermAgentKind,
     eventName: SupatermAgentHookEventName
   ) -> String {
-    guard let fallbackCommand = terminalNotificationCommand(for: agent, eventName: eventName) else {
+    guard let fallbackBody = fallbackNotificationBody(for: eventName) else {
       return receiveHookCommand(for: agent)
     }
     return #"""
-if [ -n "${SUPATERM_CLI_PATH:-}" ]; then "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue); else \#(fallbackCommand); fi || true
+if [ -n "${SUPATERM_CLI_PATH:-}" ]; then \#(receiveAgentHookCommand(for: agent)); else \#(terminalNotificationCommand(title: agent.notificationTitle, body: fallbackBody)); fi || true
 """#
   }
 
@@ -39,25 +39,20 @@ if [ -n "${SUPATERM_CLI_PATH:-}" ]; then "$SUPATERM_CLI_PATH" agent receive-agen
     return trimmed
   }
 
-  private static func terminalNotificationCommand(
-    for agent: SupatermAgentKind,
-    eventName: SupatermAgentHookEventName
-  ) -> String? {
-    guard let fallback = fallbackNotification(for: agent, eventName: eventName) else {
-      return nil
-    }
-    return #"printf '\033]777;notify;%s;%s\a' \#(shellSingleQuoted(fallback.title)) \#(shellSingleQuoted(fallback.body))"#
+  private static func receiveAgentHookCommand(for agent: SupatermAgentKind) -> String {
+    #""$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue)"#
   }
 
-  private static func fallbackNotification(
-    for agent: SupatermAgentKind,
-    eventName: SupatermAgentHookEventName
-  ) -> (title: String, body: String)? {
+  private static func terminalNotificationCommand(title: String, body: String) -> String {
+    #"printf '\033]777;notify;%s;%s\a' \#(shellSingleQuoted(title)) \#(shellSingleQuoted(body))"#
+  }
+
+  private static func fallbackNotificationBody(for eventName: SupatermAgentHookEventName) -> String? {
     switch eventName {
     case .notification:
-      return (agent.notificationTitle, "Needs input")
+      return "Needs input"
     case .stop:
-      return (agent.notificationTitle, "Turn complete")
+      return "Turn complete"
     case .postToolUse, .preToolUse, .sessionEnd, .sessionStart, .unsupported(_), .userPromptSubmit:
       return nil
     }
