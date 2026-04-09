@@ -173,12 +173,8 @@ function App() {
                   />
                 </div>
               </div>
-              <div className="mt-5 flex flex-wrap gap-3 text-[0.7rem] font-medium tracking-[0.18em] text-white/42 uppercase">
-                <span>Spaces</span>
-                <span>Tabs</span>
-                <span>Panes</span>
-                <span>Agent hooks</span>
-                <span>Socket control</span>
+              <div className="mt-5 text-[0.7rem] font-medium tracking-[0.12em] text-white/42 uppercase">
+                Claude Code spawning multiple Codex agents working in tabs
               </div>
             </div>
           </div>
