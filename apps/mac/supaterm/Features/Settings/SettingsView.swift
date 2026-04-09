@@ -197,6 +197,15 @@ private struct SettingsGeneralView: View {
     )
   }
 
+  private var githubIntegrationEnabled: Binding<Bool> {
+    Binding(
+      get: { store.githubIntegrationEnabled },
+      set: { newValue in
+        _ = store.send(.githubIntegrationEnabledChanged(newValue))
+      }
+    )
+  }
+
   var body: some View {
     Form {
       Section {
@@ -234,9 +243,107 @@ private struct SettingsGeneralView: View {
           isOn: restoreTerminalLayoutEnabled
         )
       }
+
+      Section {
+        SettingsToggleRow(
+          title: "GitHub Integration",
+          subtitle: "Show pull requests and checks for the current branch in terminal tabs.",
+          isOn: githubIntegrationEnabled
+        )
+
+        SettingsGithubIntegrationStatusView(
+          isEnabled: store.githubIntegrationEnabled,
+          status: store.githubIntegrationStatus
+        )
+      } footer: {
+        Text("Supaterm uses the GitHub CLI to resolve pull requests from the current repository and branch.")
+      }
     }
     .navigationTitle("General")
     .settingsFormLayout()
+  }
+}
+
+private struct SettingsGithubIntegrationStatusView: View {
+  let isEnabled: Bool
+  let status: SettingsGithubIntegrationStatus
+
+  var body: some View {
+    switch status {
+    case .disabled:
+      EmptyView()
+
+    case .checking:
+      HStack(spacing: 10) {
+        ProgressView()
+          .controlSize(.small)
+        Text("Checking GitHub CLI status…")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+      }
+
+    case .unavailable(let message):
+      SettingsStatusMessageView(
+        title: "GitHub CLI unavailable",
+        message: message,
+        tone: .red
+      )
+
+    case .unauthenticated(let message):
+      SettingsStatusMessageView(
+        title: "GitHub CLI not authenticated",
+        message: message,
+        tone: .orange
+      )
+
+    case .authenticated(let username, let host):
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Connected as \(username)")
+          .font(.callout.weight(.semibold))
+        Text(host)
+          .font(.callout.monospaced())
+          .foregroundStyle(.secondary)
+      }
+
+    case .failure(let message):
+      SettingsStatusMessageView(
+        title: isEnabled ? "GitHub integration error" : "GitHub integration disabled",
+        message: message,
+        tone: .red
+      )
+    }
+  }
+}
+
+private struct SettingsStatusMessageView: View {
+  enum Tone {
+    case orange
+    case red
+
+    var color: Color {
+      switch self {
+      case .orange:
+        return .orange
+      case .red:
+        return .red
+      }
+    }
+  }
+
+  let title: String
+  let message: String
+  let tone: Tone
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(title)
+        .font(.callout.weight(.semibold))
+        .foregroundStyle(tone.color)
+      Text(message)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
   }
 }
 
