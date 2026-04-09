@@ -169,7 +169,7 @@ function App() {
                     loop
                     muted
                     playsInline
-                    className="block h-auto w-full saturate-[1.02] contrast-[1.02] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.015] motion-reduce:transform-none motion-reduce:transition-none"
+                    className="block h-auto w-full saturate-[1.02] contrast-[1.02]"
                   />
                 </div>
               </div>
