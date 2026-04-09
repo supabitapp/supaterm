@@ -6,6 +6,7 @@ import SupatermCLIShared
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
+  static let commandPaletteLoad = "TerminalWindowFeature.commandPaletteLoad"
 }
 
 struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
@@ -86,6 +87,7 @@ struct TerminalWindowFeature {
   enum ConfirmationTarget: Equatable {
     case closeAllWindows([ObjectIdentifier])
     case closeWindow(ObjectIdentifier)
+    case executeCustomCommand(TerminalExecuteCustomCommandRequest)
   }
 
   struct PendingCloseRequest: Equatable, Identifiable {
@@ -126,6 +128,8 @@ struct TerminalWindowFeature {
     case clientEvent(TerminalClient.Event)
     case commandPaletteActivateSelection
     case commandPaletteCloseRequested
+    case commandPaletteCustomCommandConfirmationRequested(TerminalExecuteCustomCommandRequest)
+    case commandPaletteCustomCommandsLoaded(TerminalCustomCommandCatalogResult)
     case commandPaletteQueryChanged(String)
     case commandPaletteSlotActivated(Int)
     case commandPaletteSelectionChanged(Int)
@@ -237,6 +241,20 @@ struct TerminalWindowFeature {
 
       case .commandPaletteCloseRequested:
         state.commandPalette = nil
+        return .cancel(id: TerminalWindowCancelID.commandPaletteLoad)
+
+      case .commandPaletteCustomCommandConfirmationRequested(let request):
+        state.confirmationRequest = confirmationRequest(for: .executeCustomCommand(request))
+        return .none
+
+      case .commandPaletteCustomCommandsLoaded(let result):
+        guard state.commandPalette != nil else { return .none }
+        state.commandPalette?.customRows = TerminalCommandPalettePresentation.customRows(
+          from: result.commands
+        )
+        state.commandPalette?.problems = result.problems
+        state.commandPalette?.isLoading = false
+        refreshCommandPaletteSelection(state: &state)
         return .none
 
       case .commandPaletteQueryChanged(let query):
@@ -257,10 +275,11 @@ struct TerminalWindowFeature {
       case .commandPaletteToggleRequested:
         if state.commandPalette == nil {
           state.commandPalette = openCommandPaletteState()
+          return loadCommandPaletteCustomCommands()
         } else {
           state.commandPalette = nil
+          return .cancel(id: TerminalWindowCancelID.commandPaletteLoad)
         }
-        return .none
 
       case .closeConfirmationCancelButtonTapped:
         state.pendingCloseRequest = nil
@@ -435,7 +454,7 @@ struct TerminalWindowFeature {
         guard let confirmationRequest = state.confirmationRequest else { return .none }
         state.confirmationRequest = nil
         switch confirmationRequest.target {
-        case .closeWindow, .closeAllWindows:
+        case .closeWindow, .closeAllWindows, .executeCustomCommand:
           return .none
         }
 
@@ -451,6 +470,10 @@ struct TerminalWindowFeature {
           return .run { [terminalWindowsClient] _ in
             await terminalWindowsClient.closeWindows(windowIDs)
           }
+        case .executeCustomCommand(let request):
+          return executeCustomCommand(
+            .init(command: request.command, isConfirmed: true)
+          )
         }
 
       case .windowActivityChanged(let activity):
@@ -479,8 +502,17 @@ struct TerminalWindowFeature {
   private func openCommandPaletteState() -> TerminalCommandPaletteState {
     let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
     return .init(
-      selectedRowID: TerminalCommandPalettePresentation.normalizedSelection(nil, in: rows)
+      selectedRowID: TerminalCommandPalettePresentation.normalizedSelection(nil, in: rows),
+      isLoading: true
     )
+  }
+
+  private func loadCommandPaletteCustomCommands() -> Effect<Action> {
+    .run { [terminalClient] send in
+      let result = await terminalClient.loadCustomCommands()
+      await send(.commandPaletteCustomCommandsLoaded(result))
+    }
+    .cancellable(id: TerminalWindowCancelID.commandPaletteLoad, cancelInFlight: true)
   }
 
   private func commandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
@@ -491,7 +523,7 @@ struct TerminalWindowFeature {
 
   private func resolvedCommandPalette(for state: State) -> ResolvedCommandPalette? {
     guard let commandPalette = state.commandPalette else { return nil }
-    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
+    let rows = commandPaletteRows(for: commandPalette)
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
       in: rows,
       query: commandPalette.query
@@ -512,15 +544,7 @@ struct TerminalWindowFeature {
   ) {
     guard state.commandPalette != nil else { return }
     state.commandPalette?.query = query
-    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
-    let visibleRows = TerminalCommandPalettePresentation.visibleRows(
-      in: rows,
-      query: query
-    )
-    state.commandPalette?.selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
-      nil,
-      in: visibleRows
-    )
+    refreshCommandPaletteSelection(state: &state, preferredRowID: nil)
   }
 
   private func updateCommandPaletteSelection(
@@ -571,6 +595,8 @@ struct TerminalWindowFeature {
     state.commandPalette = nil
 
     switch command {
+    case .customCommand(let command):
+      return executeCustomCommand(.init(command: command))
     case .ghosttyBindingAction(let action):
       return sendCommand(.performGhosttyBindingActionOnFocusedSurface(action))
     case .toggleSidebar:
@@ -584,6 +610,44 @@ struct TerminalWindowFeature {
     case .selectTab(let tabID):
       return sendCommand(.selectTab(tabID))
     }
+  }
+
+  private func executeCustomCommand(
+    _ request: TerminalExecuteCustomCommandRequest
+  ) -> Effect<Action> {
+    .run { [terminalClient] send in
+      guard let result = try? await terminalClient.executeCustomCommand(request) else {
+        return
+      }
+      guard case .confirmationRequired = result else {
+        return
+      }
+      await send(.commandPaletteCustomCommandConfirmationRequested(request))
+    }
+  }
+
+  private func commandPaletteRows(
+    for commandPalette: TerminalCommandPaletteState
+  ) -> [TerminalCommandPaletteRow] {
+    TerminalCommandPalettePresentation.rows(
+      from: commandPaletteSnapshot(),
+      customRows: commandPalette.customRows
+    )
+  }
+
+  private func refreshCommandPaletteSelection(
+    state: inout State,
+    preferredRowID: TerminalCommandPaletteRow.ID? = nil
+  ) {
+    guard let commandPalette = state.commandPalette else { return }
+    let visibleRows = TerminalCommandPalettePresentation.visibleRows(
+      in: commandPaletteRows(for: commandPalette),
+      query: commandPalette.query
+    )
+    state.commandPalette?.selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
+      preferredRowID ?? commandPalette.selectedRowID,
+      in: visibleRows
+    )
   }
 
   private func executeClose(for target: TerminalCloseTarget) -> Effect<Action> {
@@ -646,6 +710,13 @@ struct TerminalWindowFeature {
         title: "Close All Windows?",
         message: "All terminal sessions will be terminated.",
         confirmTitle: "Close All Windows"
+      )
+    case .executeCustomCommand(let request):
+      return .init(
+        target: .executeCustomCommand(request),
+        title: "Recreate Workspace?",
+        message: "Replace the existing \(request.command.title) space with a fresh workspace?",
+        confirmTitle: "Recreate"
       )
     }
   }

@@ -143,9 +143,12 @@ struct SPHelpTests {
   func internalHelpShowsSettingsSchemaExample() {
     let help = SP.helpMessage(for: SP.Internal.self, columns: 100)
     let schemaHelp = SP.helpMessage(for: SP.GenerateSettingsSchema.self, columns: 100)
+    let customSchemaHelp = SP.helpMessage(for: SP.GenerateCustomCommandsSchema.self, columns: 100)
 
     #expect(help.contains("sp internal generate-settings-schema"))
     #expect(schemaHelp.contains("sp internal generate-settings-schema"))
+    #expect(help.contains("sp internal generate-custom-commands-schema"))
+    #expect(customSchemaHelp.contains("sp internal generate-custom-commands-schema"))
   }
 
   @Test

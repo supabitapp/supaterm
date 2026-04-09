@@ -38,6 +38,27 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
+  func supatermEnvironmentVariablesAppendAdditionalEnvironmentVariables() {
+    let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      surfaceID: UUID(),
+      tabID: UUID(),
+      socketPath: nil,
+      cliPath: nil,
+      additionalEnvironmentVariables: [
+        .init(key: "APP_ENV", value: "dev"),
+        .init(key: "LOG_LEVEL", value: "debug"),
+      ],
+      processEnvironment: [:]
+    )
+
+    #expect(
+      environmentVariables.suffix(2) == [
+        .init(key: "APP_ENV", value: "dev"),
+        .init(key: "LOG_LEVEL", value: "debug"),
+      ])
+  }
+
+  @Test
   func prependedPathMovesCliDirectoryToFrontWithoutDuplication() {
     #expect(
       GhosttySurfaceView.prependedPath(

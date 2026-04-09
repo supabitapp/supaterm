@@ -60,7 +60,7 @@ struct TerminalWindowFeatureTests {
       recorder.commands == [
         .ensureInitialTab(
           focusing: false,
-          startupInput: "sp onboard\n",
+          startupInput: "sp onboard\n"
         ),
       ]
     )
@@ -466,12 +466,17 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalClient.loadCustomCommands = { .empty }
     }
 
     await store.send(.commandPaletteToggleRequested) {
       $0.commandPalette = .init(
-        selectedRowID: rows.first?.id
+        selectedRowID: rows.first?.id,
+        isLoading: true
       )
+    }
+    await store.receive(\.commandPaletteCustomCommandsLoaded) {
+      $0.commandPalette?.isLoading = false
     }
   }
 
@@ -609,14 +614,135 @@ struct TerminalWindowFeatureTests {
       TerminalWindowFeature()
     } withDependencies: {
       $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalClient.loadCustomCommands = { .empty }
     }
 
     await store.send(.clientEvent(.commandPaletteToggleRequested))
     await store.receive(\.commandPaletteToggleRequested) {
       $0.commandPalette = .init(
-        selectedRowID: rows.first?.id
+        selectedRowID: rows.first?.id,
+        isLoading: true
       )
     }
+    await store.receive(\.commandPaletteCustomCommandsLoaded) {
+      $0.commandPalette?.isLoading = false
+    }
+  }
+
+  @Test
+  func commandPaletteCustomCommandsLoadedUpdatesRowsAndProblems() async {
+    let snapshot = makeCommandPaletteSnapshot()
+    let command = makeCustomCommandSnapshot()
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalClient.loadCustomCommands = {
+        .init(
+          commands: [command],
+          problems: [.init(message: "Failed to load local supaterm.json")]
+        )
+      }
+    }
+
+    await store.send(.commandPaletteToggleRequested) {
+      $0.commandPalette = .init(
+        selectedRowID: TerminalCommandPalettePresentation.rows(from: snapshot).first?.id,
+        isLoading: true
+      )
+    }
+    await store.receive(\.commandPaletteCustomCommandsLoaded) {
+      $0.commandPalette?.customRows = TerminalCommandPalettePresentation.customRows(from: [command])
+      $0.commandPalette?.problems = [.init(message: "Failed to load local supaterm.json")]
+      $0.commandPalette?.isLoading = false
+    }
+  }
+
+  @Test
+  func commandPaletteActivateSelectionExecutesCustomCommandAndClosesPalette() async {
+    let recorder = TerminalExecuteCustomCommandRecorder()
+    let customCommand = makeCustomCommandSnapshot()
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      selectedRowID: "custom:\(customCommand.id)",
+      customRows: TerminalCommandPalettePresentation.customRows(from: [customCommand])
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalClient.executeCustomCommand = { request in
+        await recorder.record(request)
+        return .executed
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+
+    #expect(await recorder.snapshot() == [.init(command: customCommand)])
+  }
+
+  @Test
+  func commandPaletteActivateSelectionRequestsConfirmationForRecreateWorkspace() async {
+    let customCommand = makeConfirmingWorkspaceCommandSnapshot()
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      selectedRowID: "custom:\(customCommand.id)",
+      customRows: TerminalCommandPalettePresentation.customRows(from: [customCommand])
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalClient.executeCustomCommand = { _ in
+        .confirmationRequired
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+    await store.receive(\.commandPaletteCustomCommandConfirmationRequested) {
+      $0.confirmationRequest = .init(
+        target: .executeCustomCommand(.init(command: customCommand)),
+        title: "Recreate Workspace?",
+        message: "Replace the existing \(customCommand.title) space with a fresh workspace?",
+        confirmTitle: "Recreate"
+      )
+    }
+  }
+
+  @Test
+  func confirmationConfirmButtonTappedExecutesConfirmedCustomCommand() async {
+    let recorder = TerminalExecuteCustomCommandRecorder()
+    let customCommand = makeConfirmingWorkspaceCommandSnapshot()
+    let request = TerminalExecuteCustomCommandRequest(command: customCommand)
+    var initialState = TerminalWindowFeature.State()
+    initialState.confirmationRequest = .init(
+      target: .executeCustomCommand(request),
+      title: "Recreate Workspace?",
+      message: "Replace the existing \(customCommand.title) space with a fresh workspace?",
+      confirmTitle: "Recreate"
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.executeCustomCommand = { request in
+        await recorder.record(request)
+        return .executed
+      }
+    }
+
+    await store.send(.confirmationConfirmButtonTapped) {
+      $0.confirmationRequest = nil
+    }
+
+    #expect(await recorder.snapshot() == [.init(command: customCommand, isConfirmed: true)])
   }
 
   @Test
@@ -1019,6 +1145,46 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
   )
 }
 
+private func makeCustomCommandSnapshot() -> TerminalCustomCommandSnapshot {
+  .init(
+    id: "pwd-here",
+    title: "PWD Here",
+    subtitle: "Print the current directory",
+    keywords: ["pwd"],
+    kind: .command(.init(command: "pwd"))
+  )
+}
+
+private func makeConfirmingWorkspaceCommandSnapshot() -> TerminalCustomCommandSnapshot {
+  .init(
+    id: "dev-workspace",
+    title: "Dev Workspace",
+    subtitle: "Workspace",
+    keywords: ["workspace"],
+    kind: .workspace(
+      .init(
+        restartBehavior: .confirmRecreate,
+        spaceName: "Dev Workspace",
+        tabs: [
+          .init(
+            title: "App",
+            rootPane: .leaf(
+              .init(
+                title: "Server",
+                workingDirectoryPath: "/tmp",
+                command: "pwd",
+                environmentVariables: []
+              )
+            ),
+            focusedLeafIndex: 0,
+          ),
+        ],
+        selectedTabIndex: 0
+      )
+    )
+  )
+}
+
 private actor TerminalDesktopNotificationRecorder {
   private var requests: [DesktopNotificationRequest] = []
 
@@ -1027,6 +1193,18 @@ private actor TerminalDesktopNotificationRecorder {
   }
 
   func snapshot() -> [DesktopNotificationRequest] {
+    requests
+  }
+}
+
+private actor TerminalExecuteCustomCommandRecorder {
+  private var requests: [TerminalExecuteCustomCommandRequest] = []
+
+  func record(_ request: TerminalExecuteCustomCommandRequest) {
+    requests.append(request)
+  }
+
+  func snapshot() -> [TerminalExecuteCustomCommandRequest] {
     requests
   }
 }

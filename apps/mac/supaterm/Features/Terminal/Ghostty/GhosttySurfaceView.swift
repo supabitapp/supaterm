@@ -187,6 +187,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     tabID: UUID,
     socketPath: String?,
     cliPath: String?,
+    additionalEnvironmentVariables: [SupatermCLIEnvironmentVariable] = [],
     processEnvironment: [String: String] = ProcessInfo.processInfo.environment
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
@@ -221,6 +222,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
+    environmentVariables.append(contentsOf: additionalEnvironmentVariables)
     return environmentVariables
   }
 
@@ -234,6 +236,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     initialInput: String? = nil,
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
+    additionalEnvironmentVariables: [SupatermCLIEnvironmentVariable] = [],
     managesWindowAppearance: Bool = false
   ) {
     let surfaceID = UUID()
@@ -244,7 +247,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: surfaceID,
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,
-      cliPath: GhosttyBootstrap.bundledCLIPath(resourcesURL: Bundle.main.resourceURL)
+      cliPath: GhosttyBootstrap.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
+      additionalEnvironmentVariables: additionalEnvironmentVariables
     )
     self.fontSize = fontSize ?? 0
     self.context = context
@@ -2006,10 +2010,11 @@ final class GhosttySurfaceScrollView: NSView {
   }
 
   override func mouseMoved(with event: NSEvent) {
-    guard Self.shouldFlashLegacyScrollers(
-      scrollerStyle: NSScroller.preferredScrollerStyle,
-      reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    )
+    guard
+      Self.shouldFlashLegacyScrollers(
+        scrollerStyle: NSScroller.preferredScrollerStyle,
+        reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      )
     else { return }
     scrollView.flashScrollers()
   }
