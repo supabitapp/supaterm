@@ -63,7 +63,7 @@ struct CodexSettingsInstallerTests {
       .compactMap { $0["command"] as? String }
 
     #expect(commands.contains("echo keep"))
-    #expect(commands.contains(SupatermCodexHookSettings.command))
+    #expect(commands.contains(SupatermCodexHookSettings.command(for: .preToolUse)))
   }
 
   @Test
@@ -80,7 +80,7 @@ struct CodexSettingsInstallerTests {
               "matcher": ".*",
               "hooks": [
                 {
-                  "command": "\(SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": \(try jsonStringLiteral(SupatermCodexHookSettings.command(for: .sessionStart))),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -107,7 +107,7 @@ struct CodexSettingsInstallerTests {
     let supatermHook = try #require(hooks.last)
 
     #expect(group["matcher"] as? String == "startup|resume")
-    #expect(supatermHook["command"] as? String == SupatermCodexHookSettings.command)
+    #expect(supatermHook["command"] as? String == SupatermCodexHookSettings.command(for: .sessionStart))
     #expect(supatermHook["timeout"] as? Int == 10)
   }
 
@@ -116,7 +116,7 @@ struct CodexSettingsInstallerTests {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
-    let escapedCommand = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermCodexHookSettings.command(for: .stop))
     try writeCodexSettings(
       """
       {
@@ -125,7 +125,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 10,
                   "type": "command"
                 }
@@ -134,7 +134,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 20,
                   "type": "command"
                 }
@@ -158,7 +158,7 @@ struct CodexSettingsInstallerTests {
     let commands = try codexEventGroupsValue("Stop", in: object)
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
-      .filter { $0 == SupatermCodexHookSettings.command }
+      .filter { $0 == SupatermCodexHookSettings.command(for: .stop) }
 
     #expect(commands.count == 1)
   }
@@ -167,7 +167,7 @@ struct CodexSettingsInstallerTests {
   func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let command = SupatermCodexHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermCodexHookSettings.command(for: .stop))
 
     try writeCodexSettings(
       """
@@ -177,7 +177,7 @@ struct CodexSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "\(command)",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -205,7 +205,7 @@ struct CodexSettingsInstallerTests {
     #expect(
       commands.filter(AgentHookCommandOwnership.isSupatermManagedCommand).count == 1
     )
-    #expect(commands.contains(SupatermCodexHookSettings.command))
+    #expect(commands.contains(SupatermCodexHookSettings.command(for: .stop)))
   }
 
   @Test

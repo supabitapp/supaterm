@@ -214,7 +214,7 @@ enum SPHelp {
       sp agent install-hook claude
       sp agent remove-hook claude
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent receive-agent-hook --agent claude
-      \(SupatermClaudeHookSettings.command)
+      \(SupatermClaudeHookSettings.command(for: .notification))
     """
 
   static let installAgentHookDiscussion = """

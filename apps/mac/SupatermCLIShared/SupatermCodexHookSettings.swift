@@ -1,7 +1,9 @@
 import Foundation
 
 public enum SupatermCodexHookSettings {
-  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .codex)
+  public static func command(for eventName: SupatermAgentHookEventName) -> String {
+    SupatermManagedHookCommand.receiveHookCommand(for: .codex, eventName: eventName)
+  }
 
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
@@ -29,11 +31,11 @@ public enum SupatermCodexHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
-      "PostToolUse": [.init(hooks: [.init(command: command, timeout: 5)])],
-      "PreToolUse": [.init(hooks: [.init(command: command, timeout: 5)])],
-      "SessionStart": [.init(matcher: "startup|resume", hooks: [.init(command: command, timeout: 10)])],
-      "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
-      "UserPromptSubmit": [.init(hooks: [.init(command: command, timeout: 10)])],
+      "PostToolUse": [.init(hooks: [.init(command: SupatermCodexHookSettings.command(for: .postToolUse), timeout: 5)])],
+      "PreToolUse": [.init(hooks: [.init(command: SupatermCodexHookSettings.command(for: .preToolUse), timeout: 5)])],
+      "SessionStart": [.init(matcher: "startup|resume", hooks: [.init(command: SupatermCodexHookSettings.command(for: .sessionStart), timeout: 10)])],
+      "Stop": [.init(hooks: [.init(command: SupatermCodexHookSettings.command(for: .stop), timeout: 10)])],
+      "UserPromptSubmit": [.init(hooks: [.init(command: SupatermCodexHookSettings.command(for: .userPromptSubmit), timeout: 10)])],
     ]
   }
 

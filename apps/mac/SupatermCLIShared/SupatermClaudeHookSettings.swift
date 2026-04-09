@@ -1,7 +1,9 @@
 import Foundation
 
 public enum SupatermClaudeHookSettings {
-  public static let command = SupatermManagedHookCommand.receiveHookCommand(for: .claude)
+  public static func command(for eventName: SupatermAgentHookEventName) -> String {
+    SupatermManagedHookCommand.receiveHookCommand(for: .claude, eventName: eventName)
+  }
 
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
@@ -29,12 +31,12 @@ public enum SupatermClaudeHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
-      "Notification": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
-      "PreToolUse": [.init(matcher: "", hooks: [.init(command: command, timeout: 5, isAsync: true)])],
-      "SessionEnd": [.init(matcher: "", hooks: [.init(command: command, timeout: 1)])],
-      "SessionStart": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
-      "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
-      "UserPromptSubmit": [.init(hooks: [.init(command: command, timeout: 10)])],
+      "Notification": [.init(matcher: "", hooks: [.init(command: SupatermClaudeHookSettings.command(for: .notification), timeout: 10)])],
+      "PreToolUse": [.init(matcher: "", hooks: [.init(command: SupatermClaudeHookSettings.command(for: .preToolUse), timeout: 5, isAsync: true)])],
+      "SessionEnd": [.init(matcher: "", hooks: [.init(command: SupatermClaudeHookSettings.command(for: .sessionEnd), timeout: 1)])],
+      "SessionStart": [.init(matcher: "", hooks: [.init(command: SupatermClaudeHookSettings.command(for: .sessionStart), timeout: 10)])],
+      "Stop": [.init(hooks: [.init(command: SupatermClaudeHookSettings.command(for: .stop), timeout: 10)])],
+      "UserPromptSubmit": [.init(hooks: [.init(command: SupatermClaudeHookSettings.command(for: .userPromptSubmit), timeout: 10)])],
     ]
   }
 

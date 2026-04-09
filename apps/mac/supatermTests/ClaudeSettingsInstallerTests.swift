@@ -57,7 +57,7 @@ struct ClaudeSettingsInstallerTests {
       .compactMap { $0["command"] as? String }
 
     #expect(commands.contains("echo keep"))
-    #expect(commands.contains(SupatermClaudeHookSettings.command))
+    #expect(commands.contains(SupatermClaudeHookSettings.command(for: .notification)))
   }
 
   @Test
@@ -75,7 +75,7 @@ struct ClaudeSettingsInstallerTests {
               "hooks": [
                 {
                   "async": false,
-                  "command": "\(SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
+                  "command": \(try jsonStringLiteral(SupatermClaudeHookSettings.command(for: .preToolUse))),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -95,7 +95,7 @@ struct ClaudeSettingsInstallerTests {
     let hooks = try #require(groups.last?["hooks"] as? [[String: Any]])
     let supatermHook = try #require(hooks.last)
 
-    #expect(supatermHook["command"] as? String == SupatermClaudeHookSettings.command)
+    #expect(supatermHook["command"] as? String == SupatermClaudeHookSettings.command(for: .preToolUse))
     #expect(supatermHook["timeout"] as? Int == 5)
     #expect(supatermHook["async"] as? Bool == true)
   }
@@ -105,7 +105,7 @@ struct ClaudeSettingsInstallerTests {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
-    let escapedCommand = SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermClaudeHookSettings.command(for: .notification))
     try writeSettings(
       """
       {
@@ -115,7 +115,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 10,
                   "type": "command"
                 }
@@ -125,7 +125,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(escapedCommand)",
+                  "command": \(command),
                   "timeout": 20,
                   "type": "command"
                 }
@@ -144,7 +144,7 @@ struct ClaudeSettingsInstallerTests {
     let commands = try notificationGroupsValue(in: object)
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
-      .filter { $0 == SupatermClaudeHookSettings.command }
+      .filter { $0 == SupatermClaudeHookSettings.command(for: .notification) }
 
     #expect(commands.count == 1)
   }
@@ -153,7 +153,7 @@ struct ClaudeSettingsInstallerTests {
   func installReplacesExistingSupatermCommand() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let command = SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let command = try jsonStringLiteral(SupatermClaudeHookSettings.command(for: .sessionStart))
 
     try writeSettings(
       """
@@ -164,7 +164,7 @@ struct ClaudeSettingsInstallerTests {
               "matcher": "",
               "hooks": [
                 {
-                  "command": "\(command)",
+                  "command": \(command),
                   "timeout": 99,
                   "type": "command"
                 }
@@ -187,7 +187,7 @@ struct ClaudeSettingsInstallerTests {
     #expect(
       commands.filter(AgentHookCommandOwnership.isSupatermManagedCommand).count == 1
     )
-    #expect(commands.contains(SupatermClaudeHookSettings.command))
+    #expect(commands.contains(SupatermClaudeHookSettings.command(for: .sessionStart)))
   }
 
   @Test

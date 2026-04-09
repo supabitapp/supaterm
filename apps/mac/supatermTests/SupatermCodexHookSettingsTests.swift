@@ -5,10 +5,16 @@ import Testing
 
 struct SupatermCodexHookSettingsTests {
   @Test
-  func commandStaysStable() {
+  func commandStaysStableForStopFallback() {
+    let command = SupatermCodexHookSettings.command(for: .stop)
+    let expected = expectedManagedNotificationCommand(
+      agent: "codex",
+      title: "Codex",
+      body: "Turn complete"
+    )
+
     #expect(
-      SupatermCodexHookSettings.command
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent codex || true"#
+      command == expected
     )
   }
 
@@ -29,6 +35,10 @@ struct SupatermCodexHookSettingsTests {
     #expect(try group(in: hooks, event: "PostToolUse")["matcher"] as? String == nil)
     #expect(try group(in: hooks, event: "PreToolUse")["matcher"] as? String == nil)
     #expect(try group(in: hooks, event: "SessionStart")["matcher"] as? String == "startup|resume")
+    #expect(
+      try commandHook(in: hooks, event: "Stop")["command"] as? String
+        == SupatermCodexHookSettings.command(for: .stop)
+    )
   }
 }
 
