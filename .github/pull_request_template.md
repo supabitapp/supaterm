@@ -1,19 +1,10 @@
 ## Summary
 
 <!-- Describe the problem and fix in 2–5 bullets: -->
-<!-- - Problem: -->
-<!-- - Why it matters: -->
-<!-- - What changed: -->
-<!-- - What did NOT change (scope boundary): -->
 
 ## Rationale
 
 <!-- Describe why we did the changes. -->
-
-## User-visible / Behavior Changes
-
-<!-- List user-visible changes (including defaults/config).   -->
-<!-- If none, write `None`. -->
 
 ## Diagram (if applicable)
 
@@ -27,11 +18,6 @@
 <!-- [user action] -> [new state] -> [result] -->
 <!-- ``` -->
 
-## Human Verification
+## QA
 
-<!-- What you personally verified (not just CI), and how: -->
-<!---->
-<!-- - Verified scenarios: -->
-<!-- - Edge cases checked: -->
-<!-- - What you did **not** verify: -->
-<!-- - How can a human manually verify this: -->
+<!-- Testing steps, not what u've ran but whow can the reviewers test this. -->
