@@ -81,6 +81,9 @@ struct TerminalCommandPaletteOverlay: View {
                   }
                 }
               }
+              .background {
+                ScrollViewScrollerHider()
+              }
               .scrollIndicators(.hidden)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
               .onAppear {
@@ -189,6 +192,38 @@ struct TerminalCommandPaletteOverlay: View {
       }
     }
     return row.shortcut
+  }
+}
+
+private struct ScrollViewScrollerHider: NSViewRepresentable {
+  func makeNSView(context: Context) -> ScrollViewScrollerHiderView {
+    ScrollViewScrollerHiderView()
+  }
+
+  func updateNSView(_ nsView: ScrollViewScrollerHiderView, context: Context) {}
+}
+
+private final class ScrollViewScrollerHiderView: NSView {
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    apply()
+  }
+
+  override func viewDidMoveToSuperview() {
+    super.viewDidMoveToSuperview()
+    apply()
+  }
+
+  override func layout() {
+    super.layout()
+    apply()
+  }
+
+  private func apply() {
+    guard let scrollView = enclosingScrollView else { return }
+    scrollView.hasVerticalScroller = false
+    scrollView.hasHorizontalScroller = false
+    scrollView.autohidesScrollers = true
   }
 }
 
