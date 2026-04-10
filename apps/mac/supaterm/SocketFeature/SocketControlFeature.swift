@@ -3,6 +3,7 @@ import Foundation
 import Sharing
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalCore
 
 private enum SocketControlCancelID {
   static let requests = "SocketControlFeature.requests"
@@ -40,15 +41,24 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
   }
 }
 
+@MainActor
 @Reducer
-struct SocketControlFeature {
+public struct SocketControlFeature {
   @ObservableState
-  struct State: Equatable {
-    var endpoint: SupatermSocketEndpoint?
-    var startErrorMessage: String?
+  public struct State: Equatable {
+    public var endpoint: SupatermSocketEndpoint?
+    public var startErrorMessage: String?
+
+    public init(
+      endpoint: SupatermSocketEndpoint? = nil,
+      startErrorMessage: String? = nil
+    ) {
+      self.endpoint = endpoint
+      self.startErrorMessage = startErrorMessage
+    }
   }
 
-  enum Action {
+  public enum Action {
     case requestReceived(SocketControlClient.Request)
     case shutdown
     case started(SupatermSocketEndpoint)
@@ -60,7 +70,9 @@ struct SocketControlFeature {
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
 
-  var body: some Reducer<State, Action> {
+  public init() {}
+
+  public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .requestReceived(let request):

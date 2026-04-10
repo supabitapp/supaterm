@@ -1,7 +1,9 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupatermSocketFeature
 import SupatermSupport
+import SupatermTerminalCore
 import Testing
 
 @testable import SupatermCLIShared

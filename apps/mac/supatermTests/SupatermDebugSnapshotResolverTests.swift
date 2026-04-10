@@ -1,4 +1,5 @@
 import Foundation
+import SupatermSocketFeature
 import Testing
 
 @testable import SupatermCLIShared

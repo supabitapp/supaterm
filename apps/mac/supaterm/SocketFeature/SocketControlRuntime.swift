@@ -45,7 +45,7 @@ actor SocketControlRuntime {
     let clientSocket: Int32
   }
 
-  static let shared = SocketControlRuntime()
+  nonisolated static let shared = SocketControlRuntime()
 
   private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
   private var bufferedRequests: [SocketControlClient.Request] = []

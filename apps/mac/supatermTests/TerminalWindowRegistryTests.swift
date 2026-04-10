@@ -2,6 +2,7 @@ import AppKit
 import Clocks
 import ComposableArchitecture
 import SupatermSupport
+import SupatermTerminalCore
 import SupatermUpdateFeature
 import Testing
 

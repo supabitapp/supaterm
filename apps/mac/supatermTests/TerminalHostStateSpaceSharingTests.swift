@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Sharing
+import SupatermTerminalCore
 import Testing
 
 @testable import supaterm

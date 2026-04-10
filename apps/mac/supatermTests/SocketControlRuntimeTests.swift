@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermSocketFeature
 @testable import supaterm
 
 struct SocketControlRuntimeTests {

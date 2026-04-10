@@ -5,6 +5,7 @@ import Observation
 import Sharing
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalCore
 import SwiftUI
 
 private func normalizedTerminalAgentDetail(_ detail: String?) -> String? {

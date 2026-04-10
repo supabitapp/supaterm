@@ -163,6 +163,51 @@ let project = Project(
       metadata: .metadata(tags: ["cacheable"])
     ),
     .target(
+      name: "SupatermTerminalCore",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-core",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalCore",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .external(name: "ComposableArchitecture"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      ),
+      metadata: .metadata(tags: ["cacheable"])
+    ),
+    .target(
+      name: "SupatermSocketFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.socket-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/SocketFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalCore"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+        ],
+        defaultSettings: .essential
+      ),
+      metadata: .metadata(tags: ["cacheable"])
+    ),
+    .target(
       name: "supaterm",
       destinations: .macOS,
       product: .app,
@@ -206,7 +251,6 @@ let project = Project(
         "supaterm/App",
         "supaterm/Features/Chrome",
         "supaterm/Features/Settings",
-        "supaterm/Features/Socket",
         "supaterm/Features/Terminal",
       ],
       scripts: [
@@ -276,6 +320,8 @@ let project = Project(
       dependencies: [
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .target(name: "sp"),
@@ -320,6 +366,8 @@ let project = Project(
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),

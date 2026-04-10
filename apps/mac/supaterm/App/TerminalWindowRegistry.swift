@@ -2,7 +2,9 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermSocketFeature
 import SupatermUpdateFeature
+import SupatermTerminalCore
 import SwiftUI
 
 @MainActor

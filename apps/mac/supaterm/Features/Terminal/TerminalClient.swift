@@ -1,159 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
-
-struct TerminalCreateTabRequest: Equatable, Sendable {
-  enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case space(windowIndex: Int, spaceIndex: Int)
-  }
-
-  let command: String?
-  let cwd: String?
-  let focus: Bool
-  let target: Target
-}
-
-struct TerminalCreatePaneRequest: Equatable, Sendable {
-  enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
-  }
-
-  let command: String?
-  let cwd: String?
-  let direction: SupatermPaneDirection
-  let focus: Bool
-  let equalize: Bool
-  let target: Target
-
-  init(
-    command: String?,
-    cwd: String? = nil,
-    direction: SupatermPaneDirection,
-    focus: Bool,
-    equalize: Bool,
-    target: Target
-  ) {
-    self.command = command
-    self.cwd = cwd
-    self.direction = direction
-    self.focus = focus
-    self.equalize = equalize
-    self.target = target
-  }
-}
-
-struct TerminalNotifyRequest: Equatable, Sendable {
-  enum Target: Equatable, Sendable {
-    case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
-  }
-
-  let allowDesktopNotificationWhenAgentActive: Bool
-  let body: String
-  let subtitle: String
-  let target: Target
-  let title: String?
-
-  init(
-    body: String,
-    subtitle: String,
-    target: Target,
-    title: String?,
-    allowDesktopNotificationWhenAgentActive: Bool = false
-  ) {
-    self.allowDesktopNotificationWhenAgentActive = allowDesktopNotificationWhenAgentActive
-    self.body = body
-    self.subtitle = subtitle
-    self.target = target
-    self.title = title
-  }
-}
-
-enum TerminalSpaceTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case space(windowIndex: Int, spaceIndex: Int)
-}
-
-enum TerminalTabTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
-}
-
-enum TerminalPaneTarget: Equatable, Sendable {
-  case contextPane(UUID)
-  case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-}
-
-struct TerminalEqualizePanesRequest: Equatable, Sendable {
-  let target: TerminalTabTarget
-}
-
-struct TerminalTilePanesRequest: Equatable, Sendable {
-  let target: TerminalTabTarget
-}
-
-struct TerminalMainVerticalPanesRequest: Equatable, Sendable {
-  let target: TerminalTabTarget
-}
-
-struct TerminalSendTextRequest: Equatable, Sendable {
-  let target: TerminalPaneTarget
-  let text: String
-}
-
-struct TerminalSendKeyRequest: Equatable, Sendable {
-  let key: SupatermInputKey
-  let target: TerminalPaneTarget
-}
-
-struct TerminalCapturePaneRequest: Equatable, Sendable {
-  let lines: Int?
-  let scope: SupatermCapturePaneScope
-  let target: TerminalPaneTarget
-}
-
-struct TerminalResizePaneRequest: Equatable, Sendable {
-  let amount: UInt16
-  let direction: SupatermResizePaneDirection
-  let target: TerminalPaneTarget
-}
-
-struct TerminalSetPaneSizeRequest: Equatable, Sendable {
-  let amount: Double
-  let axis: SupatermPaneAxis
-  let target: TerminalPaneTarget
-  let unit: SupatermPaneSizeUnit
-}
-
-struct TerminalRenameTabRequest: Equatable, Sendable {
-  let target: TerminalTabTarget
-  let title: String?
-}
-
-struct TerminalRenameSpaceRequest: Equatable, Sendable {
-  let name: String
-  let target: TerminalSpaceTarget
-}
-
-struct TerminalSpaceNavigationRequest: Equatable, Sendable {
-  let contextPaneID: UUID?
-  let windowIndex: Int?
-}
-
-struct TerminalTabNavigationRequest: Equatable, Sendable {
-  let contextPaneID: UUID?
-  let spaceIndex: Int?
-  let windowIndex: Int?
-}
-
-struct TerminalCreateSpaceRequest: Equatable, Sendable {
-  let name: String
-  let target: TerminalSpaceNavigationRequest
-}
+import SupatermTerminalCore
 
 struct TerminalNotificationEvent: Equatable, Sendable {
   let attentionState: SupatermNotificationAttentionState
@@ -162,10 +10,6 @@ struct TerminalNotificationEvent: Equatable, Sendable {
   let resolvedTitle: String
   let sourceSurfaceID: UUID
   let subtitle: String
-}
-
-struct TerminalAgentHookResult: Equatable, Sendable {
-  let desktopNotification: DesktopNotificationRequest?
 }
 
 enum TerminalCloseTarget: Equatable, Sendable {
@@ -177,38 +21,6 @@ enum TerminalCloseTarget: Equatable, Sendable {
 struct TerminalCloseRequest: Equatable, Sendable {
   let target: TerminalCloseTarget
   let needsConfirmation: Bool
-}
-
-enum TerminalCreatePaneError: Error, Equatable {
-  case contextPaneNotFound
-  case creationFailed
-  case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
-  case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
-  case windowNotFound(Int)
-}
-
-enum TerminalCreateTabError: Error, Equatable {
-  case contextPaneNotFound
-  case creationFailed
-  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
-  case windowNotFound(Int)
-}
-
-enum TerminalControlError: Error, Equatable {
-  case captureFailed
-  case contextPaneNotFound
-  case invalidSpaceName
-  case lastPaneNotFound
-  case lastSpaceNotFound
-  case lastTabNotFound
-  case onlyRemainingSpace
-  case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-  case resizeFailed
-  case spaceNameUnavailable
-  case spaceNotFound(windowIndex: Int, spaceIndex: Int)
-  case tabNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
-  case windowNotFound(Int)
 }
 
 struct TerminalClient: Sendable {
