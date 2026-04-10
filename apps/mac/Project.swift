@@ -218,6 +218,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
       ],
