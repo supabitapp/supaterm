@@ -268,6 +268,7 @@ enum SPOnboardingRenderer {
 
     lines.append("")
     lines.append(#"Run "sp" for the list of available commands."#)
+    lines.append(#"Run "sp onboard --force" to rerun coding-agent setup."#)
 
     return lines.joined(separator: "\n")
   }

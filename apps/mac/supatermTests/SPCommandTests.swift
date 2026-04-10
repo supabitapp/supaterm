@@ -124,6 +124,7 @@ struct SPCommandTests {
         ⌘F    Find
 
         Run "sp" for the list of available commands.
+        Run "sp onboard --force" to rerun coding-agent setup.
         """
     )
   }
