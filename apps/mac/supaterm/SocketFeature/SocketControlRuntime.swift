@@ -45,7 +45,9 @@ actor SocketControlRuntime {
     let clientSocket: Int32
   }
 
-  nonisolated static let shared = SocketControlRuntime()
+  nonisolated static let shared = SocketControlRuntime(
+    endpointProvider: SupatermProcessSocketEndpoint.current
+  )
 
   private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
   private var bufferedRequests: [SocketControlClient.Request] = []
@@ -56,9 +58,7 @@ actor SocketControlRuntime {
   private var serverSocket: Int32 = -1
 
   init(
-    endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint? = {
-      SupatermProcessSocketEndpoint.current()
-    }
+    endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint?
   ) {
     self.endpointProvider = endpointProvider
   }

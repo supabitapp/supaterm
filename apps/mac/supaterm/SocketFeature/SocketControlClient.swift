@@ -7,7 +7,7 @@ public struct SocketControlClient: Sendable {
     public nonisolated let handle: UUID
     public nonisolated let payload: SupatermSocketRequest
 
-    public init(
+    public nonisolated init(
       handle: UUID,
       payload: SupatermSocketRequest
     ) {
@@ -22,7 +22,7 @@ public struct SocketControlClient: Sendable {
   public var start: @MainActor @Sendable () async throws -> SupatermSocketEndpoint
   public var stop: @MainActor @Sendable () async -> Void
 
-  public init(
+  public nonisolated init(
     currentEndpoint: @escaping @MainActor @Sendable () async -> SupatermSocketEndpoint?,
     requests: @escaping @MainActor @Sendable () async -> AsyncStream<Request>,
     reply: @escaping @MainActor @Sendable (UUID, SupatermSocketResponse) async -> Void,
@@ -38,7 +38,7 @@ public struct SocketControlClient: Sendable {
 }
 
 extension SocketControlClient: DependencyKey {
-  public static let liveValue: Self = {
+  public nonisolated static let liveValue: Self = {
     let runtime = SocketControlRuntime.shared
     return Self(
       currentEndpoint: {
@@ -59,7 +59,7 @@ extension SocketControlClient: DependencyKey {
     )
   }()
 
-  public static let testValue = Self(
+  public nonisolated static let testValue = Self(
     currentEndpoint: {
       nil
     },

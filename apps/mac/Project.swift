@@ -200,9 +200,6 @@ let project = Project(
         .external(name: "Sharing"),
       ],
       settings: .settings(
-        base: [
-          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
-        ],
         defaultSettings: .essential
       ),
       metadata: .metadata(tags: ["cacheable"])
