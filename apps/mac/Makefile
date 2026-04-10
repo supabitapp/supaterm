@@ -122,7 +122,7 @@ lint: # Lint code with swiftlint
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit Tuist dependencies
 	mise exec -- tuist inspect dependencies --only implicit
 
-warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for external dependencies
-	mise exec -- tuist cache warm --external-only --configuration $(TUIST_CACHE_CONFIGURATION)
+warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for tagged internal and external dependencies
+	mise exec -- tuist cache warm --configuration $(TUIST_CACHE_CONFIGURATION)
 
 check: format lint # Format and lint

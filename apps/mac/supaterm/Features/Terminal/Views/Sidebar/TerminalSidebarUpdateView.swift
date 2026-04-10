@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import SupatermUpdateFeature
 import SwiftUI
 
 enum TerminalSidebarUpdatePresentation {

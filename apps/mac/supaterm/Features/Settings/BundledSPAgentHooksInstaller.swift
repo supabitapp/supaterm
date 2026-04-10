@@ -31,7 +31,7 @@ nonisolated struct BundledSPAgentHooksInstaller {
 
   func installSupatermHooks(for agent: SupatermAgentKind) throws {
     guard
-      let cliPath = GhosttyBootstrap.bundledCLIPath(resourcesURL: resourcesURL),
+      let cliPath = GhosttySupport.bundledCLIPath(resourcesURL: resourcesURL),
       isExecutableFile(cliPath)
     else {
       throw BundledSPAgentHooksInstallerError.cliUnavailable

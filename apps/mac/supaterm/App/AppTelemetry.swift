@@ -1,6 +1,7 @@
 import Foundation
 import PostHog
 import Sharing
+import SupatermSupport
 
 enum AppTelemetry {
   struct Configuration: Equatable {

@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SupatermCLIShared
+import SupatermUpdateFeature
 import SwiftUI
 
 struct SettingsView: View {
@@ -367,7 +368,7 @@ private struct SettingsTerminalView: View {
 
   private var resolvedConfigPath: String {
     if store.terminal.configPath.isEmpty {
-      GhosttyBootstrap.configFileLocations().preferred.path
+      GhosttySupport.configFileLocations().preferred.path
     } else {
       store.terminal.configPath
     }

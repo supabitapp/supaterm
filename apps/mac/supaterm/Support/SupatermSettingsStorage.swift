@@ -2,9 +2,9 @@ import Foundation
 import Sharing
 import SupatermCLIShared
 
-typealias SupatermSettings = SupatermCLIShared.SupatermSettings
+public typealias SupatermSettings = SupatermCLIShared.SupatermSettings
 
-extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
+public extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
   static var supatermSettings: Self {
     Self[
       .fileStorage(

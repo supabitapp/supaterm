@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Sharing
+import SupatermSupport
 import SwiftUI
 
 struct TerminalDetailView: View {

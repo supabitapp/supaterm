@@ -140,12 +140,12 @@ struct GhosttyTerminalConfigFile {
   }
 
   private func ensureConfigFile() throws -> URL {
-    try GhosttyBootstrap.seedDefaultConfigIfNeeded(
+    try GhosttySupport.seedDefaultConfigIfNeeded(
       homeDirectoryURL: homeDirectoryURL,
       environment: environment,
       fileManager: fileManager
     )
-    return GhosttyBootstrap.configFileLocations(
+    return GhosttySupport.configFileLocations(
       homeDirectoryURL: homeDirectoryURL,
       environment: environment
     ).preferred

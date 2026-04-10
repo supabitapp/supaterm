@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermSupport
 import SwiftUI
 
 @MainActor
@@ -95,6 +96,11 @@ final class TerminalWindowController: NSWindowController {
       AppFeature()
         .logActions()
     } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        Task { @MainActor in
+          AppTelemetry.capture(event)
+        }
+      }
       $0.terminalClient = .live(host: terminal)
       $0.terminalWindowsClient = .live(registry: registry)
     }
@@ -129,7 +135,7 @@ final class TerminalWindowController: NSWindowController {
     window.contentViewController = hostingController
     window.contentMinSize = NSSize(width: 1_080, height: 720)
     window.identifier = NSUserInterfaceItemIdentifier(
-      "app.supabit.supaterm.window.\(windowControllerID.uuidString)")
+      "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
     window.isReleasedWhenClosed = false
     window.tabbingMode = .disallowed
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"

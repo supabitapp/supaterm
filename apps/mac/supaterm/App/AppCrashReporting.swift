@@ -1,6 +1,7 @@
 import Foundation
 import Sentry
 import Sharing
+import SupatermSupport
 
 enum AppCrashReporting {
   struct Configuration: Equatable {

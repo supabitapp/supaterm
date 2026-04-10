@@ -4,6 +4,7 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 
 private func normalizedTerminalAgentDetail(_ detail: String?) -> String? {

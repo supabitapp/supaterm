@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermUpdateFeature
 import SwiftUI
 
 @MainActor

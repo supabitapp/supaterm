@@ -1,6 +1,8 @@
 import AppKit
 import Clocks
 import ComposableArchitecture
+import SupatermSupport
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared

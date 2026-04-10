@@ -1,5 +1,6 @@
 import AppKit
 import Sharing
+import SupatermSupport
 import SwiftUI
 
 struct AppAppearanceView<Content: View>: View {

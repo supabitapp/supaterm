@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupatermUpdateFeature
 import SwiftUI
 
 private struct TerminalSidebarUpdatePreviewItem: Identifiable {

@@ -3,8 +3,10 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import Sparkle
+import SupatermCLIShared
+import SupatermSupport
 
-enum UpdateUserAction: Equatable, Sendable {
+public enum UpdateUserAction: Equatable, Sendable {
   case allowAutomaticChecks
   case cancel
   case checkForUpdates
@@ -17,27 +19,27 @@ enum UpdateUserAction: Equatable, Sendable {
   case skipVersion
 }
 
-enum UpdateFoundDecision: Equatable, Sendable {
+public enum UpdateFoundDecision: Equatable, Sendable {
   case dismissSilently
   case present
 }
 
-enum UpdatePresentation {
-  static func foundDecision(
+public enum UpdatePresentation {
+  public static func foundDecision(
     userInitiated: Bool
   ) -> UpdateFoundDecision {
     userInitiated ? .present : .dismissSilently
   }
 }
 
-enum UpdatePhase: Equatable, Sendable {
-  struct Available: Equatable, Sendable {
-    var buildVersion: String?
-    var contentLength: UInt64?
-    var releaseDate: Date?
-    var version: String
+public enum UpdatePhase: Equatable, Sendable {
+  public struct Available: Equatable, Sendable {
+    public var buildVersion: String?
+    public var contentLength: UInt64?
+    public var releaseDate: Date?
+    public var version: String
 
-    init(
+    public init(
       buildVersion: String? = nil,
       contentLength: UInt64?,
       releaseDate: Date?,
@@ -49,31 +51,47 @@ enum UpdatePhase: Equatable, Sendable {
       self.version = version
     }
 
-    var formattedVersion: String? {
+    public var formattedVersion: String? {
       UpdatePhase.formattedVersion(version: version, buildVersion: buildVersion)
     }
   }
 
-  struct Downloading: Equatable, Sendable {
-    var expectedLength: UInt64?
-    var progress: UInt64
+  public struct Downloading: Equatable, Sendable {
+    public var expectedLength: UInt64?
+    public var progress: UInt64
+
+    public init(
+      expectedLength: UInt64?,
+      progress: UInt64
+    ) {
+      self.expectedLength = expectedLength
+      self.progress = progress
+    }
   }
 
-  struct Extracting: Equatable, Sendable {
-    var progress: Double
+  public struct Extracting: Equatable, Sendable {
+    public var progress: Double
+
+    public init(progress: Double) {
+      self.progress = progress
+    }
   }
 
-  struct Failure: Equatable, Sendable {
-    var message: String
+  public struct Failure: Equatable, Sendable {
+    public var message: String
+
+    public init(message: String) {
+      self.message = message
+    }
   }
 
-  struct Installing: Equatable, Sendable {
-    var buildVersion: String?
-    var isAutoUpdate: Bool
-    var showsPrompt: Bool
-    var version: String
+  public struct Installing: Equatable, Sendable {
+    public var buildVersion: String?
+    public var isAutoUpdate: Bool
+    public var showsPrompt: Bool
+    public var version: String
 
-    init(
+    public init(
       buildVersion: String? = nil,
       isAutoUpdate: Bool,
       showsPrompt: Bool? = nil,
@@ -85,7 +103,7 @@ enum UpdatePhase: Equatable, Sendable {
       self.version = version
     }
 
-    var formattedVersion: String? {
+    public var formattedVersion: String? {
       UpdatePhase.formattedVersion(version: version, buildVersion: buildVersion)
     }
   }
@@ -100,7 +118,7 @@ enum UpdatePhase: Equatable, Sendable {
   case notFound
   case error(Failure)
 
-  var badgeText: String? {
+  public var badgeText: String? {
     switch self {
     case .updateAvailable(let available):
       return available.formattedVersion
@@ -116,7 +134,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var bypassesQuitConfirmation: Bool {
+  public var bypassesQuitConfirmation: Bool {
     switch self {
     case .installing:
       return true
@@ -125,7 +143,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var detailMessage: String {
+  public var detailMessage: String {
     switch self {
     case .idle:
       return ""
@@ -157,7 +175,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var debugIdentifier: String {
+  public var debugIdentifier: String {
     switch self {
     case .idle:
       return "idle"
@@ -180,7 +198,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var iconName: String {
+  public var iconName: String {
     switch self {
     case .idle:
       return "circle"
@@ -203,14 +221,14 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var isIdle: Bool {
+  public var isIdle: Bool {
     if case .idle = self {
       return true
     }
     return false
   }
 
-  var showsSidebarSection: Bool {
+  public var showsSidebarSection: Bool {
     switch self {
     case .idle:
       return false
@@ -221,7 +239,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var menuItemAction: UpdateUserAction? {
+  public var menuItemAction: UpdateUserAction? {
     switch self {
     case .installing:
       return .restartNow
@@ -230,7 +248,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var menuItemTitle: String {
+  public var menuItemTitle: String {
     switch self {
     case .installing:
       return "Restart to Update..."
@@ -239,7 +257,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var progressValue: Double? {
+  public var progressValue: Double? {
     switch self {
     case .downloading(let downloading):
       guard let expectedLength = downloading.expectedLength, expectedLength > 0 else {
@@ -253,7 +271,7 @@ enum UpdatePhase: Equatable, Sendable {
     }
   }
 
-  var summaryText: String {
+  public var summaryText: String {
     switch self {
     case .idle:
       return ""
@@ -310,24 +328,52 @@ enum UpdatePhase: Equatable, Sendable {
   }
 }
 
-struct UpdateClient: Sendable {
-  struct Snapshot: Equatable, Sendable {
-    var automaticallyChecksForUpdates: Bool
-    var automaticallyDownloadsUpdates: Bool
-    var canCheckForUpdates: Bool
-    var phase: UpdatePhase
+public struct UpdateClient: Sendable {
+  public struct Snapshot: Equatable, Sendable {
+    public var automaticallyChecksForUpdates: Bool
+    public var automaticallyDownloadsUpdates: Bool
+    public var canCheckForUpdates: Bool
+    public var phase: UpdatePhase
+
+    public init(
+      automaticallyChecksForUpdates: Bool,
+      automaticallyDownloadsUpdates: Bool,
+      canCheckForUpdates: Bool,
+      phase: UpdatePhase
+    ) {
+      self.automaticallyChecksForUpdates = automaticallyChecksForUpdates
+      self.automaticallyDownloadsUpdates = automaticallyDownloadsUpdates
+      self.canCheckForUpdates = canCheckForUpdates
+      self.phase = phase
+    }
   }
 
-  var observe: @Sendable () async -> AsyncStream<Snapshot>
-  var perform: @Sendable (UpdateUserAction) async -> Void
-  var setAutomaticallyChecksForUpdates: @Sendable (Bool) async -> Void
-  var setAutomaticallyDownloadsUpdates: @Sendable (Bool) async -> Void
-  var setUpdateChannel: @Sendable (UpdateChannel) async -> Void
-  var start: @Sendable () async -> Void
+  public var observe: @Sendable () async -> AsyncStream<Snapshot>
+  public var perform: @Sendable (UpdateUserAction) async -> Void
+  public var setAutomaticallyChecksForUpdates: @Sendable (Bool) async -> Void
+  public var setAutomaticallyDownloadsUpdates: @Sendable (Bool) async -> Void
+  public var setUpdateChannel: @Sendable (UpdateChannel) async -> Void
+  public var start: @Sendable () async -> Void
+
+  public init(
+    observe: @escaping @Sendable () async -> AsyncStream<Snapshot>,
+    perform: @escaping @Sendable (UpdateUserAction) async -> Void,
+    setAutomaticallyChecksForUpdates: @escaping @Sendable (Bool) async -> Void,
+    setAutomaticallyDownloadsUpdates: @escaping @Sendable (Bool) async -> Void,
+    setUpdateChannel: @escaping @Sendable (UpdateChannel) async -> Void,
+    start: @escaping @Sendable () async -> Void
+  ) {
+    self.observe = observe
+    self.perform = perform
+    self.setAutomaticallyChecksForUpdates = setAutomaticallyChecksForUpdates
+    self.setAutomaticallyDownloadsUpdates = setAutomaticallyDownloadsUpdates
+    self.setUpdateChannel = setUpdateChannel
+    self.start = start
+  }
 }
 
 extension UpdateClient: DependencyKey {
-  static let liveValue: Self = {
+  public static let liveValue: Self = {
     let runtime = UpdateRuntime.shared
     return Self(
       observe: {
@@ -355,7 +401,7 @@ extension UpdateClient: DependencyKey {
     )
   }()
 
-  static let testValue = Self(
+  public static let testValue = Self(
     observe: {
       AsyncStream { continuation in
         continuation.finish()
@@ -369,7 +415,7 @@ extension UpdateClient: DependencyKey {
   )
 }
 
-extension DependencyValues {
+public extension DependencyValues {
   var updateClient: UpdateClient {
     get { self[UpdateClient.self] }
     set { self[UpdateClient.self] = newValue }
@@ -768,7 +814,12 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   fileprivate var hasUnobtrusiveTarget: Bool {
     NSApp.windows.contains { window in
-      window.isVisible && window.windowController is TerminalWindowController
+      guard window.isVisible else { return false }
+      guard let identifier = window.identifier?.rawValue else { return false }
+      let prefix = "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window."
+      guard identifier.hasPrefix(prefix) else { return false }
+      let suffix = String(identifier.dropFirst(prefix.count))
+      return UUID(uuidString: suffix) != nil
     }
   }
 

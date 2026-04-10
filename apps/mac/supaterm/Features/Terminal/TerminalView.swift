@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalView: View {

@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupatermSupport
 
 @MainActor
 protocol GhosttyAppActionPerforming: AnyObject {

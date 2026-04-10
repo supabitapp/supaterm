@@ -1,4 +1,5 @@
 import Foundation
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared

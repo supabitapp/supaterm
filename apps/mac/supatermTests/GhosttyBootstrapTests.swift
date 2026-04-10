@@ -9,11 +9,11 @@ struct GhosttyBootstrapTests {
     let resourcesURL = URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/Resources", isDirectory: true)
 
     #expect(
-      GhosttyBootstrap.bundledCommandDirectory(resourcesURL: resourcesURL)
+      GhosttySupport.bundledCommandDirectory(resourcesURL: resourcesURL)
         == resourcesURL.appendingPathComponent("bin", isDirectory: true)
     )
     #expect(
-      GhosttyBootstrap.bundledCLIPath(resourcesURL: resourcesURL)
+      GhosttySupport.bundledCLIPath(resourcesURL: resourcesURL)
         == "/Applications/Supaterm.app/Contents/Resources/bin/sp"
     )
   }
@@ -30,7 +30,7 @@ struct GhosttyBootstrapTests {
     try FileManager.default.createDirectory(at: ghosttyURL, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: terminfoURL, withIntermediateDirectories: true)
 
-    let resourceDirectories = GhosttyBootstrap.resourceDirectories(resourcesURL: rootURL)
+    let resourceDirectories = GhosttySupport.resourceDirectories(resourcesURL: rootURL)
 
     #expect(resourceDirectories?.ghostty == ghosttyURL)
     #expect(resourceDirectories?.terminfo == terminfoURL)
@@ -48,7 +48,7 @@ struct GhosttyBootstrapTests {
     FileManager.default.createFile(atPath: ghosttyURL.path, contents: Data())
     FileManager.default.createFile(atPath: xtermGhosttyURL.path, contents: Data())
 
-    #expect(GhosttyBootstrap.resourceDirectories(resourcesURL: rootURL) == nil)
+    #expect(GhosttySupport.resourceDirectories(resourcesURL: rootURL) == nil)
   }
 
   @Test
@@ -56,7 +56,7 @@ struct GhosttyBootstrapTests {
     let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
     let xdgConfigHomeURL = URL(fileURLWithPath: "/tmp/supaterm-xdg", isDirectory: true)
 
-    let locations = GhosttyBootstrap.configFileLocations(
+    let locations = GhosttySupport.configFileLocations(
       homeDirectoryURL: homeDirectoryURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
@@ -74,7 +74,7 @@ struct GhosttyBootstrapTests {
   func configFileLocationsFallBackToDotConfigWhenXdgConfigHomeIsMissing() throws {
     let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
 
-    let locations = GhosttyBootstrap.configFileLocations(
+    let locations = GhosttySupport.configFileLocations(
       homeDirectoryURL: homeDirectoryURL,
       environment: [:]
     )
@@ -94,12 +94,12 @@ struct GhosttyBootstrapTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let xdgConfigHomeURL = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let locations = GhosttyBootstrap.configFileLocations(
+    let locations = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
-    try GhosttyBootstrap.seedDefaultConfigIfNeeded(
+    try GhosttySupport.seedDefaultConfigIfNeeded(
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
@@ -107,7 +107,7 @@ struct GhosttyBootstrapTests {
     let contents = try String(contentsOf: locations.preferred, encoding: .utf8)
 
     #expect(contents.contains("cursor-style = block"))
-    #expect(contents == GhosttyBootstrap.defaultConfigContents)
+    #expect(contents == GhosttySupport.defaultConfigContents)
   }
 
   @Test
@@ -116,14 +116,14 @@ struct GhosttyBootstrapTests {
     defer { try? FileManager.default.removeItem(at: rootURL) }
 
     let xdgConfigHomeURL = rootURL.appendingPathComponent("xdg", isDirectory: true)
-    let locations = GhosttyBootstrap.configFileLocations(
+    let locations = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )
 
     try writeGhosttyBootstrapFile(at: locations.preferred, contents: "existing")
 
-    try GhosttyBootstrap.seedDefaultConfigIfNeeded(
+    try GhosttySupport.seedDefaultConfigIfNeeded(
       homeDirectoryURL: rootURL,
       environment: ["XDG_CONFIG_HOME": xdgConfigHomeURL.path]
     )

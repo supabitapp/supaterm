@@ -90,7 +90,7 @@ mac-test:  # Run the macOS test suite.
 mac-inspect-dependencies:  # Check the macOS Tuist graph for implicit dependencies.
 	@$(MAKE) -C "$(MAC_APP_DIR)" inspect-dependencies
 
-mac-warm-cache:  # Warm the macOS Tuist external dependency cache.
+mac-warm-cache:  # Warm the macOS Tuist cache for tagged internal and external dependencies.
 	@$(MAKE) -C "$(MAC_APP_DIR)" warm-cache
 
 web-help:  # Show available Vite+ commands for the web app.

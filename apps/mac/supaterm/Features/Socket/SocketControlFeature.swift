@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupatermCLIShared
+import SupatermSupport
 
 private enum SocketControlCancelID {
   static let requests = "SocketControlFeature.requests"

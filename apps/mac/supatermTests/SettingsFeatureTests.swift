@@ -1,6 +1,8 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupatermSupport
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared

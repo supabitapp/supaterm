@@ -1,18 +1,27 @@
 import ComposableArchitecture
+import SupatermSupport
 
 private enum UpdateFeatureCancelID {
   static let observation = "UpdateFeature.observation"
 }
 
 @Reducer
-struct UpdateFeature {
+public struct UpdateFeature {
   @ObservableState
-  struct State: Equatable {
-    var canCheckForUpdates = false
-    var phase: UpdatePhase = .idle
+  public struct State: Equatable {
+    public var canCheckForUpdates: Bool
+    public var phase: UpdatePhase
+
+    public init(
+      canCheckForUpdates: Bool = false,
+      phase: UpdatePhase = .idle
+    ) {
+      self.canCheckForUpdates = canCheckForUpdates
+      self.phase = phase
+    }
   }
 
-  enum Action {
+  public enum Action {
     case perform(UpdateUserAction)
     case task
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
@@ -21,7 +30,9 @@ struct UpdateFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(UpdateClient.self) var updateClient
 
-  var body: some Reducer<State, Action> {
+  public init() {}
+
+  public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .perform(let action):

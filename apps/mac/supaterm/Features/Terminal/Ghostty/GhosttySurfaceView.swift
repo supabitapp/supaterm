@@ -244,7 +244,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       surfaceID: surfaceID,
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,
-      cliPath: GhosttyBootstrap.bundledCLIPath(resourcesURL: Bundle.main.resourceURL)
+      cliPath: GhosttySupport.bundledCLIPath(resourcesURL: Bundle.main.resourceURL)
     )
     self.fontSize = fontSize ?? 0
     self.context = context

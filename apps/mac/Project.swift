@@ -32,7 +32,7 @@ let project = Project(
     .target(
       name: "SupatermCLIShared",
       destinations: .macOS,
-      product: .staticLibrary,
+      product: .staticFramework,
       bundleId: "app.supabit.supaterm.cli-shared",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
@@ -45,12 +45,13 @@ let project = Project(
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
         defaultSettings: .essential
-      )
+      ),
+      metadata: .metadata(tags: ["cacheable"])
     ),
     .target(
       name: "SPCLI",
       destinations: .macOS,
-      product: .staticLibrary,
+      product: .staticFramework,
       bundleId: "app.supabit.sp-cli",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
@@ -79,7 +80,8 @@ let project = Project(
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
         defaultSettings: .essential
-      )
+      ),
+      metadata: .metadata(tags: ["cacheable"])
     ),
     .target(
       name: "sp",
@@ -117,6 +119,48 @@ let project = Project(
         .script(ghosttyFingerprintInputScript),
       ],
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
+    ),
+    .target(
+      name: "SupatermSupport",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.support",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Support",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      ),
+      metadata: .metadata(tags: ["cacheable"])
+    ),
+    .target(
+      name: "SupatermUpdateFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.update-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/Update",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+        .external(name: "Sparkle"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      ),
+      metadata: .metadata(tags: ["cacheable"])
     ),
     .target(
       name: "supaterm",
@@ -160,7 +204,10 @@ let project = Project(
       ],
       buildableFolders: [
         "supaterm/App",
-        "supaterm/Features",
+        "supaterm/Features/Chrome",
+        "supaterm/Features/Settings",
+        "supaterm/Features/Socket",
+        "supaterm/Features/Terminal",
       ],
       scripts: [
         .post(
@@ -225,54 +272,11 @@ let project = Project(
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
           ]
         ),
-        .post(
-          script: """
-            set -eu
-
-            destination_path="${SRCROOT}/../supaterm.com/public/data/supaterm-settings.schema.json"
-            destination_dir="$(dirname "${destination_path}")"
-            source_candidates=(
-              "${BUILT_PRODUCTS_DIR}/sp"
-              "${UNINSTALLED_PRODUCTS_DIR}/${PLATFORM_NAME}/sp"
-            )
-
-            source_path=""
-            for candidate in "${source_candidates[@]}"; do
-              if [ -x "${candidate}" ]; then
-                source_path="${candidate}"
-                break
-              fi
-            done
-
-            if [ -z "${source_path}" ]; then
-              echo "error: missing built sp executable" >&2
-              exit 1
-            fi
-
-            mkdir -p "${destination_dir}"
-            temp_path="$(mktemp "${TMPDIR:-/tmp}/supaterm-settings-schema.XXXXXX")"
-            trap 'rm -f "${temp_path}"' EXIT
-            env -u SUPATERM_CLI_PATH "${source_path}" internal generate-settings-schema > "${temp_path}"
-
-            if [ -f "${destination_path}" ] && cmp -s "${temp_path}" "${destination_path}"; then
-              exit 0
-            fi
-
-            mv "${temp_path}" "${destination_path}"
-            """,
-          name: "Generate Settings Schema",
-          inputPaths: [
-            "$(BUILT_PRODUCTS_DIR)/sp",
-            "$(UNINSTALLED_PRODUCTS_DIR)/$(PLATFORM_NAME)/sp",
-          ],
-          outputPaths: [
-            "$(SRCROOT)/../supaterm.com/public/data/supaterm-settings.schema.json",
-          ],
-          basedOnDependencyAnalysis: false
-        ),
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .target(name: "sp"),
         .external(name: "ComposableArchitecture"),
@@ -280,7 +284,6 @@ let project = Project(
         .external(name: "PostHog"),
         .external(name: "Sentry"),
         .external(name: "Sharing"),
-        .external(name: "Sparkle"),
         .external(name: "Textual"),
       ],
       settings: .settings(
@@ -316,6 +319,8 @@ let project = Project(
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -324,7 +329,6 @@ let project = Project(
       ],
       settings: .settings(
         base: [
-          "OTHER_LDFLAGS": "$(inherited) -lSupatermCLIShared",
           "TEST_HOST": "",
           "BUNDLE_LOADER": "$(BUILT_PRODUCTS_DIR)/supaterm.app/Contents/MacOS/supaterm.debug.dylib",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @loader_path/../Frameworks @executable_path/../Frameworks @loader_path/../../../supaterm.app/Contents/MacOS",

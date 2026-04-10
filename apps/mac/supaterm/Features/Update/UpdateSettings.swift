@@ -1,9 +1,9 @@
 import Foundation
 import SupatermCLIShared
 
-typealias UpdateChannel = SupatermCLIShared.UpdateChannel
+public typealias UpdateChannel = SupatermCLIShared.UpdateChannel
 
-extension UpdateChannel {
+public extension UpdateChannel {
   var title: String {
     switch self {
     case .stable:

@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermUpdateFeature
 import Testing
 
 @testable import supaterm

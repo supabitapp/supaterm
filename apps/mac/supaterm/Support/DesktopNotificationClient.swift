@@ -25,32 +25,62 @@ private func configuredNotificationCenter() -> UNUserNotificationCenter {
   return center
 }
 
-struct DesktopNotificationRequest: Equatable, Sendable {
-  let body: String
-  let subtitle: String
-  let title: String
+public struct DesktopNotificationRequest: Equatable, Sendable {
+  public let body: String
+  public let subtitle: String
+  public let title: String
+
+  public init(
+    body: String,
+    subtitle: String,
+    title: String
+  ) {
+    self.body = body
+    self.subtitle = subtitle
+    self.title = title
+  }
 }
 
-struct DesktopNotificationClient: Sendable {
-  struct AuthorizationRequestResult: Equatable, Sendable {
-    let granted: Bool
-    let errorMessage: String?
+public struct DesktopNotificationClient: Sendable {
+  public struct AuthorizationRequestResult: Equatable, Sendable {
+    public let granted: Bool
+    public let errorMessage: String?
+
+    public init(
+      granted: Bool,
+      errorMessage: String?
+    ) {
+      self.granted = granted
+      self.errorMessage = errorMessage
+    }
   }
 
-  enum AuthorizationStatus: Equatable, Sendable {
+  public enum AuthorizationStatus: Equatable, Sendable {
     case authorized
     case denied
     case notDetermined
   }
 
-  var authorizationStatus: @MainActor @Sendable () async -> AuthorizationStatus
-  var requestAuthorization: @MainActor @Sendable () async -> AuthorizationRequestResult
-  var openSettings: @MainActor @Sendable () async -> Void
-  var deliver: @MainActor @Sendable (DesktopNotificationRequest) async -> Void
+  public var authorizationStatus: @MainActor @Sendable () async -> AuthorizationStatus
+  public var requestAuthorization: @MainActor @Sendable () async -> AuthorizationRequestResult
+  public var openSettings: @MainActor @Sendable () async -> Void
+  public var deliver: @MainActor @Sendable (DesktopNotificationRequest) async -> Void
+
+  public init(
+    authorizationStatus: @escaping @MainActor @Sendable () async -> AuthorizationStatus,
+    requestAuthorization: @escaping @MainActor @Sendable () async -> AuthorizationRequestResult,
+    openSettings: @escaping @MainActor @Sendable () async -> Void,
+    deliver: @escaping @MainActor @Sendable (DesktopNotificationRequest) async -> Void
+  ) {
+    self.authorizationStatus = authorizationStatus
+    self.requestAuthorization = requestAuthorization
+    self.openSettings = openSettings
+    self.deliver = deliver
+  }
 }
 
 extension DesktopNotificationClient: DependencyKey {
-  static let liveValue = Self(
+  public static let liveValue = Self(
     authorizationStatus: {
       let center = configuredNotificationCenter()
       let settings = await center.notificationSettings()
@@ -96,7 +126,7 @@ extension DesktopNotificationClient: DependencyKey {
     }
   )
 
-  static let testValue = Self(
+  public static let testValue = Self(
     authorizationStatus: { .notDetermined },
     requestAuthorization: { .init(granted: false, errorMessage: nil) },
     openSettings: {},
@@ -104,7 +134,7 @@ extension DesktopNotificationClient: DependencyKey {
   )
 }
 
-extension DependencyValues {
+public extension DependencyValues {
   var desktopNotificationClient: DesktopNotificationClient {
     get { self[DesktopNotificationClient.self] }
     set { self[DesktopNotificationClient.self] = newValue }

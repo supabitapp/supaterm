@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermSupport
 import SwiftUI
 
 @MainActor
@@ -11,6 +12,12 @@ final class SettingsWindowController: NSWindowController {
     let store = Store(initialState: SettingsFeature.State()) {
       SettingsFeature()
         .logActions()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        Task { @MainActor in
+          AppTelemetry.capture(event)
+        }
+      }
     }
     self.store = store
     let rootView = AppAppearanceView {

@@ -22,7 +22,7 @@ struct GhosttyTerminalConfigFileTests {
     )
 
     let snapshot = try configFile.load()
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -37,7 +37,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(snapshot.fontSize == 15)
     #expect(snapshot.lightTheme == "Zenbones Light")
     #expect(snapshot.warningMessage == nil)
-    #expect(try String(contentsOf: configURL, encoding: .utf8) == GhosttyBootstrap.defaultConfigContents)
+    #expect(try String(contentsOf: configURL, encoding: .utf8) == GhosttySupport.defaultConfigContents)
   }
 
   @Test
@@ -45,7 +45,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -124,7 +124,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -176,7 +176,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -211,7 +211,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -242,7 +242,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred
@@ -282,7 +282,7 @@ struct GhosttyTerminalConfigFileTests {
     let rootURL = try makeGhosttyTerminalConfigTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: rootURL) }
     let environment = ghosttyTerminalConfigEnvironment(rootURL: rootURL)
-    let configURL = GhosttyBootstrap.configFileLocations(
+    let configURL = GhosttySupport.configFileLocations(
       homeDirectoryURL: rootURL,
       environment: environment
     ).preferred

@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 import Sharing
 import SupatermCLIShared
+import SupatermSupport
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"

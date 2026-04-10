@@ -2,6 +2,8 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupatermCLIShared
+import SupatermSupport
+import SupatermUpdateFeature
 
 private enum SettingsFeatureCancelID {
   static let updateObservation = "SettingsFeature.updateObservation"
