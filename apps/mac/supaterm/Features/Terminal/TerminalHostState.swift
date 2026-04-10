@@ -688,7 +688,7 @@ final class TerminalHostState {
 
   func codexHoverMarkdown(for tabID: TerminalTabID) -> String? {
     guard let messages = codexHoverMessagesByTab[tabID], !messages.isEmpty else { return nil }
-    return messages.reversed().joined(separator: "\n\n---\n\n")
+    return messages.joined(separator: "\n\n")
   }
 
   func showsAgentActivityDetail(for tabID: TerminalTabID) -> Bool {

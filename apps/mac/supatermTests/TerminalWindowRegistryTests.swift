@@ -1173,7 +1173,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func codexTranscriptAccumulatesHoverMessagesLatestFirst() async throws {
+  func codexTranscriptAccumulatesHoverMessagesInChronologicalOrder() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1203,11 +1203,9 @@ struct TerminalWindowRegistryTests {
 
     #expect(
       harness.host.codexHoverMarkdown(for: harness.tabID) == """
-        Updating the registry and sidebar
-
-        ---
-
         Inspecting the transcript path
+
+        Updating the registry and sidebar
         """
     )
   }

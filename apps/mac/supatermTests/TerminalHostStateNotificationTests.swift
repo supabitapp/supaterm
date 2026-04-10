@@ -366,7 +366,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func codexHoverMarkdownShowsLatestMessageFirstWithDivider() throws {
+  func codexHoverMarkdownShowsOldestMessageFirstWithLineBreak() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -381,11 +381,9 @@ struct TerminalHostStateNotificationTests {
 
     #expect(
       host.codexHoverMarkdown(for: tabID) == """
-        Second message
-
-        ---
-
         First message
+
+        Second message
         """
     )
   }

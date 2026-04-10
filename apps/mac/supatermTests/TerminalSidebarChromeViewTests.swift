@@ -195,11 +195,9 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.popoverMarkdown(
         codexHoverMarkdown: """
-          Need approval?
-
-          ---
-
           Inspecting transcript activity
+
+          Need approval?
           """,
         showsAgentActivityDetail: true,
         notificationMarkdown: """
@@ -208,11 +206,9 @@ struct TerminalSidebarChromeViewTests {
           Full notification body
           """
       ) == """
-        Need approval?
-
-        ---
-
         Inspecting transcript activity
+
+        Need approval?
         """
     )
   }
