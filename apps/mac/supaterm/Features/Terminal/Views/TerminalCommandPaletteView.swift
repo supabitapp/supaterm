@@ -18,7 +18,7 @@ struct TerminalCommandPaletteOverlay: View {
 
   private let cardHeight: CGFloat = 296
   private let cardCornerRadius: CGFloat = 26
-  private let maxWidth: CGFloat = 500
+  private let maxWidth: CGFloat = 750
   private let minWidth: CGFloat = 280
 
   private var selectedRowID: TerminalCommandPaletteRow.ID? {
