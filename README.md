@@ -1,6 +1,14 @@
 # Supaterm
 A terminal for ur coding agents.
 
+## Supaterm Skill
+
+Install the Supaterm skill from this repo:
+
+```bash
+npx skills add supabitapp/supaterm
+```
+
 ## Pi
 
 Install the Pi extension package from this repo:

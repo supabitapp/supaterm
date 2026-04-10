@@ -107,7 +107,8 @@ struct SPHelpTests {
   func onboardHelpMentionsInteractiveAgentSetup() {
     let help = SP.helpMessage(for: SP.Onboard.self, columns: 100)
 
-    #expect(help.contains("coding-agent integrations"))
+    #expect(help.contains("coding-agent hooks"))
+    #expect(help.contains("agent skills"))
     #expect(help.contains("sp onboard --force"))
     #expect(help.contains("sp onboard --plain"))
   }

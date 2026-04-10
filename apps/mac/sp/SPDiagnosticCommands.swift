@@ -262,32 +262,55 @@ struct SPOnboardingInteraction {
 
   let force: Bool
   let integrations: [AgentIntegration]
+  let skillIntegrations: [AgentIntegration]
   let io: IO
 
   init(
     force: Bool = false,
     integrations: [AgentIntegration] = Self.liveIntegrations,
+    skillIntegrations: [AgentIntegration] = Self.liveSkillIntegrations,
     io: IO = .live
   ) {
     self.force = force
     self.integrations = integrations
+    self.skillIntegrations = skillIntegrations
     self.io = io
   }
 
   func run() -> Result {
     var didWriteOutput = false
-    let integrationsToInstall = actionableIntegrations(didWriteOutput: &didWriteOutput)
+    var didShowIntro = false
 
-    guard !integrationsToInstall.isEmpty else {
-      return .init(didWriteOutput: didWriteOutput)
+    let hookIntegrationsToInstall = actionableIntegrations(
+      from: integrations,
+      didWriteOutput: &didWriteOutput
+    )
+    if !hookIntegrationsToInstall.isEmpty,
+      shouldInstall(
+        prompt: installPrompt(for: hookIntegrationsToInstall),
+        didWriteOutput: &didWriteOutput,
+        didShowIntro: &didShowIntro
+      )
+    {
+      for integration in hookIntegrationsToInstall {
+        install(integration, didWriteOutput: &didWriteOutput)
+      }
     }
 
-    guard shouldInstall(integrations: integrationsToInstall, didWriteOutput: &didWriteOutput) else {
-      return .init(didWriteOutput: didWriteOutput)
-    }
-
-    for integration in integrationsToInstall {
-      install(integration, didWriteOutput: &didWriteOutput)
+    let skillIntegrationsToInstall = actionableIntegrations(
+      from: skillIntegrations,
+      didWriteOutput: &didWriteOutput
+    )
+    if !skillIntegrationsToInstall.isEmpty,
+      shouldInstall(
+        prompt: "Setup agent skills to control Supaterm? [y/N] ",
+        didWriteOutput: &didWriteOutput,
+        didShowIntro: &didShowIntro
+      )
+    {
+      for integration in skillIntegrationsToInstall {
+        install(integration, didWriteOutput: &didWriteOutput)
+      }
     }
 
     return .init(didWriteOutput: didWriteOutput)
@@ -313,6 +336,7 @@ struct SPOnboardingInteraction {
   }
 
   private func actionableIntegrations(
+    from integrations: [AgentIntegration],
     didWriteOutput: inout Bool
   ) -> [AgentIntegration] {
     var actionableIntegrations: [AgentIntegration] = []
@@ -357,15 +381,17 @@ struct SPOnboardingInteraction {
   }
 
   private func shouldInstall(
-    integrations: [AgentIntegration],
-    didWriteOutput: inout Bool
+    prompt: String,
+    didWriteOutput: inout Bool,
+    didShowIntro: inout Bool
   ) -> Bool {
-    write(
-      "Glad to have you onboard with Supaterm, let's get you setup.\n",
-      didWriteOutput: &didWriteOutput
-    )
-
-    let prompt = installPrompt(for: integrations)
+    if !didShowIntro {
+      write(
+        "Glad to have you onboard with Supaterm, let's get you setup.\n",
+        didWriteOutput: &didWriteOutput
+      )
+      didShowIntro = true
+    }
 
     while true {
       write(prompt, didWriteOutput: &didWriteOutput)
@@ -384,9 +410,8 @@ struct SPOnboardingInteraction {
   private func installPrompt(
     for integrations: [AgentIntegration]
   ) -> String {
-    let subject = integrations.count == 1 ? "integration" : "integrations"
     let names = integrations.map(\.displayName)
-    return "Set up Supaterm coding-agent \(subject) for \(humanJoined(names))? [y/N] "
+    return "Set up Supaterm coding-agent hooks for \(humanJoined(names))? [y/N] "
   }
 
   private func humanJoined(_ values: [String]) -> String {
@@ -472,5 +497,20 @@ struct SPOnboardingInteraction {
       successMessage: "Installed the Supaterm Pi package.\n",
       install: { try PiSettingsInstaller().installSupatermPackage() }
     ),
+  ]
+
+  private static let liveSkillIntegrations: [AgentIntegration] = [
+    .init(
+      displayName: "Supaterm skill",
+      installCommand: SupatermSkillInstaller.installCommand,
+      installFailureSubject: "the Supaterm skill",
+      installVerb: "install",
+      progressMessage: "Installing the Supaterm skill...\n",
+      isAvailable: { true },
+      isConfigured: { SupatermSkillInstaller().hasSupatermSkillInstalled() },
+      inspectionSubject: "the Supaterm skill",
+      successMessage: "Installed the Supaterm skill.\n",
+      install: { try SupatermSkillInstaller().installSupatermSkill() }
+    )
   ]
 }

@@ -107,6 +107,22 @@ private struct SettingsCodingAgentsView: View {
           Text(agent.settingsFooterText)
         }
       }
+
+      Section {
+        VStack(alignment: .leading, spacing: 8) {
+          SettingsRowLabel(
+            title: "Supaterm Skill",
+            subtitle: "Run this in a terminal to install the Supaterm skill through npx."
+          )
+
+          Text(SupatermSkillInstaller.installCommand)
+            .font(.callout.monospaced())
+            .textSelection(.enabled)
+        }
+        .padding(.vertical, 2)
+      } footer: {
+        Text("Settings does not run the interactive skill installer. Use the command above in a terminal.")
+      }
     }
     .navigationTitle("Coding Agents")
     .settingsFormLayout()

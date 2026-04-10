@@ -26,6 +26,7 @@ The integration is split into three layers.
 ### Agent Adapter
 
 - install agent-native hook configuration when the user opts in
+- install the Supaterm agent skill when the user opts in
 - forward those payloads through `sp`
 
 ### App-Side Interpreter
@@ -37,6 +38,20 @@ The integration is split into three layers.
 - emit in-app or desktop notifications when needed
 
 Future agent integrations should keep that split. The wrapper or adapter should stay thin, and all UI state should stay inside the app.
+
+## Supaterm Skill
+
+Supaterm also ships an agent skill from this repo.
+
+Install it with:
+
+```bash
+npx skills add supabitapp/supaterm
+```
+
+`sp onboard` asks about this separately from Claude, Codex, and Pi hook setup.
+
+Settings > Coding Agents shows the exact command, but does not run it because the `skills` installer is interactive.
 
 ## Claude
 
