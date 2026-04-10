@@ -1,6 +1,15 @@
 import SupatermCLIShared
 
 extension SupatermAgentKind {
+  var settingsInstallDescription: String {
+    switch self {
+    case .claude, .codex:
+      return "\(notificationTitle) hooks: \(settingsPathDescription)"
+    case .pi:
+      return "\(notificationTitle) settings: \(settingsPathDescription)"
+    }
+  }
+
   var settingsFooterText: String {
     switch self {
     case .claude, .codex:

@@ -96,10 +96,10 @@ private struct SettingsCodingAgentsView: View {
         }
       } footer: {
         VStack(alignment: .leading, spacing: 8) {
-          Text("Display agent activity in tabs and forward notifications to Supaterm.")
+          Text("Supaterm installs coding-agent hooks into these paths:")
 
           ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
-            Text("\(agent.notificationTitle): \(agent.settingsPathDescription)")
+            Text(agent.settingsInstallDescription)
               .font(.caption.monospaced())
               .foregroundStyle(.secondary)
               .textSelection(.enabled)
@@ -109,11 +109,6 @@ private struct SettingsCodingAgentsView: View {
 
       Section {
         SettingsSkillInstallRow()
-      } footer: {
-        Text(
-          "Run `\(SupatermSkillInstaller.installCommand)` in Terminal to install the Supaterm skill. "
-            + "Settings does not run the interactive installer."
-        )
       }
     }
     .navigationTitle("Coding Agents")
