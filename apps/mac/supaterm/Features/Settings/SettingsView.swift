@@ -168,6 +168,8 @@ private struct SettingsAgentListRow: View {
 }
 
 private struct SettingsSkillInstallRow: View {
+  @State private var didCopy = false
+
   var body: some View {
     HStack(alignment: .center, spacing: 12) {
       Image(systemName: "terminal")
@@ -184,12 +186,37 @@ private struct SettingsSkillInstallRow: View {
 
       Spacer(minLength: 12)
 
-      Text(SupatermSkillInstaller.installCommand)
-        .font(.caption.monospaced())
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
+      HStack(spacing: 8) {
+        Text(SupatermSkillInstaller.installCommand)
+          .font(.caption.monospaced())
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+
+        Button {
+          let pasteboard = NSPasteboard.general
+          pasteboard.clearContents()
+          pasteboard.setString(SupatermSkillInstaller.installCommand, forType: .string)
+          didCopy = true
+        } label: {
+          Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+            .frame(width: 16, height: 16)
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Copy command")
+        .help("Copy command")
+      }
     }
     .padding(.vertical, 2)
+    .onChange(of: didCopy) {
+      guard didCopy else { return }
+      Task {
+        try? await Task.sleep(for: .seconds(1.2))
+        await MainActor.run {
+          didCopy = false
+        }
+      }
+    }
   }
 }
 
