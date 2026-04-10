@@ -82,55 +82,51 @@ private struct SettingsCodingAgentsView: View {
   }
 
   var body: some View {
-    Form {
-      Section(
-        footer: Text("Integrations are optional and designed to extend Supaterm without affecting core functionality.")
-      ) {}
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        Text("Integrations are optional and extend Supaterm without affecting core functionality.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
 
-      ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
-        let integration = integration(for: agent)
-        Section {
-          SettingsAgentToggleRow(
-            errorMessage: integration.errorMessage,
-            isAvailable: integration.isAvailable,
-            isOn: integrationToggle(for: agent),
-            isPending: integration.isPending,
-            subtitle: agent.settingsSubtitle,
-            title: "Integration"
-          )
-        } header: {
-          SettingsAgentSectionHeader(
-            imageName: agent.settingsMarkImageName,
-            title: agent.notificationTitle
-          )
-        } footer: {
-          Text(agent.settingsFooterText)
+        SettingsSurfaceCard {
+          VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(SupatermAgentKind.allCases.enumerated()), id: \.element) { index, agent in
+              if index > 0 {
+                Divider()
+                  .padding(.leading, 34)
+              }
+
+              SettingsAgentIntegrationRow(
+                errorMessage: integration(for: agent).errorMessage,
+                footerText: agent.settingsFooterText,
+                imageName: agent.settingsMarkImageName,
+                isAvailable: integration(for: agent).isAvailable,
+                isOn: integrationToggle(for: agent),
+                isPending: integration(for: agent).isPending,
+                subtitle: agent.settingsSubtitle,
+                title: agent.notificationTitle
+              )
+            }
+
+            Divider()
+              .padding(.leading, 34)
+
+            SettingsSkillInstallRow()
+          }
         }
       }
-
-      Section {
-        VStack(alignment: .leading, spacing: 8) {
-          SettingsRowLabel(
-            title: "Supaterm Skill",
-            subtitle: "Run this in a terminal to install the Supaterm skill through npx."
-          )
-
-          Text(SupatermSkillInstaller.installCommand)
-            .font(.callout.monospaced())
-            .textSelection(.enabled)
-        }
-        .padding(.vertical, 2)
-      } footer: {
-        Text("Settings does not run the interactive skill installer. Use the command above in a terminal.")
-      }
+      .padding(24)
+      .frame(maxWidth: 760, alignment: .leading)
+      .frame(maxWidth: .infinity, alignment: .center)
     }
     .navigationTitle("Coding Agents")
-    .settingsFormLayout()
   }
 }
 
-private struct SettingsAgentToggleRow: View {
+private struct SettingsAgentIntegrationRow: View {
   let errorMessage: String?
+  let footerText: String
+  let imageName: String
   let isAvailable: Bool
   let isOn: Binding<Bool>
   let isPending: Bool
@@ -140,22 +136,48 @@ private struct SettingsAgentToggleRow: View {
   @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Toggle(isOn: isOn) {
-        SettingsRowLabel(
-          title: title,
-          subtitle: subtitle
-        )
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(imageName)
+          .resizable()
+          .aspectRatio(contentMode: .fit)
+          .frame(width: 18, height: 18)
+          .padding(.top, 2)
+          .accessibilityHidden(true)
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.headline)
+
+          Text(subtitle)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+          Text(footerText)
+            .font(.caption.monospaced())
+            .foregroundStyle(.tertiary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Spacer(minLength: 12)
+
+        Toggle("", isOn: isOn)
+          .labelsHidden()
+          .disabled(isPending || !isAvailable)
+          .padding(.top, 2)
       }
-      .disabled(isPending || !isAvailable)
+
       if let errorMessage {
         Text(errorMessage)
           .font(.callout)
           .foregroundStyle(errorColor)
           .fixedSize(horizontal: false, vertical: true)
+          .padding(.leading, 30)
       }
     }
-    .padding(.vertical, 2)
+    .padding(.vertical, 14)
   }
 
   private var errorColor: Color {
@@ -165,21 +187,36 @@ private struct SettingsAgentToggleRow: View {
   }
 }
 
-private struct SettingsAgentSectionHeader: View {
-  let imageName: String
-  let title: String
-
+private struct SettingsSkillInstallRow: View {
   var body: some View {
-    Label {
-      Text(title)
-    } icon: {
-      Image(imageName)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
+    HStack(alignment: .top, spacing: 12) {
+      Image(systemName: "terminal")
         .frame(width: 18, height: 18)
+        .padding(.top, 2)
+        .foregroundStyle(.secondary)
         .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 4) {
+        Text("Supaterm Skill")
+          .font(.headline)
+
+        Text("Run this in Terminal to install the Supaterm skill through npx.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Text(SupatermSkillInstaller.installCommand)
+          .font(.callout.monospaced())
+          .textSelection(.enabled)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Text("Settings does not run the interactive installer.")
+          .font(.caption)
+          .foregroundStyle(.tertiary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
-    .font(.headline)
+    .padding(.vertical, 14)
   }
 }
 
