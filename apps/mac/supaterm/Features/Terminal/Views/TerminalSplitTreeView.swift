@@ -2,41 +2,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct TerminalNotificationPulseSegment: Equatable {
-  let delay: TimeInterval
-  let duration: TimeInterval
-  let targetOpacity: Double
-}
-
-enum TerminalNotificationPulsePattern {
-  static let initialOpacity = 1.0
-  static let lowOpacity = 0.32
-  static let totalDuration: TimeInterval = 1.0
-  static let targetOpacities: [Double] = [
-    lowOpacity,
-    initialOpacity,
-    lowOpacity,
-    initialOpacity,
-    lowOpacity,
-    initialOpacity,
-    0,
-  ]
-
-  static var stepDuration: TimeInterval {
-    totalDuration / Double(targetOpacities.count)
-  }
-
-  static var segments: [TerminalNotificationPulseSegment] {
-    targetOpacities.enumerated().map { index, targetOpacity in
-      .init(
-        delay: Double(index) * stepDuration,
-        duration: stepDuration,
-        targetOpacity: targetOpacity
-      )
-    }
-  }
-}
-
 struct TerminalSplitTreeView: View {
   let notificationColor: Color
   let showsGlowingPaneRing: Bool
@@ -228,8 +193,6 @@ struct TerminalSplitTreeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dropState: DropState = .idle
     @State private var isPaneHovering = false
-    @State private var notificationPulseAnimationGeneration = 0
-    @State private var notificationPulseOpacity = 0.0
 
     private var unreadGlowShape: UnevenRoundedRectangle {
       UnevenRoundedRectangle(
@@ -294,44 +257,12 @@ struct TerminalSplitTreeView: View {
               .allowsHitTesting(false)
           }
           .overlay {
-            unreadGlowShape
-              .strokeBorder(
-                notificationColor.opacity(notificationPulseOpacity),
-                lineWidth: notificationPulseLineWidth
-              )
-              .shadow(
-                color: notificationColor.opacity(notificationPulseOpacity * 0.6),
-                radius: notificationPulseShadowRadius
-              )
-              .compositingGroup()
-              .opacity(showsGlowingPaneRing ? 1 : 0)
-              .allowsHitTesting(false)
-          }
-          .overlay {
             if case .dropping(let zone) = dropState {
               DropOverlayView(zone: zone, size: geometry.size)
                 .allowsHitTesting(false)
             }
           }
-          .onChange(of: isUnread) { oldValue, newValue in
-            guard oldValue != newValue else { return }
-            updateNotificationPulse(
-              oldAttention: oldValue,
-              newAttention: newValue,
-              reduceMotion: reduceMotion
-            )
-          }
-          .onChange(of: showsGlowingPaneRing) { _, isEnabled in
-            guard !isEnabled else { return }
-            cancelNotificationPulse()
-          }
-          .onChange(of: reduceMotion) { _, newValue in
-            guard newValue else { return }
-            cancelNotificationPulse()
-          }
-          .onDisappear {
-            cancelNotificationPulse()
-          }
+          .animation(attentionFadeAnimation, value: hasVisibleAttention)
       }
     }
 
@@ -347,14 +278,6 @@ struct TerminalSplitTreeView: View {
       3
     }
 
-    private var notificationPulseLineWidth: CGFloat {
-      max(lineWidth, 3)
-    }
-
-    private var notificationPulseShadowRadius: CGFloat {
-      max(shadowRadius, 12)
-    }
-
     private var shadowOpacity: Double {
       0.58
     }
@@ -367,53 +290,12 @@ struct TerminalSplitTreeView: View {
       1
     }
 
+    private var attentionFadeAnimation: Animation? {
+      reduceMotion ? nil : .easeOut(duration: 0.24)
+    }
+
     static func hasVisibleAttention(isUnread: Bool, showsGlowingPaneRing: Bool) -> Bool {
       isUnread && showsGlowingPaneRing
-    }
-
-    static func shouldTriggerNotificationPulse(
-      from oldValue: Bool,
-      to newValue: Bool,
-      reduceMotion: Bool
-    ) -> Bool {
-      !reduceMotion && oldValue && !newValue
-    }
-
-    private func updateNotificationPulse(
-      oldAttention: Bool,
-      newAttention: Bool,
-      reduceMotion: Bool
-    ) {
-      cancelNotificationPulse()
-      guard showsGlowingPaneRing else { return }
-      guard
-        Self.shouldTriggerNotificationPulse(
-          from: oldAttention,
-          to: newAttention,
-          reduceMotion: reduceMotion
-        )
-      else { return }
-      triggerNotificationPulse()
-    }
-
-    private func cancelNotificationPulse() {
-      notificationPulseAnimationGeneration &+= 1
-      notificationPulseOpacity = 0
-    }
-
-    private func triggerNotificationPulse() {
-      notificationPulseOpacity = TerminalNotificationPulsePattern.initialOpacity
-      notificationPulseAnimationGeneration &+= 1
-      let generation = notificationPulseAnimationGeneration
-
-      for segment in TerminalNotificationPulsePattern.segments {
-        DispatchQueue.main.asyncAfter(deadline: .now() + segment.delay) {
-          guard notificationPulseAnimationGeneration == generation else { return }
-          withAnimation(.easeInOut(duration: segment.duration)) {
-            notificationPulseOpacity = segment.targetOpacity
-          }
-        }
-      }
     }
   }
 
