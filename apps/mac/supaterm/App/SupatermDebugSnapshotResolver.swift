@@ -1,21 +1,13 @@
 import Foundation
 import SupatermCLIShared
 
-public enum SupatermDebugSnapshotResolver {
-  public struct Resolution: Equatable {
-    public let currentTarget: SupatermAppDebugSnapshot.CurrentTarget?
-    public let problems: [String]
-
-    public init(
-      currentTarget: SupatermAppDebugSnapshot.CurrentTarget?,
-      problems: [String]
-    ) {
-      self.currentTarget = currentTarget
-      self.problems = problems
-    }
+enum SupatermDebugSnapshotResolver {
+  struct Resolution: Equatable {
+    let currentTarget: SupatermAppDebugSnapshot.CurrentTarget?
+    let problems: [String]
   }
 
-  public static func resolve(
+  static func resolve(
     windows: [SupatermAppDebugSnapshot.Window],
     context: SupatermCLIContext?
   ) -> Resolution {

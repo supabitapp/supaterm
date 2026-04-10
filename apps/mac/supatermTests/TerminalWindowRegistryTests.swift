@@ -74,6 +74,7 @@ struct TerminalWindowRegistryTests {
   @Test
   func debugSnapshotUsesUpdatePhaseIdentifierAndDetail() {
     let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState(managesTerminalSurfaces: false)
     host.windowActivity = .init(isKeyWindow: true, isVisible: true)
     var state = AppFeature.State()
@@ -93,7 +94,7 @@ struct TerminalWindowRegistryTests {
     )
     registry.updateWindow(makeWindow(), for: windowControllerID)
 
-    let snapshot = registry.debugSnapshot(.init())
+    let snapshot = commandExecutor.debugSnapshot(.init())
     #expect(snapshot.update.canCheckForUpdates)
     #expect(snapshot.update.phase == "checking")
     #expect(snapshot.update.detail == "Please wait while Supaterm checks for available updates.")
@@ -273,6 +274,7 @@ struct TerminalWindowRegistryTests {
       }
 
       let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
       let host = TerminalHostState()
       host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
       let firstTabID = try #require(host.selectedTabID)
@@ -294,7 +296,7 @@ struct TerminalWindowRegistryTests {
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
-      let result = try registry.createTab(
+      let result = try commandExecutor.createTab(
         .init(
           command: nil,
           cwd: nil,
@@ -325,6 +327,7 @@ struct TerminalWindowRegistryTests {
       }
 
       let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
       let host = TerminalHostState()
       host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
       let firstTabID = try #require(host.selectedTabID)
@@ -346,7 +349,7 @@ struct TerminalWindowRegistryTests {
       )
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
-      let result = try registry.createTab(
+      let result = try commandExecutor.createTab(
         .init(
           command: nil,
           cwd: nil,
@@ -704,10 +707,10 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationUsesStoredSessionSurfaceWhenAmbientContextIsMissing() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -721,7 +724,7 @@ struct TerminalWindowRegistryTests {
   func claudeSessionStartDoesNotMarkTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
 
@@ -732,10 +735,10 @@ struct TerminalWindowRegistryTests {
   func claudePreToolUseMarksTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
 
@@ -746,10 +749,10 @@ struct TerminalWindowRegistryTests {
   func commandFinishedClearsAgentActivityAndStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
 
@@ -760,7 +763,7 @@ struct TerminalWindowRegistryTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -771,13 +774,13 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationUsesGenericMessage() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -790,13 +793,13 @@ struct TerminalWindowRegistryTests {
   func claudeNotificationDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    let result = try harness.registry.handleAgentHook(
+    let result = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -818,10 +821,10 @@ struct TerminalWindowRegistryTests {
   func terminalDesktopNotificationIsSuppressedAfterMatchingClaudeHookNotification() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -836,17 +839,17 @@ struct TerminalWindowRegistryTests {
   func claudeUserPromptSubmitReturnsTabToRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.userPromptSubmit)
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -859,13 +862,13 @@ struct TerminalWindowRegistryTests {
   func claudeStopMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    let result = try harness.registry.handleAgentHook(
+    let result = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
 
@@ -880,13 +883,13 @@ struct TerminalWindowRegistryTests {
   func claudeStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
     )
-    let result = try harness.registry.handleAgentHook(
+    let result = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
 
@@ -908,18 +911,18 @@ struct TerminalWindowRegistryTests {
   func claudeSessionEndRemovesStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionEnd)
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -932,11 +935,11 @@ struct TerminalWindowRegistryTests {
   func staleStoredClaudeSessionIsClearedAfterContextPaneDisappears() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
     harness.registry.unregister(windowControllerID: harness.windowControllerID)
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
     harness.registry.register(
@@ -947,7 +950,7 @@ struct TerminalWindowRegistryTests {
       requestConfirmedWindowClose: {}
     )
     harness.registry.updateWindow(makeWindow(), for: harness.windowControllerID)
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )
 
@@ -964,7 +967,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1037,7 +1040,7 @@ struct TerminalWindowRegistryTests {
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
     try CodexTranscriptFixtures.append(.assistantMessage("Resuming active rollout"), to: transcriptPath)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1055,10 +1058,10 @@ struct TerminalWindowRegistryTests {
   func codexPreToolUseDoesNotMarkTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
     )
 
@@ -1069,10 +1072,10 @@ struct TerminalWindowRegistryTests {
   func codexPostToolUseDoesNotMarkTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
     )
 
@@ -1083,10 +1086,10 @@ struct TerminalWindowRegistryTests {
   func codexUserPromptSubmitDoesNotMarkTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit, context: harness.context)
     )
 
@@ -1102,7 +1105,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1142,7 +1145,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1184,7 +1187,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1224,7 +1227,7 @@ struct TerminalWindowRegistryTests {
     let longMessage = Array(repeating: "message", count: 30).joined(separator: " ")
     let truncatedMessage = String(longMessage.prefix(157)) + "..."
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1256,7 +1259,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1289,7 +1292,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1339,7 +1342,7 @@ struct TerminalWindowRegistryTests {
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1361,10 +1364,10 @@ struct TerminalWindowRegistryTests {
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    let result = try harness.registry.handleAgentHook(
+    let result = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
 
@@ -1393,7 +1396,7 @@ struct TerminalWindowRegistryTests {
     )
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
@@ -1405,7 +1408,7 @@ struct TerminalWindowRegistryTests {
     try CodexTranscriptFixtures.append(.assistantMessage("Updating the registry and sidebar"), to: transcriptPath)
     await advanceClock(clock)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop, context: harness.context)
     )
 
@@ -1416,10 +1419,10 @@ struct TerminalWindowRegistryTests {
   func codexStopKeepsStructuredCompletionWhenTerminalFallbackArrives() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
 
@@ -1434,13 +1437,13 @@ struct TerminalWindowRegistryTests {
   func codexUserPromptSubmitClearsStructuredCompletionSuppression() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop)
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.userPromptSubmit)
     )
 
@@ -1465,14 +1468,14 @@ struct TerminalWindowRegistryTests {
       to: transcriptPath
     )
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(
         CodexHookFixtures.sessionStart,
         transcriptPath: transcriptPath,
         context: harness.context
       )
     )
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       codexHook(CodexHookFixtures.userPromptSubmit, transcriptPath: transcriptPath)
     )
 
@@ -1503,10 +1506,10 @@ struct TerminalWindowRegistryTests {
   func stopWithoutAssistantMessageOnlyMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
-    _ = try harness.registry.handleAgentHook(
+    _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
-    let result = try harness.registry.handleAgentHook(
+    let result = try harness.commandExecutor.handleAgentHook(
       .init(
         agent: .codex,
         event: .init(
@@ -1586,7 +1589,9 @@ struct TerminalWindowRegistryTests {
   ) throws -> ClaudeHookHarness {
     initializeGhosttyForTests()
 
-    let registry = TerminalWindowRegistry(
+    let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(
+      registry: registry,
       agentRunningTimeout: agentRunningTimeout,
       transcriptPollInterval: transcriptPollInterval,
       clock: clock
@@ -1612,6 +1617,7 @@ struct TerminalWindowRegistryTests {
     let surfaceID = try #require(host.selectedSurfaceView?.id)
     let tabID = try #require(host.selectedTabID)
     return .init(
+      commandExecutor: commandExecutor,
       context: .init(surfaceID: surfaceID, tabID: tabID.rawValue),
       host: host,
       registry: registry,
@@ -1623,6 +1629,7 @@ struct TerminalWindowRegistryTests {
   }
 
   private struct ClaudeHookHarness {
+    let commandExecutor: TerminalCommandExecutor
     let context: SupatermCLIContext
     let host: TerminalHostState
     let registry: TerminalWindowRegistry
@@ -1630,6 +1637,28 @@ struct TerminalWindowRegistryTests {
     let tabID: TerminalTabID
     let window: NSWindow
     let windowControllerID: UUID
+  }
+
+  private func makeCommandExecutor(registry: TerminalWindowRegistry) -> TerminalCommandExecutor {
+    let commandExecutor = TerminalCommandExecutor(registry: registry)
+    registry.commandExecutor = commandExecutor
+    return commandExecutor
+  }
+
+  private func makeCommandExecutor<C: Clock<Duration>>(
+    registry: TerminalWindowRegistry,
+    agentRunningTimeout: Duration,
+    transcriptPollInterval: Duration,
+    clock: C
+  ) -> TerminalCommandExecutor {
+    let commandExecutor = TerminalCommandExecutor(
+      registry: registry,
+      agentRunningTimeout: agentRunningTimeout,
+      transcriptPollInterval: transcriptPollInterval,
+      clock: clock
+    )
+    registry.commandExecutor = commandExecutor
+    return commandExecutor
   }
 }
 

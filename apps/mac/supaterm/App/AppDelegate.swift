@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     self.socketStore = socketStore
     self.terminalWindowRegistry = terminalWindowRegistry
     super.init()
+    terminalWindowRegistry.commandExecutor = terminalCommandExecutor
     terminalWindowRegistry.onChange = { [weak menuController] in
       menuController?.refresh()
     }
