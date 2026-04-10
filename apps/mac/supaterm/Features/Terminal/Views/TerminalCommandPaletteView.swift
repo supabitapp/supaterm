@@ -35,7 +35,7 @@ struct TerminalCommandPaletteOverlay: View {
   var body: some View {
     GeometryReader { geometry in
       let cardWidth = min(maxWidth, max(minWidth, geometry.size.width - 32))
-      let topInset = geometry.size.height * 0.05 + 16
+      let topInset = geometry.size.height * 0.075
 
       ZStack {
         Button(action: onClose) {
