@@ -61,9 +61,7 @@ struct TerminalCommandPaletteOverlay: View {
 
             ScrollViewReader { proxy in
               ScrollView {
-                LazyVStack(spacing: 5) {
-                  ScrollViewScrollerHider()
-                    .frame(width: 0, height: 0)
+                LazyVStack(alignment: .leading, spacing: 5) {
                   ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     CommandPaletteRowButton(
                       row: row,
@@ -82,8 +80,9 @@ struct TerminalCommandPaletteOverlay: View {
                     }
                   }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
               }
-              .scrollIndicators(.hidden)
+              .scrollIndicators(.never)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
               .onAppear {
                 scrollSelection(into: proxy)
@@ -191,42 +190,6 @@ struct TerminalCommandPaletteOverlay: View {
       }
     }
     return row.shortcut
-  }
-}
-
-private struct ScrollViewScrollerHider: NSViewRepresentable {
-  func makeNSView(context: Context) -> ScrollViewScrollerHiderView {
-    ScrollViewScrollerHiderView()
-  }
-
-  func updateNSView(_ nsView: ScrollViewScrollerHiderView, context: Context) {}
-}
-
-private final class ScrollViewScrollerHiderView: NSView {
-  override func viewDidMoveToWindow() {
-    super.viewDidMoveToWindow()
-    apply()
-  }
-
-  override func viewDidMoveToSuperview() {
-    super.viewDidMoveToSuperview()
-    apply()
-  }
-
-  override func layout() {
-    super.layout()
-    apply()
-  }
-
-  private func apply() {
-    DispatchQueue.main.async { [weak self] in
-      guard let scrollView = self?.enclosingScrollView else { return }
-      scrollView.hasVerticalScroller = false
-      scrollView.hasHorizontalScroller = false
-      scrollView.autohidesScrollers = true
-      scrollView.verticalScroller = nil
-      scrollView.horizontalScroller = nil
-    }
   }
 }
 
