@@ -1,5 +1,6 @@
 import Foundation
 import SupatermCLIShared
+import SupatermSupport
 
 nonisolated struct BundledSPAgentHooksInstaller {
   struct CommandResult: Equatable, Sendable {

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
-@testable import supaterm
+@testable import SupatermSettingsFeature
 
 struct BundledSPAgentHooksInstallerTests {
   @Test

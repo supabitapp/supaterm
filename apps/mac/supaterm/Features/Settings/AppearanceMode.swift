@@ -2,10 +2,10 @@ import AppKit
 import SupatermCLIShared
 import SwiftUI
 
-typealias AppearanceMode = SupatermCLIShared.AppearanceMode
+public typealias AppearanceMode = SupatermCLIShared.AppearanceMode
 
 extension AppearanceMode {
-  var colorScheme: ColorScheme? {
+  public var colorScheme: ColorScheme? {
     switch self {
     case .system:
       nil
@@ -16,7 +16,7 @@ extension AppearanceMode {
     }
   }
 
-  var appearance: NSAppearance? {
+  public var appearance: NSAppearance? {
     switch self {
     case .system:
       nil
@@ -27,7 +27,7 @@ extension AppearanceMode {
     }
   }
 
-  var title: String {
+  public var title: String {
     switch self {
     case .system:
       "Auto"
@@ -38,7 +38,7 @@ extension AppearanceMode {
     }
   }
 
-  var imageName: String {
+  public var imageName: String {
     switch self {
     case .system:
       "AppearanceAuto"

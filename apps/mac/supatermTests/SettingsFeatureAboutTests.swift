@@ -1,9 +1,11 @@
 import ComposableArchitecture
 import Sharing
+import SupatermSupport
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
-@testable import supaterm
+@testable import SupatermSettingsFeature
 
 @MainActor
 struct SettingsFeatureAboutTests {

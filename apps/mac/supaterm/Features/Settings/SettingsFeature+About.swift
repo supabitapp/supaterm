@@ -1,4 +1,6 @@
 import ComposableArchitecture
+import SupatermSupport
+import SupatermUpdateFeature
 
 extension SettingsFeature {
   func reduceAbout(_ state: inout State, action: Action) -> Effect<Action> {

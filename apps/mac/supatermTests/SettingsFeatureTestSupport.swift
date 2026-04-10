@@ -4,7 +4,7 @@ import SupatermSupport
 import SupatermUpdateFeature
 import Testing
 
-@testable import supaterm
+@testable import SupatermSettingsFeature
 
 nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
   .init(

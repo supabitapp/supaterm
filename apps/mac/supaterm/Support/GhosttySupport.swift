@@ -1,11 +1,15 @@
 import Foundation
 
-enum GhosttySupport {
-  struct ConfigFileLocations: Equatable {
-    let preferred: URL
+public enum GhosttySupport {
+  public struct ConfigFileLocations: Equatable {
+    public let preferred: URL
+
+    public init(preferred: URL) {
+      self.preferred = preferred
+    }
   }
 
-  static let defaultConfigContents = """
+  public static let defaultConfigContents = """
     keybind = super+d=new_split:right
     keybind = chain=equalize_splits
     keybind = super+shift+d=new_split:down
@@ -21,7 +25,7 @@ enum GhosttySupport {
     cursor-style = block
     """
 
-  static func resourceDirectories(
+  public static func resourceDirectories(
     resourcesURL: URL?,
     fileManager: FileManager = .default
   ) -> (ghostty: URL, terminfo: URL)? {
@@ -47,17 +51,17 @@ enum GhosttySupport {
     return (ghosttyURL, terminfoURL)
   }
 
-  nonisolated static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
+  public nonisolated static func bundledCommandDirectory(resourcesURL: URL?) -> URL? {
     resourcesURL?.appendingPathComponent("bin", isDirectory: true)
   }
 
-  nonisolated static func bundledCLIPath(resourcesURL: URL?) -> String? {
+  public nonisolated static func bundledCLIPath(resourcesURL: URL?) -> String? {
     bundledCommandDirectory(resourcesURL: resourcesURL)?
       .appendingPathComponent("sp", isDirectory: false)
       .path
   }
 
-  static func configFileLocations(
+  public static func configFileLocations(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> ConfigFileLocations {
@@ -73,7 +77,7 @@ enum GhosttySupport {
     )
   }
 
-  static func seedDefaultConfigIfNeeded(
+  public static func seedDefaultConfigIfNeeded(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default
@@ -104,6 +108,6 @@ enum GhosttySupport {
   }
 }
 
-extension Notification.Name {
+public extension Notification.Name {
   static let ghosttyRuntimeReloadRequested = Notification.Name("ghosttyRuntimeReloadRequested")
 }

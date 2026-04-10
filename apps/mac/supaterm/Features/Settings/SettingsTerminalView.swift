@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermSupport
 import SwiftUI
 
 struct SettingsTerminalView: View {

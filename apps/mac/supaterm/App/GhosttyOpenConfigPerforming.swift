@@ -1,4 +1,5 @@
 import AppKit
+import SupatermSettingsFeature
 
 @MainActor
 protocol GhosttyOpenConfigPerforming: AnyObject {

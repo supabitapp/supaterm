@@ -205,6 +205,28 @@ let project = Project(
       metadata: .metadata(tags: ["cacheable"])
     ),
     .target(
+      name: "SupatermSettingsFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.settings-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/Settings",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      ),
+      metadata: .metadata(tags: ["cacheable"])
+    ),
+    .target(
       name: "supaterm",
       destinations: .macOS,
       product: .app,
@@ -247,7 +269,6 @@ let project = Project(
       buildableFolders: [
         "supaterm/App",
         "supaterm/Features/Chrome",
-        "supaterm/Features/Settings",
         "supaterm/Features/Terminal",
       ],
       scripts: [
@@ -319,6 +340,7 @@ let project = Project(
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
+        .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .target(name: "sp"),
@@ -365,6 +387,7 @@ let project = Project(
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
+        .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),

@@ -1,5 +1,7 @@
 import AppKit
 import ComposableArchitecture
+import SupatermCLIShared
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 

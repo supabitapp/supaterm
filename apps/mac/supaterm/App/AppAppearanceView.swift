@@ -1,5 +1,6 @@
 import AppKit
 import Sharing
+import SupatermSettingsFeature
 import SupatermSupport
 import SwiftUI
 

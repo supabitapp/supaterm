@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermSupport
 
 struct GhosttyTerminalThemeCatalog: Equatable {
   var dark: [String]

@@ -42,16 +42,16 @@ struct SettingsAgentIntegrationState: Equatable {
   }
 }
 
-enum SettingsAgentIntegrationResult: Equatable {
+public enum SettingsAgentIntegrationResult: Equatable {
   case unavailable(String)
   case failure(String)
   case success(Bool)
 }
 
 @Reducer
-struct SettingsFeature {
+public struct SettingsFeature {
   @ObservableState
-  struct State: Equatable {
+  public struct State: Equatable {
     var appearanceMode = SupatermSettings.default.appearanceMode
     var analyticsEnabled = SupatermSettings.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
@@ -68,15 +68,17 @@ struct SettingsFeature {
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var newTabPosition = SupatermSettings.default.newTabPosition
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
-    var selectedTab = Tab.general
+    public var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     var terminal = SettingsTerminalState()
     var updateChannel = SupatermSettings.default.updateChannel
     var updatesAutomaticallyCheckForUpdates = true
     var updatesAutomaticallyDownloadUpdates = true
+
+    public init() {}
   }
 
-  enum Action: Equatable {
+  public enum Action: Equatable {
     case agentIntegrationStatusRefreshRequested(SupatermAgentKind)
     case agentIntegrationStatusRefreshed(SupatermAgentKind, SettingsAgentIntegrationResult)
     case agentIntegrationToggled(SupatermAgentKind, Bool)
@@ -111,19 +113,19 @@ struct SettingsFeature {
     case updatesAutomaticallyDownloadUpdatesChanged(Bool)
   }
 
-  enum Alert: Equatable {
+  public enum Alert: Equatable {
     case dismiss
     case openSystemNotificationSettings
   }
 
-  enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
+  public enum Tab: String, CaseIterable, Equatable, Hashable, Identifiable {
     case general
     case terminal
     case notifications
     case codingAgents
     case about
 
-    var id: String {
+    public var id: String {
       rawValue
     }
 
@@ -166,7 +168,9 @@ struct SettingsFeature {
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
   @Dependency(UpdateClient.self) var updateClient
 
-  var body: some Reducer<State, Action> {
+  public init() {}
+
+  public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .task:

@@ -1,7 +1,8 @@
 import ComposableArchitecture
 import Testing
 
-@testable import supaterm
+@testable import SupatermCLIShared
+@testable import SupatermSettingsFeature
 
 @MainActor
 struct SettingsFeatureCodingAgentsTests {

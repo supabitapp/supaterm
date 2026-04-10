@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermSettingsFeature
 import Testing
 
 @testable import supaterm

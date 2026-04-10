@@ -2,12 +2,12 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 
-enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable, Identifiable {
+public enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable, Identifiable {
   case never = "false"
   case whenNotAtPrompt = "true"
   case always
 
-  var id: Self {
+  public var id: Self {
     self
   }
 
@@ -23,7 +23,7 @@ enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable
   }
 }
 
-struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
+public struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var darkTheme: String?
   var fontFamily: String?
@@ -31,7 +31,7 @@ struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
   var lightTheme: String?
 }
 
-struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
+public struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var availableFontFamilies: [String]
   var availableDarkThemes: [String]
   var availableLightThemes: [String]
@@ -44,7 +44,7 @@ struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
   var warningMessage: String?
 }
 
-struct GhosttyTerminalSettingsValues: Equatable, Sendable {
+public struct GhosttyTerminalSettingsValues: Equatable, Sendable {
   var confirmCloseSurface: GhosttyTerminalCloseConfirmation
   var configPath: String
   var darkTheme: String?

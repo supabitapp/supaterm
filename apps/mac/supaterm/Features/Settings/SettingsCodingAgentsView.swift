@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermCLIShared
 import SwiftUI
 
 struct SettingsCodingAgentsView: View {

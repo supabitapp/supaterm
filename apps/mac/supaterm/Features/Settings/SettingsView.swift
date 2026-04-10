@@ -1,8 +1,12 @@
 import ComposableArchitecture
 import SwiftUI
 
-struct SettingsView: View {
+public struct SettingsView: View {
   let store: StoreOf<SettingsFeature>
+
+  public init(store: StoreOf<SettingsFeature>) {
+    self.store = store
+  }
 
   private var selection: Binding<SettingsFeature.Tab?> {
     Binding(
@@ -14,7 +18,7 @@ struct SettingsView: View {
     )
   }
 
-  var body: some View {
+  public var body: some View {
     let tab = store.selectedTab
     NavigationSplitView(columnVisibility: .constant(.all)) {
       List(selection: selection) {

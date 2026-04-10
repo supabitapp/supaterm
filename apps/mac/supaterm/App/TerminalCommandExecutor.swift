@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermSocketFeature
+import SupatermSupport
 import SupatermTerminalCore
 import SupatermUpdateFeature
 

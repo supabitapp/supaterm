@@ -1,10 +1,10 @@
 import ComposableArchitecture
 import Foundation
 
-enum AppBuild {
-  nonisolated static let developmentBuildMessage = "This is a development build"
+public enum AppBuild {
+  public nonisolated static let developmentBuildMessage = "This is a development build"
 
-  nonisolated static var usesStubUpdateChecks: Bool {
+  public nonisolated static var usesStubUpdateChecks: Bool {
     #if DEBUG
       true
     #else
@@ -12,7 +12,7 @@ enum AppBuild {
     #endif
   }
 
-  nonisolated static var isDevelopmentBuild: Bool {
+  public nonisolated static var isDevelopmentBuild: Bool {
     #if DEBUG
       true
     #else
@@ -20,15 +20,15 @@ enum AppBuild {
     #endif
   }
 
-  nonisolated static var version: String {
+  public nonisolated static var version: String {
     infoString("CFBundleShortVersionString")
   }
 
-  nonisolated static var buildNumber: String {
+  public nonisolated static var buildNumber: String {
     infoString("CFBundleVersion")
   }
 
-  nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
+  public nonisolated static func isDevelopmentFlag(_ value: Any?) -> Bool {
     switch value {
     case let boolValue as Bool:
       return boolValue
@@ -41,7 +41,7 @@ enum AppBuild {
     }
   }
 
-  nonisolated static func infoString(_ key: String) -> String {
+  public nonisolated static func infoString(_ key: String) -> String {
     let value = Bundle.main.object(forInfoDictionaryKey: key) as? String
     return value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
   }

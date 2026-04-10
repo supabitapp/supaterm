@@ -1,7 +1,7 @@
 import ComposableArchitecture
 import Testing
 
-@testable import supaterm
+@testable import SupatermSettingsFeature
 
 @MainActor
 struct SettingsFeatureTerminalTests {

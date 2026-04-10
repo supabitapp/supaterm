@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupatermCLIShared
 
 extension SettingsFeature {
   func reduceCodingAgents(_ state: inout State, action: Action) -> Effect<Action> {

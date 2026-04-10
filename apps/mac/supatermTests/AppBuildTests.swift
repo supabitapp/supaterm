@@ -1,7 +1,6 @@
 import Foundation
+import SupatermSupport
 import Testing
-
-@testable import supaterm
 
 struct AppBuildTests {
   @Test

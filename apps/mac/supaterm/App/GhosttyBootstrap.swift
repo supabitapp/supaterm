@@ -1,5 +1,6 @@
 import Foundation
 import GhosttyKit
+import SupatermSupport
 
 enum GhosttyBootstrap {
   private static let argv: [UnsafeMutablePointer<CChar>?] = {

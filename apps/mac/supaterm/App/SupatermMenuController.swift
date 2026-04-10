@@ -1,4 +1,5 @@
 import AppKit
+import SupatermSettingsFeature
 import SwiftUI
 
 @MainActor

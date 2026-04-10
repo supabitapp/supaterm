@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
 import SupatermTerminalCore

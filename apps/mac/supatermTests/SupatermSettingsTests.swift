@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SupatermCLIShared
+import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
 import Testing

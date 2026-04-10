@@ -1,3 +1,4 @@
+import SupatermSettingsFeature
 import Testing
 
 @testable import supaterm
