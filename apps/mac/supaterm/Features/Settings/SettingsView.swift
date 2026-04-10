@@ -127,7 +127,7 @@ private struct SettingsAgentListRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Toggle(isOn: isOn) {
+      HStack(spacing: 12) {
         Label {
           Text(agent.notificationTitle)
         } icon: {
@@ -137,8 +137,18 @@ private struct SettingsAgentListRow: View {
             .frame(width: 18, height: 18)
             .accessibilityHidden(true)
         }
+
+        Spacer(minLength: 12)
+
+        if isPending {
+          ProgressView()
+            .controlSize(.small)
+        } else {
+          Toggle("", isOn: isOn)
+            .labelsHidden()
+            .disabled(!isAvailable)
+        }
       }
-      .disabled(isPending || !isAvailable)
 
       if let errorMessage {
         Text(errorMessage)
