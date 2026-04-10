@@ -184,7 +184,7 @@ struct TerminalWindowFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalClient.self) var terminalClient
-  @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
+  @Dependency(WindowCloseClient.self) var windowCloseClient
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
@@ -446,12 +446,12 @@ struct TerminalWindowFeature {
         state.confirmationRequest = nil
         switch confirmationRequest.target {
         case .closeWindow(let windowID):
-          return .run { [terminalWindowsClient] _ in
-            await terminalWindowsClient.closeWindow(windowID)
+          return .run { [windowCloseClient] _ in
+            await windowCloseClient.closeWindow(windowID)
           }
         case .closeAllWindows(let windowIDs):
-          return .run { [terminalWindowsClient] _ in
-            await terminalWindowsClient.closeWindows(windowIDs)
+          return .run { [windowCloseClient] _ in
+            await windowCloseClient.closeWindows(windowIDs)
           }
         }
 

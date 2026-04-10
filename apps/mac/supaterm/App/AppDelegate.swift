@@ -43,12 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     AppTelemetry.setup()
     GhosttyBootstrap.initialize()
     let terminalWindowRegistry = TerminalWindowRegistry()
+    let terminalCommandExecutor = TerminalCommandExecutor(registry: terminalWindowRegistry)
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
     } withDependencies: {
-      $0.terminalWindowsClient = .live(registry: terminalWindowRegistry)
+      $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
     self.menuController = menuController
     self.quitConfirmationPresenter = quitConfirmationPresenter

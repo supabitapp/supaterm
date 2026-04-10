@@ -943,7 +943,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalWindowsClient.closeWindows = { windowIDs in
+      $0.windowCloseClient.closeWindows = { windowIDs in
         closedWindowIDs.append(windowIDs)
       }
     }

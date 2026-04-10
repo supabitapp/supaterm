@@ -41,6 +41,10 @@ private enum SocketRequestError: Error, Equatable, LocalizedError {
   }
 }
 
+private enum SocketExecutorError: Error {
+  case unexpectedResult
+}
+
 @MainActor
 @Reducer
 public struct SocketControlFeature {
@@ -68,7 +72,7 @@ public struct SocketControlFeature {
 
   @Dependency(SocketControlClient.self) var socketControlClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
-  @Dependency(TerminalWindowsClient.self) var terminalWindowsClient
+  @Dependency(SocketRequestExecutor.self) var socketRequestExecutor
 
   public init() {}
 
@@ -76,12 +80,12 @@ public struct SocketControlFeature {
     Reduce { state, action in
       switch action {
       case .requestReceived(let request):
-        return .run { [desktopNotificationClient, socketControlClient, terminalWindowsClient] _ in
+        return .run { [desktopNotificationClient, socketControlClient, socketRequestExecutor] _ in
           let response = await response(
             for: request.payload,
             desktopNotificationClient: desktopNotificationClient,
             socketControlClient: socketControlClient,
-            terminalWindowsClient: terminalWindowsClient
+            socketRequestExecutor: socketRequestExecutor
           )
           await socketControlClient.reply(request.handle, response)
         }
@@ -125,14 +129,14 @@ public struct SocketControlFeature {
     for request: SupatermSocketRequest,
     desktopNotificationClient: DesktopNotificationClient,
     socketControlClient: SocketControlClient,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
   ) async -> SupatermSocketResponse {
     do {
       return try await responseResult(
         for: request,
         desktopNotificationClient: desktopNotificationClient,
         socketControlClient: socketControlClient,
-        terminalWindowsClient: terminalWindowsClient
+        socketRequestExecutor: socketRequestExecutor
       )
     } catch let error as SocketRequestError {
       return .error(
@@ -177,24 +181,80 @@ public struct SocketControlFeature {
     for request: SupatermSocketRequest,
     desktopNotificationClient: DesktopNotificationClient,
     socketControlClient: SocketControlClient,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse {
+    if let response = try await appResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    if let response = try await systemResponseResult(
+      for: request,
+      socketControlClient: socketControlClient
+    ) {
+      return response
+    }
+    if let response = try await notificationResponseResult(
+      for: request,
+      desktopNotificationClient: desktopNotificationClient,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    if let response = try await terminalControlResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    return .error(
+      id: request.id,
+      code: "method_not_found",
+      message: "Unknown method '\(request.method)'."
+    )
+  }
+
+  private func appResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.appOnboarding:
-      guard let snapshot = await terminalWindowsClient.onboardingSnapshot() else {
+      let result = try await socketRequestExecutor.executeApp(.onboardingSnapshot)
+      guard case .onboardingSnapshot(let snapshot) = result else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      guard let snapshot else {
         throw SocketRequestError.onboardingUnavailable
       }
       return try .ok(id: request.id, encodableResult: snapshot)
 
     case SupatermSocketMethod.appDebug:
       let payload = try request.decodeParams(SupatermDebugRequest.self)
-      let snapshot = await terminalWindowsClient.debugSnapshot(payload)
+      let result = try await socketRequestExecutor.executeApp(.debugSnapshot(payload))
+      guard case .debugSnapshot(let snapshot) = result else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: snapshot)
 
     case SupatermSocketMethod.appTree:
-      let snapshot = await terminalWindowsClient.treeSnapshot()
+      let result = try await socketRequestExecutor.executeApp(.treeSnapshot)
+      guard case .treeSnapshot(let snapshot) = result else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: snapshot)
 
+    default:
+      return nil
+    }
+  }
+
+  private func systemResponseResult(
+    for request: SupatermSocketRequest,
+    socketControlClient: SocketControlClient
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
     case SupatermSocketMethod.systemIdentity:
       guard let endpoint = await socketControlClient.currentEndpoint() else {
         return .error(
@@ -208,10 +268,24 @@ public struct SocketControlFeature {
     case SupatermSocketMethod.systemPing:
       return .ok(id: request.id, result: ["pong": true])
 
+    default:
+      return nil
+    }
+  }
+
+  private func notificationResponseResult(
+    for request: SupatermSocketRequest,
+    desktopNotificationClient: DesktopNotificationClient,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
     case SupatermSocketMethod.terminalNotify:
       let payload = try request.decodeParams(SupatermNotifyRequest.self)
       let notifyRequest = try notifyRequest(from: payload)
-      let result = try await terminalWindowsClient.notify(notifyRequest)
+      let execution = try await socketRequestExecutor.executeApp(.notify(notifyRequest))
+      guard case .notify(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       @Shared(.supatermSettings) var supatermSettings = .default
       if supatermSettings.systemNotificationsEnabled
         && result.desktopNotificationDisposition.shouldDeliver
@@ -228,7 +302,10 @@ public struct SocketControlFeature {
 
     case SupatermSocketMethod.terminalAgentHook:
       let payload = try request.decodeParams(SupatermAgentHookRequest.self)
-      let result = try await terminalWindowsClient.agentHook(payload)
+      let execution = try await socketRequestExecutor.executeApp(.agentHook(payload))
+      guard case .agentHook(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       @Shared(.supatermSettings) var supatermSettings = .default
       if supatermSettings.systemNotificationsEnabled,
         let desktopNotification = result.desktopNotification
@@ -238,63 +315,63 @@ public struct SocketControlFeature {
       return .ok(id: request.id)
 
     default:
-      if let response = try await terminalControlResponseResult(
-        for: request,
-        terminalWindowsClient: terminalWindowsClient
-      ) {
-        return response
-      }
-      return .error(
-        id: request.id,
-        code: "method_not_found",
-        message: "Unknown method '\(request.method)'."
-      )
+      return nil
     }
   }
 
   private func terminalControlResponseResult(
     for request: SupatermSocketRequest,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     if let response = try await terminalCreationResponseResult(
       for: request,
-      terminalWindowsClient: terminalWindowsClient
+      socketRequestExecutor: socketRequestExecutor
     ) {
       return response
     }
     if let response = try await terminalPaneResponseResult(
       for: request,
-      terminalWindowsClient: terminalWindowsClient
+      socketRequestExecutor: socketRequestExecutor
     ) {
       return response
     }
     if let response = try await terminalTabResponseResult(
       for: request,
-      terminalWindowsClient: terminalWindowsClient
+      socketRequestExecutor: socketRequestExecutor
     ) {
       return response
     }
     return try await terminalSpaceResponseResult(
       for: request,
-      terminalWindowsClient: terminalWindowsClient
+      socketRequestExecutor: socketRequestExecutor
     )
   }
 
   private func terminalCreationResponseResult(
     for request: SupatermSocketRequest,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.terminalNewTab:
       let payload = try request.decodeParams(SupatermNewTabRequest.self)
       let createTabRequest = try createTabRequest(from: payload)
-      let result = try await terminalWindowsClient.createTab(createTabRequest)
+      let execution = try await socketRequestExecutor.executeTerminalCreation(
+        .createTab(createTabRequest)
+      )
+      guard case .createTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalNewPane:
       let payload = try request.decodeParams(SupatermNewPaneRequest.self)
       let createPaneRequest = try createPaneRequest(from: payload)
-      let result = try await terminalWindowsClient.createPane(createPaneRequest)
+      let execution = try await socketRequestExecutor.executeTerminalCreation(
+        .createPane(createPaneRequest)
+      )
+      guard case .createPane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     default:
@@ -304,76 +381,142 @@ public struct SocketControlFeature {
 
   private func terminalPaneResponseResult(
     for request: SupatermSocketRequest,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    if let response = try await terminalPaneTargetResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    return try await terminalPaneInputResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    )
+  }
+
+  private func terminalPaneTargetResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.terminalFocusPane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
-      let result = try await terminalWindowsClient.focusPane(try createPaneTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .focusPane(try createPaneTarget(from: payload))
+      )
+      guard case .focusPane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalLastPane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
-      let result = try await terminalWindowsClient.lastPane(try createPaneTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .lastPane(try createPaneTarget(from: payload))
+      )
+      guard case .lastPane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalClosePane:
       let payload = try request.decodeParams(SupatermPaneTargetRequest.self)
-      let result = try await terminalWindowsClient.closePane(try createPaneTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .closePane(try createPaneTarget(from: payload))
+      )
+      guard case .closePane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
+    default:
+      return nil
+    }
+  }
+
+  private func terminalPaneInputResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
     case SupatermSocketMethod.terminalSendText:
       let payload = try request.decodeParams(SupatermSendTextRequest.self)
-      let result = try await terminalWindowsClient.sendText(
-        .init(
-          target: try createPaneTarget(from: payload.target),
-          text: payload.text
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .sendText(
+          .init(
+            target: try createPaneTarget(from: payload.target),
+            text: payload.text
+          )
         )
       )
+      guard case .sendText(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalSendKey:
       let payload = try request.decodeParams(SupatermSendKeyRequest.self)
-      let result = try await terminalWindowsClient.sendKey(
-        .init(
-          key: payload.key,
-          target: try createPaneTarget(from: payload.target)
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .sendKey(
+          .init(
+            key: payload.key,
+            target: try createPaneTarget(from: payload.target)
+          )
         )
       )
+      guard case .sendKey(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalCapturePane:
       let payload = try request.decodeParams(SupatermCapturePaneRequest.self)
-      let result = try await terminalWindowsClient.capturePane(
-        .init(
-          lines: payload.lines,
-          scope: payload.scope,
-          target: try createPaneTarget(from: payload.target)
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .capturePane(
+          .init(
+            lines: payload.lines,
+            scope: payload.scope,
+            target: try createPaneTarget(from: payload.target)
+          )
         )
       )
+      guard case .capturePane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalResizePane:
       let payload = try request.decodeParams(SupatermResizePaneRequest.self)
-      let result = try await terminalWindowsClient.resizePane(
-        .init(
-          amount: payload.amount,
-          direction: payload.direction,
-          target: try createPaneTarget(from: payload.target)
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .resizePane(
+          .init(
+            amount: payload.amount,
+            direction: payload.direction,
+            target: try createPaneTarget(from: payload.target)
+          )
         )
       )
+      guard case .resizePane(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalSetPaneSize:
       let payload = try request.decodeParams(SupatermSetPaneSizeRequest.self)
-      let result = try await terminalWindowsClient.setPaneSize(
-        .init(
-          amount: payload.amount,
-          axis: payload.axis,
-          target: try createPaneTarget(from: payload.target),
-          unit: payload.unit
+      let execution = try await socketRequestExecutor.executeTerminalPane(
+        .setPaneSize(
+          .init(
+            amount: payload.amount,
+            axis: payload.axis,
+            target: try createPaneTarget(from: payload.target),
+            unit: payload.unit
+          )
         )
       )
+      guard case .setPaneSize(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     default:
@@ -383,66 +526,144 @@ public struct SocketControlFeature {
 
   private func terminalTabResponseResult(
     for request: SupatermSocketRequest,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    if let response = try await terminalTabLayoutResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    if let response = try await terminalTabTargetResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    return try await terminalTabNavigationResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    )
+  }
+
+  private func terminalTabLayoutResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.terminalTilePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
-      let result = try await terminalWindowsClient.tilePanes(
-        .init(target: try createTabTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .tilePanes(.init(target: try createTabTarget(from: payload)))
       )
+      guard case .tilePanes(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalEqualizePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
-      let result = try await terminalWindowsClient.equalizePanes(
-        .init(target: try createTabTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .equalizePanes(.init(target: try createTabTarget(from: payload)))
       )
+      guard case .equalizePanes(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalMainVerticalPanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
-      let result = try await terminalWindowsClient.mainVerticalPanes(
-        .init(target: try createTabTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .mainVerticalPanes(.init(target: try createTabTarget(from: payload)))
       )
+      guard case .mainVerticalPanes(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
+    default:
+      return nil
+    }
+  }
+
+  private func terminalTabTargetResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
     case SupatermSocketMethod.terminalSelectTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
-      let result = try await terminalWindowsClient.selectTab(try createTabTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .selectTab(try createTabTarget(from: payload))
+      )
+      guard case .selectTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalCloseTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
-      let result = try await terminalWindowsClient.closeTab(try createTabTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .closeTab(try createTabTarget(from: payload))
+      )
+      guard case .closeTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalRenameTab:
       let payload = try request.decodeParams(SupatermRenameTabRequest.self)
-      let result = try await terminalWindowsClient.renameTab(
-        .init(
-          target: try createTabTarget(from: payload.target),
-          title: payload.title
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .renameTab(
+          .init(
+            target: try createTabTarget(from: payload.target),
+            title: payload.title
+          )
         )
       )
+      guard case .renameTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
+    default:
+      return nil
+    }
+  }
+
+  private func terminalTabNavigationResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
     case SupatermSocketMethod.terminalNextTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.nextTab(
-        createTabNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .nextTab(createTabNavigationRequest(from: payload))
+      )
+      guard case .nextTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalPreviousTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.previousTab(
-        createTabNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .previousTab(createTabNavigationRequest(from: payload))
+      )
+      guard case .previousTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalLastTab:
       let payload = try request.decodeParams(SupatermTabNavigationRequest.self)
-      let result = try await terminalWindowsClient.lastTab(
-        createTabNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .lastTab(createTabNavigationRequest(from: payload))
+      )
+      guard case .lastTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     default:
@@ -452,55 +673,87 @@ public struct SocketControlFeature {
 
   private func terminalSpaceResponseResult(
     for request: SupatermSocketRequest,
-    terminalWindowsClient: TerminalWindowsClient
+    socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.terminalCreateSpace:
       let payload = try request.decodeParams(SupatermCreateSpaceRequest.self)
-      let result = try await terminalWindowsClient.createSpace(
-        .init(
-          name: payload.name,
-          target: createSpaceNavigationRequest(from: payload.target)
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .createSpace(
+          .init(
+            name: payload.name,
+            target: createSpaceNavigationRequest(from: payload.target)
+          )
         )
       )
+      guard case .createSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalSelectSpace:
       let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
-      let result = try await terminalWindowsClient.selectSpace(try createSpaceTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .selectSpace(try createSpaceTarget(from: payload))
+      )
+      guard case .selectSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalCloseSpace:
       let payload = try request.decodeParams(SupatermSpaceTargetRequest.self)
-      let result = try await terminalWindowsClient.closeSpace(try createSpaceTarget(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .closeSpace(try createSpaceTarget(from: payload))
+      )
+      guard case .closeSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalRenameSpace:
       let payload = try request.decodeParams(SupatermRenameSpaceRequest.self)
-      let result = try await terminalWindowsClient.renameSpace(
-        .init(
-          name: payload.name,
-          target: try createSpaceTarget(from: payload.target)
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .renameSpace(
+          .init(
+            name: payload.name,
+            target: try createSpaceTarget(from: payload.target)
+          )
         )
       )
+      guard case .renameSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalNextSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.nextSpace(
-        createSpaceNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .nextSpace(createSpaceNavigationRequest(from: payload))
+      )
+      guard case .nextSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalPreviousSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.previousSpace(
-        createSpaceNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .previousSpace(createSpaceNavigationRequest(from: payload))
+      )
+      guard case .previousSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     case SupatermSocketMethod.terminalLastSpace:
       let payload = try request.decodeParams(SupatermSpaceNavigationRequest.self)
-      let result = try await terminalWindowsClient.lastSpace(
-        createSpaceNavigationRequest(from: payload))
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .lastSpace(createSpaceNavigationRequest(from: payload))
+      )
+      guard case .lastSpace(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
       return try .ok(id: request.id, encodableResult: result)
 
     default:

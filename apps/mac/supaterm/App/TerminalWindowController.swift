@@ -102,7 +102,7 @@ final class TerminalWindowController: NSWindowController {
         }
       }
       $0.terminalClient = .live(host: terminal)
-      $0.terminalWindowsClient = .live(registry: registry)
+      $0.windowCloseClient = .live(registry: registry)
     }
     let ghosttyShortcuts = GhosttyShortcutManager(runtime: ghostty)
     let commandHoldObserver = CommandHoldObserver()
