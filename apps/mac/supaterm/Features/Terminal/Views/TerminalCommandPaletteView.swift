@@ -62,6 +62,8 @@ struct TerminalCommandPaletteOverlay: View {
             ScrollViewReader { proxy in
               ScrollView {
                 LazyVStack(spacing: 5) {
+                  ScrollViewScrollerHider()
+                    .frame(width: 0, height: 0)
                   ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                     CommandPaletteRowButton(
                       row: row,
@@ -80,9 +82,6 @@ struct TerminalCommandPaletteOverlay: View {
                     }
                   }
                 }
-              }
-              .background {
-                ScrollViewScrollerHider()
               }
               .scrollIndicators(.hidden)
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -220,10 +219,14 @@ private final class ScrollViewScrollerHiderView: NSView {
   }
 
   private func apply() {
-    guard let scrollView = enclosingScrollView else { return }
-    scrollView.hasVerticalScroller = false
-    scrollView.hasHorizontalScroller = false
-    scrollView.autohidesScrollers = true
+    DispatchQueue.main.async { [weak self] in
+      guard let scrollView = self?.enclosingScrollView else { return }
+      scrollView.hasVerticalScroller = false
+      scrollView.hasHorizontalScroller = false
+      scrollView.autohidesScrollers = true
+      scrollView.verticalScroller = nil
+      scrollView.horizontalScroller = nil
+    }
   }
 }
 
