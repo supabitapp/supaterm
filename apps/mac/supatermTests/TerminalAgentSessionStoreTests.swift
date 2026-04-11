@@ -17,7 +17,7 @@ struct TerminalAgentSessionStoreTests {
     let surfaceID = UUID()
     let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
 
-    store.recordSession(
+    store.beginSession(
       agent: .claude,
       sessionID: "session-1",
       context: context,
@@ -65,7 +65,7 @@ struct TerminalAgentSessionStoreTests {
     store.delegate = delegate
     let surfaceID = UUID()
 
-    store.recordSession(
+    store.beginSession(
       agent: .codex,
       sessionID: "session-1",
       context: .init(surfaceID: surfaceID, tabID: UUID()),
@@ -95,7 +95,7 @@ struct TerminalAgentSessionStoreTests {
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
-    store.recordSession(
+    store.beginSession(
       agent: .codex,
       sessionID: "session-1",
       context: context,
@@ -125,7 +125,7 @@ struct TerminalAgentSessionStoreTests {
 
     try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
-    store.recordSession(
+    store.beginSession(
       agent: .codex,
       sessionID: "session-1",
       context: context,

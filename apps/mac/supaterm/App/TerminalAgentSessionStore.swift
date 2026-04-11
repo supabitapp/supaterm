@@ -26,7 +26,18 @@ final class TerminalAgentSessionStore {
     let sessionID: String
   }
 
+  private struct SurfaceKey: Hashable {
+    let agent: SupatermAgentKind
+    let surfaceID: UUID
+  }
+
+  private enum SessionRouting {
+    case background
+    case foreground
+  }
+
   private struct Session {
+    var routing: SessionRouting
     var surfaceID: UUID?
     var transcriptPath: String?
   }
@@ -36,6 +47,9 @@ final class TerminalAgentSessionStore {
   private let agentRunningTimeout: Duration
   private let sleep: (Duration) async throws -> Void
   private let transcriptPollInterval: Duration
+  private let recentForegroundRoutingWindow: TimeInterval = 5
+  private var foregroundSessionsBySurface: [SurfaceKey: String] = [:]
+  private var recentForegroundSessions: [SessionKey: Date] = [:]
   private var sessions: [SessionKey: Session] = [:]
   private var transcriptMonitorTasks: [SessionKey: Task<Void, Never>] = [:]
   private var runningTimeoutTasks: [SessionKey: Task<Void, Never>] = [:]
@@ -59,14 +73,45 @@ final class TerminalAgentSessionStore {
     }
   }
 
-  func recordSession(
+  func beginSession(
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?,
     transcriptPath: String?
   ) {
     let key = SessionKey(agent: agent, sessionID: sessionID)
-    var session = sessions[key] ?? .init(surfaceID: nil, transcriptPath: nil)
+    var session = sessions[key] ?? .init(
+      routing: .foreground,
+      surfaceID: nil,
+      transcriptPath: nil
+    )
+    if let surfaceID = context?.surfaceID {
+      session.surfaceID = surfaceID
+      let surfaceKey = SurfaceKey(agent: agent, surfaceID: surfaceID)
+      if let foregroundSessionID = foregroundSessionsBySurface[surfaceKey],
+        foregroundSessionID != sessionID
+      {
+        session.routing = .background
+      } else {
+        foregroundSessionsBySurface[surfaceKey] = sessionID
+        session.routing = .foreground
+      }
+    }
+    if let transcriptPath {
+      session.transcriptPath = transcriptPath
+    }
+    recentForegroundSessions.removeValue(forKey: key)
+    sessions[key] = session
+  }
+
+  func updateSession(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?,
+    transcriptPath: String?
+  ) {
+    let key = SessionKey(agent: agent, sessionID: sessionID)
+    guard var session = sessions[key] else { return }
     if let surfaceID = context?.surfaceID {
       session.surfaceID = surfaceID
     }
@@ -74,6 +119,25 @@ final class TerminalAgentSessionStore {
       session.transcriptPath = transcriptPath
     }
     sessions[key] = session
+  }
+
+  func hasSession(
+    agent: SupatermAgentKind,
+    sessionID: String
+  ) -> Bool {
+    sessions[.init(agent: agent, sessionID: sessionID)] != nil
+  }
+
+  func shouldRouteSession(
+    agent: SupatermAgentKind,
+    sessionID: String
+  ) -> Bool {
+    let key = SessionKey(agent: agent, sessionID: sessionID)
+    pruneRecentForegroundSessions()
+    if let session = sessions[key] {
+      return session.routing == .foreground
+    }
+    return recentForegroundSessions[key] != nil
   }
 
   func sessionSurfaceID(
@@ -87,9 +151,12 @@ final class TerminalAgentSessionStore {
     agent: SupatermAgentKind,
     sessionID: String
   ) {
+    let key = SessionKey(agent: agent, sessionID: sessionID)
     cancelTranscriptMonitor(agent: agent, sessionID: sessionID)
     cancelRunningTimeout(agent: agent, sessionID: sessionID)
-    sessions.removeValue(forKey: .init(agent: agent, sessionID: sessionID))
+    removeForegroundSessionIfNeeded(for: key)
+    recentForegroundSessions.removeValue(forKey: key)
+    sessions.removeValue(forKey: key)
   }
 
   func clearRecordedSessionIfSurfaceMatches(
@@ -99,15 +166,22 @@ final class TerminalAgentSessionStore {
   ) {
     let key = SessionKey(agent: agent, sessionID: sessionID)
     if sessions[key]?.surfaceID == surfaceID {
+      removeForegroundSessionIfNeeded(for: key)
+      recentForegroundSessions.removeValue(forKey: key)
       sessions.removeValue(forKey: key)
     }
   }
 
   func clearSessions(for surfaceID: UUID) {
-    for key in sessions.keys where sessions[key]?.surfaceID == surfaceID {
+    let matchingKeys = sessions.keys.filter { sessions[$0]?.surfaceID == surfaceID }
+    for key in matchingKeys {
       cancelTranscriptMonitor(agent: key.agent, sessionID: key.sessionID)
       cancelRunningTimeout(agent: key.agent, sessionID: key.sessionID)
+      if sessions[key]?.routing == .foreground {
+        recentForegroundSessions[key] = Date()
+      }
     }
+    foregroundSessionsBySurface = foregroundSessionsBySurface.filter { $0.key.surfaceID != surfaceID }
     sessions = sessions.filter { $0.value.surfaceID != surfaceID }
   }
 
@@ -234,5 +308,28 @@ final class TerminalAgentSessionStore {
       sessionID: sessionID,
       context: context
     )
+  }
+
+  private func removeForegroundSessionIfNeeded(
+    for key: SessionKey
+  ) {
+    guard
+      let session = sessions[key],
+      session.routing == .foreground,
+      let surfaceID = session.surfaceID
+    else {
+      return
+    }
+    let surfaceKey = SurfaceKey(agent: key.agent, surfaceID: surfaceID)
+    if foregroundSessionsBySurface[surfaceKey] == key.sessionID {
+      foregroundSessionsBySurface.removeValue(forKey: surfaceKey)
+    }
+  }
+
+  private func pruneRecentForegroundSessions() {
+    let now = Date()
+    recentForegroundSessions = recentForegroundSessions.filter {
+      now.timeIntervalSince($0.value) <= recentForegroundRoutingWindow
+    }
   }
 }
