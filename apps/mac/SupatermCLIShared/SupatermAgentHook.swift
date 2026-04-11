@@ -214,24 +214,24 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
-      agentType: try container.decodeIfPresent(String.self, forKey: .agentType),
-      cwd: try container.decodeIfPresent(String.self, forKey: .cwd),
+      agentType: container.decodeLossyStringIfPresent(forKey: .agentType),
+      cwd: container.decodeLossyStringIfPresent(forKey: .cwd),
       hookEventName: try container.decode(SupatermAgentHookEventName.self, forKey: .hookEventName),
-      lastAssistantMessage: try container.decodeIfPresent(String.self, forKey: .lastAssistantMessage),
-      message: try container.decodeIfPresent(String.self, forKey: .message),
-      model: try container.decodeIfPresent(String.self, forKey: .model),
-      notificationType: try container.decodeIfPresent(String.self, forKey: .notificationType),
-      permissionMode: try container.decodeIfPresent(String.self, forKey: .permissionMode),
-      prompt: try container.decodeIfPresent(String.self, forKey: .prompt),
-      reason: try container.decodeIfPresent(String.self, forKey: .reason),
-      sessionID: try container.decodeIfPresent(String.self, forKey: .sessionID),
-      source: try container.decodeIfPresent(String.self, forKey: .source),
-      stopHookActive: try container.decodeIfPresent(Bool.self, forKey: .stopHookActive),
-      title: try container.decodeIfPresent(String.self, forKey: .title),
-      toolInput: try container.decodeIfPresent(SupatermAgentHookToolInput.self, forKey: .toolInput),
-      toolName: try container.decodeIfPresent(String.self, forKey: .toolName),
-      toolUseID: try container.decodeIfPresent(String.self, forKey: .toolUseID),
-      transcriptPath: try container.decodeIfPresent(String.self, forKey: .transcriptPath)
+      lastAssistantMessage: container.decodeLossyStringIfPresent(forKey: .lastAssistantMessage),
+      message: container.decodeLossyStringIfPresent(forKey: .message),
+      model: container.decodeLossyStringIfPresent(forKey: .model),
+      notificationType: container.decodeLossyStringIfPresent(forKey: .notificationType),
+      permissionMode: container.decodeLossyStringIfPresent(forKey: .permissionMode),
+      prompt: container.decodeLossyStringIfPresent(forKey: .prompt),
+      reason: container.decodeLossyStringIfPresent(forKey: .reason),
+      sessionID: container.decodeLossyStringIfPresent(forKey: .sessionID),
+      source: container.decodeLossyStringIfPresent(forKey: .source),
+      stopHookActive: container.decodeLossyBoolIfPresent(forKey: .stopHookActive),
+      title: container.decodeLossyStringIfPresent(forKey: .title),
+      toolInput: container.decodeLossyIfPresent(SupatermAgentHookToolInput.self, forKey: .toolInput),
+      toolName: container.decodeLossyStringIfPresent(forKey: .toolName),
+      toolUseID: container.decodeLossyStringIfPresent(forKey: .toolUseID),
+      transcriptPath: container.decodeLossyStringIfPresent(forKey: .transcriptPath)
     )
   }
 
@@ -278,4 +278,25 @@ private func normalizeAgentHookString(_ value: String?) -> String? {
     return nil
   }
   return value
+}
+
+private extension KeyedDecodingContainer {
+  func decodeLossyIfPresent<T: Decodable>(
+    _ type: T.Type,
+    forKey key: Key
+  ) -> T? {
+    try? decodeIfPresent(type, forKey: key)
+  }
+
+  func decodeLossyStringIfPresent(
+    forKey key: Key
+  ) -> String? {
+    decodeLossyIfPresent(String.self, forKey: key)
+  }
+
+  func decodeLossyBoolIfPresent(
+    forKey key: Key
+  ) -> Bool? {
+    decodeLossyIfPresent(Bool.self, forKey: key)
+  }
 }

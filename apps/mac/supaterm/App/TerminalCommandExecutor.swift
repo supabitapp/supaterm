@@ -1124,49 +1124,45 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
   }
 
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
-    let event = request.event
-    if let sessionID = event.sessionID {
-      agentSessionStore.recordSession(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context,
-        transcriptPath: event.transcriptPath
-      )
-    }
+    registerAgentHookSession(request)
+    let routesToForegroundSession = routesAgentHookToForegroundSession(request)
 
-    switch event.hookEventName {
+    switch request.event.hookEventName {
     case .sessionStart:
-      if let sessionID = event.sessionID {
-        agentSessionStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-        if request.agent == .codex {
-          _ = agentSessionStore.beginCodexTracking(
-            sessionID: sessionID,
-            context: request.context
-          )
-        }
-      }
-      return .init(desktopNotification: nil)
+      return handleSessionStartAgentHook(
+        request,
+        routesToForegroundSession: routesToForegroundSession
+      )
 
     case .unsupported:
       return .init(desktopNotification: nil)
 
     case .postToolUse, .preToolUse:
-      if request.agent == .codex {
-        return .init(desktopNotification: nil)
-      }
-      return handleRunningAgentHook(request)
+      return handleToolStateAgentHook(
+        request,
+        routesToForegroundSession: routesToForegroundSession
+      )
 
     case .userPromptSubmit:
-      return handleUserPromptSubmitAgentHook(request)
+      return handleUserPromptSubmitAgentHook(
+        request,
+        routesToForegroundSession: routesToForegroundSession
+      )
 
     case .stop:
-      return try handleStopAgentHook(request)
+      return try handleStopAgentHook(
+        request,
+        routesToForegroundSession: routesToForegroundSession
+      )
 
     case .sessionEnd:
       return handleSessionEndAgentHook(request)
 
     case .notification:
-      return try handleAttentionAgentHook(request)
+      return try handleAttentionAgentHook(
+        request,
+        routesToForegroundSession: routesToForegroundSession
+      )
     }
   }
 
@@ -1311,9 +1307,55 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
     return .init(desktopNotification: nil)
   }
 
+  private func handleSessionStartAgentHook(
+    _ request: SupatermAgentHookRequest,
+    routesToForegroundSession: Bool
+  ) -> TerminalAgentHookResult {
+    guard routesToForegroundSession else {
+      return .init(desktopNotification: nil)
+    }
+    if let sessionID = request.event.sessionID {
+      agentSessionStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+      if request.agent == .codex {
+        _ = agentSessionStore.beginCodexTracking(
+          sessionID: sessionID,
+          context: request.context
+        )
+      }
+    }
+    return .init(desktopNotification: nil)
+  }
+
+  private func handleToolStateAgentHook(
+    _ request: SupatermAgentHookRequest,
+    routesToForegroundSession: Bool
+  ) -> TerminalAgentHookResult {
+    guard routesToForegroundSession else {
+      return .init(desktopNotification: nil)
+    }
+    if request.agent == .codex {
+      return .init(desktopNotification: nil)
+    }
+    return handleRunningAgentHook(request)
+  }
+
+  private func handleUserPromptSubmitAgentHook(
+    _ request: SupatermAgentHookRequest,
+    routesToForegroundSession: Bool
+  ) -> TerminalAgentHookResult {
+    guard routesToForegroundSession else {
+      return .init(desktopNotification: nil)
+    }
+    return handleUserPromptSubmitAgentHook(request)
+  }
+
   private func handleStopAgentHook(
-    _ request: SupatermAgentHookRequest
+    _ request: SupatermAgentHookRequest,
+    routesToForegroundSession: Bool
   ) throws -> TerminalAgentHookResult {
+    guard routesToForegroundSession else {
+      return .init(desktopNotification: nil)
+    }
     let event = request.event
     if let sessionID = event.sessionID {
       _ = setAgentActivity(
@@ -1369,8 +1411,12 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
   }
 
   private func handleAttentionAgentHook(
-    _ request: SupatermAgentHookRequest
+    _ request: SupatermAgentHookRequest,
+    routesToForegroundSession: Bool
   ) throws -> TerminalAgentHookResult {
+    guard routesToForegroundSession else {
+      return .init(desktopNotification: nil)
+    }
     let event = request.event
     if let sessionID = event.sessionID {
       _ = setAgentActivity(
@@ -1380,16 +1426,42 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
         context: request.context
       )
     }
+    guard let body = event.notificationMessage() else {
+      return .init(desktopNotification: nil)
+    }
     return try handleAgentEventNotification(
       request.agent,
       event: event,
       context: request.context,
       notification: .init(
-        body: try event.notificationMessage(),
+        body: body,
         semantic: .attention,
         subtitle: event.title ?? "Attention"
       )
     )
+  }
+
+  private func registerAgentHookSession(
+    _ request: SupatermAgentHookRequest
+  ) {
+    guard let sessionID = request.event.sessionID else { return }
+    if request.event.hookEventName == .sessionStart {
+      agentSessionStore.beginSession(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context,
+        transcriptPath: request.event.transcriptPath
+      )
+      return
+    }
+    if agentSessionStore.hasSession(agent: request.agent, sessionID: sessionID) {
+      agentSessionStore.updateSession(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context,
+        transcriptPath: request.event.transcriptPath
+      )
+    }
   }
 
   private func notifyStructuredAgent(
@@ -1610,6 +1682,13 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
       candidateSurfaceIDs.append(surfaceID)
     }
     return candidateSurfaceIDs
+  }
+
+  private func routesAgentHookToForegroundSession(
+    _ request: SupatermAgentHookRequest
+  ) -> Bool {
+    guard let sessionID = request.event.sessionID else { return false }
+    return agentSessionStore.shouldRouteSession(agent: request.agent, sessionID: sessionID)
   }
 
   private func updateSnapshot(_ state: UpdateFeature.State?) -> SupatermAppDebugSnapshot.Update {

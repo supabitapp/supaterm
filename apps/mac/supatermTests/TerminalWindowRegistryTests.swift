@@ -790,6 +790,30 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func claudeNotificationWithoutMessageOnlyMarksNeedsInput() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
+    )
+    let result = try harness.commandExecutor.handleAgentHook(
+      .init(
+        agent: .claude,
+        event: .init(
+          hookEventName: .notification,
+          sessionID: ClaudeHookFixtures.sessionID,
+          title: "Needs input"
+        )
+      )
+    )
+
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.needsInput))
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
+  @Test
   func claudeNotificationDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -1051,6 +1075,35 @@ struct TerminalWindowRegistryTests {
     #expect(
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Resuming active rollout")
+    )
+  }
+
+  @Test
+  func codexSessionStartWithClearSourceShowsAlreadyRunningTranscriptSnapshot() throws {
+    let harness = try makeClaudeHookHarness()
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(.assistantMessage("Resuming after clear"), to: transcriptPath)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      .init(
+        agent: .codex,
+        context: harness.context,
+        event: .init(
+          cwd: CodexHookFixtures.cwd,
+          hookEventName: .sessionStart,
+          sessionID: CodexHookFixtures.sessionID,
+          source: "clear",
+          transcriptPath: transcriptPath.path
+        )
+      )
+    )
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Resuming after clear")
     )
   }
 
@@ -1387,6 +1440,163 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexBackgroundSessionStopDoesNotNotifyForegroundPane() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "parent-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+    let result = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .stop,
+        context: harness.context,
+        lastAssistantMessage: "Child done."
+      )
+    )
+
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func codexForegroundStopStillRoutesImmediatelyAfterCommandFinished() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "foreground-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onCommandFinished?()
+
+    let result = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "foreground-session",
+        hookEventName: .stop,
+        context: harness.context,
+        lastAssistantMessage: "Foreground done."
+      )
+    )
+
+    #expect(
+      result.desktopNotification
+        == .init(
+          body: "Foreground done.",
+          subtitle: "Turn complete",
+          title: "Codex"
+        )
+    )
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Foreground done.")
+  }
+
+  @Test
+  func codexBackgroundSessionStopAfterCommandFinishedDoesNotRoute() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "parent-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onCommandFinished?()
+
+    let result = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .stop,
+        context: harness.context,
+        lastAssistantMessage: "Child done."
+      )
+    )
+
+    #expect(result.desktopNotification == nil)
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+    #expect(harness.host.unreadNotifiedSurfaceIDs(in: harness.tabID).isEmpty)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == nil)
+  }
+
+  @Test
+  func codexBackgroundSessionCanClaimForegroundAfterNewSessionStart() throws {
+    let harness = try makeClaudeHookHarness(windowActivity: .inactive)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "parent-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+
+    let surface = try #require(harness.host.selectedSurfaceView)
+    surface.bridge.onCommandFinished?()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .sessionStart,
+        context: harness.context
+      )
+    )
+    let result = try harness.commandExecutor.handleAgentHook(
+      codexHookRequest(
+        sessionID: "child-session",
+        hookEventName: .stop,
+        context: harness.context,
+        lastAssistantMessage: "Child done."
+      )
+    )
+
+    #expect(
+      result.desktopNotification
+        == .init(
+          body: "Child done.",
+          subtitle: "Turn complete",
+          title: "Codex"
+        )
+    )
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 1)
+    #expect(harness.host.latestNotificationText(for: harness.tabID) == "Child done.")
+  }
+
+  @Test
   func codexStopReplacesHoverHistoryWithLastAssistantMessage() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
@@ -1503,6 +1713,48 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func codexUserPromptSubmitStartsTrackingWhenTranscriptPathArrivesLater() throws {
+    let harness = try makeClaudeHookHarness()
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(.assistantMessage("Transcript path arrived late"), to: transcriptPath)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      .init(
+        agent: .codex,
+        context: harness.context,
+        event: .init(
+          cwd: CodexHookFixtures.cwd,
+          hookEventName: .sessionStart,
+          sessionID: CodexHookFixtures.sessionID
+        )
+      )
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      .init(
+        agent: .codex,
+        context: harness.context,
+        event: .init(
+          cwd: CodexHookFixtures.cwd,
+          hookEventName: .userPromptSubmit,
+          sessionID: CodexHookFixtures.sessionID,
+          transcriptPath: transcriptPath.path
+        )
+      )
+    )
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Transcript path arrived late")
+    )
+  }
+
+  @Test
   func stopWithoutAssistantMessageOnlyMarksTabIdle() throws {
     let harness = try makeClaudeHookHarness()
 
@@ -1578,6 +1830,24 @@ struct TerminalWindowRegistryTests {
     try CodexHookFixtures.request(
       CodexHookFixtures.replacingTranscriptPath(in: json, with: transcriptPath.path),
       context: context
+    )
+  }
+
+  private func codexHookRequest(
+    sessionID: String,
+    hookEventName: SupatermAgentHookEventName,
+    context: SupatermCLIContext? = nil,
+    lastAssistantMessage: String? = nil
+  ) -> SupatermAgentHookRequest {
+    .init(
+      agent: .codex,
+      context: context,
+      event: .init(
+        cwd: CodexHookFixtures.cwd,
+        hookEventName: hookEventName,
+        lastAssistantMessage: lastAssistantMessage,
+        sessionID: sessionID
+      )
     )
   }
 

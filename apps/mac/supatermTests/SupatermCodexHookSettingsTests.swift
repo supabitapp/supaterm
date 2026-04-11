@@ -24,7 +24,7 @@ struct SupatermCodexHookSettingsTests {
     #expect(try commandHook(in: hooks, event: "SessionStart")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
-    #expect(try group(in: hooks, event: "SessionStart")["matcher"] as? String == "startup|resume")
+    #expect(try group(in: hooks, event: "SessionStart")["matcher"] == nil)
   }
 }
 

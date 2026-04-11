@@ -6,7 +6,10 @@ public enum SupatermCodexHookSettings {
   public static func jsonString() throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    return String(decoding: try encoder.encode(Settings()), as: UTF8.self)
+    guard let json = String(bytes: try encoder.encode(Settings()), encoding: .utf8) else {
+      throw SupatermCodexHookSettingsError.invalidConfiguration
+    }
+    return json
   }
 
   public static func hookGroupsByEvent() throws -> [String: [JSONValue]] {
@@ -29,7 +32,7 @@ public enum SupatermCodexHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
-      "SessionStart": [.init(matcher: "startup|resume", hooks: [.init(command: command, timeout: 10)])],
+      "SessionStart": [.init(hooks: [.init(command: command, timeout: 10)])],
       "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
       "UserPromptSubmit": [.init(hooks: [.init(command: command, timeout: 10)])],
     ]

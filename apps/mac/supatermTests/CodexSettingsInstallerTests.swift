@@ -158,7 +158,7 @@ struct CodexSettingsInstallerTests {
     let hooks = try #require(group["hooks"] as? [[String: Any]])
     let supatermHook = try #require(hooks.last)
 
-    #expect(group["matcher"] as? String == "startup|resume")
+    #expect(group["matcher"] == nil)
     #expect(supatermHook["command"] as? String == SupatermCodexHookSettings.command)
     #expect(supatermHook["timeout"] as? Int == 10)
   }

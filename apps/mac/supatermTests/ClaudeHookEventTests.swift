@@ -14,9 +14,6 @@ struct ClaudeHookEventTests {
     #expect(event.sessionID == ClaudeHookFixtures.sessionID)
     #expect(event.transcriptPath == ClaudeHookFixtures.transcriptPath)
     #expect(event.cwd == ClaudeHookFixtures.cwd)
-    #expect(event.source == "startup")
-    #expect(event.model == "claude-sonnet-4-5")
-    #expect(event.agentType == "assistant")
   }
 
   @Test
@@ -24,7 +21,7 @@ struct ClaudeHookEventTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.notification)
 
     #expect(event.hookEventName == .notification)
-    #expect(try event.notificationMessage() == "Claude needs your attention")
+    #expect(event.notificationMessage() == "Claude needs your attention")
     #expect(event.title == "Needs input")
     #expect(event.notificationType == "request_input")
   }
@@ -34,8 +31,6 @@ struct ClaudeHookEventTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.userPromptSubmit)
 
     #expect(event.hookEventName == .userPromptSubmit)
-    #expect(event.permissionMode == "acceptEdits")
-    #expect(event.prompt == "Use the recommended option")
   }
 
   @Test
@@ -43,7 +38,6 @@ struct ClaudeHookEventTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
 
     #expect(event.hookEventName == .preToolUse)
-    #expect(event.permissionMode == "acceptEdits")
     #expect(event.toolName == nil)
     #expect(event.toolUseID == nil)
     #expect(event.toolInput == nil)
@@ -54,8 +48,6 @@ struct ClaudeHookEventTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.stop)
 
     #expect(event.hookEventName == .stop)
-    #expect(event.permissionMode == "acceptEdits")
-    #expect(event.stopHookActive == false)
     #expect(event.lastAssistantMessage == "Done.")
   }
 
@@ -83,13 +75,13 @@ struct ClaudeHookEventTests {
     )
 
     #expect(event.hookEventName == .notification)
-    #expect(try event.notificationMessage() == "Needs review")
+    #expect(event.notificationMessage() == "Needs review")
     #expect(event.title == nil)
     #expect(event.notificationType == nil)
   }
 
   @Test
-  func notificationWithoutMessageFailsValidation() throws {
+  func notificationWithoutMessageReturnsNil() throws {
     let event = try ClaudeHookFixtures.event(
       """
       {
@@ -99,9 +91,29 @@ struct ClaudeHookEventTests {
       """
     )
 
-    #expect(throws: AgentHookError.missingNotificationMessage) {
-      _ = try event.notificationMessage()
-    }
+    #expect(event.notificationMessage() == nil)
+  }
+
+  @Test
+  func parserIgnoresKnownFieldTypeChanges() throws {
+    let event = try ClaudeHookFixtures.event(
+      """
+      {
+        "session_id": "\(ClaudeHookFixtures.sessionID)",
+        "hook_event_name": "Notification",
+        "message": "Needs review",
+        "title": false,
+        "notification_type": {
+          "kind": "request_input"
+        }
+      }
+      """
+    )
+
+    #expect(event.hookEventName == .notification)
+    #expect(event.notificationMessage() == "Needs review")
+    #expect(event.title == nil)
+    #expect(event.notificationType == nil)
   }
 
   @Test

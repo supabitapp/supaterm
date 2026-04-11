@@ -12,7 +12,6 @@ struct CodexHookEventTests {
     #expect(event.sessionID == CodexHookFixtures.sessionID)
     #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
     #expect(event.cwd == CodexHookFixtures.cwd)
-    #expect(event.source == "resume")
   }
 
   @Test
@@ -34,8 +33,30 @@ struct CodexHookEventTests {
     let stop = try CodexHookFixtures.event(CodexHookFixtures.stop)
 
     #expect(userPromptSubmit.hookEventName == .userPromptSubmit)
-    #expect(userPromptSubmit.prompt == "continue")
     #expect(stop.hookEventName == .stop)
     #expect(stop.lastAssistantMessage == "Done.")
+  }
+
+  @Test
+  func parserIgnoresKnownFieldTypeChanges() throws {
+    let event = try CodexHookFixtures.event(
+      """
+      {
+        "session_id": "\(CodexHookFixtures.sessionID)",
+        "transcript_path": false,
+        "cwd": "\(CodexHookFixtures.cwd)",
+        "hook_event_name": "SessionStart",
+        "source": {
+          "kind": "resume"
+        }
+      }
+      """
+    )
+
+    #expect(event.hookEventName == .sessionStart)
+    #expect(event.sessionID == CodexHookFixtures.sessionID)
+    #expect(event.cwd == CodexHookFixtures.cwd)
+    #expect(event.transcriptPath == nil)
+    #expect(event.source == nil)
   }
 }

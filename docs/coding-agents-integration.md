@@ -118,7 +118,7 @@ Codex now uses the same app-side bridge and tab-state model.
 ### Hook Injection
 - Supaterm's canonical Codex hook fragment is also available from `sp internal agent-settings codex`.
 - The installed global hooks tell Codex to invoke `sp agent receive-agent-hook --agent codex` for:
-  - `SessionStart` with matcher `startup|resume`
+  - `SessionStart`
   - `UserPromptSubmit`
   - `Stop`
 
