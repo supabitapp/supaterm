@@ -68,19 +68,21 @@ struct SettingsWindowControllerTests {
     seedController.show(tab: .general, relativeTo: sourceWindow)
     defer { seedWindow.orderOut(nil) }
     let savedFrame = NSRect(x: 111, y: 222, width: 777, height: 690)
+    let savedContentSize = seedWindow.contentRect(forFrameRect: savedFrame).size
     seedWindow.setFrame(savedFrame, display: false)
     seedWindow.saveFrame(usingName: "SupatermSettingsWindow")
 
     let controller = SettingsWindowController()
     controller.show(tab: .general, relativeTo: sourceWindow)
     defer { controller.window?.orderOut(nil) }
-    let frame = try #require(controller.window?.frame)
+    let window = try #require(controller.window)
+    let frame = window.frame
     let centeredOrigin = NSPoint(
       x: sourceWindow.frame.midX - frame.width / 2,
       y: sourceWindow.frame.midY - frame.height / 2
     )
 
-    #expect(frame.size == savedFrame.size)
+    #expect(window.contentRect(forFrameRect: frame).size == savedContentSize)
     #expect(frame.origin != centeredOrigin)
   }
 
