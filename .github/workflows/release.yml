@@ -59,7 +59,6 @@ jobs:
             echo "::error::TUIST_TOKEN is required for the release workflow."
             exit 1
           fi
-      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
       - name: Compute stable build number
         run: |
           BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' apps/mac/Configurations/Project.xcconfig)

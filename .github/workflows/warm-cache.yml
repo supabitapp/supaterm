@@ -27,29 +27,3 @@ jobs:
             exit 1
           fi
       - run: make mac-warm-cache
-
-  warm-cache-release:
-    runs-on: macos-26
-    permissions:
-      contents: read
-    env:
-      MISE_HTTP_TIMEOUT: 120
-      MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - name: Select Xcode 26.3
-        run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          xcodebuild -version
-      - uses: ./.github/actions/setup-macos
-      - name: Ensure Tuist token is configured
-        shell: bash
-        run: |
-          if [ -z "${TUIST_TOKEN:-}" ]; then
-            echo "::error::TUIST_TOKEN is required to warm the Tuist remote cache."
-            exit 1
-          fi
-      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release
