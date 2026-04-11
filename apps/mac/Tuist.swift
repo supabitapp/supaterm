@@ -10,8 +10,15 @@ let tuist = Tuist(
     ),
     cacheOptions: .options(
       profiles: .profiles(
-        [:],
-        default: .allPossible
+        [
+          "development": .profile(
+            .allPossible,
+            except: [
+              .named("GhosttyKit"),
+            ]
+          ),
+        ],
+        default: .custom("development")
       )
     )
   )

@@ -15,11 +15,11 @@ SP_SCHEME := sp
 SCHEMA_OUTPUT_PATH := $(CURRENT_MAKEFILE_DIR)/../supaterm.com/public/data/supaterm-settings.schema.json
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
-TUIST_ALL_POSSIBLE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/all-possible
+TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
-TUIST_GENERATE_CACHE_PROFILE ?= all-possible
+TUIST_GENERATE_CACHE_PROFILE ?= development
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
@@ -57,10 +57,10 @@ $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INS
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
-build-app: $(TUIST_ALL_POSSIBLE_GENERATION_STAMP) # Build the macOS app (Debug)
+build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 
-generate-settings-schema: $(TUIST_ALL_POSSIBLE_GENERATION_STAMP) # Build the CLI and write the hosted settings schema
+generate-settings-schema: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the CLI and write the hosted settings schema
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(SP_SCHEME)" -configuration Debug build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(SP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
 	build_dir="$$(echo "$$settings" | jq -r ".[0].buildSettings.BUILT_PRODUCTS_DIR")"; \
@@ -106,7 +106,7 @@ archive: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP) # Archive Release build for di
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: $(TUIST_ALL_POSSIBLE_GENERATION_STAMP) # Run the full macOS test suite
+test: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
 	@if [ -t 1 ]; then \
 		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -skipMacroValidation 2>&1 | mise exec -- xcbeautify --disable-logging'; \
 	else \
