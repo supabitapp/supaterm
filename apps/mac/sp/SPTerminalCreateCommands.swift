@@ -261,7 +261,6 @@ extension SP {
     var options: SPCommandOptions
 
     mutating func run() throws {
-      try validate()
       applyOutputStyle(options.output)
 
       let client = try socketClient(
@@ -285,15 +284,6 @@ extension SP {
         print(plainPaneSelector(spaceIndex: result.spaceIndex, tabIndex: result.tabIndex, paneIndex: result.paneIndex))
       case .human:
         print("window \(result.windowIndex) space \(result.spaceIndex) tab \(result.tabIndex) pane \(result.paneIndex)")
-      }
-    }
-
-    func validate() throws {
-      guard let body else {
-        throw ValidationError("--body is required.")
-      }
-      guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw ValidationError("--body must not be empty.")
       }
     }
 

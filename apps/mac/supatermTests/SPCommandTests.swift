@@ -66,6 +66,24 @@ struct SPCommandTests {
   }
 
   @Test
+  func notifyParserAcceptsMissingBody() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["pane", "notify", "--title", "Deploy complete"]) as? SP.Notify
+    )
+
+    #expect(command.body == nil)
+  }
+
+  @Test
+  func notifyParserAcceptsEmptyBody() throws {
+    let command = try #require(
+      try SP.parseAsRoot(["pane", "notify", "--body", ""]) as? SP.Notify
+    )
+
+    #expect(command.body == "")
+  }
+
+  @Test
   func tmuxParserAcceptsPassThroughCommandName() throws {
     let tmux = try #require(
       try SP.Tmux.parseAsRoot(["display-message"]) as? SP.Tmux
