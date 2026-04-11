@@ -118,6 +118,35 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
+  func unpinningPinnedTabConvertsExistingCopiesIntoRegularTabs() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let writer = TerminalHostState()
+      let receiver = TerminalHostState()
+
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let tabID = try #require(writer.selectedTabID)
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      let originalReceiverPaneIDs = try #require(receiver.trees[tabID]?.leaves().map(\.id))
+      @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      let selectedSpaceID = try #require(writer.selectedSpaceID)
+
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      #expect(writer.spaceManager.tab(for: tabID)?.isPinned == false)
+      #expect(receiver.spaceManager.tab(for: tabID)?.isPinned == false)
+      #expect(receiver.regularTabs.map(\.id).contains(tabID))
+      #expect(receiver.trees[tabID]?.leaves().map(\.id) == originalReceiverPaneIDs)
+      #expect(sharedCatalog.tabs(in: selectedSpaceID).isEmpty)
+    }
+  }
+
+  @Test
   func removingSharedSpacePrunesPinnedTabs() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory

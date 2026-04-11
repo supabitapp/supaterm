@@ -87,6 +87,7 @@ extension TerminalHostState {
       let desiredIDs = Set(desiredTabs.map(\.id))
 
       var desiredPinnedTabs: [TerminalTabItem] = []
+      var convertedRegularTabs: [TerminalTabItem] = []
       var tabsToRestore: [PersistedPinnedTerminalTab] = []
       var titlesToRefresh: [TerminalTabID] = []
 
@@ -114,13 +115,15 @@ extension TerminalHostState {
       }
 
       for currentPinnedTab in currentPinnedTabs where !desiredIDs.contains(currentPinnedTab.id) {
-        removeTree(for: currentPinnedTab.id)
+        convertedRegularTabs.append(
+          regularTabItem(from: currentPinnedTab)
+        )
       }
       for restoredTab in tabsToRestore where currentPinnedTabsByID[restoredTab.id] != nil {
         removeTree(for: restoredTab.id)
       }
 
-      let updatedTabs = desiredPinnedTabs + currentRegularTabs
+      let updatedTabs = desiredPinnedTabs + convertedRegularTabs + currentRegularTabs
       let currentSelectedTabID = spaceManager.selectedTabID(in: space.id)
       let updatedSelectedTabID =
         currentSelectedTabID.flatMap { selectedTabID in
@@ -189,5 +192,11 @@ extension TerminalHostState {
       preservedPinnedTab.isTitleLocked = false
     }
     return preservedPinnedTab
+  }
+
+  func regularTabItem(from tab: TerminalTabItem) -> TerminalTabItem {
+    var regularTab = tab
+    regularTab.isPinned = false
+    return regularTab
   }
 }
