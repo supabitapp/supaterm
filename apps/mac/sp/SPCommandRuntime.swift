@@ -99,6 +99,12 @@ func shellCommandInput(_ tokens: [String]) -> String? {
   return tokens.map(shellEscapedToken).joined(separator: " ")
 }
 
+func validateStartupInput(script: String?, tokens: [String]) throws {
+  if script != nil && !tokens.isEmpty {
+    throw ValidationError("--shell cannot be used with a trailing command.")
+  }
+}
+
 func startupInput(script: String?, tokens: [String]) throws -> String? {
   if let script {
     if script.isEmpty {

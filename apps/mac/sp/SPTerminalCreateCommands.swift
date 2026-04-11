@@ -63,9 +63,7 @@ extension SP {
     }
 
     func validate() throws {
-      if script != nil && !input.isEmpty {
-        throw ValidationError("--shell cannot be used with a trailing command.")
-      }
+      try validateStartupInput(script: script, tokens: input)
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
@@ -187,9 +185,7 @@ extension SP {
     }
 
     func validate() throws {
-      if script != nil && !input.isEmpty {
-        throw ValidationError("--shell cannot be used with a trailing command.")
-      }
+      try validateStartupInput(script: script, tokens: input)
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
