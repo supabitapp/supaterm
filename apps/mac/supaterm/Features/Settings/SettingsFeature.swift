@@ -42,6 +42,12 @@ struct SettingsAgentIntegrationState: Equatable {
   }
 }
 
+struct SettingsAboutState: Equatable {
+  var updateChannel = SupatermSettings.default.updateChannel
+  var updatesAutomaticallyCheckForUpdates = true
+  var updatesAutomaticallyDownloadUpdates = true
+}
+
 public enum SettingsAgentIntegrationResult: Equatable {
   case unavailable(String)
   case failure(String)
@@ -67,13 +73,11 @@ public struct SettingsFeature {
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var newTabPosition = SupatermSettings.default.newTabPosition
+    var about = SettingsAboutState()
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     public var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     var terminal = SettingsTerminalState()
-    var updateChannel = SupatermSettings.default.updateChannel
-    var updatesAutomaticallyCheckForUpdates = true
-    var updatesAutomaticallyDownloadUpdates = true
 
     public init() {}
   }
@@ -181,8 +185,8 @@ public struct SettingsFeature {
         return .none
 
       case .updateClientSnapshotReceived(let snapshot):
-        state.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
-        state.updatesAutomaticallyDownloadUpdates = snapshot.automaticallyDownloadsUpdates
+        state.about.updatesAutomaticallyCheckForUpdates = snapshot.automaticallyChecksForUpdates
+        state.about.updatesAutomaticallyDownloadUpdates = snapshot.automaticallyDownloadsUpdates
         return .none
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
@@ -270,7 +274,7 @@ public struct SettingsFeature {
     state.newTabPosition = supatermSettings.newTabPosition
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
-    state.updateChannel = supatermSettings.updateChannel
+    state.about.updateChannel = supatermSettings.updateChannel
   }
 
   func openSystemNotificationSettings() -> Effect<Action> {
@@ -288,7 +292,7 @@ public struct SettingsFeature {
       newTabPosition: state.newTabPosition,
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
-      updateChannel: state.updateChannel
+      updateChannel: state.about.updateChannel
     )
     @Shared(.supatermSettings) var sharedSupatermSettings = .default
     $sharedSupatermSettings.withLock {

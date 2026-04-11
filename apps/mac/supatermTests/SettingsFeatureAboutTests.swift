@@ -24,7 +24,7 @@ struct SettingsFeatureAboutTests {
       }
 
       await store.send(.updateChannelSelected(.tip)) {
-        $0.updateChannel = .tip
+        $0.about.updateChannel = .tip
       }
 
       @Shared(.supatermSettings) var supatermSettings = .default
@@ -37,7 +37,7 @@ struct SettingsFeatureAboutTests {
   func disablingAutomaticChecksClearsAutomaticDownloadsAndRoutesToUpdateClient() async {
     let recorder = SettingsUpdateClientCommandRecorder()
     var state = SettingsFeature.State()
-    state.updatesAutomaticallyDownloadUpdates = true
+    state.about.updatesAutomaticallyDownloadUpdates = true
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
@@ -48,8 +48,8 @@ struct SettingsFeatureAboutTests {
     }
 
     await store.send(.updatesAutomaticallyCheckForUpdatesChanged(false)) {
-      $0.updatesAutomaticallyCheckForUpdates = false
-      $0.updatesAutomaticallyDownloadUpdates = false
+      $0.about.updatesAutomaticallyCheckForUpdates = false
+      $0.about.updatesAutomaticallyDownloadUpdates = false
     }
 
     #expect(await recorder.recorded() == [.setAutomaticallyChecksForUpdates(false)])
@@ -68,7 +68,7 @@ struct SettingsFeatureAboutTests {
     }
 
     await store.send(.updatesAutomaticallyDownloadUpdatesChanged(false)) {
-      $0.updatesAutomaticallyDownloadUpdates = false
+      $0.about.updatesAutomaticallyDownloadUpdates = false
     }
 
     #expect(await recorder.recorded() == [.setAutomaticallyDownloadsUpdates(false)])

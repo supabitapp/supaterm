@@ -59,10 +59,10 @@ struct SettingsFeatureTests {
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
+        $0.about.updateChannel = .tip
         $0.newTabPosition = .current
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
-        $0.updateChannel = .tip
       }
       await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
         $0.terminal.isLoading = true
@@ -143,8 +143,8 @@ struct SettingsFeatureTests {
     )
 
     await store.receive(\.updateClientSnapshotReceived) {
-      $0.updatesAutomaticallyCheckForUpdates = false
-      $0.updatesAutomaticallyDownloadUpdates = false
+      $0.about.updatesAutomaticallyCheckForUpdates = false
+      $0.about.updatesAutomaticallyDownloadUpdates = false
     }
 
     continuation.finish()

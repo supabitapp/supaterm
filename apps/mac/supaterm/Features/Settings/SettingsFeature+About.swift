@@ -12,7 +12,7 @@ extension SettingsFeature {
       }
 
     case .updateChannelSelected(let updateChannel):
-      state.updateChannel = updateChannel
+      state.about.updateChannel = updateChannel
       return .merge(
         persist(state),
         .run { [updateClient] _ in
@@ -21,19 +21,19 @@ extension SettingsFeature {
       )
 
     case .updatesAutomaticallyCheckForUpdatesChanged(let isEnabled):
-      state.updatesAutomaticallyCheckForUpdates = isEnabled
+      state.about.updatesAutomaticallyCheckForUpdates = isEnabled
       if !isEnabled {
-        state.updatesAutomaticallyDownloadUpdates = false
+        state.about.updatesAutomaticallyDownloadUpdates = false
       }
       return .run { [updateClient] _ in
         await updateClient.setAutomaticallyChecksForUpdates(isEnabled)
       }
 
     case .updatesAutomaticallyDownloadUpdatesChanged(let isEnabled):
-      guard state.updatesAutomaticallyCheckForUpdates else {
+      guard state.about.updatesAutomaticallyCheckForUpdates else {
         return .none
       }
-      state.updatesAutomaticallyDownloadUpdates = isEnabled
+      state.about.updatesAutomaticallyDownloadUpdates = isEnabled
       return .run { [updateClient] _ in
         await updateClient.setAutomaticallyDownloadsUpdates(isEnabled)
       }

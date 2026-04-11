@@ -10,7 +10,7 @@ struct SettingsAboutView: View {
 
   private var updateChannel: Binding<UpdateChannel> {
     Binding(
-      get: { store.updateChannel },
+      get: { store.about.updateChannel },
       set: { newValue in
         _ = store.send(.updateChannelSelected(newValue))
       }
@@ -19,7 +19,7 @@ struct SettingsAboutView: View {
 
   private var updatesAutomaticallyCheckForUpdates: Binding<Bool> {
     Binding(
-      get: { store.updatesAutomaticallyCheckForUpdates },
+      get: { store.about.updatesAutomaticallyCheckForUpdates },
       set: { newValue in
         _ = store.send(.updatesAutomaticallyCheckForUpdatesChanged(newValue))
       }
@@ -28,7 +28,7 @@ struct SettingsAboutView: View {
 
   private var updatesAutomaticallyDownloadUpdates: Binding<Bool> {
     Binding(
-      get: { store.updatesAutomaticallyDownloadUpdates },
+      get: { store.about.updatesAutomaticallyDownloadUpdates },
       set: { newValue in
         _ = store.send(.updatesAutomaticallyDownloadUpdatesChanged(newValue))
       }
@@ -120,7 +120,7 @@ struct SettingsAboutView: View {
                   title: "Automatically download and install updates",
                   isOn: updatesAutomaticallyDownloadUpdates
                 )
-                .disabled(!store.updatesAutomaticallyCheckForUpdates)
+                .disabled(!store.about.updatesAutomaticallyCheckForUpdates)
               }
             }
 
