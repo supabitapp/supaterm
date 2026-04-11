@@ -40,9 +40,7 @@ public enum UpdatePresentation {
     userInitiated: Bool,
     hasUnobtrusiveTarget: Bool
   ) -> UpdatePresentationMode {
-    if userInitiated {
-      return .standard
-    }
+    _ = userInitiated
     return hasUnobtrusiveTarget ? .sidebar : .standard
   }
 }

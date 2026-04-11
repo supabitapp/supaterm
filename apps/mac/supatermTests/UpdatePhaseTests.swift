@@ -22,6 +22,26 @@ struct UpdatePhaseTests {
   }
 
   @Test
+  func userInitiatedUpdateUsesSidebarWhenWindowIsAvailable() {
+    #expect(
+      UpdatePresentation.mode(
+        userInitiated: true,
+        hasUnobtrusiveTarget: true
+      ) == .sidebar
+    )
+  }
+
+  @Test
+  func updateFallsBackToStandardWhenNoWindowIsAvailable() {
+    #expect(
+      UpdatePresentation.mode(
+        userInitiated: true,
+        hasUnobtrusiveTarget: false
+      ) == .standard
+    )
+  }
+
+  @Test
   func updateAvailableUsesVersionBadgeAndDetail() {
     let phase = UpdatePhase.updateAvailable(
       .init(
