@@ -132,7 +132,7 @@ private struct SettingsSkillInstallRow: View {
       Spacer(minLength: 12)
 
       HStack(spacing: 8) {
-        Text(SupatermSkillInstaller.installCommand)
+        Text(SupatermSkillInstaller.manualInstallCommand)
           .font(.caption.monospaced())
           .foregroundStyle(.secondary)
           .textSelection(.enabled)
@@ -140,7 +140,7 @@ private struct SettingsSkillInstallRow: View {
         Button {
           let pasteboard = NSPasteboard.general
           pasteboard.clearContents()
-          pasteboard.setString(SupatermSkillInstaller.installCommand, forType: .string)
+          pasteboard.setString(SupatermSkillInstaller.manualInstallCommand, forType: .string)
           didCopy = true
         } label: {
           Image(systemName: didCopy ? "checkmark" : "doc.on.doc")

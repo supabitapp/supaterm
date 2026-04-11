@@ -6,7 +6,7 @@ A terminal for ur coding agents.
 Install the Supaterm skill from this repo:
 
 ```bash
-npx skills add supabitapp/supaterm
+npx skills add supabitapp/supaterm --skill supaterm -g
 ```
 
 ## Pi

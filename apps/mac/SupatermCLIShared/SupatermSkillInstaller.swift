@@ -6,7 +6,9 @@ public struct SupatermSkillInstaller {
     let standardError: String
   }
 
-  public static let installCommand = "npx skills add supabitapp/supaterm"
+  public static let manualInstallCommand =
+    "npx skills add supabitapp/supaterm --skill supaterm -g"
+  public static let automatedInstallCommand = "\(manualInstallCommand) -y"
 
   let homeDirectoryURL: URL
   let fileManager: FileManager
@@ -50,7 +52,7 @@ public struct SupatermSkillInstaller {
       throw SupatermSkillInstallerError.npxUnavailable
     }
 
-    let commandResult = try runInstallCommand(Self.installCommandArguments())
+    let commandResult = try runInstallCommand(Self.automatedInstallCommandArguments())
     guard commandResult.status == 0 else {
       throw SupatermSkillInstallerError.installFailed(commandResult.standardError)
     }
@@ -76,8 +78,8 @@ public struct SupatermSkillInstaller {
     try LoginShellCommandAvailability.isAvailable(["npx"])
   }
 
-  static func installCommandArguments() -> [String] {
-    ["-l", "-c", installCommand]
+  static func automatedInstallCommandArguments() -> [String] {
+    ["-l", "-c", automatedInstallCommand]
   }
 
   static func runInstallCommand(commandArguments: [String]) throws -> CommandResult {
@@ -112,11 +114,11 @@ public enum SupatermSkillInstallerError: Error, Equatable, LocalizedError {
     switch self {
     case .installFailed(let details):
       if details.isEmpty {
-        return "Run \(SupatermSkillInstaller.installCommand) in a terminal to install the Supaterm skill."
+        return "Run \(SupatermSkillInstaller.manualInstallCommand) in a terminal to install the Supaterm skill."
       }
       return details
     case .npxUnavailable:
-      return "Install Node.js tooling and run \(SupatermSkillInstaller.installCommand) in a terminal."
+      return "Install Node.js tooling and run \(SupatermSkillInstaller.manualInstallCommand) in a terminal."
     }
   }
 }

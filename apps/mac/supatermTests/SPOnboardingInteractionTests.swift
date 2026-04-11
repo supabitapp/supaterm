@@ -266,7 +266,7 @@ struct SPOnboardingInteractionTests {
     #expect(output.text.contains("Set up Supaterm coding-agent hooks for Claude Code? [y/N] "))
     #expect(output.text.contains("Setup agent skills to control Supaterm? [y/N] "))
     #expect(output.text.contains("Installing the Supaterm skill...\n"))
-    #expect(output.text.contains("Running: \(SupatermSkillInstaller.installCommand)\n"))
+    #expect(output.text.contains("Running: \(SupatermSkillInstaller.automatedInstallCommand)\n"))
     #expect(output.text.contains("Installed the Supaterm skill.\n"))
     #expect(installs.agents.isEmpty)
     #expect(installs.skills == ["supaterm"])
@@ -283,7 +283,7 @@ struct SPOnboardingInteractionTests {
       skillIntegrations: [
         .init(
           displayName: "Supaterm skill",
-          installCommand: SupatermSkillInstaller.installCommand,
+          installCommand: SupatermSkillInstaller.automatedInstallCommand,
           installFailureSubject: "the Supaterm skill",
           installVerb: "install",
           progressMessage: "Installing the Supaterm skill...\n",
@@ -304,7 +304,7 @@ struct SPOnboardingInteractionTests {
     #expect(
       output.text.contains(
         "Could not install the Supaterm skill: Install Node.js tooling and run "
-          + "npx skills add supabitapp/supaterm in a terminal.\n"
+          + "npx skills add supabitapp/supaterm --skill supaterm -g in a terminal.\n"
       )
     )
     #expect(installs.skills.isEmpty)
@@ -373,7 +373,7 @@ private func skillIntegration(
 ) -> SPOnboardingInteraction.AgentIntegration {
   .init(
     displayName: "Supaterm skill",
-    installCommand: SupatermSkillInstaller.installCommand,
+    installCommand: SupatermSkillInstaller.automatedInstallCommand,
     installFailureSubject: "the Supaterm skill",
     installVerb: "install",
     progressMessage: "Installing the Supaterm skill...\n",

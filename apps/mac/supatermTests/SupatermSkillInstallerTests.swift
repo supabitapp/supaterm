@@ -28,7 +28,7 @@ struct SupatermSkillInstallerTests {
   }
 
   @Test
-  func installUsesCanonicalNPXCommand() throws {
+  func installUsesAutomatedGlobalNPXCommand() throws {
     let capture = SkillCommandCapture()
     let installer = SupatermSkillInstaller(
       checkNPXAvailable: { true },
@@ -42,8 +42,16 @@ struct SupatermSkillInstallerTests {
 
     #expect(
       capture.commands == [
-        SupatermSkillInstaller.installCommandArguments()
+        SupatermSkillInstaller.automatedInstallCommandArguments()
       ]
+    )
+  }
+
+  @Test
+  func manualInstallCommandTargetsGlobalSupatermSkill() {
+    #expect(
+      SupatermSkillInstaller.manualInstallCommand
+        == "npx skills add supabitapp/supaterm --skill supaterm -g"
     )
   }
 

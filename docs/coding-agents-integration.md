@@ -46,12 +46,12 @@ Supaterm also ships an agent skill from this repo.
 Install it with:
 
 ```bash
-npx skills add supabitapp/supaterm
+npx skills add supabitapp/supaterm --skill supaterm -g
 ```
 
 `sp onboard` asks about this separately from Claude, Codex, and Pi hook setup.
 
-Settings > Coding Agents shows the exact command, but does not run it because the `skills` installer is interactive.
+Settings > Coding Agents shows the exact command for installing only the public Supaterm skill.
 
 ## Claude
 

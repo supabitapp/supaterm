@@ -502,7 +502,7 @@ struct SPOnboardingInteraction {
   private static let liveSkillIntegrations: [AgentIntegration] = [
     .init(
       displayName: "Supaterm skill",
-      installCommand: SupatermSkillInstaller.installCommand,
+      installCommand: SupatermSkillInstaller.automatedInstallCommand,
       installFailureSubject: "the Supaterm skill",
       installVerb: "install",
       progressMessage: "Installing the Supaterm skill...\n",
