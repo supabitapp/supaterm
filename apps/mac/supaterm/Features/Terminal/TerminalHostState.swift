@@ -194,9 +194,16 @@ final class TerminalHostState {
   @ObservationIgnored
   var spaceCatalogObservationTask: Task<Void, Never>?
   @ObservationIgnored
+  @Shared(.terminalPinnedTabCatalog)
+  var pinnedTabCatalog = TerminalPinnedTabCatalog.default
+  @ObservationIgnored
+  var pinnedTabCatalogObservationTask: Task<Void, Never>?
+  @ObservationIgnored
   var runtimeConfigObserver: NSObjectProtocol?
   @ObservationIgnored
   var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
+  @ObservationIgnored
+  var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
   @ObservationIgnored
@@ -238,12 +245,20 @@ final class TerminalHostState {
       from: initialSpaceCatalog,
       initialSelectedSpaceID: initialSpaceCatalog.defaultSelectedSpaceID
     )
+    let initialPinnedTabCatalog = sanitizedPinnedTabCatalog(pinnedTabCatalog)
+    if initialPinnedTabCatalog != pinnedTabCatalog {
+      replacePinnedTabCatalog(initialPinnedTabCatalog)
+    }
+    lastAppliedPinnedTabCatalog = initialPinnedTabCatalog
+    reconcilePinnedTabs(with: initialPinnedTabCatalog)
     observeRuntimeConfig()
     observeSpaceCatalog()
+    observePinnedTabCatalog()
   }
 
   isolated deinit {
     spaceCatalogObservationTask?.cancel()
+    pinnedTabCatalogObservationTask?.cancel()
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
@@ -567,6 +582,7 @@ final class TerminalHostState {
 
   func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     spaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
+    persistPinnedTabCatalog()
     sessionDidChange()
   }
 
@@ -583,12 +599,14 @@ final class TerminalHostState {
     spaceManager.space(for: tabID)
       .flatMap { spaceManager.tabManager(for: $0.id) }?
       .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
+    persistPinnedTabCatalog()
     sessionDidChange()
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
     spaceManager.space(for: tabID).flatMap { spaceManager.tabManager(for: $0.id) }?.togglePinned(
       tabID)
+    persistPinnedTabCatalog()
     sessionDidChange()
   }
 
@@ -851,6 +869,7 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(newSurface, in: tabID)
+        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
         return true
       } catch {
@@ -882,6 +901,7 @@ final class TerminalHostState {
           with: CGRect(origin: .zero, size: tree.viewBounds())
         )
         trees[tabID] = newTree
+        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
         return true
       } catch {
@@ -890,6 +910,7 @@ final class TerminalHostState {
 
     case .equalizeSplits:
       trees[tabID] = tree.equalized()
+      persistPinnedTabCatalogIfNeeded(for: tabID)
       sessionDidChange()
       return true
 
@@ -912,6 +933,7 @@ final class TerminalHostState {
       do {
         tree = try tree.replacing(node: node, with: resizedNode)
         trees[tabID] = tree
+        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
       } catch {
         return
@@ -932,6 +954,7 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(payload, in: tabID)
+        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
       } catch {
         return
@@ -939,6 +962,7 @@ final class TerminalHostState {
 
     case .equalize:
       trees[tabID] = tree.equalized()
+      persistPinnedTabCatalogIfNeeded(for: tabID)
       sessionDidChange()
     }
   }
@@ -958,6 +982,7 @@ final class TerminalHostState {
   func performCloseTab(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
+    let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
 
     let shouldCreateReplacement = tabManager.tabs.count == 1
     let inheritedSurfaceID = focusedSurfaceIDByTab[tabID]
@@ -980,6 +1005,9 @@ final class TerminalHostState {
     }
 
     syncFocus(windowActivity)
+    if wasPinned {
+      persistPinnedTabCatalog()
+    }
     sessionDidChange()
   }
 
@@ -992,6 +1020,7 @@ final class TerminalHostState {
   func performCloseSurface(_ surfaceID: UUID) {
     guard let tabID = tabID(containing: surfaceID), let tree = trees[tabID] else { return }
     guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else { return }
+    let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
 
     let nextSurface =
       focusedSurfaceIDByTab[tabID] == surfaceID
@@ -1019,6 +1048,9 @@ final class TerminalHostState {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
+      if wasPinned {
+        persistPinnedTabCatalog()
+      }
       sessionDidChange()
       return
     }
@@ -1040,6 +1072,7 @@ final class TerminalHostState {
       }
     }
     syncFocus(windowActivity)
+    persistPinnedTabCatalogIfNeeded(for: tabID)
     sessionDidChange()
   }
 
@@ -1736,6 +1769,7 @@ final class TerminalHostState {
       .flatMap { spaceManager.tabManager(for: $0.id) }?
       .setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
+    persistPinnedTabCatalogIfNeeded(for: tabID)
     sessionDidChange()
   }
 
@@ -1840,6 +1874,7 @@ final class TerminalHostState {
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs)
+    synchronizePinnedTabCatalogWithSpaces()
 
     if previousSelectedSpaceID != selectedSpaceID {
       finalizeSpaceSelectionChange()
@@ -1860,6 +1895,7 @@ final class TerminalHostState {
 
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs)
+    synchronizePinnedTabCatalogWithSpaces()
     return diff
   }
 

@@ -126,6 +126,7 @@ extension TerminalHostState {
       }
 
       syncFocus(windowActivity)
+      persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
       sessionDidChange()
 
       let paneLocation = try resolvedPaneLocation(
@@ -429,6 +430,7 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
+    persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -451,6 +453,7 @@ extension TerminalHostState {
       with: CGRect(origin: .zero, size: resolvedTarget.tree.viewBounds())
     )
     trees[resolvedTarget.tabID] = newTree
+    persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
     sessionDidChange()
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
@@ -473,6 +476,7 @@ extension TerminalHostState {
   func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.equalized()
+    persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -480,6 +484,7 @@ extension TerminalHostState {
   func tilePanes(_ request: TerminalTilePanesRequest) throws -> SupatermTilePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.tiled()
+    persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
@@ -489,6 +494,7 @@ extension TerminalHostState {
   ) throws -> SupatermMainVerticalPanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.mainVertical()
+    persistPinnedTabCatalogIfNeeded(for: resolvedTarget.tabID)
     sessionDidChange()
     return try tabTarget(for: resolvedTarget.tabID)
   }
