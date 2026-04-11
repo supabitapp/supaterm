@@ -857,6 +857,22 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func savePinnedTabLayoutRequestedSendsExplicitSaveCommand() async {
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.savePinnedTabLayoutRequested(tabID))
+
+    #expect(recorder.commands == [.savePinnedTabLayout(tabID)])
+  }
+
+  @Test
   func spaceRenameFlowStoresDraftAndSendsRenameCommand() async {
     let recorder = TerminalCommandRecorder()
     let space = TerminalSpaceItem(

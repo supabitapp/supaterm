@@ -314,6 +314,7 @@ final class TerminalHostState {
       .performBindingActionOnFocusedSurface,
       .performSplitOperation,
       .previousTab,
+      .savePinnedTabLayout,
       .renameSpace:
       handleInteractionCommand(command)
     case .nextSpace,
@@ -384,6 +385,8 @@ final class TerminalHostState {
       performSplitOperation(operation, in: tabID)
     case .previousTab:
       previousTab()
+    case .savePinnedTabLayout(let tabID):
+      savePinnedTabLayout(tabID)
     case .renameSpace(let spaceID, let name):
       renameSpace(spaceID, to: name)
     default:
@@ -608,6 +611,10 @@ final class TerminalHostState {
       tabID)
     persistPinnedTabCatalog()
     sessionDidChange()
+  }
+
+  func savePinnedTabLayout(_ tabID: TerminalTabID) {
+    persistPinnedTabCatalogIfNeeded(for: tabID)
   }
 
   @discardableResult

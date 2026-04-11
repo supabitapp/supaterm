@@ -53,6 +53,7 @@ struct TerminalClient: Sendable {
     case requestCloseTabsBelow(TerminalTabID)
     case requestCloseOtherTabs(TerminalTabID)
     case renameSpace(TerminalSpaceID, String)
+    case savePinnedTabLayout(TerminalTabID)
     case selectLastTab
     case selectTab(TerminalTabID)
     case selectTabSlot(Int)
