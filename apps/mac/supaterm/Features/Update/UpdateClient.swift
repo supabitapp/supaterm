@@ -24,11 +24,26 @@ public enum UpdateFoundDecision: Equatable, Sendable {
   case present
 }
 
+public enum UpdatePresentationMode: Equatable, Sendable {
+  case sidebar
+  case standard
+}
+
 public enum UpdatePresentation {
   public static func foundDecision(
     userInitiated: Bool
   ) -> UpdateFoundDecision {
     userInitiated ? .present : .dismissSilently
+  }
+
+  public static func mode(
+    userInitiated: Bool,
+    hasUnobtrusiveTarget: Bool
+  ) -> UpdatePresentationMode {
+    if userInitiated {
+      return .standard
+    }
+    return hasUnobtrusiveTarget ? .sidebar : .standard
   }
 }
 
@@ -1015,6 +1030,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   weak var runtime: UpdateRuntime?
   var updateChannel: UpdateChannel = .stable
+  private var presentationMode: UpdatePresentationMode = .standard
 
   private let standard: SPUStandardUserDriver
 
@@ -1045,8 +1061,12 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   }
 
   func dismissUpdateInstallation() {
-    runtime?.dismissUpdateInstallation()
-    standard.dismissUpdateInstallation()
+    switch presentationMode {
+    case .sidebar:
+      runtime?.dismissUpdateInstallation()
+    case .standard:
+      standard.dismissUpdateInstallation()
+    }
   }
 
   func show(_ request: SPUUpdatePermissionRequest, reply: @escaping @Sendable (SUUpdatePermissionResponse) -> Void) {
@@ -1059,75 +1079,84 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   }
 
   func showDownloadDidReceiveData(ofLength length: UInt64) {
-    runtime?.showDownloadingProgress(
-      length,
-      fallback: fallbackAction {
-        self.standard.showDownloadDidReceiveData(ofLength: length)
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showDownloadingProgress(length, fallback: nil)
+    case .standard:
+      standard.showDownloadDidReceiveData(ofLength: length)
+    }
   }
 
   func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {
-    runtime?.showDownloadingExpectedLength(
-      expectedContentLength,
-      fallback: fallbackAction {
-        self.standard.showDownloadDidReceiveExpectedContentLength(expectedContentLength)
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showDownloadingExpectedLength(expectedContentLength, fallback: nil)
+    case .standard:
+      standard.showDownloadDidReceiveExpectedContentLength(expectedContentLength)
+    }
   }
 
   func showDownloadDidStartExtractingUpdate() {
-    runtime?.showExtracting(
-      fallback: fallbackAction {
-        self.standard.showDownloadDidStartExtractingUpdate()
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showExtracting(fallback: nil)
+    case .standard:
+      standard.showDownloadDidStartExtractingUpdate()
+    }
   }
 
   func showDownloadInitiated(cancellation: @escaping () -> Void) {
-    runtime?.showDownloading(
-      cancel: cancellation,
-      fallback: fallbackAction {
-        self.standard.showDownloadInitiated(cancellation: cancellation)
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showDownloading(cancel: cancellation, fallback: nil)
+    case .standard:
+      standard.showDownloadInitiated(cancellation: cancellation)
+    }
   }
 
   func showExtractionReceivedProgress(_ progress: Double) {
-    runtime?.showExtractingProgress(
-      progress,
-      fallback: fallbackAction {
-        self.standard.showExtractionReceivedProgress(progress)
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showExtractingProgress(progress, fallback: nil)
+    case .standard:
+      standard.showExtractionReceivedProgress(progress)
+    }
   }
 
   func showInstallingUpdate(
     withApplicationTerminated applicationTerminated: Bool,
     retryTerminatingApplication: @escaping () -> Void
   ) {
-    runtime?.showInstalling(
-      isAutoUpdate: false,
-      restart: retryTerminatingApplication,
-      fallback: fallbackAction {
-        self.standard.showInstallingUpdate(
-          withApplicationTerminated: applicationTerminated,
-          retryTerminatingApplication: retryTerminatingApplication
-        )
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showInstalling(
+        isAutoUpdate: false,
+        restart: retryTerminatingApplication,
+        fallback: nil
+      )
+    case .standard:
+      standard.showInstallingUpdate(
+        withApplicationTerminated: applicationTerminated,
+        retryTerminatingApplication: retryTerminatingApplication
+      )
+    }
   }
 
   func showReady(toInstallAndRelaunch reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
-    if runtime?.suppressesUpdateInterface == true {
-      reply(.dismiss)
-      return
-    }
-    guard runtime?.hasUnobtrusiveTarget == true else {
+    switch presentationMode {
+    case .standard:
       standard.showReady(toInstallAndRelaunch: reply)
-      return
+    case .sidebar:
+      if runtime?.suppressesUpdateInterface == true {
+        reply(.dismiss)
+        return
+      }
+      guard runtime?.hasUnobtrusiveTarget == true else {
+        standard.showReady(toInstallAndRelaunch: reply)
+        return
+      }
+      reply(.install)
     }
-    reply(.install)
   }
 
   func showUpdateFound(
@@ -1135,46 +1164,54 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     state: SPUUserUpdateState,
     reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void
   ) {
-    let contentLength = appcastItem.contentLength > 0 ? appcastItem.contentLength : nil
-    runtime?.showUpdateAvailable(
-      .init(
-        buildVersion: appcastItem.versionString,
-        contentLength: contentLength,
-        releaseDate: appcastItem.date,
-        version: appcastItem.displayVersionString
-      ),
+    presentationMode = UpdatePresentation.mode(
       userInitiated: state.userInitiated,
-      reply: reply,
-      fallback: fallbackAction {
-        self.standard.showUpdateFound(with: appcastItem, state: state, reply: reply)
-      }
+      hasUnobtrusiveTarget: runtime?.hasUnobtrusiveTarget ?? false
     )
+    let contentLength = appcastItem.contentLength > 0 ? appcastItem.contentLength : nil
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showUpdateAvailable(
+        .init(
+          buildVersion: appcastItem.versionString,
+          contentLength: contentLength,
+          releaseDate: appcastItem.date,
+          version: appcastItem.displayVersionString
+        ),
+        userInitiated: state.userInitiated,
+        reply: reply,
+        fallback: nil
+      )
+    case .standard:
+      standard.showUpdateFound(with: appcastItem, state: state, reply: reply)
+    }
   }
 
   func showUpdateInFocus() {
-    runtime?.showUpdateInFocus(
-      fallback: fallbackAction {
-        self.standard.showUpdateInFocus()
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showUpdateInFocus(fallback: nil)
+    case .standard:
+      standard.showUpdateInFocus()
+    }
   }
 
   func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
-    runtime?.finishInstalledUpdate(
-      acknowledgement,
-      fallback: {
-        self.standard.showUpdateInstalledAndRelaunched(relaunched, acknowledgement: {})
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.finishInstalledUpdate(acknowledgement, fallback: nil)
+    case .standard:
+      standard.showUpdateInstalledAndRelaunched(relaunched, acknowledgement: acknowledgement)
+    }
   }
 
   func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
-    runtime?.showNotFound(
-      acknowledgement: acknowledgement,
-      fallback: fallbackAction {
-        self.standard.showUpdateNotFoundWithError(error, acknowledgement: acknowledgement)
-      }
-    )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showNotFound(acknowledgement: acknowledgement, fallback: nil)
+    case .standard:
+      standard.showUpdateNotFoundWithError(error, acknowledgement: acknowledgement)
+    }
   }
 
   func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
@@ -1193,28 +1230,34 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
       acknowledgement()
       return
     }
-    let fallback = fallbackAction {
-      self.standard.showUpdaterError(error, acknowledgement: acknowledgement)
-    }
-    runtime?.showError(
-      error.localizedDescription,
-      retry: { [weak runtime] in
-        runtime?.perform(.checkForUpdates)
-      },
-      fallback: fallback
-    )
-    if runtime?.hasUnobtrusiveTarget == true {
-      acknowledgement()
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showError(
+        error.localizedDescription,
+        retry: { [weak runtime] in
+          runtime?.perform(.checkForUpdates)
+        },
+        fallback: nil
+      )
+      if runtime?.hasUnobtrusiveTarget == true {
+        acknowledgement()
+      }
+    case .standard:
+      standard.showUpdaterError(error, acknowledgement: acknowledgement)
     }
   }
 
   func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
-    runtime?.showChecking(
-      cancel: cancellation,
-      fallback: fallbackAction {
-        self.standard.showUserInitiatedUpdateCheck(cancellation: cancellation)
-      }
+    presentationMode = UpdatePresentation.mode(
+      userInitiated: true,
+      hasUnobtrusiveTarget: runtime?.hasUnobtrusiveTarget ?? false
     )
+    switch presentationMode {
+    case .sidebar:
+      runtime?.showChecking(cancel: cancellation, fallback: nil)
+    case .standard:
+      standard.showUserInitiatedUpdateCheck(cancellation: cancellation)
+    }
   }
 
   private func fallbackAction(_ action: @escaping () -> Void) -> (() -> Void)? {
