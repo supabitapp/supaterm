@@ -61,16 +61,18 @@ struct SettingsTerminalView: View {
   }
 
   private var availableLightThemes: [String] {
-    themeOptions(
-      from: store.terminal.availableLightThemes,
-      selected: store.terminal.lightTheme
+    Self.themeOptions(
+      lightThemes: store.terminal.availableLightThemes,
+      darkThemes: store.terminal.availableDarkThemes,
+      selectedTheme: store.terminal.lightTheme
     )
   }
 
   private var availableDarkThemes: [String] {
-    themeOptions(
-      from: store.terminal.availableDarkThemes,
-      selected: store.terminal.darkTheme
+    Self.themeOptions(
+      lightThemes: store.terminal.availableLightThemes,
+      darkThemes: store.terminal.availableDarkThemes,
+      selectedTheme: store.terminal.darkTheme
     )
   }
 
@@ -182,14 +184,22 @@ struct SettingsTerminalView: View {
     .settingsFormLayout()
   }
 
-  private func themeOptions(from themes: [String], selected: String?) -> [String] {
-    guard let selected, !selected.isEmpty else {
+  static func themeOptions(
+    lightThemes: [String],
+    darkThemes: [String],
+    selectedTheme: String?
+  ) -> [String] {
+    let themes = Array(Set(lightThemes + darkThemes))
+      .sorted { lhs, rhs in
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
+      }
+    guard let selectedTheme, !selectedTheme.isEmpty else {
       return themes
     }
-    guard !themes.contains(selected) else {
+    guard !themes.contains(selectedTheme) else {
       return themes
     }
-    return [selected] + themes
+    return [selectedTheme] + themes
   }
 
   @ViewBuilder
