@@ -1265,7 +1265,7 @@ private struct TerminalSidebarSectionDivider: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: 100, style: .continuous)
-      .fill(palette.secondaryText.opacity(0.14))
+      .fill(Color(nsColor: .separatorColor).opacity(0.85))
       .frame(height: 1)
   }
 }
