@@ -1,4 +1,0 @@
-interface:
-  display_name: "Supaterm"
-  short_description: "Create tabs and panes in Supaterm"
-  default_prompt: "Use $supaterm to create a Supaterm tab or split a Supaterm pane with `sp tab new` or `sp pane split`."

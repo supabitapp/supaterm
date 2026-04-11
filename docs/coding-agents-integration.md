@@ -41,12 +41,12 @@ Future agent integrations should keep that split. The wrapper or adapter should 
 
 ## Supaterm Skill
 
-Supaterm also ships an agent skill from this repo.
+Supaterm also ships an agent skill from `supaterm-skills`.
 
 Install it with:
 
 ```bash
-npx skills add supabitapp/supaterm --skill supaterm -g
+npx skills add supabitapp/supaterm-skills --skill supaterm -g
 ```
 
 `sp onboard` asks about this separately from Claude, Codex, and Pi hook setup.
@@ -147,18 +147,18 @@ Supaterm currently treats a hook as Supaterm-managed when its `command`, lowerca
 
 ## Pi
 
-Supaterm ships a Pi extension package from this repo.
+Supaterm ships a Pi extension package from `supaterm-skills`.
 
 Install it with:
 
 ```bash
-pi install git:github.com/supabitapp/supaterm
+pi install git:github.com/supabitapp/supaterm-skills
 ```
 
 Install from a local checkout while developing:
 
 ```bash
-pi install /absolute/path/to/supaterm
+pi install /absolute/path/to/supaterm/integrations/supaterm-skills
 ```
 
-The Pi extension source lives in `extensions/pi-notify-supaterm`.
+The Pi extension source lives in `integrations/supaterm-skills/extensions/pi-notify-supaterm`.

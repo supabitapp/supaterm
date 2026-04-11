@@ -2,3 +2,8 @@
 	path = apps/mac/ThirdParty/ghostty
 	url = git@github.com:ghostty-org/ghostty.git
 	pushurl = git@github.com:ghostty-org/ghostty.git
+[submodule "integrations/supaterm-skills"]
+	path = integrations/supaterm-skills
+	url = git@github.com:supabitapp/supaterm-skills.git
+	pushurl = git@github.com:supabitapp/supaterm-skills.git
+	branch = main

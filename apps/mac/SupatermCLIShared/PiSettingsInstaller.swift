@@ -12,7 +12,7 @@ public struct PiSettingsInstaller {
     let packages: [String]?
   }
 
-  static let canonicalPackageSource = "git:github.com/supabitapp/supaterm"
+  static let canonicalPackageSource = "git:github.com/supabitapp/supaterm-skills"
 
   public static var canonicalInstallDisplayCommand: String {
     installDisplayCommand(source: canonicalPackageSource)
@@ -123,7 +123,7 @@ public struct PiSettingsInstaller {
     guard !normalizedSource.isEmpty else {
       return false
     }
-    if normalizedSource.contains("github.com/supabitapp/supaterm") {
+    if normalizedSource.contains("github.com/supabitapp/supaterm-skills") {
       return true
     }
     guard
@@ -133,7 +133,7 @@ public struct PiSettingsInstaller {
     else {
       return false
     }
-    return URL(fileURLWithPath: normalizedSource).lastPathComponent == "supaterm"
+    return URL(fileURLWithPath: normalizedSource).lastPathComponent == "supaterm-skills"
   }
 
   private func installedSupatermPackageSources() throws -> [String] {

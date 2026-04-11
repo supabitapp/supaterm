@@ -304,7 +304,7 @@ struct SPOnboardingInteractionTests {
     #expect(
       output.text.contains(
         "Could not install the Supaterm skill: Install Node.js tooling and run "
-          + "npx skills add supabitapp/supaterm --skill supaterm -g in a terminal.\n"
+          + "npx skills add supabitapp/supaterm-skills --skill supaterm -g in a terminal.\n"
       )
     )
     #expect(installs.skills.isEmpty)

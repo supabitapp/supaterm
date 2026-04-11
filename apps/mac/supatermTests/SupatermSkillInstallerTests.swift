@@ -51,7 +51,7 @@ struct SupatermSkillInstallerTests {
   func manualInstallCommandTargetsGlobalSupatermSkill() {
     #expect(
       SupatermSkillInstaller.manualInstallCommand
-        == "npx skills add supabitapp/supaterm --skill supaterm -g"
+        == "npx skills add supabitapp/supaterm-skills --skill supaterm -g"
     )
   }
 

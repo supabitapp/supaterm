@@ -13,7 +13,7 @@ struct PiSettingsInstallerTests {
       """
       {
         "packages": [
-          "git:github.com/supabitapp/supaterm"
+          "git:github.com/supabitapp/supaterm-skills"
         ]
       }
       """,
@@ -40,7 +40,7 @@ struct PiSettingsInstallerTests {
       """
       {
         "packages": [
-          "../../code/github.com/supabitapp/supaterm"
+          "../../code/github.com/supabitapp/supaterm-skills"
         ]
       }
       """,
@@ -97,8 +97,8 @@ struct PiSettingsInstallerTests {
       """
       {
         "packages": [
-          "../../code/github.com/supabitapp/supaterm",
-          "git:github.com/supabitapp/supaterm"
+          "../../code/github.com/supabitapp/supaterm-skills",
+          "git:github.com/supabitapp/supaterm-skills"
         ]
       }
       """,
@@ -119,10 +119,37 @@ struct PiSettingsInstallerTests {
 
     #expect(
       capture.commands == [
-        PiSettingsInstaller.removeCommandArguments(source: "../../code/github.com/supabitapp/supaterm"),
-        PiSettingsInstaller.removeCommandArguments(source: "git:github.com/supabitapp/supaterm"),
+        PiSettingsInstaller.removeCommandArguments(source: "../../code/github.com/supabitapp/supaterm-skills"),
+        PiSettingsInstaller.removeCommandArguments(source: "git:github.com/supabitapp/supaterm-skills"),
       ]
     )
+  }
+
+  @Test
+  func hasSupatermPackageInstalledIgnoresLegacyRepoSource() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writePiSettings(
+      """
+      {
+        "packages": [
+          "git:github.com/supabitapp/supaterm"
+        ]
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { _ in
+        .init(status: 0, standardOutput: "", standardError: "")
+      }
+    )
+
+    #expect(try !installer.hasSupatermPackageInstalled())
   }
 
   @Test

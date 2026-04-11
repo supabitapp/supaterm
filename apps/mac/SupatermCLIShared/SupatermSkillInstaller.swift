@@ -7,7 +7,7 @@ public struct SupatermSkillInstaller {
   }
 
   public static let manualInstallCommand =
-    "npx skills add supabitapp/supaterm --skill supaterm -g"
+    "npx skills add supabitapp/supaterm-skills --skill supaterm -g"
   public static let automatedInstallCommand = "\(manualInstallCommand) -y"
 
   let homeDirectoryURL: URL
