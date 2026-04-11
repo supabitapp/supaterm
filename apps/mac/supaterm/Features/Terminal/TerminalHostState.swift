@@ -1172,6 +1172,18 @@ final class TerminalHostState {
       _ = self.clearAgentActivity(for: view.id)
       self.onCommandFinished(view.id)
     }
+    configureBridgeCloseCallbacks(for: view)
+    view.bridge.onDesktopNotification = { [weak self, weak view] title, body in
+      guard let self, let view else { return }
+      self.handleDesktopNotification(
+        body: body,
+        surfaceID: view.id,
+        title: title
+      )
+    }
+  }
+
+  func configureBridgeCloseCallbacks(for view: GhosttySurfaceView) {
     view.bridge.onChildExited = { [weak self, weak view] in
       guard let self, let view else { return false }
       self.requestCloseSurface(view.id, needsConfirmation: false)
@@ -1180,14 +1192,6 @@ final class TerminalHostState {
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)
-    }
-    view.bridge.onDesktopNotification = { [weak self, weak view] title, body in
-      guard let self, let view else { return }
-      self.handleDesktopNotification(
-        body: body,
-        surfaceID: view.id,
-        title: title
-      )
     }
   }
 
