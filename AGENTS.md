@@ -12,12 +12,14 @@ linear issue list --team SUP --sort manual --limit 50 --no-pager
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
 - `apps/supaterm.com` — Marketing website (Vite+, Cloudflare Workers)
+- `integrations/supaterm-skills` — User-facing skill submodule for Supaterm integrations and agent workflows
 
 ## Documentation
 
 - `./docs/development.md` - general development doc
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the sp cli and the macOS app talk through socket IPC
+- Keep `integrations/supaterm-skills` in sync when CLI behavior or coding-agent integrations change; we maintain the user-facing `supaterm` skill there
 - Read `apps/supaterm.com/AGENTS.md` before working in the web app
 
 ### Commands
