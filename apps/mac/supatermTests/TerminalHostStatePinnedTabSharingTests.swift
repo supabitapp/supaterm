@@ -147,6 +147,36 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
+  func repinningSharedTabPromotesRegularCopiesInsteadOfDuplicatingThem() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let writer = TerminalHostState()
+      let receiver = TerminalHostState()
+
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let tabID = try #require(writer.selectedTabID)
+      let selectedSpaceID = try #require(writer.selectedSpaceID)
+
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      receiver.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      let writerTabs = writer.spaceManager.tabs(in: selectedSpaceID)
+      #expect(writerTabs.map(\.id) == [tabID])
+      #expect(writerTabs.map(\.isPinned) == [true])
+      #expect(writer.regularTabs.isEmpty)
+      #expect(Set(writerTabs.map(\.id)).count == writerTabs.count)
+    }
+  }
+
+  @Test
   func removingSharedSpacePrunesPinnedTabs() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory

@@ -79,12 +79,12 @@ extension TerminalHostState {
     for space in spaces {
       let desiredTabs = pinnedTabCatalog.tabs(in: space.id)
       let currentTabs = spaceManager.tabs(in: space.id)
-      let currentPinnedTabs = currentTabs.filter(\.isPinned)
-      let currentRegularTabs = currentTabs.filter { !$0.isPinned }
-      let currentPinnedTabsByID = Dictionary(
-        uniqueKeysWithValues: currentPinnedTabs.map { ($0.id, $0) }
-      )
       let desiredIDs = Set(desiredTabs.map(\.id))
+      let currentPinnedTabs = currentTabs.filter(\.isPinned)
+      let currentRegularTabs = currentTabs.filter { !$0.isPinned && !desiredIDs.contains($0.id) }
+      let currentTabsByID = Dictionary(
+        uniqueKeysWithValues: currentTabs.map { ($0.id, $0) }
+      )
 
       var desiredPinnedTabs: [TerminalTabItem] = []
       var convertedRegularTabs: [TerminalTabItem] = []
@@ -92,12 +92,11 @@ extension TerminalHostState {
       var titlesToRefresh: [TerminalTabID] = []
 
       for (index, desiredTab) in desiredTabs.enumerated() {
-        if managesTerminalSurfaces,
-          let preservedPinnedTab = preservedPinnedTabItem(
-            for: desiredTab,
-            currentPinnedTabsByID: currentPinnedTabsByID,
-            titlesToRefresh: &titlesToRefresh
-          )
+        if let preservedPinnedTab = preservedPinnedTabItem(
+          for: desiredTab,
+          currentTabsByID: currentTabsByID,
+          titlesToRefresh: &titlesToRefresh
+        )
         {
           desiredPinnedTabs.append(preservedPinnedTab)
         } else {
@@ -119,7 +118,7 @@ extension TerminalHostState {
           regularTabItem(from: currentPinnedTab)
         )
       }
-      for restoredTab in tabsToRestore where currentPinnedTabsByID[restoredTab.id] != nil {
+      for restoredTab in tabsToRestore where currentTabsByID[restoredTab.id] != nil {
         removeTree(for: restoredTab.id)
       }
 
@@ -175,13 +174,13 @@ extension TerminalHostState {
 
   func preservedPinnedTabItem(
     for desiredTab: PersistedPinnedTerminalTab,
-    currentPinnedTabsByID: [TerminalTabID: TerminalTabItem],
+    currentTabsByID: [TerminalTabID: TerminalTabItem],
     titlesToRefresh: inout [TerminalTabID]
   ) -> TerminalTabItem? {
-    guard let currentPinnedTab = currentPinnedTabsByID[desiredTab.id] else { return nil }
-    guard trees[desiredTab.id] != nil else { return nil }
+    guard var preservedPinnedTab = currentTabsByID[desiredTab.id] else { return nil }
+    guard !managesTerminalSurfaces || trees[desiredTab.id] != nil else { return nil }
 
-    var preservedPinnedTab = currentPinnedTab
+    preservedPinnedTab.isPinned = true
     if let lockedTitle = desiredTab.session.lockedTitle {
       preservedPinnedTab.title = lockedTitle
       preservedPinnedTab.isTitleLocked = true
