@@ -17,7 +17,7 @@ TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-st
 TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_CACHEABLE_TARGETS_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/cacheable-targets
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
-TUIST_CACHEABLE_TARGETS_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/cacheable-targets-release
+TUIST_CACHEABLE_TARGETS_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= cacheable-targets
 TUIST_CACHE_CONFIGURATION ?= Debug
@@ -54,7 +54,7 @@ $(TUIST_GENERATION_STAMP_DIR)/%: $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAM
 $(TUIST_CACHEABLE_TARGETS_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist generate --no-open --cache-profile cacheable-targets --configuration Release
+	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
 build-app: $(TUIST_CACHEABLE_TARGETS_GENERATION_STAMP) # Build the macOS app (Debug)
