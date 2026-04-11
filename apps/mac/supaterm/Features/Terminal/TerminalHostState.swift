@@ -581,7 +581,9 @@ final class TerminalHostState {
 
   func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     spaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
-    persistPinnedTabCatalog()
+    if let selectedSpaceID {
+      syncPinnedTabMembership(in: selectedSpaceID)
+    }
     sessionDidChange()
   }
 
@@ -595,22 +597,22 @@ final class TerminalHostState {
     pinnedOrder: [TerminalTabID],
     regularOrder: [TerminalTabID]
   ) {
-    spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
+    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
+    spaceManager.tabManager(for: spaceID)?
       .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-    persistPinnedTabCatalog()
+    syncPinnedTabMembership(in: spaceID)
     sessionDidChange()
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
-    spaceManager.space(for: tabID).flatMap { spaceManager.tabManager(for: $0.id) }?.togglePinned(
-      tabID)
-    persistPinnedTabCatalog()
+    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
+    spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
+    syncPinnedTabMembership(in: spaceID)
     sessionDidChange()
   }
 
   func savePinnedTabLayout(_ tabID: TerminalTabID) {
-    persistPinnedTabCatalogIfNeeded(for: tabID)
+    persistPinnedTabLayoutIfNeeded(for: tabID)
   }
 
   @discardableResult
@@ -869,7 +871,6 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(newSurface, in: tabID)
-        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
         return true
       } catch {
@@ -901,7 +902,6 @@ final class TerminalHostState {
           with: CGRect(origin: .zero, size: tree.viewBounds())
         )
         trees[tabID] = newTree
-        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
         return true
       } catch {
@@ -910,7 +910,6 @@ final class TerminalHostState {
 
     case .equalizeSplits:
       trees[tabID] = tree.equalized()
-      persistPinnedTabCatalogIfNeeded(for: tabID)
       sessionDidChange()
       return true
 
@@ -933,7 +932,6 @@ final class TerminalHostState {
       do {
         tree = try tree.replacing(node: node, with: resizedNode)
         trees[tabID] = tree
-        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
       } catch {
         return
@@ -954,7 +952,6 @@ final class TerminalHostState {
         )
         trees[tabID] = newTree
         focusSurface(payload, in: tabID)
-        persistPinnedTabCatalogIfNeeded(for: tabID)
         sessionDidChange()
       } catch {
         return
@@ -962,7 +959,6 @@ final class TerminalHostState {
 
     case .equalize:
       trees[tabID] = tree.equalized()
-      persistPinnedTabCatalogIfNeeded(for: tabID)
       sessionDidChange()
     }
   }
@@ -1006,7 +1002,7 @@ final class TerminalHostState {
 
     syncFocus(windowActivity)
     if wasPinned {
-      persistPinnedTabCatalog()
+      syncPinnedTabMembership(in: space.id)
     }
     sessionDidChange()
   }
@@ -1020,6 +1016,7 @@ final class TerminalHostState {
   func performCloseSurface(_ surfaceID: UUID) {
     guard let tabID = tabID(containing: surfaceID), let tree = trees[tabID] else { return }
     guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else { return }
+    let spaceID = spaceManager.space(for: tabID)?.id
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
 
     let nextSurface =
@@ -1048,8 +1045,8 @@ final class TerminalHostState {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
-      if wasPinned {
-        persistPinnedTabCatalog()
+      if wasPinned, let spaceID {
+        syncPinnedTabMembership(in: spaceID)
       }
       sessionDidChange()
       return
@@ -1072,7 +1069,6 @@ final class TerminalHostState {
       }
     }
     syncFocus(windowActivity)
-    persistPinnedTabCatalogIfNeeded(for: tabID)
     sessionDidChange()
   }
 
@@ -1776,7 +1772,7 @@ final class TerminalHostState {
       .flatMap { spaceManager.tabManager(for: $0.id) }?
       .setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
-    persistPinnedTabCatalogIfNeeded(for: tabID)
+    persistPinnedTabTitleIfNeeded(for: tabID)
     sessionDidChange()
   }
 

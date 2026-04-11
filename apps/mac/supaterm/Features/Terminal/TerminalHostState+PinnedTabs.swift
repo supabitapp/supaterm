@@ -51,26 +51,75 @@ extension TerminalHostState {
     lastAppliedPinnedTabCatalog = resolvedPinnedTabCatalog
   }
 
-  func persistPinnedTabCatalog() {
-    writePinnedTabCatalog(pinnedTabCatalogSnapshot())
+  func updatePinnedTabCatalog(
+    _ update: (TerminalPinnedTabCatalog) -> TerminalPinnedTabCatalog
+  ) {
+    writePinnedTabCatalog(update(pinnedTabCatalog))
   }
 
-  func persistPinnedTabCatalogIfNeeded(for tabID: TerminalTabID) {
-    guard spaceManager.tab(for: tabID)?.isPinned == true else { return }
-    persistPinnedTabCatalog()
-  }
-
-  func pinnedTabCatalogSnapshot() -> TerminalPinnedTabCatalog {
-    let spaces = spaces.compactMap { space -> PersistedPinnedTerminalTabsForSpace? in
-      let tabs = spaceManager.tabs(in: space.id).compactMap { tab -> PersistedPinnedTerminalTab? in
-        guard tab.isPinned else { return nil }
-        guard let session = restorationTabSession(for: tab) else { return nil }
-        return PersistedPinnedTerminalTab(id: tab.id, session: session)
-      }
-      guard !tabs.isEmpty else { return nil }
-      return PersistedPinnedTerminalTabsForSpace(id: space.id, tabs: tabs)
+  func syncPinnedTabMembership(in spaceID: TerminalSpaceID) {
+    updatePinnedTabCatalog { pinnedTabCatalog in
+      pinnedTabCatalog.updatingTabs(
+        synchronizedPinnedTabs(in: spaceID),
+        in: spaceID
+      )
     }
-    return sanitizedPinnedTabCatalog(TerminalPinnedTabCatalog(spaces: spaces))
+  }
+
+  func persistPinnedTabLayoutIfNeeded(for tabID: TerminalTabID) {
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      let tab = spaceManager.tab(for: tabID),
+      tab.isPinned,
+      let session = restorationTabSession(for: tab)
+    else {
+      return
+    }
+
+    let tabs = synchronizedPinnedTabs(in: spaceID, snapshotting: [tabID]).map { entry in
+      guard entry.id == tabID else { return entry }
+      return PersistedPinnedTerminalTab(id: tabID, session: session)
+    }
+    updatePinnedTabCatalog { pinnedTabCatalog in
+      pinnedTabCatalog.updatingTabs(tabs, in: spaceID)
+    }
+  }
+
+  func persistPinnedTabTitleIfNeeded(for tabID: TerminalTabID) {
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      spaceManager.tab(for: tabID)?.isPinned == true
+    else {
+      return
+    }
+
+    let lockedTitle = lockedTabTitle(for: tabID)
+    let tabs = synchronizedPinnedTabs(in: spaceID).map { entry in
+      guard entry.id == tabID else { return entry }
+      var entry = entry
+      entry.session.lockedTitle = lockedTitle
+      return entry
+    }
+    updatePinnedTabCatalog { pinnedTabCatalog in
+      pinnedTabCatalog.updatingTabs(tabs, in: spaceID)
+    }
+  }
+
+  func synchronizedPinnedTabs(
+    in spaceID: TerminalSpaceID,
+    snapshotting snapshotTabIDs: Set<TerminalTabID> = []
+  ) -> [PersistedPinnedTerminalTab] {
+    let existingTabsByID = Dictionary(
+      uniqueKeysWithValues: pinnedTabCatalog.tabs(in: spaceID).map { ($0.id, $0) }
+    )
+    return spaceManager.tabs(in: spaceID).compactMap { tab in
+      guard tab.isPinned else { return nil }
+      if let existingTab = existingTabsByID[tab.id], !snapshotTabIDs.contains(tab.id) {
+        return existingTab
+      }
+      guard let session = restorationTabSession(for: tab) else { return nil }
+      return PersistedPinnedTerminalTab(id: tab.id, session: session)
+    }
   }
 
   func reconcilePinnedTabs(with pinnedTabCatalog: TerminalPinnedTabCatalog) {

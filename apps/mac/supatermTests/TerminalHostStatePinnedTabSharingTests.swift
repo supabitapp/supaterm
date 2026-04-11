@@ -113,7 +113,50 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       let restored = TerminalHostState()
       await flushPinnedTabCatalogObservation()
-      #expect(restored.trees[tabID]?.leaves().count == 2)
+      #expect(restored.trees[tabID]?.leaves().count == 1)
+
+      writer.handleCommand(.savePinnedTabLayout(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      let restoredAfterSave = TerminalHostState()
+      await flushPinnedTabCatalogObservation()
+      #expect(restoredAfterSave.trees[tabID]?.leaves().count == 2)
+    }
+  }
+
+  @Test
+  func renamingPinnedTabDoesNotSaveUnsavedLayoutChanges() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let writer = TerminalHostState()
+
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let tabID = try #require(writer.selectedTabID)
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      _ = try writer.createPane(
+        .init(
+          initialInput: nil,
+          direction: .right,
+          focus: false,
+          equalize: false,
+          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+        )
+      )
+      await flushPinnedTabCatalogObservation()
+
+      writer.setLockedTabTitle("Pinned Shell", for: tabID)
+      await flushPinnedTabCatalogObservation()
+
+      let restored = TerminalHostState()
+      await flushPinnedTabCatalogObservation()
+
+      #expect(restored.trees[tabID]?.leaves().count == 1)
+      #expect(restored.spaceManager.tab(for: tabID)?.title == "Pinned Shell")
+      #expect(restored.spaceManager.tab(for: tabID)?.isTitleLocked == true)
     }
   }
 

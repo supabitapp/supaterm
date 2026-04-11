@@ -65,4 +65,21 @@ nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
   func tabs(in spaceID: TerminalSpaceID) -> [PersistedPinnedTerminalTab] {
     spaces.first(where: { $0.id == spaceID })?.tabs ?? []
   }
+
+  func updatingTabs(
+    _ tabs: [PersistedPinnedTerminalTab],
+    in spaceID: TerminalSpaceID
+  ) -> Self {
+    var spaces = spaces
+    if let index = spaces.firstIndex(where: { $0.id == spaceID }) {
+      if tabs.isEmpty {
+        spaces.remove(at: index)
+      } else {
+        spaces[index].tabs = tabs
+      }
+    } else if !tabs.isEmpty {
+      spaces.append(PersistedPinnedTerminalTabsForSpace(id: spaceID, tabs: tabs))
+    }
+    return Self(spaces: spaces)
+  }
 }
