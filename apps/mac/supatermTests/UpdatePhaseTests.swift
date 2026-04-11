@@ -25,7 +25,6 @@ struct UpdatePhaseTests {
   func userInitiatedUpdateUsesSidebarWhenWindowIsAvailable() {
     #expect(
       UpdatePresentation.mode(
-        userInitiated: true,
         hasUnobtrusiveTarget: true
       ) == .sidebar
     )
@@ -35,7 +34,6 @@ struct UpdatePhaseTests {
   func updateFallsBackToStandardWhenNoWindowIsAvailable() {
     #expect(
       UpdatePresentation.mode(
-        userInitiated: true,
         hasUnobtrusiveTarget: false
       ) == .standard
     )

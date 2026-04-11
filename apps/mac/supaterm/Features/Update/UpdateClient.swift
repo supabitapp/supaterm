@@ -37,10 +37,8 @@ public enum UpdatePresentation {
   }
 
   public static func mode(
-    userInitiated: Bool,
     hasUnobtrusiveTarget: Bool
   ) -> UpdatePresentationMode {
-    _ = userInitiated
     return hasUnobtrusiveTarget ? .sidebar : .standard
   }
 }
@@ -1163,7 +1161,6 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void
   ) {
     presentationMode = UpdatePresentation.mode(
-      userInitiated: state.userInitiated,
       hasUnobtrusiveTarget: runtime?.hasUnobtrusiveTarget ?? false
     )
     let contentLength = appcastItem.contentLength > 0 ? appcastItem.contentLength : nil
@@ -1247,7 +1244,6 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
 
   func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
     presentationMode = UpdatePresentation.mode(
-      userInitiated: true,
       hasUnobtrusiveTarget: runtime?.hasUnobtrusiveTarget ?? false
     )
     switch presentationMode {
