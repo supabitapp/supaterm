@@ -32,15 +32,15 @@ final class SettingsWindowController: NSWindowController {
     window.minSize = NSSize(width: 750, height: 500)
     window.identifier = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.settings")
     window.isReleasedWhenClosed = false
-    let restoresSavedFrame = window.setFrameUsingName("SupatermSettingsWindow")
-    self.restoresSavedFrame = restoresSavedFrame
-    window.setFrameAutosaveName("SupatermSettingsWindow")
     window.title = ""
     window.titleVisibility = .hidden
     window.tabbingMode = .disallowed
     window.titlebarAppearsTransparent = true
     window.toolbarStyle = .unified
     window.toolbar = NSToolbar(identifier: "SettingsToolbar")
+    let restoresSavedFrame = window.setFrameUsingName("SupatermSettingsWindow")
+    self.restoresSavedFrame = restoresSavedFrame
+    window.setFrameAutosaveName("SupatermSettingsWindow")
 
     super.init(window: window)
   }
