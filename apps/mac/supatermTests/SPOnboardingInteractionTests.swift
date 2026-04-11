@@ -294,7 +294,7 @@ struct SPOnboardingInteractionTests {
           install: {
             throw SupatermSkillInstallerError.npxUnavailable
           },
-        ),
+        )
       ],
       io: .init(readLine: input.readLine, write: output.write)
     ).run()

@@ -130,7 +130,7 @@ struct AppDelegateTests {
         .init(
           session: nil,
           startupInput: "sp onboard\n",
-        ),
+        )
       ]
     )
   }
@@ -148,7 +148,7 @@ struct AppDelegateTests {
         .init(
           session: nil,
           startupInput: nil,
-        ),
+        )
       ]
     )
   }
@@ -171,7 +171,7 @@ struct AppDelegateTests {
         .init(
           session: session,
           startupInput: nil,
-        ),
+        )
       ]
     )
   }

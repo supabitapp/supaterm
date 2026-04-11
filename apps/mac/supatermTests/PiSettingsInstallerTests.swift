@@ -75,7 +75,7 @@ struct PiSettingsInstallerTests {
       capture.commands == [
         PiSettingsInstaller.installCommandArguments(
           source: PiSettingsInstaller.canonicalPackageSource
-        ),
+        )
       ]
     )
   }

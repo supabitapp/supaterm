@@ -63,7 +63,7 @@ struct TerminalWindowFeatureTests {
         .ensureInitialTab(
           focusing: false,
           startupInput: "sp onboard\n",
-        ),
+        )
       ]
     )
 
