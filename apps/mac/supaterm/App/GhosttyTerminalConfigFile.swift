@@ -24,6 +24,22 @@ enum GhosttyTerminalConfigFileError: LocalizedError {
 }
 
 @MainActor
+extension GhosttyTerminalSettingsClient {
+  static let appLiveValue = Self(
+    load: {
+      try await MainActor.run {
+        try GhosttyTerminalConfigFile().load()
+      }
+    },
+    apply: { settings in
+      try await MainActor.run {
+        try GhosttyTerminalConfigFile().apply(settings: settings)
+      }
+    }
+  )
+}
+
+@MainActor
 struct GhosttyTerminalConfigFile {
   private struct ThemeSelection: Equatable {
     var dark: String

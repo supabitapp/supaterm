@@ -19,18 +19,7 @@ final class SettingsWindowController: NSWindowController {
           AppTelemetry.capture(event)
         }
       }
-      $0.ghosttyTerminalSettingsClient = GhosttyTerminalSettingsClient(
-        load: {
-          try await MainActor.run {
-            try GhosttyTerminalConfigFile().load()
-          }
-        },
-        apply: { settings in
-          try await MainActor.run {
-            try GhosttyTerminalConfigFile().apply(settings: settings)
-          }
-        }
-      )
+      $0.ghosttyTerminalSettingsClient = .appLiveValue
     }
     self.store = store
     let rootView = AppAppearanceView {
