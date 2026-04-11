@@ -21,6 +21,7 @@ TUIST_CACHEABLE_TARGETS_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= cacheable-targets
 TUIST_CACHE_CONFIGURATION ?= Debug
+TUIST_CACHE_TARGETS ?= GhosttyKit SPCLI SupatermCLIShared SupatermSupport SupatermUpdateFeature SupatermTerminalCore SupatermSocketFeature
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
 .PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache generate-settings-schema
@@ -123,6 +124,6 @@ inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit Tuist dependen
 	mise exec -- tuist inspect dependencies --only implicit
 
 warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for tagged internal and external dependencies
-	mise exec -- tuist cache warm --configuration $(TUIST_CACHE_CONFIGURATION)
+	mise exec -- tuist cache warm --configuration $(TUIST_CACHE_CONFIGURATION) $(TUIST_CACHE_TARGETS)
 
 check: format lint # Format and lint

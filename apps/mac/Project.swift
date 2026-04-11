@@ -224,8 +224,7 @@ let project = Project(
       ],
       settings: .settings(
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "supaterm",
