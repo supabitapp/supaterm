@@ -11,7 +11,7 @@ extension TerminalCommandExecutor {
     case .space(let windowIndex, let spaceIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreateTabRequest(
-        command: request.command,
+        initialInput: request.initialInput,
         cwd: request.cwd,
         focus: request.focus,
         target: .space(windowIndex: 1, spaceIndex: spaceIndex)
@@ -35,7 +35,7 @@ extension TerminalCommandExecutor {
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
-        command: request.command,
+        initialInput: request.initialInput,
         cwd: request.cwd,
         direction: request.direction,
         focus: request.focus,
@@ -59,7 +59,7 @@ extension TerminalCommandExecutor {
     case .tab(let windowIndex, let spaceIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
-        command: request.command,
+        initialInput: request.initialInput,
         cwd: request.cwd,
         direction: request.direction,
         focus: request.focus,

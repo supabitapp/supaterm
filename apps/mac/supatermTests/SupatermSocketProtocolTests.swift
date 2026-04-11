@@ -645,7 +645,7 @@ struct SupatermSocketProtocolTests {
   @Test
   func newTabRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewTabRequest(
-      command: "pwd",
+      initialInput: "pwd",
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
@@ -675,7 +675,7 @@ struct SupatermSocketProtocolTests {
   @Test
   func newPaneRequestAndResponseRoundTripThroughTypedHelpers() throws {
     let requestPayload = SupatermNewPaneRequest(
-      command: "pwd",
+      initialInput: "pwd",
       cwd: "/tmp/example",
       direction: .down,
       focus: false,

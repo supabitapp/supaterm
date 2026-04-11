@@ -99,27 +99,22 @@ func shellCommandInput(_ tokens: [String]) -> String? {
   return tokens.map(shellEscapedToken).joined(separator: " ")
 }
 
-func shellInput(script: String?, tokens: [String]) throws -> String? {
+func startupInput(script: String?, tokens: [String]) throws -> String? {
   if let script {
     if script.isEmpty {
       throw ValidationError("--shell must not be empty.")
     }
-    return "shell: \(script)"
+    return normalizedStartupInput(script)
   }
-  return shellCommandInput(tokens)
+  return shellCommandInput(tokens).map(normalizedStartupInput)
 }
 
-func paneShellInput(
-  script: String?,
-  tokens: [String]
-) throws -> String? {
-  if let script {
-    if script.isEmpty {
-      throw ValidationError("--shell must not be empty.")
-    }
-    return "shell: \(script)"
+private func normalizedStartupInput(_ text: String) -> String {
+  var text = text
+  while let last = text.last, last == "\n" || last == "\r" {
+    text.removeLast()
   }
-  return shellCommandInput(tokens)
+  return "\(text)\n"
 }
 
 func resolvedWorkingDirectory(_ path: String?) throws -> String? {

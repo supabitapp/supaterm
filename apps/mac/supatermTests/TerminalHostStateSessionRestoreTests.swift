@@ -33,7 +33,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       _ = try host.createPane(
         .init(
-          command: nil,
+          initialInput: nil,
           direction: .right,
           focus: true,
           equalize: true,
@@ -49,7 +49,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       _ = try host.createTab(
         .init(
-          command: nil,
+          initialInput: nil,
           cwd: restoredPathString,
           focus: false,
           target: .space(windowIndex: 1, spaceIndex: 2)

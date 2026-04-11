@@ -601,7 +601,7 @@ struct SPTmuxCommandRunner {
     let created = try send(
       .newTab(
         .init(
-          command: nil,
+          initialInput: nil,
           cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
           targetWindowIndex: targetSpace.window.index,
@@ -693,7 +693,7 @@ struct SPTmuxCommandRunner {
     let created = try send(
       .newPane(
         .init(
-          command: nil,
+          initialInput: nil,
           direction: direction,
           focus: false,
           equalize: false,

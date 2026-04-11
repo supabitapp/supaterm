@@ -8,18 +8,18 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
     case space(windowIndex: Int, spaceIndex: Int)
   }
 
-  public let command: String?
+  public let initialInput: String?
   public let cwd: String?
   public let focus: Bool
   public let target: Target
 
   public init(
-    command: String?,
+    initialInput: String?,
     cwd: String?,
     focus: Bool,
     target: Target
   ) {
-    self.command = command
+    self.initialInput = initialInput
     self.cwd = cwd
     self.focus = focus
     self.target = target
@@ -33,7 +33,7 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
     case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
   }
 
-  public let command: String?
+  public let initialInput: String?
   public let cwd: String?
   public let direction: SupatermPaneDirection
   public let focus: Bool
@@ -41,14 +41,14 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
   public let target: Target
 
   public init(
-    command: String?,
+    initialInput: String?,
     cwd: String? = nil,
     direction: SupatermPaneDirection,
     focus: Bool,
     equalize: Bool,
     target: Target
   ) {
-    self.command = command
+    self.initialInput = initialInput
     self.cwd = cwd
     self.direction = direction
     self.focus = focus

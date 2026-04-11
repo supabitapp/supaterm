@@ -353,7 +353,7 @@ struct TerminalWindowFeature {
         return .run { [terminalClient] _ in
           _ = try? await terminalClient.createPane(
             .init(
-              command: nil,
+              initialInput: nil,
               cwd: nil,
               direction: direction,
               focus: false,

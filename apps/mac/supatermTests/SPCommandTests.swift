@@ -222,10 +222,10 @@ struct SPCommandTests {
   }
 
   @Test
-  func shellInputRejectsEmptyShell() {
+  func startupInputRejectsEmptyShell() {
     do {
-      _ = try shellInput(script: "", tokens: [])
-      Issue.record("Expected shellInput to reject an empty --shell.")
+      _ = try startupInput(script: "", tokens: [])
+      Issue.record("Expected startupInput to reject an empty --shell.")
     } catch {
       let message = String(describing: error)
       #expect(message.contains("--shell must not be empty."))
@@ -233,14 +233,15 @@ struct SPCommandTests {
   }
 
   @Test
-  func shellInputWrapsScriptsForShellExecution() throws {
-    #expect(try shellInput(script: "echo 1\necho 2", tokens: []) == "shell: echo 1\necho 2")
+  func startupInputNormalizesTrailingNewline() throws {
+    #expect(try startupInput(script: "echo 1\necho 2", tokens: []) == "echo 1\necho 2\n")
+    #expect(try startupInput(script: "echo 1\necho 2\n", tokens: []) == "echo 1\necho 2\n")
   }
 
   @Test
-  func paneShellInputLeavesCwdOutOfCommandText() throws {
-    #expect(try paneShellInput(script: nil, tokens: ["pwd"]) == "pwd")
-    #expect(try paneShellInput(script: "echo 1\necho 2", tokens: []) == "shell: echo 1\necho 2")
+  func startupInputEscapesTokenCommandsAndAppendsNewline() throws {
+    #expect(try startupInput(script: nil, tokens: ["pwd"]) == "pwd\n")
+    #expect(try startupInput(script: nil, tokens: ["echo", "hello world"]) == "echo 'hello world'\n")
   }
 
   @Test(arguments: [

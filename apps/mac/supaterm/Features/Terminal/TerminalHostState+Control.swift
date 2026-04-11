@@ -92,8 +92,7 @@ extension TerminalHostState {
     let resolvedTarget = try resolveCreatePaneTarget(request.target)
     let newSurface = createSurface(
       tabID: resolvedTarget.tabID,
-      command: request.command,
-      initialInput: nil,
+      initialInput: request.initialInput,
       inheritingFromSurfaceID: resolvedTarget.anchorSurface.id,
       workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
       context: GHOSTTY_SURFACE_CONTEXT_SPLIT
@@ -177,8 +176,7 @@ extension TerminalHostState {
         createTab(
           in: resolvedTarget.space.id,
           focusing: false,
-          command: request.command,
-          initialInput: nil,
+          initialInput: request.initialInput,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
           insertion: resolvedNewTabInsertion(anchorTabID: resolvedTarget.anchorTabID),

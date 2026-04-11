@@ -52,7 +52,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
   let bridge: GhosttySurfaceBridge
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
-  private let commandCString: UnsafeMutablePointer<CChar>?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
   private let initialInputCString: UnsafeMutablePointer<CChar>?
   private let environmentVariables: [SupatermCLIEnvironmentVariable]
@@ -231,7 +230,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     runtime: GhosttyRuntime,
     tabID: UUID,
     workingDirectory: URL?,
-    command: String? = nil,
     initialInput: String? = nil,
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
@@ -250,11 +248,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
-    if let command {
-      commandCString = command.withCString { strdup($0) }
-    } else {
-      commandCString = nil
-    }
     let initialWorkingDirectoryPath: String?
     if let workingDirectory {
       let path = Self.normalizedWorkingDirectoryPath(
@@ -305,9 +298,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
       SecureInput.shared.removeScoped(id)
     }
     closeSurface()
-    if let commandCString {
-      free(commandCString)
-    }
     if let workingDirectoryCString {
       free(workingDirectoryCString)
     }
@@ -986,7 +976,6 @@ final class GhosttySurfaceView: NSView, Identifiable {
       ))
     config.scale_factor = backingScaleFactor()
     config.font_size = fontSize
-    config.command = commandCString.map { UnsafePointer($0) }
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
     config.initial_input = initialInputCString.map { UnsafePointer($0) }
     config.context = context

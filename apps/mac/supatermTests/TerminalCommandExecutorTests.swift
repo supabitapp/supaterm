@@ -76,7 +76,7 @@ struct TerminalCommandExecutorTests {
 
       let result = try commandExecutor.createTab(
         .init(
-          command: nil,
+          initialInput: nil,
           cwd: nil,
           focus: false,
           target: .space(windowIndex: 1, spaceIndex: 1)
@@ -128,7 +128,7 @@ struct TerminalCommandExecutorTests {
 
       let result = try commandExecutor.createTab(
         .init(
-          command: nil,
+          initialInput: nil,
           cwd: nil,
           focus: false,
           target: .contextPane(firstPaneID)

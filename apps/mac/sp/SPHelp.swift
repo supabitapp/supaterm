@@ -60,6 +60,8 @@ enum SPHelp {
 
     `--in` accepts a tab selector, a pane selector, or a UUID.
 
+    Trailing arguments and `--shell` become startup input for the new pane's shell.
+
     Example:
       sp pane split right
       sp pane split down -- htop
@@ -76,6 +78,8 @@ enum SPHelp {
     That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
 
     `--in` accepts a space selector or UUID.
+
+    Trailing arguments and `--shell` become startup input for the new tab's shell.
 
     Example:
       sp tab new -- ping 1.1.1.1

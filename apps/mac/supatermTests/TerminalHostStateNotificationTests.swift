@@ -417,7 +417,7 @@ struct TerminalHostStateNotificationTests {
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondPane = try host.createPane(
       .init(
-        command: nil,
+        initialInput: nil,
         direction: .right,
         focus: false,
         equalize: true,
@@ -504,7 +504,7 @@ struct TerminalHostStateNotificationTests {
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondSurface = try host.createPane(
       .init(
-        command: nil,
+        initialInput: nil,
         direction: .right,
         focus: false,
         equalize: true,
@@ -546,7 +546,7 @@ struct TerminalHostStateNotificationTests {
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondSurface = try host.createPane(
       .init(
-        command: nil,
+        initialInput: nil,
         direction: .right,
         focus: false,
         equalize: true,

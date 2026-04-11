@@ -26,11 +26,11 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("shell"), help: "Raw shell script to run immediately in the new tab.")
+    @Option(name: .customLong("shell"), help: "Raw shell input to send when the new tab opens.")
     var script: String?
 
-    @Argument(help: "Optional shell command to run immediately in the new tab.")
-    var command: [String] = []
+    @Argument(help: "Optional shell input to send when the new tab opens.")
+    var input: [String] = []
 
     mutating func run() throws {
       try validate()
@@ -63,13 +63,13 @@ extension SP {
     }
 
     func validate() throws {
-      if script != nil && !command.isEmpty {
+      if script != nil && !input.isEmpty {
         throw ValidationError("--shell cannot be used with a trailing command.")
       }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
-      let command = try shellInput(script: script, tokens: command)
+      let initialInput = try startupInput(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicNewTabTarget(
         space,
@@ -78,7 +78,7 @@ extension SP {
       ) {
       case .context(let contextPaneID):
         return SupatermNewTabRequest(
-          command: command,
+          initialInput: initialInput,
           contextPaneID: contextPaneID,
           cwd: cwd,
           focus: focus
@@ -86,7 +86,7 @@ extension SP {
 
       case .space(let windowIndex, let spaceIndex):
         return SupatermNewTabRequest(
-          command: command,
+          initialInput: initialInput,
           cwd: cwd,
           focus: focus,
           targetWindowIndex: windowIndex,
@@ -150,11 +150,11 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("shell"), help: "Raw shell script to run immediately in the new pane.")
+    @Option(name: .customLong("shell"), help: "Raw shell input to send when the new pane opens.")
     var script: String?
 
-    @Argument(help: "Optional shell command to run immediately in the new pane.")
-    var command: [String] = []
+    @Argument(help: "Optional shell input to send when the new pane opens.")
+    var input: [String] = []
 
     mutating func run() throws {
       try validate()
@@ -187,13 +187,13 @@ extension SP {
     }
 
     func validate() throws {
-      if script != nil && !command.isEmpty {
+      if script != nil && !input.isEmpty {
         throw ValidationError("--shell cannot be used with a trailing command.")
       }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
-      let command = try paneShellInput(script: script, tokens: command)
+      let initialInput = try startupInput(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicSplitTarget(
         container,
@@ -202,7 +202,7 @@ extension SP {
       ) {
       case .context(let contextPaneID):
         return SupatermNewPaneRequest(
-          command: command,
+          initialInput: initialInput,
           contextPaneID: contextPaneID,
           cwd: cwd,
           direction: direction.direction,
@@ -212,7 +212,7 @@ extension SP {
 
       case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
-          command: command,
+          initialInput: initialInput,
           cwd: cwd,
           direction: direction.direction,
           focus: focus,
@@ -225,7 +225,7 @@ extension SP {
 
       case .tab(let windowIndex, let spaceIndex, let tabIndex):
         return SupatermNewPaneRequest(
-          command: command,
+          initialInput: initialInput,
           cwd: cwd,
           direction: direction.direction,
           focus: focus,

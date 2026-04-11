@@ -860,7 +860,7 @@ public enum SupatermPaneDirection: String, CaseIterable, Sendable, Codable {
 }
 
 public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
-  public let command: String?
+  public let initialInput: String?
   public let contextPaneID: UUID?
   public let cwd: String?
   public let focus: Bool
@@ -868,14 +868,14 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let targetSpaceIndex: Int?
 
   public init(
-    command: String? = nil,
+    initialInput: String? = nil,
     contextPaneID: UUID? = nil,
     cwd: String? = nil,
     focus: Bool,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil
   ) {
-    self.command = command
+    self.initialInput = initialInput
     self.contextPaneID = contextPaneID
     self.cwd = cwd
     self.focus = focus
@@ -997,7 +997,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
-  public let command: String?
+  public let initialInput: String?
   public let contextPaneID: UUID?
   public let cwd: String?
   public let direction: SupatermPaneDirection
@@ -1009,7 +1009,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let targetPaneIndex: Int?
 
   public init(
-    command: String? = nil,
+    initialInput: String? = nil,
     contextPaneID: UUID? = nil,
     cwd: String? = nil,
     direction: SupatermPaneDirection,
@@ -1020,7 +1020,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     targetTabIndex: Int? = nil,
     targetPaneIndex: Int? = nil
   ) {
-    self.command = command
+    self.initialInput = initialInput
     self.contextPaneID = contextPaneID
     self.cwd = cwd
     self.direction = direction

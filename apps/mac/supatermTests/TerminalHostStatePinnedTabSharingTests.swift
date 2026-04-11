@@ -99,7 +99,7 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       _ = try writer.createPane(
         .init(
-          command: nil,
+          initialInput: nil,
           direction: .right,
           focus: false,
           equalize: false,
