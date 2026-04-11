@@ -20,10 +20,14 @@ struct SupatermCodexHookSettingsTests {
       ) as? [String: Any]
     let hooks = try #require(object?["hooks"] as? [String: [[String: Any]]])
 
-    #expect(Set(hooks.keys) == ["SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(Set(hooks.keys) == ["PostToolUse", "PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(try commandHook(in: hooks, event: "PostToolUse")["timeout"] as? Int == 5)
+    #expect(try commandHook(in: hooks, event: "PreToolUse")["timeout"] as? Int == 5)
     #expect(try commandHook(in: hooks, event: "SessionStart")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
+    #expect(try group(in: hooks, event: "PostToolUse")["matcher"] == nil)
+    #expect(try group(in: hooks, event: "PreToolUse")["matcher"] == nil)
     #expect(try group(in: hooks, event: "SessionStart")["matcher"] == nil)
   }
 }

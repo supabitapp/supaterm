@@ -18,7 +18,7 @@ struct CodexSettingsInstallerTests {
 
     let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
     let hooks = try #require(object["hooks"] as? [String: Any])
-    #expect(Set(hooks.keys) == ["SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(Set(hooks.keys) == ["PostToolUse", "PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"])
   }
 
   @Test
@@ -62,11 +62,13 @@ struct CodexSettingsInstallerTests {
       .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
       .compactMap { $0["command"] as? String }
 
-    #expect(commands == ["echo keep"])
+    #expect(commands.count == 2)
+    #expect(commands.contains("echo keep"))
+    #expect(commands.contains(SupatermCodexHookSettings.command))
   }
 
   @Test
-  func installRemovesManagedPreAndPostToolUseHooks() throws {
+  func installCanonicalizesManagedPreAndPostToolUseHooks() throws {
     let homeDirectoryURL = try temporaryCodexHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
@@ -111,11 +113,29 @@ struct CodexSettingsInstallerTests {
     try installer.installSupatermHooks()
 
     let object = try codexSettingsObject(homeDirectoryURL: homeDirectoryURL)
-    let hooks = try #require(object["hooks"] as? [String: Any])
+    let postToolUseGroups = try codexEventGroupsValue("PostToolUse", in: object)
+    let preToolUseGroups = try codexEventGroupsValue("PreToolUse", in: object)
+    let postToolUseCommands =
+      postToolUseGroups
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+      .filter { $0 == SupatermCodexHookSettings.command }
+    let preToolUseCommands =
+      preToolUseGroups
+      .flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+      .compactMap { $0["command"] as? String }
+      .filter { $0 == SupatermCodexHookSettings.command }
 
-    #expect(hooks["PostToolUse"] == nil)
-    #expect(hooks["PreToolUse"] == nil)
-    #expect(Set(hooks.keys) == ["SessionStart", "Stop", "UserPromptSubmit"])
+    #expect(postToolUseCommands.count == 1)
+    #expect(preToolUseCommands.count == 1)
+    let postToolUseHooks = try #require(postToolUseGroups.last?["hooks"] as? [[String: Any]])
+    let preToolUseHooks = try #require(preToolUseGroups.last?["hooks"] as? [[String: Any]])
+    #expect(try #require(postToolUseHooks.last)["timeout"] as? Int == 5)
+    #expect(try #require(preToolUseHooks.last)["timeout"] as? Int == 5)
+    #expect(
+      Set(try #require(object["hooks"] as? [String: Any]).keys)
+        == ["PostToolUse", "PreToolUse", "SessionStart", "Stop", "UserPromptSubmit"]
+    )
   }
 
   @Test

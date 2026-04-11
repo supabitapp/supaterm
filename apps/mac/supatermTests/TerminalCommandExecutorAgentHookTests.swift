@@ -400,7 +400,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
   }
   @Test
-  func codexPreToolUseDoesNotMarkTabRunning() throws {
+  func codexPreToolUseMarksTabRunningWithoutDetail() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.commandExecutor.handleAgentHook(
@@ -410,10 +410,10 @@ struct TerminalCommandExecutorAgentHookTests {
       CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
   }
   @Test
-  func codexPostToolUseDoesNotMarkTabRunning() throws {
+  func codexPostToolUseMarksTabRunningWithoutDetail() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.commandExecutor.handleAgentHook(
@@ -423,7 +423,41 @@ struct TerminalCommandExecutorAgentHookTests {
       CodexHookFixtures.request(CodexHookFixtures.postToolUse, context: harness.context)
     )
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+  }
+  @Test
+  func codexTranscriptDetailOverridesOptimisticPreToolUseRunningState() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      CodexHookFixtures.request(CodexHookFixtures.preToolUse, context: harness.context)
+    )
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Inspecting the transcript path"),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Inspecting the transcript path")
+    )
   }
   @Test
   func codexUserPromptSubmitDoesNotMarkTabRunning() throws {

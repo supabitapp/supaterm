@@ -172,9 +172,6 @@ extension TerminalCommandExecutor {
     guard routesToForegroundSession else {
       return .init(desktopNotification: nil)
     }
-    if request.agent == .codex {
-      return .init(desktopNotification: nil)
-    }
     return handleRunningAgentHook(request)
   }
 
