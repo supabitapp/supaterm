@@ -11,9 +11,9 @@ let tuist = Tuist(
     cacheOptions: .options(
       profiles: .profiles(
         [
-          "development": .profile(.onlyExternal, and: ["tag:cacheable"]),
+          "cacheable-targets": .profile(.onlyExternal, and: ["tag:cacheable"]),
         ],
-        default: .custom("development")
+        default: .custom("cacheable-targets")
       )
     )
   )
