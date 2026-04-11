@@ -1,13 +1,3 @@
-## Issue tracking
-
-- Issues are tracked on: https://linear.app/supaterm
-
-Example command of getting issues using linear-cli
-
-```
-linear issue list --team SUP --sort manual --limit 50 --no-pager
-```
-
 ## Layout
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
@@ -69,3 +59,9 @@ The app uses The Composable Architecture (TCA) with a feature-based folder struc
 - `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` wrapping Sparkle (SPU). Lifecycle modeled as `UpdatePhase` enum
 - `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
 - `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)
+
+## Tools
+
+- Issues are tracked on: https://linear.app/supaterm
+- Sentry org `supabit`, project `supaterm`
+
