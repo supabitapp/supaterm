@@ -1172,6 +1172,11 @@ final class TerminalHostState {
       _ = self.clearAgentActivity(for: view.id)
       self.onCommandFinished(view.id)
     }
+    view.bridge.onChildExited = { [weak self, weak view] in
+      guard let self, let view else { return false }
+      self.requestCloseSurface(view.id, needsConfirmation: false)
+      return true
+    }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
       self.requestCloseSurface(view.id, needsConfirmation: processAlive)

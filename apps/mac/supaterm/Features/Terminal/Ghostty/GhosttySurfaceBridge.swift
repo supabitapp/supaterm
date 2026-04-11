@@ -77,6 +77,7 @@ final class GhosttySurfaceBridge {
   var onMoveTab: ((ghostty_action_move_tab_s) -> Bool)?
   var onCommandPaletteToggle: (() -> Bool)?
   var onCommandFinished: (() -> Void)?
+  var onChildExited: (() -> Bool)?
   var onProgressReport: ((ghostty_action_progress_report_state_e) -> Void)?
   var onDesktopNotification: ((String, String) -> Void)?
   var onStateChange: (() -> Void)?
@@ -104,6 +105,9 @@ final class GhosttySurfaceBridge {
     }
     if handleCommandStatus(action) {
       onStateChange?()
+      if action.tag == GHOSTTY_ACTION_SHOW_CHILD_EXITED {
+        return onChildExited?() ?? false
+      }
       return false
     }
     if handleMouseAndLink(action) {
