@@ -689,6 +689,8 @@ struct SupatermMenuControllerTests {
     #expect(appMenu.items[1].keyEquivalentModifierMask == [.command])
     #expect(appMenu.items[2].isSeparatorItem)
     #expect(appMenu.items[3].title == "Check for Updates...")
+    #expect(appMenu.items[3].keyEquivalent == "u")
+    #expect(appMenu.items[3].keyEquivalentModifierMask == [.command, .shift])
     #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
     #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
     #expect(appMenu.items.last?.keyEquivalent == "q")

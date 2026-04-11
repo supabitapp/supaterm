@@ -536,7 +536,11 @@ final class SupatermMenuController: NSObject {
       item: settingsItem,
       defaultShortcut: KeyboardShortcut(",", modifiers: .command)
     )
-    syncShortcut(action: "check_for_updates", item: checkForUpdatesItem)
+    syncShortcut(
+      action: "check_for_updates",
+      item: checkForUpdatesItem,
+      defaultShortcut: KeyboardShortcut("u", modifiers: [.command, .shift])
+    )
     syncShortcut(
       action: "quit",
       item: quitItem,
