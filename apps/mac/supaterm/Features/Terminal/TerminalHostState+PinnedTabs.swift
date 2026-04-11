@@ -88,14 +88,17 @@ extension TerminalHostState {
 
       var desiredPinnedTabs: [TerminalTabItem] = []
       var tabsToRestore: [PersistedPinnedTerminalTab] = []
+      var titlesToRefresh: [TerminalTabID] = []
 
       for (index, desiredTab) in desiredTabs.enumerated() {
         if managesTerminalSurfaces,
-          let currentPinnedTab = currentPinnedTabsByID[desiredTab.id],
-          let currentSession = restorationTabSession(for: currentPinnedTab),
-          currentSession == desiredTab.session
+          let preservedPinnedTab = preservedPinnedTabItem(
+            for: desiredTab,
+            currentPinnedTabsByID: currentPinnedTabsByID,
+            titlesToRefresh: &titlesToRefresh
+          )
         {
-          desiredPinnedTabs.append(currentPinnedTab)
+          desiredPinnedTabs.append(preservedPinnedTab)
         } else {
           desiredPinnedTabs.append(
             TerminalTabItem(
@@ -135,6 +138,12 @@ extension TerminalHostState {
         in: space.id
       )
 
+      if managesTerminalSurfaces {
+        for tabID in titlesToRefresh {
+          updateTabTitle(for: tabID)
+        }
+      }
+
       guard managesTerminalSurfaces else { continue }
       for restoredTab in tabsToRestore {
         restoreTabSession(
@@ -159,5 +168,26 @@ extension TerminalHostState {
     }
 
     sessionDidChange()
+  }
+
+  func preservedPinnedTabItem(
+    for desiredTab: PersistedPinnedTerminalTab,
+    currentPinnedTabsByID: [TerminalTabID: TerminalTabItem],
+    titlesToRefresh: inout [TerminalTabID]
+  ) -> TerminalTabItem? {
+    guard let currentPinnedTab = currentPinnedTabsByID[desiredTab.id] else { return nil }
+    guard trees[desiredTab.id] != nil else { return nil }
+
+    var preservedPinnedTab = currentPinnedTab
+    if let lockedTitle = desiredTab.session.lockedTitle {
+      preservedPinnedTab.title = lockedTitle
+      preservedPinnedTab.isTitleLocked = true
+    } else {
+      if preservedPinnedTab.isTitleLocked {
+        titlesToRefresh.append(preservedPinnedTab.id)
+      }
+      preservedPinnedTab.isTitleLocked = false
+    }
+    return preservedPinnedTab
   }
 }

@@ -55,6 +55,69 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
+  func renamingPinnedTabDoesNotRebuildExistingPinnedTabsInOtherHosts() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let writer = TerminalHostState()
+      let receiver = TerminalHostState()
+
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let tabID = try #require(writer.selectedTabID)
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      let originalReceiverPaneIDs = try #require(receiver.trees[tabID]?.leaves().map(\.id))
+
+      writer.setLockedTabTitle("Pinned Shell", for: tabID)
+      await flushPinnedTabCatalogObservation()
+
+      let receiverPaneIDs = try #require(receiver.trees[tabID]?.leaves().map(\.id))
+      #expect(receiverPaneIDs == originalReceiverPaneIDs)
+      #expect(receiver.spaceManager.tab(for: tabID)?.title == "Pinned Shell")
+      #expect(receiver.spaceManager.tab(for: tabID)?.isTitleLocked == true)
+    }
+  }
+
+  @Test
+  func paneChangesDoNotRebuildExistingPinnedTabsInOtherHosts() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let writer = TerminalHostState()
+      let receiver = TerminalHostState()
+
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let tabID = try #require(writer.selectedTabID)
+      writer.handleCommand(.togglePinned(tabID))
+      await flushPinnedTabCatalogObservation()
+
+      let originalReceiverPaneIDs = try #require(receiver.trees[tabID]?.leaves().map(\.id))
+      #expect(originalReceiverPaneIDs.count == 1)
+
+      _ = try writer.createPane(
+        .init(
+          command: nil,
+          direction: .right,
+          focus: false,
+          equalize: false,
+          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+        )
+      )
+      await flushPinnedTabCatalogObservation()
+
+      let receiverPaneIDs = try #require(receiver.trees[tabID]?.leaves().map(\.id))
+      #expect(receiverPaneIDs == originalReceiverPaneIDs)
+
+      let restored = TerminalHostState()
+      await flushPinnedTabCatalogObservation()
+      #expect(restored.trees[tabID]?.leaves().count == 2)
+    }
+  }
+
+  @Test
   func removingSharedSpacePrunesPinnedTabs() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
