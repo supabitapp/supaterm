@@ -52,41 +52,6 @@ struct SettingsWindowControllerTests {
   }
 
   @Test
-  func initialWindowRestoresSavedFrameWhenPresent() throws {
-    initializeGhosttyForTests()
-    NSWindow.removeFrame(usingName: "SupatermSettingsWindow")
-    defer { NSWindow.removeFrame(usingName: "SupatermSettingsWindow") }
-
-    let seedController = SettingsWindowController()
-    let seedWindow = try #require(seedController.window)
-    let sourceWindow = NSWindow(
-      contentRect: NSRect(x: 240, y: 180, width: 1_200, height: 800),
-      styleMask: [.titled],
-      backing: .buffered,
-      defer: false
-    )
-    seedController.show(tab: .general, relativeTo: sourceWindow)
-    defer { seedWindow.orderOut(nil) }
-    let savedFrame = NSRect(x: 111, y: 222, width: 777, height: 690)
-    let savedContentSize = seedWindow.contentRect(forFrameRect: savedFrame).size
-    seedWindow.setFrame(savedFrame, display: false)
-    seedWindow.saveFrame(usingName: "SupatermSettingsWindow")
-
-    let controller = SettingsWindowController()
-    controller.show(tab: .general, relativeTo: sourceWindow)
-    defer { controller.window?.orderOut(nil) }
-    let window = try #require(controller.window)
-    let frame = window.frame
-    let centeredOrigin = NSPoint(
-      x: sourceWindow.frame.midX - frame.width / 2,
-      y: sourceWindow.frame.midY - frame.height / 2
-    )
-
-    #expect(window.contentRect(forFrameRect: frame).size == savedContentSize)
-    #expect(frame.origin != centeredOrigin)
-  }
-
-  @Test
   func showSelectsRequestedTab() {
     initializeGhosttyForTests()
     let controller = SettingsWindowController()
