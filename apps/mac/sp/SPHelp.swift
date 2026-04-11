@@ -92,6 +92,7 @@ enum SPHelp {
 
     Example:
       sp pane notify --body "All tests passed"
+      sp pane notify --title "Deploy complete"
       sp pane notify 1/2/3 --body "Deploy complete"
       sp pane notify <pane-uuid> --body "Deploy complete"
     """
@@ -336,7 +337,7 @@ enum SPHelp {
 
   static let spaceDiscussion = """
     Example:
-      sp space new --focus
+      sp space new --focus Work
       sp space focus 1
       sp space rename Work 1
       sp space next
@@ -360,8 +361,8 @@ enum SPHelp {
 
   static let spaceNewDiscussion = """
     Example:
-      sp space new
-      sp space new --focus
+      sp space new Work
+      sp space new --focus Build
     """
 
   static let spaceFocusDiscussion = """

@@ -94,6 +94,19 @@ struct SPHelpTests {
   }
 
   @Test
+  func spaceHelpExamplesRequireNamesForSpaceCreation() {
+    let spaceHelp = SP.helpMessage(for: SP.Space.self, columns: 100)
+    let spaceNewHelp = SP.helpMessage(for: SP.SpaceNew.self, columns: 100)
+
+    #expect(spaceHelp.contains("sp space new --focus Work"))
+    #expect(!spaceHelp.contains("sp space new --focus\n"))
+    #expect(spaceNewHelp.contains("sp space new Work"))
+    #expect(spaceNewHelp.contains("sp space new --focus Build"))
+    #expect(!spaceNewHelp.contains("sp space new\n"))
+    #expect(!spaceNewHelp.contains("sp space new --focus\n"))
+  }
+
+  @Test
   func claudeHookHelpMentionsSettingsInstallation() {
     let help = SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100)
 
