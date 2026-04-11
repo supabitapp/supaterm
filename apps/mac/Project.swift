@@ -276,8 +276,6 @@ let project = Project(
             ghostty_destination="${destination_root}/ghostty"
             terminfo_destination="${destination_root}/terminfo"
 
-            "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)"
-
             rm -rf "${ghostty_destination}" "${terminfo_destination}"
             mkdir -p "${ghostty_destination}" "${terminfo_destination}"
             rsync -a --delete "${ghostty_source}/" "${ghostty_destination}/"
