@@ -1,0 +1,7 @@
+GhosttyKit
+SPCLI
+SupatermCLIShared
+SupatermSupport
+SupatermUpdateFeature
+SupatermTerminalCore
+SupatermSocketFeature

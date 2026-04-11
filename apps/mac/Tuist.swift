@@ -1,4 +1,13 @@
+import Foundation
 import ProjectDescription
+
+let cacheableTargetsURL = URL(fileURLWithPath: #filePath)
+  .deletingLastPathComponent()
+  .appendingPathComponent("Tuist", isDirectory: true)
+  .appendingPathComponent("cacheable-targets.txt", isDirectory: false)
+let cacheableTargets = try! String(contentsOf: cacheableTargetsURL, encoding: .utf8)
+  .split(whereSeparator: \.isNewline)
+  .map(String.init)
 
 let tuist = Tuist(
   fullHandle: "supabitapp/supaterm",
@@ -11,7 +20,10 @@ let tuist = Tuist(
     cacheOptions: .options(
       profiles: .profiles(
         [
-          "cacheable-targets": .profile(.onlyExternal, and: ["tag:cacheable"]),
+          "cacheable-targets": .profile(
+            .onlyExternal,
+            and: cacheableTargets.map(TargetQuery.named)
+          ),
         ],
         default: .custom("cacheable-targets")
       )

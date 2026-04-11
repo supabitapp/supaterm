@@ -18,10 +18,10 @@ TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_CACHEABLE_TARGETS_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/cacheable-targets
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
 TUIST_CACHEABLE_TARGETS_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
-TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
+TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Tuist/cacheable-targets.txt Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= cacheable-targets
 TUIST_CACHE_CONFIGURATION ?= Debug
-TUIST_CACHE_TARGETS ?= GhosttyKit SPCLI SupatermCLIShared SupatermSupport SupatermUpdateFeature SupatermTerminalCore SupatermSocketFeature
+TUIST_CACHE_TARGETS ?= $(shell tr '\n' ' ' < "$(CURRENT_MAKEFILE_DIR)/Tuist/cacheable-targets.txt")
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
 .PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache generate-settings-schema

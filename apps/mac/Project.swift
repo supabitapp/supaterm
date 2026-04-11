@@ -45,8 +45,7 @@ let project = Project(
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "SPCLI",
@@ -80,8 +79,7 @@ let project = Project(
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "sp",
@@ -137,8 +135,7 @@ let project = Project(
       ],
       settings: .settings(
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "SupatermUpdateFeature",
@@ -159,8 +156,7 @@ let project = Project(
       ],
       settings: .settings(
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "SupatermTerminalCore",
@@ -179,8 +175,7 @@ let project = Project(
       ],
       settings: .settings(
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "SupatermSocketFeature",
@@ -201,8 +196,7 @@ let project = Project(
       ],
       settings: .settings(
         defaultSettings: .essential
-      ),
-      metadata: .metadata(tags: ["cacheable"])
+      )
     ),
     .target(
       name: "SupatermSettingsFeature",
