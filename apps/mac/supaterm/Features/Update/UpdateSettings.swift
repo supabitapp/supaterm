@@ -3,8 +3,8 @@ import SupatermCLIShared
 
 public typealias UpdateChannel = SupatermCLIShared.UpdateChannel
 
-public extension UpdateChannel {
-  var title: String {
+extension UpdateChannel {
+  public var title: String {
     switch self {
     case .stable:
       "Stable"
@@ -13,7 +13,7 @@ public extension UpdateChannel {
     }
   }
 
-  var sparkleChannels: Set<String> {
+  public var sparkleChannels: Set<String> {
     switch self {
     case .stable:
       []
@@ -22,7 +22,7 @@ public extension UpdateChannel {
     }
   }
 
-  var updateCheckInterval: TimeInterval {
+  public var updateCheckInterval: TimeInterval {
     switch self {
     case .stable:
       86400

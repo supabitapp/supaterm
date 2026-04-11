@@ -1,5 +1,5 @@
-import Testing
 import SupatermUpdateFeature
+import Testing
 
 @testable import supaterm
 

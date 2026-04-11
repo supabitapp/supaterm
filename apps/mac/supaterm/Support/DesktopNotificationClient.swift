@@ -134,8 +134,8 @@ extension DesktopNotificationClient: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var desktopNotificationClient: DesktopNotificationClient {
+extension DependencyValues {
+  public var desktopNotificationClient: DesktopNotificationClient {
     get { self[DesktopNotificationClient.self] }
     set { self[DesktopNotificationClient.self] = newValue }
   }

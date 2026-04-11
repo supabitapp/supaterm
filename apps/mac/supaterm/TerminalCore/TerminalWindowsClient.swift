@@ -51,64 +51,82 @@ public struct TerminalWindowsClient: Sendable {
     createSpace: @escaping @MainActor @Sendable (TerminalCreateSpaceRequest) async throws -> SupatermCreateSpaceResult,
     createTab: @escaping @MainActor @Sendable (TerminalCreateTabRequest) async throws -> SupatermNewTabResult,
     createPane: @escaping @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult,
-    equalizePanes: @escaping @MainActor @Sendable (
-      TerminalEqualizePanesRequest
-    ) async throws -> SupatermEqualizePanesResult,
-    mainVerticalPanes: @escaping @MainActor @Sendable (
-      TerminalMainVerticalPanesRequest
-    ) async throws -> SupatermMainVerticalPanesResult,
+    equalizePanes:
+      @escaping @MainActor @Sendable (
+        TerminalEqualizePanesRequest
+      ) async throws -> SupatermEqualizePanesResult,
+    mainVerticalPanes:
+      @escaping @MainActor @Sendable (
+        TerminalMainVerticalPanesRequest
+      ) async throws -> SupatermMainVerticalPanesResult,
     notify: @escaping @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult,
     focusPane: @escaping @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult,
     lastPane: @escaping @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult,
-    lastSpace: @escaping @MainActor @Sendable (
-      TerminalSpaceNavigationRequest
-    ) async throws -> SupatermSelectSpaceResult,
-    lastTab: @escaping @MainActor @Sendable (
-      TerminalTabNavigationRequest
-    ) async throws -> SupatermSelectTabResult,
-    nextSpace: @escaping @MainActor @Sendable (
-      TerminalSpaceNavigationRequest
-    ) async throws -> SupatermSelectSpaceResult,
-    nextTab: @escaping @MainActor @Sendable (
-      TerminalTabNavigationRequest
-    ) async throws -> SupatermSelectTabResult,
+    lastSpace:
+      @escaping @MainActor @Sendable (
+        TerminalSpaceNavigationRequest
+      ) async throws -> SupatermSelectSpaceResult,
+    lastTab:
+      @escaping @MainActor @Sendable (
+        TerminalTabNavigationRequest
+      ) async throws -> SupatermSelectTabResult,
+    nextSpace:
+      @escaping @MainActor @Sendable (
+        TerminalSpaceNavigationRequest
+      ) async throws -> SupatermSelectSpaceResult,
+    nextTab:
+      @escaping @MainActor @Sendable (
+        TerminalTabNavigationRequest
+      ) async throws -> SupatermSelectTabResult,
     onboardingSnapshot: @escaping @MainActor @Sendable () async -> SupatermOnboardingSnapshot?,
-    previousSpace: @escaping @MainActor @Sendable (
-      TerminalSpaceNavigationRequest
-    ) async throws -> SupatermSelectSpaceResult,
-    previousTab: @escaping @MainActor @Sendable (
-      TerminalTabNavigationRequest
-    ) async throws -> SupatermSelectTabResult,
-    debugSnapshot: @escaping @MainActor @Sendable (
-      SupatermDebugRequest
-    ) async -> SupatermAppDebugSnapshot,
-    renameSpace: @escaping @MainActor @Sendable (
-      TerminalRenameSpaceRequest
-    ) async throws -> SupatermSpaceTarget,
-    renameTab: @escaping @MainActor @Sendable (
-      TerminalRenameTabRequest
-    ) async throws -> SupatermRenameTabResult,
-    resizePane: @escaping @MainActor @Sendable (
-      TerminalResizePaneRequest
-    ) async throws -> SupatermResizePaneResult,
-    setPaneSize: @escaping @MainActor @Sendable (
-      TerminalSetPaneSizeRequest
-    ) async throws -> SupatermSetPaneSizeResult,
-    selectSpace: @escaping @MainActor @Sendable (
-      TerminalSpaceTarget
-    ) async throws -> SupatermSelectSpaceResult,
-    selectTab: @escaping @MainActor @Sendable (
-      TerminalTabTarget
-    ) async throws -> SupatermSelectTabResult,
-    sendKey: @escaping @MainActor @Sendable (
-      TerminalSendKeyRequest
-    ) async throws -> SupatermSendKeyResult,
-    sendText: @escaping @MainActor @Sendable (
-      TerminalSendTextRequest
-    ) async throws -> SupatermSendTextResult,
-    tilePanes: @escaping @MainActor @Sendable (
-      TerminalTilePanesRequest
-    ) async throws -> SupatermTilePanesResult,
+    previousSpace:
+      @escaping @MainActor @Sendable (
+        TerminalSpaceNavigationRequest
+      ) async throws -> SupatermSelectSpaceResult,
+    previousTab:
+      @escaping @MainActor @Sendable (
+        TerminalTabNavigationRequest
+      ) async throws -> SupatermSelectTabResult,
+    debugSnapshot:
+      @escaping @MainActor @Sendable (
+        SupatermDebugRequest
+      ) async -> SupatermAppDebugSnapshot,
+    renameSpace:
+      @escaping @MainActor @Sendable (
+        TerminalRenameSpaceRequest
+      ) async throws -> SupatermSpaceTarget,
+    renameTab:
+      @escaping @MainActor @Sendable (
+        TerminalRenameTabRequest
+      ) async throws -> SupatermRenameTabResult,
+    resizePane:
+      @escaping @MainActor @Sendable (
+        TerminalResizePaneRequest
+      ) async throws -> SupatermResizePaneResult,
+    setPaneSize:
+      @escaping @MainActor @Sendable (
+        TerminalSetPaneSizeRequest
+      ) async throws -> SupatermSetPaneSizeResult,
+    selectSpace:
+      @escaping @MainActor @Sendable (
+        TerminalSpaceTarget
+      ) async throws -> SupatermSelectSpaceResult,
+    selectTab:
+      @escaping @MainActor @Sendable (
+        TerminalTabTarget
+      ) async throws -> SupatermSelectTabResult,
+    sendKey:
+      @escaping @MainActor @Sendable (
+        TerminalSendKeyRequest
+      ) async throws -> SupatermSendKeyResult,
+    sendText:
+      @escaping @MainActor @Sendable (
+        TerminalSendTextRequest
+      ) async throws -> SupatermSendTextResult,
+    tilePanes:
+      @escaping @MainActor @Sendable (
+        TerminalTilePanesRequest
+      ) async throws -> SupatermTilePanesResult,
     treeSnapshot: @escaping @MainActor @Sendable () async -> SupatermTreeSnapshot
   ) {
     self.agentHook = agentHook
@@ -357,8 +375,8 @@ extension TerminalWindowsClient: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var terminalWindowsClient: TerminalWindowsClient {
+extension DependencyValues {
+  public var terminalWindowsClient: TerminalWindowsClient {
     get { self[TerminalWindowsClient.self] }
     set { self[TerminalWindowsClient.self] = newValue }
   }

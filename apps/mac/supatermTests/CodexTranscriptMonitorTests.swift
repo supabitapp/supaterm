@@ -169,8 +169,8 @@ struct CodexTranscriptMonitorTests {
     let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
     #expect(initialUpdate == nil)
     try CodexTranscriptFixtures.append(
-      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"type":"reasoning","# +
-        #""summary":[],"content":null}}"#,
+      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"type":"reasoning","#
+        + #""summary":[],"content":null}}"#,
       to: transcriptURL
     )
 

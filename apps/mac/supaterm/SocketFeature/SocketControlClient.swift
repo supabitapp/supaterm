@@ -82,8 +82,8 @@ extension SocketControlClient: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var socketControlClient: SocketControlClient {
+extension DependencyValues {
+  public var socketControlClient: SocketControlClient {
     get { self[SocketControlClient.self] }
     set { self[SocketControlClient.self] = newValue }
   }

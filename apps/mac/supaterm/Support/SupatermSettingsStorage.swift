@@ -4,8 +4,8 @@ import SupatermCLIShared
 
 public typealias SupatermSettings = SupatermCLIShared.SupatermSettings
 
-public extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
-  static var supatermSettings: Self {
+extension SharedKey where Self == FileStorageKey<SupatermSettings>.Default {
+  public static var supatermSettings: Self {
     Self[
       .fileStorage(
         SupatermSettings.defaultURL(),

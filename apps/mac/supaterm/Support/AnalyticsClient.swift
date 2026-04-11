@@ -20,8 +20,8 @@ extension AnalyticsClient: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var analyticsClient: AnalyticsClient {
+extension DependencyValues {
+  public var analyticsClient: AnalyticsClient {
     get { self[AnalyticsClient.self] }
     set { self[AnalyticsClient.self] = newValue }
   }

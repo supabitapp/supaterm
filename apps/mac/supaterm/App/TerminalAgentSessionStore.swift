@@ -80,11 +80,13 @@ final class TerminalAgentSessionStore {
     transcriptPath: String?
   ) {
     let key = SessionKey(agent: agent, sessionID: sessionID)
-    var session = sessions[key] ?? .init(
-      routing: .foreground,
-      surfaceID: nil,
-      transcriptPath: nil
-    )
+    var session =
+      sessions[key]
+      ?? .init(
+        routing: .foreground,
+        surfaceID: nil,
+        transcriptPath: nil
+      )
     if let surfaceID = context?.surfaceID {
       session.surfaceID = surfaceID
       let surfaceKey = SurfaceKey(agent: agent, surfaceID: surfaceID)

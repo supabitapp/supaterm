@@ -2007,10 +2007,11 @@ final class GhosttySurfaceScrollView: NSView {
   }
 
   override func mouseMoved(with event: NSEvent) {
-    guard Self.shouldFlashLegacyScrollers(
-      scrollerStyle: NSScroller.preferredScrollerStyle,
-      reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    )
+    guard
+      Self.shouldFlashLegacyScrollers(
+        scrollerStyle: NSScroller.preferredScrollerStyle,
+        reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      )
     else { return }
     scrollView.flashScrollers()
   }

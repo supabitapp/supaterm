@@ -33,7 +33,7 @@ enum CodexTranscriptFixtures {
         object = event(
           type: "turn_started",
           payload: [
-            "turn_id": turnID,
+            "turn_id": turnID
           ]
         )
 
@@ -48,7 +48,7 @@ enum CodexTranscriptFixtures {
         object = event(
           type: "turn_complete",
           payload: [
-            "turn_id": turnID,
+            "turn_id": turnID
           ]
         )
 

@@ -98,27 +98,28 @@ public struct SocketRequestExecutor: Sendable {
   public var executeApp: @MainActor @Sendable (AppRequest) async throws -> AppResult
   public var executeTerminalCreation:
     @MainActor @Sendable (TerminalCreationRequest) async throws -> TerminalCreationResult
-  public var executeTerminalPane:
-    @MainActor @Sendable (TerminalPaneRequest) async throws -> TerminalPaneResult
-  public var executeTerminalTab:
-    @MainActor @Sendable (TerminalTabRequest) async throws -> TerminalTabResult
-  public var executeTerminalSpace:
-    @MainActor @Sendable (TerminalSpaceRequest) async throws -> TerminalSpaceResult
+  public var executeTerminalPane: @MainActor @Sendable (TerminalPaneRequest) async throws -> TerminalPaneResult
+  public var executeTerminalTab: @MainActor @Sendable (TerminalTabRequest) async throws -> TerminalTabResult
+  public var executeTerminalSpace: @MainActor @Sendable (TerminalSpaceRequest) async throws -> TerminalSpaceResult
 
   public init(
     executeApp: @escaping @MainActor @Sendable (AppRequest) async throws -> AppResult,
-    executeTerminalCreation: @escaping @MainActor @Sendable (
-      TerminalCreationRequest
-    ) async throws -> TerminalCreationResult,
-    executeTerminalPane: @escaping @MainActor @Sendable (
-      TerminalPaneRequest
-    ) async throws -> TerminalPaneResult,
-    executeTerminalTab: @escaping @MainActor @Sendable (
-      TerminalTabRequest
-    ) async throws -> TerminalTabResult,
-    executeTerminalSpace: @escaping @MainActor @Sendable (
-      TerminalSpaceRequest
-    ) async throws -> TerminalSpaceResult
+    executeTerminalCreation:
+      @escaping @MainActor @Sendable (
+        TerminalCreationRequest
+      ) async throws -> TerminalCreationResult,
+    executeTerminalPane:
+      @escaping @MainActor @Sendable (
+        TerminalPaneRequest
+      ) async throws -> TerminalPaneResult,
+    executeTerminalTab:
+      @escaping @MainActor @Sendable (
+        TerminalTabRequest
+      ) async throws -> TerminalTabResult,
+    executeTerminalSpace:
+      @escaping @MainActor @Sendable (
+        TerminalSpaceRequest
+      ) async throws -> TerminalSpaceResult
   ) {
     self.executeApp = executeApp
     self.executeTerminalCreation = executeTerminalCreation
@@ -241,8 +242,8 @@ extension SocketRequestExecutor: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var socketRequestExecutor: SocketRequestExecutor {
+extension DependencyValues {
+  public var socketRequestExecutor: SocketRequestExecutor {
     get { self[SocketRequestExecutor.self] }
     set { self[SocketRequestExecutor.self] = newValue }
   }

@@ -1360,28 +1360,28 @@ private struct TerminalSidebarSpaceBar: View {
     Color.clear
       .overlay {
         spaceItems
-        .onHover { hovering in
-          isHoveringList = hovering
-          if !hovering {
-            showPreview = false
-            hoveredSpaceID = nil
+          .onHover { hovering in
+            isHoveringList = hovering
+            if !hovering {
+              showPreview = false
+              hoveredSpaceID = nil
+            }
           }
-        }
-        .overlay(alignment: .top) {
-          if showPreview,
-            let hoveredSpaceID,
-            hoveredSpaceID != terminal.selectedSpaceID,
-            let hoveredSpace = terminal.spaces.first(where: { $0.id == hoveredSpaceID })
-          {
-            Text(hoveredSpace.name)
-              .font(.caption)
-              .foregroundStyle(palette.primaryText.opacity(0.7))
-              .lineLimit(1)
-              .id(hoveredSpace.id)
-              .transition(.opacity.combined(with: .scale(scale: 0.96)))
-              .offset(y: -20)
+          .overlay(alignment: .top) {
+            if showPreview,
+              let hoveredSpaceID,
+              hoveredSpaceID != terminal.selectedSpaceID,
+              let hoveredSpace = terminal.spaces.first(where: { $0.id == hoveredSpaceID })
+            {
+              Text(hoveredSpace.name)
+                .font(.caption)
+                .foregroundStyle(palette.primaryText.opacity(0.7))
+                .lineLimit(1)
+                .id(hoveredSpace.id)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .offset(y: -20)
+            }
           }
-        }
       }
       .background {
         GeometryReader { geometry in
@@ -1467,9 +1467,9 @@ private struct TerminalSidebarSpaceItemView: View {
     Button(action: onSelect) {
       Text(monogram)
         .font(.system(size: 12, weight: .semibold, design: .rounded))
-      .frame(maxWidth: .infinity)
-      .foregroundStyle(palette.primaryText)
-      .opacity(isSelected ? 1 : 0.7)
+        .frame(maxWidth: .infinity)
+        .foregroundStyle(palette.primaryText)
+        .opacity(isSelected ? 1 : 0.7)
     }
     .buttonStyle(TerminalSidebarSpaceButtonStyle())
     .onHover { hovering in

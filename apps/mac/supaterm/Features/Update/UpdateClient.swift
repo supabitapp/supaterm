@@ -415,8 +415,8 @@ extension UpdateClient: DependencyKey {
   )
 }
 
-public extension DependencyValues {
-  var updateClient: UpdateClient {
+extension DependencyValues {
+  public var updateClient: UpdateClient {
     get { self[UpdateClient.self] }
     set { self[UpdateClient.self] = newValue }
   }
