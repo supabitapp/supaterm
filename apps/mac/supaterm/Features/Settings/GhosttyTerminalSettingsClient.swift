@@ -1,8 +1,7 @@
-import AppKit
 import ComposableArchitecture
 import Foundation
 
-public enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable, Identifiable {
+public nonisolated enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, Sendable, Identifiable {
   case never = "false"
   case whenNotAtPrompt = "true"
   case always
@@ -23,57 +22,129 @@ public enum GhosttyTerminalCloseConfirmation: String, CaseIterable, Equatable, S
   }
 }
 
-public struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
-  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  var darkTheme: String?
-  var fontFamily: String?
-  var fontSize: Double
-  var lightTheme: String?
+public nonisolated struct GhosttyTerminalSettingsDraft: Equatable, Sendable {
+  public var confirmCloseSurface: GhosttyTerminalCloseConfirmation
+  public var darkTheme: String?
+  public var fontFamily: String?
+  public var fontSize: Double
+  public var lightTheme: String?
+
+  public init(
+    confirmCloseSurface: GhosttyTerminalCloseConfirmation,
+    darkTheme: String?,
+    fontFamily: String?,
+    fontSize: Double,
+    lightTheme: String?
+  ) {
+    self.confirmCloseSurface = confirmCloseSurface
+    self.darkTheme = darkTheme
+    self.fontFamily = fontFamily
+    self.fontSize = fontSize
+    self.lightTheme = lightTheme
+  }
 }
 
-public struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
-  var availableFontFamilies: [String]
-  var availableDarkThemes: [String]
-  var availableLightThemes: [String]
-  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  var configPath: String
-  var darkTheme: String?
-  var fontFamily: String?
-  var fontSize: Double
-  var lightTheme: String?
-  var warningMessage: String?
+public nonisolated struct GhosttyTerminalSettingsSnapshot: Equatable, Sendable {
+  public var availableFontFamilies: [String]
+  public var availableDarkThemes: [String]
+  public var availableLightThemes: [String]
+  public var confirmCloseSurface: GhosttyTerminalCloseConfirmation
+  public var configPath: String
+  public var darkTheme: String?
+  public var fontFamily: String?
+  public var fontSize: Double
+  public var lightTheme: String?
+  public var warningMessage: String?
+
+  public init(
+    availableFontFamilies: [String],
+    availableDarkThemes: [String],
+    availableLightThemes: [String],
+    confirmCloseSurface: GhosttyTerminalCloseConfirmation,
+    configPath: String,
+    darkTheme: String?,
+    fontFamily: String?,
+    fontSize: Double,
+    lightTheme: String?,
+    warningMessage: String?
+  ) {
+    self.availableFontFamilies = availableFontFamilies
+    self.availableDarkThemes = availableDarkThemes
+    self.availableLightThemes = availableLightThemes
+    self.confirmCloseSurface = confirmCloseSurface
+    self.configPath = configPath
+    self.darkTheme = darkTheme
+    self.fontFamily = fontFamily
+    self.fontSize = fontSize
+    self.lightTheme = lightTheme
+    self.warningMessage = warningMessage
+  }
 }
 
-public struct GhosttyTerminalSettingsValues: Equatable, Sendable {
-  var confirmCloseSurface: GhosttyTerminalCloseConfirmation
-  var configPath: String
-  var darkTheme: String?
-  var fontFamily: String?
-  var fontSize: Double
-  var lightTheme: String?
-  var warningMessage: String?
+public nonisolated struct GhosttyTerminalSettingsValues: Equatable, Sendable {
+  public var confirmCloseSurface: GhosttyTerminalCloseConfirmation
+  public var configPath: String
+  public var darkTheme: String?
+  public var fontFamily: String?
+  public var fontSize: Double
+  public var lightTheme: String?
+  public var warningMessage: String?
+
+  public init(
+    confirmCloseSurface: GhosttyTerminalCloseConfirmation,
+    configPath: String,
+    darkTheme: String?,
+    fontFamily: String?,
+    fontSize: Double,
+    lightTheme: String?,
+    warningMessage: String?
+  ) {
+    self.confirmCloseSurface = confirmCloseSurface
+    self.configPath = configPath
+    self.darkTheme = darkTheme
+    self.fontFamily = fontFamily
+    self.fontSize = fontSize
+    self.lightTheme = lightTheme
+    self.warningMessage = warningMessage
+  }
 }
 
-struct GhosttyTerminalSettingsClient: Sendable {
+public nonisolated enum GhosttyTerminalSettingsClientError: LocalizedError {
+  case unavailable
+
+  public var errorDescription: String? {
+    switch self {
+    case .unavailable:
+      "Ghostty terminal settings are unavailable."
+    }
+  }
+}
+
+public nonisolated struct GhosttyTerminalSettingsClient: Sendable {
   var load: @Sendable () async throws -> GhosttyTerminalSettingsSnapshot
   var apply: @Sendable (_ settings: GhosttyTerminalSettingsDraft) async throws -> GhosttyTerminalSettingsValues
+
+  public init(
+    load: @escaping @Sendable () async throws -> GhosttyTerminalSettingsSnapshot,
+    apply: @escaping @Sendable (_ settings: GhosttyTerminalSettingsDraft) async throws -> GhosttyTerminalSettingsValues
+  ) {
+    self.load = load
+    self.apply = apply
+  }
 }
 
 extension GhosttyTerminalSettingsClient: DependencyKey {
-  static let liveValue = Self(
+  public nonisolated static let liveValue = Self(
     load: {
-      try await MainActor.run {
-        try GhosttyTerminalConfigFile().load()
-      }
+      throw GhosttyTerminalSettingsClientError.unavailable
     },
     apply: { settings in
-      try await MainActor.run {
-        try GhosttyTerminalConfigFile().apply(settings: settings)
-      }
+      _ = settings
+      throw GhosttyTerminalSettingsClientError.unavailable
     }
   )
 
-  static let testValue = Self(
+  public nonisolated static let testValue = Self(
     load: {
       .init(
         availableFontFamilies: ["JetBrains Mono", "SF Mono"],
@@ -103,7 +174,7 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
 }
 
 extension DependencyValues {
-  var ghosttyTerminalSettingsClient: GhosttyTerminalSettingsClient {
+  public var ghosttyTerminalSettingsClient: GhosttyTerminalSettingsClient {
     get { self[GhosttyTerminalSettingsClient.self] }
     set { self[GhosttyTerminalSettingsClient.self] = newValue }
   }

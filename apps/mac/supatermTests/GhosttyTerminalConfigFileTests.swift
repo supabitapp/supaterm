@@ -2,8 +2,8 @@ import Foundation
 import SupatermSupport
 import Testing
 
+@testable import supaterm
 @testable import SupatermSettingsFeature
-
 @MainActor
 struct GhosttyTerminalConfigFileTests {
   @Test

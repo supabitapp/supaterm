@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import Testing
 
 @testable import SupatermSettingsFeature
@@ -94,15 +95,17 @@ struct SettingsFeatureTerminalTests {
       SettingsFeature()
     } withDependencies: {
       $0.ghosttyTerminalSettingsClient.load = {
-        throw GhosttyTerminalConfigFileError.invalidConfig("Broken config")
+        throw NSError(domain: "SettingsFeatureTerminalTests", code: 1, userInfo: [
+          NSLocalizedDescriptionKey: "Broken config"
+        ])
       }
     }
 
-    await store.send(.terminalSettingsLoadRequested) {
+    await store.send(SettingsFeature.Action.terminalSettingsLoadRequested) {
       $0.terminal.errorMessage = nil
       $0.terminal.isLoading = true
     }
-    await store.receive(.terminalSettingsLoadFailed("Broken config"), timeout: 0) {
+    await store.receive(SettingsFeature.Action.terminalSettingsLoadFailed("Broken config"), timeout: 0) {
       $0.terminal.errorMessage = "Broken config"
       $0.terminal.isLoading = false
     }

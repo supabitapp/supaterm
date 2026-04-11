@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermSettingsFeature
 import SupatermSupport
 
 struct GhosttyTerminalThemeCatalog: Equatable {
