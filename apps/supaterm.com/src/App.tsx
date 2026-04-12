@@ -1,7 +1,7 @@
 import { AppleIcon, Copy01Icon, GithubIcon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { posthog } from "posthog-js";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
 import splitUrl from "./assets/split.mp4";
 import { buttonVariants } from "@/components/ui/button";
@@ -100,6 +100,29 @@ function NpxSkillsBox() {
       </button>
     </div>
   );
+}
+
+function LazyVideo({ src, className }: { src: string; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          void video.play();
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
+
+  return <video ref={ref} src={src} controls loop muted playsInline className={className} />;
 }
 
 const nouns = ["speed", "skills", "a CLI", "focus", "flow", "craft"];
@@ -261,15 +284,7 @@ function App() {
               <div>
                 {section.video ? (
                   <div className="group relative overflow-hidden rounded-[12px] border border-white/8 shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <video
-                      src={section.video}
-                      controls
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="block h-auto w-full"
-                    />
+                    <LazyVideo src={section.video} className="block h-auto w-full" />
                   </div>
                 ) : (
                   <div className="group overflow-hidden border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none">
