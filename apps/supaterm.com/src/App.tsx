@@ -133,7 +133,7 @@ function LazyVideo({ src, className }: { src: string; className?: string }) {
   return <video ref={ref} src={src} controls loop muted playsInline className={className} />;
 }
 
-const nouns = ["speed", "skills", "a CLI", "focus", "flow", "craft"];
+const nouns = ["speed", "taste", "skills", "a CLI", "focus", "flow", "craft"];
 
 function useRotatingWord(words: string[], intervalMs = 2400) {
   const [index, setIndex] = useState(0);
