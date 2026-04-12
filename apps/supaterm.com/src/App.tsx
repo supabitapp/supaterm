@@ -59,10 +59,9 @@ const featureSections: FeatureSection[] = [
     title: "Organize messy terminal work into something you can actually steer.",
     body: (
       <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
-        <li>Group work by space</li>
-        <li>Pin the tabs that matter</li>
-        <li>Split panes without sacrificing the macOS feel</li>
-        <li>Structure stays clear as the session gets deeper</li>
+        <li>Organize tabs in to spaces</li>
+        <li>Pin tabs with your favorite pane layout</li>
+        <li>Resume coding agents after app relaunch (Coming soon...)</li>
       </ul>
     ),
     align: "right",
