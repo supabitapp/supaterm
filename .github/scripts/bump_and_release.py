@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -158,10 +157,6 @@ def bump_version() -> tuple[str, int]:
   return new_version, new_build
 
 
-def current_repository() -> str:
-  return run(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"])
-
-
 def previous_release_tag() -> str:
   try:
     return run(
@@ -183,31 +178,8 @@ def previous_release_tag() -> str:
     return ""
 
 
-def current_commit() -> str:
-  return run(["git", "rev-parse", "HEAD"])
-
-
-def generate_release_notes(tag: str, notes_path: Path, target_commitish: str) -> None:
-  repo = current_repository()
-  previous_tag = previous_release_tag()
-  command = [
-    "gh",
-    "api",
-    f"repos/{repo}/releases/generate-notes",
-    "-f",
-    f"tag_name={tag}",
-    "-f",
-    f"target_commitish={target_commitish}",
-  ]
-  if previous_tag:
-    command.extend(["-f", f"previous_tag_name={previous_tag}"])
-  notes = run(command + ["--jq", ".body"])
-  notes_path.write_text(notes, encoding="utf-8")
-
-
-def edit_release_notes(notes_path: Path) -> None:
-  editor = os.environ.get("EDITOR", "vim")
-  run_interactive([*shlex.split(editor), str(notes_path)])
+def write_release_notes(notes_path: Path) -> None:
+  notes_path.write_text("", encoding="utf-8")
 
 
 def current_branch_remote() -> str:
@@ -428,8 +400,7 @@ def recover_pending_release(release: PendingRelease) -> None:
     notes_path = Path(handle.name)
   try:
     push_current_branch()
-    generate_release_notes(release.tag, notes_path, release.commit)
-    edit_release_notes(notes_path)
+    write_release_notes(notes_path)
     create_annotated_tag(release.tag, notes_path, force=True, commit=release.commit)
     push_release_tag(release.tag, force=True)
     if release.release_state == "draft":
@@ -455,8 +426,7 @@ def bump_and_release() -> None:
     notes_path = Path(handle.name)
   try:
     push_current_branch()
-    generate_release_notes(tag, notes_path, current_commit())
-    edit_release_notes(notes_path)
+    write_release_notes(notes_path)
     publish_release_tag(tag, notes_path)
   finally:
     notes_path.unlink(missing_ok=True)
