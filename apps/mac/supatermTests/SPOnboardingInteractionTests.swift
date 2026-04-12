@@ -5,7 +5,7 @@ import Testing
 @testable import SupatermCLIShared
 
 struct SPOnboardingInteractionTests {
-  private let intro = "Glad to have you onboard with Supaterm, let's get you setup.\n"
+  private let intro = "🚀 Glad to have you onboard with Supaterm, let's get you setup.\n\n"
 
   @Test
   func runSkipsConfiguredAgents() {
@@ -47,13 +47,11 @@ struct SPOnboardingInteractionTests {
     #expect(output.text.contains(intro))
     #expect(
       output.text.contains(
-        "Set up Supaterm coding-agent hooks for Claude Code and Codex? [y/N] "
+        "Set up hooks for Claude Code and Codex? [y/N] "
       )
     )
-    #expect(output.text.contains("Configuring Claude Code hooks...\n"))
-    #expect(output.text.contains("Configuring Codex hooks...\n"))
-    #expect(output.text.contains("Configured Claude Code hooks.\n"))
-    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(output.text.contains("sp agent install-hook claude\n"))
+    #expect(output.text.contains("sp agent install-hook codex\n"))
     #expect(installs.agents == [.claude, .codex])
   }
 
@@ -73,10 +71,8 @@ struct SPOnboardingInteractionTests {
 
     #expect(result == .init(didWriteOutput: true))
     #expect(output.text.contains(intro))
-    #expect(output.text.contains("Set up Supaterm coding-agent hooks for Pi? [y/N] "))
-    #expect(output.text.contains("Installing the Supaterm Pi package...\n"))
-    #expect(output.text.contains("Running: \(PiSettingsInstaller.canonicalInstallDisplayCommand)\n"))
-    #expect(output.text.contains("Installed the Supaterm Pi package.\n"))
+    #expect(output.text.contains("Set up hooks for Pi? [y/N] "))
+    #expect(output.text.contains("\(PiSettingsInstaller.canonicalInstallDisplayCommand)\n"))
     #expect(installs.agents == [.pi])
   }
 
@@ -100,11 +96,11 @@ struct SPOnboardingInteractionTests {
     #expect(occurrenceCount(of: intro, in: output.text) == 1)
     #expect(
       output.text.contains(
-        "Set up Supaterm coding-agent hooks for Claude Code and Codex? [y/N] "
+        "Set up hooks for Claude Code and Codex? [y/N] "
       )
     )
-    #expect(output.text.contains("Configured Claude Code hooks.\n"))
-    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(output.text.contains("sp agent install-hook claude\n"))
+    #expect(output.text.contains("sp agent install-hook codex\n"))
     #expect(installs.agents == [.claude, .codex])
   }
 
@@ -142,7 +138,7 @@ struct SPOnboardingInteractionTests {
       io: .init(readLine: input.readLine, write: output.write)
     ).run()
 
-    let prompt = "Set up Supaterm coding-agent hooks for Claude Code? [y/N] "
+    let prompt = "Set up hooks for Claude Code? [y/N] "
 
     #expect(result == .init(didWriteOutput: true))
     #expect(occurrenceCount(of: intro, in: output.text) == 1)
@@ -161,14 +157,14 @@ struct SPOnboardingInteractionTests {
       integrations: [
         .init(
           displayName: "Claude Code",
-          installCommand: nil,
+          installCommand: "sp agent install-hook claude",
           installFailureSubject: "Claude Code hooks",
-          installVerb: "configure",
-          progressMessage: "Configuring Claude Code hooks...\n",
+          installVerb: "install",
+          progressMessage: "",
           isAvailable: { true },
           isConfigured: { throw ClaudeSettingsInstallerError.invalidJSON },
           inspectionSubject: "Claude Code hooks",
-          successMessage: "Configured Claude Code hooks.\n",
+          successMessage: "",
           install: {}
         ),
         integration(agent: .codex, isConfigured: { false }, installs: installs),
@@ -184,8 +180,8 @@ struct SPOnboardingInteractionTests {
       )
     )
     #expect(output.text.contains(intro))
-    #expect(output.text.contains("Set up Supaterm coding-agent hooks for Codex? [y/N] "))
-    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(output.text.contains("Set up hooks for Codex? [y/N] "))
+    #expect(output.text.contains("sp agent install-hook codex\n"))
     #expect(installs.agents == [.codex])
   }
 
@@ -199,14 +195,14 @@ struct SPOnboardingInteractionTests {
       integrations: [
         .init(
           displayName: "Claude Code",
-          installCommand: nil,
+          installCommand: "sp agent install-hook claude",
           installFailureSubject: "Claude Code hooks",
-          installVerb: "configure",
-          progressMessage: "Configuring Claude Code hooks...\n",
+          installVerb: "install",
+          progressMessage: "",
           isAvailable: { true },
           isConfigured: { false },
           inspectionSubject: "Claude Code hooks",
-          successMessage: "Configured Claude Code hooks.\n",
+          successMessage: "",
           install: {
             installs.record(.claude)
             throw ClaudeSettingsInstallerError.invalidRootObject
@@ -221,17 +217,17 @@ struct SPOnboardingInteractionTests {
     #expect(result == .init(didWriteOutput: true))
     #expect(
       output.text.contains(
-        "Could not configure Claude Code hooks: "
+        "Could not install Claude Code hooks: "
           + "Claude settings must be a JSON object before Supaterm can install hooks.\n"
       )
     )
     #expect(occurrenceCount(of: intro, in: output.text) == 1)
     #expect(
       output.text.contains(
-        "Set up Supaterm coding-agent hooks for Claude Code and Codex? [y/N] "
+        "Set up hooks for Claude Code and Codex? [y/N] "
       )
     )
-    #expect(output.text.contains("Configured Codex hooks.\n"))
+    #expect(output.text.contains("sp agent install-hook codex\n"))
     #expect(installs.agents == [.claude, .codex])
   }
 
@@ -263,11 +259,9 @@ struct SPOnboardingInteractionTests {
 
     #expect(result == .init(didWriteOutput: true))
     #expect(occurrenceCount(of: intro, in: output.text) == 1)
-    #expect(output.text.contains("Set up Supaterm coding-agent hooks for Claude Code? [y/N] "))
+    #expect(output.text.contains("Set up hooks for Claude Code? [y/N] "))
     #expect(output.text.contains("Setup agent skills to control Supaterm? [y/N] "))
-    #expect(output.text.contains("Installing the Supaterm skill...\n"))
-    #expect(output.text.contains("Running: \(SupatermSkillInstaller.automatedInstallCommand)\n"))
-    #expect(output.text.contains("Installed the Supaterm skill.\n"))
+    #expect(output.text.contains("\(SupatermSkillInstaller.manualInstallCommand)\n"))
     #expect(installs.agents.isEmpty)
     #expect(installs.skills == ["supaterm"])
   }
@@ -283,14 +277,14 @@ struct SPOnboardingInteractionTests {
       skillIntegrations: [
         .init(
           displayName: "Supaterm skill",
-          installCommand: SupatermSkillInstaller.automatedInstallCommand,
+          installCommand: SupatermSkillInstaller.manualInstallCommand,
           installFailureSubject: "the Supaterm skill",
           installVerb: "install",
-          progressMessage: "Installing the Supaterm skill...\n",
+          progressMessage: "",
           isAvailable: { true },
           isConfigured: { false },
           inspectionSubject: "the Supaterm skill",
-          successMessage: "Installed the Supaterm skill.\n",
+          successMessage: "",
           install: {
             throw SupatermSkillInstallerError.npxUnavailable
           },
@@ -321,14 +315,14 @@ private func integration(
   case .claude:
     return .init(
       displayName: "Claude Code",
-      installCommand: nil,
+      installCommand: "sp agent install-hook claude",
       installFailureSubject: "Claude Code hooks",
-      installVerb: "configure",
-      progressMessage: "Configuring Claude Code hooks...\n",
+      installVerb: "install",
+      progressMessage: "",
       isAvailable: isAvailable,
       isConfigured: isConfigured,
       inspectionSubject: "Claude Code hooks",
-      successMessage: "Configured Claude Code hooks.\n",
+      successMessage: "",
       install: {
         installs.record(.claude)
       }
@@ -336,14 +330,14 @@ private func integration(
   case .codex:
     return .init(
       displayName: "Codex",
-      installCommand: nil,
+      installCommand: "sp agent install-hook codex",
       installFailureSubject: "Codex hooks",
-      installVerb: "configure",
-      progressMessage: "Configuring Codex hooks...\n",
+      installVerb: "install",
+      progressMessage: "",
       isAvailable: isAvailable,
       isConfigured: isConfigured,
       inspectionSubject: "Codex hooks",
-      successMessage: "Configured Codex hooks.\n",
+      successMessage: "",
       install: {
         installs.record(.codex)
       }
@@ -373,14 +367,14 @@ private func skillIntegration(
 ) -> SPOnboardingInteraction.AgentIntegration {
   .init(
     displayName: "Supaterm skill",
-    installCommand: SupatermSkillInstaller.automatedInstallCommand,
+    installCommand: SupatermSkillInstaller.manualInstallCommand,
     installFailureSubject: "the Supaterm skill",
     installVerb: "install",
-    progressMessage: "Installing the Supaterm skill...\n",
+    progressMessage: "",
     isAvailable: isAvailable,
     isConfigured: isConfigured,
     inspectionSubject: "the Supaterm skill",
-    successMessage: "Installed the Supaterm skill.\n",
+    successMessage: "",
     install: {
       installs.recordSkill("supaterm")
     }

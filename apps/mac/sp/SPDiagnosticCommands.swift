@@ -321,12 +321,16 @@ struct SPOnboardingInteraction {
     didWriteOutput: inout Bool
   ) {
     do {
-      write(integration.progressMessage, didWriteOutput: &didWriteOutput)
       if let installCommand = integration.installCommand {
-        write("Running: \(installCommand)\n", didWriteOutput: &didWriteOutput)
+        write("\(installCommand)\n", didWriteOutput: &didWriteOutput)
+      }
+      if !integration.progressMessage.isEmpty {
+        write(integration.progressMessage, didWriteOutput: &didWriteOutput)
       }
       try integration.install()
-      write(integration.successMessage, didWriteOutput: &didWriteOutput)
+      if !integration.successMessage.isEmpty {
+        write(integration.successMessage, didWriteOutput: &didWriteOutput)
+      }
     } catch {
       write(
         "Could not \(integration.installVerb) \(integration.installFailureSubject): \(error.localizedDescription)\n",
@@ -387,7 +391,7 @@ struct SPOnboardingInteraction {
   ) -> Bool {
     if !didShowIntro {
       write(
-        "Glad to have you onboard with Supaterm, let's get you setup.\n",
+        "🚀 Glad to have you onboard with Supaterm, let's get you setup.\n\n",
         didWriteOutput: &didWriteOutput
       )
       didShowIntro = true
@@ -411,7 +415,7 @@ struct SPOnboardingInteraction {
     for integrations: [AgentIntegration]
   ) -> String {
     let names = integrations.map(\.displayName)
-    return "Set up Supaterm coding-agent hooks for \(humanJoined(names))? [y/N] "
+    return "Set up hooks for \(humanJoined(names))? [y/N] "
   }
 
   private func humanJoined(_ values: [String]) -> String {
@@ -463,26 +467,26 @@ struct SPOnboardingInteraction {
   private static let liveIntegrations: [AgentIntegration] = [
     .init(
       displayName: "Claude Code",
-      installCommand: nil,
+      installCommand: "sp agent install-hook claude",
       installFailureSubject: "Claude Code hooks",
-      installVerb: "configure",
-      progressMessage: "Configuring Claude Code hooks...\n",
+      installVerb: "install",
+      progressMessage: "",
       isAvailable: { try ClaudeSettingsInstaller().isClaudeAvailable() },
       isConfigured: { try ClaudeSettingsInstaller().hasSupatermHooks() },
       inspectionSubject: "Claude Code hooks",
-      successMessage: "Configured Claude Code hooks.\n",
+      successMessage: "",
       install: { try ClaudeSettingsInstaller().installSupatermHooks() }
     ),
     .init(
       displayName: "Codex",
-      installCommand: nil,
+      installCommand: "sp agent install-hook codex",
       installFailureSubject: "Codex hooks",
-      installVerb: "configure",
-      progressMessage: "Configuring Codex hooks...\n",
+      installVerb: "install",
+      progressMessage: "",
       isAvailable: { try CodexSettingsInstaller().isCodexAvailable() },
       isConfigured: { try CodexSettingsInstaller().hasSupatermHooks() },
       inspectionSubject: "Codex hooks",
-      successMessage: "Configured Codex hooks.\n",
+      successMessage: "",
       install: { try CodexSettingsInstaller().installSupatermHooks() }
     ),
     .init(
@@ -490,11 +494,11 @@ struct SPOnboardingInteraction {
       installCommand: PiSettingsInstaller.canonicalInstallDisplayCommand,
       installFailureSubject: "the Supaterm Pi package",
       installVerb: "install",
-      progressMessage: "Installing the Supaterm Pi package...\n",
+      progressMessage: "",
       isAvailable: { try PiSettingsInstaller().isPiAvailable() },
       isConfigured: { try PiSettingsInstaller().hasSupatermPackageInstalled() },
       inspectionSubject: "Pi package",
-      successMessage: "Installed the Supaterm Pi package.\n",
+      successMessage: "",
       install: { try PiSettingsInstaller().installSupatermPackage() }
     ),
   ]
@@ -502,14 +506,14 @@ struct SPOnboardingInteraction {
   private static let liveSkillIntegrations: [AgentIntegration] = [
     .init(
       displayName: "Supaterm skill",
-      installCommand: SupatermSkillInstaller.automatedInstallCommand,
+      installCommand: SupatermSkillInstaller.manualInstallCommand,
       installFailureSubject: "the Supaterm skill",
       installVerb: "install",
-      progressMessage: "Installing the Supaterm skill...\n",
+      progressMessage: "",
       isAvailable: { true },
       isConfigured: { SupatermSkillInstaller().hasSupatermSkillInstalled() },
       inspectionSubject: "the Supaterm skill",
-      successMessage: "Installed the Supaterm skill.\n",
+      successMessage: "",
       install: { try SupatermSkillInstaller().installSupatermSkill() }
     )
   ]
