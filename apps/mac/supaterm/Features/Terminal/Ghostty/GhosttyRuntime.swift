@@ -286,12 +286,20 @@ final class GhosttyRuntime {
         handleAction(appBits: appBits, target: target, action: action)
       }
     }
-    DispatchQueue.main.async {
+    return DispatchQueue.main.sync {
       MainActor.assumeIsolated {
-        _ = handleAction(appBits: appBits, target: target, action: action)
+        handleAction(appBits: appBits, target: target, action: action)
       }
     }
-    return false
+  }
+
+  nonisolated static func actionCallbackForTesting(
+    _ appBits: UInt?,
+    _ target: ghostty_target_s,
+    _ action: ghostty_action_s
+  ) -> Bool {
+    let app = appBits.flatMap(ghostty_app_t.init(bitPattern:))
+    return actionCallback(app, target, action)
   }
 
   private nonisolated static func readClipboardCallback(
@@ -408,6 +416,10 @@ final class GhosttyRuntime {
 
   func appUserdataBitsForTesting() -> UInt? {
     UInt(bitPattern: Unmanaged.passUnretained(callbackState).toOpaque())
+  }
+
+  func appBitsForTesting() -> UInt? {
+    app.map { UInt(bitPattern: $0) }
   }
 
   static func wakeupForTesting(userdataBits: UInt?) {

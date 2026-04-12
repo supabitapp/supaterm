@@ -132,6 +132,33 @@ struct GhosttyRuntimeTests {
     GhosttyRuntime.wakeupForTesting(userdataBits: userdataBits)
   }
 
+  @Test
+  func actionCallbackReturnsHandledResultOffMainThread() async throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      foreground = #E0E0E0
+      """
+    )
+    let app = NSApplication.shared
+    let previousDelegate = app.delegate
+    let delegate = GhosttyAppActionPerformerSpy()
+    app.delegate = delegate
+    defer {
+      app.delegate = previousDelegate
+    }
+
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_NEW_WINDOW, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: .init())
+    let appBits = runtime.appBitsForTesting()
+    let result = await Task.detached {
+      GhosttyRuntime.actionCallbackForTesting(appBits, target, action)
+    }.value
+
+    #expect(result)
+    #expect(delegate.newWindowCount == 1)
+  }
+
   private func hexString(_ color: NSColor) -> String {
     let rgb = color.usingColorSpace(.sRGB) ?? color
     let red = Int(round(rgb.redComponent * 255))
