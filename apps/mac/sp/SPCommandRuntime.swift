@@ -265,7 +265,7 @@ enum SPOnboardingRenderer {
     lines.append("")
     lines.append("sp agent install-hook claude")
     lines.append("sp agent install-hook codex")
-    lines.append("pi install")
+    lines.append(PiSettingsInstaller.canonicalInstallDisplayCommand)
     lines.append("")
     lines.append(#"Run "sp" for the list of available commands."#)
 

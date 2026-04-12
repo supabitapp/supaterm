@@ -156,7 +156,7 @@ struct SPCommandTests {
 
         sp agent install-hook claude
         sp agent install-hook codex
-        pi install
+        pi install git:github.com/supabitapp/supaterm-skills
 
         Run "sp" for the list of available commands.
         """
