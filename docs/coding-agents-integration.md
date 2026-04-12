@@ -49,8 +49,6 @@ Install it with:
 npx skills add supabitapp/supaterm-skills --skill supaterm -g
 ```
 
-`sp onboard` asks about this separately from Claude, Codex, and Pi hook setup.
-
 Settings > Coding Agents shows the exact command for installing only the public Supaterm skill.
 
 ## Claude

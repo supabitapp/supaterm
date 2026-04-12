@@ -262,18 +262,15 @@ struct SPOnboardingInteraction {
 
   let force: Bool
   let integrations: [AgentIntegration]
-  let skillIntegrations: [AgentIntegration]
   let io: IO
 
   init(
     force: Bool = false,
     integrations: [AgentIntegration] = Self.liveIntegrations,
-    skillIntegrations: [AgentIntegration] = Self.liveSkillIntegrations,
     io: IO = .live
   ) {
     self.force = force
     self.integrations = integrations
-    self.skillIntegrations = skillIntegrations
     self.io = io
   }
 
@@ -293,22 +290,6 @@ struct SPOnboardingInteraction {
       )
     {
       for integration in hookIntegrationsToInstall {
-        install(integration, didWriteOutput: &didWriteOutput)
-      }
-    }
-
-    let skillIntegrationsToInstall = actionableIntegrations(
-      from: skillIntegrations,
-      didWriteOutput: &didWriteOutput
-    )
-    if !skillIntegrationsToInstall.isEmpty,
-      shouldInstall(
-        prompt: "Setup agent skills to control Supaterm? [y/N] ",
-        didWriteOutput: &didWriteOutput,
-        didShowIntro: &didShowIntro
-      )
-    {
-      for integration in skillIntegrationsToInstall {
         install(integration, didWriteOutput: &didWriteOutput)
       }
     }
@@ -501,20 +482,5 @@ struct SPOnboardingInteraction {
       successMessage: "",
       install: { try PiSettingsInstaller().installSupatermPackage() }
     ),
-  ]
-
-  private static let liveSkillIntegrations: [AgentIntegration] = [
-    .init(
-      displayName: "Supaterm skill",
-      installCommand: SupatermSkillInstaller.manualInstallCommand,
-      installFailureSubject: "the Supaterm skill",
-      installVerb: "install",
-      progressMessage: "",
-      isAvailable: { true },
-      isConfigured: { SupatermSkillInstaller().hasSupatermSkillInstalled() },
-      inspectionSubject: "the Supaterm skill",
-      successMessage: "",
-      install: { try SupatermSkillInstaller().installSupatermSkill() }
-    )
   ]
 }
