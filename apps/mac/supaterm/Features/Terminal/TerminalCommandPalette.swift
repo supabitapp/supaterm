@@ -9,6 +9,7 @@ struct TerminalCommandPaletteState: Equatable {
 
 enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case ghosttyBindingAction(String)
+  case submitGitHubIssue
   case toggleSidebar
   case createSpace
   case renameSpace(TerminalSpaceItem)
@@ -75,6 +76,16 @@ enum TerminalCommandPalettePresentation {
         subtitle: "View",
         shortcut: toggleSidebarShortcut,
         command: .toggleSidebar
+      )
+    )
+    rows.append(
+      .init(
+        id: "supaterm:submit-github-issue",
+        symbol: "exclamationmark.bubble",
+        title: "Submit GitHub Issue",
+        subtitle: "Help",
+        shortcut: nil,
+        command: .submitGitHubIssue
       )
     )
     rows.append(

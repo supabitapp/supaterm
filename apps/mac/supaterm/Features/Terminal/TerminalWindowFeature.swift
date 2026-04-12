@@ -183,6 +183,7 @@ struct TerminalWindowFeature {
   }
 
   @Dependency(AnalyticsClient.self) var analyticsClient
+  @Dependency(ExternalNavigationClient.self) var externalNavigationClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
@@ -579,6 +580,10 @@ struct TerminalWindowFeature {
     switch command {
     case .ghosttyBindingAction(let action):
       return sendCommand(.performGhosttyBindingActionOnFocusedSurface(action))
+    case .submitGitHubIssue:
+      return .run { [externalNavigationClient] _ in
+        _ = await externalNavigationClient.open(SupatermExternalURL.submitGitHubIssue)
+      }
     case .toggleSidebar:
       return .send(.toggleSidebarButtonTapped)
     case .createSpace:

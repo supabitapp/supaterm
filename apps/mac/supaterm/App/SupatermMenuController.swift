@@ -1,5 +1,6 @@
 import AppKit
 import SupatermSettingsFeature
+import SupatermSupport
 import SwiftUI
 
 @MainActor
@@ -68,12 +69,16 @@ final class SupatermMenuController: NSObject {
     static let moveSplitDividerLeft = NSUserInterfaceItemIdentifier("app.supabit.supaterm.window.moveSplitDividerLeft")
     static let moveSplitDividerRight = NSUserInterfaceItemIdentifier(
       "app.supabit.supaterm.window.moveSplitDividerRight")
+    static let submitGitHubIssue = NSUserInterfaceItemIdentifier("app.supabit.supaterm.help.submitGitHubIssue")
   }
 
   private let registry: TerminalWindowRegistry
   private var observers: [NSObjectProtocol] = []
   private var requestNewWindow: @MainActor () -> Bool = { false }
   private var requestShowSettings: @MainActor (SettingsFeature.Tab) -> Bool = { _ in false }
+  private var requestSubmitGitHubIssue: @MainActor () -> Bool = {
+    ExternalNavigationClient.liveValue.open(SupatermExternalURL.submitGitHubIssue)
+  }
   private var ghosttyBindingItems: [GhosttyBindingMenuItem] = []
 
   private var appName: String {
@@ -101,6 +106,7 @@ final class SupatermMenuController: NSObject {
     menu.addItem(topLevelMenuItem(title: "Tabs", submenu: tabsMenu))
     menu.addItem(topLevelMenuItem(title: "Spaces", submenu: spacesMenu))
     menu.addItem(topLevelMenuItem(title: "Window", submenu: windowMenu))
+    menu.addItem(topLevelMenuItem(title: "Help", submenu: helpMenu))
     return menu
   }()
 
@@ -220,6 +226,12 @@ final class SupatermMenuController: NSObject {
     menu.addItem(resizeSplitMenuItem)
     menu.addItem(.separator())
     menu.addItem(systemItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:))))
+    return menu
+  }()
+
+  private lazy var helpMenu: NSMenu = {
+    let menu = NSMenu(title: "Help")
+    menu.addItem(submitGitHubIssueItem)
     return menu
   }()
 
@@ -480,6 +492,12 @@ final class SupatermMenuController: NSObject {
     identifier: MenuItemIdentifier.moveSplitDividerRight,
     symbol: "arrow.right.to.line"
   )
+  private lazy var submitGitHubIssueItem = makeItem(
+    title: "Submit GitHub Issue",
+    action: #selector(submitGitHubIssue(_:)),
+    identifier: MenuItemIdentifier.submitGitHubIssue,
+    symbol: "exclamationmark.bubble"
+  )
   private lazy var selectSpaceItems: [NSMenuItem] = (1...10).map { slot in
     let item = makeItem(
       title: "Space \(slot)",
@@ -507,11 +525,16 @@ final class SupatermMenuController: NSObject {
     requestShowSettings = action
   }
 
+  func setSubmitGitHubIssueAction(_ action: @escaping @MainActor () -> Bool) {
+    requestSubmitGitHubIssue = action
+  }
+
   func install() {
     installObservers()
     NSApp.mainMenu = mainMenu
     NSApp.servicesMenu = servicesMenu
     NSApp.windowsMenu = windowMenu
+    NSApp.helpMenu = helpMenu
     refresh()
   }
 
@@ -520,6 +543,7 @@ final class SupatermMenuController: NSObject {
       NSApp.mainMenu = mainMenu
       NSApp.servicesMenu = servicesMenu
       NSApp.windowsMenu = windowMenu
+      NSApp.helpMenu = helpMenu
     }
 
     ghosttyBindingItems = []
@@ -624,6 +648,11 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
+  func performSubmitGitHubIssue() -> Bool {
+    requestSubmitGitHubIssue()
+  }
+
+  @discardableResult
   func performCloseAllWindows() -> Bool {
     registry.requestCloseAllWindows()
   }
@@ -696,6 +725,10 @@ final class SupatermMenuController: NSObject {
 
   @objc func openCommandPalette(_ sender: Any?) {
     registry.requestToggleCommandPaletteInKeyWindow()
+  }
+
+  @objc func submitGitHubIssue(_ sender: Any?) {
+    _ = performSubmitGitHubIssue()
   }
 
   @objc func find(_ sender: Any?) {

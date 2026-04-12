@@ -15,6 +15,7 @@ struct TerminalCommandPaletteStateTests {
         "ghostty:new_split:right",
         "ghostty:open_config",
         "supaterm:toggle-sidebar",
+        "supaterm:submit-github-issue",
         "supaterm:create-space",
         "supaterm:rename-space:\(snapshot.spaces[0].id.rawValue.uuidString)",
         "supaterm:toggle-pinned:\(snapshot.visibleTabs[0].id.rawValue.uuidString)",
@@ -24,6 +25,7 @@ struct TerminalCommandPaletteStateTests {
     )
     #expect(rows[0].shortcut == "⌘D")
     #expect(rows[1].shortcut == "⌘,")
+    #expect(rows[3].command == .submitGitHubIssue)
   }
 
   @Test

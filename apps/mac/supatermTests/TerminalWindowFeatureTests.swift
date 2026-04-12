@@ -585,6 +585,31 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func commandPaletteActivateSelectionOpensGitHubIssueAndClosesPalette() async {
+    var openedURLs: [URL] = []
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      selectedRowID: "supaterm:submit-github-issue"
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.externalNavigationClient.open = { url in
+        openedURLs.append(url)
+        return true
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+
+    #expect(openedURLs.map(\.absoluteString) == ["https://github.com/supabitapp/supaterm/issues/new"])
+  }
+
+  @Test
   func commandPaletteActivateSelectionKeepsPaletteOpenWhenNoVisibleRowMatches() async {
     var initialState = TerminalWindowFeature.State()
     initialState.commandPalette = .init(

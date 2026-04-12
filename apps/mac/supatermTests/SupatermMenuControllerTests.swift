@@ -20,8 +20,8 @@ struct SupatermMenuControllerTests {
     controller.install()
 
     let titles = app.mainMenu?.items.map(\.title) ?? []
-    #expect(titles.count == 7)
-    #expect(Array(titles.suffix(6)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window"])
+    #expect(titles.count == 8)
+    #expect(Array(titles.suffix(7)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window", "Help"])
 
     try assertAppMenu(app.mainMenu)
     try assertFileMenu(app.mainMenu)
@@ -29,6 +29,7 @@ struct SupatermMenuControllerTests {
     try assertTabsMenu(app.mainMenu)
     try assertSpacesMenu(app.mainMenu)
     try assertWindowMenu(app.mainMenu)
+    try assertHelpMenu(app.mainMenu)
     try assertImageAccessibilityDescriptions(
       app.mainMenu,
       matching: [
@@ -54,6 +55,7 @@ struct SupatermMenuControllerTests {
         "app.supabit.supaterm.window.moveSplitDividerDown",
         "app.supabit.supaterm.window.moveSplitDividerLeft",
         "app.supabit.supaterm.window.moveSplitDividerRight",
+        "app.supabit.supaterm.help.submitGitHubIssue",
       ]
     )
   }
@@ -123,6 +125,20 @@ struct SupatermMenuControllerTests {
     }
 
     #expect(controller.performNewWindow())
+    #expect(invocations == 1)
+  }
+
+  @Test
+  func performSubmitGitHubIssueUsesConfiguredAction() {
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    var invocations = 0
+
+    controller.setSubmitGitHubIssueAction {
+      invocations += 1
+      return true
+    }
+
+    #expect(controller.performSubmitGitHubIssue())
     #expect(invocations == 1)
   }
 
@@ -801,6 +817,13 @@ struct SupatermMenuControllerTests {
         "Move Divider Left",
         "Move Divider Right",
       ])
+  }
+
+  private func assertHelpMenu(_ menu: NSMenu?) throws {
+    let helpMenu = try #require(menu?.items.first(where: { $0.title == "Help" })?.submenu)
+    #expect(helpMenu.items.map(\.title) == ["Submit GitHub Issue"])
+    #expect(helpMenu.items[0].action == #selector(SupatermMenuController.submitGitHubIssue(_:)))
+    #expect(helpMenu.items[0].image != nil)
   }
 
   private func assertImageAccessibilityDescriptions(
