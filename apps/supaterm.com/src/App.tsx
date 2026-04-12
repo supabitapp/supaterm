@@ -160,16 +160,6 @@ function App() {
           </a>
           <div className="flex items-center gap-2">
             <CtaLink
-              href={githubHref}
-              icon="github"
-              variant="outline"
-              showIcon={false}
-              onClick={() => posthog.capture("nav_github_clicked")}
-              className="h-[1.55rem] rounded-full border-white/12 bg-white/4 px-3.5 text-[0.7rem] leading-none font-normal text-white/82 hover:border-white/18 hover:bg-white/8"
-            >
-              GitHub
-            </CtaLink>
-            <CtaLink
               href={downloadHref}
               icon="download"
               showIcon={false}
