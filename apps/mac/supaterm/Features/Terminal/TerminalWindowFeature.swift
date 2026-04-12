@@ -585,6 +585,8 @@ struct TerminalWindowFeature {
       return .send(.spaceCreateButtonTapped)
     case .renameSpace(let space):
       return .send(.spaceRenameRequested(space))
+    case .togglePinned(let tabID):
+      return sendCommand(.togglePinned(tabID))
     case .selectSpace(let spaceID):
       return sendCommand(.selectSpace(spaceID))
     case .selectTab(let tabID):

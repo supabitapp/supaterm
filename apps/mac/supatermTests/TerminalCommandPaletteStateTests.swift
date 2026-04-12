@@ -17,12 +17,27 @@ struct TerminalCommandPaletteStateTests {
         "supaterm:toggle-sidebar",
         "supaterm:create-space",
         "supaterm:rename-space:\(snapshot.spaces[0].id.rawValue.uuidString)",
+        "supaterm:toggle-pinned:\(snapshot.visibleTabs[0].id.rawValue.uuidString)",
         "supaterm:space:\(snapshot.spaces[1].id.rawValue.uuidString)",
         "supaterm:tab:\(snapshot.visibleTabs[1].id.rawValue.uuidString)",
       ]
     )
     #expect(rows[0].shortcut == "⌘D")
     #expect(rows[1].shortcut == "⌘,")
+  }
+
+  @Test
+  func rowsShowUnpinForSelectedPinnedTab() {
+    let snapshot = makeSnapshot(selectedTabIsPinned: true)
+
+    let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
+    let row = rows.first(where: {
+      $0.id == "supaterm:toggle-pinned:\(snapshot.visibleTabs[0].id.rawValue.uuidString)"
+    })
+
+    #expect(row?.title == "Unpin Tab")
+    #expect(row?.symbol == "pin.slash")
+    #expect(row?.command == .togglePinned(snapshot.visibleTabs[0].id))
   }
 
   @Test
@@ -67,7 +82,7 @@ struct TerminalCommandPaletteStateTests {
     #expect(row?.command == .selectSpace(makeSnapshot().spaces[1].id))
   }
 
-  private let visibleTabs: [TerminalTabItem] = [
+  private var visibleTabs: [TerminalTabItem] = [
     .init(
       id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000010")!), title: "Main", icon: nil),
     .init(
@@ -75,9 +90,11 @@ struct TerminalCommandPaletteStateTests {
       icon: "doc.plaintext"),
   ]
 
-  private func makeSnapshot() -> TerminalCommandPaletteSnapshot {
+  private func makeSnapshot(selectedTabIsPinned: Bool = false) -> TerminalCommandPaletteSnapshot {
     let selectedSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
     let otherSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!)
+    var visibleTabs = self.visibleTabs
+    visibleTabs[0].isPinned = selectedTabIsPinned
 
     return .init(
       ghosttyCommands: [

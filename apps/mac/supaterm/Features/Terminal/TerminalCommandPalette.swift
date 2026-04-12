@@ -12,6 +12,7 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case toggleSidebar
   case createSpace
   case renameSpace(TerminalSpaceItem)
+  case togglePinned(TerminalTabID)
   case selectSpace(TerminalSpaceID)
   case selectTab(TerminalTabID)
 }
@@ -98,6 +99,21 @@ enum TerminalCommandPalettePresentation {
           subtitle: selectedSpace.name,
           shortcut: nil,
           command: .renameSpace(selectedSpace)
+        )
+      )
+    }
+
+    if let selectedTab = snapshot.selectedTabID.flatMap({ selectedTabID in
+      snapshot.visibleTabs.first(where: { $0.id == selectedTabID })
+    }) {
+      rows.append(
+        .init(
+          id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
+          symbol: selectedTab.isPinned ? "pin.slash" : "pin",
+          title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
+          subtitle: selectedTab.title,
+          shortcut: nil,
+          command: .togglePinned(selectedTab.id)
         )
       )
     }

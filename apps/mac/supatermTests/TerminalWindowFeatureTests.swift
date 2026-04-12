@@ -561,6 +561,30 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func commandPaletteActivateSelectionTogglesPinnedStateAndClosesPalette() async throws {
+    let recorder = TerminalCommandRecorder()
+    let snapshot = makeCommandPaletteSnapshot()
+    let selectedTabID = try #require(snapshot.selectedTabID)
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      selectedRowID: "supaterm:toggle-pinned:\(selectedTabID.rawValue.uuidString)"
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+
+    #expect(recorder.commands == [.togglePinned(selectedTabID)])
+  }
+
+  @Test
   func commandPaletteActivateSelectionKeepsPaletteOpenWhenNoVisibleRowMatches() async {
     var initialState = TerminalWindowFeature.State()
     initialState.commandPalette = .init(
