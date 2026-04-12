@@ -197,11 +197,11 @@ function App() {
     <main className="overflow-x-hidden">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
         <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
-          <a href="/" className="flex items-center gap-2.5">
-            <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-8 rounded-[10px]" />
-            <span className="text-xs font-medium tracking-[0.18em] text-white/80 uppercase">
-              Supaterm
-            </span>
+          <a
+            href="/"
+            className="font-mono text-base font-bold tracking-[0.22em] text-white uppercase"
+          >
+            Supaterm
           </a>
           <div className="flex items-center gap-2">
             <CtaLink
