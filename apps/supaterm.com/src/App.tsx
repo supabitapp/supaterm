@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
 import agentsUrl from "./assets/agents.mp4";
 import splitUrl from "./assets/split.mp4";
+import pinUrl from "./assets/pin.mp4";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ const featureSections: FeatureSection[] = [
       </ul>
     ),
     align: "right",
+    video: pinUrl,
   },
 ];
 

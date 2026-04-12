@@ -1,2 +1,4 @@
 apps/supaterm.com/src/assets/demo.mp4 filter=lfs diff=lfs merge=lfs -text
 apps/supaterm.com/src/assets/split.mp4 filter=lfs diff=lfs merge=lfs -text
+apps/supaterm.com/src/assets/agents.mp4 filter=lfs diff=lfs merge=lfs -text
+apps/supaterm.com/src/assets/pin.mp4 filter=lfs diff=lfs merge=lfs -text
