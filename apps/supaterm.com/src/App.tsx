@@ -241,9 +241,10 @@ function App() {
 
               <div>
                 {section.video ? (
-                  <div className="group relative overflow-hidden rounded-[12px] border border-white/8 shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 motion-reduce:transform-none motion-reduce:transition-none">
+                  <div className="group relative overflow-hidden rounded-[12px] border border-white/8 shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)]">
                     <video
                       src={section.video}
+                      controls
                       autoPlay
                       loop
                       muted
