@@ -161,7 +161,6 @@ function App() {
                 >
                   {word}
                 </span>
-                .
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
                 Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
