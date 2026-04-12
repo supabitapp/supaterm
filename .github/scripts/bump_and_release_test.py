@@ -10,13 +10,14 @@ from bump_and_release import (
   PushUpdate,
   bump_and_release,
   create_annotated_tag_command,
-  oversized_pushed_blobs,
+  oversized_staged_blobs,
   pending_release,
   parse_version_state,
   parse_push_update,
-  pushed_commit_revisions,
   release_state,
   recover_pending_release,
+  staged_blob_paths,
+  validate_pre_commit,
   update_version_state,
   validate_pre_push,
   validate_release_tag,
@@ -252,94 +253,75 @@ class BumpAndReleaseTest(unittest.TestCase):
       PushUpdate("refs/tags/v1.4.0", "abc", "refs/tags/v1.4.0", "def"),
     )
 
-  @patch("bump_and_release.resolve_commit")
-  def test_pushed_commit_revisions_uses_remote_commit_for_existing_ref(self, resolve_commit_mock) -> None:
-    resolve_commit_mock.side_effect = ["local-commit", "remote-commit"]
-
-    self.assertEqual(
-      pushed_commit_revisions(
-        PushUpdate("refs/heads/main", "local", "refs/heads/main", "remote"),
-        "origin",
-      ),
-      ["local-commit", "^remote-commit"],
+  @patch("bump_and_release.run")
+  def test_staged_blob_paths_reads_added_and_modified_blob_oids(self, run_mock) -> None:
+    run_mock.return_value = (
+      ":100644 100644 old-blob new-blob M\0path/to/file.txt\0"
+      ":000000 100644 " + ("0" * 40) + " fresh-blob A\0path/to/new.bin\0"
     )
 
-  @patch("bump_and_release.resolve_commit")
-  def test_pushed_commit_revisions_falls_back_to_remote_tracking_refs_for_new_ref(
-    self,
-    resolve_commit_mock,
-  ) -> None:
-    resolve_commit_mock.return_value = "local-commit"
-
     self.assertEqual(
-      pushed_commit_revisions(
-        PushUpdate("refs/heads/feature", "local", "refs/heads/feature", "0" * 40),
-        "origin",
-      ),
-      ["local-commit", "--not", "--remotes=origin"],
+      staged_blob_paths(),
+      {
+        "new-blob": "path/to/file.txt",
+        "fresh-blob": "path/to/new.bin",
+      },
     )
 
   @patch("bump_and_release.read_object_metadata")
-  @patch("bump_and_release.run")
-  @patch("bump_and_release.resolve_commit")
-  def test_oversized_pushed_blobs_reports_large_new_blobs(
+  @patch("bump_and_release.staged_blob_paths")
+  def test_oversized_staged_blobs_reports_large_staged_blobs(
     self,
-    resolve_commit_mock,
-    run_mock,
+    staged_blob_paths_mock,
     read_object_metadata_mock,
   ) -> None:
-    resolve_commit_mock.side_effect = ["local-commit", "remote-commit"]
-    run_mock.return_value = "big-blob path/to/big.bin\nsmall-blob path/to/small.txt"
+    staged_blob_paths_mock.return_value = {
+      "big-blob": "path/to/big.bin",
+      "small-blob": "path/to/small.txt",
+    }
     read_object_metadata_mock.return_value = {
       "big-blob": ("blob", MAX_NON_LFS_BLOB_BYTES + 1),
       "small-blob": ("blob", 128),
     }
 
     self.assertEqual(
-      oversized_pushed_blobs(
-        [PushUpdate("refs/heads/main", "local", "refs/heads/main", "remote")],
-        "origin",
-      ),
+      oversized_staged_blobs(),
       [f"path/to/big.bin ({MAX_NON_LFS_BLOB_BYTES + 1} bytes)"],
     )
 
-  @patch("bump_and_release.oversized_pushed_blobs", return_value=[])
   @patch("bump_and_release.validate_release_tag")
-  def test_validate_pre_push_ignores_branch_pushes(self, validate_release_tag_mock, _) -> None:
+  def test_validate_pre_push_ignores_branch_pushes(self, validate_release_tag_mock) -> None:
     validate_pre_push(StringIO("refs/heads/main abc refs/heads/main def\n"))
 
     validate_release_tag_mock.assert_not_called()
 
-  @patch("bump_and_release.oversized_pushed_blobs", return_value=[])
   @patch("bump_and_release.validate_release_tag")
-  def test_validate_pre_push_ignores_tag_deletions(self, validate_release_tag_mock, _) -> None:
+  def test_validate_pre_push_ignores_tag_deletions(self, validate_release_tag_mock) -> None:
     validate_pre_push(StringIO("(delete) 0000000000000000000000000000000000000000 refs/tags/v1.4.0 def\n"))
 
     validate_release_tag_mock.assert_not_called()
 
-  @patch("bump_and_release.oversized_pushed_blobs", return_value=[])
   @patch("bump_and_release.validate_release_tag")
-  def test_validate_pre_push_validates_release_tag_pushes(self, validate_release_tag_mock, _) -> None:
+  def test_validate_pre_push_validates_release_tag_pushes(self, validate_release_tag_mock) -> None:
     validate_pre_push(StringIO("refs/tags/v1.4.0 abc refs/tags/v1.4.0 def\n"))
 
     validate_release_tag_mock.assert_called_once_with("v1.4.0", "refs/tags/v1.4.0")
 
-  @patch("bump_and_release.oversized_pushed_blobs", return_value=[])
   @patch("bump_and_release.validate_release_tag", side_effect=ValueError("release tag must be in vX.Y.Z format"))
-  def test_validate_pre_push_rejects_invalid_release_tags(self, _validate_release_tag, _oversized_pushed_blobs) -> None:
+  def test_validate_pre_push_rejects_invalid_release_tags(self, _validate_release_tag) -> None:
     with self.assertRaisesRegex(ValueError, "v1.4: release tag must be in vX.Y.Z format"):
       validate_pre_push(StringIO("refs/tags/v1.4 abc refs/tags/v1.4 def\n"))
 
   @patch(
-    "bump_and_release.oversized_pushed_blobs",
+    "bump_and_release.oversized_staged_blobs",
     return_value=[f"path/to/big.bin ({MAX_NON_LFS_BLOB_BYTES + 1} bytes)"],
   )
-  def test_validate_pre_push_rejects_large_non_lfs_blobs(self, _) -> None:
+  def test_validate_pre_commit_rejects_large_non_lfs_blobs(self, _) -> None:
     with self.assertRaisesRegex(
       ValueError,
       rf"files larger than {MAX_NON_LFS_BLOB_BYTES} bytes must be stored in Git LFS",
     ):
-      validate_pre_push(StringIO("refs/heads/main abc refs/heads/main def\n"))
+      validate_pre_commit()
 
 
 if __name__ == "__main__":
