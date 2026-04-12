@@ -81,7 +81,7 @@ function NpxSkillsBox() {
   const [copied, setCopied] = useState(false);
 
   function copy() {
-    navigator.clipboard.writeText(skillsCommand);
+    void navigator.clipboard.writeText(skillsCommand);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
