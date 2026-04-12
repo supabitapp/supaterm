@@ -9,6 +9,46 @@ const downloadHref = "https://supaterm.com/download/latest/supaterm.dmg";
 const githubHref = "https://github.com/supabitapp/supaterm";
 const releasesHref = "https://github.com/supabitapp/supaterm/releases";
 
+type FeatureSection = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  points: string[];
+  placeholder: string;
+  accent: string;
+  align: "left" | "right";
+};
+
+const featureSections: FeatureSection[] = [
+  {
+    eyebrow: "Agent-aware workflows",
+    title: "Keep every coding agent visible without losing the terminal.",
+    body: "Supaterm tracks agent activity inside the pane you already work in, so parallel runs stay legible instead of disappearing into detached tabs and hidden windows.",
+    points: ["Live pane context", "Focused activity states", "Built for parallel sessions"],
+    placeholder: "Agent session timeline",
+    accent: "Codex running",
+    align: "right",
+  },
+  {
+    eyebrow: "Spaces, tabs, panes",
+    title: "Organize messy terminal work into something you can actually steer.",
+    body: "Group work by space, pin the tabs that matter, and split panes without sacrificing the macOS feel. The structure stays clear as the session gets deeper.",
+    points: ["Named spaces", "Pinned tabs", "Fast pane splits"],
+    placeholder: "Workspace layout preview",
+    accent: "3 spaces · 8 tabs · 12 panes",
+    align: "left",
+  },
+  {
+    eyebrow: "CLI and socket control",
+    title: "Drive the app from scripts, hooks, and your own tooling.",
+    body: "The bundled `sp` CLI and socket boundary let Supaterm respond to automation as a first-class surface, not as a screen scrape or fragile window script.",
+    points: ["Socket transport", "Structured commands", "Automation-ready surfaces"],
+    placeholder: "sp command surface",
+    accent: "sp ls --json",
+    align: "right",
+  },
+];
+
 const ctaIcons = {
   download: AppleIcon,
   github: GithubIcon,
@@ -89,7 +129,7 @@ function App() {
         <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-[84px] md:px-10 md:pb-18 md:pt-[92px]">
           <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-12">
             <div className="max-w-[560px]">
-              <h1 className="text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
+              <h1 className="text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-nowrap text-[#f4f0e8]">
                 The terminal with skills.
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
@@ -136,6 +176,91 @@ function App() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-24 px-6 pb-24 md:px-10 md:pb-32 md:pt-8">
+        {featureSections.map((section, index) => {
+          const mediaFirst = section.align === "left";
+
+          return (
+            <article
+              key={section.title}
+              className={cn(
+                "supaterm-reveal grid items-center gap-12 border-t border-white/8 pt-12 md:gap-16 md:pt-16 xl:grid-cols-2",
+                mediaFirst && "xl:[&>div:first-child]:order-1 xl:[&>div:last-child]:order-2",
+                !mediaFirst && "xl:[&>div:first-child]:order-2 xl:[&>div:last-child]:order-1",
+              )}
+              style={{ animationDelay: `${140 + index * 80}ms` }}
+            >
+              <div className="max-w-[34rem]">
+                <div className="text-sm font-medium tracking-[0.2em] text-white/45 uppercase">
+                  {section.eyebrow}
+                </div>
+                <h2 className="mt-4 text-[clamp(2.4rem,4.8vw,4.5rem)] leading-[0.98] font-medium tracking-[-0.05em] text-balance text-[#f4f0e8]">
+                  {section.title}
+                </h2>
+                <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
+                  {section.body}
+                </p>
+                <ul className="mt-8 flex flex-wrap gap-3">
+                  {section.points.map((point) => (
+                    <li
+                      key={point}
+                      className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/74"
+                    >
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-[0.76rem] tracking-[0.14em] text-white/62 uppercase">
+                    {section.placeholder}
+                  </div>
+                  <div className="text-[0.76rem] tracking-[0.14em] text-[#f1ede4]/68 uppercase">
+                    {section.accent}
+                  </div>
+                </div>
+                <div className="group overflow-hidden border border-white/8 bg-[radial-gradient(circle_at_top_right,rgba(245,191,109,0.1),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] bg-[rgb(17,15,11)] shadow-[0_28px_100px_-48px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.05)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:border-white/14 motion-reduce:transform-none motion-reduce:transition-none">
+                  <div className="grid min-h-[27rem] [grid-template-columns:0.36fr_0.64fr] max-[900px]:grid-cols-1">
+                    <div className="flex flex-col gap-6 border-r border-white/7 bg-white/[0.02] px-4 py-[1.35rem] pl-[1.2rem] max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:border-white/7">
+                      <div className="h-4 w-[74%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06))]" />
+                      <div className="grid gap-3">
+                        <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.78rem] w-[68%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="grid gap-3">
+                        <span className="block h-[0.78rem] w-full rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
+                        <span className="block h-[0.78rem] w-[84%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.1),rgba(255,255,255,0.03))]" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-5 p-[1.4rem]">
+                      <div className="h-4 w-[72%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      <div className="grid grid-cols-3 gap-4">
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[5.4rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="grid gap-3.5 rounded-[1.35rem] border border-white/8 bg-black/22 p-5">
+                        <span className="block h-[0.9rem] w-[86%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[70%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[90%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[0.9rem] w-[52%] rounded-full bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                      <div className="mt-auto grid grid-cols-[1.2fr_0.8fr] gap-4">
+                        <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                        <span className="block h-[3.8rem] rounded-[1.15rem] bg-[linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.04))]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
       <section className="px-6 pb-16 md:px-10 md:pb-24">
