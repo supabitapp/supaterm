@@ -168,17 +168,14 @@ function App() {
                   {word}
                 </span>
               </h1>
-              <div className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
-                <span className="font-semibold text-white/80">Features:</span>
-                <ul className="mt-2 space-y-2">
-                  <li>Run coding agents side by side in live panes</li>
-                  <li>Organize with spaces, tabs, and splits</li>
-                  <li>
-                    Automate via the <code className="text-white/72">sp</code> CLI and Unix socket
-                  </li>
-                  <li>GPU-accelerated, native macOS performance</li>
-                </ul>
-              </div>
+              <ul className="mt-6 max-w-[29rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-[1.04rem]">
+                <li>Run coding agents side by side in live panes</li>
+                <li>Organize with spaces, tabs, and splits</li>
+                <li>
+                  Automate via the <code className="text-white/72">sp</code> CLI and Unix socket
+                </li>
+                <li>GPU-accelerated, native macOS performance</li>
+              </ul>
               <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <CtaLink
                   href={downloadHref}
