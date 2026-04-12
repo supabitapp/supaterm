@@ -36,7 +36,7 @@ const featureSections: FeatureSection[] = [
     video: splitUrl,
   },
   {
-    eyebrow: "Coding Agents integrations",
+    eyebrow: "Coding Agents Integrations",
     title: "Keep every coding agent visible without losing the terminal.",
     body: (
       <>
