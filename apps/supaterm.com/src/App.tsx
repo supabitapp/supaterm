@@ -1,6 +1,6 @@
 import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -92,7 +92,29 @@ function CtaLink({
   );
 }
 
+const adjectives = ["delightful", "fast", "powerful", "elegant", "intuitive", "brilliant"];
+
+function useRotatingWord(words: string[], intervalMs = 2400) {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % words.length);
+        setVisible(true);
+      }, 300);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [words.length, intervalMs]);
+
+  return { word: words[index], visible };
+}
+
 function App() {
+  const { word, visible } = useRotatingWord(adjectives);
+
   return (
     <main className="overflow-x-hidden">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
@@ -133,8 +155,16 @@ function App() {
                 The terminal with skills.
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
-                Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
-                you can stay in control while the work fans out.
+                A new{" "}
+                <span
+                  className={cn(
+                    "inline-block transition-all duration-300",
+                    visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+                  )}
+                >
+                  {word}
+                </span>{" "}
+                terminal from the makers of Supacode.
               </p>
               <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <CtaLink
