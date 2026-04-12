@@ -78,6 +78,19 @@ public enum SPEntrypoint {
         )
       }
       return true
+    case "run":
+      let invocation = try SPRawConnectionInvocation.parse(Array(commandArguments.dropFirst()))
+      if invocation.arguments.isEmpty || invocation.arguments.first == "--help" || invocation.arguments.first == "-h" {
+        print(SP.helpMessage(for: SP.Run.self))
+      } else {
+        try SPRunLauncher.run(
+          arguments: invocation.arguments,
+          explicitSocketPath: invocation.connection.explicitSocketPath,
+          instance: invocation.connection.instance,
+          environment: environment
+        )
+      }
+      return true
 
     default:
       return false

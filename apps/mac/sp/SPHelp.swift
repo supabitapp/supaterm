@@ -199,15 +199,15 @@ enum SPHelp {
       sp tmux --instance work-mac display-message -p '#{session_name}:#{window_index}.#{pane_index}'
     """
 
-  static let claudeTeamsDiscussion = """
-    Launch the external Claude CLI with Supaterm's tmux compatibility layer enabled.
+  static let runDiscussion = """
+    `sp run` launches a child process with Supaterm's tmux compatibility layer enabled.
 
-    Connection options must come before Claude arguments.
+    Connection options must come before the child command.
 
     Example:
-      sp internal claude-teams
-      sp internal claude-teams --resume
-      sp internal claude-teams --instance work-mac --help
+      sp run claude
+      sp run -- claude --resume
+      sp run --instance work-mac -- claude --resume
     """
 
   static let receiveAgentHookDiscussion = """

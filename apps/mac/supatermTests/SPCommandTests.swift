@@ -93,6 +93,15 @@ struct SPCommandTests {
   }
 
   @Test
+  func runParserAcceptsPassThroughCommandName() throws {
+    let run = try #require(
+      try SP.Run.parseAsRoot(["--", "claude", "--resume"]) as? SP.Run
+    )
+
+    #expect(run.arguments == ["claude", "--resume"])
+  }
+
+  @Test
   func newTabHelpShowsShellOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 

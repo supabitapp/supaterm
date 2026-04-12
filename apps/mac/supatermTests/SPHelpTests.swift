@@ -46,8 +46,8 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.ResizePane.self, columns: 100),
       SP.helpMessage(for: SP.PaneLayout.self, columns: 100),
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
+      SP.helpMessage(for: SP.Run.self, columns: 100),
       SP.helpMessage(for: SP.Tmux.self, columns: 100),
-      SP.helpMessage(for: SP.ClaudeTeams.self, columns: 100),
       SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100),
@@ -163,13 +163,13 @@ struct SPHelpTests {
   }
 
   @Test
-  func tmuxAndClaudeTeamsHelpShowPassThroughExamples() {
+  func tmuxAndRunHelpShowPassThroughExamples() {
     let tmuxHelp = SP.helpMessage(for: SP.Tmux.self, columns: 100)
-    let teammateHelp = SP.helpMessage(for: SP.ClaudeTeams.self, columns: 100)
+    let runHelp = SP.helpMessage(for: SP.Run.self, columns: 100)
 
     #expect(tmuxHelp.contains("sp tmux split-window -h -P"))
     #expect(tmuxHelp.contains("--instance work-mac"))
-    #expect(teammateHelp.contains("sp internal claude-teams"))
-    #expect(teammateHelp.contains("Example:"))
+    #expect(runHelp.contains("sp run -- claude --resume"))
+    #expect(runHelp.contains("Example:"))
   }
 }

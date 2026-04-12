@@ -13,6 +13,7 @@ public struct SP: ParsableCommand {
     Tree.self,
     Diagnostic.self,
     Instance.self,
+    Run.self,
     Space.self,
     Tab.self,
     Pane.self,

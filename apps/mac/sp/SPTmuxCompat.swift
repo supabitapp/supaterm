@@ -4,6 +4,32 @@ import Foundation
 import SupatermCLIShared
 
 extension SP {
+  struct Run: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "run",
+      abstract: "Launch a command with Supaterm tmux compatibility enabled.",
+      discussion: SPHelp.runDiscussion
+    )
+
+    @OptionGroup
+    var connection: SPConnectionOptions
+
+    @Argument(parsing: .remaining, help: "Command and arguments to launch.")
+    var arguments: [String] = []
+
+    mutating func run() throws {
+      if arguments.isEmpty {
+        print(Self.helpMessage())
+        return
+      }
+      try SPRunLauncher.run(
+        arguments: arguments,
+        explicitSocketPath: connection.explicitSocketPath,
+        instance: connection.instance
+      )
+    }
+  }
+
   struct Tmux: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "tmux",
@@ -23,28 +49,6 @@ extension SP {
         return
       }
       try SPTmuxCompatibility.run(
-        arguments: arguments,
-        explicitSocketPath: connection.explicitSocketPath,
-        instance: connection.instance
-      )
-    }
-  }
-
-  struct ClaudeTeams: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "claude-teams",
-      abstract: "Launch Claude with Supaterm tmux compatibility enabled.",
-      discussion: SPHelp.claudeTeamsDiscussion
-    )
-
-    @OptionGroup
-    var connection: SPConnectionOptions
-
-    @Argument(parsing: .remaining, help: "Arguments to pass through to Claude.")
-    var arguments: [String] = []
-
-    mutating func run() throws {
-      try SPTeammateLauncher.run(
         arguments: arguments,
         explicitSocketPath: connection.explicitSocketPath,
         instance: connection.instance
@@ -165,7 +169,7 @@ enum SPTmuxCompatibility {
   }
 }
 
-enum SPTeammateLauncher {
+enum SPRunLauncher {
   struct FocusedContext: Equatable {
     let windowIndex: Int
     let spaceIndex: Int
@@ -206,15 +210,12 @@ enum SPTeammateLauncher {
     socketPath: String,
     focusedContext: FocusedContext,
     environment: [String: String] = ProcessInfo.processInfo.environment,
-    executablePath: String? = nil,
     cliExecutablePath: String? = nil,
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
   ) throws -> Process {
-    let resolvedExecutablePath =
-      executablePath
-      ?? resolveClaudeExecutable(searchPath: environment["PATH"])
-    guard let resolvedExecutablePath else {
-      throw ValidationError("Unable to find a Claude executable on PATH.")
+    let resolvedCommand = try resolveCommand(arguments, searchPath: environment["PATH"])
+    guard let resolvedExecutablePath = resolvedCommand.executablePath else {
+      throw ValidationError("Unable to find \(resolvedCommand.command) on PATH.")
     }
 
     let resolvedCLIExecutablePath = try resolvedCLIPath(
@@ -230,7 +231,6 @@ enum SPTeammateLauncher {
     processEnvironment[SupatermCLIEnvironment.socketPathKey] = socketPath
     processEnvironment[SupatermCLIEnvironment.surfaceIDKey] = focusedContext.paneID.uuidString
     processEnvironment[SupatermCLIEnvironment.tabIDKey] = focusedContext.tabID.uuidString
-    processEnvironment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] = "1"
     processEnvironment["TERM"] = trimmedNonEmpty(environment["TERM"]) ?? "xterm-256color"
     processEnvironment["COLORTERM"] = trimmedNonEmpty(environment["COLORTERM"]) ?? "truecolor"
     processEnvironment["TERM_PROGRAM"] = "ghostty"
@@ -245,24 +245,24 @@ enum SPTeammateLauncher {
     processEnvironment["PATH"] = prependPathEntries([shimDirectory.path], to: environment["PATH"])
 
     SPTmuxTrace.write(
-      category: "sp.claude-teams",
+      category: "sp.run",
       event: "configured_process",
       fields: [
-        "claude_path": resolvedExecutablePath,
+        "executable_path": resolvedExecutablePath,
         "cli_path": resolvedCLIExecutablePath,
         "shim_directory": shimDirectory.path,
         "socket_path": socketPath,
         "focused_space_id": focusedContext.spaceID.uuidString.lowercased(),
         "focused_tab_id": focusedContext.tabID.uuidString.lowercased(),
         "focused_pane_id": focusedContext.paneID.uuidString.lowercased(),
-        "arguments": teammateLaunchArguments(commandArgs: arguments).joined(separator: "\u{1f}"),
+        "arguments": arguments.joined(separator: "\u{1f}"),
       ],
       environment: processEnvironment
     )
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: resolvedExecutablePath, isDirectory: false)
-    process.arguments = teammateLaunchArguments(commandArgs: arguments)
+    process.arguments = Array(arguments.dropFirst())
     process.environment = processEnvironment
     process.standardInput = FileHandle.standardInput
     process.standardOutput = FileHandle.standardOutput
@@ -270,29 +270,35 @@ enum SPTeammateLauncher {
     return process
   }
 
-  static func teammateLaunchArguments(commandArgs: [String]) -> [String] {
-    guard !hasExplicitTeammateMode(commandArgs: commandArgs) else {
-      return commandArgs
+  static func resolveCommand(_ arguments: [String], searchPath: String?) throws -> (
+    command: String, executablePath: String?
+  ) {
+    guard let command = arguments.first.flatMap(trimmedNonEmpty) else {
+      throw ValidationError("run requires a command.")
     }
-    return ["--teammate-mode", "auto"] + commandArgs
-  }
 
-  static func hasExplicitTeammateMode(commandArgs: [String]) -> Bool {
-    commandArgs.contains { argument in
-      argument == "--teammate-mode" || argument.hasPrefix("--teammate-mode=")
+    if command.contains("/") {
+      let path = URL(fileURLWithPath: command, isDirectory: false)
+        .standardizedFileURL
+        .path
+      if FileManager.default.isExecutableFile(atPath: path) {
+        return (command, path)
+      }
+      return (command, nil)
     }
-  }
 
-  static func resolveClaudeExecutable(searchPath: String?) -> String? {
     for entry in searchPath?.split(separator: ":").map(String.init) ?? [] where !entry.isEmpty {
-      let candidate = URL(fileURLWithPath: entry, isDirectory: true)
-        .appendingPathComponent("claude", isDirectory: false)
+      let path = URL(fileURLWithPath: entry, isDirectory: true)
+        .appendingPathComponent(command, isDirectory: false)
+        .path
+      let candidate = URL(fileURLWithPath: path, isDirectory: false)
+        .standardizedFileURL
         .path
       if FileManager.default.isExecutableFile(atPath: candidate) {
-        return candidate
+        return (command, candidate)
       }
     }
-    return nil
+    return (command, nil)
   }
 
   static func resolvedCLIPath(
@@ -337,7 +343,7 @@ enum SPTeammateLauncher {
 
 private func execProcess(_ process: Process) throws -> Never {
   guard let executablePath = process.executableURL?.path else {
-    throw ValidationError("Unable to resolve the Claude executable path.")
+    throw ValidationError("Unable to resolve the executable path.")
   }
 
   let arguments = [executablePath] + (process.arguments ?? [])
@@ -355,7 +361,7 @@ private func execProcess(_ process: Process) throws -> Never {
 
   execve(executablePath, argv, envp)
   let message = String(cString: strerror(errno))
-  throw ValidationError("Failed to launch Claude: \(message)")
+  throw ValidationError("Failed to launch process: \(message)")
 }
 
 private func makeCStringArray(_ values: [String]) -> UnsafeMutablePointer<
@@ -491,7 +497,7 @@ struct SPTmuxCommandRunner {
     }
   }
 
-  func focusedContext() throws -> SPTeammateLauncher.FocusedContext {
+  func focusedContext() throws -> SPRunLauncher.FocusedContext {
     let current = try topology().current
     return .init(
       windowIndex: current.window.index,
@@ -531,7 +537,7 @@ struct SPTmuxCommandRunner {
     )
 
     if let text = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c")) {
-      let wrappedText = wrappedTeammatePaneCommand(
+      let wrappedText = wrappedRunPaneCommand(
         text,
         spaceID: created.target.spaceID,
         tabID: created.tabID,
@@ -628,7 +634,7 @@ struct SPTmuxCommandRunner {
     }
 
     if let command {
-      let wrappedText = wrappedTeammatePaneCommand(
+      let wrappedText = wrappedRunPaneCommand(
         command,
         spaceID: created.spaceID,
         tabID: created.tabID,
@@ -723,7 +729,7 @@ struct SPTmuxCommandRunner {
     }
 
     if let command {
-      let wrappedText = wrappedTeammatePaneCommand(
+      let wrappedText = wrappedRunPaneCommand(
         command,
         spaceID: created.spaceID,
         tabID: created.tabID,
@@ -2027,10 +2033,6 @@ private func isLastSelector(_ value: String) -> Bool {
   return trimmed == "-" || trimmed == "!" || trimmed == "^"
 }
 
-private func teammateLaunchArguments(commandArgs: [String]) -> [String] {
-  SPTeammateLauncher.teammateLaunchArguments(commandArgs: commandArgs)
-}
-
 private func prependPathEntries(_ newEntries: [String], to currentPath: String?) -> String {
   var ordered: [String] = []
   var seen = Set<String>()
@@ -2068,7 +2070,7 @@ private func tmuxShellCommandText(
   return pieces.joined(separator: " && ") + "\r"
 }
 
-private func wrappedTeammatePaneCommand(
+private func wrappedRunPaneCommand(
   _ command: String,
   spaceID: UUID,
   tabID: UUID,

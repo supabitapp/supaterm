@@ -26,17 +26,22 @@ struct SPTmuxCompatTests {
   }
 
   @Test
-  func teammateLaunchArgumentsInjectAutoModeOnlyWhenMissing() {
+  func rawConnectionInvocationPreservesArgumentsAfterDoubleDash() throws {
+    let invocation = try SPRawConnectionInvocation.parse([
+      "--instance", "work-mac",
+      "--",
+      "claude",
+      "--resume",
+    ])
+
     #expect(
-      SPTeammateLauncher.teammateLaunchArguments(commandArgs: ["--resume"])
-        == ["--teammate-mode", "auto", "--resume"]
+      invocation.connection
+        == .init(
+          explicitSocketPath: nil,
+          instance: "work-mac"
+        )
     )
-    #expect(
-      SPTeammateLauncher.teammateLaunchArguments(commandArgs: [
-        "--teammate-mode", "manual", "--resume",
-      ])
-        == ["--teammate-mode", "manual", "--resume"]
-    )
+    #expect(invocation.arguments == ["claude", "--resume"])
   }
 
   @Test
@@ -45,13 +50,13 @@ struct SPTmuxCompatTests {
     defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
     let binDirectory = temporaryDirectory.appendingPathComponent("bin", isDirectory: true)
-    let claudeURL = binDirectory.appendingPathComponent("claude", isDirectory: false)
+    let programURL = binDirectory.appendingPathComponent("claude", isDirectory: false)
     let spURL = binDirectory.appendingPathComponent("sp", isDirectory: false)
 
-    try writeExecutable(at: claudeURL, script: "#!/bin/sh\nexit 0\n")
+    try writeExecutable(at: programURL, script: "#!/bin/sh\nexit 0\n")
     try writeExecutable(at: spURL, script: "#!/bin/sh\nexit 0\n")
 
-    let context = SPTeammateLauncher.FocusedContext(
+    let context = SPRunLauncher.FocusedContext(
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -61,8 +66,8 @@ struct SPTmuxCompatTests {
       paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
 
-    let process = try SPTeammateLauncher.configuredProcess(
-      arguments: ["--resume"],
+    let process = try SPRunLauncher.configuredProcess(
+      arguments: ["claude", "--resume"],
       socketPath: "/tmp/supaterm.sock",
       focusedContext: context,
       environment: [
@@ -71,7 +76,6 @@ struct SPTmuxCompatTests {
         "COLORTERM": "truecolor",
         "TERM_PROGRAM_VERSION": "1.2.3",
       ],
-      executablePath: claudeURL.path,
       cliExecutablePath: spURL.path,
       homeDirectoryURL: temporaryDirectory
     )
@@ -84,12 +88,11 @@ struct SPTmuxCompatTests {
       .appendingPathComponent("shims", isDirectory: true)
     let shimURL = shimDirectory.appendingPathComponent("tmux", isDirectory: false)
 
-    #expect(process.executableURL?.path == claudeURL.path)
-    #expect(process.arguments == ["--teammate-mode", "auto", "--resume"])
+    #expect(process.executableURL?.standardizedFileURL.path == programURL.standardizedFileURL.path)
+    #expect(process.arguments == ["--resume"])
     #expect(environment[SupatermCLIEnvironment.socketPathKey] == "/tmp/supaterm.sock")
     #expect(environment[SupatermCLIEnvironment.surfaceIDKey] == context.paneID.uuidString)
     #expect(environment[SupatermCLIEnvironment.tabIDKey] == context.tabID.uuidString)
-    #expect(environment["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"] == "1")
     #expect(environment["TERM"] == "xterm-ghostty")
     #expect(environment["COLORTERM"] == "truecolor")
     #expect(environment["TERM_PROGRAM"] == "ghostty")
@@ -97,6 +100,17 @@ struct SPTmuxCompatTests {
     #expect(environment["TMUX_PANE"] == "%2b8b3a57-d7f8-4ef7-930f-46b1f7281b2a")
     #expect(environment["PATH"]?.split(separator: ":").first.map(String.init) == shimDirectory.path)
     #expect(FileManager.default.isExecutableFile(atPath: shimURL.path))
+  }
+
+  @Test
+  func resolveCommandRequiresExecutableOnPath() throws {
+    let resolved = try SPRunLauncher.resolveCommand(
+      ["claude", "--resume"],
+      searchPath: "/tmp/does-not-exist"
+    )
+
+    #expect(resolved.command == "claude")
+    #expect(resolved.executablePath == nil)
   }
 
   @Test

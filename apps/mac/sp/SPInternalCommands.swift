@@ -14,7 +14,6 @@ extension SP {
         GenerateSettingsSchema.self,
         AgentSettings.self,
         Development.self,
-        ClaudeTeams.self,
       ]
     )
 
