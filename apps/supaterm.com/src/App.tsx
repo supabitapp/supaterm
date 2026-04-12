@@ -64,6 +64,7 @@ const featureSections: FeatureSection[] = [
     body: (
       <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
         <li>Organize tabs in to spaces</li>
+        <li>Within tabs split into multiple panes</li>
         <li>Pin tabs with your favorite pane layout</li>
         <li>Resume coding agents after app relaunch (Coming soon...)</li>
       </ul>
