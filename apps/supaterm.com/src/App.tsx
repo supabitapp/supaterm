@@ -22,7 +22,7 @@ type FeatureSection = {
 const featureSections: FeatureSection[] = [
   {
     eyebrow: "CLI and Agent Skills",
-    title: "Drive the app from scripts, hooks, and your own tooling.",
+    title: "Control the app from scripts, or tell your agents to do it.",
     body: "The bundled `sp` CLI and socket boundary let Supaterm respond to automation as a first-class surface, not as a screen scrape or fragile window script.",
     align: "right",
     video: splitUrl,
