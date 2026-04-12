@@ -92,6 +92,26 @@ function CtaLink({
   );
 }
 
+const MIN_MACOS_VERSION = 26;
+
+function getMacOSVersion(): number | null {
+  const match = navigator.userAgent.match(/Mac OS X (\d+)[_.](\d+)/);
+  if (!match) return null;
+  const major = Number(match[1]);
+  return major === 10 ? Number(match[2]) : major;
+}
+
+function useUnsupportedMacOS() {
+  const [unsupported, setUnsupported] = useState(false);
+
+  useEffect(() => {
+    const version = getMacOSVersion();
+    if (version !== null && version < MIN_MACOS_VERSION) setUnsupported(true);
+  }, []);
+
+  return unsupported;
+}
+
 const nouns = ["speed", "skills", "focus", "flow", "grit", "craft"];
 
 function useRotatingWord(words: string[], intervalMs = 2400) {
@@ -114,9 +134,15 @@ function useRotatingWord(words: string[], intervalMs = 2400) {
 
 function App() {
   const { word, visible } = useRotatingWord(nouns);
+  const unsupportedMac = useUnsupportedMacOS();
 
   return (
     <main className="overflow-x-hidden">
+      {unsupportedMac && (
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-yellow-500/20 bg-yellow-950/90 px-6 py-3 text-center text-sm text-yellow-200 backdrop-blur-md">
+          Supaterm requires macOS Tahoe or later. Please update your Mac to use it.
+        </div>
+      )}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
         <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
           <a href="/" className="flex items-center gap-2.5">
