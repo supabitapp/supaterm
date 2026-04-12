@@ -35,6 +35,18 @@ const featureSections: FeatureSection[] = [
     align: "right",
     video: splitUrl,
   },
+  {
+    eyebrow: "Coding Agents integrations",
+    title: "Keep every coding agent visible without losing the terminal.",
+    body: "Supaterm tracks agent activity inside the pane you already work in, so parallel runs stay legible instead of disappearing into detached tabs and hidden windows.",
+    align: "left",
+  },
+  {
+    eyebrow: "Spaces, tabs, panes",
+    title: "Organize messy terminal work into something you can actually steer.",
+    body: "Group work by space, pin the tabs that matter, and split panes without sacrificing the macOS feel. The structure stays clear as the session gets deeper.",
+    align: "right",
+  },
 ];
 
 const ctaIcons = {
