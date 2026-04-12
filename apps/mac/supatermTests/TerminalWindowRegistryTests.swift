@@ -34,7 +34,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       #expect(
         registry.commandAvailability()
@@ -65,7 +66,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     #expect(registry.bypassesQuitConfirmation)
   }
@@ -88,7 +90,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     let context = registry.menuContext()
     #expect(context.updateMenuItemText == "Restart to Update...")
@@ -113,7 +116,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     let context = registry.menuContext()
     #expect(context.updateMenuItemText == "Restart to Update...")
@@ -142,7 +146,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     #expect(registry.requestUpdateMenuActionInKeyWindow())
     #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.checkForUpdates])
@@ -170,7 +175,8 @@ struct TerminalWindowRegistryTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     #expect(registry.requestUpdateMenuActionInKeyWindow())
     #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.restartNow])
@@ -207,7 +213,8 @@ struct TerminalWindowRegistryTests {
         terminal: firstHost,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: firstWindowControllerID)
+      let firstWindow = makeWindow()
+      registry.updateWindow(firstWindow, for: firstWindowControllerID)
 
       registry.register(
         keyboardShortcutForAction: { _ in nil },
@@ -216,7 +223,8 @@ struct TerminalWindowRegistryTests {
         terminal: secondHost,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: secondWindowControllerID)
+      let secondWindow = makeWindow()
+      registry.updateWindow(secondWindow, for: secondWindowControllerID)
 
       let snapshot = registry.restorationSnapshot()
 
@@ -251,7 +259,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestCloseTabInKeyWindow()
       await flushEffects()
@@ -281,7 +290,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestNewTabInKeyWindow()
       await flushEffects()
@@ -311,7 +321,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestBindingActionInKeyWindow(.newSplit(.left))
       await flushEffects()
@@ -338,7 +349,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestToggleCommandPaletteInKeyWindow()
       await flushEffects()
@@ -368,7 +380,8 @@ struct TerminalWindowRegistryTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       registry.requestNavigateSearchInKeyWindow(.previous)
       await flushEffects()

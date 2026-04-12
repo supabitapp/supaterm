@@ -269,7 +269,8 @@ struct TerminalCommandExecutorAgentHookTests {
       terminal: harness.host,
       requestConfirmedWindowClose: {}
     )
-    harness.registry.updateWindow(makeWindow(), for: harness.windowControllerID)
+    let window = makeWindow()
+    harness.registry.updateWindow(window, for: harness.windowControllerID)
     _ = try harness.commandExecutor.handleAgentHook(
       ClaudeHookFixtures.request(ClaudeHookFixtures.notification)
     )

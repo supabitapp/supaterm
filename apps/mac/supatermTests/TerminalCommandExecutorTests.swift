@@ -32,7 +32,8 @@ struct TerminalCommandExecutorTests {
       terminal: host,
       requestConfirmedWindowClose: {}
     )
-    registry.updateWindow(makeWindow(), for: windowControllerID)
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
 
     let snapshot = commandExecutor.debugSnapshot(.init())
     #expect(snapshot.update.canCheckForUpdates)
@@ -72,7 +73,8 @@ struct TerminalCommandExecutorTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       let result = try commandExecutor.createTab(
         .init(
@@ -124,7 +126,8 @@ struct TerminalCommandExecutorTests {
         terminal: host,
         requestConfirmedWindowClose: {}
       )
-      registry.updateWindow(makeWindow(), for: windowControllerID)
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
 
       let result = try commandExecutor.createTab(
         .init(
