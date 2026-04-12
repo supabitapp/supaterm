@@ -107,7 +107,9 @@ public struct PiSettingsInstaller {
   }
 
   static func installCommandArguments(source: String) -> [String] {
-    ["-l", "-c", "pi install \(shellEscaped(source))"]
+    LoginShellCommandAvailability.interactiveCommandArguments(
+      for: "pi install \(shellEscaped(source))"
+    )
   }
 
   public static func installDisplayCommand(source: String) -> String {
@@ -115,7 +117,9 @@ public struct PiSettingsInstaller {
   }
 
   static func removeCommandArguments(source: String) -> [String] {
-    ["-l", "-c", "pi remove \(shellEscaped(source))"]
+    LoginShellCommandAvailability.interactiveCommandArguments(
+      for: "pi remove \(shellEscaped(source))"
+    )
   }
 
   static func isSupatermPackageSource(_ source: String) -> Bool {

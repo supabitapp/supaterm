@@ -79,7 +79,7 @@ public struct SupatermSkillInstaller {
   }
 
   static func automatedInstallCommandArguments() -> [String] {
-    ["-l", "-c", automatedInstallCommand]
+    LoginShellCommandAvailability.interactiveCommandArguments(for: automatedInstallCommand)
   }
 
   static func runInstallCommand(commandArguments: [String]) throws -> CommandResult {

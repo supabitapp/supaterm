@@ -13,7 +13,11 @@ enum LoginShellCommandAvailability {
 
   static func commandArguments(for commandNames: [String]) -> [String] {
     let checks = commandNames.map { "command -v \($0) >/dev/null 2>&1" }
-    return ["-l", "-c", checks.joined(separator: " || ")]
+    return interactiveCommandArguments(for: checks.joined(separator: " || "))
+  }
+
+  static func interactiveCommandArguments(for command: String) -> [String] {
+    ["-l", "-i", "-c", command]
   }
 }
 
@@ -128,11 +132,9 @@ public struct CodexSettingsInstaller {
   }
 
   static func enableHooksCommandArguments() -> [String] {
-    [
-      "-l",
-      "-c",
-      "codex features enable codex_hooks",
-    ]
+    LoginShellCommandAvailability.interactiveCommandArguments(
+      for: "codex features enable codex_hooks"
+    )
   }
 
   static func availabilityCommandArguments() -> [String] {

@@ -56,6 +56,14 @@ struct SupatermSkillInstallerTests {
   }
 
   @Test
+  func automatedInstallCommandArgumentsUseInteractiveLoginShell() {
+    #expect(
+      SupatermSkillInstaller.automatedInstallCommandArguments()
+        == ["-l", "-i", "-c", "npx skills add supabitapp/supaterm-skills --skill supaterm -g -y"]
+    )
+  }
+
+  @Test
   func installFailsWhenNPXIsUnavailable() {
     let installer = SupatermSkillInstaller(
       checkNPXAvailable: { false },

@@ -509,18 +509,18 @@ struct CodexSettingsInstallerTests {
   }
 
   @Test
-  func enableHooksCommandArgumentsAreShellNeutral() {
+  func enableHooksCommandArgumentsUseInteractiveLoginShell() {
     #expect(
       CodexSettingsInstaller.enableHooksCommandArguments()
-        == ["-l", "-c", "codex features enable codex_hooks"]
+        == ["-l", "-i", "-c", "codex features enable codex_hooks"]
     )
   }
 
   @Test
-  func availabilityCommandArgumentsAreShellNeutral() {
+  func availabilityCommandArgumentsUseInteractiveLoginShell() {
     #expect(
       CodexSettingsInstaller.availabilityCommandArguments()
-        == ["-l", "-c", "command -v codex >/dev/null 2>&1"]
+        == ["-l", "-i", "-c", "command -v codex >/dev/null 2>&1"]
     )
   }
 }
