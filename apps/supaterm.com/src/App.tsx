@@ -40,10 +40,11 @@ const featureSections: FeatureSection[] = [
     title: "Keep every coding agent visible without losing the terminal.",
     body: (
       <>
-        <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
-          Supaterm tracks agent activity inside the pane you already work in, so parallel runs stay
-          legible instead of disappearing into detached tabs and hidden windows.
-        </p>
+        <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
+          <li>Agent statues are shown on the sidebar</li>
+          <li>Quickly hover to see what it's up to</li>
+          <li>Pane glows up if agent needs your attention</li>
+        </ul>
         <div className="mt-6 flex items-center gap-5">
           <img src="/claude-code-mark.svg" alt="Claude Code" className="h-6" />
           <img src="/codex-mark.svg" alt="Codex" className="h-6" />
