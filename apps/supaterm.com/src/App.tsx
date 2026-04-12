@@ -92,7 +92,7 @@ function CtaLink({
   );
 }
 
-const nouns = ["speed", "focus", "flow", "grit", "craft"];
+const nouns = ["speed", "focus", "flow", "grit", "craft", "skills"];
 
 function useRotatingWord(words: string[], intervalMs = 2400) {
   const [index, setIndex] = useState(0);
