@@ -219,7 +219,7 @@ function App() {
 
       <section className="relative isolate">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-[84px] md:px-10 md:pb-18 md:pt-[92px]">
-          <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-12">
+          <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-10 lg:pt-12">
             <div className="max-w-[560px]">
               <h1 className="text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
                 The terminal with{" "}
@@ -294,9 +294,9 @@ function App() {
             <article
               key={section.title}
               className={cn(
-                "supaterm-reveal grid items-center gap-12 border-t border-white/8 pt-12 md:gap-16 md:pt-16 xl:grid-cols-2",
-                mediaFirst && "xl:[&>div:first-child]:order-1 xl:[&>div:last-child]:order-2",
-                !mediaFirst && "xl:[&>div:first-child]:order-2 xl:[&>div:last-child]:order-1",
+                "supaterm-reveal grid items-center gap-12 border-t border-white/8 pt-12 md:gap-16 md:pt-16 lg:grid-cols-2",
+                mediaFirst && "lg:[&>div:first-child]:order-1 lg:[&>div:last-child]:order-2",
+                !mediaFirst && "lg:[&>div:first-child]:order-2 lg:[&>div:last-child]:order-1",
               )}
               style={{ animationDelay: `${140 + index * 80}ms` }}
             >
