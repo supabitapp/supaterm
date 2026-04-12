@@ -101,14 +101,14 @@ func shellCommandInput(_ tokens: [String]) -> String? {
 
 func validateStartupInput(script: String?, tokens: [String]) throws {
   if script != nil && !tokens.isEmpty {
-    throw ValidationError("--shell cannot be used with a trailing command.")
+    throw ValidationError("--script cannot be used with a trailing command.")
   }
 }
 
 func startupInput(script: String?, tokens: [String]) throws -> String? {
   if let script {
     if script.isEmpty {
-      throw ValidationError("--shell must not be empty.")
+      throw ValidationError("--script must not be empty.")
     }
     return normalizedStartupInput(script)
   }

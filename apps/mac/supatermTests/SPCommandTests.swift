@@ -7,11 +7,11 @@ import Testing
 
 struct SPCommandTests {
   @Test
-  func newPaneHelpShowsShellOptionAndExample() {
+  func newPaneHelpShowsScriptOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewPane.self, columns: 100)
 
-    #expect(help.contains("--shell <shell>"))
-    #expect(help.contains("sp pane split down --shell"))
+    #expect(help.contains("--script <script>"))
+    #expect(help.contains("sp pane split down --script 'echo hi; pwd'"))
   }
 
   @Test
@@ -102,11 +102,11 @@ struct SPCommandTests {
   }
 
   @Test
-  func newTabHelpShowsShellOptionAndExample() {
+  func newTabHelpShowsScriptOptionAndExample() {
     let help = SP.helpMessage(for: SP.NewTab.self, columns: 100)
 
-    #expect(help.contains("--shell <shell>"))
-    #expect(help.contains("sp tab new --shell"))
+    #expect(help.contains("--script <script>"))
+    #expect(help.contains("sp tab new --script 'echo hi; pwd'"))
   }
 
   @Test
@@ -217,16 +217,16 @@ struct SPCommandTests {
   }
 
   @Test(arguments: [
-    ["pane", "split", "right", "--shell", "echo 1", "echo", "2"],
-    ["tab", "new", "--shell", "echo 1", "echo", "2"],
+    ["pane", "split", "right", "--script", "echo 1", "echo", "2"],
+    ["tab", "new", "--script", "echo 1", "echo", "2"],
   ])
   func parserRejectsShellWithTrailingCommand(arguments: [String]) {
     do {
       _ = try SP.parseAsRoot(arguments)
-      Issue.record("Expected parsing to reject combining --shell with a trailing command.")
+      Issue.record("Expected parsing to reject combining --script with a trailing command.")
     } catch {
       let message = String(describing: error)
-      #expect(message.contains("--shell cannot be used with a trailing command."))
+      #expect(message.contains("--script cannot be used with a trailing command."))
     }
   }
 
@@ -234,10 +234,10 @@ struct SPCommandTests {
   func startupInputRejectsEmptyShell() {
     do {
       _ = try startupInput(script: "", tokens: [])
-      Issue.record("Expected startupInput to reject an empty --shell.")
+      Issue.record("Expected startupInput to reject an empty --script.")
     } catch {
       let message = String(describing: error)
-      #expect(message.contains("--shell must not be empty."))
+      #expect(message.contains("--script must not be empty."))
     }
   }
 

@@ -26,10 +26,10 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("shell"), help: "Raw shell input to send when the new tab opens.")
+    @Option(name: .customLong("script"), help: "Raw shell script to send when the new tab opens.")
     var script: String?
 
-    @Argument(help: "Optional shell input to send when the new tab opens.")
+    @Argument(help: "Command and arguments to run when the new tab opens.")
     var input: [String] = []
 
     mutating func run() throws {
@@ -148,10 +148,10 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("shell"), help: "Raw shell input to send when the new pane opens.")
+    @Option(name: .customLong("script"), help: "Raw shell script to send when the new pane opens.")
     var script: String?
 
-    @Argument(help: "Optional shell input to send when the new pane opens.")
+    @Argument(help: "Command and arguments to run when the new pane opens.")
     var input: [String] = []
 
     mutating func run() throws {

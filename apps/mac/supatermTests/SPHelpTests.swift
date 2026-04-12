@@ -88,6 +88,9 @@ struct SPHelpTests {
     let notifyHelp = SP.helpMessage(for: SP.Notify.self, columns: 100)
 
     #expect(newTabHelp.contains("space selector or UUID"))
+    #expect(newTabHelp.contains("Trailing arguments after `--` are treated as a command and its arguments."))
+    #expect(newTabHelp.contains("`--script` sends raw shell script text exactly as provided."))
+    #expect(newTabHelp.contains("sp tab new --script 'echo hi; pwd'"))
     #expect(newTabHelp.contains("sp tab new --in <space-uuid>"))
     #expect(notifyHelp.contains("space/tab/pane"))
     #expect(notifyHelp.contains("sp pane notify <pane-uuid>"))

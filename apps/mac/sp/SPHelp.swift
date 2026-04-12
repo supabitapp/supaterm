@@ -60,12 +60,14 @@ enum SPHelp {
 
     `--in` accepts a tab selector, a pane selector, or a UUID.
 
-    Trailing arguments and `--shell` become startup input for the new pane's shell.
+    Trailing arguments after `--` are treated as a command and its arguments.
+
+    `--script` sends raw shell script text exactly as provided.
 
     Example:
       sp pane split right
       sp pane split down -- htop
-      sp pane split down --shell $'echo 1\necho 2'
+      sp pane split down --script 'echo hi; pwd'
       sp pane split --layout keep right
       sp pane split --in 1/2 left
       sp pane split --in <tab-uuid> left
@@ -79,11 +81,13 @@ enum SPHelp {
 
     `--in` accepts a space selector or UUID.
 
-    Trailing arguments and `--shell` become startup input for the new tab's shell.
+    Trailing arguments after `--` are treated as a command and its arguments.
+
+    `--script` sends raw shell script text exactly as provided.
 
     Example:
       sp tab new -- ping 1.1.1.1
-      sp tab new --shell $'echo 1\necho 2'
+      sp tab new --script 'echo hi; pwd'
       sp tab new --focus -- ping 1.1.1.1
       sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
       sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
