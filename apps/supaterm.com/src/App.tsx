@@ -38,13 +38,32 @@ const featureSections: FeatureSection[] = [
   {
     eyebrow: "Coding Agents integrations",
     title: "Keep every coding agent visible without losing the terminal.",
-    body: "Supaterm tracks agent activity inside the pane you already work in, so parallel runs stay legible instead of disappearing into detached tabs and hidden windows.",
+    body: (
+      <>
+        <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
+          Supaterm tracks agent activity inside the pane you already work in, so parallel runs stay
+          legible instead of disappearing into detached tabs and hidden windows.
+        </p>
+        <div className="mt-6 flex items-center gap-5">
+          <img src="/claude-code-mark.svg" alt="Claude Code" className="h-6" />
+          <img src="/codex-mark.svg" alt="Codex" className="h-6" />
+          <img src="/pi-mark.svg" alt="Pi" className="h-6" />
+        </div>
+      </>
+    ),
     align: "left",
   },
   {
     eyebrow: "Spaces, tabs, panes",
     title: "Organize messy terminal work into something you can actually steer.",
-    body: "Group work by space, pin the tabs that matter, and split panes without sacrificing the macOS feel. The structure stays clear as the session gets deeper.",
+    body: (
+      <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
+        <li>Group work by space</li>
+        <li>Pin the tabs that matter</li>
+        <li>Split panes without sacrificing the macOS feel</li>
+        <li>Structure stays clear as the session gets deeper</li>
+      </ul>
+    ),
     align: "right",
   },
 ];
