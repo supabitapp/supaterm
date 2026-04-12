@@ -259,7 +259,11 @@ enum SPOnboardingRenderer {
     }
 
     lines.append("")
-    lines.append(SPTerminalStyle.bold("Coding Agent Setup"))
+    lines.append(SPTerminalStyle.bold("Coding Agents Integrations Setup:"))
+    lines.append("")
+    lines.append("Install the Supaterm skill:")
+    lines.append("")
+    lines.append(SupatermSkillInstaller.manualInstallCommand)
     lines.append("")
     lines.append("Run the commands that match your setup:")
     lines.append("")

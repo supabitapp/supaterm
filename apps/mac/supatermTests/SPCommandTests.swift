@@ -150,7 +150,11 @@ struct SPCommandTests {
         ⌘⇧D   Split down
         ⌘F    Find
 
-        Coding Agent Setup
+        Coding Agents Integrations Setup:
+
+        Install the Supaterm skill:
+
+        npx skills add supabitapp/supaterm-skills --skill supaterm -g
 
         Run the commands that match your setup:
 
