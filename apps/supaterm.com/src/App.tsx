@@ -169,12 +169,13 @@ function App() {
                 </span>
               </h1>
               <ul className="mt-6 max-w-[29rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-[1.04rem]">
-                <li>Run coding agents side by side in live panes</li>
-                <li>Organize with spaces, tabs, and splits</li>
+                <li>Fast - native macOS built with libghostty</li>
+                <li>Notifications - keeping track of your agents activities</li>
                 <li>
-                  Automate via the <code className="text-white/72">sp</code> CLI and Unix socket
+                  Extensible - Automate via the <code className="text-white/72">sp</code> CLI and
+                  agent skill.
                 </li>
-                <li>GPU-accelerated, native macOS performance</li>
+                <li>and many more...</li>
               </ul>
               <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <CtaLink
