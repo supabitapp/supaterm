@@ -164,6 +164,35 @@
   }
 }
 
+.rainbow-text {
+  background: linear-gradient(
+    90deg,
+    rgb(235, 95, 87),
+    rgb(245, 139, 87),
+    rgb(250, 195, 95),
+    rgb(145, 200, 130),
+    rgb(130, 170, 220),
+    rgb(155, 130, 200),
+    rgb(200, 130, 180),
+    rgb(235, 95, 87)
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-shimmer 3s linear infinite;
+}
+
+@keyframes rainbow-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .supaterm-reveal {
     animation: none;

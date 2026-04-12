@@ -157,6 +157,7 @@ function App() {
                   className={cn(
                     "inline-block transition-all duration-300",
                     visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+                    word === "no slop" && "rainbow-text",
                   )}
                 >
                   {word}
