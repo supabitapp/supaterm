@@ -1,5 +1,6 @@
 import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { posthog } from "posthog-js";
 import { type ReactNode, useEffect, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
 import { buttonVariants } from "@/components/ui/button";
@@ -62,6 +63,7 @@ type CtaLinkProps = {
   variant?: "default" | "outline";
   size?: "lg";
   showIcon?: boolean;
+  onClick?: () => void;
 };
 
 function CtaLink({
@@ -72,10 +74,12 @@ function CtaLink({
   variant = "default",
   size = "lg",
   showIcon = true,
+  onClick,
 }: CtaLinkProps) {
   return (
     <a
       href={href}
+      onClick={onClick}
       className={cn(buttonVariants({ variant, size }), showIcon ? "gap-3" : "gap-0", className)}
     >
       {showIcon ? (
@@ -157,6 +161,7 @@ function App() {
               icon="github"
               variant="outline"
               showIcon={false}
+              onClick={() => posthog.capture("nav_github_clicked")}
               className="h-[1.55rem] rounded-full border-white/12 bg-white/4 px-3.5 text-[0.7rem] leading-none font-normal text-white/82 hover:border-white/18 hover:bg-white/8"
             >
               GitHub
@@ -165,6 +170,7 @@ function App() {
               href={downloadHref}
               icon="download"
               showIcon={false}
+              onClick={() => posthog.capture("nav_download_clicked")}
               className="h-[1.55rem] rounded-full bg-[#f1ede4] px-3.5 text-[0.7rem] leading-none font-normal text-[#12100b] hover:bg-white"
             >
               Download
@@ -195,6 +201,7 @@ function App() {
                 <CtaLink
                   href={downloadHref}
                   icon="download"
+                  onClick={() => posthog.capture("download_clicked")}
                   className="rounded-full bg-[#f1ede4] px-7 text-base text-[#12100b] hover:bg-white"
                 >
                   Download for macOS
@@ -203,6 +210,7 @@ function App() {
                   href={githubHref}
                   icon="github"
                   variant="outline"
+                  onClick={() => posthog.capture("hero_github_clicked")}
                   className="rounded-full border-white/12 bg-white/6 px-6 text-base text-white/88 hover:border-white/18 hover:bg-white/10"
                 >
                   GitHub
@@ -327,6 +335,7 @@ function App() {
             <CtaLink
               href={downloadHref}
               icon="download"
+              onClick={() => posthog.capture("cta_download_clicked")}
               className="min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]"
             >
               Download for macOS
@@ -335,6 +344,7 @@ function App() {
               href={githubHref}
               icon="github"
               variant="outline"
+              onClick={() => posthog.capture("cta_github_clicked")}
               className="min-w-0 rounded-full border-white/10 bg-white/6 px-8 py-7 text-[1.15rem] text-white/88 hover:border-white/18 hover:bg-white/10 md:min-w-[19rem]"
             >
               View on GitHub
@@ -350,13 +360,25 @@ function App() {
             <span>Supaterm</span>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <a href={githubHref} className="transition-colors hover:text-white/78">
+            <a
+              href={githubHref}
+              onClick={() => posthog.capture("footer_github_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
               GitHub
             </a>
-            <a href={releasesHref} className="transition-colors hover:text-white/78">
+            <a
+              href={releasesHref}
+              onClick={() => posthog.capture("footer_releases_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
               Releases
             </a>
-            <a href="https://x.com/khoiracle" className="transition-colors hover:text-white/78">
+            <a
+              href="https://x.com/khoiracle"
+              onClick={() => posthog.capture("footer_twitter_clicked")}
+              className="transition-colors hover:text-white/78"
+            >
               Made by @khoiracle
             </a>
           </div>
