@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { posthog } from "posthog-js";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
+import agentsUrl from "./assets/agents.mp4";
 import splitUrl from "./assets/split.mp4";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ const featureSections: FeatureSection[] = [
       </>
     ),
     align: "left",
+    video: agentsUrl,
   },
   {
     eyebrow: "Spaces, tabs, panes",
