@@ -172,15 +172,6 @@ func stdoutIsTTY() -> Bool {
   isatty(FileHandle.standardOutput.fileDescriptor) != 0
 }
 
-func shouldPromptInteractively(
-  mode: SPOutputMode,
-  isQuiet: Bool,
-  isInputTTY: Bool = stdinIsTTY(),
-  isOutputTTY: Bool = stdoutIsTTY()
-) -> Bool {
-  mode == .human && !isQuiet && isInputTTY && isOutputTTY
-}
-
 private func shellEscapedToken(_ token: String) -> String {
   guard !token.isEmpty else { return "''" }
 
@@ -253,7 +244,7 @@ enum SPOnboardingRenderer {
   static func render(_ snapshot: SupatermOnboardingSnapshot) -> String {
     let shortcutWidth = snapshot.items.map(\.shortcut.count).max() ?? 0
     var lines = [
-      "Thank you for using supaterm!",
+      "Welcome to Supaterm!",
       "",
       SPTerminalStyle.bold("Common Shortcuts"),
     ]
@@ -268,8 +259,15 @@ enum SPOnboardingRenderer {
     }
 
     lines.append("")
+    lines.append(SPTerminalStyle.bold("Coding Agent Setup"))
+    lines.append("")
+    lines.append("Run the commands that match your setup:")
+    lines.append("")
+    lines.append("sp agent install-hook claude")
+    lines.append("sp agent install-hook codex")
+    lines.append("pi install")
+    lines.append("")
     lines.append(#"Run "sp" for the list of available commands."#)
-    lines.append(#"Run "sp onboard --force" to rerun coding-agent setup."#)
 
     return lines.joined(separator: "\n")
   }

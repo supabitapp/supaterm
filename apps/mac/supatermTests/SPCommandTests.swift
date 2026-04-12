@@ -110,7 +110,7 @@ struct SPCommandTests {
   }
 
   @Test
-  func onboardRendererShowsThankYouShortcutsAndFollowUpCommand() {
+  func onboardRendererShowsWelcomeShortcutsAndSetupCommands() {
     let rendered = SPOnboardingRenderer.render(
       .init(
         items: [
@@ -135,7 +135,7 @@ struct SPCommandTests {
     #expect(
       rendered
         == """
-        Thank you for using supaterm!
+        Welcome to Supaterm!
 
         Common Shortcuts
 
@@ -150,19 +150,17 @@ struct SPCommandTests {
         ⌘⇧D   Split down
         ⌘F    Find
 
+        Coding Agent Setup
+
+        Run the commands that match your setup:
+
+        sp agent install-hook claude
+        sp agent install-hook codex
+        pi install
+
         Run "sp" for the list of available commands.
-        Run "sp onboard --force" to rerun coding-agent setup.
         """
     )
-  }
-
-  @Test
-  func onboardParserAcceptsForceFlag() throws {
-    let command = try #require(
-      try SP.parseAsRoot(["onboard", "--force"]) as? SP.Onboard
-    )
-
-    #expect(command.force)
   }
 
   @Test
