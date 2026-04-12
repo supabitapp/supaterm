@@ -101,7 +101,6 @@ final class SupatermMenuController: NSObject {
     menu.addItem(topLevelMenuItem(title: "Tabs", submenu: tabsMenu))
     menu.addItem(topLevelMenuItem(title: "Spaces", submenu: spacesMenu))
     menu.addItem(topLevelMenuItem(title: "Window", submenu: windowMenu))
-    menu.addItem(topLevelMenuItem(title: "Help", submenu: helpMenu))
     return menu
   }()
 
@@ -241,13 +240,6 @@ final class SupatermMenuController: NSObject {
     menu.addItem(moveSplitDividerDownItem)
     menu.addItem(moveSplitDividerLeftItem)
     menu.addItem(moveSplitDividerRightItem)
-    return menu
-  }()
-
-  private lazy var helpMenu: NSMenu = {
-    let menu = NSMenu(title: "Help")
-    menu.addItem(
-      systemItem(title: "\(appName) Help", action: #selector(NSApplication.showHelp(_:)), keyEquivalent: "?"))
     return menu
   }()
 

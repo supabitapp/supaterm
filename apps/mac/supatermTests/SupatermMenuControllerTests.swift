@@ -20,8 +20,8 @@ struct SupatermMenuControllerTests {
     controller.install()
 
     let titles = app.mainMenu?.items.map(\.title) ?? []
-    #expect(titles.count == 8)
-    #expect(Array(titles.suffix(7)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window", "Help"])
+    #expect(titles.count == 7)
+    #expect(Array(titles.suffix(6)) == ["File", "Edit", "View", "Tabs", "Spaces", "Window"])
 
     try assertAppMenu(app.mainMenu)
     try assertFileMenu(app.mainMenu)
