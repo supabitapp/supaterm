@@ -1,6 +1,6 @@
 import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import demoUrl from "./assets/demo.mp4";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -92,7 +92,29 @@ function CtaLink({
   );
 }
 
+const nouns = ["speed", "focus", "flow", "grit", "craft"];
+
+function useRotatingWord(words: string[], intervalMs = 2400) {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % words.length);
+        setVisible(true);
+      }, 300);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [words.length, intervalMs]);
+
+  return { word: words[index], visible };
+}
+
 function App() {
+  const { word, visible } = useRotatingWord(nouns);
+
   return (
     <main className="overflow-x-hidden">
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/8 bg-[#12100b]/86 backdrop-blur-md">
@@ -130,7 +152,16 @@ function App() {
           <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-12">
             <div className="max-w-[560px]">
               <h1 className="text-[clamp(2.4rem,5.4vw,4.9rem)] leading-[0.94] font-medium tracking-[-0.06em] text-balance text-[#f4f0e8]">
-                The terminal with skills.
+                The terminal with{" "}
+                <span
+                  className={cn(
+                    "inline-block transition-all duration-300",
+                    visible ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0",
+                  )}
+                >
+                  {word}
+                </span>
+                .
               </h1>
               <p className="mt-6 max-w-[29rem] text-base leading-7 text-white/62 md:text-[1.04rem]">
                 Supaterm keeps spaces, tabs, panes, and agent activity in one calm macOS surface so
