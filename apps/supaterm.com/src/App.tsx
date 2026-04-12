@@ -48,6 +48,7 @@ const featureSections: FeatureSection[] = [
           <img src="/claude-code-mark.svg" alt="Claude Code" className="h-6" />
           <img src="/codex-mark.svg" alt="Codex" className="h-6" />
           <img src="/pi-mark.svg" alt="Pi" className="h-6" />
+          <span className="text-lg tracking-[0.2em] text-white/30">...</span>
         </div>
       </>
     ),
