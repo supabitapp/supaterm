@@ -261,6 +261,7 @@ function App() {
                   GitHub
                 </CtaLink>
               </div>
+              <p className="mt-3 text-xs text-white/32">Requires macOS Tahoe.</p>
             </div>
 
             <div className="relative">
