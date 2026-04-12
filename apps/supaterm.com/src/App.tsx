@@ -96,7 +96,7 @@ function CtaLink({
   );
 }
 
-const nouns = ["speed", "skills", "focus", "flow", "grit", "craft"];
+const nouns = ["speed", "skills", "focus", "flow", "craft"];
 
 function useRotatingWord(words: string[], intervalMs = 2400) {
   const [index, setIndex] = useState(0);
@@ -153,7 +153,7 @@ function App() {
         </div>
       </header>
 
-      <section className="relative isolate min-h-svh">
+      <section className="relative isolate">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col px-6 pb-14 pt-[84px] md:px-10 md:pb-18 md:pt-[92px]">
           <div className="grid flex-1 items-center gap-10 pt-6 md:pt-10 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-10 xl:pt-12">
             <div className="max-w-[560px]">
@@ -170,7 +170,8 @@ function App() {
               </h1>
               <ul className="mt-6 max-w-[29rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-[1.04rem]">
                 <li>Fast - native macOS built with libghostty</li>
-                <li>Notifications - keeping track of your agents activities</li>
+                <li>Agent first - Glowing pane, notifications...</li>
+                <li>Tidy - Organize using tabs, spaces, pin tabs with your splits setup</li>
                 <li>
                   Extensible - Automate via the <code className="text-white/72">sp</code> CLI and
                   agent skill.
@@ -214,7 +215,7 @@ function App() {
                 </div>
               </div>
               <div className="mt-5 text-[0.7rem] font-medium tracking-[0.12em] text-white/42 uppercase">
-                Claude Code spawning multiple Codex agents working in tabs
+                Claude Code using Supaterm skills to spawn Codex agents working in tabs
               </div>
             </div>
           </div>
