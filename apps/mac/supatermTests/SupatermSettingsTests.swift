@@ -20,7 +20,7 @@ struct SupatermSettingsTests {
   func defaultPrefsUseStableUpdateChannel() {
     let prefs = SupatermSettings.default
 
-    #expect(prefs.appearanceMode == .system)
+    #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)

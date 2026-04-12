@@ -16,7 +16,7 @@
       "type": "boolean"
     },
     "appearanceMode": {
-      "default": "system",
+      "default": "dark",
       "description": "App appearance mode.",
       "enum": ["system", "light", "dark"],
       "type": "string"

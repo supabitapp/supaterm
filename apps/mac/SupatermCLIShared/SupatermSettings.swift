@@ -31,7 +31,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   }
 
   public static let `default` = Self(
-    appearanceMode: .system,
+    appearanceMode: .dark,
     analyticsEnabled: true,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
