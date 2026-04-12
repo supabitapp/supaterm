@@ -22,11 +22,11 @@ type FeatureSection = {
 const featureSections: FeatureSection[] = [
   {
     eyebrow: "CLI and Agent Skills",
-    title: "Control the app from scripts, or tell your agents to do it.",
+    title: "Control Supaterm from scripts, or tell your agents to do it.",
     body: (
       <>
         <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
-          Want to spawn new worktrees on a new panes or tabs? Just tell your agents to do it using
+          Want to spawn new worktrees in new panes or tabs? Just tell your agents to do it in
           Supaterm.
         </p>
         <NpxSkillsBox />
