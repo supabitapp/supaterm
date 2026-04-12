@@ -165,6 +165,8 @@
 }
 
 .rainbow-text {
+  padding-block: 0.1em;
+  margin-block: -0.1em;
   background: linear-gradient(
     90deg,
     rgb(235, 95, 87),
