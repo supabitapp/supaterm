@@ -1,4 +1,4 @@
-import { AppleIcon, GithubIcon } from "@hugeicons/core-free-icons";
+import { AppleIcon, Copy01Icon, GithubIcon, Tick01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { posthog } from "posthog-js";
 import { type ReactNode, useEffect, useState } from "react";
@@ -14,7 +14,7 @@ const releasesHref = "https://github.com/supabitapp/supaterm/releases";
 type FeatureSection = {
   eyebrow: string;
   title: string;
-  body: string;
+  body: ReactNode;
   align: "left" | "right";
   video?: string;
 };
@@ -23,7 +23,7 @@ const featureSections: FeatureSection[] = [
   {
     eyebrow: "CLI and Agent Skills",
     title: "Control the app from scripts, or tell your agents to do it.",
-    body: "The bundled `sp` CLI and socket boundary let Supaterm respond to automation as a first-class surface, not as a screen scrape or fragile window script.",
+    body: <NpxSkillsBox />,
     align: "right",
     video: splitUrl,
   },
@@ -84,6 +84,33 @@ function CtaLink({
       ) : null}
       <span>{children}</span>
     </a>
+  );
+}
+
+const skillsCommand = "npx skils";
+
+function NpxSkillsBox() {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(skillsCommand);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="mt-5 flex items-center gap-3">
+      <code className="flex items-center rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 font-mono text-sm text-white/80">
+        $ {skillsCommand}
+      </code>
+      <button
+        type="button"
+        onClick={copy}
+        className="flex size-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/50 transition-colors hover:bg-white/10 hover:text-white/80"
+      >
+        <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} size={16} strokeWidth={1.8} />
+      </button>
+    </div>
   );
 }
 
@@ -234,9 +261,13 @@ function App() {
                 <h2 className="mt-4 text-[clamp(1.6rem,3.2vw,2.4rem)] leading-[1.08] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
                   {section.title}
                 </h2>
-                <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
-                  {section.body}
-                </p>
+                {typeof section.body === "string" ? (
+                  <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
+                    {section.body}
+                  </p>
+                ) : (
+                  section.body
+                )}
               </div>
 
               <div>
