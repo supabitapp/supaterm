@@ -23,7 +23,15 @@ const featureSections: FeatureSection[] = [
   {
     eyebrow: "CLI and Agent Skills",
     title: "Control the app from scripts, or tell your agents to do it.",
-    body: <NpxSkillsBox />,
+    body: (
+      <>
+        <p className="mt-5 max-w-[30rem] text-base leading-7 text-white/62 md:text-lg">
+          Want to spawn new worktrees on a new panes or tabs? Just tell your agents to do it using
+          Supaterm.
+        </p>
+        <NpxSkillsBox />
+      </>
+    ),
     align: "right",
     video: splitUrl,
   },
