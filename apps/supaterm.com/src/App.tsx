@@ -87,7 +87,7 @@ function CtaLink({
   );
 }
 
-const skillsCommand = "npx skills add supabitapp/supaterm-skills --skill supaterm -g";
+const skillsCommand = "npx skills add supabitapp/supaterm-skills";
 
 function NpxSkillsBox() {
   const [copied, setCopied] = useState(false);
