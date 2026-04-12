@@ -21,7 +21,7 @@ type FeatureSection = {
 
 const featureSections: FeatureSection[] = [
   {
-    eyebrow: "CLI and socket control",
+    eyebrow: "CLI and Agent Skills",
     title: "Drive the app from scripts, hooks, and your own tooling.",
     body: "The bundled `sp` CLI and socket boundary let Supaterm respond to automation as a first-class surface, not as a screen scrape or fragile window script.",
     align: "right",
@@ -228,7 +228,7 @@ function App() {
               style={{ animationDelay: `${140 + index * 80}ms` }}
             >
               <div className="max-w-[34rem]">
-                <div className="text-sm font-medium tracking-[0.2em] text-white/45 uppercase">
+                <div className="text-sm font-medium tracking-[0.08em] text-white/45">
                   {section.eyebrow}
                 </div>
                 <h2 className="mt-4 text-[clamp(1.6rem,3.2vw,2.4rem)] leading-[1.08] font-medium tracking-[-0.04em] text-balance text-[#f4f0e8]">
