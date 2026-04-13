@@ -8,6 +8,41 @@ import Testing
 @MainActor
 struct GhosttySurfaceBridgeTests {
   @Test
+  func openUrlRequestPreservesHTTPSURL() {
+    let request = withOpenURLAction(url: "https://supaterm.com/changelog") {
+      ghosttyOpenURLRequest(from: $0.action.open_url)
+    }
+
+    #expect(request?.kind == .unknown)
+    #expect(request?.url.absoluteString == "https://supaterm.com/changelog")
+    #expect(request?.url.isFileURL == false)
+  }
+
+  @Test
+  func openUrlRequestTreatsTildePathAsFileURL() {
+    let request = withOpenURLAction(url: "~/code/github.com/supabitapp/supaterm") {
+      ghosttyOpenURLRequest(from: $0.action.open_url)
+    }
+
+    #expect(request?.url.isFileURL == true)
+    #expect(request?.url.path == NSString(string: "~/code/github.com/supabitapp/supaterm").standardizingPath)
+  }
+
+  @Test
+  func openUrlRequestTreatsPlainPathWithSpacesAsFileURL() {
+    let request = withOpenURLAction(
+      url: "/tmp/supa term/output.txt",
+      kind: GHOSTTY_ACTION_OPEN_URL_KIND_TEXT
+    ) {
+      ghosttyOpenURLRequest(from: $0.action.open_url)
+    }
+
+    #expect(request?.kind == .text)
+    #expect(request?.url.isFileURL == true)
+    #expect(request?.url.path == "/tmp/supa term/output.txt")
+  }
+
+  @Test
   func inputChunksSplitControlScalarsIntoKeys() {
     #expect(
       ghosttyInputChunks("echo hello\r\u{03}tail\t\u{1B}\u{7F}\u{04}\u{0C}\u{1A}")
@@ -128,19 +163,29 @@ struct GhosttySurfaceBridgeTests {
     let bridge = GhosttySurfaceBridge()
 
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: .init())
-    guard let url = strdup("not a valid url") else {
-      Issue.record("strdup failed")
-      return
+    withOpenURLAction(url: "not a valid url") { action in
+      #expect(bridge.handleAction(target: target, action: action))
+      #expect(bridge.state.openUrl == "not a valid url")
+      #expect(bridge.state.openUrlKind == action.action.open_url.kind)
     }
-    action.action.open_url.url = UnsafePointer(url)
-    action.action.open_url.len = UInt(strlen(url))
-    defer {
-      free(url)
-    }
+  }
 
-    #expect(bridge.handleAction(target: target, action: action))
-    #expect(bridge.state.openUrl == "not a valid url")
-    #expect(bridge.state.openUrlKind == action.action.open_url.kind)
+  private func withOpenURLAction<T>(
+    url: String,
+    kind: ghostty_action_open_url_kind_e = GHOSTTY_ACTION_OPEN_URL_KIND_UNKNOWN,
+    _ body: (ghostty_action_s) -> T
+  ) -> T {
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: .init())
+    action.action.open_url.kind = kind
+    guard let pointer = strdup(url) else {
+      Issue.record("strdup failed")
+      return body(action)
+    }
+    defer {
+      free(pointer)
+    }
+    action.action.open_url.url = UnsafePointer(pointer)
+    action.action.open_url.len = UInt(strlen(pointer))
+    return body(action)
   }
 }

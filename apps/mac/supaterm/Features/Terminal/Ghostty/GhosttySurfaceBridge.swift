@@ -9,6 +9,41 @@ enum GhosttyInputChunk: Equatable {
   case text(String)
 }
 
+enum GhosttyOpenURLKind: Equatable {
+  case unknown
+  case text
+  case html
+
+  init(_ value: ghostty_action_open_url_kind_e) {
+    switch value {
+    case GHOSTTY_ACTION_OPEN_URL_KIND_TEXT:
+      self = .text
+    case GHOSTTY_ACTION_OPEN_URL_KIND_HTML:
+      self = .html
+    default:
+      self = .unknown
+    }
+  }
+}
+
+struct GhosttyOpenURLRequest: Equatable {
+  let kind: GhosttyOpenURLKind
+  let url: URL
+}
+
+func ghosttyOpenURLRequest(from action: ghostty_action_open_url_s) -> GhosttyOpenURLRequest? {
+  guard let pointer = action.url, action.len > 0 else { return nil }
+  let data = Data(bytes: pointer, count: Int(action.len))
+  guard let urlString = String(data: data, encoding: .utf8) else { return nil }
+  let url: URL
+  if let candidate = URL(string: urlString), candidate.scheme != nil {
+    url = candidate
+  } else {
+    url = URL(filePath: NSString(string: urlString).standardizingPath)
+  }
+  return GhosttyOpenURLRequest(kind: GhosttyOpenURLKind(action.kind), url: url)
+}
+
 func ghosttyInputKey(for scalar: UnicodeScalar) -> SupatermInputKey? {
   switch scalar.value {
   case 0x03:
@@ -461,8 +496,8 @@ final class GhosttySurfaceBridge {
       let openUrl = action.action.open_url
       state.openUrlKind = openUrl.kind
       state.openUrl = string(from: openUrl.url, length: openUrl.len)
-      if let urlString = state.openUrl, let url = URL(string: urlString) {
-        NSWorkspace.shared.open(url)
+      if let request = ghosttyOpenURLRequest(from: openUrl) {
+        NSWorkspace.shared.open(request.url)
       }
       return true
 
