@@ -122,4 +122,25 @@ struct GhosttySurfaceBridgeTests {
     #expect(bridge.state.titleOverride == "Pinned")
     #expect(emittedTitles.isEmpty)
   }
+
+  @Test
+  func openUrlReturnsHandledResult() {
+    let bridge = GhosttySurfaceBridge()
+
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: .init())
+    guard let url = strdup("not a valid url") else {
+      Issue.record("strdup failed")
+      return
+    }
+    action.action.open_url.url = UnsafePointer(url)
+    action.action.open_url.len = UInt(strlen(url))
+    defer {
+      free(url)
+    }
+
+    #expect(bridge.handleAction(target: target, action: action))
+    #expect(bridge.state.openUrl == "not a valid url")
+    #expect(bridge.state.openUrlKind == action.action.open_url.kind)
+  }
 }

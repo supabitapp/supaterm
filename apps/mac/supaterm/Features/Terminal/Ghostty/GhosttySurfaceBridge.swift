@@ -112,7 +112,7 @@ final class GhosttySurfaceBridge {
     }
     if handleMouseAndLink(action) {
       onStateChange?()
-      return false
+      return action.tag == GHOSTTY_ACTION_OPEN_URL
     }
     if handleSearchAndScroll(action) {
       onStateChange?()
