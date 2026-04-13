@@ -67,7 +67,10 @@ function Layout() {
           >
             Supaterm
           </Link>
-          <nav className="absolute left-1/2 -translate-x-1/2">
+          <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
+            <a href="#" className="text-sm text-white/50 transition-colors hover:text-white/80">
+              Docs
+            </a>
             <Link
               to="/changelog"
               className="text-sm text-white/50 transition-colors hover:text-white/80"
@@ -75,6 +78,9 @@ function Layout() {
             >
               Changelog
             </Link>
+            <a href="#" className="text-sm text-white/50 transition-colors hover:text-white/80">
+              Community
+            </a>
           </nav>
           <div className="flex items-center gap-2">
             <CtaLink
