@@ -6,6 +6,10 @@ public enum SupatermExternalURL {
   public static var submitGitHubIssue: URL {
     URL(string: "https://github.com/supabitapp/supaterm/issues/new")!
   }
+
+  public static var changelog: URL {
+    URL(string: "https://supaterm.com/changelog")!
+  }
 }
 
 public struct ExternalNavigationClient: Sendable {

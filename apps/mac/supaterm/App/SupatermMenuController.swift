@@ -70,6 +70,7 @@ final class SupatermMenuController: NSObject {
     static let moveSplitDividerRight = NSUserInterfaceItemIdentifier(
       "app.supabit.supaterm.window.moveSplitDividerRight")
     static let submitGitHubIssue = NSUserInterfaceItemIdentifier("app.supabit.supaterm.help.submitGitHubIssue")
+    static let changelog = NSUserInterfaceItemIdentifier("app.supabit.supaterm.help.changelog")
   }
 
   private let registry: TerminalWindowRegistry
@@ -231,6 +232,7 @@ final class SupatermMenuController: NSObject {
 
   private lazy var helpMenu: NSMenu = {
     let menu = NSMenu(title: "Help")
+    menu.addItem(changelogItem)
     menu.addItem(submitGitHubIssueItem)
     return menu
   }()
@@ -492,6 +494,12 @@ final class SupatermMenuController: NSObject {
     identifier: MenuItemIdentifier.moveSplitDividerRight,
     symbol: "arrow.right.to.line"
   )
+  private lazy var changelogItem = makeItem(
+    title: "Changelog",
+    action: #selector(openChangelog(_:)),
+    identifier: MenuItemIdentifier.changelog,
+    symbol: "list.bullet.rectangle"
+  )
   private lazy var submitGitHubIssueItem = makeItem(
     title: "Submit GitHub Issue",
     action: #selector(submitGitHubIssue(_:)),
@@ -648,6 +656,11 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
+  func performOpenChangelog() -> Bool {
+    ExternalNavigationClient.liveValue.open(SupatermExternalURL.changelog)
+  }
+
+  @discardableResult
   func performSubmitGitHubIssue() -> Bool {
     requestSubmitGitHubIssue()
   }
@@ -725,6 +738,10 @@ final class SupatermMenuController: NSObject {
 
   @objc func openCommandPalette(_ sender: Any?) {
     registry.requestToggleCommandPaletteInKeyWindow()
+  }
+
+  @objc func openChangelog(_ sender: Any?) {
+    _ = performOpenChangelog()
   }
 
   @objc func submitGitHubIssue(_ sender: Any?) {
