@@ -9,44 +9,34 @@ const changelogData: ChangelogEntry[] = [
   {
     version: "v1.0.3",
     date: "2026-04-12",
-    title: "Bug fixes and polish",
+    title: "Onboarding and defaults",
     changes: [
-      "Fixed agent status not updating when pane is backgrounded",
-      "Improved split pane resize handle visibility",
-      "Fixed CLI skill installation path on Apple Silicon",
+      "Make dark the default appearance",
+      "Refine onboarding setup copy",
+      "Fix Pi onboarding command",
+      "Simplify onboarding output",
     ],
   },
   {
     version: "v1.0.2",
     date: "2026-04-12",
-    title: "Agent notification improvements",
-    changes: [
-      "Pane glow effect now pulses when agent needs attention",
-      "Added sound notification option for agent events",
-      "Fixed hover preview positioning on ultra-wide displays",
-    ],
+    title: "CLI improvements",
+    changes: ["Rename sp shell flag to script"],
   },
   {
     version: "v1.0.1",
     date: "2026-04-12",
-    title: "Performance and stability",
+    title: "Help menu and bug fixes",
     changes: [
-      "Reduced memory usage for long-running sessions",
-      "Fixed tab pinning not persisting across restarts",
-      "Improved libghostty rendering performance",
+      "Add GitHub issue action to Help menu and command palette",
+      "Fix duplicate Ghostty link opens",
     ],
   },
   {
     version: "v1.0.0",
     date: "2026-04-12",
     title: "Supaterm 1.0",
-    changes: [
-      "Stable release of Supaterm",
-      "Spaces, tabs, and split panes",
-      "Full agent integration with Claude Code, Codex, and Pi",
-      "CLI and agent skills via npx",
-      "Native macOS app built with libghostty",
-    ],
+    changes: ["🚀 First stable release."],
   },
 ];
 

@@ -8,9 +8,6 @@ function ChangelogPage() {
         <h1 className="text-[clamp(2rem,4vw,3rem)] leading-[1] font-medium tracking-[-0.04em] text-[#f4f0e8]">
           Changelog
         </h1>
-        <p className="mt-4 text-base leading-7 text-white/62">
-          New updates and improvements to Supaterm.
-        </p>
       </div>
       <div className="mt-12 max-w-2xl">
         {changelogData.map((entry) => (
