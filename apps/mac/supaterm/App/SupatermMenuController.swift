@@ -319,7 +319,7 @@ final class SupatermMenuController: NSObject {
     symbol: "rectangle.tophalf.inset.filled"
   )
   private lazy var closeSurfaceItem = makeItem(
-    title: "Close",
+    title: "Close Split",
     action: #selector(closeSurface(_:)),
     identifier: MenuItemIdentifier.closeSurface,
     symbol: "xmark"

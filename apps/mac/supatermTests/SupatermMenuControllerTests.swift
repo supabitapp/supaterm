@@ -727,7 +727,7 @@ struct SupatermMenuControllerTests {
         "Split Down",
         "Split Up",
         "",
-        "Close",
+        "Close Split",
         "Close Tab",
         "Close Window",
         "Close All Windows",
