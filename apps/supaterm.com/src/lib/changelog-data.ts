@@ -48,25 +48,6 @@ const changelogData: ChangelogEntry[] = [
       "Native macOS app built with libghostty",
     ],
   },
-  {
-    version: "v0.7.1",
-    date: "2026-04-12",
-    title: "Pre-release fixes",
-    changes: [
-      "Fixed crash on macOS when closing last tab in a space",
-      "Improved sidebar agent status indicators",
-    ],
-  },
-  {
-    version: "v0.7.0",
-    date: "2026-04-09",
-    title: "Spaces and agent sidebar",
-    changes: [
-      "Introduced Spaces for organizing groups of tabs",
-      "New sidebar showing running agent statuses",
-      "Initial Claude Code and Codex integration",
-    ],
-  },
 ];
 
 export { changelogData };
