@@ -123,6 +123,35 @@ describe("worker", () => {
     await expect(response.text()).resolves.toBe("site");
   });
 
+  it("serves the SPA shell for missing routes without file extensions", async () => {
+    const assetsFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
+      .mockResolvedValueOnce(new Response("index"));
+
+    const response = await worker.fetch(new Request("https://supaterm.com/changelog"), {
+      ASSETS: { fetch: assetsFetch } as AssetBinding,
+    });
+
+    expect(assetsFetch).toHaveBeenCalledTimes(2);
+    const fallbackRequest = assetsFetch.mock.calls[1]?.[0];
+    expect(fallbackRequest).toBeInstanceOf(Request);
+    expect((fallbackRequest as Request).url).toBe("https://supaterm.com/index.html");
+    await expect(response.text()).resolves.toBe("index");
+  });
+
+  it("does not serve the SPA shell for missing routes with file extensions", async () => {
+    const assetsFetch = vi.fn().mockResolvedValue(new Response("missing", { status: 404 }));
+
+    const response = await worker.fetch(new Request("https://supaterm.com/missing.dmg"), {
+      ASSETS: { fetch: assetsFetch } as AssetBinding,
+    });
+
+    expect(assetsFetch).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toBe("missing");
+  });
+
   it("serves MP4 range requests with partial content", async () => {
     const assetsFetch = vi.fn().mockResolvedValue(
       new Response(new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7]), {
