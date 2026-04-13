@@ -81,9 +81,6 @@ function Layout() {
             >
               Changelog
             </Link>
-            <a href="#" className="text-sm text-white/50 transition-colors hover:text-white/80">
-              Community
-            </a>
           </nav>
           <div className="flex items-center gap-2">
             <CtaLink
