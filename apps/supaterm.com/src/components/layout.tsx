@@ -68,9 +68,12 @@ function Layout() {
             Supaterm
           </Link>
           <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
-            <a href="#" className="text-sm text-white/50 transition-colors hover:text-white/80">
+            <span className="flex items-center gap-1.5 text-sm text-white/50">
               Docs
-            </a>
+              <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[0.6rem] leading-none text-white/40">
+                WIP
+              </span>
+            </span>
             <Link
               to="/changelog"
               className="text-sm text-white/50 transition-colors hover:text-white/80"
