@@ -26,9 +26,6 @@ const downloadRoutes = [
     appcastBase: "https://github.com/supabitapp/supaterm/releases/latest/download/",
   },
 ] as const;
-const ogImagePattern = /<meta property="og:image" content="[^"]*" \/>/;
-const ogUrlPattern = /<meta property="og:url" content="[^"]*" \/>/;
-const twitterImagePattern = /<meta name="twitter:image" content="[^"]*" \/>/;
 
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
@@ -42,7 +39,6 @@ const getAssets = (env: Env) => env.ASSETS;
 const getDownloadRoute = (pathname: string) =>
   downloadRoutes.find((route) => pathname.startsWith(route.prefix));
 const isVideoAsset = (pathname: string) => pathname.endsWith(".mp4");
-const isSpaRoute = (pathname: string) => !pathname.includes(".");
 
 const withCacheControl = (response: Response) => {
   const headers = new Headers(response.headers);
@@ -104,29 +100,6 @@ const parseByteRange = (header: string, size: number) => {
   }
 
   return { start, end: Math.min(end, size - 1) };
-};
-
-const rewriteShareMetadata = (html: string, requestUrl: URL) => {
-  const ogImageUrl = new URL("/og.png", requestUrl).toString();
-  return html
-    .replace(ogImagePattern, `<meta property="og:image" content="${ogImageUrl}" />`)
-    .replace(ogUrlPattern, `<meta property="og:url" content="${requestUrl.toString()}" />`)
-    .replace(twitterImagePattern, `<meta name="twitter:image" content="${ogImageUrl}" />`);
-};
-
-const withShareMetadata = async (request: Request, response: Response) => {
-  if (request.method === "HEAD") {
-    return response;
-  }
-
-  const html = rewriteShareMetadata(await response.text(), new URL(request.url));
-  const headers = new Headers(response.headers);
-  headers.delete("content-length");
-  return new Response(html, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
 };
 
 const serveVideoAsset = async (request: Request, assets: AssetBinding) => {
@@ -211,8 +184,7 @@ const proxyDownloadAsset = async (route: (typeof downloadRoutes)[number], reques
 
 export default {
   async fetch(request: Request, env: Env) {
-    const requestUrl = new URL(request.url);
-    const route = getDownloadRoute(requestUrl.pathname);
+    const route = getDownloadRoute(new URL(request.url).pathname);
     if (route) {
       return proxyDownloadAsset(route, request);
     }
@@ -222,18 +194,14 @@ export default {
       return new Response("ASSETS binding not available", { status: 500 });
     }
 
-    if (isVideoAsset(requestUrl.pathname)) {
+    if (isVideoAsset(new URL(request.url).pathname)) {
       return serveVideoAsset(request, assets);
     }
 
-    let response = await assets.fetch(request);
+    const response = await assets.fetch(request);
 
-    if (response.status === 404 && isSpaRoute(requestUrl.pathname)) {
-      response = await assets.fetch(new Request(new URL("/index.html", request.url), request));
-    }
-
-    if (isSpaRoute(requestUrl.pathname)) {
-      return withShareMetadata(request, response);
+    if (response.status === 404 && !new URL(request.url).pathname.includes(".")) {
+      return assets.fetch(new Request(new URL("/index.html", request.url), request));
     }
 
     return response;

@@ -5,15 +5,6 @@ type AssetBinding = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 };
 
-const htmlShell = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta property="og:image" content="https://supaterm.com/og.png" />
-    <meta property="og:url" content="https://supaterm.com" />
-    <meta name="twitter:image" content="https://supaterm.com/og.png" />
-  </head>
-</html>`;
-
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -147,49 +138,6 @@ describe("worker", () => {
     expect(fallbackRequest).toBeInstanceOf(Request);
     expect((fallbackRequest as Request).url).toBe("https://supaterm.com/index.html");
     await expect(response.text()).resolves.toBe("index");
-  });
-
-  it("rewrites social metadata to the exact shared URL", async () => {
-    const assetsFetch = vi.fn().mockResolvedValue(
-      new Response(htmlShell, {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-    );
-
-    const response = await worker.fetch(new Request("https://supaterm.com/?card=20260413"), {
-      ASSETS: { fetch: assetsFetch } as AssetBinding,
-    });
-
-    expect(assetsFetch).toHaveBeenCalledTimes(1);
-    const html = await response.text();
-    expect(html).toContain(
-      '<meta property="og:url" content="https://supaterm.com/?card=20260413" />',
-    );
-    expect(html).toContain('<meta property="og:image" content="https://supaterm.com/og.png" />');
-    expect(html).toContain('<meta name="twitter:image" content="https://supaterm.com/og.png" />');
-  });
-
-  it("rewrites fallback SPA metadata to the shared route URL", async () => {
-    const assetsFetch = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
-      .mockResolvedValueOnce(
-        new Response(htmlShell, {
-          headers: { "content-type": "text/html; charset=utf-8" },
-        }),
-      );
-
-    const response = await worker.fetch(
-      new Request("https://supaterm.com/changelog?card=20260413"),
-      {
-        ASSETS: { fetch: assetsFetch } as AssetBinding,
-      },
-    );
-
-    const html = await response.text();
-    expect(html).toContain(
-      '<meta property="og:url" content="https://supaterm.com/changelog?card=20260413" />',
-    );
   });
 
   it("does not serve the SPA shell for missing routes with file extensions", async () => {
