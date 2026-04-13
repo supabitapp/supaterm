@@ -67,7 +67,7 @@ function Layout() {
           >
             Supaterm
           </Link>
-          <div className="flex items-center gap-4">
+          <nav className="absolute left-1/2 -translate-x-1/2">
             <Link
               to="/changelog"
               className="text-sm text-white/50 transition-colors hover:text-white/80"
@@ -75,6 +75,8 @@ function Layout() {
             >
               Changelog
             </Link>
+          </nav>
+          <div className="flex items-center gap-2">
             <CtaLink
               href={downloadHref}
               icon="download"
