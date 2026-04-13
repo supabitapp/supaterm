@@ -10,6 +10,7 @@ struct TerminalSidebarChromeViewTests {
   func unreadCountTakesPrecedenceOverAgentActivity() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 3,
         agentActivity: .claude(.needsInput),
         terminalProgress: nil
@@ -23,6 +24,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 3,
         agentActivity: nil,
         terminalProgress: progress
@@ -34,6 +36,7 @@ struct TerminalSidebarChromeViewTests {
   func agentActivityAppearsWhenNoHigherPriorityStatusExists() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 0,
         agentActivity: .claude(.running),
         terminalProgress: nil
@@ -47,6 +50,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 0,
         agentActivity: .claude(.running),
         terminalProgress: progress
@@ -60,6 +64,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 0,
         agentActivity: nil,
         terminalProgress: progress
@@ -71,6 +76,7 @@ struct TerminalSidebarChromeViewTests {
   func idleAgentShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 0,
         agentActivity: .claude(.idle),
         terminalProgress: nil
@@ -94,6 +100,7 @@ struct TerminalSidebarChromeViewTests {
   func quietTabShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
         unreadCount: 0,
         agentActivity: nil,
         terminalProgress: nil
@@ -102,27 +109,79 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func shortcutHintOverridesStatusAccessory() {
-    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+  func pinnedTabsShowPinnedStatusWhenNoHigherPriorityStatusExists() {
     #expect(
-      TerminalSidebarTabSummaryView.titleAccessory(
-        shortcutHint: "⌘1",
-        showsShortcutHint: true,
-        isRowHovering: false,
-        statusAccessory: .terminalProgress(progress)
-      ) == .shortcutHint("⌘1")
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: true,
+        unreadCount: 0,
+        agentActivity: nil,
+        terminalProgress: nil
+      ) == .pinned
     )
   }
 
   @Test
-  func rowHoverHidesStatusAccessory() {
+  func terminalProgressHidesPinnedStatus() {
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+
     #expect(
-      TerminalSidebarTabSummaryView.titleAccessory(
-        shortcutHint: nil,
-        showsShortcutHint: false,
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: true,
+        unreadCount: 0,
+        agentActivity: nil,
+        terminalProgress: progress
+      ) == .terminalProgress(progress)
+    )
+  }
+
+  @Test
+  func titleAccessoriesShowShortcutHintAndPinnedStatusTogether() {
+    let accessories = TerminalSidebarTabSummaryView.titleAccessories(
+      shortcutHint: "⌘1",
+      showsShortcutHint: true,
+      isRowHovering: false,
+      statusAccessory: .pinned
+    )
+
+    #expect(
+      accessories
+        == .init(
+          shortcutHint: "⌘1",
+          statusAccessory: .pinned
+        )
+    )
+  }
+
+  @Test
+  func rowHoverHidesStatusAccessoryButKeepsShortcutHint() {
+    #expect(
+      TerminalSidebarTabSummaryView.titleAccessories(
+        shortcutHint: "⌘1",
+        showsShortcutHint: true,
         isRowHovering: true,
         statusAccessory: .unreadCount(2)
-      ) == nil
+      )
+        == .init(
+          shortcutHint: "⌘1",
+          statusAccessory: nil
+        )
+    )
+  }
+
+  @Test
+  func titleAccessoriesShowShortcutHintAndProgressTogether() {
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+    #expect(
+      TerminalSidebarTabSummaryView.titleAccessories(
+        shortcutHint: "⌘1",
+        showsShortcutHint: true,
+        isRowHovering: false,
+        statusAccessory: .terminalProgress(progress)
+      )
+        == .init(
+          shortcutHint: "⌘1",
+          statusAccessory: .terminalProgress(progress)
+        )
     )
   }
 

@@ -435,6 +435,7 @@ struct TerminalSidebarChromeView: View {
 struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
     case agentActivity(TerminalHostState.AgentActivity)
+    case pinned
     case terminalProgress(TerminalSidebarTerminalProgress)
     case unreadCount(Int)
   }
@@ -442,11 +443,6 @@ struct TerminalSidebarTabSummaryView: View {
   enum SecondaryContent: Equatable {
     case activity(String)
     case notification(String)
-  }
-
-  enum TitleAccessory: Equatable {
-    case shortcutHint(String)
-    case status(StatusAccessory)
   }
 
   let tab: TerminalTabItem
@@ -463,6 +459,7 @@ struct TerminalSidebarTabSummaryView: View {
   let isRowHovering: Bool
 
   static func statusAccessory(
+    isPinned: Bool,
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
     terminalProgress: TerminalSidebarTerminalProgress?
@@ -476,25 +473,27 @@ struct TerminalSidebarTabSummaryView: View {
     if let agentActivity, agentActivity.showsLeadingIndicator {
       return .agentActivity(agentActivity)
     }
+    if isPinned {
+      return .pinned
+    }
     return nil
   }
 
-  static func titleAccessory(
+  struct TitleAccessories: Equatable {
+    let shortcutHint: String?
+    let statusAccessory: StatusAccessory?
+  }
+
+  static func titleAccessories(
     shortcutHint: String?,
     showsShortcutHint: Bool,
     isRowHovering: Bool,
     statusAccessory: StatusAccessory?
-  ) -> TitleAccessory? {
-    if showsShortcutHint, let shortcutHint {
-      return .shortcutHint(shortcutHint)
-    }
-    if isRowHovering {
-      return nil
-    }
-    if let statusAccessory {
-      return .status(statusAccessory)
-    }
-    return nil
+  ) -> TitleAccessories {
+    .init(
+      shortcutHint: showsShortcutHint ? shortcutHint : nil,
+      statusAccessory: isRowHovering ? nil : statusAccessory
+    )
   }
 
   static func helpText(
@@ -538,6 +537,18 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   var body: some View {
+    let titleAccessories = Self.titleAccessories(
+      shortcutHint: shortcutHint,
+      showsShortcutHint: showsShortcutHint,
+      isRowHovering: isRowHovering,
+      statusAccessory: Self.statusAccessory(
+        isPinned: tab.isPinned,
+        unreadCount: unreadCount,
+        agentActivity: agentActivity,
+        terminalProgress: terminalProgress
+      )
+    )
+
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
         Text(tab.title)
@@ -548,30 +559,20 @@ struct TerminalSidebarTabSummaryView: View {
 
         Spacer(minLength: 0)
 
-        switch Self.titleAccessory(
-          shortcutHint: shortcutHint,
-          showsShortcutHint: showsShortcutHint,
-          isRowHovering: isRowHovering,
-          statusAccessory: Self.statusAccessory(
-            unreadCount: unreadCount,
-            agentActivity: agentActivity,
-            terminalProgress: terminalProgress
-          )
-        ) {
-        case .shortcutHint(let shortcutHint):
-          Text(shortcutHint)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(
-              isSelected
-                ? palette.selectedText.opacity(0.72)
-                : palette.secondaryText
-            )
+        HStack(spacing: 6) {
+          if let shortcutHint = titleAccessories.shortcutHint {
+            Text(shortcutHint)
+              .font(.system(size: 11, weight: .semibold))
+              .foregroundStyle(
+                isSelected
+                  ? palette.selectedText.opacity(0.72)
+                  : palette.secondaryText
+              )
+          }
 
-        case .status(let statusAccessory):
-          statusAccessoryView(statusAccessory)
-
-        case nil:
-          EmptyView()
+          if let statusAccessory = titleAccessories.statusAccessory {
+            statusAccessoryView(statusAccessory)
+          }
         }
       }
 
@@ -647,6 +648,16 @@ struct TerminalSidebarTabSummaryView: View {
         isSelected: isSelected,
         palette: palette
       )
+
+    case .pinned:
+      Image(systemName: "pin.fill")
+        .font(.system(size: 9, weight: .semibold))
+        .foregroundStyle(
+          isSelected
+            ? palette.selectedText.opacity(0.72)
+            : palette.secondaryText
+        )
+        .accessibilityLabel("Pinned")
 
     case .terminalProgress(let terminalProgress):
       TerminalSidebarProgressIndicatorView(

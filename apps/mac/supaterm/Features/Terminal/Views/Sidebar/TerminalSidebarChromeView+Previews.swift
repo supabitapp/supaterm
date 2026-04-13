@@ -62,6 +62,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     switch statusAccessory {
     case .agentActivity(let activity):
       return "\(activity.kind.notificationTitle) \(phaseLabel(activity.phase))"
+    case .pinned:
+      return "Pinned"
     case .terminalProgress:
       return "Terminal Progress"
     case .unreadCount(let count):
@@ -77,6 +79,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 
   private var statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory? {
     TerminalSidebarTabSummaryView.statusAccessory(
+      isPinned: tab.isPinned,
       unreadCount: unreadCount,
       agentActivity: agentActivity,
       terminalProgress: terminalProgress
