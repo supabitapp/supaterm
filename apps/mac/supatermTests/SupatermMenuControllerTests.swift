@@ -55,6 +55,7 @@ struct SupatermMenuControllerTests {
         "app.supabit.supaterm.window.moveSplitDividerDown",
         "app.supabit.supaterm.window.moveSplitDividerLeft",
         "app.supabit.supaterm.window.moveSplitDividerRight",
+        "app.supabit.supaterm.help.changelog",
         "app.supabit.supaterm.help.submitGitHubIssue",
       ]
     )
@@ -821,9 +822,11 @@ struct SupatermMenuControllerTests {
 
   private func assertHelpMenu(_ menu: NSMenu?) throws {
     let helpMenu = try #require(menu?.items.first(where: { $0.title == "Help" })?.submenu)
-    #expect(helpMenu.items.map(\.title) == ["Submit GitHub Issue"])
-    #expect(helpMenu.items[0].action == #selector(SupatermMenuController.submitGitHubIssue(_:)))
+    #expect(helpMenu.items.map(\.title) == ["Changelog", "Submit GitHub Issue"])
+    #expect(helpMenu.items[0].action == #selector(SupatermMenuController.openChangelog(_:)))
     #expect(helpMenu.items[0].image != nil)
+    #expect(helpMenu.items[1].action == #selector(SupatermMenuController.submitGitHubIssue(_:)))
+    #expect(helpMenu.items[1].image != nil)
   }
 
   private func assertImageAccessibilityDescriptions(
