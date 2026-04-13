@@ -409,7 +409,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     super.viewDidMoveToWindow()
     updateScreenObservers()
     updateContentScale()
-    updateSurfaceSize()
+    notifySizeChanged()
     applyWindowBackgroundAppearance()
   }
 
@@ -422,12 +422,20 @@ final class GhosttySurfaceView: NSView, Identifiable {
       CATransaction.commit()
     }
     updateContentScale()
-    updateSurfaceSize()
+    notifySizeChanged()
   }
 
   override func layout() {
     super.layout()
-    updateSurfaceSize()
+    notifySizeChanged()
+  }
+
+  private func notifySizeChanged() {
+    if let scrollWrapper {
+      scrollWrapper.updateSurfaceSize()
+    } else {
+      updateSurfaceSize()
+    }
   }
 
   override func updateTrackingAreas() {
@@ -898,9 +906,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return event
   }
 
-  func updateSurfaceSize() {
+  func updateSurfaceSize(contentSize: CGSize? = nil) {
     guard let surface else { return }
-    let backingSize = convertToBacking(bounds.size)
+    let backingSize = convertToBacking(contentSize ?? bounds.size)
     if backingSize == lastBackingSize {
       return
     }
@@ -1917,6 +1925,8 @@ final class GhosttySurfaceScrollView: NSView {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
   }
 
+  override var safeAreaInsets: NSEdgeInsets { NSEdgeInsetsZero }
+
   override func layout() {
     super.layout()
     scrollView.frame = bounds
@@ -1924,11 +1934,11 @@ final class GhosttySurfaceScrollView: NSView {
     documentView.frame.size.width = scrollView.bounds.width
     synchronizeScrollView()
     synchronizeSurfaceView()
-    surfaceView.updateSurfaceSize()
+    synchronizeCoreSurface()
   }
 
   func updateSurfaceSize() {
-    surfaceView.updateSurfaceSize()
+    synchronizeCoreSurface()
     needsLayout = true
   }
 
@@ -1950,12 +1960,22 @@ final class GhosttySurfaceScrollView: NSView {
 
   private func handleScrollerStyleChange() {
     refreshAppearance()
-    surfaceView.updateSurfaceSize()
+    synchronizeCoreSurface()
   }
 
   private func synchronizeSurfaceView() {
     let visibleRect = scrollView.contentView.documentVisibleRect
     surfaceView.frame.origin = visibleRect.origin
+  }
+
+  private func synchronizeCoreSurface() {
+    guard
+      let contentSize = Self.reportedSurfaceSize(
+        scrollContentSize: scrollView.contentSize,
+        surfaceFrameSize: surfaceView.frame.size
+      )
+    else { return }
+    surfaceView.updateSurfaceSize(contentSize: contentSize)
   }
 
   private func synchronizeScrollView() {
@@ -2026,5 +2046,15 @@ final class GhosttySurfaceScrollView: NSView {
     reduceMotion: Bool
   ) -> Bool {
     scrollerStyle == .legacy && !reduceMotion
+  }
+
+  static func reportedSurfaceSize(
+    scrollContentSize: CGSize,
+    surfaceFrameSize: CGSize
+  ) -> CGSize? {
+    let width = scrollContentSize.width
+    let height = surfaceFrameSize.height
+    guard width > 0, height > 0 else { return nil }
+    return CGSize(width: width, height: height)
   }
 }
