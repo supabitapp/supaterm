@@ -68,7 +68,7 @@ const featureSections: FeatureSection[] = [
         <ul className="mt-5 max-w-[30rem] list-disc space-y-2 pl-5 text-base leading-7 text-white/62 md:text-lg">
           <li>Agent statues are shown on the sidebar</li>
           <li>Quickly hover to see what it's up to</li>
-          <li>Pane glows up if agent needs your attention</li>
+          <li>Pane glows if an agent needs your attention</li>
         </ul>
         <div className="mt-6 flex items-center gap-5">
           <img src="/claude-code-mark.svg" alt="Claude Code" className="h-6" />

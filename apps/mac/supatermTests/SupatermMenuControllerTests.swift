@@ -727,7 +727,7 @@ struct SupatermMenuControllerTests {
         "Split Down",
         "Split Up",
         "",
-        "Close Split",
+        "Close Pane",
         "Close Tab",
         "Close Window",
         "Close All Windows",
@@ -811,7 +811,7 @@ struct SupatermMenuControllerTests {
     let resizeSplitMenu = try #require(windowMenu.items[7].submenu)
     #expect(
       resizeSplitMenu.items.map(\.title) == [
-        "Equalize Splits",
+        "Equalize Panes",
         "",
         "Move Divider Up",
         "Move Divider Down",

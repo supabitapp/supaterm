@@ -319,7 +319,7 @@ final class SupatermMenuController: NSObject {
     symbol: "rectangle.tophalf.inset.filled"
   )
   private lazy var closeSurfaceItem = makeItem(
-    title: "Close Split",
+    title: "Close Pane",
     action: #selector(closeSurface(_:)),
     identifier: MenuItemIdentifier.closeSurface,
     symbol: "xmark"
@@ -465,7 +465,7 @@ final class SupatermMenuController: NSObject {
     symbol: "arrow.right"
   )
   private lazy var equalizeSplitsItem = makeItem(
-    title: "Equalize Splits",
+    title: "Equalize Panes",
     action: #selector(equalizeSplits(_:)),
     identifier: MenuItemIdentifier.equalizeSplits,
     symbol: "inset.filled.topleft.topright.bottomleft.bottomright.rectangle"
