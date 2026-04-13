@@ -5,7 +5,7 @@ function ChangelogPage() {
   return (
     <section className="mx-auto w-full max-w-[1440px] px-6 pb-24 pt-[84px] md:px-10 md:pb-32 md:pt-[92px]">
       <div className="max-w-2xl pt-6 md:pt-10 lg:pt-12">
-        <h1 className="text-[clamp(2rem,4vw,3rem)] leading-[1] font-medium tracking-[-0.04em] text-[#f4f0e8]">
+        <h1 className="text-[clamp(1rem,4vw,2rem)] leading-[1] font-medium tracking-[-0.04em]">
           Changelog
         </h1>
       </div>
