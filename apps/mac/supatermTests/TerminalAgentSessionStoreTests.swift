@@ -52,7 +52,7 @@ struct TerminalAgentSessionStoreTests {
   }
 
   @Test
-  func clearingSessionsCancelsPendingTimeout() async {
+  func clearSessionCancelsPendingTimeout() async {
     let clock = TestClock()
     let delegate = SessionStoreDelegateSpy()
     let store = TerminalAgentSessionStore(
@@ -72,7 +72,7 @@ struct TerminalAgentSessionStoreTests {
       transcriptPath: nil
     )
     store.armRunningTimeout(agent: .codex, sessionID: "session-1", context: nil)
-    store.clearSessions(for: surfaceID)
+    store.clearSession(agent: .codex, sessionID: "session-1")
 
     await flushEffects()
     await clock.advance(by: .seconds(5))

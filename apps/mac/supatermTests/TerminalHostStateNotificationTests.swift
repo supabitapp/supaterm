@@ -443,7 +443,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func commandFinishedClearsAgentActivity() throws {
+  func commandFinishedDoesNotClearAgentActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -456,7 +456,7 @@ struct TerminalHostStateNotificationTests {
 
     surface.bridge.onCommandFinished?()
 
-    #expect(host.agentActivity(for: tabID) == nil)
+    #expect(host.agentActivity(for: tabID) == .claude(.running, detail: "Thinking"))
   }
 
   @Test

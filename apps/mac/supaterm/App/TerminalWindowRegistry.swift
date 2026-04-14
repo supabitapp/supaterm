@@ -48,14 +48,7 @@ final class TerminalWindowRegistry {
     let windowReference: WindowReference
   }
 
-  var commandExecutor: TerminalCommandExecutor? {
-    didSet {
-      guard let commandExecutor else { return }
-      for entry in entries {
-        commandExecutor.attach(terminal: entry.terminal)
-      }
-    }
-  }
+  var commandExecutor: TerminalCommandExecutor?
 
   private var entries: [Entry] = []
   var onChange: @MainActor () -> Void = {}
@@ -89,7 +82,6 @@ final class TerminalWindowRegistry {
       windowReference: WindowReference()
     )
     entries.append(entry)
-    commandExecutor?.attach(terminal: terminal)
     onChange()
   }
 

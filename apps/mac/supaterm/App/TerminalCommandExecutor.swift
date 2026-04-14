@@ -30,12 +30,6 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
     agentSessionStore.delegate = self
   }
 
-  func attach(terminal: TerminalHostState) {
-    terminal.onCommandFinished = { [weak self] surfaceID in
-      self?.agentSessionStore.clearSessions(for: surfaceID)
-    }
-  }
-
   func execute(_ request: SocketRequestExecutor.AppRequest) throws -> SocketRequestExecutor.AppResult {
     switch request {
     case .onboardingSnapshot:
