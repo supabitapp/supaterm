@@ -487,14 +487,22 @@ struct CodexConversationState: Equatable {
     forAppended message: CodexConversationMessage,
     at index: Int
   ) {
+    let normalized = normalizedMessage(message.text)
     turns[index].lastAssistantDetail =
       message.phase == "final_answer"
       ? nil
       : normalizedDetail(message.text)
-    guard turns[index].hoverMessages.last != message.text else {
+    guard let normalized else {
       return
     }
-    turns[index].hoverMessages.append(message.text)
+    if message.phase == "final_answer" {
+      turns[index].hoverMessages = [normalized]
+      return
+    }
+    guard turns[index].hoverMessages.last != normalized else {
+      return
+    }
+    turns[index].hoverMessages.append(normalized)
   }
 
   private static func withDerivedMessageState(
@@ -519,9 +527,15 @@ struct CodexConversationState: Equatable {
         ? nil
         : normalizedDetail(message.text)
       guard
-        let normalized = normalizedMessage(message.text),
-        hoverMessages.last != normalized
+        let normalized = normalizedMessage(message.text)
       else {
+        continue
+      }
+      if message.phase == "final_answer" {
+        hoverMessages = [normalized]
+        continue
+      }
+      guard hoverMessages.last != normalized else {
         continue
       }
       hoverMessages.append(normalized)
