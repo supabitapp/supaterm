@@ -70,6 +70,16 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
   let selectedTabID: TerminalTabID?
   let visibleTabs: [TerminalTabItem]
 
+  var selectedSpace: TerminalSpaceItem? {
+    guard let selectedSpaceID else { return nil }
+    return spaces.first { $0.id == selectedSpaceID }
+  }
+
+  var selectedTab: TerminalTabItem? {
+    guard let selectedTabID else { return nil }
+    return visibleTabs.first { $0.id == selectedTabID }
+  }
+
   static let empty = Self(
     ghosttyCommands: [],
     ghosttyShortcutDisplayByAction: [:],
@@ -106,23 +116,21 @@ enum TerminalCommandPalettePresentation {
     guard !query.isEmpty else { return rows }
 
     let normalizedQuery = query.lowercased()
-    let scoredRows: [ScoredRow] = rows.enumerated().compactMap { index, row in
-      let toneScore = toneMatchScore(for: row.tone, query: normalizedQuery)
-      guard
-        row.searchableText.lowercased().contains(normalizedQuery) || toneScore > 0
-      else {
+    let matchedRows: [MatchedRow] = rows.enumerated().compactMap { index, row in
+      let matchesTone = toneMatches(for: row.tone, query: normalizedQuery)
+      guard row.searchableText.lowercased().contains(normalizedQuery) || matchesTone else {
         return nil
       }
-      return .init(index: index, row: row, score: toneScore)
+      return .init(index: index, row: row, matchesTone: matchesTone)
     }
 
     return
-      scoredRows
+      matchedRows
       .sorted { lhs, rhs in
-        if lhs.score == rhs.score {
+        if lhs.matchesTone == rhs.matchesTone {
           return lhs.index < rhs.index
         }
-        return lhs.score > rhs.score
+        return lhs.matchesTone && !rhs.matchesTone
       }
       .map(\.row)
   }
@@ -312,12 +320,7 @@ enum TerminalCommandPalettePresentation {
   private static func renameSpaceRow(
     from snapshot: TerminalCommandPaletteSnapshot
   ) -> TerminalCommandPaletteRow? {
-    guard
-      let selectedSpaceID = snapshot.selectedSpaceID,
-      let selectedSpace = snapshot.spaces.first(where: { $0.id == selectedSpaceID })
-    else {
-      return nil
-    }
+    guard let selectedSpace = snapshot.selectedSpace else { return nil }
 
     return .init(
       id: "supaterm:rename-space:\(selectedSpace.id.rawValue.uuidString)",
@@ -336,12 +339,7 @@ enum TerminalCommandPalettePresentation {
   private static func togglePinnedRow(
     from snapshot: TerminalCommandPaletteSnapshot
   ) -> TerminalCommandPaletteRow? {
-    guard
-      let selectedTabID = snapshot.selectedTabID,
-      let selectedTab = snapshot.visibleTabs.first(where: { $0.id == selectedTabID })
-    else {
-      return nil
-    }
+    guard let selectedTab = snapshot.selectedTab else { return nil }
 
     return .init(
       id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
@@ -411,19 +409,19 @@ enum TerminalCommandPalettePresentation {
       .map(\.element)
   }
 
-  private static func toneMatchScore(
+  private static func toneMatches(
     for tone: TerminalTone?,
     query: String
-  ) -> Double {
-    guard let tone else { return 0 }
-    return query.contains(tone.commandPaletteSearchName) ? 1 : 0
+  ) -> Bool {
+    guard let tone else { return false }
+    return query.contains(tone.commandPaletteSearchName)
   }
 }
 
-private struct ScoredRow {
+private struct MatchedRow {
   let index: Int
   let row: TerminalCommandPaletteRow
-  let score: Double
+  let matchesTone: Bool
 }
 
 extension TerminalTone {

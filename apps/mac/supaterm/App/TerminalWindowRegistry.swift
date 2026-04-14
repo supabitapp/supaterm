@@ -285,21 +285,24 @@ final class TerminalWindowRegistry {
       return .empty
     }
 
+    let terminal = entry.terminal
     let updateState = entry.store.withState(\.update)
+    let focusTargets = activeEntries().flatMap { activeEntry in
+      activeEntry.terminal.commandPaletteFocusTargets(
+        windowControllerID: activeEntry.windowControllerID
+      )
+    }
+
     return .init(
-      ghosttyCommands: entry.terminal.commandPaletteGhosttyCommands(),
-      ghosttyShortcutDisplayByAction: entry.terminal.commandPaletteGhosttyShortcutDisplayByAction(),
-      hasFocusedSurface: entry.terminal.selectedSurfaceView != nil,
+      ghosttyCommands: terminal.commandPaletteGhosttyCommands(),
+      ghosttyShortcutDisplayByAction: terminal.commandPaletteGhosttyShortcutDisplayByAction(),
+      hasFocusedSurface: terminal.selectedSurfaceView != nil,
       updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
-      focusTargets: activeEntries().flatMap { activeEntry in
-        activeEntry.terminal.commandPaletteFocusTargets(
-          windowControllerID: activeEntry.windowControllerID
-        )
-      },
-      selectedSpaceID: entry.terminal.selectedSpaceID,
-      spaces: entry.terminal.spaces,
-      selectedTabID: entry.terminal.selectedTabID,
-      visibleTabs: entry.terminal.visibleTabs
+      focusTargets: focusTargets,
+      selectedSpaceID: terminal.selectedSpaceID,
+      spaces: terminal.spaces,
+      selectedTabID: terminal.selectedTabID,
+      visibleTabs: terminal.visibleTabs
     )
   }
 
@@ -345,10 +348,7 @@ final class TerminalWindowRegistry {
   }
 
   private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {
-    if let action = state.phase.menuItemAction {
-      return action
-    }
-    return state.canCheckForUpdates ? .checkForUpdates : nil
+    state.phase.menuItemAction ?? (state.canCheckForUpdates ? .checkForUpdates : nil)
   }
 
   private static func commandPaletteUpdateEntries(
@@ -372,10 +372,7 @@ final class TerminalWindowRegistry {
   }
 
   private func commandPaletteEntry(for windowID: ObjectIdentifier?) -> Entry? {
-    if let windowID, let entry = entry(for: windowID) {
-      return entry
-    }
-    return preferredActiveEntry()
+    windowID.flatMap(entry(for:)) ?? preferredActiveEntry()
   }
 
   private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
