@@ -487,9 +487,10 @@ struct CodexConversationState: Equatable {
     forAppended message: CodexConversationMessage,
     at index: Int
   ) {
-    if message.phase != "final_answer" {
-      turns[index].lastAssistantDetail = normalizedDetail(message.text)
-    }
+    turns[index].lastAssistantDetail =
+      message.phase == "final_answer"
+      ? nil
+      : normalizedDetail(message.text)
     guard turns[index].hoverMessages.last != message.text else {
       return
     }
@@ -513,9 +514,10 @@ struct CodexConversationState: Equatable {
     var hoverMessages: [String] = []
     for item in items {
       guard case .message(let message) = item, message.role == "assistant" else { continue }
-      if message.phase != "final_answer" {
-        lastAssistantDetail = normalizedDetail(message.text)
-      }
+      lastAssistantDetail =
+        message.phase == "final_answer"
+        ? nil
+        : normalizedDetail(message.text)
       guard
         let normalized = normalizedMessage(message.text),
         hoverMessages.last != normalized
