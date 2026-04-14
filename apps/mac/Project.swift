@@ -2,6 +2,7 @@ import ProjectDescription
 
 let ghosttyBuildRootPath: Path = ".build/ghostty"
 let ghosttyXCFrameworkPath: Path = ".build/ghostty/GhosttyKit.xcframework"
+let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
@@ -274,22 +275,23 @@ let project = Project(
             terminfo_source="${SRCROOT}/\(ghosttyTerminfoPath.pathString)"
             ghostty_destination="${destination_root}/ghostty"
             terminfo_destination="${destination_root}/terminfo"
+            fingerprint_path="${SRCROOT}/\(ghosttyFingerprintPath.pathString)"
+            stamp_path="${destination_root}/ghostty-resources.fingerprint"
 
-            rm -rf "${ghostty_destination}" "${terminfo_destination}"
             mkdir -p "${ghostty_destination}" "${terminfo_destination}"
             rsync -a --delete "${ghostty_source}/" "${ghostty_destination}/"
             rsync -a --delete "${terminfo_source}/" "${terminfo_destination}/"
+            /bin/cp -f "${fingerprint_path}" "${stamp_path}"
             """,
           name: "Embed Ghostty Resources",
           inputPaths: [
-            "$(SRCROOT)/\(ghosttyResourcesPath.pathString)",
-            "$(SRCROOT)/\(ghosttyTerminfoPath.pathString)",
+            "$(SRCROOT)/\(ghosttyFingerprintPath.pathString)",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty",
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/terminfo",
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ghostty-resources.fingerprint",
           ],
-          basedOnDependencyAnalysis: false
         ),
         .post(
           script: """
