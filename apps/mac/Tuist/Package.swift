@@ -6,12 +6,7 @@ import ProjectDescription
 
 let packageSettings = PackageSettings(
   productTypes: [
-    "ComposableArchitecture": .staticFramework,
-    "PostHog": .framework,
-    "Sentry": .framework,
-    "Sharing": .staticFramework,
     "Sparkle": .framework,
-    "Textual": .framework,
   ]
 )
 #endif
