@@ -20,7 +20,6 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
 
 struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
   let id: String
-  let symbol: String
   let title: String
   let subtitle: String
   let shortcut: String?
@@ -71,7 +70,6 @@ enum TerminalCommandPalettePresentation {
     rows.append(
       .init(
         id: "supaterm:toggle-sidebar",
-        symbol: "sidebar.leading",
         title: "Toggle Sidebar",
         subtitle: "View",
         shortcut: toggleSidebarShortcut,
@@ -81,7 +79,6 @@ enum TerminalCommandPalettePresentation {
     rows.append(
       .init(
         id: "supaterm:submit-github-issue",
-        symbol: "exclamationmark.bubble",
         title: "Submit GitHub Issue",
         subtitle: "Help",
         shortcut: nil,
@@ -91,7 +88,6 @@ enum TerminalCommandPalettePresentation {
     rows.append(
       .init(
         id: "supaterm:create-space",
-        symbol: "plus.square.on.square",
         title: "Create Space",
         subtitle: "Spaces",
         shortcut: nil,
@@ -105,7 +101,6 @@ enum TerminalCommandPalettePresentation {
       rows.append(
         .init(
           id: "supaterm:rename-space:\(selectedSpace.id.rawValue.uuidString)",
-          symbol: "square.and.pencil",
           title: "Rename Space",
           subtitle: selectedSpace.name,
           shortcut: nil,
@@ -120,7 +115,6 @@ enum TerminalCommandPalettePresentation {
       rows.append(
         .init(
           id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
-          symbol: selectedTab.isPinned ? "pin.slash" : "pin",
           title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
           subtitle: selectedTab.title,
           shortcut: nil,
@@ -134,7 +128,6 @@ enum TerminalCommandPalettePresentation {
         guard space.id != snapshot.selectedSpaceID else { return nil }
         return .init(
           id: "supaterm:space:\(space.id.rawValue.uuidString)",
-          symbol: "square.stack.3d.up",
           title: "Switch to \(space.name)",
           subtitle: "Space",
           shortcut: nil,
@@ -147,7 +140,6 @@ enum TerminalCommandPalettePresentation {
         guard tab.id != snapshot.selectedTabID else { return nil }
         return .init(
           id: "supaterm:tab:\(tab.id.rawValue.uuidString)",
-          symbol: tab.symbol,
           title: "Switch to \(tab.title)",
           subtitle: "Tab",
           shortcut: nil,
@@ -239,50 +231,11 @@ enum TerminalCommandPalettePresentation {
   ) -> TerminalCommandPaletteRow {
     .init(
       id: "ghostty:\(command.action)",
-      symbol: symbol(for: command),
       title: command.title,
       subtitle: command.description.isEmpty ? "Terminal" : command.description,
       shortcut: shortcut,
       command: .ghosttyBindingAction(command.action)
     )
-  }
-
-  private static func symbol(for command: GhosttyCommand) -> String {
-    switch command.action {
-    case "new_split:right":
-      return "rectangle.righthalf.inset.filled"
-    case "new_split:left":
-      return "rectangle.lefthalf.inset.filled"
-    case "new_split:down":
-      return "rectangle.bottomhalf.inset.filled"
-    case "new_split:up":
-      return "rectangle.tophalf.inset.filled"
-    default:
-      break
-    }
-
-    switch command.actionKey {
-    case "close_surface", "close_tab", "close_window":
-      return "xmark"
-    case "copy_to_clipboard":
-      return "doc.on.doc"
-    case "equalize_splits":
-      return "inset.filled.topleft.topright.bottomleft.bottomright.rectangle"
-    case "new_tab":
-      return "plus"
-    case "open_config":
-      return "gearshape"
-    case "paste_from_clipboard", "paste_from_selection":
-      return "doc.on.clipboard"
-    case "prompt_surface_title", "prompt_tab_title":
-      return "pencil.line"
-    case "search_selection", "start_search":
-      return "magnifyingglass"
-    case "toggle_split_zoom":
-      return "arrow.up.left.and.arrow.down.right"
-    default:
-      return "terminal"
-    }
   }
 }
 

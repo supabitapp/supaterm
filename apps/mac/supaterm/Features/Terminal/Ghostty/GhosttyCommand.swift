@@ -11,6 +11,8 @@ struct GhosttyCommand: Equatable, Sendable {
   }
 
   static let unsupportedActionKeys: [String] = [
+    "toggle_fullscreen",
+    "toggle_maximize",
     "toggle_tab_overview",
     "toggle_window_decorations",
     "show_gtk_inspector",

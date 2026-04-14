@@ -42,4 +42,28 @@ struct TerminalHostStateCommandPaletteTests {
     #expect(snapshot.ghosttyCommands.contains(where: { $0.action == "open_config" }))
     #expect(snapshot.ghosttyShortcutDisplayByAction["open_config"] == "⌘⇧Y")
   }
+
+  @Test
+  func commandPaletteSnapshotFiltersUnsupportedWindowActions() throws {
+    let runtime = try makeGhosttyRuntime(
+      [
+        "keybind = super+shift+y=open_config",
+        "keybind = super+ctrl+f=toggle_fullscreen",
+        "command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config",
+        "command-palette-entry = title:Toggle Fullscreen,"
+          + "description:Toggle the fullscreen state of the current window.,action:toggle_fullscreen",
+        "command-palette-entry = title:Toggle Maximize,"
+          + "description:Toggle the maximized state of the current window.,action:toggle_maximize",
+      ].joined(separator: "\n")
+    )
+    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+
+    let snapshot = host.commandPaletteSnapshot
+
+    #expect(snapshot.ghosttyCommands.contains(where: { $0.action == "open_config" }))
+    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_fullscreen" }))
+    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_maximize" }))
+    #expect(snapshot.ghosttyShortcutDisplayByAction["open_config"] == "⌘⇧Y")
+    #expect(snapshot.ghosttyShortcutDisplayByAction["toggle_fullscreen"] == nil)
+  }
 }

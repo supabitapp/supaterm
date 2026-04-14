@@ -38,7 +38,6 @@ struct TerminalCommandPaletteStateTests {
     })
 
     #expect(row?.title == "Unpin Tab")
-    #expect(row?.symbol == "pin.slash")
     #expect(row?.command == .togglePinned(snapshot.visibleTabs[0].id))
   }
 

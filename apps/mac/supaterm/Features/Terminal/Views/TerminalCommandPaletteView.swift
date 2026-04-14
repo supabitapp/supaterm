@@ -16,7 +16,7 @@ struct TerminalCommandPaletteOverlay: View {
   @FocusState private var isQueryFocused: Bool
   @State private var hoveredRowID: TerminalCommandPaletteRow.ID?
 
-  private let cardHeight: CGFloat = 296
+  private let cardHeight: CGFloat = 272
   private let cardCornerRadius: CGFloat = 26
   private let maxWidth: CGFloat = 750
   private let minWidth: CGFloat = 280
@@ -35,7 +35,6 @@ struct TerminalCommandPaletteOverlay: View {
   var body: some View {
     GeometryReader { geometry in
       let cardWidth = min(maxWidth, max(minWidth, geometry.size.width - 32))
-      let topInset = geometry.size.height * 0.075
 
       ZStack {
         Button(action: onClose) {
@@ -46,53 +45,49 @@ struct TerminalCommandPaletteOverlay: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Close command palette")
 
-        VStack {
-          Spacer()
-            .frame(height: topInset)
+        VStack(alignment: .leading, spacing: 5) {
+          searchField
 
-          VStack(alignment: .leading, spacing: 6) {
-            searchField
+          if !rows.isEmpty {
+            RoundedRectangle(cornerRadius: 100, style: .continuous)
+              .fill(theme.separator)
+              .frame(height: 0.5)
+          }
 
-            if !rows.isEmpty {
-              RoundedRectangle(cornerRadius: 100, style: .continuous)
-                .fill(theme.separator)
-                .frame(height: 0.5)
-            }
-
-            ScrollViewReader { proxy in
-              ScrollView {
-                LazyVStack(alignment: .leading, spacing: 5) {
-                  ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    CommandPaletteRowButton(
-                      row: row,
-                      shortcutHint: shortcutHint(for: row, index: index),
-                      theme: theme,
-                      isHovered: hoveredRowID == row.id,
-                      isSelected: selectedRowID == row.id,
-                      action: {
-                        onSelectionChange(index)
-                        onActivate()
-                      }
-                    )
-                    .id(row.id)
-                    .onHover { isHovering in
-                      hoveredRowID = isHovering ? row.id : nil
+          ScrollViewReader { proxy in
+            ScrollView {
+              LazyVStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                  CommandPaletteRowButton(
+                    row: row,
+                    shortcutHint: shortcutHint(for: row, index: index),
+                    theme: theme,
+                    isHovered: hoveredRowID == row.id,
+                    isSelected: selectedRowID == row.id,
+                    action: {
+                      onSelectionChange(index)
+                      onActivate()
                     }
+                  )
+                  .id(row.id)
+                  .onHover { isHovering in
+                    hoveredRowID = isHovering ? row.id : nil
                   }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
               }
-              .scrollIndicators(.never)
-              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-              .onAppear {
-                scrollSelection(into: proxy)
-              }
-              .onChange(of: selectedRowID) { _, _ in
-                scrollSelection(into: proxy)
-              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.never)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .onAppear {
+              scrollSelection(into: proxy)
+            }
+            .onChange(of: selectedRowID) { _, _ in
+              scrollSelection(into: proxy)
             }
           }
-          .padding(10)
+        }
+          .padding(9)
           .frame(width: cardWidth, height: cardHeight, alignment: .top)
           .background(theme.surfaceTint, in: .rect(cornerRadius: cardCornerRadius))
           .background {
@@ -111,10 +106,7 @@ struct TerminalCommandPaletteOverlay: View {
               .padding(1)
           }
           .shadow(color: theme.shadow, radius: 22, y: 12)
-
-          Spacer()
-        }
-        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+          .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
       }
     }
     .task {
@@ -123,16 +115,16 @@ struct TerminalCommandPaletteOverlay: View {
   }
 
   private var searchField: some View {
-    HStack(spacing: 15) {
+    HStack(spacing: 12) {
       Image(systemName: "magnifyingglass")
-        .font(.system(size: 14, weight: .regular))
+        .font(.system(size: 13, weight: .regular))
         .foregroundStyle(theme.fieldIcon)
-        .frame(width: 15)
+        .frame(width: 13)
         .accessibilityHidden(true)
 
       TextField("Search commands...", text: queryBinding)
         .textFieldStyle(.plain)
-        .font(.system(size: 18, weight: .medium))
+        .font(.system(size: 17, weight: .medium))
         .foregroundStyle(state.query.isEmpty ? theme.placeholderText : theme.primaryText)
         .tint(theme.tint)
         .focused($isQueryFocused)
@@ -153,8 +145,8 @@ struct TerminalCommandPaletteOverlay: View {
           return .handled
         }
     }
-    .padding(.vertical, 8)
-    .padding(.horizontal, 8)
+    .padding(.vertical, 6)
+    .padding(.horizontal, 7)
   }
 
   private var queryBinding: Binding<String> {
@@ -203,36 +195,23 @@ private struct CommandPaletteRowButton: View {
 
   var body: some View {
     Button(action: action) {
-      HStack(spacing: 0) {
-        HStack(spacing: 9) {
-          Image(systemName: row.symbol)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(iconForeground)
-            .frame(width: 24, height: 24)
-            .background(iconBackground, in: .rect(cornerRadius: 4))
-            .overlay {
-              RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(iconStroke, lineWidth: 0.5)
-            }
-            .accessibilityHidden(true)
+      HStack(spacing: 12) {
+        HStack(spacing: 4) {
+          Text(row.title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(titleColor)
+            .lineLimit(1)
+            .truncationMode(.tail)
 
-          HStack(spacing: 4) {
-            Text(row.title)
-              .font(.system(size: 13, weight: .semibold))
-              .foregroundStyle(titleColor)
-              .lineLimit(1)
-              .truncationMode(.tail)
+          Text("—")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(subtitleColor.opacity(0.72))
 
-            Text("—")
-              .font(.system(size: 13, weight: .semibold))
-              .foregroundStyle(subtitleColor.opacity(0.72))
-
-            Text(row.subtitle)
-              .font(.system(size: 13, weight: .semibold))
-              .foregroundStyle(subtitleColor)
-              .lineLimit(1)
-              .truncationMode(.tail)
-          }
+          Text(row.subtitle)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(subtitleColor)
+            .lineLimit(1)
+            .truncationMode(.tail)
         }
 
         Spacer()
@@ -243,15 +222,15 @@ private struct CommandPaletteRowButton: View {
             .foregroundStyle(shortcutHintColor)
         }
       }
-      .padding(.horizontal, 10)
-      .padding(.vertical, 11)
+      .padding(.horizontal, 11)
+      .padding(.vertical, 9)
       .frame(maxWidth: .infinity)
-      .background(rowBackground, in: .rect(cornerRadius: 6))
+      .background(rowBackground, in: .rect(cornerRadius: 5))
       .overlay {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
           .stroke(rowStroke, lineWidth: 0.5)
       }
-      .contentShape(.rect(cornerRadius: 6))
+      .contentShape(.rect(cornerRadius: 5))
     }
     .buttonStyle(.plain)
   }
@@ -275,27 +254,6 @@ private struct CommandPaletteRowButton: View {
       return theme.selectedSecondaryText.opacity(0.72)
     }
     return theme.secondaryText
-  }
-
-  private var iconForeground: Color {
-    if isSelected {
-      return theme.selectedIconForeground
-    }
-    return theme.iconForeground
-  }
-
-  private var iconBackground: Color {
-    if isSelected {
-      return theme.selectedIconFill
-    }
-    return theme.iconFill
-  }
-
-  private var iconStroke: Color {
-    if isSelected {
-      return theme.selectedIconStroke
-    }
-    return theme.iconStroke
   }
 
   private var rowBackground: Color {
@@ -331,12 +289,6 @@ private struct TerminalCommandPaletteTheme {
   let rowHoverFill: Color
   let selectedFill: Color
   let selectedStroke: Color
-  let iconFill: Color
-  let iconStroke: Color
-  let iconForeground: Color
-  let selectedIconFill: Color
-  let selectedIconStroke: Color
-  let selectedIconForeground: Color
   let shadow: Color
 
   init(colorScheme: ColorScheme, accent: Color) {
@@ -356,12 +308,6 @@ private struct TerminalCommandPaletteTheme {
       rowHoverFill = Color.white.opacity(0.06)
       selectedFill = accent.opacity(0.96)
       selectedStroke = Color.white.opacity(0.14)
-      iconFill = Color.white.opacity(0.04)
-      iconStroke = Color.white.opacity(0.08)
-      iconForeground = Color.white.opacity(0.72)
-      selectedIconFill = Color.white.opacity(0.96)
-      selectedIconStroke = Color.white.opacity(0.18)
-      selectedIconForeground = accent.opacity(0.96)
       shadow = Color.black.opacity(0.2)
     } else {
       surfaceStroke = Color.black.opacity(0.08)
@@ -376,12 +322,6 @@ private struct TerminalCommandPaletteTheme {
       rowHoverFill = Color.black.opacity(0.05)
       selectedFill = accent.opacity(0.94)
       selectedStroke = Color.white.opacity(0.16)
-      iconFill = Color.black.opacity(0.03)
-      iconStroke = Color.black.opacity(0.06)
-      iconForeground = Color.black.opacity(0.72)
-      selectedIconFill = Color.white.opacity(0.96)
-      selectedIconStroke = Color.white.opacity(0.18)
-      selectedIconForeground = accent.opacity(0.96)
       shadow = Color.black.opacity(0.1)
     }
   }
@@ -395,7 +335,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
       in: [
         .init(
           id: "ghostty:new_split:right",
-          symbol: "rectangle.righthalf.inset.filled",
           title: "Split Right",
           subtitle: "Split the focused terminal to the right.",
           shortcut: "⌘D",
@@ -403,7 +342,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
         ),
         .init(
           id: "ghostty:new_split:down",
-          symbol: "rectangle.bottomhalf.inset.filled",
           title: "Split Down",
           subtitle: "Split the focused terminal below.",
           shortcut: "⌘⇧D",
@@ -411,7 +349,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
         ),
         .init(
           id: "supaterm:toggle-sidebar",
-          symbol: "sidebar.leading",
           title: "Toggle Sidebar",
           subtitle: "View",
           shortcut: "⌘S",
@@ -419,7 +356,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
         ),
         .init(
           id: "supaterm:rename-space",
-          symbol: "square.and.pencil",
           title: "Rename Space",
           subtitle: "Workspace Alpha",
           shortcut: nil,
