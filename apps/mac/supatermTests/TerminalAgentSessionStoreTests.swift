@@ -156,11 +156,11 @@ struct TerminalAgentSessionStoreTests {
 @MainActor
 private final class SessionStoreDelegateSpy: TerminalAgentSessionStoreDelegate {
   var expirations: [(SupatermAgentKind, String)] = []
-  var transcriptSnapshots: [CodexTranscriptSnapshot] = []
+  var transcriptSnapshots: [CodexSidebarSnapshot] = []
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
+    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?

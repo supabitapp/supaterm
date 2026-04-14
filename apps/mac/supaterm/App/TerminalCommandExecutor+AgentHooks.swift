@@ -54,7 +54,7 @@ extension TerminalCommandExecutor {
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
+    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?

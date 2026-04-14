@@ -17,7 +17,7 @@ struct CodexTranscriptMonitorTests {
     let batch = try #require(result.1)
     var conversation = CodexConversationState()
     conversation.absorb(batch.records)
-    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
+    let snapshot = conversation.sidebarSnapshot
 
     #expect(result.0.offset > 0)
     #expect(conversation.sessionID == "session-1")
@@ -39,7 +39,7 @@ struct CodexTranscriptMonitorTests {
     let batch = try #require(result.1)
     var conversation = CodexConversationState()
     conversation.absorb(batch.records)
-    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
+    let snapshot = conversation.sidebarSnapshot
 
     #expect(snapshot.status == .completed("turn-1"))
     #expect(snapshot.detail == nil)
@@ -74,7 +74,7 @@ struct CodexTranscriptMonitorTests {
     let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
     let batch = try #require(result.1)
     conversation.absorb(batch.records)
-    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
+    let snapshot = conversation.sidebarSnapshot
 
     #expect(snapshot.status == .started("turn-1"))
     #expect(snapshot.detail == "Reading the file")
@@ -104,7 +104,7 @@ struct CodexTranscriptMonitorTests {
     #expect(conversation.turns.count == 1)
     #expect(conversation.turns[0].id == "turn-ctx")
     #expect(conversation.turns[0].items.count == 2)
-    #expect(CodexTranscriptSnapshot(conversation: conversation).detail == "Applying the change")
+    #expect(conversation.sidebarSnapshot.detail == "Applying the change")
   }
 
   @Test
@@ -118,7 +118,7 @@ struct CodexTranscriptMonitorTests {
     let batch = try #require(result.1)
     var conversation = CodexConversationState()
     conversation.absorb(batch.records)
-    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
+    let snapshot = conversation.sidebarSnapshot
 
     #expect(conversation.sessionID == "session-fixture")
     #expect(conversation.turns.count == 1)
@@ -151,5 +151,65 @@ struct CodexTranscriptMonitorTests {
 
     #expect(result.1 == nil)
     #expect(result.0.offset == start.0.offset)
+  }
+
+  @Test
+  func finalAnswerReplacesRunningSidebarState() {
+    var conversation = CodexConversationState()
+    conversation.absorb(
+      [
+        .eventMessage(type: "task_started", payload: ["turn_id": .string("turn-1")]),
+        .eventMessage(type: "agent_message", payload: ["message": .string("Inspecting the repo")]),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("assistant"),
+            "phase": .string("final_answer"),
+            "content": .array([.object(["text": .string("Done.")])]),
+          ]
+        ),
+      ]
+    )
+
+    #expect(conversation.sidebarSnapshot.detail == nil)
+    #expect(conversation.sidebarSnapshot.hoverMessages == ["Done."])
+  }
+
+  @Test
+  func fullRecomputeMatchesIncrementalAssistantSidebarState() {
+    var incrementalConversation = CodexConversationState()
+    incrementalConversation.absorb(
+      [
+        .eventMessage(type: "task_started", payload: ["turn_id": .string("turn-1")]),
+        .eventMessage(type: "agent_message", payload: ["message": .string("Inspecting the repo")]),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("assistant"),
+            "phase": .string("final_answer"),
+            "content": .array([.object(["text": .string("Done.")])]),
+          ]
+        ),
+      ]
+    )
+
+    let rebuiltConversation = CodexConversationState(
+      turns: [
+        .init(
+          id: "turn-1",
+          status: .inProgress,
+          error: nil,
+          items: [
+            .message(.init(role: "assistant", text: "Inspecting the repo", phase: nil)),
+            .message(.init(role: "assistant", text: "Done.", phase: "final_answer")),
+          ],
+          startedAt: nil,
+          completedAt: nil,
+          durationMs: nil
+        )
+      ]
+    )
+
+    #expect(incrementalConversation.sidebarSnapshot == rebuiltConversation.sidebarSnapshot)
   }
 }

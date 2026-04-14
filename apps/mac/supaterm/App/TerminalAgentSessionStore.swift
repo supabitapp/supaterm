@@ -5,7 +5,7 @@ import SupatermCLIShared
 protocol TerminalAgentSessionStoreDelegate: AnyObject {
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
+    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -186,10 +186,10 @@ final class TerminalAgentSessionStore {
     let sleep = self.sleep
     transcriptMonitorTasks[key]?.cancel()
     cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
-    if let snapshot = transcriptSnapshot(for: key),
+    if let snapshot = sidebarSnapshot(for: key),
       snapshot.status?.isFinal == false
     {
-      handleTranscriptSnapshot(
+      handleSidebarSnapshot(
         snapshot,
         key: key,
         sessionID: sessionID,
@@ -211,14 +211,14 @@ final class TerminalAgentSessionStore {
         }
         guard let self else { return }
         self.applyTranscriptBatch(batch, for: key, resettingConversation: didReset)
-        guard let snapshot = self.transcriptSnapshot(for: key) else {
+        guard let snapshot = self.sidebarSnapshot(for: key) else {
           continue
         }
         guard let status = snapshot.status else {
           continue
         }
         let isFinal = status.isFinal
-        self.handleTranscriptSnapshot(
+        self.handleSidebarSnapshot(
           snapshot,
           key: key,
           sessionID: sessionID,
@@ -271,8 +271,8 @@ final class TerminalAgentSessionStore {
     runningTimeoutTasks.removeValue(forKey: key)
   }
 
-  private func handleTranscriptSnapshot(
-    _ snapshot: CodexTranscriptSnapshot,
+  private func handleSidebarSnapshot(
+    _ snapshot: CodexSidebarSnapshot,
     key: SessionKey,
     sessionID: String,
     context: SupatermCLIContext?
@@ -283,7 +283,7 @@ final class TerminalAgentSessionStore {
     }
     delegate?.terminalAgentSessionStore(
       self,
-      didReceiveCodexTranscriptSnapshot: snapshot,
+      didReceiveCodexSidebarSnapshot: snapshot,
       agent: key.agent,
       sessionID: sessionID,
       context: context
@@ -334,11 +334,11 @@ final class TerminalAgentSessionStore {
     sessions[key] = session
   }
 
-  private func transcriptSnapshot(
+  private func sidebarSnapshot(
     for key: SessionKey
-  ) -> CodexTranscriptSnapshot? {
+  ) -> CodexSidebarSnapshot? {
     guard let session = sessions[key] else { return nil }
-    return .init(conversation: session.codexConversation)
+    return session.codexConversation.sidebarSnapshot
   }
 
   private func resetTranscriptConversation(

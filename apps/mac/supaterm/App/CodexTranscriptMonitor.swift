@@ -131,12 +131,17 @@ struct CodexConversationTurn: Equatable {
   var hoverMessages: [String] = []
 }
 
+struct CodexSidebarSnapshot: Equatable {
+  var status: CodexTranscriptTurnStatus?
+  var detail: String?
+  var hoverMessages: [String]
+}
+
 struct CodexConversationState: Equatable {
   var sessionID: String?
   var records: [CodexRolloutRecord]
   var turns: [CodexConversationTurn]
 
-  private var activeTurnIDHint: String?
   private var nextImplicitTurnIndex: Int
   private var turnIndexByID: [String: Int]
   private var activeTurnIndex: Int?
@@ -150,7 +155,6 @@ struct CodexConversationState: Equatable {
     self.sessionID = sessionID
     self.records = records
     self.turns = turns
-    activeTurnIDHint = turns.last(where: { !$0.status.isFinal })?.id
     nextImplicitTurnIndex = turns.count + 1
     turnIndexByID = Dictionary(uniqueKeysWithValues: turns.enumerated().map { ($1.id, $0) })
     activeTurnIndex = turns.lastIndex(where: { !$0.status.isFinal })
@@ -182,6 +186,14 @@ struct CodexConversationState: Equatable {
     return sourceTurn?.hoverMessages ?? []
   }
 
+  var sidebarSnapshot: CodexSidebarSnapshot {
+    .init(
+      status: activityStatus,
+      detail: detail,
+      hoverMessages: hoverMessages
+    )
+  }
+
   mutating func absorb(_ records: [CodexRolloutRecord]) {
     guard !records.isEmpty else { return }
     for record in records {
@@ -198,7 +210,6 @@ struct CodexConversationState: Equatable {
       }
     case .turnContext(let payload):
       if let turnID = payload["turn_id"]?.stringValue {
-        activeTurnIDHint = turnID
         activeTurnIndex = ensureTurn(id: turnID)
       }
     case .eventMessage(let type, let payload):
@@ -206,7 +217,7 @@ struct CodexConversationState: Equatable {
     case .responseItem(let type, let payload):
       applyResponseItem(type: type, payload: payload)
     case .compacted(let payload):
-      appendItem(.compaction(payload), preferredTurnID: activeTurnIDHint)
+      appendItem(.compaction(payload), preferredTurnID: nil)
     case .unknown:
       break
     }
@@ -216,7 +227,7 @@ struct CodexConversationState: Equatable {
     type: String,
     payload: CodexTranscriptJSONObject
   ) {
-    let preferredTurnID = payload["turn_id"]?.stringValue ?? activeTurnIDHint
+    let preferredTurnID = payload["turn_id"]?.stringValue
     switch type {
     case "task_started", "turn_started":
       applyTurnStarted(payload: payload, preferredTurnID: preferredTurnID)
@@ -236,7 +247,6 @@ struct CodexConversationState: Equatable {
     preferredTurnID: String?
   ) {
     let turnID = preferredTurnID ?? makeImplicitTurnID()
-    activeTurnIDHint = turnID
     let index = ensureTurn(id: turnID)
     turns[index].status = .inProgress
     turns[index].error = nil
@@ -340,7 +350,7 @@ struct CodexConversationState: Equatable {
     type: String,
     payload: CodexTranscriptJSONObject
   ) {
-    let preferredTurnID = payload["turn_id"]?.stringValue ?? activeTurnIDHint
+    let preferredTurnID = payload["turn_id"]?.stringValue
     switch type {
     case "message":
       let role = payload["role"]?.stringValue ?? "assistant"
@@ -424,12 +434,18 @@ struct CodexConversationState: Equatable {
   private mutating func ensureTurnForItem(
     preferredTurnID: String?
   ) -> Int {
-    if let index = turnIndex(preferredTurnID: preferredTurnID) {
-      return index
+    if let preferredTurnID {
+      return ensureTurn(id: preferredTurnID)
     }
-    let turnID = preferredTurnID ?? activeTurnIDHint ?? makeImplicitTurnID()
-    activeTurnIDHint = turnID
-    return ensureTurn(id: turnID)
+    if let activeTurnIndex {
+      return activeTurnIndex
+    }
+    if let latestTurnIndex = turns.indices.last {
+      return latestTurnIndex
+    }
+    let index = ensureTurn(id: makeImplicitTurnID())
+    activeTurnIndex = index
+    return index
   }
 
   @discardableResult
@@ -456,9 +472,6 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func clearActiveTurnIfMatching(index: Int) {
-    if activeTurnIDHint == turns[index].id {
-      activeTurnIDHint = nil
-    }
     if activeTurnIndex == index {
       activeTurnIndex = nil
     }
@@ -478,7 +491,7 @@ struct CodexConversationState: Equatable {
   private mutating func refreshDerivedMessageState(
     for index: Int
   ) {
-    let state = Self.derivedMessageState(from: turns[index].items)
+    let state = Self.assistantMessageState(from: turns[index].items)
     turns[index].lastAssistantDetail = state.lastAssistantDetail
     turns[index].hoverMessages = state.hoverMessages
   }
@@ -487,60 +500,55 @@ struct CodexConversationState: Equatable {
     forAppended message: CodexConversationMessage,
     at index: Int
   ) {
-    let normalized = normalizedMessage(message.text)
-    turns[index].lastAssistantDetail =
-      message.phase == "final_answer"
-      ? nil
-      : normalizedDetail(message.text)
-    guard let normalized else {
-      return
-    }
-    if message.phase == "final_answer" {
-      turns[index].hoverMessages = [normalized]
-      return
-    }
-    guard turns[index].hoverMessages.last != normalized else {
-      return
-    }
-    turns[index].hoverMessages.append(normalized)
+    var state = AssistantMessageState(
+      lastAssistantDetail: turns[index].lastAssistantDetail,
+      hoverMessages: turns[index].hoverMessages
+    )
+    Self.reduceAssistantMessageState(&state, with: message)
+    turns[index].lastAssistantDetail = state.lastAssistantDetail
+    turns[index].hoverMessages = state.hoverMessages
   }
 
   private static func withDerivedMessageState(
     _ turn: CodexConversationTurn
   ) -> CodexConversationTurn {
     var turn = turn
-    let state = derivedMessageState(from: turn.items)
+    let state = assistantMessageState(from: turn.items)
     turn.lastAssistantDetail = state.lastAssistantDetail
     turn.hoverMessages = state.hoverMessages
     return turn
   }
 
-  private static func derivedMessageState(
+  private static func assistantMessageState(
     from items: [CodexConversationItem]
-  ) -> (lastAssistantDetail: String?, hoverMessages: [String]) {
-    var lastAssistantDetail: String?
-    var hoverMessages: [String] = []
+  ) -> AssistantMessageState {
+    var state = AssistantMessageState()
     for item in items {
       guard case .message(let message) = item, message.role == "assistant" else { continue }
-      lastAssistantDetail =
-        message.phase == "final_answer"
-        ? nil
-        : normalizedDetail(message.text)
-      guard
-        let normalized = normalizedMessage(message.text)
-      else {
-        continue
-      }
-      if message.phase == "final_answer" {
-        hoverMessages = [normalized]
-        continue
-      }
-      guard hoverMessages.last != normalized else {
-        continue
-      }
-      hoverMessages.append(normalized)
+      reduceAssistantMessageState(&state, with: message)
     }
-    return (lastAssistantDetail, hoverMessages)
+    return state
+  }
+
+  private static func reduceAssistantMessageState(
+    _ state: inout AssistantMessageState,
+    with message: CodexConversationMessage
+  ) {
+    state.lastAssistantDetail =
+      message.phase == "final_answer"
+      ? nil
+      : normalizedDetail(message.text)
+    guard let normalized = normalizedMessage(message.text) else {
+      return
+    }
+    if message.phase == "final_answer" {
+      state.hoverMessages = [normalized]
+      return
+    }
+    guard state.hoverMessages.last != normalized else {
+      return
+    }
+    state.hoverMessages.append(normalized)
   }
 
   private mutating func makeImplicitTurnID() -> String {
@@ -550,20 +558,9 @@ struct CodexConversationState: Equatable {
   }
 }
 
-struct CodexTranscriptSnapshot: Equatable {
-  var conversation: CodexConversationState
-
-  var status: CodexTranscriptTurnStatus? {
-    conversation.activityStatus
-  }
-
-  var detail: String? {
-    conversation.detail
-  }
-
-  var hoverMessages: [String] {
-    conversation.hoverMessages
-  }
+private struct AssistantMessageState: Equatable {
+  var lastAssistantDetail: String?
+  var hoverMessages: [String] = []
 }
 
 private extension CodexConversationTurn {
