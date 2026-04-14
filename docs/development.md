@@ -6,6 +6,18 @@ When running the app in development, to use the right CLI path for use `$SUPATER
 $SUPATERM_CLI_PATH diagnostic
 ```
 
+## Warm Cache
+
+Warm the macOS Tuist cache from the repo root with:
+
+```bash
+mise exec -- tuist auth login
+mise exec -- tuist auth whoami
+make mac-warm-cache
+```
+
+This warms the cacheable Debug graph for tagged internal and external dependencies.
+
 ## Testing
 
 Tests that exercise polling or timeout behavior should inject a clock and advance it instead of waiting on wall clock time.
