@@ -46,7 +46,7 @@ This document captures the stable rules of Supaterm's socket IPC. The source rem
 - `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift` defines request and response types.
 - `apps/mac/SupatermCLIShared/SupatermSocketPath.swift` defines endpoint resolution and discovery.
 - `apps/mac/SupatermCLIShared/SupatermCLIContext.swift` defines pane context passed through environment.
-- `apps/mac/sp/` is the CLI surface.
+- `apps/mac/SPCLI/` is the shared CLI implementation surface.
 - `apps/mac/sp/main.swift` is the CLI entrypoint.
-- `apps/mac/sp/SPSocketClient.swift` is the CLI transport client.
+- `apps/mac/SPCLI/SPSocketClient.swift` is the CLI transport client.
 - `apps/mac/supaterm/Features/Terminal/Ghostty/GhosttySurfaceView.swift` injects pane context into terminal processes.

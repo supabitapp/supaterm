@@ -55,20 +55,8 @@ let project = Project(
       bundleId: "app.supabit.sp-cli",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
-      sources: [
-        "sp/SPAgentCommands.swift",
-        "sp/SPCommand.swift",
-        "sp/SPCommandRuntime.swift",
-        "sp/SPDiagnosticCommands.swift",
-        "sp/SPEntrypoint.swift",
-        "sp/SPHelp.swift",
-        "sp/SPInternalCommands.swift",
-        "sp/SPSocketClient.swift",
-        "sp/SPTerminalCreateCommands.swift",
-        "sp/SPTerminalControlCommands.swift",
-        "sp/SPTargetResolver.swift",
-        "sp/SPTmuxCompat.swift",
-        "sp/SPTreeRenderer.swift",
+      buildableFolders: [
+        "SPCLI",
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
@@ -89,8 +77,8 @@ let project = Project(
       bundleId: "app.supabit.sp",
       deploymentTargets: .macOS("26.0"),
       infoPlist: .default,
-      sources: [
-        "sp/main.swift",
+      buildableFolders: [
+        "sp",
       ],
       dependencies: [
         .external(name: "ArgumentParser"),
