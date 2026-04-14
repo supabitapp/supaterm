@@ -5,17 +5,20 @@ import SwiftUI
 struct ContentView: View {
   let commandHoldObserver: CommandHoldObserver
   let ghosttyShortcuts: GhosttyShortcutManager
+  let commandPaletteClient: TerminalCommandPaletteClient
   let store: StoreOf<AppFeature>
   @Bindable var terminal: TerminalHostState
 
   init(
     commandHoldObserver: CommandHoldObserver,
     ghosttyShortcuts: GhosttyShortcutManager,
+    commandPaletteClient: TerminalCommandPaletteClient,
     store: StoreOf<AppFeature>,
     terminal: TerminalHostState
   ) {
     self.commandHoldObserver = commandHoldObserver
     self.ghosttyShortcuts = ghosttyShortcuts
+    self.commandPaletteClient = commandPaletteClient
     self.store = store
     self._terminal = Bindable(terminal)
   }
@@ -30,6 +33,7 @@ struct ContentView: View {
 
   var body: some View {
     TerminalView(
+      commandPaletteClient: commandPaletteClient,
       store: terminalStore,
       updateStore: updateStore,
       terminal: terminal

@@ -3,6 +3,7 @@ import Foundation
 import Sharing
 import SupatermSupport
 import SupatermTerminalCore
+import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
@@ -467,7 +468,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
     }
 
     await store.send(.commandPaletteToggleRequested) {
@@ -504,7 +505,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
     }
 
     await store.send(.commandPaletteQueryChanged("switch")) {
@@ -527,7 +528,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
     }
 
     await store.send(.commandPaletteSelectionMoved(99)) {
@@ -536,6 +537,71 @@ struct TerminalWindowFeatureTests {
     await store.send(.commandPaletteSelectionMoved(-99)) {
       $0.commandPalette?.selectedRowID = visibleRows.first?.id
     }
+  }
+
+  @Test
+  func commandPaletteActivateSelectionFocusesPaneThroughPaletteClient() async throws {
+    let recorder = CommandPaletteClientRecorder()
+    let snapshot = makeCommandPaletteSnapshot()
+    let focusRow = try #require(
+      TerminalCommandPalettePresentation.rows(from: snapshot).first {
+        if case .focusPane = $0.command { return true }
+        return false
+      }
+    )
+    var initialState = TerminalWindowFeature.State()
+    initialState.commandPalette = .init(
+      selectedRowID: focusRow.id
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
+      $0.terminalCommandPaletteClient.focusPane = { target in
+        recorder.recordFocus(target)
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+
+    #expect(recorder.focusTargets == [snapshot.focusTargets[0]])
+  }
+
+  @Test
+  func commandPaletteActivateSelectionPerformsUpdateThroughPaletteClient() async throws {
+    let recorder = CommandPaletteClientRecorder()
+    let snapshot = makeCommandPaletteSnapshot()
+    let updateRow = try #require(
+      TerminalCommandPalettePresentation.rows(from: snapshot).first {
+        if case .update = $0.command { return true }
+        return false
+      }
+    )
+    let windowID = ObjectIdentifier(NSObject())
+    var initialState = TerminalWindowFeature.State()
+    initialState.windowID = windowID
+    initialState.commandPalette = .init(
+      selectedRowID: updateRow.id
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
+      $0.terminalCommandPaletteClient.performUpdateAction = { resolvedWindowID, action in
+        recorder.recordUpdate(windowID: resolvedWindowID, action: action)
+      }
+    }
+
+    await store.send(.commandPaletteActivateSelection) {
+      $0.commandPalette = nil
+    }
+
+    #expect(recorder.updateActions == [.install])
+    #expect(recorder.updateWindowIDs == [windowID])
   }
 
   @Test
@@ -549,7 +615,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
       $0.terminalClient.send = { recorder.record($0) }
     }
 
@@ -573,7 +639,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
       $0.terminalClient.send = { recorder.record($0) }
     }
 
@@ -595,7 +661,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
       $0.externalNavigationClient.open = { url in
         openedURLs.append(url)
         return true
@@ -620,7 +686,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { makeCommandPaletteSnapshot() }
+      $0.terminalCommandPaletteClient.snapshot = { _ in makeCommandPaletteSnapshot() }
     }
 
     await store.send(.commandPaletteActivateSelection)
@@ -640,7 +706,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
       $0.terminalClient.send = { recorder.record($0) }
     }
 
@@ -659,7 +725,7 @@ struct TerminalWindowFeatureTests {
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
     } withDependencies: {
-      $0.terminalClient.commandPaletteSnapshot = { snapshot }
+      $0.terminalCommandPaletteClient.snapshot = { _ in snapshot }
     }
 
     await store.send(.clientEvent(.commandPaletteToggleRequested))
@@ -1052,6 +1118,13 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
   let otherSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!)
   let selectedTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!)
   let otherTabID = TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!)
+  let focusTarget = TerminalCommandPaletteFocusTarget(
+    windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
+    surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!,
+    title: "ping 1.1.1.1",
+    subtitle: "~/Projects/network",
+    tone: .sky
+  )
 
   return .init(
     ghosttyCommands: [
@@ -1073,6 +1146,19 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       "open_config": "⌘,",
     ],
     hasFocusedSurface: true,
+    updateEntries: [
+      .init(
+        id: "update-available:install",
+        title: "Install and Relaunch",
+        subtitle: "Update Available",
+        description: "Supaterm 1.2.3 is ready to download and install.",
+        leadingIcon: "shippingbox.fill",
+        badge: "1.2.3",
+        emphasis: true,
+        action: .install
+      )
+    ],
+    focusTargets: [focusTarget],
     selectedSpaceID: selectedSpaceID,
     spaces: [
       .init(id: selectedSpaceID, name: "Workspace Alpha"),
@@ -1084,6 +1170,22 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       .init(id: otherTabID, title: "Logs", icon: "doc.plaintext"),
     ]
   )
+}
+
+@MainActor
+private final class CommandPaletteClientRecorder {
+  private(set) var focusTargets: [TerminalCommandPaletteFocusTarget] = []
+  private(set) var updateActions: [UpdateUserAction] = []
+  private(set) var updateWindowIDs: [ObjectIdentifier?] = []
+
+  func recordFocus(_ target: TerminalCommandPaletteFocusTarget) {
+    focusTargets.append(target)
+  }
+
+  func recordUpdate(windowID: ObjectIdentifier?, action: UpdateUserAction) {
+    updateWindowIDs.append(windowID)
+    updateActions.append(action)
+  }
 }
 
 private actor TerminalDesktopNotificationRecorder {

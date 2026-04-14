@@ -61,28 +61,6 @@ extension TerminalHostState {
     selectedSurfaceView?.bridge.state
   }
 
-  var commandPaletteSnapshot: TerminalCommandPaletteSnapshot {
-    _ = runtimeConfigGeneration
-
-    let ghosttyCommands = runtime?.commandPaletteEntries().filter(\.isSupported) ?? []
-    var ghosttyShortcutDisplayByAction: [String: String] = [:]
-    for command in ghosttyCommands {
-      if let shortcut = runtime?.keyboardShortcut(forAction: command.action)?.display {
-        ghosttyShortcutDisplayByAction[command.action] = shortcut
-      }
-    }
-
-    return .init(
-      ghosttyCommands: ghosttyCommands,
-      ghosttyShortcutDisplayByAction: ghosttyShortcutDisplayByAction,
-      hasFocusedSurface: selectedSurfaceView != nil,
-      selectedSpaceID: selectedSpaceID,
-      spaces: spaces,
-      selectedTabID: selectedTabID,
-      visibleTabs: visibleTabs
-    )
-  }
-
   func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
     Self.sidebarTerminalProgress(
       state: focusedSurfaceIDByTab[tabID].flatMap { surfaceID in

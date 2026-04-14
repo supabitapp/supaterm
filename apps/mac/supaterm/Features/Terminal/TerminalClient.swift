@@ -24,7 +24,6 @@ struct TerminalCloseRequest: Equatable, Sendable {
 }
 
 struct TerminalClient: Sendable {
-  var commandPaletteSnapshot: @MainActor @Sendable () -> TerminalCommandPaletteSnapshot
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
@@ -75,9 +74,6 @@ struct TerminalClient: Sendable {
 
   static func live(host: TerminalHostState) -> Self {
     Self(
-      commandPaletteSnapshot: {
-        host.commandPaletteSnapshot
-      },
       createPane: { request in
         try host.createPane(request)
       },
@@ -103,7 +99,6 @@ enum TerminalGotoTabTarget: Equatable, Sendable {
 
 extension TerminalClient: DependencyKey {
   static let liveValue = Self(
-    commandPaletteSnapshot: { .empty },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -113,7 +108,6 @@ extension TerminalClient: DependencyKey {
   )
 
   static let testValue = Self(
-    commandPaletteSnapshot: { .empty },
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },

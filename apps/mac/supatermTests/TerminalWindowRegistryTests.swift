@@ -181,6 +181,211 @@ struct TerminalWindowRegistryTests {
     #expect(registry.requestUpdateMenuActionInKeyWindow())
     #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.restartNow])
   }
+
+  @Test
+  func commandPaletteSnapshotUsesRequestedWindowID() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let firstHost = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
+      var secondState = AppFeature.State()
+      secondState.update.phase = .permissionRequest
+      let secondHost = try makeCommandPaletteHost(title: "beta", workingDirectory: nil)
+      let firstStore = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let secondStore = Store(initialState: secondState) {
+        AppFeature()
+      }
+      let firstWindowControllerID = UUID()
+      let secondWindowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: firstWindowControllerID,
+        store: firstStore,
+        terminal: firstHost,
+        requestConfirmedWindowClose: {}
+      )
+      let firstWindow = makeWindow()
+      registry.updateWindow(firstWindow, for: firstWindowControllerID)
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: secondWindowControllerID,
+        store: secondStore,
+        terminal: secondHost,
+        requestConfirmedWindowClose: {}
+      )
+      let secondWindow = makeWindow()
+      registry.updateWindow(secondWindow, for: secondWindowControllerID)
+
+      let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(secondWindow))
+
+      #expect(snapshot.selectedTabID == secondHost.selectedTabID)
+      #expect(snapshot.updateEntries.map(\.title) == ["Not Now", "Allow"])
+    }
+  }
+
+  @Test
+  func commandPaletteSnapshotAggregatesFocusTargetsAcrossWindows() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let firstHost = try makeCommandPaletteHost(title: "ping 1.1.1.1", workingDirectory: "/tmp/one")
+      let secondHost = try makeCommandPaletteHost(title: "tail -f app.log", workingDirectory: "/tmp/two")
+      let firstStore = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let secondStore = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let firstWindowControllerID = UUID()
+      let secondWindowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: firstWindowControllerID,
+        store: firstStore,
+        terminal: firstHost,
+        requestConfirmedWindowClose: {}
+      )
+      let firstWindow = makeWindow()
+      registry.updateWindow(firstWindow, for: firstWindowControllerID)
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: secondWindowControllerID,
+        store: secondStore,
+        terminal: secondHost,
+        requestConfirmedWindowClose: {}
+      )
+      let secondWindow = makeWindow()
+      registry.updateWindow(secondWindow, for: secondWindowControllerID)
+
+      let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(firstWindow))
+
+      #expect(snapshot.focusTargets.map(\.title).contains("ping 1.1.1.1"))
+      #expect(snapshot.focusTargets.map(\.title).contains("tail -f app.log"))
+    }
+  }
+
+  @Test
+  func commandPaletteSnapshotBuildsUpdateEntriesFromPhaseActions() {
+    let registry = TerminalWindowRegistry()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.phase = .updateAvailable(.init(contentLength: 42, releaseDate: nil, version: "1.2.3"))
+    let store = Store(initialState: state) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
+
+    let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
+
+    #expect(snapshot.updateEntries.map(\.title) == ["Skip", "Later", "Install and Relaunch"])
+    #expect(snapshot.updateEntries.last?.badge == "1.2.3")
+  }
+
+  @Test
+  func focusCommandPalettePaneFocusesTheRequestedPane() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "ping 1.1.1.1", workingDirectory: "/tmp/network")
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      let selectedSurfaceID = try #require(host.selectedSurfaceView?.id)
+
+      _ = try host.createPane(
+        .init(
+          initialInput: nil,
+          direction: .right,
+          focus: false,
+          equalize: false,
+          target: .contextPane(selectedSurfaceID)
+        )
+      )
+
+      let tabID = try #require(host.selectedTabID)
+      let targetSurface = try #require(host.trees[tabID]?.leaves().last)
+      targetSurface.bridge.state.title = "tail -f app.log"
+      targetSurface.bridge.state.pwd = "/tmp/logs"
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let target = try #require(host.commandPaletteFocusTargets(windowControllerID: windowControllerID).last)
+      #expect(host.selectedSurfaceView?.id != target.surfaceID)
+
+      await registry.focusCommandPalettePane(target)
+
+      #expect(host.selectedSurfaceView?.id == target.surfaceID)
+    }
+  }
+
+  @Test
+  func performCommandPaletteUpdateActionDispatchesToRequestedStore() async {
+    let registry = TerminalWindowRegistry()
+    let recorder = UpdateMenuActionRecorder()
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    var state = AppFeature.State()
+    state.update.phase = .permissionRequest
+    let store = Store(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.updateClient.perform = { action in
+        await recorder.record(action)
+      }
+    }
+    let windowControllerID = UUID()
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: {}
+    )
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
+
+    await registry.performCommandPaletteUpdateAction(
+      .allowAutomaticChecks,
+      windowID: ObjectIdentifier(window)
+    )
+
+    #expect(await waitForUpdateMenuActions(recorder, count: 1) == [.allowAutomaticChecks])
+  }
+
   @Test
   func restorationSnapshotPreservesActiveWindowOrder() async throws {
     try await withDependencies {
@@ -442,4 +647,17 @@ struct TerminalWindowRegistryTests {
       Issue.record("Expected no windows plan")
     }
   }
+}
+
+@MainActor
+private func makeCommandPaletteHost(
+  title: String,
+  workingDirectory: String?
+) throws -> TerminalHostState {
+  let host = TerminalHostState()
+  host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+  host.selectedSurfaceView?.bridge.state.title = title
+  host.selectedSurfaceView?.bridge.state.titleOverride = nil
+  host.selectedSurfaceView?.bridge.state.pwd = workingDirectory
+  return host
 }

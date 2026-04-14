@@ -1,31 +1,26 @@
 import Foundation
+import SupatermUpdateFeature
 import Testing
 
 @testable import supaterm
 
 struct TerminalCommandPaletteStateTests {
   @Test
-  func rowsBuildFromGhosttyCommandsAndWindowContext() {
+  func rowsBuildFromUpdatesFocusTargetsAndWindowContext() {
     let snapshot = makeSnapshot()
+    let focusRowID =
+      "focus:\(snapshot.focusTargets[0].windowControllerID.uuidString):\(snapshot.focusTargets[0].surfaceID.uuidString)"
 
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
 
+    #expect(rows.first?.id == "update:\(snapshot.updateEntries[0].id)")
+    #expect(rows.contains(where: { $0.id == focusRowID }))
     #expect(
-      rows.map(\.id) == [
-        "ghostty:new_split:right",
-        "ghostty:open_config",
-        "supaterm:toggle-sidebar",
-        "supaterm:submit-github-issue",
-        "supaterm:create-space",
-        "supaterm:rename-space:\(snapshot.spaces[0].id.rawValue.uuidString)",
-        "supaterm:toggle-pinned:\(snapshot.visibleTabs[0].id.rawValue.uuidString)",
-        "supaterm:space:\(snapshot.spaces[1].id.rawValue.uuidString)",
-        "supaterm:tab:\(snapshot.visibleTabs[1].id.rawValue.uuidString)",
-      ]
+      rows.contains(where: {
+        $0.id == "ghostty:new_split:right" && $0.shortcut == "⌘D"
+      })
     )
-    #expect(rows[0].shortcut == "⌘D")
-    #expect(rows[1].shortcut == "⌘,")
-    #expect(rows[3].command == .submitGitHubIssue)
+    #expect(rows.contains(where: { $0.command == .submitGitHubIssue }))
   }
 
   @Test
@@ -42,15 +37,28 @@ struct TerminalCommandPaletteStateTests {
   }
 
   @Test
-  func typoQueryMatchesGhosttyRows() {
+  func substringQueryMatchesGhosttyRows() {
     let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
 
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
       in: rows,
-      query: "splt rigt"
+      query: "split right"
     )
 
     #expect(visibleRows.first?.command == .ghosttyBindingAction("new_split:right"))
+  }
+
+  @Test
+  func toneQueryPrioritizesMatchingColoredRows() {
+    let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
+
+    let visibleRows = TerminalCommandPalettePresentation.visibleRows(
+      in: rows,
+      query: "sky"
+    )
+
+    #expect(visibleRows.first?.tone == .sky)
+    #expect(visibleRows.allSatisfy { $0.tone == .sky })
   }
 
   @Test
@@ -70,6 +78,29 @@ struct TerminalCommandPaletteStateTests {
   }
 
   @Test
+  func movedSelectionWrapsWithinFilteredRows() {
+    let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
+    let visibleRows = TerminalCommandPalettePresentation.visibleRows(
+      in: rows,
+      query: "switch"
+    )
+
+    let wrappedBackward = TerminalCommandPalettePresentation.movedSelection(
+      visibleRows.first?.id,
+      by: -1,
+      in: visibleRows
+    )
+    let wrappedForward = TerminalCommandPalettePresentation.movedSelection(
+      visibleRows.last?.id,
+      by: 1,
+      in: visibleRows
+    )
+
+    #expect(wrappedBackward == visibleRows.last?.id)
+    #expect(wrappedForward == visibleRows.first?.id)
+  }
+
+  @Test
   func rowForSlotUsesFilteredOrdering() {
     let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
@@ -85,10 +116,15 @@ struct TerminalCommandPaletteStateTests {
 
   private var visibleTabs: [TerminalTabItem] = [
     .init(
-      id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000010")!), title: "Main", icon: nil),
+      id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000010")!),
+      title: "Main",
+      icon: nil
+    ),
     .init(
-      id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!), title: "Logs",
-      icon: "doc.plaintext"),
+      id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!),
+      title: "Logs",
+      icon: "doc.plaintext"
+    ),
   ]
 
   private func makeSnapshot(selectedTabIsPinned: Bool = false) -> TerminalCommandPaletteSnapshot {
@@ -117,6 +153,34 @@ struct TerminalCommandPaletteStateTests {
         "open_config": "⌘,",
       ],
       hasFocusedSurface: true,
+      updateEntries: [
+        .init(
+          id: "update-available:install",
+          title: "Install and Relaunch",
+          subtitle: "Update Available",
+          description: "Supaterm 1.2.3 is ready to download and install.",
+          leadingIcon: "shippingbox.fill",
+          badge: "1.2.3",
+          emphasis: true,
+          action: .install
+        )
+      ],
+      focusTargets: [
+        .init(
+          windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
+          surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
+          title: "ping 1.1.1.1",
+          subtitle: "~/Projects/network",
+          tone: .sky
+        ),
+        .init(
+          windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
+          surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000204")!,
+          title: "server.log",
+          subtitle: "/tmp/logs",
+          tone: .amber
+        ),
+      ],
       selectedSpaceID: selectedSpaceID,
       spaces: [
         .init(id: selectedSpaceID, name: "Workspace Alpha"),

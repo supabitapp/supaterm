@@ -86,6 +86,7 @@ final class TerminalWindowController: NSWindowController {
     if let session {
       _ = terminal.restore(from: session)
     }
+    let commandPaletteClient = TerminalCommandPaletteClient.live(registry: registry)
     let store = Store(
       initialState: AppFeature.State(
         terminal: TerminalWindowFeature.State(
@@ -101,6 +102,7 @@ final class TerminalWindowController: NSWindowController {
           AppTelemetry.capture(event)
         }
       }
+      $0.terminalCommandPaletteClient = commandPaletteClient
       $0.terminalClient = .live(host: terminal)
       $0.windowCloseClient = .live(registry: registry)
     }
@@ -119,6 +121,7 @@ final class TerminalWindowController: NSWindowController {
           ContentView(
             commandHoldObserver: commandHoldObserver,
             ghosttyShortcuts: ghosttyShortcuts,
+            commandPaletteClient: commandPaletteClient,
             store: store,
             terminal: terminal
           )

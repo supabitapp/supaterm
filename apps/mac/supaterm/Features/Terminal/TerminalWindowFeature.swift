@@ -185,6 +185,7 @@ struct TerminalWindowFeature {
   @Dependency(AnalyticsClient.self) var analyticsClient
   @Dependency(ExternalNavigationClient.self) var externalNavigationClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
+  @Dependency(TerminalCommandPaletteClient.self) var terminalCommandPaletteClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
 
@@ -260,7 +261,7 @@ struct TerminalWindowFeature {
 
       case .commandPaletteToggleRequested:
         if state.commandPalette == nil {
-          state.commandPalette = openCommandPaletteState()
+          state.commandPalette = openCommandPaletteState(windowID: state.windowID)
         } else {
           state.commandPalette = nil
         }
@@ -483,24 +484,23 @@ struct TerminalWindowFeature {
     }
   }
 
-  private func openCommandPaletteState() -> TerminalCommandPaletteState {
-    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
+  private func openCommandPaletteState(windowID: ObjectIdentifier?) -> TerminalCommandPaletteState {
+    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot(windowID: windowID))
     return .init(
       selectedRowID: TerminalCommandPalettePresentation.normalizedSelection(nil, in: rows)
     )
   }
 
-  private func commandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
+  private func commandPaletteSnapshot(windowID: ObjectIdentifier?) -> TerminalCommandPaletteSnapshot {
     MainActor.assumeIsolated {
-      terminalClient.commandPaletteSnapshot()
+      terminalCommandPaletteClient.snapshot(windowID)
     }
   }
 
   private func resolvedCommandPalette(for state: State) -> ResolvedCommandPalette? {
     guard let commandPalette = state.commandPalette else { return nil }
-    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
-      in: rows,
+      from: commandPaletteSnapshot(windowID: state.windowID),
       query: commandPalette.query
     )
     let selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
@@ -519,9 +519,8 @@ struct TerminalWindowFeature {
   ) {
     guard state.commandPalette != nil else { return }
     state.commandPalette?.query = query
-    let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot())
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
-      in: rows,
+      from: commandPaletteSnapshot(windowID: state.windowID),
       query: query
     )
     state.commandPalette?.selectedRowID = TerminalCommandPalettePresentation.normalizedSelection(
@@ -575,11 +574,20 @@ struct TerminalWindowFeature {
     _ command: TerminalCommandPaletteCommand,
     state: inout State
   ) -> Effect<Action> {
+    let windowID = state.windowID
     state.commandPalette = nil
 
     switch command {
     case .ghosttyBindingAction(let action):
       return sendCommand(.performGhosttyBindingActionOnFocusedSurface(action))
+    case .focusPane(let target):
+      return .run { [terminalCommandPaletteClient] _ in
+        await terminalCommandPaletteClient.focusPane(target)
+      }
+    case .update(let action):
+      return .run { [terminalCommandPaletteClient, windowID] _ in
+        await terminalCommandPaletteClient.performUpdateAction(windowID, action)
+      }
     case .submitGitHubIssue:
       return .run { [externalNavigationClient] _ in
         _ = await externalNavigationClient.open(SupatermExternalURL.submitGitHubIssue)

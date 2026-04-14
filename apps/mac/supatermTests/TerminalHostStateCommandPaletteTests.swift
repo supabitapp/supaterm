@@ -7,28 +7,7 @@ import Testing
 @MainActor
 struct TerminalHostStateCommandPaletteTests {
   @Test
-  func commandPaletteSnapshotReflectsWindowSelectionWithoutFocusedSurface() throws {
-    try withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let host = TerminalHostState(managesTerminalSurfaces: false)
-      let tabManager = try #require(host.spaceManager.activeTabManager)
-      let mainTabID = tabManager.createTab(title: "Main", icon: nil)
-      let logsTabID = tabManager.createTab(title: "Logs", icon: "doc.plaintext")
-      tabManager.selectTab(mainTabID)
-
-      let snapshot = host.commandPaletteSnapshot
-
-      #expect(snapshot.selectedSpaceID == host.selectedSpaceID)
-      #expect(snapshot.selectedTabID == mainTabID)
-      #expect(snapshot.visibleTabs.map(\.id) == [mainTabID, logsTabID])
-      #expect(!snapshot.hasFocusedSurface)
-      #expect(snapshot.ghosttyCommands.isEmpty)
-    }
-  }
-
-  @Test
-  func commandPaletteSnapshotResolvesGhosttyShortcutDisplays() throws {
+  func commandPaletteGhosttyShortcutDisplaysResolveForSupportedCommands() throws {
     let runtime = try makeGhosttyRuntime(
       """
       keybind = super+shift+y=open_config
@@ -37,14 +16,15 @@ struct TerminalHostStateCommandPaletteTests {
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
 
-    let snapshot = host.commandPaletteSnapshot
+    let commands = host.commandPaletteGhosttyCommands()
+    let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
-    #expect(snapshot.ghosttyCommands.contains(where: { $0.action == "open_config" }))
-    #expect(snapshot.ghosttyShortcutDisplayByAction["open_config"] == "⌘⇧Y")
+    #expect(commands.contains(where: { $0.action == "open_config" }))
+    #expect(shortcuts["open_config"] == "⌘⇧Y")
   }
 
   @Test
-  func commandPaletteSnapshotFiltersUnsupportedWindowActions() throws {
+  func commandPaletteGhosttyCommandsFilterUnsupportedWindowActions() throws {
     let runtime = try makeGhosttyRuntime(
       [
         "keybind = super+shift+y=open_config",
@@ -65,20 +45,62 @@ struct TerminalHostStateCommandPaletteTests {
     )
     let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
 
-    let snapshot = host.commandPaletteSnapshot
+    let commands = host.commandPaletteGhosttyCommands()
+    let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
-    #expect(snapshot.ghosttyCommands.contains(where: { $0.action == "open_config" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "goto_window" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "reset_window_size" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_fullscreen" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_maximize" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
-    #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
-    #expect(snapshot.ghosttyShortcutDisplayByAction["open_config"] == "⌘⇧Y")
-    #expect(snapshot.ghosttyShortcutDisplayByAction["goto_window:next"] == nil)
-    #expect(snapshot.ghosttyShortcutDisplayByAction["reset_window_size"] == nil)
-    #expect(snapshot.ghosttyShortcutDisplayByAction["toggle_fullscreen"] == nil)
-    #expect(snapshot.ghosttyShortcutDisplayByAction["toggle_quick_terminal"] == nil)
-    #expect(snapshot.ghosttyShortcutDisplayByAction["toggle_window_float_on_top"] == nil)
+    #expect(commands.contains(where: { $0.action == "open_config" }))
+    #expect(!commands.contains(where: { $0.actionKey == "goto_window" }))
+    #expect(!commands.contains(where: { $0.actionKey == "reset_window_size" }))
+    #expect(!commands.contains(where: { $0.actionKey == "toggle_fullscreen" }))
+    #expect(!commands.contains(where: { $0.actionKey == "toggle_maximize" }))
+    #expect(!commands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
+    #expect(!commands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
+    #expect(shortcuts["open_config"] == "⌘⇧Y")
+    #expect(shortcuts["goto_window:next"] == nil)
+    #expect(shortcuts["reset_window_size"] == nil)
+    #expect(shortcuts["toggle_fullscreen"] == nil)
+    #expect(shortcuts["toggle_quick_terminal"] == nil)
+    #expect(shortcuts["toggle_window_float_on_top"] == nil)
+  }
+
+  @Test
+  func commandPaletteFocusTargetsEmitStablePaneRows() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+      let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
+      host.selectedSurfaceView?.bridge.state.title = "ping 1.1.1.1"
+      host.selectedSurfaceView?.bridge.state.pwd = "/Users/Developer/Projects/network"
+
+      _ = try host.createPane(
+        .init(
+          initialInput: nil,
+          direction: .right,
+          focus: false,
+          equalize: false,
+          target: .contextPane(firstSurfaceID)
+        )
+      )
+
+      let tabID = try #require(host.selectedTabID)
+      let secondSurface = try #require(host.trees[tabID]?.leaves().last)
+      secondSurface.bridge.state.title = nil
+      secondSurface.bridge.state.titleOverride = nil
+      secondSurface.bridge.state.pwd = nil
+
+      let windowControllerID = UUID(uuidString: "00000000-0000-0000-0000-000000000901")!
+      let targets = host.commandPaletteFocusTargets(windowControllerID: windowControllerID)
+
+      #expect(targets.map(\.surfaceID) == [firstSurfaceID, secondSurface.id])
+      #expect(targets.map(\.windowControllerID) == [windowControllerID, windowControllerID])
+      #expect(targets.map(\.title) == ["ping 1.1.1.1", "Pane 2"])
+      #expect(targets.map(\.subtitle) == ["~/Projects/network", nil])
+      #expect(targets.allSatisfy { $0.tone == host.selectedTab?.tone })
+    }
   }
 }

@@ -339,7 +339,6 @@ let project = Project(
         .target(name: "GhosttyKit"),
         .target(name: "sp"),
         .external(name: "ComposableArchitecture"),
-        .external(name: "FuzzyMatch"),
         .external(name: "PostHog"),
         .external(name: "Sentry"),
         .external(name: "Sharing"),
@@ -374,7 +373,6 @@ let project = Project(
       dependencies: [
         .external(name: "ArgumentParser"),
         .external(name: "Clocks"),
-        .external(name: "FuzzyMatch"),
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),

@@ -96,15 +96,7 @@ struct TerminalSidebarUpdateSection: View {
       EmptyView()
 
     case .permissionRequest:
-      trailingActionRow {
-        actionButton("Not Now") {
-          _ = store.send(.perform(.declineAutomaticChecks))
-        }
-
-        actionButton("Allow", tone: .prominent) {
-          _ = store.send(.perform(.allowAutomaticChecks))
-        }
-      }
+      actionRow
 
     case .checking:
       EmptyView()
@@ -128,29 +120,13 @@ struct TerminalSidebarUpdateSection: View {
           }
         }
 
-        trailingActionRow {
-          actionButton("Skip") {
-            _ = store.send(.perform(.skipVersion))
-          }
-
-          actionButton("Later") {
-            _ = store.send(.perform(.dismiss))
-          }
-
-          actionButton("Install and Relaunch", tone: .prominent) {
-            _ = store.send(.perform(.install))
-          }
-        }
+        actionRow
       }
 
     case .downloading:
       VStack(alignment: .leading, spacing: 10) {
         progressContent
-        trailingActionRow {
-          actionButton("Cancel") {
-            _ = store.send(.perform(.cancel))
-          }
-        }
+        actionRow
       }
 
     case .extracting:
@@ -160,30 +136,14 @@ struct TerminalSidebarUpdateSection: View {
 
     case .installing(let installing):
       if installing.showsPrompt {
-        trailingActionRow {
-          actionButton("Restart Later") {
-            _ = store.send(.perform(.restartLater))
-          }
-
-          actionButton("Restart Now", tone: .prominent) {
-            _ = store.send(.perform(.restartNow))
-          }
-        }
+        actionRow
       }
 
     case .notFound:
       EmptyView()
 
     case .error:
-      trailingActionRow {
-        actionButton("OK") {
-          _ = store.send(.perform(.dismiss))
-        }
-
-        actionButton("Retry", tone: .prominent) {
-          _ = store.send(.perform(.retry))
-        }
-      }
+      actionRow
     }
   }
 
@@ -253,6 +213,24 @@ struct TerminalSidebarUpdateSection: View {
         .contentShape(Capsule(style: .continuous))
     }
     .buttonStyle(.plain)
+  }
+
+  @ViewBuilder
+  private var actionRow: some View {
+    let actions = Array(phase.actionPresentations.enumerated())
+    if !actions.isEmpty {
+      trailingActionRow {
+        ForEach(actions, id: \.offset) { indexedAction in
+          let action = indexedAction.element
+          actionButton(
+            action.title,
+            tone: action.isProminent ? .prominent : .normal
+          ) {
+            _ = store.send(.perform(action.action))
+          }
+        }
+      }
+    }
   }
 
   private func trailingActionRow<Content: View>(

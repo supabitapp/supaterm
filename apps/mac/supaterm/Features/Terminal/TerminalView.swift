@@ -4,6 +4,7 @@ import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalView: View {
+  let commandPaletteClient: TerminalCommandPaletteClient
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   @Bindable var terminal: TerminalHostState
@@ -92,13 +93,14 @@ struct TerminalView: View {
         let activity = resolvedWindowActivity
         _ = store.send(.windowActivityChanged(activity))
       }
+      .onChange(of: store.commandPalette != nil) { wasPresented, isPresented in
+        guard wasPresented, !isPresented else { return }
+        restoreTerminalFocusIfNeeded()
+      }
       .overlay {
         if let commandPalette = store.commandPalette {
-          let snapshot = terminal.commandPaletteSnapshot
-          let rows = TerminalCommandPalettePresentation.visibleRows(
-            in: TerminalCommandPalettePresentation.rows(from: snapshot),
-            query: commandPalette.query
-          )
+          let snapshot = commandPaletteClient.snapshot(store.windowID)
+          let rows = TerminalCommandPalettePresentation.visibleRows(from: snapshot, query: commandPalette.query)
           TerminalCommandPaletteOverlay(
             palette: palette,
             state: commandPalette,
@@ -190,6 +192,17 @@ struct TerminalView: View {
         .spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id)
       )
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.spaces.map(\.id))
+  }
+
+  private func restoreTerminalFocusIfNeeded() {
+    Task { @MainActor in
+      await Task.yield()
+      guard let window else { return }
+      guard window.isKeyWindow else { return }
+      guard let surface = terminal.selectedSurfaceView else { return }
+      guard surface.window === window else { return }
+      window.makeFirstResponder(surface)
+    }
   }
 
   private var spaceDeleteTitle: String {

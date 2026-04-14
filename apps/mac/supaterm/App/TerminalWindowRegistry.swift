@@ -280,6 +280,45 @@ final class TerminalWindowRegistry {
     )
   }
 
+  func commandPaletteSnapshot(windowID: ObjectIdentifier?) -> TerminalCommandPaletteSnapshot {
+    guard let entry = commandPaletteEntry(for: windowID) else {
+      return .empty
+    }
+
+    let updateState = entry.store.withState(\.update)
+    return .init(
+      ghosttyCommands: entry.terminal.commandPaletteGhosttyCommands(),
+      ghosttyShortcutDisplayByAction: entry.terminal.commandPaletteGhosttyShortcutDisplayByAction(),
+      hasFocusedSurface: entry.terminal.selectedSurfaceView != nil,
+      updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
+      focusTargets: activeEntries().flatMap { activeEntry in
+        activeEntry.terminal.commandPaletteFocusTargets(
+          windowControllerID: activeEntry.windowControllerID
+        )
+      },
+      selectedSpaceID: entry.terminal.selectedSpaceID,
+      spaces: entry.terminal.spaces,
+      selectedTabID: entry.terminal.selectedTabID,
+      visibleTabs: entry.terminal.visibleTabs
+    )
+  }
+
+  func focusCommandPalettePane(_ target: TerminalCommandPaletteFocusTarget) {
+    guard let entry = entry(forWindowControllerID: target.windowControllerID) else { return }
+    guard let window = entry.windowReference.value else { return }
+    window.makeKeyAndOrderFront(nil)
+    entry.terminal.updateWindowActivity(.init(isKeyWindow: true, isVisible: true))
+    _ = try? entry.terminal.focusPane(.contextPane(target.surfaceID))
+  }
+
+  func performCommandPaletteUpdateAction(
+    _ action: UpdateUserAction,
+    windowID: ObjectIdentifier?
+  ) {
+    guard let entry = commandPaletteEntry(for: windowID) else { return }
+    entry.store.send(.update(.perform(action)))
+  }
+
   func activeEntries() -> [Entry] {
     entries.filter { $0.windowReference.value != nil }
   }
@@ -312,6 +351,33 @@ final class TerminalWindowRegistry {
     return state.canCheckForUpdates ? .checkForUpdates : nil
   }
 
+  private static func commandPaletteUpdateEntries(
+    for state: UpdateFeature.State
+  ) -> [TerminalCommandPaletteUpdateEntry] {
+    let summary = state.phase.summaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail = state.phase.detailMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return state.phase.actionPresentations.map { presentation in
+      .init(
+        id: "\(state.phase.debugIdentifier):\(presentation.title)",
+        title: presentation.title,
+        subtitle: summary.isEmpty ? nil : summary,
+        description: detail.isEmpty ? nil : detail,
+        leadingIcon: state.phase.iconName,
+        badge: state.phase.badgeText,
+        emphasis: presentation.isProminent,
+        action: presentation.action
+      )
+    }
+  }
+
+  private func commandPaletteEntry(for windowID: ObjectIdentifier?) -> Entry? {
+    if let windowID, let entry = entry(for: windowID) {
+      return entry
+    }
+    return preferredActiveEntry()
+  }
+
   private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
     entries.compactMap { entry in
       guard let window = entry.windowReference.value else { return nil }
@@ -326,6 +392,10 @@ final class TerminalWindowRegistry {
     activeEntries().first { entry in
       entry.windowReference.value.map(ObjectIdentifier.init) == windowID
     }
+  }
+
+  private func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
+    activeEntries().first { $0.windowControllerID == windowControllerID }
   }
 
   private func entry(for window: NSWindow) -> Entry? {

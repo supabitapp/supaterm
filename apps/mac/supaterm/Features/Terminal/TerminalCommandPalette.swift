@@ -1,5 +1,5 @@
 import Foundation
-import FuzzyMatch
+import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalCommandPaletteState: Equatable {
@@ -7,8 +7,29 @@ struct TerminalCommandPaletteState: Equatable {
   var selectedRowID: TerminalCommandPaletteRow.ID?
 }
 
+struct TerminalCommandPaletteFocusTarget: Equatable, Sendable {
+  let windowControllerID: UUID
+  let surfaceID: UUID
+  let title: String
+  let subtitle: String?
+  let tone: TerminalTone?
+}
+
+struct TerminalCommandPaletteUpdateEntry: Equatable, Sendable {
+  let id: String
+  let title: String
+  let subtitle: String?
+  let description: String?
+  let leadingIcon: String?
+  let badge: String?
+  let emphasis: Bool
+  let action: UpdateUserAction
+}
+
 enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case ghosttyBindingAction(String)
+  case focusPane(TerminalCommandPaletteFocusTarget)
+  case update(UpdateUserAction)
   case submitGitHubIssue
   case toggleSidebar
   case createSpace
@@ -21,12 +42,20 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
 struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
   let id: String
   let title: String
-  let subtitle: String
+  let subtitle: String?
+  let description: String?
+  let leadingIcon: String?
+  let tone: TerminalTone?
+  let badge: String?
+  let emphasis: Bool
   let shortcut: String?
   let command: TerminalCommandPaletteCommand
 
   var searchableText: String {
-    "\(title) \(subtitle)"
+    [title, subtitle]
+      .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
   }
 }
 
@@ -34,6 +63,8 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
   let ghosttyCommands: [GhosttyCommand]
   let ghosttyShortcutDisplayByAction: [String: String]
   let hasFocusedSurface: Bool
+  let updateEntries: [TerminalCommandPaletteUpdateEntry]
+  let focusTargets: [TerminalCommandPaletteFocusTarget]
   let selectedSpaceID: TerminalSpaceID?
   let spaces: [TerminalSpaceItem]
   let selectedTabID: TerminalTabID?
@@ -43,6 +74,8 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
     ghosttyCommands: [],
     ghosttyShortcutDisplayByAction: [:],
     hasFocusedSurface: false,
+    updateEntries: [],
+    focusTargets: [],
     selectedSpaceID: nil,
     spaces: [],
     selectedTabID: nil,
@@ -51,103 +84,19 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
 }
 
 enum TerminalCommandPalettePresentation {
-  private static let matcher = FuzzyMatcher()
   private static let toggleSidebarShortcut = KeyboardShortcut("s", modifiers: .command).display
 
   static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
-    var rows: [TerminalCommandPaletteRow] = []
-
-    if snapshot.hasFocusedSurface {
-      rows.append(
-        contentsOf: snapshot.ghosttyCommands.map { command in
-          ghosttyRow(
-            command,
-            shortcut: snapshot.ghosttyShortcutDisplayByAction[command.action]
-          )
-        })
-    }
-
-    rows.append(
-      .init(
-        id: "supaterm:toggle-sidebar",
-        title: "Toggle Sidebar",
-        subtitle: "View",
-        shortcut: toggleSidebarShortcut,
-        command: .toggleSidebar
-      )
-    )
-    rows.append(
-      .init(
-        id: "supaterm:submit-github-issue",
-        title: "Submit GitHub Issue",
-        subtitle: "Help",
-        shortcut: nil,
-        command: .submitGitHubIssue
-      )
-    )
-    rows.append(
-      .init(
-        id: "supaterm:create-space",
-        title: "Create Space",
-        subtitle: "Spaces",
-        shortcut: nil,
-        command: .createSpace
-      )
-    )
-
-    if let selectedSpace = snapshot.selectedSpaceID.flatMap({ selectedSpaceID in
-      snapshot.spaces.first(where: { $0.id == selectedSpaceID })
-    }) {
-      rows.append(
-        .init(
-          id: "supaterm:rename-space:\(selectedSpace.id.rawValue.uuidString)",
-          title: "Rename Space",
-          subtitle: selectedSpace.name,
-          shortcut: nil,
-          command: .renameSpace(selectedSpace)
-        )
-      )
-    }
-
-    if let selectedTab = snapshot.selectedTabID.flatMap({ selectedTabID in
-      snapshot.visibleTabs.first(where: { $0.id == selectedTabID })
-    }) {
-      rows.append(
-        .init(
-          id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
-          title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
-          subtitle: selectedTab.title,
-          shortcut: nil,
-          command: .togglePinned(selectedTab.id)
-        )
-      )
-    }
-
-    rows.append(
-      contentsOf: snapshot.spaces.compactMap { space in
-        guard space.id != snapshot.selectedSpaceID else { return nil }
-        return .init(
-          id: "supaterm:space:\(space.id.rawValue.uuidString)",
-          title: "Switch to \(space.name)",
-          subtitle: "Space",
-          shortcut: nil,
-          command: .selectSpace(space.id)
-        )
-      })
-
-    rows.append(
-      contentsOf: snapshot.visibleTabs.compactMap { tab in
-        guard tab.id != snapshot.selectedTabID else { return nil }
-        return .init(
-          id: "supaterm:tab:\(tab.id.rawValue.uuidString)",
-          title: "Switch to \(tab.title)",
-          subtitle: "Tab",
-          shortcut: nil,
-          command: .selectTab(tab.id)
-        )
-      })
-
+    var rows = snapshot.updateEntries.map(updateRow)
+    rows.append(contentsOf: sortRows(contextRows(from: snapshot)))
     return rows
+  }
+
+  static func visibleRows(
+    from snapshot: TerminalCommandPaletteSnapshot,
+    query: String
+  ) -> [TerminalCommandPaletteRow] {
+    visibleRows(in: rows(from: snapshot), query: query)
   }
 
   static func visibleRows(
@@ -156,13 +105,15 @@ enum TerminalCommandPalettePresentation {
   ) -> [TerminalCommandPaletteRow] {
     guard !query.isEmpty else { return rows }
 
-    let preparedQuery = matcher.prepare(query)
-    var buffer = matcher.makeBuffer()
+    let normalizedQuery = query.lowercased()
     let scoredRows: [ScoredRow] = rows.enumerated().compactMap { index, row in
-      guard let match = matcher.score(row.searchableText, against: preparedQuery, buffer: &buffer) else {
+      let toneScore = toneMatchScore(for: row.tone, query: normalizedQuery)
+      guard
+        row.searchableText.lowercased().contains(normalizedQuery) || toneScore > 0
+      else {
         return nil
       }
-      return .init(index: index, row: row, score: match.score)
+      return .init(index: index, row: row, score: toneScore)
     }
 
     return
@@ -193,12 +144,13 @@ enum TerminalCommandPalettePresentation {
     in visibleRows: [TerminalCommandPaletteRow]
   ) -> TerminalCommandPaletteRow.ID? {
     guard !visibleRows.isEmpty else { return nil }
-    let currentSelection = normalizedSelection(selectedRowID, in: visibleRows)
+    guard let currentSelection = normalizedSelection(selectedRowID, in: visibleRows) else {
+      return offset < 0 ? visibleRows.last?.id : visibleRows.first?.id
+    }
     let currentIndex =
-      currentSelection.flatMap { selectedRowID in
-        visibleRows.firstIndex(where: { $0.id == selectedRowID })
-      } ?? 0
-    let nextIndex = min(max(currentIndex + offset, 0), visibleRows.count - 1)
+      visibleRows.firstIndex(where: { $0.id == currentSelection })
+      ?? 0
+    let nextIndex = (currentIndex + offset).wrappedIndex(modulo: visibleRows.count)
     return visibleRows[nextIndex].id
   }
 
@@ -232,10 +184,239 @@ enum TerminalCommandPalettePresentation {
     .init(
       id: "ghostty:\(command.action)",
       title: command.title,
-      subtitle: command.description.isEmpty ? "Terminal" : command.description,
+      subtitle: nil,
+      description: command.description.isEmpty ? nil : command.description,
+      leadingIcon: nil,
+      tone: nil,
+      badge: nil,
+      emphasis: false,
       shortcut: shortcut,
       command: .ghosttyBindingAction(command.action)
     )
+  }
+
+  private static func updateRow(
+    _ entry: TerminalCommandPaletteUpdateEntry
+  ) -> TerminalCommandPaletteRow {
+    .init(
+      id: "update:\(entry.id)",
+      title: entry.title,
+      subtitle: entry.subtitle,
+      description: entry.description,
+      leadingIcon: entry.leadingIcon,
+      tone: nil,
+      badge: entry.badge,
+      emphasis: entry.emphasis,
+      shortcut: nil,
+      command: .update(entry.action)
+    )
+  }
+
+  private static func focusRow(
+    _ target: TerminalCommandPaletteFocusTarget
+  ) -> TerminalCommandPaletteRow {
+    .init(
+      id: "focus:\(target.windowControllerID.uuidString):\(target.surfaceID.uuidString)",
+      title: "Focus: \(target.title)",
+      subtitle: target.subtitle,
+      description: nil,
+      leadingIcon: "rectangle.on.rectangle",
+      tone: target.tone,
+      badge: nil,
+      emphasis: false,
+      shortcut: nil,
+      command: .focusPane(target)
+    )
+  }
+
+  private static func contextRows(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> [TerminalCommandPaletteRow] {
+    var rows = snapshot.focusTargets.map(focusRow)
+    rows.append(contentsOf: ghosttyRows(from: snapshot))
+    rows.append(contentsOf: supatermRows(from: snapshot))
+    return rows
+  }
+
+  private static func ghosttyRows(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> [TerminalCommandPaletteRow] {
+    guard snapshot.hasFocusedSurface else { return [] }
+    return snapshot.ghosttyCommands.map { command in
+      ghosttyRow(
+        command,
+        shortcut: snapshot.ghosttyShortcutDisplayByAction[command.action]
+      )
+    }
+  }
+
+  private static func supatermRows(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> [TerminalCommandPaletteRow] {
+    var rows = baseSupatermRows
+
+    if let renameSpaceRow = renameSpaceRow(from: snapshot) {
+      rows.append(renameSpaceRow)
+    }
+
+    if let togglePinnedRow = togglePinnedRow(from: snapshot) {
+      rows.append(togglePinnedRow)
+    }
+
+    rows.append(contentsOf: spaceRows(from: snapshot))
+    rows.append(contentsOf: tabRows(from: snapshot))
+    return rows
+  }
+
+  private static var baseSupatermRows: [TerminalCommandPaletteRow] {
+    [
+      .init(
+        id: "supaterm:toggle-sidebar",
+        title: "Toggle Sidebar",
+        subtitle: "View",
+        description: nil,
+        leadingIcon: nil,
+        tone: nil,
+        badge: nil,
+        emphasis: false,
+        shortcut: toggleSidebarShortcut,
+        command: .toggleSidebar
+      ),
+      .init(
+        id: "supaterm:submit-github-issue",
+        title: "Submit GitHub Issue",
+        subtitle: "Help",
+        description: nil,
+        leadingIcon: nil,
+        tone: nil,
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .submitGitHubIssue
+      ),
+      .init(
+        id: "supaterm:create-space",
+        title: "Create Space",
+        subtitle: "Spaces",
+        description: nil,
+        leadingIcon: nil,
+        tone: nil,
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .createSpace
+      ),
+    ]
+  }
+
+  private static func renameSpaceRow(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> TerminalCommandPaletteRow? {
+    guard
+      let selectedSpaceID = snapshot.selectedSpaceID,
+      let selectedSpace = snapshot.spaces.first(where: { $0.id == selectedSpaceID })
+    else {
+      return nil
+    }
+
+    return .init(
+      id: "supaterm:rename-space:\(selectedSpace.id.rawValue.uuidString)",
+      title: "Rename Space",
+      subtitle: selectedSpace.name,
+      description: nil,
+      leadingIcon: nil,
+      tone: nil,
+      badge: nil,
+      emphasis: false,
+      shortcut: nil,
+      command: .renameSpace(selectedSpace)
+    )
+  }
+
+  private static func togglePinnedRow(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> TerminalCommandPaletteRow? {
+    guard
+      let selectedTabID = snapshot.selectedTabID,
+      let selectedTab = snapshot.visibleTabs.first(where: { $0.id == selectedTabID })
+    else {
+      return nil
+    }
+
+    return .init(
+      id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
+      title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
+      subtitle: selectedTab.title,
+      description: nil,
+      leadingIcon: nil,
+      tone: selectedTab.tone,
+      badge: nil,
+      emphasis: false,
+      shortcut: nil,
+      command: .togglePinned(selectedTab.id)
+    )
+  }
+
+  private static func spaceRows(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> [TerminalCommandPaletteRow] {
+    snapshot.spaces.compactMap { space in
+      guard space.id != snapshot.selectedSpaceID else { return nil }
+      return .init(
+        id: "supaterm:space:\(space.id.rawValue.uuidString)",
+        title: "Switch to \(space.name)",
+        subtitle: "Space",
+        description: nil,
+        leadingIcon: nil,
+        tone: nil,
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .selectSpace(space.id)
+      )
+    }
+  }
+
+  private static func tabRows(
+    from snapshot: TerminalCommandPaletteSnapshot
+  ) -> [TerminalCommandPaletteRow] {
+    snapshot.visibleTabs.compactMap { tab in
+      guard tab.id != snapshot.selectedTabID else { return nil }
+      return .init(
+        id: "supaterm:tab:\(tab.id.rawValue.uuidString)",
+        title: "Switch to \(tab.title)",
+        subtitle: "Tab",
+        description: nil,
+        leadingIcon: nil,
+        tone: tab.tone,
+        badge: nil,
+        emphasis: false,
+        shortcut: nil,
+        command: .selectTab(tab.id)
+      )
+    }
+  }
+
+  private static func sortRows(_ rows: [TerminalCommandPaletteRow]) -> [TerminalCommandPaletteRow] {
+    rows.enumerated()
+      .sorted { lhs, rhs in
+        let lhsTitle = lhs.element.title.replacingOccurrences(of: ":", with: "\t")
+        let rhsTitle = rhs.element.title.replacingOccurrences(of: ":", with: "\t")
+        let comparison = lhsTitle.localizedCaseInsensitiveCompare(rhsTitle)
+        if comparison != .orderedSame {
+          return comparison == .orderedAscending
+        }
+        return lhs.offset < rhs.offset
+      }
+      .map(\.element)
+  }
+
+  private static func toneMatchScore(
+    for tone: TerminalTone?,
+    query: String
+  ) -> Double {
+    guard let tone else { return 0 }
+    return query.contains(tone.commandPaletteSearchName) ? 1 : 0
   }
 }
 
@@ -243,4 +424,31 @@ private struct ScoredRow {
   let index: Int
   let row: TerminalCommandPaletteRow
   let score: Double
+}
+
+extension TerminalTone {
+  fileprivate var commandPaletteSearchName: String {
+    switch self {
+    case .amber:
+      "amber"
+    case .coral:
+      "coral"
+    case .mint:
+      "mint"
+    case .sky:
+      "sky"
+    case .slate:
+      "slate"
+    case .violet:
+      "violet"
+    }
+  }
+}
+
+extension Int {
+  fileprivate func wrappedIndex(modulo count: Int) -> Int {
+    guard count > 0 else { return 0 }
+    let remainder = self % count
+    return remainder >= 0 ? remainder : remainder + count
+  }
 }
