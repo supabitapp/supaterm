@@ -5,7 +5,7 @@ A terminal for ur coding agents.
 
 ## Development
 
-Just run `make` there are a bunch of commands there. 
+Read [./docs](./docs)
 
 ## Thank you
 
