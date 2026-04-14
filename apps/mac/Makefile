@@ -119,8 +119,8 @@ format: # Format code with swift format (local only)
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
 
-inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit Tuist dependencies
-	mise exec -- tuist inspect dependencies --only implicit
+inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
+	mise exec -- tuist inspect dependencies
 
 warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for the full cacheable graph
 	mise exec -- tuist cache warm --configuration $(TUIST_CACHE_CONFIGURATION)
