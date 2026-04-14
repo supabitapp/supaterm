@@ -5,7 +5,7 @@ import SupatermCLIShared
 protocol TerminalAgentSessionStoreDelegate: AnyObject {
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptUpdate update: CodexTranscriptUpdate,
+    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -40,6 +40,7 @@ final class TerminalAgentSessionStore {
     var routing: SessionRouting
     var surfaceID: UUID?
     var transcriptPath: String?
+    var codexConversation = CodexConversationState()
   }
 
   weak var delegate: TerminalAgentSessionStoreDelegate?
@@ -172,18 +173,24 @@ final class TerminalAgentSessionStore {
     let key = SessionKey(agent: .codex, sessionID: sessionID)
     guard
       let transcriptPath = sessions[key]?.transcriptPath,
-      let (initialCursor, initialUpdate) = CodexTranscriptMonitor.start(at: transcriptPath)
+      let (initialCursor, initialBatch) = CodexTranscriptMonitor.start(at: transcriptPath)
     else {
       return false
+    }
+    resetTranscriptConversation(for: key)
+    if let initialBatch, !initialBatch.isEmpty {
+      applyTranscriptBatch(initialBatch, for: key)
     }
     var cursor = initialCursor
     let interval = transcriptPollInterval
     let sleep = self.sleep
     transcriptMonitorTasks[key]?.cancel()
     cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
-    if let initialUpdate {
-      handleTranscriptUpdate(
-        initialUpdate,
+    if let snapshot = transcriptSnapshot(for: key),
+      snapshot.status?.isFinal == false
+    {
+      handleTranscriptSnapshot(
+        snapshot,
         key: key,
         sessionID: sessionID,
         context: context
@@ -193,17 +200,26 @@ final class TerminalAgentSessionStore {
       while !Task.isCancelled {
         try? await sleep(interval)
         guard !Task.isCancelled else { return }
-        guard let (updatedCursor, update) = CodexTranscriptMonitor.advance(cursor, at: transcriptPath)
+        guard let (updatedCursor, batch) = CodexTranscriptMonitor.advance(cursor, at: transcriptPath)
         else {
           continue
         }
+        let didReset = updatedCursor.offset < cursor.offset
         cursor = updatedCursor
-        guard let update else {
+        guard let batch, !batch.isEmpty else {
           continue
         }
-        let isFinal = update.status?.isFinal == true
-        self?.handleTranscriptUpdate(
-          update,
+        guard let self else { return }
+        self.applyTranscriptBatch(batch, for: key, resettingConversation: didReset)
+        guard let snapshot = self.transcriptSnapshot(for: key) else {
+          continue
+        }
+        guard let status = snapshot.status else {
+          continue
+        }
+        let isFinal = status.isFinal
+        self.handleTranscriptSnapshot(
+          snapshot,
           key: key,
           sessionID: sessionID,
           context: context
@@ -255,19 +271,19 @@ final class TerminalAgentSessionStore {
     runningTimeoutTasks.removeValue(forKey: key)
   }
 
-  private func handleTranscriptUpdate(
-    _ update: CodexTranscriptUpdate,
+  private func handleTranscriptSnapshot(
+    _ snapshot: CodexTranscriptSnapshot,
     key: SessionKey,
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    if update.status?.isFinal == true {
+    if snapshot.status?.isFinal == true {
       transcriptMonitorTasks.removeValue(forKey: key)
       cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
     }
     delegate?.terminalAgentSessionStore(
       self,
-      didReceiveCodexTranscriptUpdate: update,
+      didReceiveCodexTranscriptSnapshot: snapshot,
       agent: key.agent,
       sessionID: sessionID,
       context: context
@@ -303,5 +319,33 @@ final class TerminalAgentSessionStore {
     if foregroundSessionsBySurface[surfaceKey] == key.sessionID {
       foregroundSessionsBySurface.removeValue(forKey: surfaceKey)
     }
+  }
+
+  private func applyTranscriptBatch(
+    _ batch: CodexTranscriptBatch,
+    for key: SessionKey,
+    resettingConversation: Bool = false
+  ) {
+    guard var session = sessions[key] else { return }
+    if resettingConversation {
+      session.codexConversation = CodexConversationState()
+    }
+    session.codexConversation.absorb(batch.records)
+    sessions[key] = session
+  }
+
+  private func transcriptSnapshot(
+    for key: SessionKey
+  ) -> CodexTranscriptSnapshot? {
+    guard let session = sessions[key] else { return nil }
+    return .init(conversation: session.codexConversation)
+  }
+
+  private func resetTranscriptConversation(
+    for key: SessionKey
+  ) {
+    guard var session = sessions[key] else { return }
+    session.codexConversation = CodexConversationState()
+    sessions[key] = session
   }
 }

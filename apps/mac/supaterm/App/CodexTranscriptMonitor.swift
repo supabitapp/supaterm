@@ -4,12 +4,13 @@ enum CodexTranscriptTurnStatus: Equatable {
   case started(String?)
   case completed(String?)
   case aborted(String?)
+  case failed(String?)
 
   var startsNewTurn: Bool {
     switch self {
     case .started:
       true
-    case .completed, .aborted:
+    case .completed, .aborted, .failed:
       false
     }
   }
@@ -18,47 +19,557 @@ enum CodexTranscriptTurnStatus: Equatable {
     switch self {
     case .started:
       false
-    case .completed, .aborted:
+    case .completed, .aborted, .failed:
       true
     }
   }
 }
 
-struct CodexTranscriptUpdate: Equatable {
-  var status: CodexTranscriptTurnStatus?
-  var detail: String?
-  var messages: [String]
-  var replacesMessages: Bool
+enum CodexTranscriptJSONValue: Equatable {
+  case null
+  case bool(Bool)
+  case number(Double)
+  case string(String)
+  case array([Self])
+  case object([String: Self])
+
+  init?(_ value: Any) {
+    switch value {
+    case is NSNull:
+      self = .null
+    case let value as Bool:
+      self = .bool(value)
+    case let value as NSNumber:
+      self = .number(value.doubleValue)
+    case let value as String:
+      self = .string(value)
+    case let value as [Any]:
+      self = .array(value.compactMap(Self.init))
+    case let value as [String: Any]:
+      self = .object(value.compactMapValues(Self.init))
+    default:
+      return nil
+    }
+  }
+
+  var objectValue: [String: Self]? {
+    guard case .object(let value) = self else { return nil }
+    return value
+  }
+
+  var arrayValue: [Self]? {
+    guard case .array(let value) = self else { return nil }
+    return value
+  }
+
+  var stringValue: String? {
+    guard case .string(let value) = self else { return nil }
+    return value
+  }
+
+  var intValue: Int? {
+    guard case .number(let value) = self else { return nil }
+    return Int(exactly: value)
+  }
+}
+
+typealias CodexTranscriptJSONObject = [String: CodexTranscriptJSONValue]
+
+enum CodexRolloutRecord: Equatable {
+  case sessionMeta(CodexTranscriptJSONObject)
+  case turnContext(CodexTranscriptJSONObject)
+  case eventMessage(type: String, payload: CodexTranscriptJSONObject)
+  case responseItem(type: String, payload: CodexTranscriptJSONObject)
+  case compacted(CodexTranscriptJSONObject)
+  case unknown(type: String, payload: CodexTranscriptJSONValue)
+}
+
+enum CodexConversationTurnState: Equatable {
+  case inProgress
+  case completed
+  case aborted
+  case failed
+
+  var isFinal: Bool {
+    switch self {
+    case .inProgress:
+      false
+    case .completed, .aborted, .failed:
+      true
+    }
+  }
+}
+
+struct CodexConversationMessage: Equatable {
+  let role: String
+  let text: String
+  let phase: String?
+}
+
+struct CodexConversationReasoning: Equatable {
+  var summary: [String]
+  var content: [String]
+}
+
+enum CodexConversationItem: Equatable {
+  case message(CodexConversationMessage)
+  case reasoning(CodexConversationReasoning)
+  case operation(type: String, payload: CodexTranscriptJSONObject)
+  case event(type: String, payload: CodexTranscriptJSONObject)
+  case compaction(CodexTranscriptJSONObject)
+}
+
+struct CodexConversationTurn: Equatable {
+  let id: String
+  var status: CodexConversationTurnState
+  var error: String?
+  var items: [CodexConversationItem]
+  var startedAt: String?
+  var completedAt: String?
+  var durationMs: Int?
+  var lastAssistantDetail: String?
+  var hoverMessages: [String] = []
+}
+
+struct CodexConversationState: Equatable {
+  var sessionID: String?
+  var records: [CodexRolloutRecord]
+  var turns: [CodexConversationTurn]
+
+  private var activeTurnIDHint: String?
+  private var nextImplicitTurnIndex: Int
+  private var turnIndexByID: [String: Int]
+  private var activeTurnIndex: Int?
 
   init(
-    status: CodexTranscriptTurnStatus? = nil,
-    detail: String? = nil,
-    messages: [String] = [],
-    replacesMessages: Bool = false
+    sessionID: String? = nil,
+    records: [CodexRolloutRecord] = [],
+    turns: [CodexConversationTurn] = []
   ) {
-    self.status = status
-    self.detail = detail
-    self.messages = messages
-    self.replacesMessages = replacesMessages
+    let turns = turns.map(Self.withDerivedMessageState)
+    self.sessionID = sessionID
+    self.records = records
+    self.turns = turns
+    activeTurnIDHint = turns.last(where: { !$0.status.isFinal })?.id
+    nextImplicitTurnIndex = turns.count + 1
+    turnIndexByID = Dictionary(uniqueKeysWithValues: turns.enumerated().map { ($1.id, $0) })
+    activeTurnIndex = turns.lastIndex(where: { !$0.status.isFinal })
   }
 
-  var hasChanges: Bool {
-    status != nil || detail != nil || !messages.isEmpty
+  var activeTurn: CodexConversationTurn? {
+    guard let activeTurnIndex else { return nil }
+    return turns[activeTurnIndex]
   }
 
-  mutating func absorb(_ update: Self) {
-    if let status = update.status {
-      self.status = status
+  var latestTurn: CodexConversationTurn? {
+    turns.last
+  }
+
+  var activityStatus: CodexTranscriptTurnStatus? {
+    if let activeTurn {
+      return .started(activeTurn.id)
     }
-    if let detail = update.detail {
-      self.detail = detail
+    guard let latestTurn else { return nil }
+    return latestTurn.transcriptStatus
+  }
+
+  var detail: String? {
+    activeTurn?.lastAssistantDetail
+  }
+
+  var hoverMessages: [String] {
+    let sourceTurn = activeTurn ?? latestTurn
+    return sourceTurn?.hoverMessages ?? []
+  }
+
+  mutating func absorb(_ records: [CodexRolloutRecord]) {
+    guard !records.isEmpty else { return }
+    for record in records {
+      self.records.append(record)
+      apply(record)
     }
-    if update.replacesMessages {
-      messages = update.messages
-      replacesMessages = true
-    } else if !update.messages.isEmpty {
-      messages.append(contentsOf: update.messages)
+  }
+
+  private mutating func apply(_ record: CodexRolloutRecord) {
+    switch record {
+    case .sessionMeta(let payload):
+      if let id = payload["id"]?.stringValue {
+        sessionID = id
+      }
+    case .turnContext(let payload):
+      if let turnID = payload["turn_id"]?.stringValue {
+        activeTurnIDHint = turnID
+        activeTurnIndex = ensureTurn(id: turnID)
+      }
+    case .eventMessage(let type, let payload):
+      applyEvent(type: type, payload: payload)
+    case .responseItem(let type, let payload):
+      applyResponseItem(type: type, payload: payload)
+    case .compacted(let payload):
+      appendItem(.compaction(payload), preferredTurnID: activeTurnIDHint)
+    case .unknown:
+      break
     }
+  }
+
+  private mutating func applyEvent(
+    type: String,
+    payload: CodexTranscriptJSONObject
+  ) {
+    let preferredTurnID = payload["turn_id"]?.stringValue ?? activeTurnIDHint
+    switch type {
+    case "task_started", "turn_started":
+      applyTurnStarted(payload: payload, preferredTurnID: preferredTurnID)
+    case "task_complete", "turn_complete":
+      applyTurnCompleted(payload: payload, preferredTurnID: preferredTurnID)
+    case "turn_aborted":
+      applyTurnAborted(payload: payload, preferredTurnID: preferredTurnID)
+    case "error":
+      applyErrorEvent(payload: payload, preferredTurnID: preferredTurnID)
+    default:
+      applyContentEvent(type: type, payload: payload, preferredTurnID: preferredTurnID)
+    }
+  }
+
+  private mutating func applyTurnStarted(
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    let turnID = preferredTurnID ?? makeImplicitTurnID()
+    activeTurnIDHint = turnID
+    let index = ensureTurn(id: turnID)
+    turns[index].status = .inProgress
+    turns[index].error = nil
+    turns[index].startedAt = payload["started_at"]?.stringValue
+    turns[index].durationMs = payload["duration_ms"]?.intValue
+    activeTurnIndex = index
+  }
+
+  private mutating func applyTurnCompleted(
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
+      return
+    }
+    turns[index].status = turns[index].status == .failed ? .failed : .completed
+    turns[index].completedAt = payload["completed_at"]?.stringValue
+    turns[index].durationMs = payload["duration_ms"]?.intValue ?? turns[index].durationMs
+    if let message = normalizedMessage(payload["last_agent_message"]?.stringValue) {
+      appendAssistantMessage(
+        message,
+        phase: "final_answer",
+        preferredTurnID: turns[index].id,
+        replacingLastFinalMessage: true
+      )
+    }
+    clearActiveTurnIfMatching(index: index)
+  }
+
+  private mutating func applyTurnAborted(
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
+      return
+    }
+    turns[index].status = .aborted
+    turns[index].completedAt = payload["completed_at"]?.stringValue
+    turns[index].durationMs = payload["duration_ms"]?.intValue ?? turns[index].durationMs
+    clearActiveTurnIfMatching(index: index)
+  }
+
+  private mutating func applyErrorEvent(
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    if let index = turnIndex(preferredTurnID: preferredTurnID) {
+      turns[index].status = .failed
+      turns[index].error = payload["message"]?.stringValue ?? turns[index].error
+      if activeTurnIndex == index {
+        activeTurnIndex = nil
+      }
+    }
+    appendItem(.event(type: "error", payload: payload), preferredTurnID: preferredTurnID)
+  }
+
+  private mutating func applyContentEvent(
+    type: String,
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    switch type {
+    case "user_message":
+      if let message = normalizedMessage(payload["message"]?.stringValue) {
+        appendItem(
+          .message(.init(role: "user", text: message, phase: nil)),
+          preferredTurnID: preferredTurnID
+        )
+      }
+    case "agent_message":
+      if let message = normalizedMessage(payload["message"]?.stringValue) {
+        appendAssistantMessage(
+          message,
+          phase: payload["phase"]?.stringValue,
+          preferredTurnID: preferredTurnID,
+          replacingLastFinalMessage: false
+        )
+      }
+    case "agent_reasoning":
+      if let text = normalizedMessage(payload["text"]?.stringValue) {
+        appendReasoning(
+          summary: [text],
+          content: [],
+          preferredTurnID: preferredTurnID
+        )
+      }
+    case "agent_reasoning_raw_content":
+      if let text = normalizedMessage(payload["text"]?.stringValue) {
+        appendReasoning(
+          summary: [],
+          content: [text],
+          preferredTurnID: preferredTurnID
+        )
+      }
+    default:
+      appendItem(.event(type: type, payload: payload), preferredTurnID: preferredTurnID)
+    }
+  }
+
+  private mutating func applyResponseItem(
+    type: String,
+    payload: CodexTranscriptJSONObject
+  ) {
+    let preferredTurnID = payload["turn_id"]?.stringValue ?? activeTurnIDHint
+    switch type {
+    case "message":
+      let role = payload["role"]?.stringValue ?? "assistant"
+      let text = messageText(from: payload["content"]?.arrayValue)
+      guard let text else { return }
+      if role == "assistant" {
+        appendAssistantMessage(
+          text,
+          phase: payload["phase"]?.stringValue,
+          preferredTurnID: preferredTurnID,
+          replacingLastFinalMessage: false
+        )
+      } else {
+        let item = CodexConversationItem.message(
+          .init(role: role, text: text, phase: payload["phase"]?.stringValue)
+        )
+        appendItem(item, preferredTurnID: preferredTurnID)
+      }
+    case "reasoning":
+      appendReasoning(
+        summary: textArray(in: payload["summary"]?.arrayValue),
+        content: textArray(in: payload["content"]?.arrayValue),
+        preferredTurnID: preferredTurnID
+      )
+    case "compaction":
+      appendItem(.compaction(payload), preferredTurnID: preferredTurnID)
+    default:
+      appendItem(.operation(type: type, payload: payload), preferredTurnID: preferredTurnID)
+    }
+  }
+
+  private mutating func appendAssistantMessage(
+    _ text: String,
+    phase: String?,
+    preferredTurnID: String?,
+    replacingLastFinalMessage: Bool
+  ) {
+    guard let text = normalizedMessage(text) else { return }
+    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
+    if replacingLastFinalMessage,
+      case .message(let existing)? = turns[index].items.last,
+      existing.role == "assistant",
+      existing.phase == "final_answer"
+    {
+      turns[index].items.removeLast()
+      refreshDerivedMessageState(for: index)
+    }
+    let message = CodexConversationMessage(role: "assistant", text: text, phase: phase)
+    turns[index].items.append(.message(message))
+    updateDerivedMessageState(forAppended: message, at: index)
+  }
+
+  private mutating func appendReasoning(
+    summary: [String],
+    content: [String],
+    preferredTurnID: String?
+  ) {
+    let normalizedSummary = summary.compactMap(normalizedMessage)
+    let normalizedContent = content.compactMap(normalizedMessage)
+    guard !normalizedSummary.isEmpty || !normalizedContent.isEmpty else { return }
+    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
+    if case .reasoning(var reasoning)? = turns[index].items.last {
+      reasoning.summary.append(contentsOf: normalizedSummary)
+      reasoning.content.append(contentsOf: normalizedContent)
+      turns[index].items[turns[index].items.count - 1] = .reasoning(reasoning)
+      return
+    }
+    turns[index].items.append(
+      .reasoning(.init(summary: normalizedSummary, content: normalizedContent))
+    )
+  }
+
+  private mutating func appendItem(
+    _ item: CodexConversationItem,
+    preferredTurnID: String?
+  ) {
+    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
+    turns[index].items.append(item)
+  }
+
+  private mutating func ensureTurnForItem(
+    preferredTurnID: String?
+  ) -> Int {
+    if let index = turnIndex(preferredTurnID: preferredTurnID) {
+      return index
+    }
+    let turnID = preferredTurnID ?? activeTurnIDHint ?? makeImplicitTurnID()
+    activeTurnIDHint = turnID
+    return ensureTurn(id: turnID)
+  }
+
+  @discardableResult
+  private mutating func ensureTurn(
+    id: String
+  ) -> Int {
+    if let index = turnIndexByID[id] {
+      return index
+    }
+    let index = turns.count
+    turns.append(
+      .init(
+        id: id,
+        status: .inProgress,
+        error: nil,
+        items: [],
+        startedAt: nil,
+        completedAt: nil,
+        durationMs: nil
+      )
+    )
+    turnIndexByID[id] = index
+    return index
+  }
+
+  private mutating func clearActiveTurnIfMatching(index: Int) {
+    if activeTurnIDHint == turns[index].id {
+      activeTurnIDHint = nil
+    }
+    if activeTurnIndex == index {
+      activeTurnIndex = nil
+    }
+  }
+
+  private func turnIndex(
+    preferredTurnID: String?
+  ) -> Int? {
+    if let preferredTurnID,
+      let index = turnIndexByID[preferredTurnID]
+    {
+      return index
+    }
+    return activeTurnIndex ?? (turns.isEmpty ? nil : turns.count - 1)
+  }
+
+  private mutating func refreshDerivedMessageState(
+    for index: Int
+  ) {
+    let state = Self.derivedMessageState(from: turns[index].items)
+    turns[index].lastAssistantDetail = state.lastAssistantDetail
+    turns[index].hoverMessages = state.hoverMessages
+  }
+
+  private mutating func updateDerivedMessageState(
+    forAppended message: CodexConversationMessage,
+    at index: Int
+  ) {
+    if message.phase != "final_answer" {
+      turns[index].lastAssistantDetail = normalizedDetail(message.text)
+    }
+    guard turns[index].hoverMessages.last != message.text else {
+      return
+    }
+    turns[index].hoverMessages.append(message.text)
+  }
+
+  private static func withDerivedMessageState(
+    _ turn: CodexConversationTurn
+  ) -> CodexConversationTurn {
+    var turn = turn
+    let state = derivedMessageState(from: turn.items)
+    turn.lastAssistantDetail = state.lastAssistantDetail
+    turn.hoverMessages = state.hoverMessages
+    return turn
+  }
+
+  private static func derivedMessageState(
+    from items: [CodexConversationItem]
+  ) -> (lastAssistantDetail: String?, hoverMessages: [String]) {
+    var lastAssistantDetail: String?
+    var hoverMessages: [String] = []
+    for item in items {
+      guard case .message(let message) = item, message.role == "assistant" else { continue }
+      if message.phase != "final_answer" {
+        lastAssistantDetail = normalizedDetail(message.text)
+      }
+      guard
+        let normalized = normalizedMessage(message.text),
+        hoverMessages.last != normalized
+      else {
+        continue
+      }
+      hoverMessages.append(normalized)
+    }
+    return (lastAssistantDetail, hoverMessages)
+  }
+
+  private mutating func makeImplicitTurnID() -> String {
+    let id = "implicit-turn-\(nextImplicitTurnIndex)"
+    nextImplicitTurnIndex += 1
+    return id
+  }
+}
+
+struct CodexTranscriptSnapshot: Equatable {
+  var conversation: CodexConversationState
+
+  var status: CodexTranscriptTurnStatus? {
+    conversation.activityStatus
+  }
+
+  var detail: String? {
+    conversation.detail
+  }
+
+  var hoverMessages: [String] {
+    conversation.hoverMessages
+  }
+}
+
+private extension CodexConversationTurn {
+  var transcriptStatus: CodexTranscriptTurnStatus {
+    switch status {
+    case .inProgress:
+      return .started(id)
+    case .completed:
+      return .completed(id)
+    case .aborted:
+      return .aborted(id)
+    case .failed:
+      return .failed(id)
+    }
+  }
+}
+
+struct CodexTranscriptBatch {
+  var records: [CodexRolloutRecord]
+
+  var isEmpty: Bool {
+    records.isEmpty
   }
 }
 
@@ -69,21 +580,16 @@ struct CodexTranscriptCursor {
 enum CodexTranscriptMonitor {
   static func start(
     at path: String
-  ) -> (CodexTranscriptCursor, CodexTranscriptUpdate?)? {
+  ) -> (CodexTranscriptCursor, CodexTranscriptBatch?)? {
     guard let data = read(path: path, from: 0) else { return nil }
-    let (consumedBytes, latestUpdate) = parse(data)
-    let cursor = CodexTranscriptCursor(offset: UInt64(consumedBytes))
-    guard let latestUpdate else { return (cursor, nil) }
-    if latestUpdate.status?.isFinal == true {
-      return (cursor, nil)
-    }
-    return (cursor, latestUpdate)
+    let (consumedBytes, batch) = parse(data)
+    return (CodexTranscriptCursor(offset: UInt64(consumedBytes)), batch)
   }
 
   static func advance(
     _ cursor: CodexTranscriptCursor,
     at path: String
-  ) -> (CodexTranscriptCursor, CodexTranscriptUpdate?)? {
+  ) -> (CodexTranscriptCursor, CodexTranscriptBatch?)? {
     let fileURL = URL(fileURLWithPath: path)
     guard
       let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
@@ -95,10 +601,10 @@ enum CodexTranscriptMonitor {
       return start(at: path)
     }
     guard let data = read(path: path, from: cursor.offset) else { return nil }
-    let (consumedBytes, latestUpdate) = parse(data)
+    let (consumedBytes, batch) = parse(data)
     var updatedCursor = cursor
     updatedCursor.offset += UInt64(consumedBytes)
-    return (updatedCursor, latestUpdate)
+    return (updatedCursor, batch)
   }
 
   private static func read(path: String, from offset: UInt64) -> Data? {
@@ -112,157 +618,100 @@ enum CodexTranscriptMonitor {
     }
   }
 
-  private static func parse(_ data: Data) -> (Int, CodexTranscriptUpdate?) {
+  private static func parse(_ data: Data) -> (Int, CodexTranscriptBatch?) {
     guard let newlineIndex = data.lastIndex(of: 0x0A) else {
       return (0, nil)
     }
     let completeData = data.prefix(through: newlineIndex)
-    var latestUpdate = CodexTranscriptUpdate()
-    for line in completeData.split(separator: 0x0A) {
-      guard let update = update(in: Data(line)) else { continue }
-      if update.status?.startsNewTurn == true {
-        latestUpdate = CodexTranscriptUpdate()
-      }
-      latestUpdate.absorb(update)
+    let records = completeData.split(separator: 0x0A).compactMap { line in
+      record(in: Data(line))
     }
-    return (completeData.count, latestUpdate.hasChanges ? latestUpdate : nil)
+    let batch = records.isEmpty ? nil : CodexTranscriptBatch(records: records)
+    return (completeData.count, batch)
   }
 
-  private static func update(in line: Data) -> CodexTranscriptUpdate? {
+  private static func record(in line: Data) -> CodexRolloutRecord? {
     guard
-      let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-      let lineType = string(in: object, key: "type"),
-      let payload = dictionary(in: object, key: "payload")
+      let rawObject = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+      let object = CodexTranscriptJSONValue(rawObject)?.objectValue,
+      let lineType = object["type"]?.stringValue
     else {
       return nil
     }
+    let payload = object["payload"] ?? .null
     switch lineType {
+    case "session_meta":
+      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
+      return .sessionMeta(payload)
+    case "turn_context":
+      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
+      return .turnContext(payload)
     case "event_msg":
-      return eventUpdate(payload)
-    case "response_item":
-      return responseItemUpdate(payload)
-    default:
-      return nil
-    }
-  }
-
-  private static func eventUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
-    guard let eventType = string(in: payload, key: "type") else { return nil }
-    let eventPayload = dictionary(in: payload, key: "payload") ?? payload
-    switch eventType {
-    case "task_started", "turn_started":
-      return .init(status: .started(string(in: eventPayload, key: "turn_id")))
-    case "task_complete", "turn_complete":
-      let messages = normalizedMessageList(string(in: eventPayload, key: "last_agent_message"))
-      return .init(
-        status: .completed(string(in: eventPayload, key: "turn_id")),
-        messages: messages,
-        replacesMessages: !messages.isEmpty
-      )
-    case "turn_aborted":
-      return .init(status: .aborted(string(in: eventPayload, key: "turn_id")))
-    case "agent_message":
-      let phase = string(in: eventPayload, key: "phase") ?? string(in: payload, key: "phase")
-      if phase == "final_answer" {
-        return finalMessageUpdate(
-          string(in: eventPayload, key: "message") ?? string(in: payload, key: "message")
-        )
+      guard
+        let payloadObject = payload.objectValue,
+        let eventType = payloadObject["type"]?.stringValue
+      else {
+        return .unknown(type: lineType, payload: payload)
       }
-      return liveMessageUpdate(string(in: eventPayload, key: "message") ?? string(in: payload, key: "message"))
+      let eventPayload = payloadObject["payload"]?.objectValue ?? payloadObject
+      return .eventMessage(type: eventType, payload: eventPayload)
+    case "response_item":
+      guard
+        let payloadObject = payload.objectValue,
+        let itemType = payloadObject["type"]?.stringValue
+      else {
+        return .unknown(type: lineType, payload: payload)
+      }
+      return .responseItem(type: itemType, payload: payloadObject)
+    case "compacted":
+      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
+      return .compacted(payload)
     default:
-      return nil
+      return .unknown(type: lineType, payload: payload)
     }
   }
+}
 
-  private static func responseItemUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
-    guard let itemType = string(in: payload, key: "type") else { return nil }
-    switch itemType {
-    case "message":
-      return messageUpdate(payload)
-    default:
-      return nil
-    }
-  }
-
-  private static func messageUpdate(_ payload: [String: Any]) -> CodexTranscriptUpdate? {
-    guard string(in: payload, key: "role") == "assistant" else { return nil }
-    let content = array(in: payload, key: "content")
-    let text = normalizedMessage(
-      content?
-        .compactMap { dictionaryValue in
-          string(in: dictionaryValue, key: "text")
-        }
-        .joined(separator: " ")
-    )
-    if string(in: payload, key: "phase") == "final_answer" {
-      return finalMessageUpdate(text)
-    }
-    return liveMessageUpdate(text)
-  }
-
-  private static func liveMessageUpdate(
-    _ message: String?
-  ) -> CodexTranscriptUpdate? {
-    guard
-      let message = normalizedMessage(message),
-      let detail = normalizedDetail(message)
-    else {
-      return nil
-    }
-    return .init(detail: detail, messages: [message])
-  }
-
-  private static func finalMessageUpdate(
-    _ message: String?
-  ) -> CodexTranscriptUpdate? {
-    let messages = normalizedMessageList(message)
-    guard !messages.isEmpty else { return nil }
-    return .init(messages: messages, replacesMessages: true)
-  }
-
-  private static func normalizedMessageList(
-    _ message: String?
-  ) -> [String] {
-    normalizedMessage(message).map { [$0] } ?? []
-  }
-
-  private static func normalizedDetail(_ text: String?) -> String? {
-    guard let normalized = normalizedMessage(text) else { return nil }
-    if normalized.count <= 160 {
-      return normalized
-    }
-    return String(normalized.prefix(157)) + "..."
-  }
-
-  private static func normalizedMessage(_ text: String?) -> String? {
-    guard let text else { return nil }
-    let normalized =
-      text
-      .components(separatedBy: .whitespacesAndNewlines)
-      .filter { !$0.isEmpty }
+private func messageText(
+  from content: [CodexTranscriptJSONValue]?
+) -> String? {
+  guard let content else { return nil }
+  return normalizedMessage(
+    content
+      .compactMap { item in
+        item.objectValue?["text"]?.stringValue
+      }
       .joined(separator: " ")
-    guard !normalized.isEmpty else { return nil }
+  )
+}
+
+private func textArray(
+  in values: [CodexTranscriptJSONValue]?
+) -> [String] {
+  guard let values else { return [] }
+  return values.compactMap { value in
+    if let text = value.objectValue?["text"]?.stringValue {
+      return normalizedMessage(text)
+    }
+    return normalizedMessage(value.stringValue)
+  }
+}
+
+private func normalizedDetail(_ text: String?) -> String? {
+  guard let normalized = normalizedMessage(text) else { return nil }
+  if normalized.count <= 160 {
     return normalized
   }
+  return String(normalized.prefix(157)) + "..."
+}
 
-  private static func dictionary(
-    in object: [String: Any]?,
-    key: String
-  ) -> [String: Any]? {
-    object?[key] as? [String: Any]
-  }
-
-  private static func array(
-    in object: [String: Any]?,
-    key: String
-  ) -> [[String: Any]]? {
-    (object?[key] as? [Any])?.compactMap { $0 as? [String: Any] }
-  }
-
-  private static func string(
-    in object: [String: Any]?,
-    key: String
-  ) -> String? {
-    object?[key] as? String
-  }
+private func normalizedMessage(_ text: String?) -> String? {
+  guard let text else { return nil }
+  let normalized =
+    text
+    .components(separatedBy: .whitespacesAndNewlines)
+    .filter { !$0.isEmpty }
+    .joined(separator: " ")
+  guard !normalized.isEmpty else { return nil }
+  return normalized
 }

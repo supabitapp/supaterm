@@ -54,38 +54,24 @@ extension TerminalCommandExecutor {
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptUpdate update: CodexTranscriptUpdate,
+    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    if update.status?.startsNewTurn == true {
-      _ = clearCodexHoverMessages(
-        agent: agent,
-        context: context,
-        sessionID: sessionID
-      )
-    }
-    if !update.messages.isEmpty {
-      _ = updateCodexHoverMessages(
-        update.messages,
-        replacing: update.replacesMessages,
-        agent: agent,
-        sessionID: sessionID,
-        context: context
-      )
-    }
-    if update.status?.isFinal == true {
-      _ = updateAgentActivity(
-        .init(kind: agent, phase: .idle, detail: nil),
-        agent: agent,
-        sessionID: sessionID,
-        context: context
-      )
-      return
-    }
+    _ = updateCodexHoverMessages(
+      snapshot.hoverMessages,
+      replacing: true,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
     _ = updateAgentActivity(
-      .init(kind: agent, phase: .running, detail: update.detail),
+      .init(
+        kind: agent,
+        phase: snapshot.status?.isFinal == true ? .idle : .running,
+        detail: snapshot.status?.isFinal == true ? nil : snapshot.detail
+      ),
       agent: agent,
       sessionID: sessionID,
       context: context

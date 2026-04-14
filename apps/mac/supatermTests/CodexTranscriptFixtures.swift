@@ -1,12 +1,21 @@
 import Foundation
 
 enum CodexTranscriptFixtures {
+  private static func fixtureURL(named name: String) -> URL {
+    URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .appendingPathComponent("Fixtures")
+      .appendingPathComponent(name)
+  }
+
   enum Line {
+    case sessionMeta(id: String)
     case taskStarted(turnID: String)
     case turnStarted(turnID: String)
     case taskComplete(turnID: String, lastAgentMessage: String? = nil)
     case turnComplete(turnID: String)
     case turnAborted(turnID: String)
+    case turnContext(turnID: String)
     case localShellCall(command: [String])
     case functionCall(name: String, arguments: [String: Any]? = nil)
     case toolSearchCall(query: String)
@@ -19,6 +28,15 @@ enum CodexTranscriptFixtures {
     var json: String {
       let object: [String: Any]
       switch self {
+      case .sessionMeta(let id):
+        object = [
+          "timestamp": "2026-04-05T07:00:00.000Z",
+          "type": "session_meta",
+          "payload": [
+            "id": id
+          ],
+        ]
+
       case .taskStarted(let turnID):
         object = event(
           type: "task_started",
@@ -60,6 +78,15 @@ enum CodexTranscriptFixtures {
             "reason": "interrupted",
           ]
         )
+
+      case .turnContext(let turnID):
+        object = [
+          "timestamp": "2026-04-05T07:00:00.000Z",
+          "type": "turn_context",
+          "payload": [
+            "turn_id": turnID
+          ],
+        ]
 
       case .localShellCall(let command):
         object = responseItem(
@@ -140,14 +167,18 @@ enum CodexTranscriptFixtures {
     }
   }
 
-  static func makeTranscript() throws -> URL {
+  static func makeTranscript(copyingFixtureNamed fixtureName: String? = nil) throws -> URL {
     let directoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(
       UUID().uuidString,
       isDirectory: true
     )
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     let fileURL = directoryURL.appendingPathComponent("transcript.jsonl")
-    try Data().write(to: fileURL)
+    if let fixtureName {
+      try FileManager.default.copyItem(at: fixtureURL(named: fixtureName), to: fileURL)
+    } else {
+      try Data().write(to: fileURL)
+    }
     return fileURL
   }
 

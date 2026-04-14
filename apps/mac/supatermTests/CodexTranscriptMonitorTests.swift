@@ -5,77 +5,62 @@ import Testing
 
 struct CodexTranscriptMonitorTests {
   @Test
-  func startReadsActiveTranscriptSnapshot() throws {
+  func startBuildsConversationFromSyntheticRolloutItems() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
+    try CodexTranscriptFixtures.append(.sessionMeta(id: "session-1"), to: transcriptURL)
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
     try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the workspace"), to: transcriptURL)
 
     let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
 
     #expect(result.0.offset > 0)
-    #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == "Inspecting the workspace")
+    #expect(conversation.sessionID == "session-1")
+    #expect(batch.records.count == 3)
+    #expect(snapshot.status == .started("turn-1"))
+    #expect(snapshot.detail == "Inspecting the workspace")
+    #expect(snapshot.hoverMessages == ["Inspecting the workspace"])
   }
 
   @Test
-  func startSuppressesCompletedTranscriptSnapshotButKeepsPolling() throws {
+  func startBuildsCompletedTurnFromSyntheticLifecycle() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
-    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)
-
-    let initial = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-
-    #expect(initial.1 == nil)
-
-    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-2"), to: transcriptURL)
-
-    let result = try #require(CodexTranscriptMonitor.advance(initial.0, at: transcriptURL.path))
-
-    #expect(result.1?.status == .started("turn-2"))
-  }
-
-  @Test
-  func startDoesNotReusePreviousTurnDetailWhenNewTurnOnlyStarted() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    try CodexTranscriptFixtures.append(.assistantMessage("Finished the previous turn"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1", lastAgentMessage: "Done."), to: transcriptURL)
 
     let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
 
-    #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == nil)
+    #expect(snapshot.status == .completed("turn-1"))
+    #expect(snapshot.detail == nil)
+    #expect(snapshot.hoverMessages == ["Done."])
+    #expect(conversation.turns.count == 1)
+    #expect(conversation.turns[0].status == .completed)
   }
 
   @Test
-  func startDoesNotReusePreviousTurnDetailForNewTurnReasoning() throws {
+  func advanceReconstructsSyntheticToolAndAssistantItems() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
-    try CodexTranscriptFixtures.append(.assistantMessage("Finished the previous turn"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-0"), to: transcriptURL)
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(.reasoning("Planning the next step"), to: transcriptURL)
+    let start = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    var conversation = CodexConversationState()
+    if let batch = start.1 {
+      conversation.absorb(batch.records)
+    }
 
-    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-
-    #expect(result.1?.status == .started("turn-1"))
-    #expect(result.1?.detail == nil)
-  }
-
-  @Test
-  func advancePrefersAssistantMessageOverToolCallWithinSingleRead() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.assistantMessage("Reading the file"), to: transcriptURL)
     try CodexTranscriptFixtures.append(
       .functionCall(
         name: "exec_command",
@@ -86,182 +71,85 @@ struct CodexTranscriptMonitorTests {
       to: transcriptURL
     )
 
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+    let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
+    let batch = try #require(result.1)
+    conversation.absorb(batch.records)
+    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
 
-    #expect(result.1?.detail == "Inspecting the transcript path")
+    #expect(snapshot.status == .started("turn-1"))
+    #expect(snapshot.detail == "Reading the file")
+    #expect(snapshot.hoverMessages == ["Reading the file"])
+    #expect(conversation.turns[0].items.count == 2)
   }
 
   @Test
-  func advanceIgnoresReasoningAfterAssistantMessageAcrossReads() throws {
+  func advanceReconstructsSyntheticReasoningStream() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
-    let (initialCursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.turnContext(turnID: "turn-ctx"), to: transcriptURL)
+    let start = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    var conversation = CodexConversationState()
+    if let batch = start.1 {
+      conversation.absorb(batch.records)
+    }
 
-    let firstResult = try #require(CodexTranscriptMonitor.advance(initialCursor, at: transcriptURL.path))
+    try CodexTranscriptFixtures.append(.agentReasoning("Planning the next step"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.agentMessage("Applying the change"), to: transcriptURL)
 
-    #expect(firstResult.1?.detail == "Inspecting the transcript path")
+    let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
+    let batch = try #require(result.1)
+    conversation.absorb(batch.records)
 
-    try CodexTranscriptFixtures.append(.reasoning("Planning the next step"), to: transcriptURL)
-
-    let secondResult = try #require(CodexTranscriptMonitor.advance(firstResult.0, at: transcriptURL.path))
-
-    #expect(secondResult.1 == nil)
+    #expect(conversation.turns.count == 1)
+    #expect(conversation.turns[0].id == "turn-ctx")
+    #expect(conversation.turns[0].items.count == 2)
+    #expect(CodexTranscriptSnapshot(conversation: conversation).detail == "Applying the change")
   }
 
   @Test
-  func advanceIgnoresExecCommandToolDetail() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+  func startReadsSanitizedJSONLFixture() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript(
+      copyingFixtureNamed: "codex-transcript-sanitized.jsonl"
+    )
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+    let snapshot = CodexTranscriptSnapshot(conversation: conversation)
+
+    #expect(conversation.sessionID == "session-fixture")
+    #expect(conversation.turns.count == 1)
+    #expect(conversation.turns[0].id == "turn-fixture")
+    #expect(snapshot.status == .started("turn-fixture"))
+    #expect(snapshot.detail == nil)
+  }
+
+  @Test
+  func advanceDoesNotConsumePartialLineAfterSanitizedFixture() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript(
+      copyingFixtureNamed: "codex-transcript-sanitized.jsonl"
+    )
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    let start = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+
+    let partialMessage = CodexTranscriptFixtures.Line.assistantMessage("partial").json
     try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "exec_command",
-        arguments: [
-          "cmd": "sed -n '1,40p' docs/coding-agents-integration.md"
-        ]
-      ),
+      partialMessage,
       to: transcriptURL
     )
+    let handle = try FileHandle(forWritingTo: transcriptURL)
+    defer { try? handle.close() }
+    try handle.seekToEnd()
+    let offset = handle.offsetInFile
+    try handle.truncate(atOffset: offset == 0 ? 0 : offset - 1)
 
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
+    let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
 
     #expect(result.1 == nil)
-  }
-
-  @Test
-  func advanceIgnoresGenericToolCalls() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(.functionCall(name: "update_plan"), to: transcriptURL)
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1 == nil)
-  }
-
-  @Test
-  func advanceIgnoresExecCommandWithoutCommandText() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(.functionCall(name: "exec_command"), to: transcriptURL)
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1 == nil)
-  }
-
-  @Test
-  func advanceIgnoresReasoningPayloadWithoutMessageText() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(
-      #"{"timestamp":"2026-04-05T07:00:00.000Z","type":"response_item","payload":{"type":"reasoning","#
-        + #""summary":[],"content":null}}"#,
-      to: transcriptURL
-    )
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1 == nil)
-  }
-
-  @Test
-  func advanceDetectsFinalTurnStatus() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1?.status == .completed("turn-1"))
-    #expect(result.1?.status?.isFinal == true)
-  }
-
-  @Test
-  func advanceKeepsFullAssistantMessageForHoverHistory() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let longMessage = Array(repeating: "message", count: 30).joined(separator: " ")
-    let truncatedMessage = String(longMessage.prefix(157)) + "..."
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-
-    try CodexTranscriptFixtures.append(.assistantMessage(longMessage), to: transcriptURL)
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1?.detail == truncatedMessage)
-    #expect(result.1?.messages == [longMessage])
-    #expect(result.1?.replacesMessages == false)
-  }
-
-  @Test
-  func advanceFinalAssistantMessageReplacesHoverMessagesWithoutRunningDetail() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let (initialCursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Inspecting the transcript path"),
-      to: transcriptURL
-    )
-
-    let firstResult = try #require(CodexTranscriptMonitor.advance(initialCursor, at: transcriptURL.path))
-
-    #expect(firstResult.1?.detail == "Inspecting the transcript path")
-    #expect(firstResult.1?.messages == ["Inspecting the transcript path"])
-    #expect(firstResult.1?.replacesMessages == false)
-
-    try CodexTranscriptFixtures.append(
-      .assistantMessage("Done.", phase: "final_answer"),
-      to: transcriptURL
-    )
-
-    let secondResult = try #require(CodexTranscriptMonitor.advance(firstResult.0, at: transcriptURL.path))
-
-    #expect(secondResult.1?.detail == nil)
-    #expect(secondResult.1?.messages == ["Done."])
-    #expect(secondResult.1?.replacesMessages == true)
-  }
-
-  @Test
-  func advanceTaskCompleteCarriesLastAgentMessageForHoverReplacement() throws {
-    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
-    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-
-    let longMessage = Array(repeating: "message", count: 30).joined(separator: " ")
-    let (cursor, initialUpdate) = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
-    #expect(initialUpdate == nil)
-    try CodexTranscriptFixtures.append(
-      .taskComplete(turnID: "turn-1", lastAgentMessage: longMessage),
-      to: transcriptURL
-    )
-
-    let result = try #require(CodexTranscriptMonitor.advance(cursor, at: transcriptURL.path))
-
-    #expect(result.1?.status == .completed("turn-1"))
-    #expect(result.1?.detail == nil)
-    #expect(result.1?.messages == [longMessage])
-    #expect(result.1?.replacesMessages == true)
+    #expect(result.0.offset == start.0.offset)
   }
 }

@@ -103,9 +103,9 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
-    #expect(delegate.transcriptUpdates.count == 1)
-    #expect(delegate.transcriptUpdates.first?.0 == .started("turn-1"))
-    #expect(delegate.transcriptUpdates.first?.1 == nil)
+    #expect(delegate.transcriptSnapshots.count == 1)
+    #expect(delegate.transcriptSnapshots.first?.status == .started("turn-1"))
+    #expect(delegate.transcriptSnapshots.first?.detail == nil)
   }
 
   @Test
@@ -133,7 +133,7 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
-    #expect(delegate.transcriptUpdates.isEmpty)
+    #expect(delegate.transcriptSnapshots.isEmpty)
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
 
@@ -141,9 +141,9 @@ struct TerminalAgentSessionStoreTests {
     await clock.advance(by: .seconds(1))
     await flushEffects()
 
-    #expect(delegate.transcriptUpdates.count == 1)
-    #expect(delegate.transcriptUpdates.first?.0 == .started("turn-1"))
-    #expect(delegate.transcriptUpdates.first?.1 == nil)
+    #expect(delegate.transcriptSnapshots.count == 1)
+    #expect(delegate.transcriptSnapshots.first?.status == .started("turn-1"))
+    #expect(delegate.transcriptSnapshots.first?.detail == nil)
   }
 
   private func flushEffects() async {
@@ -156,16 +156,16 @@ struct TerminalAgentSessionStoreTests {
 @MainActor
 private final class SessionStoreDelegateSpy: TerminalAgentSessionStoreDelegate {
   var expirations: [(SupatermAgentKind, String)] = []
-  var transcriptUpdates: [(CodexTranscriptTurnStatus?, String?)] = []
+  var transcriptSnapshots: [CodexTranscriptSnapshot] = []
 
   func terminalAgentSessionStore(
     _ store: TerminalAgentSessionStore,
-    didReceiveCodexTranscriptUpdate update: CodexTranscriptUpdate,
+    didReceiveCodexTranscriptSnapshot snapshot: CodexTranscriptSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    transcriptUpdates.append((update.status, update.detail))
+    transcriptSnapshots.append(snapshot)
   }
 
   func terminalAgentSessionStore(
