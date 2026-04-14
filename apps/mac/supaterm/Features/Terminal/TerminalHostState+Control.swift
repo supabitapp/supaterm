@@ -468,6 +468,22 @@ extension TerminalHostState {
     )
   }
 
+  func pinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
+    let resolvedTarget = try resolveTabTarget(target)
+    if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned != true {
+      togglePinned(resolvedTarget.tabID)
+    }
+    return try pinTabResult(for: resolvedTarget.tabID)
+  }
+
+  func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
+    let resolvedTarget = try resolveTabTarget(target)
+    if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned == true {
+      togglePinned(resolvedTarget.tabID)
+    }
+    return try pinTabResult(for: resolvedTarget.tabID)
+  }
+
   func equalizePanes(_ request: TerminalEqualizePanesRequest) throws -> SupatermEqualizePanesResult {
     let resolvedTarget = try resolveTabTarget(request.target)
     trees[resolvedTarget.tabID] = resolvedTarget.tree.equalized()
@@ -957,6 +973,13 @@ extension TerminalHostState {
       paneIndex: paneTarget.paneIndex,
       paneID: paneTarget.paneID,
       target: target
+    )
+  }
+
+  func pinTabResult(for tabID: TerminalTabID) throws -> SupatermPinTabResult {
+    .init(
+      isPinned: spaceManager.tab(for: tabID)?.isPinned == true,
+      target: try tabTarget(for: tabID)
     )
   }
 

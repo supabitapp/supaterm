@@ -66,6 +66,20 @@ struct SPCommandTests {
   }
 
   @Test
+  func pinAndUnpinParsersAcceptSelectorTargets() throws {
+    let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+    let pinTab = try #require(
+      try SP.parseAsRoot(["tab", "pin", "1/2"]) as? SP.PinTab
+    )
+    let unpinTab = try #require(
+      try SP.parseAsRoot(["tab", "unpin", tabID.uuidString]) as? SP.UnpinTab
+    )
+
+    #expect(pinTab.tab == .path(spaceIndex: 1, tabIndex: 2))
+    #expect(unpinTab.tab == .id(tabID))
+  }
+
+  @Test
   func notifyParserAcceptsMissingBody() throws {
     let command = try #require(
       try SP.parseAsRoot(["pane", "notify", "--title", "Deploy complete"]) as? SP.Notify

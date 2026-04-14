@@ -32,6 +32,8 @@ extension SP {
       subcommands: [
         NewTab.self,
         SelectTab.self,
+        PinTab.self,
+        UnpinTab.self,
         CloseTab.self,
         RenameTab.self,
         NextTab.self,
@@ -508,6 +510,42 @@ extension SP {
     }
   }
 
+  struct PinTab: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "pin",
+      abstract: "Pin a tab in Supaterm.",
+      discussion: SPHelp.pinTabDiscussion
+    )
+
+    @Argument(help: "Optional tab target.")
+    var tab: SPTabReference?
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      try runTabPinnedState(.pin, tab: tab, options: options)
+    }
+  }
+
+  struct UnpinTab: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "unpin",
+      abstract: "Unpin a tab in Supaterm.",
+      discussion: SPHelp.unpinTabDiscussion
+    )
+
+    @Argument(help: "Optional tab target.")
+    var tab: SPTabReference?
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      try runTabPinnedState(.unpin, tab: tab, options: options)
+    }
+  }
+
   struct SendText: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "send",
@@ -922,6 +960,11 @@ private enum SPTabNavigationKind {
   case last
 }
 
+private enum SPTabPinnedStateKind {
+  case pin
+  case unpin
+}
+
 private struct SendTextInput {
   let target: SPPaneReference?
   let text: String
@@ -1090,6 +1133,36 @@ private func runTabNavigation(
   )
 }
 
+private func runTabPinnedState(
+  _ state: SPTabPinnedStateKind,
+  tab: SPTabReference?,
+  options: SPCommandOptions
+) throws {
+  applyOutputStyle(options.output)
+  let client = try socketClient(
+    path: options.connection.explicitSocketPath,
+    instance: options.connection.instance
+  )
+  let request = tabTargetRequest(
+    try resolvePublicTabTarget(
+      tab,
+      context: SupatermCLIContext.current,
+      snapshot: try treeSnapshot(client)
+    )
+  )
+  let response = try client.send(try tabPinnedStateRequest(state, request: request))
+  guard response.ok else {
+    throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+  }
+  let result = try response.decodeResult(SupatermPinTabResult.self)
+  try emitMutatingResult(
+    result,
+    options: options.output,
+    plain: plainTabSelector(spaceIndex: result.target.spaceIndex, tabIndex: result.target.tabIndex),
+    human: render(result.target)
+  )
+}
+
 private func tabNavigationRequest(
   _ navigation: SPTabNavigationKind,
   request: SupatermTabNavigationRequest
@@ -1101,6 +1174,18 @@ private func tabNavigationRequest(
     return try .previousTab(request)
   case .last:
     return try .lastTab(request)
+  }
+}
+
+private func tabPinnedStateRequest(
+  _ state: SPTabPinnedStateKind,
+  request: SupatermTabTargetRequest
+) throws -> SupatermSocketRequest {
+  switch state {
+  case .pin:
+    return try .pinTab(request)
+  case .unpin:
+    return try .unpinTab(request)
   }
 }
 

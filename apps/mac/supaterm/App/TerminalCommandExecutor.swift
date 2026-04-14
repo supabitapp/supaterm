@@ -97,6 +97,10 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
       return .mainVerticalPanes(try mainVerticalPanes(mainVerticalPanesRequest))
     case .selectTab(let target):
       return .selectTab(try selectTab(target))
+    case .pinTab(let target):
+      return .pinTab(try pinTab(target))
+    case .unpinTab(let target):
+      return .unpinTab(try unpinTab(target))
     case .closeTab(let target):
       return .closeTab(try closeTab(target))
     case .renameTab(let renameTabRequest):

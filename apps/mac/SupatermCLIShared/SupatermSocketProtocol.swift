@@ -23,6 +23,7 @@ public enum SupatermSocketMethod {
   public static let terminalNextSpace = "terminal.next_space"
   public static let terminalNextTab = "terminal.next_tab"
   public static let terminalNotify = "terminal.notify"
+  public static let terminalPinTab = "terminal.pin_tab"
   public static let terminalPreviousSpace = "terminal.previous_space"
   public static let terminalPreviousTab = "terminal.previous_tab"
   public static let terminalRenameSpace = "terminal.rename_space"
@@ -34,6 +35,7 @@ public enum SupatermSocketMethod {
   public static let terminalSendKey = "terminal.send_key"
   public static let terminalSendText = "terminal.send_text"
   public static let terminalTilePanes = "terminal.tile_panes"
+  public static let terminalUnpinTab = "terminal.unpin_tab"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -325,6 +327,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     )
   }
 
+  public static func pinTab(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalPinTab,
+      params: try JSONObject(payload)
+    )
+  }
+
   public static func previousSpace(
     _ payload: SupatermSpaceNavigationRequest,
     id: String = UUID().uuidString
@@ -431,6 +444,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.terminalSendKey,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func unpinTab(
+    _ payload: SupatermTabTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.terminalUnpinTab,
       params: try JSONObject(payload)
     )
   }
@@ -1474,6 +1498,19 @@ public struct SupatermRenameTabResult: Equatable, Sendable, Codable {
     target: SupatermTabTarget
   ) {
     self.isTitleLocked = isTitleLocked
+    self.target = target
+  }
+}
+
+public struct SupatermPinTabResult: Equatable, Sendable, Codable {
+  public let isPinned: Bool
+  public let target: SupatermTabTarget
+
+  public init(
+    isPinned: Bool,
+    target: SupatermTabTarget
+  ) {
+    self.isPinned = isPinned
     self.target = target
   }
 }

@@ -65,6 +65,68 @@ extension TerminalCommandExecutor {
     }
   }
 
+  func pinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in registry.activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.pinTab(target)
+          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try registry.entry(for: windowIndex)
+      do {
+        return TerminalWindowRegistry.rewrite(
+          try entry.terminal.pinTab(
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+          ),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
+  func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in registry.activeEntries().enumerated() {
+        do {
+          let result = try entry.terminal.unpinTab(target)
+          return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
+        } catch let error as TerminalControlError {
+          if case .contextPaneNotFound = error {
+            continue
+          }
+          throw error
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      let entry = try registry.entry(for: windowIndex)
+      do {
+        return TerminalWindowRegistry.rewrite(
+          try entry.terminal.unpinTab(
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+          ),
+          windowIndex: windowIndex
+        )
+      } catch let error as TerminalControlError {
+        throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
+      }
+    }
+  }
+
   func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
     switch request.target {
     case .contextPane:

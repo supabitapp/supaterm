@@ -102,6 +102,10 @@ extension SocketRequestExecutor {
       return .mainVerticalPanes(try await terminalWindowsClient.mainVerticalPanes(mainVerticalPanesRequest))
     case .selectTab(let target):
       return .selectTab(try await terminalWindowsClient.selectTab(target))
+    case .pinTab(let target):
+      return .pinTab(try await terminalWindowsClient.pinTab(target))
+    case .unpinTab(let target):
+      return .unpinTab(try await terminalWindowsClient.unpinTab(target))
     case .closeTab(let target):
       return .closeTab(try await terminalWindowsClient.closeTab(target))
     case .renameTab(let renameTabRequest):

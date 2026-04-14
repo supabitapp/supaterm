@@ -135,6 +135,28 @@ enum SPHelp {
       sp tab focus <tab-uuid>
     """
 
+  static let pinTabDiscussion = """
+    If you omit the tab target inside Supaterm, this command pins the current tab.
+
+    Tab targets accept either a `space/tab` selector or a UUID.
+
+    Example:
+      sp tab pin
+      sp tab pin 1/2
+      sp tab pin <tab-uuid>
+    """
+
+  static let unpinTabDiscussion = """
+    If you omit the tab target inside Supaterm, this command unpins the current tab.
+
+    Tab targets accept either a `space/tab` selector or a UUID.
+
+    Example:
+      sp tab unpin
+      sp tab unpin 1/2
+      sp tab unpin <tab-uuid>
+    """
+
   static let closeTabDiscussion = """
     If you omit the tab target inside Supaterm, this command closes the current tab.
 
@@ -354,6 +376,8 @@ enum SPHelp {
     Example:
       sp tab new --focus -- ping 1.1.1.1
       sp tab focus 1/2
+      sp tab pin 1/2
+      sp tab unpin 1/2
       sp tab rename Logs 1/2
       sp tab next 1
     """

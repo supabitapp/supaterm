@@ -39,6 +39,8 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.FocusPane.self, columns: 100),
       SP.helpMessage(for: SP.SelectTab.self, columns: 100),
+      SP.helpMessage(for: SP.PinTab.self, columns: 100),
+      SP.helpMessage(for: SP.UnpinTab.self, columns: 100),
       SP.helpMessage(for: SP.ClosePane.self, columns: 100),
       SP.helpMessage(for: SP.CloseTab.self, columns: 100),
       SP.helpMessage(for: SP.SendText.self, columns: 100),
@@ -107,6 +109,20 @@ struct SPHelpTests {
     #expect(spaceNewHelp.contains("sp space new --focus Build"))
     #expect(!spaceNewHelp.contains("sp space new\n"))
     #expect(!spaceNewHelp.contains("sp space new --focus\n"))
+  }
+
+  @Test
+  func tabHelpShowsPinAndUnpinExamples() {
+    let tabHelp = SP.helpMessage(for: SP.Tab.self, columns: 100)
+    let pinHelp = SP.helpMessage(for: SP.PinTab.self, columns: 100)
+    let unpinHelp = SP.helpMessage(for: SP.UnpinTab.self, columns: 100)
+
+    #expect(tabHelp.contains("sp tab pin 1/2"))
+    #expect(tabHelp.contains("sp tab unpin 1/2"))
+    #expect(pinHelp.contains("sp tab pin"))
+    #expect(pinHelp.contains("sp tab pin <tab-uuid>"))
+    #expect(unpinHelp.contains("sp tab unpin"))
+    #expect(unpinHelp.contains("sp tab unpin <tab-uuid>"))
   }
 
   @Test

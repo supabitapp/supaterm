@@ -462,6 +462,16 @@ final class TerminalWindowRegistry {
   }
 
   static func rewrite(
+    _ result: SupatermPinTabResult,
+    windowIndex: Int
+  ) -> SupatermPinTabResult {
+    .init(
+      isPinned: result.isPinned,
+      target: rewrite(result.target, windowIndex: windowIndex)
+    )
+  }
+
+  static func rewrite(
     _ result: SupatermNewPaneResult,
     windowIndex: Int
   ) -> SupatermNewPaneResult {

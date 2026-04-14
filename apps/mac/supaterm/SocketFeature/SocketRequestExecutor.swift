@@ -56,6 +56,8 @@ public struct SocketRequestExecutor: Sendable {
     case equalizePanes(TerminalEqualizePanesRequest)
     case mainVerticalPanes(TerminalMainVerticalPanesRequest)
     case selectTab(TerminalTabTarget)
+    case pinTab(TerminalTabTarget)
+    case unpinTab(TerminalTabTarget)
     case closeTab(TerminalTabTarget)
     case renameTab(TerminalRenameTabRequest)
     case nextTab(TerminalTabNavigationRequest)
@@ -68,6 +70,8 @@ public struct SocketRequestExecutor: Sendable {
     case equalizePanes(SupatermEqualizePanesResult)
     case mainVerticalPanes(SupatermMainVerticalPanesResult)
     case selectTab(SupatermSelectTabResult)
+    case pinTab(SupatermPinTabResult)
+    case unpinTab(SupatermPinTabResult)
     case closeTab(SupatermCloseTabResult)
     case renameTab(SupatermRenameTabResult)
     case nextTab(SupatermSelectTabResult)
@@ -182,6 +186,10 @@ extension SocketRequestExecutor: DependencyKey {
       case .mainVerticalPanes:
         throw TerminalControlError.contextPaneNotFound
       case .selectTab:
+        throw TerminalControlError.contextPaneNotFound
+      case .pinTab:
+        throw TerminalControlError.contextPaneNotFound
+      case .unpinTab:
         throw TerminalControlError.contextPaneNotFound
       case .closeTab:
         throw TerminalControlError.contextPaneNotFound

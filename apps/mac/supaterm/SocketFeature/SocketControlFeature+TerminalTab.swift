@@ -80,6 +80,26 @@ extension SocketControlFeature {
       }
       return try .ok(id: request.id, encodableResult: result)
 
+    case SupatermSocketMethod.terminalPinTab:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .pinTab(try createTabTarget(from: payload))
+      )
+      guard case .pinTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalUnpinTab:
+      let payload = try request.decodeParams(SupatermTabTargetRequest.self)
+      let execution = try await socketRequestExecutor.executeTerminalTab(
+        .unpinTab(try createTabTarget(from: payload))
+      )
+      guard case .unpinTab(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
     case SupatermSocketMethod.terminalCloseTab:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(

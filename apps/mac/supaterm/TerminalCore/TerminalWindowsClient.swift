@@ -18,6 +18,7 @@ public struct TerminalWindowsClient: Sendable {
   public var mainVerticalPanes:
     @MainActor @Sendable (TerminalMainVerticalPanesRequest) async throws -> SupatermMainVerticalPanesResult
   public var notify: @MainActor @Sendable (TerminalNotifyRequest) async throws -> SupatermNotifyResult
+  public var pinTab: @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermPinTabResult
   public var focusPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
   public var lastPane: @MainActor @Sendable (TerminalPaneTarget) async throws -> SupatermFocusPaneResult
   public var lastSpace: @MainActor @Sendable (TerminalSpaceNavigationRequest) async throws -> SupatermSelectSpaceResult
@@ -39,6 +40,7 @@ public struct TerminalWindowsClient: Sendable {
   public var sendText: @MainActor @Sendable (TerminalSendTextRequest) async throws -> SupatermSendTextResult
   public var tilePanes: @MainActor @Sendable (TerminalTilePanesRequest) async throws -> SupatermTilePanesResult
   public var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
+  public var unpinTab: @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermPinTabResult
 
   public init(
     agentHook: @escaping @MainActor @Sendable (SupatermAgentHookRequest) async throws -> TerminalAgentHookResult,
@@ -79,6 +81,7 @@ public struct TerminalWindowsClient: Sendable {
         TerminalTabNavigationRequest
       ) async throws -> SupatermSelectTabResult,
     onboardingSnapshot: @escaping @MainActor @Sendable () async -> SupatermOnboardingSnapshot?,
+    pinTab: @escaping @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermPinTabResult,
     previousSpace:
       @escaping @MainActor @Sendable (
         TerminalSpaceNavigationRequest
@@ -127,7 +130,8 @@ public struct TerminalWindowsClient: Sendable {
       @escaping @MainActor @Sendable (
         TerminalTilePanesRequest
       ) async throws -> SupatermTilePanesResult,
-    treeSnapshot: @escaping @MainActor @Sendable () async -> SupatermTreeSnapshot
+    treeSnapshot: @escaping @MainActor @Sendable () async -> SupatermTreeSnapshot,
+    unpinTab: @escaping @MainActor @Sendable (TerminalTabTarget) async throws -> SupatermPinTabResult
   ) {
     self.agentHook = agentHook
     self.capturePane = capturePane
@@ -142,6 +146,7 @@ public struct TerminalWindowsClient: Sendable {
     self.equalizePanes = equalizePanes
     self.mainVerticalPanes = mainVerticalPanes
     self.notify = notify
+    self.pinTab = pinTab
     self.focusPane = focusPane
     self.lastPane = lastPane
     self.lastSpace = lastSpace
@@ -162,6 +167,7 @@ public struct TerminalWindowsClient: Sendable {
     self.sendText = sendText
     self.tilePanes = tilePanes
     self.treeSnapshot = treeSnapshot
+    self.unpinTab = unpinTab
   }
 }
 
@@ -221,6 +227,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalControlError.lastTabNotFound
     },
     onboardingSnapshot: { nil },
+    pinTab: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
     previousSpace: { _ in
       throw TerminalControlError.lastSpaceNotFound
     },
@@ -255,7 +264,10 @@ extension TerminalWindowsClient: DependencyKey {
     tilePanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
-    treeSnapshot: { .init(windows: []) }
+    treeSnapshot: { .init(windows: []) },
+    unpinTab: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    }
   )
 
   public static let testValue = Self(
@@ -313,6 +325,9 @@ extension TerminalWindowsClient: DependencyKey {
       throw TerminalControlError.lastTabNotFound
     },
     onboardingSnapshot: { nil },
+    pinTab: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    },
     previousSpace: { _ in
       throw TerminalControlError.lastSpaceNotFound
     },
@@ -347,7 +362,10 @@ extension TerminalWindowsClient: DependencyKey {
     tilePanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
-    treeSnapshot: { .init(windows: []) }
+    treeSnapshot: { .init(windows: []) },
+    unpinTab: { _ in
+      throw TerminalControlError.contextPaneNotFound
+    }
   )
 
   private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(

@@ -166,6 +166,111 @@ struct SocketControlFeatureTerminalControlTests {
     #expect(records.first?.handle == handle)
     #expect(try records.first?.response.decodeResult(SupatermTabTarget.self) == result)
   }
+
+  @Test
+  func pinTabRequestRepliesWithPinnedState() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "32EC00A0-B07B-4309-BBBF-D4CC28A83DA9")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .pinTab(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 3
+        ),
+        id: "pin-tab-1"
+      )
+    )
+    let result = SupatermPinTabResult(
+      isPinned: true,
+      target: .init(
+        windowIndex: 1,
+        spaceIndex: 2,
+        spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        tabIndex: 1,
+        tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+        title: "Logs"
+      )
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.pinTab = { target in
+        #expect(
+          target
+            == .tab(
+              windowIndex: 1,
+              spaceIndex: 2,
+              tabIndex: 3
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermPinTabResult.self) == result)
+  }
+
+  @Test
+  func unpinTabRequestRepliesWithPinnedState() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "A3C0A4B2-AE73-42F1-B718-6C88A6BF8EC4")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .unpinTab(
+        .init(
+          targetWindowIndex: 1,
+          targetSpaceIndex: 2,
+          targetTabIndex: 1
+        ),
+        id: "unpin-tab-1"
+      )
+    )
+    let result = SupatermPinTabResult(
+      isPinned: false,
+      target: .init(
+        windowIndex: 1,
+        spaceIndex: 2,
+        spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        tabIndex: 3,
+        tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+        title: "Logs"
+      )
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.unpinTab = { target in
+        #expect(
+          target
+            == .tab(
+              windowIndex: 1,
+              spaceIndex: 2,
+              tabIndex: 1
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermPinTabResult.self) == result)
+  }
+
   @Test
   func setPaneSizeRequestRepliesWithResolvedTarget() async throws {
     let recorder = SocketReplyRecorder()

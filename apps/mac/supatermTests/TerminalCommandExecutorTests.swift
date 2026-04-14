@@ -265,4 +265,52 @@ struct TerminalCommandExecutorTests {
         == .paneNotFound(windowIndex: 2, spaceIndex: 3, tabIndex: 2, paneIndex: 4)
     )
   }
+
+  @Test
+  func pinAndUnpinTabUpdatePinnedStateAndTabOrder() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      let firstTabID = try #require(host.selectedTabID)
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let secondTabID = try #require(host.selectedTabID)
+      let secondPaneID = try #require(host.selectedSurfaceView?.id)
+
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      let pinned = try commandExecutor.pinTab(.contextPane(secondPaneID))
+      #expect(pinned.isPinned)
+      #expect(pinned.target.tabID == secondTabID.rawValue)
+      #expect(
+        host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
+          == [secondTabID.rawValue, firstTabID.rawValue]
+      )
+
+      let unpinned = try commandExecutor.unpinTab(.contextPane(secondPaneID))
+      #expect(!unpinned.isPinned)
+      #expect(unpinned.target.tabID == secondTabID.rawValue)
+      #expect(
+        host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
+          == [firstTabID.rawValue, secondTabID.rawValue]
+      )
+    }
+  }
 }
