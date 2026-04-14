@@ -17,10 +17,10 @@ jobs:
     runs-on: macos-26
     permissions:
       contents: read
+      id-token: write
     env:
       MISE_HTTP_TIMEOUT: 120
       MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
       DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
       DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
       DEVELOPER_ID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
@@ -39,13 +39,6 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
       - uses: ./.github/actions/setup-macos
-      - name: Ensure Tuist token is configured
-        shell: bash
-        run: |
-          if [ -z "${TUIST_TOKEN:-}" ]; then
-            echo "::error::TUIST_TOKEN is required for the release workflow."
-            exit 1
-          fi
       - name: Compute tip build number
         run: |
           BASE=$(awk -F' = ' '/^CURRENT_PROJECT_VERSION = [0-9]+$/{print $2; exit}' apps/mac/Configurations/Project.xcconfig)

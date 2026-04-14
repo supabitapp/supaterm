@@ -8,6 +8,9 @@ runs:
       with:
         version: 2026.3.0
         cache: true
+    - name: Authenticate with Tuist
+      shell: bash
+      run: mise exec -- tuist auth login
     - name: Xcode cache key
       shell: bash
       run: |
