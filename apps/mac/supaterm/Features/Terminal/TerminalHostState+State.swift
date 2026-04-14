@@ -175,40 +175,99 @@ extension TerminalHostState {
     )
   }
 
+  func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
+    guard let tree = trees[tabID] else {
+      return .init(badgeActivity: nil, detailActivity: nil, hoverMarkdown: nil)
+    }
+
+    let focusedSurfaceID = focusedSurfaceIDByTab[tabID]
+    let detailActivity = focusedSurfaceID.flatMap { paneAgentMetadataBySurfaceID[$0]?.activity }
+    let hoverMarkdown = focusedSurfaceID.flatMap {
+      Self.codexHoverMarkdown(
+        paneAgentMetadataBySurfaceID[$0]?.codexHoverMessages ?? []
+      )
+    }
+
+    var badgeActivity: AgentActivity?
+    var badgePriority = Int.min
+    var badgeSurfaceIsFocused = false
+    var badgeActivityRevision = Int.min
+    var badgeLeafIndex = Int.max
+
+    for (leafIndex, surface) in tree.leaves().enumerated() {
+      guard
+        let metadata = paneAgentMetadataBySurfaceID[surface.id],
+        let activity = metadata.activity
+      else {
+        continue
+      }
+
+      let priority = Self.agentActivityPriority(activity.phase)
+      let isFocused = surface.id == focusedSurfaceID
+      let activityRevision = metadata.activityRevision ?? Int.min
+
+      if badgeActivity == nil
+        || priority > badgePriority
+        || (priority == badgePriority && isFocused && !badgeSurfaceIsFocused)
+        || (priority == badgePriority && isFocused == badgeSurfaceIsFocused
+          && activityRevision > badgeActivityRevision)
+        || (priority == badgePriority && isFocused == badgeSurfaceIsFocused
+          && activityRevision == badgeActivityRevision && leafIndex < badgeLeafIndex)
+      {
+        badgeActivity = activity
+        badgePriority = priority
+        badgeSurfaceIsFocused = isFocused
+        badgeActivityRevision = activityRevision
+        badgeLeafIndex = leafIndex
+      }
+    }
+
+    return .init(
+      badgeActivity: badgeActivity,
+      detailActivity: detailActivity,
+      hoverMarkdown: hoverMarkdown
+    )
+  }
+
   func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
-    agentActivityByTab[tabID]
+    tabAgentPresentation(for: tabID).badgeActivity
   }
 
   func codexHoverMarkdown(for tabID: TerminalTabID) -> String? {
-    guard let messages = codexHoverMessagesByTab[tabID], !messages.isEmpty else { return nil }
-    return messages.joined(separator: "\n\n")
+    tabAgentPresentation(for: tabID).hoverMarkdown
   }
 
   func showsAgentActivityDetail(for tabID: TerminalTabID) -> Bool {
-    guard let activitySurfaceID = agentActivitySurfaceIDByTab[tabID] else { return false }
-    return focusedSurfaceIDByTab[tabID] == activitySurfaceID
+    tabAgentPresentation(for: tabID).detailActivity != nil
   }
 
   @discardableResult
   func setAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
-    guard let tabID = tabID(containing: surfaceID) else { return false }
-    agentActivityByTab[tabID] = activity
-    agentActivitySurfaceIDByTab[tabID] = surfaceID
+    guard tabID(containing: surfaceID) != nil else { return false }
+    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? .init()
+    metadata.activity = activity
+    metadata.activityRevision = nextAgentActivityRevision
+    nextAgentActivityRevision += 1
+    paneAgentMetadataBySurfaceID[surfaceID] = metadata
     return true
   }
 
   @discardableResult
   func clearAgentActivity(for surfaceID: UUID) -> Bool {
-    guard let tabID = tabID(containing: surfaceID) else { return false }
-    agentActivityByTab.removeValue(forKey: tabID)
-    agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
+    guard tabID(containing: surfaceID) != nil else { return false }
+    guard var metadata = paneAgentMetadataBySurfaceID[surfaceID] else { return true }
+    metadata.activity = nil
+    metadata.activityRevision = nil
+    storePaneAgentMetadata(metadata, for: surfaceID)
     return true
   }
 
   @discardableResult
   func clearCodexHoverMessages(for surfaceID: UUID) -> Bool {
-    guard let tabID = tabID(containing: surfaceID) else { return false }
-    codexHoverMessagesByTab.removeValue(forKey: tabID)
+    guard tabID(containing: surfaceID) != nil else { return false }
+    guard var metadata = paneAgentMetadataBySurfaceID[surfaceID] else { return true }
+    metadata.codexHoverMessages = []
+    storePaneAgentMetadata(metadata, for: surfaceID)
     return true
   }
 
@@ -218,17 +277,39 @@ extension TerminalHostState {
     replacing: Bool,
     for surfaceID: UUID
   ) -> Bool {
-    guard let tabID = tabID(containing: surfaceID) else { return false }
-    var nextMessages = replacing ? [] : (codexHoverMessagesByTab[tabID] ?? [])
+    guard tabID(containing: surfaceID) != nil else { return false }
+    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? .init()
+    var nextMessages = replacing ? [] : metadata.codexHoverMessages
     for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
       nextMessages.append(message)
     }
-    if nextMessages.isEmpty {
-      codexHoverMessagesByTab.removeValue(forKey: tabID)
-    } else {
-      codexHoverMessagesByTab[tabID] = nextMessages
-    }
+    metadata.codexHoverMessages = nextMessages
+    storePaneAgentMetadata(metadata, for: surfaceID)
     return true
+  }
+
+  static func agentActivityPriority(_ phase: AgentActivityPhase) -> Int {
+    switch phase {
+    case .needsInput:
+      return 2
+    case .running:
+      return 1
+    case .idle:
+      return 0
+    }
+  }
+
+  static func codexHoverMarkdown(_ messages: [String]) -> String? {
+    guard !messages.isEmpty else { return nil }
+    return messages.joined(separator: "\n\n")
+  }
+
+  func storePaneAgentMetadata(_ metadata: PaneAgentMetadata, for surfaceID: UUID) {
+    if metadata.isEmpty {
+      paneAgentMetadataBySurfaceID.removeValue(forKey: surfaceID)
+    } else {
+      paneAgentMetadataBySurfaceID[surfaceID] = metadata
+    }
   }
 
   static func selectedPaneDisplayTitle<Surface: NSView & Identifiable>(

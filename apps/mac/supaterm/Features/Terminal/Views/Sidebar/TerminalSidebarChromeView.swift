@@ -451,8 +451,8 @@ struct TerminalSidebarTabSummaryView: View {
   let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
-  let agentActivity: TerminalHostState.AgentActivity?
-  let showsAgentActivityDetail: Bool
+  let badgeActivity: TerminalHostState.AgentActivity?
+  let detailActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
@@ -504,15 +504,13 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func secondaryContent(
-    agentActivity: TerminalHostState.AgentActivity?,
-    showsAgentActivityDetail: Bool,
+    detailActivity: TerminalHostState.AgentActivity?,
     notificationPreviewMarkdown: String?
   ) -> SecondaryContent? {
-    if let agentActivity,
-      showsAgentActivityDetail,
-      agentActivity.kind == .codex,
-      agentActivity.phase == .running,
-      let detail = agentActivity.detail
+    if let detailActivity,
+      detailActivity.kind == .codex,
+      detailActivity.phase == .running,
+      let detail = detailActivity.detail
     {
       return .activity(detail)
     }
@@ -524,10 +522,10 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func popoverMarkdown(
     codexHoverMarkdown: String?,
-    showsAgentActivityDetail: Bool,
+    detailActivity: TerminalHostState.AgentActivity?,
     notificationMarkdown: String?
   ) -> String? {
-    if showsAgentActivityDetail,
+    if detailActivity != nil,
       let codexHoverMarkdown,
       !codexHoverMarkdown.isEmpty
     {
@@ -544,7 +542,7 @@ struct TerminalSidebarTabSummaryView: View {
       statusAccessory: Self.statusAccessory(
         isPinned: tab.isPinned,
         unreadCount: unreadCount,
-        agentActivity: agentActivity,
+        agentActivity: badgeActivity,
         terminalProgress: terminalProgress
       )
     )
@@ -577,8 +575,7 @@ struct TerminalSidebarTabSummaryView: View {
       }
 
       switch Self.secondaryContent(
-        agentActivity: agentActivity,
-        showsAgentActivityDetail: showsAgentActivityDetail,
+        detailActivity: detailActivity,
         notificationPreviewMarkdown: notificationPreviewMarkdown
       ) {
       case .activity(let detail):
@@ -836,8 +833,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private struct AnimatedPresentation: Equatable {
-    let agentActivity: TerminalHostState.AgentActivity?
-    let showsAgentActivityDetail: Bool
+    let agentPresentation: TerminalHostState.TabAgentPresentation
     let notificationPreviewMarkdown: String?
     let notificationMarkdown: String?
     let paneWorkingDirectories: [String]
@@ -888,6 +884,10 @@ struct TerminalSidebarTabRow: View {
     terminal.selectedTabID == tab.id
   }
 
+  private var agentPresentation: TerminalHostState.TabAgentPresentation {
+    terminal.tabAgentPresentation(for: tab.id)
+  }
+
   private var contextSurfaceID: UUID? {
     terminal.contextSurfaceID(for: tab.id)
   }
@@ -911,8 +911,8 @@ struct TerminalSidebarTabRow: View {
           notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
-          agentActivity: terminal.agentActivity(for: tab.id),
-          showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
+          badgeActivity: agentPresentation.badgeActivity,
+          detailActivity: agentPresentation.detailActivity,
           terminalProgress: terminalProgress,
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint,
@@ -1057,8 +1057,7 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     .init(
-      agentActivity: terminal.agentActivity(for: tab.id),
-      showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
+      agentPresentation: agentPresentation,
       notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
       notificationMarkdown: notificationPresentation?.markdown,
       paneWorkingDirectories: paneWorkingDirectories,
@@ -1073,8 +1072,8 @@ struct TerminalSidebarTabRow: View {
 
   private var popoverMarkdown: String? {
     TerminalSidebarTabSummaryView.popoverMarkdown(
-      codexHoverMarkdown: terminal.codexHoverMarkdown(for: tab.id),
-      showsAgentActivityDetail: terminal.showsAgentActivityDetail(for: tab.id),
+      codexHoverMarkdown: agentPresentation.hoverMarkdown,
+      detailActivity: agentPresentation.detailActivity,
       notificationMarkdown: notificationPresentation?.markdown
     )
   }

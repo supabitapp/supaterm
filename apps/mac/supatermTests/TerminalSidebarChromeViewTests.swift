@@ -198,8 +198,7 @@ struct TerminalSidebarChromeViewTests {
   func runningCodexDetailTakesSecondaryLinePrecedenceOverNotificationPreview() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
-        agentActivity: .codex(.running, detail: "Bash · git status --short"),
-        showsAgentActivityDetail: true,
+        detailActivity: .codex(.running, detail: "Bash · git status --short"),
         notificationPreviewMarkdown: "Need approval"
       ) == .activity("Bash · git status --short")
     )
@@ -209,8 +208,7 @@ struct TerminalSidebarChromeViewTests {
   func notificationPreviewReturnsWhenCodexNeedsInput() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
-        agentActivity: .codex(.needsInput, detail: "Bash · git status --short"),
-        showsAgentActivityDetail: false,
+        detailActivity: .codex(.needsInput, detail: "Bash · git status --short"),
         notificationPreviewMarkdown: "Need approval"
       ) == .notification("Need approval")
     )
@@ -220,8 +218,7 @@ struct TerminalSidebarChromeViewTests {
   func notificationPreviewRemainsForNonCodexActivity() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
-        agentActivity: .claude(.running, detail: "Thinking"),
-        showsAgentActivityDetail: false,
+        detailActivity: .claude(.running, detail: "Thinking"),
         notificationPreviewMarkdown: "Need approval"
       ) == .notification("Need approval")
     )
@@ -231,8 +228,7 @@ struct TerminalSidebarChromeViewTests {
   func notificationPreviewReturnsWhenCodexDetailIsHiddenForBackgroundPane() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
-        agentActivity: .codex(.running, detail: "Bash · git status --short"),
-        showsAgentActivityDetail: false,
+        detailActivity: nil,
         notificationPreviewMarkdown: "Need approval"
       ) == .notification("Need approval")
     )
@@ -242,8 +238,7 @@ struct TerminalSidebarChromeViewTests {
   func secondaryContentIsNilWithoutActivityDetailOrNotificationPreview() {
     #expect(
       TerminalSidebarTabSummaryView.secondaryContent(
-        agentActivity: .codex(.running),
-        showsAgentActivityDetail: false,
+        detailActivity: .codex(.running),
         notificationPreviewMarkdown: nil
       ) == nil
     )
@@ -258,7 +253,7 @@ struct TerminalSidebarChromeViewTests {
 
           Need approval?
           """,
-        showsAgentActivityDetail: true,
+        detailActivity: .codex(.idle),
         notificationMarkdown: """
           Need approval
 
@@ -277,7 +272,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.popoverMarkdown(
         codexHoverMarkdown: "Inspecting transcript activity",
-        showsAgentActivityDetail: false,
+        detailActivity: nil,
         notificationMarkdown: """
           Need approval
 
@@ -296,7 +291,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.popoverMarkdown(
         codexHoverMarkdown: nil,
-        showsAgentActivityDetail: false,
+        detailActivity: nil,
         notificationMarkdown: nil
       ) == nil
     )

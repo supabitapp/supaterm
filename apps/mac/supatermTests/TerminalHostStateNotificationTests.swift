@@ -443,6 +443,104 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func tabBadgeUsesHighestPriorityPaneWhileDetailAndHoverStayFocused() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      .init(
+        initialInput: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    #expect(
+      host.setAgentActivity(
+        .codex(.running, detail: "Focused detail"),
+        for: firstSurface.id
+      )
+    )
+    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setAgentActivity(.claude(.needsInput), for: secondPane.paneID))
+    #expect(host.recordCodexHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
+
+    #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
+    #expect(host.showsAgentActivityDetail(for: tabID))
+    #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
+  }
+
+  @Test
+  func codexHoverMarkdownFollowsFocusedPaneOnly() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      .init(
+        initialInput: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    #expect(host.setAgentActivity(.codex(.idle), for: firstSurface.id))
+    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setAgentActivity(.codex(.idle), for: secondPane.paneID))
+    #expect(host.recordCodexHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
+    #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
+
+    _ = try host.focusPane(.contextPane(secondPane.paneID))
+
+    #expect(host.codexHoverMarkdown(for: tabID) == "Background hover")
+  }
+
+  @Test
+  func closingBadgeOwningPaneFallsBackToRemainingPaneActivity() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+    let secondPane = try host.createPane(
+      .init(
+        initialInput: nil,
+        direction: .right,
+        focus: false,
+        equalize: true,
+        target: .contextPane(firstSurface.id)
+      )
+    )
+
+    #expect(host.setAgentActivity(.codex(.running, detail: "Focused detail"), for: firstSurface.id))
+    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setAgentActivity(.claude(.needsInput), for: secondPane.paneID))
+    #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
+
+    host.performCloseSurface(secondPane.paneID)
+
+    #expect(host.agentActivity(for: tabID) == .codex(.running, detail: "Focused detail"))
+    #expect(host.showsAgentActivityDetail(for: tabID))
+    #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
+  }
+
+  @Test
   func commandFinishedDoesNotClearAgentActivity() throws {
     initializeGhosttyForTests()
 

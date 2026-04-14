@@ -179,6 +179,22 @@ final class TerminalHostState {
     }
   }
 
+  struct PaneAgentMetadata: Equatable, Sendable {
+    var activity: AgentActivity?
+    var activityRevision: Int?
+    var codexHoverMessages: [String] = []
+
+    var isEmpty: Bool {
+      activity == nil && codexHoverMessages.isEmpty
+    }
+  }
+
+  struct TabAgentPresentation: Equatable, Sendable {
+    let badgeActivity: AgentActivity?
+    let detailActivity: AgentActivity?
+    let hoverMarkdown: String?
+  }
+
   @ObservationIgnored
   let runtime: GhosttyRuntime?
   @ObservationIgnored
@@ -214,9 +230,7 @@ final class TerminalHostState {
   var focusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   var previousFocusedSurfaceIDByTab: [TerminalTabID: UUID] = [:]
   var paneNotifications: [UUID: [PaneNotification]] = [:]
-  var agentActivityByTab: [TerminalTabID: AgentActivity] = [:]
-  var agentActivitySurfaceIDByTab: [TerminalTabID: UUID] = [:]
-  var codexHoverMessagesByTab: [TerminalTabID: [String]] = [:]
+  var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
   var previousSelectedSpaceID: TerminalSpaceID?
   var lastEmittedFocusSurfaceID: UUID?
@@ -224,6 +238,8 @@ final class TerminalHostState {
   var suppressesSessionChanges = 0
   @ObservationIgnored
   var recentStructuredNotificationsBySurfaceID: [UUID: RecentStructuredNotification] = [:]
+  @ObservationIgnored
+  var nextAgentActivityRevision = 0
 
   var windowActivity = WindowActivityState.inactive
 
@@ -1025,15 +1041,13 @@ final class TerminalHostState {
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
+    paneAgentMetadataBySurfaceID.removeValue(forKey: surfaceID)
     recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
       focusedSurfaceIDByTab.removeValue(forKey: tabID)
       previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
-      agentActivityByTab.removeValue(forKey: tabID)
-      agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
-      codexHoverMessagesByTab.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
@@ -1051,11 +1065,6 @@ final class TerminalHostState {
     }
 
     trees[tabID] = newTree
-    if agentActivitySurfaceIDByTab[tabID] == surfaceID {
-      agentActivityByTab.removeValue(forKey: tabID)
-      agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
-      codexHoverMessagesByTab.removeValue(forKey: tabID)
-    }
     updateRunningState(for: tabID)
     updateTabTitle(for: tabID)
     if focusedSurfaceIDByTab[tabID] == surfaceID {
@@ -1607,13 +1616,11 @@ final class TerminalHostState {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
       paneNotifications.removeValue(forKey: surface.id)
+      paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
       recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
       surface.closeSurface()
       surfaces.removeValue(forKey: surface.id)
     }
-    agentActivityByTab.removeValue(forKey: tabID)
-    agentActivitySurfaceIDByTab.removeValue(forKey: tabID)
-    codexHoverMessagesByTab.removeValue(forKey: tabID)
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousSelectedTabIDBySpace = previousSelectedTabIDBySpace.filter { $0.value != tabID }
@@ -1834,7 +1841,7 @@ final class TerminalHostState {
   }
 
   func hasActiveAgentAttention(for tabID: TerminalTabID) -> Bool {
-    switch agentActivityByTab[tabID]?.phase {
+    switch tabAgentPresentation(for: tabID).badgeActivity?.phase {
     case .some(.needsInput), .some(.running):
       return true
     case .some(.idle), .none:
