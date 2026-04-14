@@ -27,9 +27,10 @@ struct TerminalHostStateChildExitTests {
 
     let event = try #require(await iterator.next())
     #expect(
-      event == .closeRequested(
-        .init(target: .surface(surface.id), needsConfirmation: false)
-      )
+      event
+        == .closeRequested(
+          .init(target: .surface(surface.id), needsConfirmation: false)
+        )
     )
   }
 }

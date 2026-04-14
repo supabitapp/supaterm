@@ -114,7 +114,7 @@ test: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
 	fi
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json supaterm supatermTests
+	swift format -p --in-place --recursive --configuration ./.swift-format.json SupatermCLIShared SPCLI sp supaterm supatermTests
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml

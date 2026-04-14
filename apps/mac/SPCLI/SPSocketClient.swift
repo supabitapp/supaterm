@@ -357,12 +357,14 @@ enum SPSocketSelection {
   }
 
   private static func probeEndpoint(at path: String) -> SupatermManagedSocketCandidateStatus {
-    guard let client = try? SPSocketClient(
-      path: path,
-      connectRetryInterval: discoveryConnectRetryInterval,
-      connectRetryTimeout: discoveryConnectRetryTimeout,
-      responseTimeout: discoveryResponseTimeout
-    ) else {
+    guard
+      let client = try? SPSocketClient(
+        path: path,
+        connectRetryInterval: discoveryConnectRetryInterval,
+        connectRetryTimeout: discoveryConnectRetryTimeout,
+        responseTimeout: discoveryResponseTimeout
+      )
+    else {
       return .ignored
     }
     return client.probeIdentity()

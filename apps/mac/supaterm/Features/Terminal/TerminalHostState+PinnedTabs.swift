@@ -145,8 +145,7 @@ extension TerminalHostState {
           for: desiredTab,
           currentTabsByID: currentTabsByID,
           titlesToRefresh: &titlesToRefresh
-        )
-        {
+        ) {
           desiredPinnedTabs.append(preservedPinnedTab)
         } else {
           desiredPinnedTabs.append(

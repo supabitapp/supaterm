@@ -105,15 +105,15 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
         try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled)
-          ?? defaults.glowingPaneRingEnabled,
+        ?? defaults.glowingPaneRingEnabled,
       newTabPosition:
         try container.decodeIfPresent(NewTabPosition.self, forKey: .newTabPosition) ?? defaults.newTabPosition,
       restoreTerminalLayoutEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalLayoutEnabled)
-          ?? defaults.restoreTerminalLayoutEnabled,
+        ?? defaults.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled:
         try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled)
-          ?? defaults.systemNotificationsEnabled,
+        ?? defaults.systemNotificationsEnabled,
       updateChannel: try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel
     )
   }

@@ -95,9 +95,11 @@ struct SettingsFeatureTerminalTests {
       SettingsFeature()
     } withDependencies: {
       $0.ghosttyTerminalSettingsClient.load = {
-        throw NSError(domain: "SettingsFeatureTerminalTests", code: 1, userInfo: [
-          NSLocalizedDescriptionKey: "Broken config"
-        ])
+        throw NSError(
+          domain: "SettingsFeatureTerminalTests", code: 1,
+          userInfo: [
+            NSLocalizedDescriptionKey: "Broken config"
+          ])
       }
     }
 

@@ -49,7 +49,8 @@ struct SupatermSkillExamplesTests {
   private func documentedCommands(in fileURL: URL) throws -> [String] {
     let markdown = try String(contentsOf: fileURL, encoding: .utf8)
     let blocks = markdown.matches(of: /```bash\n(.*?)```/).map(\.output.1)
-    return blocks
+    return
+      blocks
       .flatMap { mergedCommandLines(in: String($0)) }
       .filter { $0.hasPrefix("sp ") || $0.contains("| sp ") }
   }
@@ -98,7 +99,8 @@ struct SupatermSkillExamplesTests {
       rewrittenCommand = command
     }
 
-    return rewrittenCommand
+    return
+      rewrittenCommand
       .replacingOccurrences(of: "<space-uuid>", with: "11111111-1111-4111-8111-111111111111")
       .replacingOccurrences(of: "<tab-uuid>", with: "22222222-2222-4222-8222-222222222222")
       .replacingOccurrences(of: "<pane-uuid>", with: "33333333-3333-4333-8333-333333333333")
@@ -126,12 +128,15 @@ struct SupatermSkillExamplesTests {
     if process.terminationStatus != 0 {
       let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
       let error = try #require(String(bytes: errorData, encoding: .utf8))
-      throw NSError(domain: "SupatermSkillExamplesTests", code: Int(process.terminationStatus), userInfo: [
-        NSLocalizedDescriptionKey: error.isEmpty ? "zsh failed to split command" : error
-      ])
+      throw NSError(
+        domain: "SupatermSkillExamplesTests", code: Int(process.terminationStatus),
+        userInfo: [
+          NSLocalizedDescriptionKey: error.isEmpty ? "zsh failed to split command" : error
+        ])
     }
 
-    return output
+    return
+      output
       .split(separator: "\n", omittingEmptySubsequences: false)
       .map(String.init)
       .filter { !$0.isEmpty }

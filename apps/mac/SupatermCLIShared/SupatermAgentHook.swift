@@ -280,21 +280,21 @@ private func normalizeAgentHookString(_ value: String?) -> String? {
   return value
 }
 
-private extension KeyedDecodingContainer {
-  func decodeLossyIfPresent<T: Decodable>(
+extension KeyedDecodingContainer {
+  fileprivate func decodeLossyIfPresent<T: Decodable>(
     _ type: T.Type,
     forKey key: Key
   ) -> T? {
     try? decodeIfPresent(type, forKey: key)
   }
 
-  func decodeLossyStringIfPresent(
+  fileprivate func decodeLossyStringIfPresent(
     forKey key: Key
   ) -> String? {
     decodeLossyIfPresent(String.self, forKey: key)
   }
 
-  func decodeLossyBoolIfPresent(
+  fileprivate func decodeLossyBoolIfPresent(
     forKey key: Key
   ) -> Bool? {
     decodeLossyIfPresent(Bool.self, forKey: key)

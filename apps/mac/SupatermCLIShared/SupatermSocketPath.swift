@@ -76,7 +76,8 @@ public enum SupatermSocketPath {
       return []
     }
 
-    return contents
+    return
+      contents
       .filter { isSocketNode(at: $0.path) }
       .map { $0.path }
       .sorted()
@@ -94,18 +95,20 @@ public enum SupatermSocketPath {
       return false
     }
 
-    let canonicalManagedDirectoryPath = canonicalized(
-      managedDirectoryURL(
+    let canonicalManagedDirectoryPath =
+      canonicalized(
+        managedDirectoryURL(
+          rootDirectory: rootDirectory,
+          environment: environment,
+          userID: userID
+        ).path
+      )
+      ?? managedDirectoryURL(
         rootDirectory: rootDirectory,
         environment: environment,
         userID: userID
-      ).path
-    ) ?? managedDirectoryURL(
-      rootDirectory: rootDirectory,
-      environment: environment,
-      userID: userID
-    )
-    .path
+      )
+      .path
     return canonicalPath.hasPrefix(canonicalManagedDirectoryPath + "/")
   }
 

@@ -172,113 +172,122 @@ enum SPDebugRenderer {
     )
 
     lines.append("")
-    lines.append(contentsOf: section(
-      "Discovery",
-      [
-        "reachable instances: \(report.discovery.reachableInstances.count)",
-        "removed stale paths: \(report.discovery.removedStalePaths.count)",
-      ]
-    ))
+    lines.append(
+      contentsOf: section(
+        "Discovery",
+        [
+          "reachable instances: \(report.discovery.reachableInstances.count)",
+          "removed stale paths: \(report.discovery.removedStalePaths.count)",
+        ]
+      ))
 
     if !report.discovery.reachableInstances.isEmpty {
-      lines.append(contentsOf: report.discovery.reachableInstances.map { endpoint in
-        "- \(SPSocketSelection.formatEndpoint(endpoint))"
-      })
+      lines.append(
+        contentsOf: report.discovery.reachableInstances.map { endpoint in
+          "- \(SPSocketSelection.formatEndpoint(endpoint))"
+        })
     }
 
     if !report.discovery.removedStalePaths.isEmpty {
-      lines.append(contentsOf: report.discovery.removedStalePaths.map { path in
-        "- removed stale socket: \(path)"
-      })
+      lines.append(
+        contentsOf: report.discovery.removedStalePaths.map { path in
+          "- removed stale socket: \(path)"
+        })
     }
 
     lines.append("")
-    lines.append(contentsOf: section(
-      "Socket",
-      [
-        "path: \(report.socket.path ?? "none")",
-        "reachable: \(yesNo(report.socket.isReachable))",
-        "request succeeded: \(yesNo(report.socket.requestSucceeded))",
-        "error: \(report.socket.error ?? "none")",
-      ]
-    ))
+    lines.append(
+      contentsOf: section(
+        "Socket",
+        [
+          "path: \(report.socket.path ?? "none")",
+          "reachable: \(yesNo(report.socket.isReachable))",
+          "request succeeded: \(yesNo(report.socket.requestSucceeded))",
+          "error: \(report.socket.error ?? "none")",
+        ]
+      ))
 
     if let app = report.app {
       lines.append("")
-      lines.append(contentsOf: section(
-        "App",
-        [
-          "version: \(app.build.version.isEmpty ? "unknown" : app.build.version)",
-          "build: \(app.build.buildNumber.isEmpty ? "unknown" : app.build.buildNumber)",
-          "development build: \(yesNo(app.build.isDevelopmentBuild))",
-          "stub update checks: \(yesNo(app.build.usesStubUpdateChecks))",
-        ]
-      ))
+      lines.append(
+        contentsOf: section(
+          "App",
+          [
+            "version: \(app.build.version.isEmpty ? "unknown" : app.build.version)",
+            "build: \(app.build.buildNumber.isEmpty ? "unknown" : app.build.buildNumber)",
+            "development build: \(yesNo(app.build.isDevelopmentBuild))",
+            "stub update checks: \(yesNo(app.build.usesStubUpdateChecks))",
+          ]
+        ))
 
       lines.append("")
-      lines.append(contentsOf: section(
-        "Windows",
-        [
-          "window count: \(app.summary.windowCount)",
-          "space count: \(app.summary.spaceCount)",
-          "tab count: \(app.summary.tabCount)",
-          "pane count: \(app.summary.paneCount)",
-          "key window: \(app.summary.keyWindowIndex.map(String.init) ?? "none")",
-        ]
-      ))
+      lines.append(
+        contentsOf: section(
+          "Windows",
+          [
+            "window count: \(app.summary.windowCount)",
+            "space count: \(app.summary.spaceCount)",
+            "tab count: \(app.summary.tabCount)",
+            "pane count: \(app.summary.paneCount)",
+            "key window: \(app.summary.keyWindowIndex.map(String.init) ?? "none")",
+          ]
+        ))
 
       lines.append("")
       lines.append(contentsOf: currentTargetSection(app))
 
       if let currentTab = currentTab(in: app) {
         lines.append("")
-        lines.append(contentsOf: section(
-          "Current Tab",
-          [
-            "title: \(currentTab.title)",
-            "selected: \(yesNo(currentTab.isSelected))",
-            "pinned: \(yesNo(currentTab.isPinned))",
-            "dirty: \(yesNo(currentTab.isDirty))",
-            "title locked: \(yesNo(currentTab.isTitleLocked))",
-            "running: \(yesNo(currentTab.hasRunningActivity))",
-            "bell: \(yesNo(currentTab.hasBell))",
-            "read only: \(yesNo(currentTab.hasReadOnly))",
-            "secure input: \(yesNo(currentTab.hasSecureInput))",
-          ]
-        ))
+        lines.append(
+          contentsOf: section(
+            "Current Tab",
+            [
+              "title: \(currentTab.title)",
+              "selected: \(yesNo(currentTab.isSelected))",
+              "pinned: \(yesNo(currentTab.isPinned))",
+              "dirty: \(yesNo(currentTab.isDirty))",
+              "title locked: \(yesNo(currentTab.isTitleLocked))",
+              "running: \(yesNo(currentTab.hasRunningActivity))",
+              "bell: \(yesNo(currentTab.hasBell))",
+              "read only: \(yesNo(currentTab.hasReadOnly))",
+              "secure input: \(yesNo(currentTab.hasSecureInput))",
+            ]
+          ))
       }
 
       if let currentPane = currentPane(in: app) {
         lines.append("")
-        lines.append(contentsOf: section(
-          "Current Pane",
-          [
-            "title: \(currentPane.displayTitle)",
-            "pwd: \(currentPane.pwd ?? "none")",
-            "focused: \(yesNo(currentPane.isFocused))",
-            "read only: \(yesNo(currentPane.isReadOnly))",
-            "secure input: \(yesNo(currentPane.hasSecureInput))",
-            "bell count: \(currentPane.bellCount)",
-            "running: \(yesNo(currentPane.isRunning))",
-            "progress: \(progressDescription(currentPane))",
-            "close confirmation: \(yesNo(currentPane.needsCloseConfirmation))",
-            "last command exit: \(value(currentPane.lastCommandExitCode))",
-            "last command duration ms: \(value(currentPane.lastCommandDurationMs))",
-            "last child exit: \(value(currentPane.lastChildExitCode))",
-            "last child exit time ms: \(value(currentPane.lastChildExitTimeMs))",
-          ]
-        ))
+        lines.append(
+          contentsOf: section(
+            "Current Pane",
+            [
+              "title: \(currentPane.displayTitle)",
+              "pwd: \(currentPane.pwd ?? "none")",
+              "focused: \(yesNo(currentPane.isFocused))",
+              "read only: \(yesNo(currentPane.isReadOnly))",
+              "secure input: \(yesNo(currentPane.hasSecureInput))",
+              "bell count: \(currentPane.bellCount)",
+              "running: \(yesNo(currentPane.isRunning))",
+              "progress: \(progressDescription(currentPane))",
+              "close confirmation: \(yesNo(currentPane.needsCloseConfirmation))",
+              "last command exit: \(value(currentPane.lastCommandExitCode))",
+              "last command duration ms: \(value(currentPane.lastCommandDurationMs))",
+              "last child exit: \(value(currentPane.lastChildExitCode))",
+              "last child exit time ms: \(value(currentPane.lastChildExitTimeMs))",
+            ]
+          ))
       }
 
       lines.append("")
-      lines.append(contentsOf: section(
-        "Update",
-        [
-          "can check for updates: \(yesNo(app.update.canCheckForUpdates))",
-          "phase: \(app.update.phase)",
-          "detail: \(app.update.detail.isEmpty ? "none" : app.update.detail)",
-        ]
-      ))
+      lines.append(
+        contentsOf: section(
+          "Update",
+          [
+            "can check for updates: \(yesNo(app.update.canCheckForUpdates))",
+            "phase: \(app.update.phase)",
+            "detail: \(app.update.detail.isEmpty ? "none" : app.update.detail)",
+          ]
+        ))
 
       lines.append("")
       lines.append("Topology")
@@ -376,8 +385,8 @@ enum SPDebugRenderer {
   }
 }
 
-private extension SupatermAppDebugSnapshot {
-  var treeSnapshot: SupatermTreeSnapshot {
+extension SupatermAppDebugSnapshot {
+  fileprivate var treeSnapshot: SupatermTreeSnapshot {
     .init(
       windows: windows.map { window in
         .init(
