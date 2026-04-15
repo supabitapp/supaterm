@@ -899,7 +899,11 @@ final class TerminalHostState {
         return false
       }
       if tree.zoomed != nil {
-        tree = tree.settingZoomed(nil)
+        let newZoomed =
+          runtime?.splitPreserveZoomOnNavigation() == true
+          ? tree.root?.node(view: nextSurface)
+          : nil
+        tree = tree.settingZoomed(newZoomed)
         trees[tabID] = tree
       }
       focusSurface(nextSurface, in: tabID)

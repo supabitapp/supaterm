@@ -1,6 +1,8 @@
 import AppKit
+import ComposableArchitecture
 import Testing
 
+@testable import SupatermCLIShared
 @testable import supaterm
 
 @MainActor
@@ -19,6 +21,80 @@ struct TerminalHostStateZoomTests {
     #expect(!TerminalHostState.isPaneZoomed(focusedSurfaceID: nil, in: zoomedTree))
     #expect(!TerminalHostState.isPaneZoomed(focusedSurfaceID: second.id, in: tree))
   }
+
+  @Test
+  func gotoSplitPreservesZoomOnNavigationWhenConfigured() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let runtime = try makeGhosttyRuntime(
+        """
+        split-preserve-zoom = navigation
+        """
+      )
+      let host = TerminalHostState(runtime: runtime)
+      let setup = try makeZoomNavigationSetup(host: host)
+
+      #expect(host.performSplitAction(.gotoSplit(direction: .next), for: setup.middleSurfaceID))
+      #expect(host.selectedSurfaceView?.id == setup.lastSurfaceID)
+      #expect(host.trees[setup.tabID]?.zoomed?.leftmostLeaf().id == setup.lastSurfaceID)
+    }
+  }
+
+  @Test
+  func gotoSplitClearsZoomOnNavigationWhenConfigIsDisabled() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let runtime = try makeGhosttyRuntime("")
+      let host = TerminalHostState(runtime: runtime)
+      let setup = try makeZoomNavigationSetup(host: host)
+
+      #expect(host.performSplitAction(.gotoSplit(direction: .next), for: setup.middleSurfaceID))
+      #expect(host.selectedSurfaceView?.id == setup.lastSurfaceID)
+      #expect(host.trees[setup.tabID]?.zoomed == nil)
+    }
+  }
+
+  private func makeZoomNavigationSetup(host: TerminalHostState) throws -> ZoomNavigationSetup {
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+
+    let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
+    let secondPane = try host.createPane(
+      .init(
+        initialInput: nil,
+        direction: .right,
+        focus: true,
+        equalize: false,
+        target: .contextPane(firstSurfaceID)
+      )
+    )
+    let thirdPane = try host.createPane(
+      .init(
+        initialInput: nil,
+        direction: .right,
+        focus: true,
+        equalize: false,
+        target: .contextPane(secondPane.paneID)
+      )
+    )
+
+    let tabID = try #require(host.selectedTabID)
+    let middleSurface = try #require(host.surfaces[secondPane.paneID])
+    let middleNode = try #require(host.trees[tabID]?.find(id: secondPane.paneID))
+    host.trees[tabID] = host.trees[tabID]?.settingZoomed(middleNode)
+    host.focusSurface(middleSurface, in: tabID)
+
+    return ZoomNavigationSetup(
+      lastSurfaceID: thirdPane.paneID,
+      middleSurfaceID: secondPane.paneID,
+      tabID: tabID
+    )
+  }
 }
 
 private final class PaneZoomTestView: NSView, Identifiable {
@@ -32,4 +108,10 @@ private final class PaneZoomTestView: NSView, Identifiable {
   required init?(coder: NSCoder) {
     nil
   }
+}
+
+private struct ZoomNavigationSetup {
+  let lastSurfaceID: UUID
+  let middleSurfaceID: UUID
+  let tabID: TerminalTabID
 }

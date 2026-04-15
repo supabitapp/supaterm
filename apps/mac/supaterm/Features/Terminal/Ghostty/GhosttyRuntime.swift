@@ -612,6 +612,16 @@ final class GhosttyRuntime {
     return true
   }
 
+  func splitPreserveZoomOnNavigation() -> Bool {
+    guard let config else { return false }
+    var value: CUnsignedInt = 0
+    let key = "split-preserve-zoom"
+    guard ghostty_config_get(config, &value, key, UInt(key.lengthOfBytes(using: .utf8))) else {
+      return false
+    }
+    return value & (1 << 0) != 0
+  }
+
   func backgroundOpacity() -> Double {
     guard let config else { return 1 }
     var value: Double = 1

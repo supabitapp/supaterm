@@ -117,6 +117,24 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func splitPreserveZoomOnNavigationReadsNavigationFlag() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      split-preserve-zoom = navigation
+      """
+    )
+
+    #expect(runtime.splitPreserveZoomOnNavigation())
+  }
+
+  @Test
+  func splitPreserveZoomOnNavigationDefaultsToDisabled() throws {
+    let runtime = try makeGhosttyRuntime("")
+
+    #expect(!runtime.splitPreserveZoomOnNavigation())
+  }
+
+  @Test
   func wakeupAfterRuntimeDeallocationIsIgnored() throws {
     let userdataBits: UInt?
     do {
