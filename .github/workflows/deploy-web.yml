@@ -8,14 +8,21 @@ on:
       - "apps/supaterm.com/**"
       - ".github/workflows/deploy-web.yml"
       - "Makefile"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/supaterm.com/**"
+      - ".github/workflows/deploy-web.yml"
+      - "Makefile"
   workflow_dispatch: {}
 
 concurrency:
-  group: deploy-web
+  group: deploy-web-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  web:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,6 +52,7 @@ jobs:
       - run: make web-check
       - run: make web-build
       - name: Deploy Worker
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
