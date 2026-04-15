@@ -27,7 +27,7 @@ function ChangelogPage() {
                   <Badge variant="outline">{entry.version}</Badge>
                   <span className="text-sm text-white/42">{entry.date}</span>
                 </div>
-                <div className="absolute top-0 right-0 bottom-0 hidden w-px bg-white/10 md:block" />
+                <div className="absolute top-[22px] right-0 bottom-0 hidden w-px bg-white/10 md:block" />
                 <div className="absolute top-[3px] -right-[7px] hidden size-[14px] rounded-full border-[3px] border-white/30 bg-[#12100b] md:block" />
               </div>
               <div>
