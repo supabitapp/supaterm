@@ -325,6 +325,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "sp"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
