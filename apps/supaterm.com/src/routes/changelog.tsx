@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { changelogData } from "@/lib/changelog-data";
+import { categoryConfig, changelogData } from "@/lib/changelog-data";
 
 function ChangelogPage() {
   return (
@@ -22,11 +22,33 @@ function ChangelogPage() {
             <h2 className="mt-4 text-xl font-medium tracking-[-0.02em] text-[#f4f0e8]">
               {entry.title}
             </h2>
-            <ul className="mt-4 list-disc space-y-2 pl-5 text-base leading-7 text-white/62">
-              {entry.changes.map((change) => (
-                <li key={change}>{change}</li>
-              ))}
-            </ul>
+            {entry.description ? (
+              <p className="mt-3 text-base leading-7 text-white/62">{entry.description}</p>
+            ) : null}
+            {entry.image ? (
+              <div className="mt-6 overflow-hidden rounded-[12px] border border-white/8">
+                <img src={entry.image} alt={entry.title} className="block w-full" />
+              </div>
+            ) : null}
+            <div className="mt-6 space-y-5">
+              {entry.sections.map((section) => {
+                const config = categoryConfig[section.category];
+                return (
+                  <div key={section.category}>
+                    <span
+                      className={`inline-block rounded-md border px-2.5 py-1 text-xs font-medium ${config.className}`}
+                    >
+                      {config.label}
+                    </span>
+                    <ul className="mt-3 list-disc space-y-1.5 pl-5 text-base leading-7 text-white/62">
+                      {section.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
           </article>
         ))}
       </div>
