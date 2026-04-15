@@ -6,13 +6,13 @@ const categoryOrder: ChangeCategory[] = ["new", "improvements", "fixes"];
 function ChangelogPage() {
   return (
     <section className="mx-auto w-full max-w-[1440px] px-6 pb-24 pt-[84px] md:px-10 md:pb-32 md:pt-[92px]">
-      <div className="mx-auto grid max-w-3xl gap-x-12 pt-6 md:grid-cols-[180px_1fr] md:pt-10 lg:pt-12">
+      <div className="mx-auto grid max-w-3xl gap-x-12 pt-2 md:grid-cols-[180px_1fr] md:pt-4">
         <div className="hidden md:block" />
         <div>
           <h1 className="text-[clamp(1rem,4vw,2rem)] leading-[1] font-medium tracking-[-0.04em]">
             Changelog
           </h1>
-          <p className="mt-3 text-base leading-7 text-white/50">
+          <p className="mt-2 text-sm leading-6 text-white/40">
             Follow{" "}
             <a
               href="https://x.com/khoiracle"
