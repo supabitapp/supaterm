@@ -16,6 +16,35 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v1.1.0",
+    date: "2026-04-15",
+    title: "The Ethan Release",
+    description:
+      "Full command palette parity with Ghostty, TOML settings, tab pinning from the CLI, and a round of terminal reliability fixes.",
+    sections: [
+      {
+        category: "new",
+        items: ["Pin tabs from the CLI with sp tab pin/unpin"],
+      },
+      {
+        category: "improvements",
+        items: [
+          "Expanded the list of items in command pallete",
+          "Settings is now in TOML @ ~/.config/supaterm/settings.toml - way easier to read than JSON",
+          "Codex transcript parsing to make the loading indicator more reliable",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Fixed a memory hog due to having too many IOSurfaceKit for non-showing panes",
+          "Fixed a problem where app doesn't start with the correct theme",
+          "Fixed terminal link CMD + clicking",
+        ],
+      },
+    ],
+  },
+  {
     version: "v1.0.3",
     date: "2026-04-12",
     title: "Onboarding and defaults",
