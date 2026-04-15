@@ -70,6 +70,7 @@ struct TerminalClient: Sendable {
     case gotoTabRequested(TerminalGotoTabTarget)
     case newTabRequested(inheritingFromSurfaceID: UUID?)
     case notificationReceived(TerminalNotificationEvent)
+    case windowCloseRequested(needsConfirmation: Bool)
   }
 
   static func live(host: TerminalHostState) -> Self {

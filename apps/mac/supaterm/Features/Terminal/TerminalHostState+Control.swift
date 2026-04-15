@@ -9,6 +9,18 @@ import SupatermTerminalCore
 import SwiftUI
 
 extension TerminalHostState {
+  struct ResolvedPaneClose {
+    let result: SupatermClosePaneResult
+    let shouldCloseWindow: Bool
+    let surfaceID: UUID
+  }
+
+  struct ResolvedTabClose {
+    let result: SupatermCloseTabResult
+    let shouldCloseWindow: Bool
+    let tabID: TerminalTabID
+  }
+
   func treeSnapshot() -> SupatermTreeSnapshot {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -321,15 +333,9 @@ extension TerminalHostState {
   }
 
   func closePane(_ target: TerminalPaneTarget) throws -> SupatermClosePaneResult {
-    let resolvedTarget = try resolvePaneTarget(target)
-    let result = try paneTarget(
-      spaceID: resolvedTarget.spaceID,
-      tabID: resolvedTarget.tabID,
-      surfaceID: resolvedTarget.anchorSurface.id,
-      tree: resolvedTarget.tree
-    )
-    performCloseSurface(resolvedTarget.anchorSurface.id)
-    return result
+    let resolvedClose = try resolveClose(target)
+    performCloseSurface(resolvedClose.surfaceID)
+    return resolvedClose.result
   }
 
   func selectTab(_ target: TerminalTabTarget) throws -> SupatermSelectTabResult {
@@ -345,10 +351,32 @@ extension TerminalHostState {
   }
 
   func closeTab(_ target: TerminalTabTarget) throws -> SupatermCloseTabResult {
+    let resolvedClose = try resolveClose(target)
+    performCloseTab(resolvedClose.tabID)
+    return resolvedClose.result
+  }
+
+  func resolveClose(_ target: TerminalPaneTarget) throws -> ResolvedPaneClose {
+    let resolvedTarget = try resolvePaneTarget(target)
+    return .init(
+      result: try paneTarget(
+        spaceID: resolvedTarget.spaceID,
+        tabID: resolvedTarget.tabID,
+        surfaceID: resolvedTarget.anchorSurface.id,
+        tree: resolvedTarget.tree
+      ),
+      shouldCloseWindow: shouldCloseWindow(afterClosingSurface: resolvedTarget.anchorSurface.id),
+      surfaceID: resolvedTarget.anchorSurface.id
+    )
+  }
+
+  func resolveClose(_ target: TerminalTabTarget) throws -> ResolvedTabClose {
     let resolvedTarget = try resolveTabTarget(target)
-    let result = try tabTarget(for: resolvedTarget.tabID)
-    performCloseTab(resolvedTarget.tabID)
-    return result
+    return .init(
+      result: try tabTarget(for: resolvedTarget.tabID),
+      shouldCloseWindow: shouldCloseWindow(afterClosing: [resolvedTarget.tabID]),
+      tabID: resolvedTarget.tabID
+    )
   }
 
   func sendText(_ request: TerminalSendTextRequest) throws -> SupatermSendTextResult {

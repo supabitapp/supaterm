@@ -26,11 +26,6 @@ struct TerminalHostStateChildExitTests {
     #expect(surface.bridge.state.childExitTimeMs == 28)
 
     let event = try #require(await iterator.next())
-    #expect(
-      event
-        == .closeRequested(
-          .init(target: .surface(surface.id), needsConfirmation: false)
-        )
-    )
+    #expect(event == .windowCloseRequested(needsConfirmation: false))
   }
 }

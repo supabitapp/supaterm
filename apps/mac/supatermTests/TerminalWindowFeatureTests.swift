@@ -216,6 +216,48 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func windowCloseRequestedPresentsConfirmationWhenNeeded() async {
+    let windowID = ObjectIdentifier(NSString())
+
+    let store = TestStore(
+      initialState: TerminalWindowFeature.State(
+        windowID: windowID
+      )
+    ) {
+      TerminalWindowFeature()
+    }
+
+    await store.send(.clientEvent(.windowCloseRequested(needsConfirmation: true))) {
+      $0.confirmationRequest = .init(
+        target: .closeWindow(windowID),
+        title: "Close Window?",
+        message: "A process is still running in this window. Close it anyway?",
+        confirmTitle: "Close"
+      )
+    }
+  }
+
+  @Test
+  func windowCloseRequestedClosesWindowImmediatelyWhenNoConfirmationIsNeeded() async {
+    let windowID = ObjectIdentifier(NSString())
+    var closedWindowIDs: [ObjectIdentifier] = []
+
+    let store = TestStore(
+      initialState: TerminalWindowFeature.State(
+        windowID: windowID
+      )
+    ) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.windowCloseClient.closeWindow = { closedWindowIDs.append($0) }
+    }
+
+    await store.send(.clientEvent(.windowCloseRequested(needsConfirmation: false)))
+
+    #expect(closedWindowIDs == [windowID])
+  }
+
+  @Test
   func closeConfirmationConfirmClosesPendingTab() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()

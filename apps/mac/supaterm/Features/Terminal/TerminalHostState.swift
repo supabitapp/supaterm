@@ -52,6 +52,11 @@ final class TerminalHostState {
     let isFocused: Bool
   }
 
+  enum ResolvedCloseRequest: Equatable {
+    case request(TerminalCloseRequest)
+    case window(needsConfirmation: Bool)
+  }
+
   struct SidebarNotificationPresentation: Equatable, Sendable {
     let markdown: String
     let previewMarkdown: String
@@ -736,27 +741,20 @@ final class TerminalHostState {
   }
 
   func requestCloseSurface(_ surfaceID: UUID, needsConfirmation: Bool? = nil) {
-    guard surfaces[surfaceID] != nil else { return }
-    emit(
-      .closeRequested(
-        .init(
-          target: .surface(surfaceID),
-          needsConfirmation: needsConfirmation ?? surfaceNeedsCloseConfirmation(surfaceID)
-        )
+    guard
+      let resolvedCloseRequest = resolvedCloseRequest(
+        for: .surface(surfaceID),
+        needsConfirmationOverride: needsConfirmation
       )
-    )
+    else {
+      return
+    }
+    emit(resolvedCloseRequest)
   }
 
   func requestCloseTab(_ tabID: TerminalTabID) {
-    guard trees[tabID] != nil else { return }
-    emit(
-      .closeRequested(
-        .init(
-          target: .tab(tabID),
-          needsConfirmation: tabNeedsCloseConfirmation(tabID)
-        )
-      )
-    )
+    guard let resolvedCloseRequest = resolvedCloseRequest(for: .tab(tabID)) else { return }
+    emit(resolvedCloseRequest)
   }
 
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {
@@ -772,16 +770,8 @@ final class TerminalHostState {
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
-    let tabIDs = tabIDs.filter { trees[$0] != nil }
-    guard !tabIDs.isEmpty else { return }
-    emit(
-      .closeRequested(
-        .init(
-          target: .tabs(tabIDs),
-          needsConfirmation: tabIDs.contains(where: tabNeedsCloseConfirmation)
-        )
-      )
-    )
+    guard let resolvedCloseRequest = resolvedCloseRequest(for: .tabs(tabIDs)) else { return }
+    emit(resolvedCloseRequest)
   }
 
   @discardableResult
@@ -998,17 +988,6 @@ final class TerminalHostState {
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
 
-    let shouldCreateReplacement = tabManager.tabs.count == 1
-    let inheritedSurfaceID = focusedSurfaceIDByTab[tabID]
-    if shouldCreateReplacement {
-      _ = applySelectedSpace(space.id)
-      _ = createTab(
-        focusing: false,
-        inheritingFromSurfaceID: inheritedSurfaceID,
-        sessionChangesEnabled: false
-      )
-    }
-
     removeTree(for: tabID)
     tabManager.closeTab(tabID)
 
@@ -1055,9 +1034,7 @@ final class TerminalHostState {
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
-      if tabs.isEmpty {
-        _ = createTab(focusing: false, sessionChangesEnabled: false)
-      } else if let selectedTabID = selectedTabID {
+      if let selectedTabID = selectedTabID {
         focusSurface(in: selectedTabID)
       }
       syncFocus(windowActivity)
@@ -1706,6 +1683,23 @@ final class TerminalHostState {
     return tree.leaves().contains(where: \.needsCloseConfirmation)
   }
 
+  func shouldCloseWindow<S: Sequence>(afterClosing tabIDs: S) -> Bool where S.Element == TerminalTabID {
+    let closingTabIDs = Set(tabIDs.filter { trees[$0] != nil })
+    return !closingTabIDs.isEmpty && closingTabIDs.count == trees.count
+  }
+
+  func shouldCloseWindow(afterClosingSurface surfaceID: UUID) -> Bool {
+    guard
+      let tabID = tabID(containing: surfaceID),
+      let tree = trees[tabID],
+      let node = tree.find(id: surfaceID)
+    else {
+      return false
+    }
+    guard tree.removing(node).isEmpty else { return false }
+    return shouldCloseWindow(afterClosing: [tabID])
+  }
+
   func windowNeedsCloseConfirmation() -> Bool {
     if let runtime {
       return runtime.needsConfirmQuit()
@@ -1717,6 +1711,53 @@ final class TerminalHostState {
 
   func surfaceNeedsCloseConfirmation(_ surfaceID: UUID) -> Bool {
     surfaces[surfaceID]?.needsCloseConfirmation ?? false
+  }
+
+  func resolvedCloseRequest(
+    for target: TerminalCloseTarget,
+    needsConfirmationOverride: Bool? = nil
+  ) -> ResolvedCloseRequest? {
+    switch target {
+    case .surface(let surfaceID):
+      guard surfaces[surfaceID] != nil else { return nil }
+      if shouldCloseWindow(afterClosingSurface: surfaceID) {
+        return .window(
+          needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation()
+        )
+      }
+      return .request(
+        .init(
+          target: .surface(surfaceID),
+          needsConfirmation: needsConfirmationOverride ?? surfaceNeedsCloseConfirmation(surfaceID)
+        )
+      )
+
+    case .tab(let tabID):
+      guard trees[tabID] != nil else { return nil }
+      if shouldCloseWindow(afterClosing: [tabID]) {
+        return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
+      }
+      return .request(
+        .init(
+          target: .tab(tabID),
+          needsConfirmation: needsConfirmationOverride ?? tabNeedsCloseConfirmation(tabID)
+        )
+      )
+
+    case .tabs(let tabIDs):
+      let existingTabIDs = tabIDs.filter { trees[$0] != nil }
+      guard !existingTabIDs.isEmpty else { return nil }
+      if shouldCloseWindow(afterClosing: existingTabIDs) {
+        return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
+      }
+      return .request(
+        .init(
+          target: .tabs(existingTabIDs),
+          needsConfirmation: needsConfirmationOverride
+            ?? existingTabIDs.contains(where: tabNeedsCloseConfirmation)
+        )
+      )
+    }
   }
 
   func tabID(containing surfaceID: UUID) -> TerminalTabID? {
@@ -1737,6 +1778,15 @@ final class TerminalHostState {
       return
     }
     eventContinuation.yield(event)
+  }
+
+  func emit(_ resolvedCloseRequest: ResolvedCloseRequest) {
+    switch resolvedCloseRequest {
+    case .request(let closeRequest):
+      emit(.closeRequested(closeRequest))
+    case .window(let needsConfirmation):
+      emit(.windowCloseRequested(needsConfirmation: needsConfirmation))
+    }
   }
 
   func mapGotoTabTarget(_ target: ghostty_action_goto_tab_e) -> TerminalGotoTabTarget? {

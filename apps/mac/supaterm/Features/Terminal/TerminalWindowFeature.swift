@@ -232,6 +232,16 @@ struct TerminalWindowFeature {
               )
             )
           }
+
+        case .windowCloseRequested(let needsConfirmation):
+          guard let windowID = state.windowID else { return .none }
+          if needsConfirmation {
+            state.confirmationRequest = confirmationRequest(for: .closeWindow(windowID))
+            return .none
+          }
+          return .run { [windowCloseClient] _ in
+            await windowCloseClient.closeWindow(windowID)
+          }
         }
 
       case .bindingMenuItemSelected(let command):

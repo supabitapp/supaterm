@@ -40,6 +40,62 @@ struct TerminalCommandExecutorTests {
     #expect(snapshot.update.phase == "checking")
     #expect(snapshot.update.detail == "Please wait while Supaterm checks for available updates.")
   }
+
+  @Test
+  func closeTabClosesWindowWhenTargetIsTheLastTab() throws {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(registry: registry)
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    var closeWindowCount = 0
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: { closeWindowCount += 1 }
+    )
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
+
+    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+    #expect(closeWindowCount == 1)
+  }
+
+  @Test
+  func closePaneClosesWindowWhenTargetIsTheLastPane() throws {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(registry: registry)
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    var closeWindowCount = 0
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: { closeWindowCount += 1 }
+    )
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
+
+    _ = try commandExecutor.closePane(.pane(windowIndex: 1, spaceIndex: 1, tabIndex: 1, paneIndex: 1))
+    #expect(closeWindowCount == 1)
+  }
   @Test
   func createTabUsesSelectedTabAsInsertionAnchorForExplicitSpaceTarget() throws {
     try withDependencies {

@@ -70,6 +70,11 @@ extension TerminalCommandExecutor {
     case .contextPane:
       for (offset, entry) in registry.activeEntries().enumerated() {
         do {
+          let resolvedClose = try entry.terminal.resolveClose(target)
+          if resolvedClose.shouldCloseWindow, let window = entry.windowReference.value {
+            registry.closeWindow(ObjectIdentifier(window))
+            return TerminalWindowRegistry.rewrite(resolvedClose.result, windowIndex: offset + 1)
+          }
           let result = try entry.terminal.closePane(target)
           return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
         } catch let error as TerminalControlError {
@@ -83,11 +88,20 @@ extension TerminalCommandExecutor {
 
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
+      let localTarget = TerminalPaneTarget.pane(
+        windowIndex: 1,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex,
+        paneIndex: paneIndex
+      )
       do {
+        let resolvedClose = try entry.terminal.resolveClose(localTarget)
+        if resolvedClose.shouldCloseWindow, let window = entry.windowReference.value {
+          registry.closeWindow(ObjectIdentifier(window))
+          return TerminalWindowRegistry.rewrite(resolvedClose.result, windowIndex: windowIndex)
+        }
         return TerminalWindowRegistry.rewrite(
-          try entry.terminal.closePane(
-            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
-          ),
+          try entry.terminal.closePane(localTarget),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {

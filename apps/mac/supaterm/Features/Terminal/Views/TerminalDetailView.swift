@@ -191,15 +191,13 @@ private struct TerminalDetailSurface: View {
   let selectedTabID: TerminalTabID
 
   var body: some View {
-    TerminalTabContentStack(tabs: terminal.tabs, selectedTabId: selectedTabID) { tabID in
-      TerminalSurfacePaneView(
-        notificationColor: notificationColor,
-        showsGlowingPaneRing: showsGlowingPaneRing,
-        store: store,
-        terminal: terminal,
-        tabID: tabID
-      )
-    }
+    TerminalSurfacePaneView(
+      notificationColor: notificationColor,
+      showsGlowingPaneRing: showsGlowingPaneRing,
+      store: store,
+      terminal: terminal,
+      tabID: selectedTabID
+    )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
