@@ -13,9 +13,6 @@ function ChangelogPage() {
             Changelog
           </h1>
           <p className="mt-3 text-base leading-7 text-white/50">
-            See what's new added, changed, fixed, improved or updated.
-          </p>
-          <p className="mt-1 text-base leading-7 text-white/50">
             Follow{" "}
             <a
               href="https://x.com/khoiracle"
