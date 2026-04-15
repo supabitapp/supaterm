@@ -42,10 +42,164 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   )
 
   public static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
+    configDirectoryURL(homeDirectoryPath: homeDirectoryPath)
+      .appendingPathComponent("settings.toml", isDirectory: false)
+  }
+
+  public static func legacyURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
+    configDirectoryURL(homeDirectoryPath: homeDirectoryPath)
+      .appendingPathComponent("settings.json", isDirectory: false)
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let defaults = Self.default
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let appearance = try container.decodeIfPresent(PersistedAppearance.self, forKey: .appearance)
+    let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
+    let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
+    let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
+    let updates = try container.decodeIfPresent(PersistedUpdates.self, forKey: .updates)
+
+    self.init(
+      appearanceMode: appearance?.mode ?? defaults.appearanceMode,
+      analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
+      crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
+      glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
+      newTabPosition: terminal?.newTabPosition ?? defaults.newTabPosition,
+      restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
+      systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
+      updateChannel: updates?.channel ?? defaults.updateChannel
+    )
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
+    try container.encode(
+      PersistedPrivacy(
+        analyticsEnabled: analyticsEnabled,
+        crashReportsEnabled: crashReportsEnabled
+      ),
+      forKey: .privacy
+    )
+    try container.encode(
+      PersistedNotifications(
+        glowingPaneRing: glowingPaneRingEnabled,
+        systemNotifications: systemNotificationsEnabled
+      ),
+      forKey: .notifications
+    )
+    try container.encode(
+      PersistedTerminal(
+        newTabPosition: newTabPosition,
+        restoreLayout: restoreTerminalLayoutEnabled
+      ),
+      forKey: .terminal
+    )
+    try container.encode(PersistedUpdates(channel: updateChannel), forKey: .updates)
+  }
+}
+
+extension SupatermSettings {
+  enum CodingKeys: String, CodingKey {
+    case appearance
+    case privacy
+    case notifications
+    case terminal
+    case updates
+  }
+
+  struct PersistedAppearance: Codable, Equatable, Sendable {
+    let mode: AppearanceMode
+  }
+
+  struct PersistedPrivacy: Codable, Equatable, Sendable {
+    let analyticsEnabled: Bool
+    let crashReportsEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case analyticsEnabled = "analytics_enabled"
+      case crashReportsEnabled = "crash_reports_enabled"
+    }
+  }
+
+  struct PersistedNotifications: Codable, Equatable, Sendable {
+    let glowingPaneRing: Bool
+    let systemNotifications: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case glowingPaneRing = "glowing_pane_ring"
+      case systemNotifications = "system_notifications"
+    }
+  }
+
+  struct PersistedTerminal: Codable, Equatable, Sendable {
+    let newTabPosition: NewTabPosition
+    let restoreLayout: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case newTabPosition = "new_tab_position"
+      case restoreLayout = "restore_layout"
+    }
+  }
+
+  struct PersistedUpdates: Codable, Equatable, Sendable {
+    let channel: UpdateChannel
+  }
+}
+
+private extension SupatermSettings {
+  static func configDirectoryURL(homeDirectoryPath: String) -> URL {
     URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
       .appendingPathComponent(".config", isDirectory: true)
       .appendingPathComponent("supaterm", isDirectory: true)
-      .appendingPathComponent("settings.json", isDirectory: false)
+  }
+}
+
+struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
+  var appearanceMode: AppearanceMode
+  var analyticsEnabled: Bool
+  var crashReportsEnabled: Bool
+  var glowingPaneRingEnabled: Bool
+  var newTabPosition: NewTabPosition
+  var restoreTerminalLayoutEnabled: Bool
+  var systemNotificationsEnabled: Bool
+  var updateChannel: UpdateChannel
+
+  init(from decoder: any Decoder) throws {
+    let defaults = SupatermSettings.default
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.appearanceMode =
+      try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? defaults.appearanceMode
+    self.analyticsEnabled =
+      try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
+    self.crashReportsEnabled =
+      try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled
+    self.glowingPaneRingEnabled =
+      try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled) ?? defaults.glowingPaneRingEnabled
+    self.newTabPosition =
+      try container.decodeIfPresent(NewTabPosition.self, forKey: .newTabPosition) ?? defaults.newTabPosition
+    self.restoreTerminalLayoutEnabled =
+      try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalLayoutEnabled)
+      ?? defaults.restoreTerminalLayoutEnabled
+    self.systemNotificationsEnabled =
+      try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled)
+      ?? defaults.systemNotificationsEnabled
+    self.updateChannel =
+      try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel
+  }
+
+  var supatermSettings: SupatermSettings {
+    SupatermSettings(
+      appearanceMode: appearanceMode,
+      analyticsEnabled: analyticsEnabled,
+      crashReportsEnabled: crashReportsEnabled,
+      glowingPaneRingEnabled: glowingPaneRingEnabled,
+      newTabPosition: newTabPosition,
+      restoreTerminalLayoutEnabled: restoreTerminalLayoutEnabled,
+      systemNotificationsEnabled: systemNotificationsEnabled,
+      updateChannel: updateChannel
+    )
   }
 
   enum CodingKeys: String, CodingKey, CaseIterable {
@@ -57,100 +211,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     case restoreTerminalLayoutEnabled
     case systemNotificationsEnabled
     case updateChannel
-
-    var schemaDescription: String {
-      switch self {
-      case .appearanceMode:
-        return "App appearance mode."
-      case .analyticsEnabled:
-        return "Allow anonymous telemetry."
-      case .crashReportsEnabled:
-        return "Allow crash reports."
-      case .glowingPaneRingEnabled:
-        return "Show a glowing ring around panes with unread attention."
-      case .newTabPosition:
-        return "Choose whether new tabs open after the current tab or at the end."
-      case .restoreTerminalLayoutEnabled:
-        return "Restore spaces, tabs, and panes on launch."
-      case .systemNotificationsEnabled:
-        return "Deliver desktop notifications for terminal activity."
-      case .updateChannel:
-        return "Select stable or tip updates."
-      }
-    }
-
-    var schemaEnumValues: [String]? {
-      switch self {
-      case .appearanceMode:
-        return AppearanceMode.allCases.map(\.rawValue)
-      case .newTabPosition:
-        return NewTabPosition.allCases.map(\.rawValue)
-      case .updateChannel:
-        return UpdateChannel.allCases.map(\.rawValue)
-      default:
-        return nil
-      }
-    }
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let defaults = Self.default
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.init(
-      appearanceMode:
-        try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? defaults.appearanceMode,
-      analyticsEnabled:
-        try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled,
-      crashReportsEnabled:
-        try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled,
-      glowingPaneRingEnabled:
-        try container.decodeIfPresent(Bool.self, forKey: .glowingPaneRingEnabled)
-        ?? defaults.glowingPaneRingEnabled,
-      newTabPosition:
-        try container.decodeIfPresent(NewTabPosition.self, forKey: .newTabPosition) ?? defaults.newTabPosition,
-      restoreTerminalLayoutEnabled:
-        try container.decodeIfPresent(Bool.self, forKey: .restoreTerminalLayoutEnabled)
-        ?? defaults.restoreTerminalLayoutEnabled,
-      systemNotificationsEnabled:
-        try container.decodeIfPresent(Bool.self, forKey: .systemNotificationsEnabled)
-        ?? defaults.systemNotificationsEnabled,
-      updateChannel: try container.decodeIfPresent(UpdateChannel.self, forKey: .updateChannel) ?? defaults.updateChannel
-    )
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    try JSONValue.object(persistedJSONObject()).encode(to: encoder)
-  }
-
-  func persistedJSONObject(includeSchema: Bool = true) -> [String: JSONValue] {
-    var object: [String: JSONValue] = [:]
-    if includeSchema {
-      object[SupatermSettingsSchema.schemaKey] = .string(SupatermSettingsSchema.url)
-    }
-    for key in CodingKeys.allCases {
-      object[key.rawValue] = value(for: key)
-    }
-    return object
-  }
-
-  func value(for key: CodingKeys) -> JSONValue {
-    switch key {
-    case .appearanceMode:
-      return .string(appearanceMode.rawValue)
-    case .analyticsEnabled:
-      return .bool(analyticsEnabled)
-    case .crashReportsEnabled:
-      return .bool(crashReportsEnabled)
-    case .glowingPaneRingEnabled:
-      return .bool(glowingPaneRingEnabled)
-    case .newTabPosition:
-      return .string(newTabPosition.rawValue)
-    case .restoreTerminalLayoutEnabled:
-      return .bool(restoreTerminalLayoutEnabled)
-    case .systemNotificationsEnabled:
-      return .bool(systemNotificationsEnabled)
-    case .updateChannel:
-      return .string(updateChannel.rawValue)
-    }
+    case updatesAutomaticallyCheckForUpdates
+    case updatesAutomaticallyDownloadUpdates
   }
 }

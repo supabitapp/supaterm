@@ -15,6 +15,7 @@ let package = Package(
   name: "supaterm",
   dependencies: [
     .package(url: "https://github.com/apple/swift-argument-parser", exact: "1.6.2"),
+    .package(url: "https://github.com/mattt/swift-toml", exact: "2.0.0"),
     .package(url: "https://github.com/PostHog/posthog-ios.git", exact: "3.48.3"),
     .package(url: "https://github.com/getsentry/sentry-cocoa/", exact: "9.3.0"),
     .package(url: "https://github.com/gonzalezreal/textual", exact: "0.3.1"),

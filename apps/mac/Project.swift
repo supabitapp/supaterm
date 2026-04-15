@@ -40,6 +40,9 @@ let project = Project(
       buildableFolders: [
         "SupatermCLIShared",
       ],
+      dependencies: [
+        .external(name: "TOML"),
+      ],
       settings: .settings(
         base: [
           "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",

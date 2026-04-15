@@ -13,6 +13,13 @@ struct SupatermSettingsTests {
   func defaultURLUsesSupatermConfigPath() {
     let url = SupatermSettings.defaultURL(homeDirectoryPath: "/tmp/khoi")
 
+    #expect(url.path == "/tmp/khoi/.config/supaterm/settings.toml")
+  }
+
+  @Test
+  func legacyURLUsesSupatermConfigPath() {
+    let url = SupatermSettings.legacyURL(homeDirectoryPath: "/tmp/khoi")
+
     #expect(url.path == "/tmp/khoi/.config/supaterm/settings.json")
   }
 
@@ -42,7 +49,7 @@ struct SupatermSettingsTests {
       """#.utf8
     )
 
-    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
+    let prefs = try SupatermSettingsCodec.decodeLegacyJSON(data)
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
@@ -51,33 +58,41 @@ struct SupatermSettingsTests {
     #expect(prefs.newTabPosition == .end)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
-    #expect(prefs.updateChannel == UpdateChannel.stable)
+    #expect(prefs.updateChannel == .stable)
   }
 
   @Test
-  func defaultPrefsEncodeWithSchemaURL() throws {
-    let data = try JSONEncoder().encode(SupatermSettings.default)
-    let value = try JSONDecoder().decode(JSONValue.self, from: data)
-    let object = try #require(value.objectValue)
+  func defaultPrefsEncodeAsGroupedToml() throws {
+    let data = try SupatermSettingsCodec.encode(SupatermSettings.default)
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
 
-    #expect(object["$schema"]?.stringValue == SupatermSettingsSchema.url)
     #expect(
-      Set(object.keys) == [
-        "$schema",
-        "analyticsEnabled",
-        "appearanceMode",
-        "crashReportsEnabled",
-        "glowingPaneRingEnabled",
-        "newTabPosition",
-        "restoreTerminalLayoutEnabled",
-        "systemNotificationsEnabled",
-        "updateChannel",
-      ])
+      string
+        == """
+        [appearance]
+        mode = "dark"
+
+        [notifications]
+        glowing_pane_ring = true
+        system_notifications = false
+
+        [privacy]
+        analytics_enabled = true
+        crash_reports_enabled = true
+
+        [terminal]
+        new_tab_position = "end"
+        restore_layout = true
+
+        [updates]
+        channel = "stable"
+        """
+    )
   }
 
   @Test
-  func prefsRoundTripWithSchemaURL() throws {
-    let data = try JSONEncoder().encode(
+  func prefsRoundTripThroughToml() throws {
+    let data = try SupatermSettingsCodec.encode(
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: false,
@@ -89,7 +104,7 @@ struct SupatermSettingsTests {
         updateChannel: .tip
       )
     )
-    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
+    let prefs = try SupatermSettingsCodec.decode(data)
 
     #expect(
       prefs
@@ -107,19 +122,17 @@ struct SupatermSettingsTests {
   }
 
   @Test
-  func prefsDecodeIgnoresSchemaURL() throws {
+  func prefsDecodeUsesDefaultsForMissingSections() throws {
     let data = Data(
       #"""
-      {
-        "$schema": "https://supaterm.com/data/supaterm-settings.schema.json",
-        "appearanceMode": "dark"
-      }
+      [appearance]
+      mode = "light"
       """#.utf8
     )
 
-    let prefs = try JSONDecoder().decode(SupatermSettings.self, from: data)
+    let prefs = try SupatermSettingsCodec.decode(data)
 
-    #expect(prefs.appearanceMode == .dark)
+    #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)

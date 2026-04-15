@@ -1,5 +1,5 @@
 {
-  "originHash" : "468a521ebc0fb309d1114745b11c9c65b3789ab5acee082e1684a2c26d97d1ce",
+  "originHash" : "ad130e82ab65a60ba782630cfd2599abfc019597cf88a68eee635372728ac046",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -161,6 +161,15 @@
       "state" : {
         "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
         "version" : "602.0.0"
+      }
+    },
+    {
+      "identity" : "swift-toml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/swift-toml",
+      "state" : {
+        "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
+        "version" : "2.0.0"
       }
     },
     {

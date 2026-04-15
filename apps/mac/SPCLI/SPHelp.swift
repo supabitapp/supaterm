@@ -235,6 +235,24 @@ enum SPHelp {
       sp run --instance work-mac -- claude --resume
     """
 
+  static let configDiscussion = """
+    Example:
+      sp config validate
+      sp config validate --path ~/.config/supaterm/settings.toml
+      sp config validate --json
+    """
+
+  static let validateConfigDiscussion = """
+    Validate `~/.config/supaterm/settings.toml` by default.
+
+    Use `--path` to validate another file.
+
+    Example:
+      sp config validate
+      sp config validate --path ./settings.toml
+      sp config validate --json
+    """
+
   static let receiveAgentHookDiscussion = """
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
@@ -295,11 +313,6 @@ enum SPHelp {
     Example:
       sp internal agent-settings claude
       sp internal agent-settings codex
-    """
-
-  static let generateSettingsSchemaDiscussion = """
-    Example:
-      sp internal generate-settings-schema
     """
 
   static let developmentDiscussion = """
@@ -447,7 +460,6 @@ enum SPHelp {
   static let internalDiscussion = """
     Example:
       sp internal ping
-      sp internal generate-settings-schema
       sp internal agent-settings claude
       sp internal dev claude session-start
     """

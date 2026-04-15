@@ -211,12 +211,12 @@ struct SPCommandTests {
   }
 
   @Test
-  func internalParserAcceptsGenerateSettingsSchemaSubcommand() throws {
+  func configParserAcceptsValidateSubcommand() throws {
     let command = try #require(
-      try SP.parseAsRoot(["internal", "generate-settings-schema"]) as? SP.GenerateSettingsSchema
+      try SP.parseAsRoot(["config", "validate", "--path", "./settings.toml"]) as? SP.ValidateConfig
     )
 
-    #expect(type(of: command) == SP.GenerateSettingsSchema.self)
+    #expect(command.path == "./settings.toml")
   }
 
   @Test
