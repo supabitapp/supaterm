@@ -184,7 +184,6 @@ struct TerminalView: View {
       } message: {
         Text(spaceDeleteMessage)
       }
-      .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
       .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
       .animation(.easeOut(duration: 0.12), value: store.commandPalette != nil)
       .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.confirmationRequest)
@@ -260,8 +259,6 @@ struct TerminalView: View {
   }
 
   private func collapseSidebar() {
-    withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
-      _ = store.send(.collapseSidebarButtonTapped)
-    }
+    _ = store.send(.collapseSidebarButtonTapped)
   }
 }
