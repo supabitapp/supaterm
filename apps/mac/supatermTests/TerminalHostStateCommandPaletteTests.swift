@@ -71,11 +71,12 @@ struct TerminalHostStateCommandPaletteTests {
       initializeGhosttyForTests()
 
       let host = TerminalHostState()
+      let homeDirectoryPath = FileManager.default.homeDirectoryForCurrentUser.path
       host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
 
       let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
       host.selectedSurfaceView?.bridge.state.title = "ping 1.1.1.1"
-      host.selectedSurfaceView?.bridge.state.pwd = "/Users/Developer/Projects/network"
+      host.selectedSurfaceView?.bridge.state.pwd = "\(homeDirectoryPath)/Projects/network"
 
       _ = try host.createPane(
         .init(
