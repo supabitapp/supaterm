@@ -1092,7 +1092,11 @@ final class TerminalHostState {
     guard wasSelectedSpace else { return }
 
     if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
-      focusSurface(in: selectedTabID)
+      if trees[selectedTabID] != nil {
+        focusSurface(in: selectedTabID)
+      } else {
+        lastEmittedFocusSurfaceID = nil
+      }
       return
     }
 
@@ -1106,7 +1110,11 @@ final class TerminalHostState {
     }
 
     _ = applySelectedSpace(fallbackSpaceID)
-    focusSurface(in: fallbackTabID)
+    if trees[fallbackTabID] != nil {
+      focusSurface(in: fallbackTabID)
+    } else {
+      lastEmittedFocusSurfaceID = nil
+    }
   }
 
   func configureBridgeCallbacks(
