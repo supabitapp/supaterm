@@ -1,4 +1,4 @@
-type ChangeCategory = "new" | "updates" | "fixes";
+type ChangeCategory = "new" | "improvements" | "fixes";
 
 type ChangeSection = {
   category: ChangeCategory;
@@ -21,7 +21,7 @@ const changelogData: ChangelogEntry[] = [
     title: "Onboarding and defaults",
     sections: [
       {
-        category: "updates",
+        category: "improvements",
         items: [
           "Dark is now the default appearance",
           "Refined onboarding setup copy",
@@ -40,7 +40,7 @@ const changelogData: ChangelogEntry[] = [
     title: "CLI improvements",
     sections: [
       {
-        category: "updates",
+        category: "improvements",
         items: ["Renamed sp shell flag to script"],
       },
     ],
@@ -81,15 +81,15 @@ const changelogData: ChangelogEntry[] = [
 
 const categoryConfig: Record<ChangeCategory, { label: string; className: string }> = {
   new: {
-    label: "New",
+    label: "✨ New",
     className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
   },
-  updates: {
-    label: "Updates",
+  improvements: {
+    label: "🔧 Improvements",
     className: "border-sky-500/30 bg-sky-500/10 text-sky-400",
   },
   fixes: {
-    label: "Bug Fixes",
+    label: "🐛 Bug Fixes",
     className: "border-amber-500/30 bg-amber-500/10 text-amber-400",
   },
 };
