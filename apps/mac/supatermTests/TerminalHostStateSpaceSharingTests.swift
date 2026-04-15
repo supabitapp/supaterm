@@ -144,7 +144,7 @@ struct TerminalHostStateSpaceSharingTests {
 
   @Test
   func closingLastTabInSelectedSpaceSelectsAnotherNonEmptySpace() throws {
-    withDependencies {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
