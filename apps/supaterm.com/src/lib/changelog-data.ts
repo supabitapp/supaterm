@@ -79,20 +79,5 @@ const changelogData: ChangelogEntry[] = [
   },
 ];
 
-const categoryConfig: Record<ChangeCategory, { label: string; className: string }> = {
-  new: {
-    label: "✨ New",
-    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-  },
-  improvements: {
-    label: "🔧 Improvements",
-    className: "border-sky-500/30 bg-sky-500/10 text-sky-400",
-  },
-  fixes: {
-    label: "🐛 Bug Fixes",
-    className: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-  },
-};
-
-export { categoryConfig, changelogData };
+export { changelogData };
 export type { ChangeCategory, ChangelogEntry, ChangeSection };

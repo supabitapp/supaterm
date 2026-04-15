@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { categoryConfig, changelogData, type ChangeCategory } from "@/lib/changelog-data";
+import { changelogData, type ChangeCategory } from "@/lib/changelog-data";
 
 const categoryOrder: ChangeCategory[] = ["new", "improvements", "fixes"];
 
@@ -43,23 +43,22 @@ function ChangelogPage() {
                   </div>
                 ) : null}
                 <div className="mt-6 space-y-5">
-                  {sorted.map((section) => {
-                    const config = categoryConfig[section.category];
-                    return (
-                      <div key={section.category} className="border-t border-white/8 pt-4">
-                        <span
-                          className={`inline-block rounded-md border px-2.5 py-1 text-xs font-medium ${config.className}`}
-                        >
-                          {config.label}
-                        </span>
-                        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-base leading-7 text-white/62">
-                          {section.items.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })}
+                  {sorted.map((section) => (
+                    <div key={section.category} className="border-t border-white/8 pt-4">
+                      <h3 className="text-sm font-semibold text-[#f4f0e8]">
+                        {section.category === "new"
+                          ? "✨ New"
+                          : section.category === "improvements"
+                            ? "🔧 Improvements"
+                            : "🐛 Bug Fixes"}
+                      </h3>
+                      <ul className="mt-3 list-disc space-y-1.5 pl-5 text-base leading-7 text-white/62">
+                        {section.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               </div>
             </article>
