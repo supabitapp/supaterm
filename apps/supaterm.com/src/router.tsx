@@ -33,3 +33,4 @@ declare module "@tanstack/react-router" {
 }
 
 export { router };
+export { routeTree };
