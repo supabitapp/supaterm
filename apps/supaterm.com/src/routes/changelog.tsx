@@ -20,15 +20,15 @@ function ChangelogPage() {
           return (
             <article
               key={entry.version}
-              className="relative grid gap-x-10 pb-14 md:grid-cols-[160px_1fr]"
+              className="relative grid gap-x-12 pb-14 md:grid-cols-[180px_1fr]"
             >
               <div className="relative md:pt-0.5">
-                <div className="flex items-center gap-3 md:flex-col md:items-start md:gap-1.5">
+                <div className="flex items-center gap-3 md:flex-col md:items-end md:gap-2 md:pr-6">
                   <Badge variant="outline">{entry.version}</Badge>
                   <span className="text-sm text-white/42">{entry.date}</span>
                 </div>
-                <div className="absolute top-0 right-0 bottom-0 hidden w-px bg-white/8 md:block" />
-                <div className="absolute top-1.5 -right-[4.5px] hidden size-2 rounded-full border border-white/20 bg-[#12100b] md:block" />
+                <div className="absolute top-0 right-0 bottom-0 hidden w-px bg-white/10 md:block" />
+                <div className="absolute top-[7px] -right-[5px] hidden size-[10px] rounded-full border-2 border-white/30 bg-white/10 md:block" />
               </div>
               <div>
                 <h2 className="mt-4 text-xl font-medium tracking-[-0.02em] text-[#f4f0e8] md:mt-0">
