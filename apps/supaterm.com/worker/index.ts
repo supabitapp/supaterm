@@ -198,12 +198,6 @@ export default {
       return serveVideoAsset(request, assets);
     }
 
-    const response = await assets.fetch(request);
-
-    if (response.status === 404 && !new URL(request.url).pathname.includes(".")) {
-      return assets.fetch(new Request(new URL("/index.html", request.url), request));
-    }
-
-    return response;
+    return assets.fetch(request);
   },
 };
