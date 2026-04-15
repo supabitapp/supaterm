@@ -1,15 +1,9 @@
 import AppKit
-import OSLog
 import SwiftUI
 
 enum AppearanceDiagnostics {
-  private static let logger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "app.supabit.supaterm",
-    category: "appearance"
-  )
-
   static func log(_ message: String) {
-    logger.notice("\(message, privacy: .public)")
+    print("[appearance] \(message)")
   }
 
   static func describe(_ appearanceMode: AppearanceMode) -> String {
