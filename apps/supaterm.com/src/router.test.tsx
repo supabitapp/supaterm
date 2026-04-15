@@ -1,14 +1,18 @@
 // @vitest-environment jsdom
 
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { downloadHref } from "@/lib/downloads";
 import { routeTree } from "./router";
 
+const { capture } = vi.hoisted(() => ({
+  capture: vi.fn(),
+}));
+
 vi.mock("posthog-js", () => ({
   posthog: {
-    capture: vi.fn(),
+    capture,
   },
 }));
 
@@ -51,12 +55,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("router", () => {
-  it("renders download links that point to the latest dmg route", async () => {
-    await renderRoute("/");
+  it("clicking download keeps the SPA on the current page", async () => {
+    const { history, router } = await renderRoute("/");
 
     const downloadLinks = screen.getAllByRole("link", {
       name: /^download/i,
@@ -68,6 +73,33 @@ describe("router", () => {
       expect(link.getAttribute("href")).toBe(downloadHref);
       expect(link.hasAttribute("download")).toBe(true);
     }
+
+    const downloadLink = screen.getByRole("link", {
+      name: /^download$/i,
+    });
+
+    let defaultPrevented = false;
+    const preventDocumentNavigation = (event: MouseEvent) => {
+      if (event.target !== downloadLink) {
+        return;
+      }
+
+      defaultPrevented = event.defaultPrevented;
+      event.preventDefault();
+    };
+
+    document.addEventListener("click", preventDocumentNavigation);
+    fireEvent.click(downloadLink);
+    document.removeEventListener("click", preventDocumentNavigation);
+
+    await waitFor(() => {
+      expect(history.location.pathname).toBe("/");
+      expect(router.state.location.pathname).toBe("/");
+    });
+
+    expect(defaultPrevented).toBe(false);
+    expect(screen.getByRole("heading", { name: /The terminal with/i })).toBeTruthy();
+    expect(capture).toHaveBeenCalledWith("nav_download_clicked");
   });
 
   it("renders the changelog page for direct navigation", async () => {
