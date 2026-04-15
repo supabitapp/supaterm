@@ -23,7 +23,9 @@ struct TerminalDetailView: View {
           _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
         },
         toggleSidebar: {
-          _ = store.send(.toggleSidebarButtonTapped)
+          withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+            _ = store.send(.toggleSidebarButtonTapped)
+          }
         },
         title: terminal.selectedPaneDisplayTitle,
         splitDown: {
