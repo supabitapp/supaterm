@@ -304,6 +304,73 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func commandPaletteSnapshotBuildsCheckForUpdatesEntryWhenIdle() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
+      var state = AppFeature.State()
+      state.update.canCheckForUpdates = true
+      let store = Store(initialState: state) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
+
+      #expect(snapshot.updateEntries.map(\.title) == ["Check for Updates..."])
+      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
+    }
+  }
+
+  @Test
+  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenRestartIsDeferred() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
+      var state = AppFeature.State()
+      state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+      let store = Store(initialState: state) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
+
+      #expect(snapshot.updateEntries.map(\.title) == ["Restart to Update..."])
+      #expect(snapshot.updateEntries.first?.action == .restartNow)
+      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
+    }
+  }
+
+  @Test
   func focusCommandPalettePaneFocusesTheRequestedPane() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

@@ -29,7 +29,10 @@ struct TerminalHostStateCommandPaletteTests {
       [
         "keybind = super+shift+y=open_config",
         "keybind = super+ctrl+f=toggle_fullscreen",
+        "keybind = super+shift+u=check_for_updates",
         "command-palette-entry = title:Open Config,description:Open the configuration file.,action:open_config",
+        "command-palette-entry = title:Check for Updates,"
+          + "description:Check for available updates.,action:check_for_updates",
         "command-palette-entry = title:Next Window,description:Focus the next window.,action:goto_window:next",
         "command-palette-entry = title:Reset Window Size,"
           + "description:Return the window to its default size.,action:reset_window_size",
@@ -49,6 +52,7 @@ struct TerminalHostStateCommandPaletteTests {
     let shortcuts = host.commandPaletteGhosttyShortcutDisplayByAction()
 
     #expect(commands.contains(where: { $0.action == "open_config" }))
+    #expect(!commands.contains(where: { $0.actionKey == "check_for_updates" }))
     #expect(!commands.contains(where: { $0.actionKey == "goto_window" }))
     #expect(!commands.contains(where: { $0.actionKey == "reset_window_size" }))
     #expect(!commands.contains(where: { $0.actionKey == "toggle_fullscreen" }))
@@ -56,6 +60,7 @@ struct TerminalHostStateCommandPaletteTests {
     #expect(!commands.contains(where: { $0.actionKey == "toggle_quick_terminal" }))
     #expect(!commands.contains(where: { $0.actionKey == "toggle_window_float_on_top" }))
     #expect(shortcuts["open_config"] == "⌘⇧Y")
+    #expect(shortcuts["check_for_updates"] == nil)
     #expect(shortcuts["goto_window:next"] == nil)
     #expect(shortcuts["reset_window_size"] == nil)
     #expect(shortcuts["toggle_fullscreen"] == nil)

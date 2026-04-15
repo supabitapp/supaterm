@@ -357,8 +357,8 @@ final class TerminalWindowRegistry {
     let summary = state.phase.summaryText.trimmingCharacters(in: .whitespacesAndNewlines)
     let detail = state.phase.detailMessage.trimmingCharacters(in: .whitespacesAndNewlines)
 
-    return state.phase.actionPresentations.map { presentation in
-      .init(
+    var entries: [TerminalCommandPaletteUpdateEntry] = state.phase.actionPresentations.map { presentation in
+      TerminalCommandPaletteUpdateEntry(
         id: "\(state.phase.debugIdentifier):\(presentation.title)",
         title: presentation.title,
         subtitle: summary.isEmpty ? nil : summary,
@@ -369,6 +369,23 @@ final class TerminalWindowRegistry {
         action: presentation.action
       )
     }
+
+    if entries.isEmpty, let action = updateMenuItemAction(for: state) {
+      entries.append(
+        TerminalCommandPaletteUpdateEntry(
+          id: "menu:\(state.phase.debugIdentifier):\(state.phase.menuItemTitle)",
+          title: state.phase.menuItemTitle,
+          subtitle: summary.isEmpty ? nil : summary,
+          description: detail.isEmpty ? nil : detail,
+          leadingIcon: state.phase.menuItemAction == .restartNow ? state.phase.iconName : nil,
+          badge: state.phase.badgeText,
+          emphasis: state.phase.menuItemAction == .restartNow,
+          action: action
+        )
+      )
+    }
+
+    return entries
   }
 
   private func commandPaletteEntry(for windowID: ObjectIdentifier?) -> Entry? {
