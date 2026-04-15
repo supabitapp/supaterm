@@ -4,6 +4,11 @@ description: Install macOS build dependencies and restore Ghostty build cache
 runs:
   using: composite
   steps:
+    - name: Select Xcode 26.3
+      shell: bash
+      run: |
+        sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+        xcodebuild -version
     - uses: jdx/mise-action@v4
       with:
         version: 2026.3.0
