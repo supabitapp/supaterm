@@ -227,6 +227,9 @@ struct TerminalView: View {
 
   @ViewBuilder
   private func terminalLayout(geometry: GeometryProxy) -> some View {
+    let layoutIsSidebarCollapsed =
+      store.sidebarTransitionPhase == .showing || store.isSidebarCollapsed
+
     ZStack(alignment: .leading) {
       TerminalSplitView(
         store: store,
@@ -234,7 +237,8 @@ struct TerminalView: View {
         palette: palette,
         terminal: terminal,
         totalWidth: geometry.size.width,
-        isSidebarCollapsed: store.isSidebarCollapsed,
+        isSidebarCollapsed: layoutIsSidebarCollapsed,
+        preservesSidebarSpace: store.sidebarTransitionPhase == .hiding,
         sidebarFraction: sidebarFractionBinding,
         minFraction: minSidebarFraction,
         maxFraction: maxSidebarFraction,
@@ -242,7 +246,17 @@ struct TerminalView: View {
       )
       .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-      if store.isSidebarCollapsed {
+      if let sidebarTransitionPhase = store.sidebarTransitionPhase {
+        SidebarTransitionOverlay(
+          phase: sidebarTransitionPhase,
+          store: store,
+          updateStore: updateStore,
+          palette: palette,
+          terminal: terminal,
+          totalWidth: geometry.size.width,
+          sidebarFraction: store.sidebarFraction
+        )
+      } else if store.isSidebarCollapsed {
         FloatingSidebarOverlay(
           store: store,
           updateStore: updateStore,

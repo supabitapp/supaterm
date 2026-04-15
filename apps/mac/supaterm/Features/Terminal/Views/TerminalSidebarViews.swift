@@ -10,6 +10,7 @@ struct TerminalSplitView: View {
   let terminal: TerminalHostState
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
+  let preservesSidebarSpace: Bool
   @Binding var sidebarFraction: CGFloat
   let minFraction: CGFloat
   let maxFraction: CGFloat
@@ -41,22 +42,30 @@ struct TerminalSplitView: View {
       fraction: handleFraction
     )
     let visualSidebarCollapsed = isSidebarCollapsed || isCollapsePreviewActive
-    let visibleSidebarWidth = visualSidebarCollapsed ? 0 : currentSidebarWidth
+    let preservesVisibleSidebarSpace = preservesSidebarSpace && !isCollapsePreviewActive
+    let visibleSidebarWidth =
+      visualSidebarCollapsed && !preservesVisibleSidebarSpace ? 0 : currentSidebarWidth
 
     ZStack(alignment: .leading) {
       HStack(spacing: 0) {
-        TerminalSidebarView(
-          store: store,
-          updateStore: updateStore,
-          palette: palette,
-          terminal: terminal
-        )
-        .frame(width: currentSidebarWidth)
-        .frame(maxHeight: .infinity)
-        .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
-        .frame(width: visibleSidebarWidth, alignment: .leading)
-        .clipped()
-        .allowsHitTesting(!visualSidebarCollapsed)
+        if preservesVisibleSidebarSpace {
+          Color.clear
+            .frame(width: currentSidebarWidth)
+            .frame(maxHeight: .infinity)
+        } else {
+          TerminalSidebarView(
+            store: store,
+            updateStore: updateStore,
+            palette: palette,
+            terminal: terminal
+          )
+          .frame(width: currentSidebarWidth)
+          .frame(maxHeight: .infinity)
+          .offset(x: visualSidebarCollapsed ? -(currentSidebarWidth + 12) : 0)
+          .frame(width: visibleSidebarWidth, alignment: .leading)
+          .clipped()
+          .allowsHitTesting(!visualSidebarCollapsed)
+        }
 
         if let selectedTabID = terminal.selectedTabID {
           TerminalDetailView(
@@ -72,7 +81,7 @@ struct TerminalSplitView: View {
         }
       }
 
-      if !isSidebarCollapsed {
+      if !isSidebarCollapsed && !preservesSidebarSpace {
         SidebarResizeHandle(
           totalWidth: totalWidth,
           sidebarFraction: $sidebarFraction,
@@ -85,6 +94,69 @@ struct TerminalSplitView: View {
       }
     }
     .coordinateSpace(name: TerminalCoordinateSpace.split)
+  }
+}
+
+struct SidebarTransitionOverlay: View {
+  let phase: TerminalSidebarTransitionPhase
+  let store: StoreOf<TerminalWindowFeature>
+  let updateStore: StoreOf<UpdateFeature>
+  let palette: TerminalPalette
+  let terminal: TerminalHostState
+  let totalWidth: CGFloat
+  let sidebarFraction: CGFloat
+
+  @State private var isVisible: Bool
+
+  init(
+    phase: TerminalSidebarTransitionPhase,
+    store: StoreOf<TerminalWindowFeature>,
+    updateStore: StoreOf<UpdateFeature>,
+    palette: TerminalPalette,
+    terminal: TerminalHostState,
+    totalWidth: CGFloat,
+    sidebarFraction: CGFloat
+  ) {
+    self.phase = phase
+    self.store = store
+    self.updateStore = updateStore
+    self.palette = palette
+    self.terminal = terminal
+    self.totalWidth = totalWidth
+    self.sidebarFraction = sidebarFraction
+    _isVisible = State(initialValue: phase == .hiding)
+  }
+
+  var body: some View {
+    let width = TerminalSplitMetrics.sidebarWidth(
+      for: totalWidth,
+      fraction: sidebarFraction
+    )
+
+    ZStack(alignment: .leading) {
+      if isVisible {
+        FloatingSidebarView(
+          store: store,
+          updateStore: updateStore,
+          palette: palette,
+          terminal: terminal,
+          width: width
+        )
+        .frame(width: width)
+        .transition(.move(edge: .leading))
+      }
+    }
+    .allowsHitTesting(false)
+    .onAppear(perform: animateVisibility)
+    .onChange(of: phase) { _, _ in
+      animateVisibility()
+    }
+  }
+
+  private func animateVisibility() {
+    withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+      isVisible = phase == .showing
+    }
   }
 }
 
