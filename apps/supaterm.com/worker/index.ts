@@ -1,3 +1,5 @@
+import { buildDownloadTargetUrl, downloadRoutes } from "../src/lib/downloads";
+
 type AssetBinding = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 };
@@ -15,18 +17,6 @@ type CloudflareRequestInit = RequestInit & {
 
 const cacheControl = "public, max-age=300";
 const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
-const downloadRoutes = [
-  {
-    prefix: "/download/latest/",
-    base: "https://github.com/supabitapp/supaterm/releases/latest/download/",
-  },
-  {
-    prefix: "/download/tip/",
-    base: "https://github.com/supabitapp/supaterm/releases/download/tip/",
-    appcastBase: "https://github.com/supabitapp/supaterm/releases/latest/download/",
-  },
-] as const;
-
 const methodNotAllowed = () =>
   new Response("Method Not Allowed", {
     status: 405,
@@ -141,27 +131,12 @@ const serveVideoAsset = async (request: Request, assets: AssetBinding) => {
   });
 };
 
-const buildTargetUrl = (route: (typeof downloadRoutes)[number], requestUrl: URL) => {
-  const assetPath = requestUrl.pathname.slice(route.prefix.length);
-  if (!assetPath) {
-    return null;
-  }
-
-  const base =
-    assetPath === "appcast.xml" && "appcastBase" in route && route.appcastBase
-      ? route.appcastBase
-      : route.base;
-  const targetUrl = new URL(`${base}${assetPath}`);
-  targetUrl.search = requestUrl.search;
-  return targetUrl;
-};
-
-const proxyDownloadAsset = async (route: (typeof downloadRoutes)[number], request: Request) => {
+const proxyDownloadAsset = async (request: Request) => {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return methodNotAllowed();
   }
 
-  const targetUrl = buildTargetUrl(route, new URL(request.url));
+  const targetUrl = buildDownloadTargetUrl(new URL(request.url));
   if (!targetUrl) {
     return notFound();
   }
@@ -186,7 +161,7 @@ export default {
   async fetch(request: Request, env: Env) {
     const route = getDownloadRoute(new URL(request.url).pathname);
     if (route) {
-      return proxyDownloadAsset(route, request);
+      return proxyDownloadAsset(request);
     }
 
     const assets = getAssets(env);

@@ -174,6 +174,7 @@ function HomePage() {
                 <CtaLink
                   href={downloadHref}
                   icon="download"
+                  download
                   onClick={() => posthog.capture("download_clicked")}
                   className="rounded-full bg-[#f1ede4] px-7 text-base text-[#12100b] hover:bg-white"
                 >
@@ -301,6 +302,7 @@ function HomePage() {
             <CtaLink
               href={downloadHref}
               icon="download"
+              download
               onClick={() => posthog.capture("cta_download_clicked")}
               className="min-w-0 rounded-full bg-[#f1ede4] px-8 py-7 text-[1.15rem] text-[#12100b] hover:bg-white md:min-w-[21rem]"
             >

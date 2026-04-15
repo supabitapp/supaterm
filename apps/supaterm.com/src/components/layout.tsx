@@ -4,9 +4,9 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { posthog } from "posthog-js";
 import { type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
+import { downloadHref } from "@/lib/downloads";
 import { cn } from "@/lib/utils";
 
-const downloadHref = "https://supaterm.com/download/latest/supaterm.dmg";
 const githubHref = "https://github.com/supabitapp/supaterm";
 const releasesHref = "https://github.com/supabitapp/supaterm/releases";
 
@@ -24,6 +24,7 @@ type CtaLinkProps = {
   size?: "lg";
   showIcon?: boolean;
   onClick?: () => void;
+  download?: boolean;
 };
 
 function CtaLink({
@@ -35,10 +36,12 @@ function CtaLink({
   size = "lg",
   showIcon = true,
   onClick,
+  download,
 }: CtaLinkProps) {
   return (
     <a
       href={href}
+      download={download}
       onClick={onClick}
       className={cn(buttonVariants({ variant, size }), showIcon ? "gap-3" : "gap-0", className)}
     >
@@ -87,6 +90,7 @@ function Layout() {
               href={downloadHref}
               icon="download"
               showIcon={false}
+              download
               onClick={() => posthog.capture("nav_download_clicked")}
               className="h-[1.55rem] rounded-full bg-[#f1ede4] px-3.5 text-[0.7rem] leading-none font-normal text-[#12100b] hover:bg-white"
             >
