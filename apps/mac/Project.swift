@@ -325,7 +325,6 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
-        .target(name: "sp"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -384,6 +383,37 @@ let project = Project(
         ],
         defaultSettings: .essential
       )
+    ),
+  ],
+  schemes: [
+    .scheme(
+      name: "supaterm",
+      buildAction: .buildAction(
+        targets: [
+          .target("sp"),
+          .target("supaterm"),
+        ],
+        buildOrder: .manual,
+        runPostActionsOnFailure: true
+      ),
+      testAction: .targets(
+        [
+          .testableTarget(target: .target("supatermTests")),
+        ],
+        configuration: .debug,
+        expandVariableFromTarget: .target("supaterm")
+      ),
+      runAction: .runAction(
+        configuration: .debug,
+        executable: .executable(.target("supaterm")),
+        expandVariableFromTarget: .target("supaterm")
+      ),
+      archiveAction: .archiveAction(configuration: .release),
+      profileAction: .profileAction(
+        configuration: .release,
+        executable: .target("supaterm")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
     ),
   ],
   additionalFiles: [
