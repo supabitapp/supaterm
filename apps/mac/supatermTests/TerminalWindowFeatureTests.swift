@@ -737,51 +737,17 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func toggleSidebarButtonTappedStartsHideTransitionAndCommitsAfterDelay() async {
-    let clock = TestClock()
+  func toggleSidebarButtonTappedTogglesCollapsedStateAndHidesFloatingSidebar() async {
     var initialState = TerminalWindowFeature.State()
     initialState.isFloatingSidebarVisible = true
 
     let store = TestStore(initialState: initialState) {
       TerminalWindowFeature()
-    } withDependencies: {
-      $0.continuousClock = clock
     }
 
     await store.send(.toggleSidebarButtonTapped) {
       $0.isFloatingSidebarVisible = false
-      $0.sidebarTransitionPhase = .hiding
-    }
-
-    await clock.advance(by: .milliseconds(220))
-
-    await store.receive(\.sidebarTransitionCommit) {
       $0.isSidebarCollapsed = true
-      $0.sidebarTransitionPhase = nil
-    }
-  }
-
-  @Test
-  func toggleSidebarButtonTappedStartsShowTransitionAndCommitsAfterDelay() async {
-    let clock = TestClock()
-    var initialState = TerminalWindowFeature.State()
-    initialState.isSidebarCollapsed = true
-
-    let store = TestStore(initialState: initialState) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.continuousClock = clock
-    }
-
-    await store.send(.toggleSidebarButtonTapped) {
-      $0.sidebarTransitionPhase = .showing
-    }
-
-    await clock.advance(by: .milliseconds(220))
-
-    await store.receive(\.sidebarTransitionCommit) {
-      $0.isSidebarCollapsed = false
-      $0.sidebarTransitionPhase = nil
     }
   }
 

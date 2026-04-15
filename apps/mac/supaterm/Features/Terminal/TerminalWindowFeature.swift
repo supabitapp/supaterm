@@ -8,12 +8,6 @@ import SupatermTerminalCore
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
-  static let sidebarTransition = "TerminalWindowFeature.sidebarTransition"
-}
-
-enum TerminalSidebarTransitionPhase: Equatable {
-  case showing
-  case hiding
 }
 
 struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
@@ -79,7 +73,6 @@ struct TerminalWindowFeature {
     var isSidebarCollapsed = false
     var pendingCloseRequest: PendingCloseRequest?
     var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
-    var sidebarTransitionPhase: TerminalSidebarTransitionPhase?
     var sidebarFraction: CGFloat = 0.2
     var spaceEditor: TerminalSpaceEditorState?
     var windowID: ObjectIdentifier?
@@ -163,7 +156,6 @@ struct TerminalWindowFeature {
     case selectSpaceButtonTapped(TerminalSpaceID)
     case selectSpaceMenuItemSelected(Int)
     case sidebarTabSplitRequested(surfaceID: UUID, direction: SupatermPaneDirection)
-    case sidebarTransitionCommit(TerminalSidebarTransitionPhase)
     case sidebarTabMoveCommitted(
       tabID: TerminalTabID,
       pinnedOrder: [TerminalTabID],
@@ -191,14 +183,11 @@ struct TerminalWindowFeature {
   }
 
   @Dependency(AnalyticsClient.self) var analyticsClient
-  @Dependency(\.continuousClock) var continuousClock
   @Dependency(ExternalNavigationClient.self) var externalNavigationClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalCommandPaletteClient.self) var terminalCommandPaletteClient
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
-
-  private let sidebarTransitionDuration: Duration = .milliseconds(220)
 
   var body: some Reducer<State, Action> {
     Reduce { state, action in
@@ -314,7 +303,6 @@ struct TerminalWindowFeature {
         return .none
 
       case .collapseSidebarButtonTapped:
-        state.sidebarTransitionPhase = nil
         state.isFloatingSidebarVisible = false
         state.isSidebarCollapsed = true
         return .none
@@ -376,17 +364,6 @@ struct TerminalWindowFeature {
             )
           )
         }
-
-      case .sidebarTransitionCommit(let phase):
-        guard state.sidebarTransitionPhase == phase else { return .none }
-        state.sidebarTransitionPhase = nil
-        switch phase {
-        case .showing:
-          state.isSidebarCollapsed = false
-        case .hiding:
-          state.isSidebarCollapsed = true
-        }
-        return .none
 
       case .sidebarTabMoveCommitted(let tabID, let pinnedOrder, let regularOrder):
         return sendCommand(
@@ -458,15 +435,9 @@ struct TerminalWindowFeature {
         return sendCommand(.togglePinned(tabID))
 
       case .toggleSidebarButtonTapped:
-        guard state.sidebarTransitionPhase == nil else { return .none }
         state.isFloatingSidebarVisible = false
-        let phase: TerminalSidebarTransitionPhase = state.isSidebarCollapsed ? .showing : .hiding
-        state.sidebarTransitionPhase = phase
-        return .run { [continuousClock, duration = sidebarTransitionDuration] send in
-          try? await continuousClock.sleep(for: duration)
-          await send(.sidebarTransitionCommit(phase))
-        }
-        .cancellable(id: TerminalWindowCancelID.sidebarTransition, cancelInFlight: true)
+        state.isSidebarCollapsed.toggle()
+        return .none
 
       case .confirmationCancelButtonTapped:
         guard let confirmationRequest = state.confirmationRequest else { return .none }
