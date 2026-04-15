@@ -44,7 +44,7 @@ function ChangelogPage() {
                 ) : null}
                 <div className="mt-6 space-y-5">
                   {sorted.map((section) => (
-                    <div key={section.category} className="border-t border-white/8 pt-4">
+                    <div key={section.category} className="pt-4">
                       <h3 className="text-sm font-semibold text-[#f4f0e8]">
                         {section.category === "new"
                           ? "✨ New"
