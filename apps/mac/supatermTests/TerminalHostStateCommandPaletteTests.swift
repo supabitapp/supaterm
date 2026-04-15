@@ -100,7 +100,6 @@ struct TerminalHostStateCommandPaletteTests {
       #expect(targets.map(\.windowControllerID) == [windowControllerID, windowControllerID])
       #expect(targets.map(\.title) == ["ping 1.1.1.1", "Pane 2"])
       #expect(targets.map(\.subtitle) == ["~/Projects/network", nil])
-      #expect(targets.allSatisfy { $0.tone == host.selectedTab?.tone })
     }
   }
 }

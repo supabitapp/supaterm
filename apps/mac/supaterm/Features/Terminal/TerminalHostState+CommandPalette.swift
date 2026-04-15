@@ -36,8 +36,7 @@ extension TerminalHostState {
               subtitle: commandPaletteSubtitle(
                 for: displayTitle,
                 workingDirectory: surface.bridge.state.pwd
-              ),
-              tone: tab.tone
+              )
             )
           )
         }

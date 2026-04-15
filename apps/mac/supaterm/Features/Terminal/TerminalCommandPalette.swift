@@ -12,7 +12,6 @@ struct TerminalCommandPaletteFocusTarget: Equatable, Sendable {
   let surfaceID: UUID
   let title: String
   let subtitle: String?
-  let tone: TerminalTone?
 }
 
 struct TerminalCommandPaletteUpdateEntry: Equatable, Sendable {
@@ -45,7 +44,6 @@ struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
   let subtitle: String?
   let description: String?
   let leadingIcon: String?
-  let tone: TerminalTone?
   let badge: String?
   let emphasis: Bool
   let shortcut: String?
@@ -117,20 +115,16 @@ enum TerminalCommandPalettePresentation {
 
     let normalizedQuery = query.lowercased()
     let matchedRows: [MatchedRow] = rows.enumerated().compactMap { index, row in
-      let matchesTone = toneMatches(for: row.tone, query: normalizedQuery)
-      guard row.searchableText.lowercased().contains(normalizedQuery) || matchesTone else {
+      guard row.searchableText.lowercased().contains(normalizedQuery) else {
         return nil
       }
-      return .init(index: index, row: row, matchesTone: matchesTone)
+      return .init(index: index, row: row)
     }
 
     return
       matchedRows
       .sorted { lhs, rhs in
-        if lhs.matchesTone == rhs.matchesTone {
-          return lhs.index < rhs.index
-        }
-        return lhs.matchesTone && !rhs.matchesTone
+        lhs.index < rhs.index
       }
       .map(\.row)
   }
@@ -195,7 +189,6 @@ enum TerminalCommandPalettePresentation {
       subtitle: nil,
       description: command.description.isEmpty ? nil : command.description,
       leadingIcon: nil,
-      tone: nil,
       badge: nil,
       emphasis: false,
       shortcut: shortcut,
@@ -212,7 +205,6 @@ enum TerminalCommandPalettePresentation {
       subtitle: entry.subtitle,
       description: entry.description,
       leadingIcon: entry.leadingIcon,
-      tone: nil,
       badge: entry.badge,
       emphasis: entry.emphasis,
       shortcut: nil,
@@ -229,7 +221,6 @@ enum TerminalCommandPalettePresentation {
       subtitle: target.subtitle,
       description: nil,
       leadingIcon: "rectangle.on.rectangle",
-      tone: target.tone,
       badge: nil,
       emphasis: false,
       shortcut: nil,
@@ -284,7 +275,6 @@ enum TerminalCommandPalettePresentation {
         subtitle: "View",
         description: nil,
         leadingIcon: nil,
-        tone: nil,
         badge: nil,
         emphasis: false,
         shortcut: toggleSidebarShortcut,
@@ -296,7 +286,6 @@ enum TerminalCommandPalettePresentation {
         subtitle: "Help",
         description: nil,
         leadingIcon: nil,
-        tone: nil,
         badge: nil,
         emphasis: false,
         shortcut: nil,
@@ -308,7 +297,6 @@ enum TerminalCommandPalettePresentation {
         subtitle: "Spaces",
         description: nil,
         leadingIcon: nil,
-        tone: nil,
         badge: nil,
         emphasis: false,
         shortcut: nil,
@@ -328,7 +316,6 @@ enum TerminalCommandPalettePresentation {
       subtitle: selectedSpace.name,
       description: nil,
       leadingIcon: nil,
-      tone: nil,
       badge: nil,
       emphasis: false,
       shortcut: nil,
@@ -347,7 +334,6 @@ enum TerminalCommandPalettePresentation {
       subtitle: selectedTab.title,
       description: nil,
       leadingIcon: nil,
-      tone: selectedTab.tone,
       badge: nil,
       emphasis: false,
       shortcut: nil,
@@ -366,7 +352,6 @@ enum TerminalCommandPalettePresentation {
         subtitle: "Space",
         description: nil,
         leadingIcon: nil,
-        tone: nil,
         badge: nil,
         emphasis: false,
         shortcut: nil,
@@ -386,7 +371,6 @@ enum TerminalCommandPalettePresentation {
         subtitle: "Tab",
         description: nil,
         leadingIcon: nil,
-        tone: tab.tone,
         badge: nil,
         emphasis: false,
         shortcut: nil,
@@ -409,38 +393,11 @@ enum TerminalCommandPalettePresentation {
       .map(\.element)
   }
 
-  private static func toneMatches(
-    for tone: TerminalTone?,
-    query: String
-  ) -> Bool {
-    guard let tone else { return false }
-    return query.contains(tone.commandPaletteSearchName)
-  }
 }
 
 private struct MatchedRow {
   let index: Int
   let row: TerminalCommandPaletteRow
-  let matchesTone: Bool
-}
-
-extension TerminalTone {
-  fileprivate var commandPaletteSearchName: String {
-    switch self {
-    case .amber:
-      "amber"
-    case .coral:
-      "coral"
-    case .mint:
-      "mint"
-    case .sky:
-      "sky"
-    case .slate:
-      "slate"
-    case .violet:
-      "violet"
-    }
-  }
 }
 
 extension Int {

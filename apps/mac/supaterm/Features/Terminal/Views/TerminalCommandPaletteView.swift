@@ -70,7 +70,6 @@ struct TerminalCommandPaletteOverlay: View {
                   LazyVStack(alignment: .leading, spacing: 3) {
                     ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                       CommandPaletteRowButton(
-                        palette: palette,
                         row: row,
                         shortcutHint: shortcutHint(for: row, index: index),
                         theme: theme,
@@ -219,7 +218,6 @@ struct TerminalCommandPaletteOverlay: View {
 }
 
 private struct CommandPaletteRowButton: View {
-  let palette: TerminalPalette
   let row: TerminalCommandPaletteRow
   let shortcutHint: String?
   let theme: TerminalCommandPaletteTheme
@@ -284,20 +282,12 @@ private struct CommandPaletteRowButton: View {
 
   @ViewBuilder
   private var leadingContent: some View {
-    HStack(spacing: 6) {
-      if let tone = row.tone {
-        Circle()
-          .fill(palette.fill(for: tone))
-          .frame(width: 8, height: 8)
-      }
-
-      if let leadingIcon = row.leadingIcon {
-        Image(systemName: leadingIcon)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(iconColor)
-          .frame(width: 14, height: 14)
-          .accessibilityHidden(true)
-      }
+    if let leadingIcon = row.leadingIcon {
+      Image(systemName: leadingIcon)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(iconColor)
+        .frame(width: 14, height: 14)
+        .accessibilityHidden(true)
     }
   }
 
@@ -453,7 +443,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
           subtitle: "Update Available",
           description: "Supaterm 1.2.3 is ready to download and install.",
           leadingIcon: "shippingbox.fill",
-          tone: nil,
           badge: "1.2.3",
           emphasis: true,
           shortcut: nil,
@@ -465,7 +454,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
           subtitle: "~/Projects/network",
           description: nil,
           leadingIcon: "rectangle.on.rectangle",
-          tone: .sky,
           badge: nil,
           emphasis: false,
           shortcut: nil,
@@ -474,8 +462,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
               windowControllerID: UUID(),
               surfaceID: UUID(),
               title: "ping 1.1.1.1",
-              subtitle: "~/Projects/network",
-              tone: .sky
+              subtitle: "~/Projects/network"
             )
           )
         ),
@@ -485,7 +472,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
           subtitle: nil,
           description: "Split the focused terminal to the right.",
           leadingIcon: nil,
-          tone: nil,
           badge: nil,
           emphasis: false,
           shortcut: "⌘D",
@@ -497,7 +483,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
           subtitle: nil,
           description: "Split the focused terminal below.",
           leadingIcon: nil,
-          tone: nil,
           badge: nil,
           emphasis: false,
           shortcut: "⌘⇧D",
@@ -509,7 +494,6 @@ private struct TerminalCommandPalettePreviewColumn: View {
           subtitle: "View",
           description: nil,
           leadingIcon: nil,
-          tone: nil,
           badge: nil,
           emphasis: false,
           shortcut: "⌘S",

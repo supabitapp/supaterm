@@ -49,16 +49,15 @@ struct TerminalCommandPaletteStateTests {
   }
 
   @Test
-  func toneQueryPrioritizesMatchingColoredRows() {
+  func unmatchedQueryReturnsNoRows() {
     let rows = TerminalCommandPalettePresentation.rows(from: makeSnapshot())
 
     let visibleRows = TerminalCommandPalettePresentation.visibleRows(
       in: rows,
-      query: "sky"
+      query: "missing"
     )
 
-    #expect(visibleRows.first?.tone == .sky)
-    #expect(visibleRows.allSatisfy { $0.tone == .sky })
+    #expect(visibleRows.isEmpty)
   }
 
   @Test
@@ -170,15 +169,13 @@ struct TerminalCommandPaletteStateTests {
           windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
           surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
           title: "ping 1.1.1.1",
-          subtitle: "~/Projects/network",
-          tone: .sky
+          subtitle: "~/Projects/network"
         ),
         .init(
           windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
           surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000204")!,
           title: "server.log",
-          subtitle: "/tmp/logs",
-          tone: .amber
+          subtitle: "/tmp/logs"
         ),
       ],
       selectedSpaceID: selectedSpaceID,

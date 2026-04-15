@@ -1122,8 +1122,7 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
     windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000301")!,
     surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000302")!,
     title: "ping 1.1.1.1",
-    subtitle: "~/Projects/network",
-    tone: .sky
+    subtitle: "~/Projects/network"
   )
 
   return .init(
