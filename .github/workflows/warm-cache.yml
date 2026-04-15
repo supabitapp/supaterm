@@ -20,3 +20,4 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
       - run: make mac-warm-cache
+      - run: make mac-warm-cache TUIST_CACHE_CONFIGURATION=Release

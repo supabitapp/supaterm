@@ -15,13 +15,14 @@ TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-st
 TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
+TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development-release
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
 TUIST_GENERATION_INPUTS := Project.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
 TUIST_GENERATE_CACHE_PROFILE ?= development
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release build-ghostty build-app run-app install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-app run-app install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -46,6 +47,8 @@ tuist-generate-sources: $(TUIST_SOURCE_GENERATION_STAMP)
 
 tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
+tuist-generate-release-cached: $(TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP)
+
 $(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	mise exec -- tuist install $(TUIST_INSTALL_FLAGS)
@@ -61,6 +64,12 @@ $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INS
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
+	touch "$@"
+
+$(TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
+	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
+	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
+	mise exec -- tuist generate --no-open --cache-profile development --configuration Release
 	touch "$@"
 
 build-ghostty:
