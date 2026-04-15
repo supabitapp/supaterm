@@ -15,6 +15,16 @@ function ChangelogPage() {
           <p className="mt-3 text-base leading-7 text-white/50">
             See what's new added, changed, fixed, improved or updated.
           </p>
+          <p className="mt-1 text-base leading-7 text-white/50">
+            Follow{" "}
+            <a
+              href="https://x.com/khoiracle"
+              className="text-white/70 underline underline-offset-2 transition-colors hover:text-white/90"
+            >
+              @khoiracle
+            </a>{" "}
+            for personalized tips for each release.
+          </p>
         </div>
       </div>
       <div className="mx-auto mt-12 max-w-3xl">
