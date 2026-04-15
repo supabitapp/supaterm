@@ -38,18 +38,29 @@ private struct WindowAppearanceSetter: NSViewRepresentable {
 private final class WindowAppearanceView: NSView {
   var appearanceMode: AppearanceMode = .system {
     didSet {
-      applyAppearance()
+      applyAppearance(reason: "modeChanged")
     }
   }
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    applyAppearance()
+    applyAppearance(reason: "viewDidMoveToWindow")
   }
 
-  private func applyAppearance() {
+  private func applyAppearance(reason: String) {
     guard window != nil else { return }
     let appearance = appearanceMode.appearance
+    AppearanceDiagnostics.log(
+      [
+        "app appearance",
+        "reason=\(reason)",
+        "mode=\(AppearanceDiagnostics.describe(appearanceMode))",
+        "requested=\(AppearanceDiagnostics.describe(appearance))",
+        "appBefore=\(AppearanceDiagnostics.describe(NSApp.appearance))",
+        "appEffective=\(AppearanceDiagnostics.describe(NSApp.effectiveAppearance))",
+        "windowCount=\(NSApp.windows.count)",
+      ].joined(separator: " ")
+    )
     NSApp.appearance = appearance
     for window in NSApp.windows {
       window.appearance = appearance
@@ -57,6 +68,14 @@ private final class WindowAppearanceView: NSView {
       window.contentView?.needsDisplay = true
       window.contentView?.displayIfNeeded()
       window.invalidateShadow()
+      AppearanceDiagnostics.log(
+        [
+          "app appearance applied",
+          "reason=\(reason)",
+          "mode=\(AppearanceDiagnostics.describe(appearanceMode))",
+          "window=\(AppearanceDiagnostics.describe(window: window))",
+        ].joined(separator: " ")
+      )
     }
   }
 }

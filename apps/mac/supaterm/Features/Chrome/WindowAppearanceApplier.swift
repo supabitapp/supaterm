@@ -20,21 +20,37 @@ final class WindowAppearanceApplierView: NSView {
     named: .aqua
   )! {
     didSet {
-      applyAppearance()
+      applyAppearance(reason: "appearanceChanged")
     }
   }
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    applyAppearance()
+    applyAppearance(reason: "viewDidMoveToWindow")
   }
 
-  private func applyAppearance() {
+  private func applyAppearance(reason: String) {
     guard let window else { return }
+    AppearanceDiagnostics.log(
+      [
+        "terminal appearance",
+        "reason=\(reason)",
+        "requested=\(AppearanceDiagnostics.describe(appliedAppearance))",
+        "before=\(AppearanceDiagnostics.describe(window: window))",
+      ].joined(separator: " ")
+    )
     window.appearance = appliedAppearance
     window.contentView?.needsLayout = true
     window.contentView?.needsDisplay = true
     window.contentView?.displayIfNeeded()
     window.invalidateShadow()
+    AppearanceDiagnostics.log(
+      [
+        "terminal appearance applied",
+        "reason=\(reason)",
+        "requested=\(AppearanceDiagnostics.describe(appliedAppearance))",
+        "after=\(AppearanceDiagnostics.describe(window: window))",
+      ].joined(separator: " ")
+    )
   }
 }

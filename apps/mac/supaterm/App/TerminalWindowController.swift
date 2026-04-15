@@ -175,6 +175,7 @@ final class TerminalWindowController: NSWindowController {
     )
     registry.updateWindow(window, for: windowControllerID)
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
+    logWindowAppearance("window init")
   }
 
   deinit {
@@ -195,11 +196,24 @@ final class TerminalWindowController: NSWindowController {
     isPerformingConfirmedClose = true
     window.close()
   }
+
+  private func logWindowAppearance(_ event: String) {
+    AppearanceDiagnostics.log(
+      [
+        event,
+        "controllerID=\(windowControllerID.uuidString)",
+        "window=\(AppearanceDiagnostics.describe(window: window))",
+        "appAppearance=\(AppearanceDiagnostics.describe(NSApp.appearance))",
+        "appEffective=\(AppearanceDiagnostics.describe(NSApp.effectiveAppearance))",
+      ].joined(separator: " ")
+    )
+  }
 }
 
 extension TerminalWindowController: NSWindowDelegate {
   func windowDidBecomeKey(_ notification: Notification) {
     commandHoldObserver.update(modifierFlags: NSEvent.modifierFlags)
+    logWindowAppearance("window becameKey")
   }
 
   func windowDidResignKey(_ notification: Notification) {
@@ -217,6 +231,7 @@ extension TerminalWindowController: NSWindowDelegate {
   }
 
   func windowWillClose(_ notification: Notification) {
+    logWindowAppearance("window willClose")
     registry.updateWindow(nil, for: windowControllerID)
     onWindowWillClose?(self)
   }

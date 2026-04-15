@@ -11,6 +11,7 @@ struct TerminalView: View {
   let updateStore: StoreOf<UpdateFeature>
   @Bindable var terminal: TerminalHostState
   @Shared(.supatermSettings) private var supatermSettings = .default
+  @Environment(\.colorScheme) private var inheritedColorScheme
 
   @State private var window: NSWindow?
 
@@ -105,6 +106,9 @@ struct TerminalView: View {
       .task(id: resolvedWindowActivity) {
         let activity = resolvedWindowActivity
         _ = store.send(.windowActivityChanged(activity))
+      }
+      .task(id: appearanceLogToken) {
+        logAppearanceState()
       }
       .onChange(of: store.commandPalette != nil) { wasPresented, isPresented in
         guard wasPresented, !isPresented else { return }
@@ -238,6 +242,31 @@ struct TerminalView: View {
       )
     }
     return .inactive
+  }
+
+  private var appearanceLogToken: String {
+    [
+      AppearanceDiagnostics.describe(supatermSettings.appearanceMode),
+      AppearanceDiagnostics.describe(inheritedColorScheme),
+      AppearanceDiagnostics.describe(terminal.terminalChromeColorScheme),
+      AppearanceDiagnostics.describe(chromeColorScheme),
+      AppearanceDiagnostics.describe(chromeAppearance),
+      AppearanceDiagnostics.describe(window: window),
+    ].joined(separator: "|")
+  }
+
+  private func logAppearanceState() {
+    AppearanceDiagnostics.log(
+      [
+        "terminal view",
+        "mode=\(AppearanceDiagnostics.describe(supatermSettings.appearanceMode))",
+        "inheritedColorScheme=\(AppearanceDiagnostics.describe(inheritedColorScheme))",
+        "terminalChromeColorScheme=\(AppearanceDiagnostics.describe(terminal.terminalChromeColorScheme))",
+        "appliedChromeColorScheme=\(AppearanceDiagnostics.describe(chromeColorScheme))",
+        "appliedChromeAppearance=\(AppearanceDiagnostics.describe(chromeAppearance))",
+        "window=\(AppearanceDiagnostics.describe(window: window))",
+      ].joined(separator: " ")
+    )
   }
 
   @ViewBuilder
