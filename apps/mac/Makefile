@@ -59,10 +59,10 @@ build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
-	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null)"; \
-	build_dir="$$(echo "$$settings" | jq -r '.[0].buildSettings.BUILT_PRODUCTS_DIR')"; \
-	product="$$(echo "$$settings" | jq -r '.[0].buildSettings.FULL_PRODUCT_NAME')"; \
-	exec_name="$$(echo "$$settings" | jq -r '.[0].buildSettings.EXECUTABLE_NAME')"; \
+	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "$(APP_SCHEME)" '.[] | select(.target == $$target) | .buildSettings')"; \
+	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
+	product="$$(echo "$$settings" | jq -r '.FULL_PRODUCT_NAME')"; \
+	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
 	SUPATERM_PRINT_SOCKET=1 "$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 install-tip: # Install tip build from github
