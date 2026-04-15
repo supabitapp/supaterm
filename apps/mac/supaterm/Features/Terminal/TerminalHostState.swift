@@ -987,16 +987,12 @@ final class TerminalHostState {
     guard let space = spaceManager.space(for: tabID) else { return }
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
+    let wasSelectedSpace = selectedSpaceID == space.id
 
     removeTree(for: tabID)
     tabManager.closeTab(tabID)
 
-    if let selectedTabID = tabManager.selectedTabId {
-      focusSurface(in: selectedTabID)
-    } else {
-      lastEmittedFocusSurfaceID = nil
-    }
-
+    updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
     syncFocus(windowActivity)
     if wasPinned {
       syncPinnedTabMembership(in: space.id)
@@ -1015,6 +1011,7 @@ final class TerminalHostState {
     guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else { return }
     let spaceID = spaceManager.space(for: tabID)?.id
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
+    let wasSelectedSpace = selectedSpaceID == spaceID
 
     let nextSurface =
       focusedSurfaceIDByTab[tabID] == surfaceID
@@ -1034,8 +1031,10 @@ final class TerminalHostState {
       spaceManager.space(for: tabID)
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
-      if let selectedTabID = selectedTabID {
-        focusSurface(in: selectedTabID)
+      if let spaceID {
+        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
+      } else {
+        lastEmittedFocusSurfaceID = nil
       }
       syncFocus(windowActivity)
       if wasPinned, let spaceID {
@@ -1084,6 +1083,30 @@ final class TerminalHostState {
     configureSurfaceCallbacks(for: view, tabID: tabID)
     surfaces[view.id] = view
     return view
+  }
+
+  func updateSelectionAfterClosingTab(
+    in spaceID: TerminalSpaceID,
+    wasSelectedSpace: Bool
+  ) {
+    guard wasSelectedSpace else { return }
+
+    if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
+      focusSurface(in: selectedTabID)
+      return
+    }
+
+    guard
+      let fallbackSpaceID = spaces.first(where: { !spaceManager.tabs(in: $0.id).isEmpty })?.id,
+      let fallbackTabID = spaceManager.selectedTabID(in: fallbackSpaceID)
+        ?? spaceManager.tabs(in: fallbackSpaceID).first?.id
+    else {
+      lastEmittedFocusSurfaceID = nil
+      return
+    }
+
+    _ = applySelectedSpace(fallbackSpaceID)
+    focusSurface(in: fallbackTabID)
   }
 
   func configureBridgeCallbacks(

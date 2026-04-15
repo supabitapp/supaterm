@@ -143,6 +143,32 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
+  func closingLastTabInSelectedSpaceSelectsAnotherNonEmptySpace() {
+    withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
+      let catalog = makeCatalog(["A", "B"])
+      $sharedCatalog.withLock { $0 = catalog }
+
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let firstSpaceID = catalog.spaces[0].id
+      let secondSpaceID = catalog.spaces[1].id
+      let firstTabID = host.spaceManager.tabManager(for: firstSpaceID)?
+        .createTab(title: "Terminal 1", icon: "terminal")
+      let secondTabID = host.spaceManager.tabManager(for: secondSpaceID)?
+        .createTab(title: "Terminal 2", icon: "terminal")
+      _ = host.applySelectedSpace(firstSpaceID)
+
+      host.performCloseTab(try #require(firstTabID))
+
+      #expect(host.selectedSpaceID == secondSpaceID)
+      #expect(host.spaceManager.selectedTabID(in: secondSpaceID) == secondTabID)
+      #expect(host.spaceManager.tabs(in: firstSpaceID).isEmpty)
+    }
+  }
+
+  @Test
   func closeSpaceRejectsOnlyRemainingSpace() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
