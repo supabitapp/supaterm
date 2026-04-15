@@ -65,7 +65,10 @@ jobs:
             exit 1
           fi
           echo "DEVELOPER_ID_IDENTITY_SHA=$DEVELOPER_ID_IDENTITY_SHA" >> "$GITHUB_ENV"
-      - run: make mac-archive XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
+      - run: make mac-tuist-install
+      - run: make mac-tuist-generate-release
+      - run: make mac-build-ghostty
+      - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
       - name: Write export options
         run: |
           mkdir -p apps/mac/build

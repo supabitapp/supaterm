@@ -21,7 +21,7 @@ TUIST_GENERATE_CACHE_PROFILE ?= development
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: build-app run-app install-tip archive export-archive format lint check test inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release build-ghostty build-app run-app install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -37,6 +37,14 @@ help:  # Display this help.
 generate-project: $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_GENERATE_CACHE_PROFILE) # Resolve packages and generate Xcode workspace
 
 generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages and generate a source-only Xcode workspace
+
+tuist-install: $(TUIST_INSTALL_STAMP)
+
+tuist-generate: $(TUIST_DEVELOPMENT_GENERATION_STAMP)
+
+tuist-generate-sources: $(TUIST_SOURCE_GENERATION_STAMP)
+
+tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
 $(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
@@ -55,7 +63,10 @@ $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INS
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
-build-app: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Build the macOS app (Debug)
+build-ghostty:
+	bash scripts/build-ghostty.sh
+
+build-app: tuist-generate build-ghostty # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
@@ -81,14 +92,18 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP) # Archive Release build for distribution
+archive: tuist-generate-release build-ghostty archive-xcodebuild # Archive Release build for distribution
+
+archive-xcodebuild:
 	mkdir -p build
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Release -destination "generic/platform=macOS" -archivePath build/supaterm.xcarchive archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$$APPLE_TEAM_ID" CODE_SIGN_IDENTITY="$$DEVELOPER_ID_IDENTITY_SHA" OTHER_CODE_SIGN_FLAGS="--timestamp" $(XCODEBUILD_FLAGS) 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: $(TUIST_DEVELOPMENT_GENERATION_STAMP) # Run the full macOS test suite
+test: tuist-generate build-ghostty test-xcodebuild # Run the full macOS test suite
+
+test-xcodebuild:
 	@if [ -t 1 ]; then \
 		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'; \
 	else \

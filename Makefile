@@ -13,7 +13,7 @@ GIT_HOOKS_DIR := .git-hooks
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-generate mac-generate-sources mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-export-archive mac-format mac-lint mac-check mac-test mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-build-ghostty mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format mac-lint mac-check mac-test mac-test-xcodebuild mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -48,11 +48,23 @@ worktree-create:  # Create a worktree and copy ignored and untracked files. Exam
 	test -n "$$wt_bin" || { echo "error: failed to install wt" >&2; exit 1; }; \
 	"$$wt_bin" switch "$(WORKTREE)" --from "$$(git rev-parse HEAD)" --copy-ignored --copy-untracked
 
+mac-tuist-install:
+	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-install
+
 mac-generate:  # Resolve packages and generate the macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project
 
+mac-tuist-generate:
+	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-generate
+
 mac-generate-sources:  # Generate the source-only macOS Xcode workspace.
 	@$(MAKE) -C "$(MAC_APP_DIR)" generate-project-sources
+
+mac-tuist-generate-release:
+	@$(MAKE) -C "$(MAC_APP_DIR)" tuist-generate-release
+
+mac-build-ghostty:
+	@$(MAKE) -C "$(MAC_APP_DIR)" build-ghostty
 
 mac-build:  # Build the macOS app in Debug.
 	@$(MAKE) -C "$(MAC_APP_DIR)" build-app
@@ -69,6 +81,9 @@ mac-install-tip:  # Install the latest tip release for the macOS app.
 mac-archive:  # Archive the macOS app for distribution.
 	@$(MAKE) -C "$(MAC_APP_DIR)" archive
 
+mac-archive-xcodebuild:
+	@$(MAKE) -C "$(MAC_APP_DIR)" archive-xcodebuild XCODEBUILD_FLAGS='$(XCODEBUILD_FLAGS)'
+
 mac-export-archive:  # Export the archived macOS app for distribution.
 	@$(MAKE) -C "$(MAC_APP_DIR)" export-archive
 
@@ -83,6 +98,9 @@ mac-check:  # Run local formatting and linting for the macOS app.
 
 mac-test:  # Run the macOS test suite.
 	@$(MAKE) -C "$(MAC_APP_DIR)" test
+
+mac-test-xcodebuild:
+	@$(MAKE) -C "$(MAC_APP_DIR)" test-xcodebuild
 
 mac-inspect-dependencies:  # Check the macOS Tuist graph for implicit dependencies.
 	@$(MAKE) -C "$(MAC_APP_DIR)" inspect-dependencies

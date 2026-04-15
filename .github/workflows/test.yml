@@ -23,4 +23,7 @@ jobs:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
       - run: make mac-lint
-      - run: make mac-test
+      - run: make mac-tuist-install
+      - run: make mac-tuist-generate
+      - run: make mac-build-ghostty
+      - run: make mac-test-xcodebuild
