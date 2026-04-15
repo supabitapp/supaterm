@@ -105,6 +105,26 @@ extension TerminalHostState {
     return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
+  var terminalChromeColorScheme: ColorScheme {
+    _ = runtimeConfigGeneration
+    if let runtime {
+      return runtime.chromeColorScheme()
+    }
+    let appearance = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
+    return appearance == .darkAqua ? .dark : .light
+  }
+
+  var terminalChromeAppearance: NSAppearance {
+    switch terminalChromeColorScheme {
+    case .light:
+      NSAppearance(named: .aqua) ?? NSAppearance(named: .darkAqua)!
+    case .dark:
+      NSAppearance(named: .darkAqua) ?? NSAppearance(named: .aqua)!
+    @unknown default:
+      NSAppearance(named: .darkAqua) ?? NSAppearance(named: .aqua)!
+    }
+  }
+
   var notificationAttentionColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)

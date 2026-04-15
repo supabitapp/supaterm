@@ -1,5 +1,7 @@
 import AppKit
 import ComposableArchitecture
+import Sharing
+import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -8,15 +10,23 @@ struct TerminalView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   @Bindable var terminal: TerminalHostState
-  @Environment(\.colorScheme) private var colorScheme
+  @Shared(.supatermSettings) private var supatermSettings = .default
 
   @State private var window: NSWindow?
 
   private let minSidebarFraction: CGFloat = 0.10
   private let maxSidebarFraction: CGFloat = 0.30
 
+  private var chromeColorScheme: ColorScheme {
+    supatermSettings.appearanceMode.colorScheme ?? terminal.terminalChromeColorScheme
+  }
+
+  private var chromeAppearance: NSAppearance {
+    supatermSettings.appearanceMode.appearance ?? terminal.terminalChromeAppearance
+  }
+
   private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: colorScheme)
+    TerminalPalette(colorScheme: chromeColorScheme)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -74,6 +84,9 @@ struct TerminalView: View {
     GeometryReader(content: terminalLayout)
       .frame(minWidth: 1_080, minHeight: 720)
       .background(palette.windowBackgroundTint)
+      .background {
+        WindowAppearanceApplier(appliedAppearance: chromeAppearance)
+      }
       .background {
         BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
           .ignoresSafeArea()
@@ -191,6 +204,7 @@ struct TerminalView: View {
         .spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id)
       )
       .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.spaces.map(\.id))
+      .environment(\.colorScheme, chromeColorScheme)
   }
 
   private func restoreTerminalFocusIfNeeded() {

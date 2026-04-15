@@ -2,11 +2,32 @@ import Foundation
 import Observation
 import Synchronization
 import Testing
+import SwiftUI
 
 @testable import supaterm
 
 @MainActor
 struct TerminalHostStateThemeTests {
+  @Test
+  func terminalChromeColorSchemeResolvesFromRuntimeBackground() throws {
+    let darkRuntime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      """
+    )
+    let lightRuntime = try makeGhosttyRuntime(
+      """
+      background = #F4E6D8
+      """
+    )
+
+    let darkHost = TerminalHostState(runtime: darkRuntime, managesTerminalSurfaces: false)
+    let lightHost = TerminalHostState(runtime: lightRuntime, managesTerminalSurfaces: false)
+
+    #expect(darkHost.terminalChromeColorScheme == .dark)
+    #expect(lightHost.terminalChromeColorScheme == .light)
+  }
+
   @Test
   func terminalBackgroundColorInvalidatesWhenMatchingRuntimeChanges() async throws {
     let runtime = try makeGhosttyRuntime(
@@ -54,6 +75,28 @@ struct TerminalHostStateThemeTests {
     await flushObservation()
 
     #expect(invalidationCount.withLock { $0 } == 0)
+  }
+
+  @Test
+  func terminalChromeColorSchemeInvalidatesWhenMatchingRuntimeChanges() async throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      """
+    )
+    let host = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
+    let invalidationCount = Mutex<Int>(0)
+
+    withObservationTracking {
+      _ = host.terminalChromeColorScheme
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: runtime)
+    await flushObservation()
+
+    #expect(invalidationCount.withLock { $0 } == 1)
   }
 
   private func flushObservation() async {

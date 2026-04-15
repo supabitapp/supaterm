@@ -679,6 +679,10 @@ final class GhosttyRuntime {
       ?? fallbackColor
   }
 
+  func chromeColorScheme() -> ColorScheme {
+    backgroundColor().isLightColor ? .light : .dark
+  }
+
   func scrollbarAppearanceName() -> NSAppearance.Name {
     backgroundColor().isLightColor ? .aqua : .darkAqua
   }
