@@ -940,6 +940,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
     cellSize
   }
 
+  func currentFontSizePoints() -> Double? {
+    guard let surface else { return nil }
+    guard let fontRaw = ghostty_surface_quicklook_font(surface) else { return nil }
+    let font = Unmanaged<CTFont>.fromOpaque(fontRaw)
+    defer { font.release() }
+    return Double(CTFontGetSize(font.takeUnretainedValue()))
+  }
+
   func shouldShowScrollbar() -> Bool {
     runtime.shouldShowScrollbar()
   }

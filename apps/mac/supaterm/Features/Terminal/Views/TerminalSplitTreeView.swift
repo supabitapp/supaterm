@@ -53,6 +53,7 @@ struct TerminalSplitTreeView: View {
     let viewSize: CGSize
     let gridSize: ResizeOverlayGridSize
     let cellSizeChangeCount: Int
+    let fontSizePoints: Double?
   }
 
   enum OuterEdgeBranch {
@@ -133,6 +134,26 @@ struct TerminalSplitTreeView: View {
     guard ready else { return true }
     guard let lastTrigger else { return true }
     return lastTrigger == currentTrigger
+  }
+
+  static func resizeOverlayText(
+    lastTrigger: ResizeOverlayTrigger?,
+    currentTrigger: ResizeOverlayTrigger
+  ) -> String {
+    if currentTrigger.cellSizeChangeCount != lastTrigger?.cellSizeChangeCount,
+      let fontSizePoints = currentTrigger.fontSizePoints
+    {
+      return formattedFontSize(fontSizePoints)
+    }
+    return "\(currentTrigger.gridSize.columns) × \(currentTrigger.gridSize.rows)"
+  }
+
+  static func formattedFontSize(_ fontSizePoints: Double) -> String {
+    let rounded = fontSizePoints.rounded()
+    if abs(fontSizePoints - rounded) < 0.05 {
+      return "\(Int(rounded)) pt"
+    }
+    return String(format: "%.1f pt", fontSizePoints)
   }
 
   var body: some View {
@@ -447,19 +468,23 @@ struct TerminalSplitTreeView: View {
       return .init(
         viewSize: geoSize,
         gridSize: gridSize,
-        cellSizeChangeCount: state.cellSizeChangeCount
+        cellSizeChangeCount: state.cellSizeChangeCount,
+        fontSizePoints: surfaceView.currentFontSizePoints()
       )
     }
 
     var body: some View {
       if let trigger {
-        let gridSize = trigger.gridSize
         let hidden = TerminalSplitTreeView.resizeOverlayIsHidden(
           ready: ready,
           lastTrigger: lastTrigger,
           currentTrigger: trigger
         )
-        Text(verbatim: "\(gridSize.columns) × \(gridSize.rows)")
+        let text = TerminalSplitTreeView.resizeOverlayText(
+          lastTrigger: lastTrigger,
+          currentTrigger: trigger
+        )
+        Text(verbatim: text)
           .padding(.init(top: padding, leading: padding, bottom: padding, trailing: padding))
           .background(
             RoundedRectangle(cornerRadius: 4)

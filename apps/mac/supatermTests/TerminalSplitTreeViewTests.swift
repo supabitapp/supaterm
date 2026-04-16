@@ -181,7 +181,8 @@ struct TerminalSplitTreeViewTests {
     let resizedTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 12, rows: 8),
-      cellSizeChangeCount: 0
+      cellSizeChangeCount: 0,
+      fontSizePoints: nil
     )
     let overlayIsVisibleAfterResize =
       TerminalSplitTreeView.resizeOverlayIsHidden(
@@ -189,7 +190,8 @@ struct TerminalSplitTreeViewTests {
         lastTrigger: .init(
           viewSize: .init(width: 100, height: 100),
           gridSize: .init(columns: 10, rows: 8),
-          cellSizeChangeCount: 0
+          cellSizeChangeCount: 0,
+          fontSizePoints: nil
         ),
         currentTrigger: resizedTrigger
       ) == false
@@ -225,12 +227,14 @@ struct TerminalSplitTreeViewTests {
     let lastTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 12, rows: 8),
-      cellSizeChangeCount: 1
+      cellSizeChangeCount: 1,
+      fontSizePoints: 15
     )
     let currentTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 10, rows: 7),
-      cellSizeChangeCount: 2
+      cellSizeChangeCount: 2,
+      fontSizePoints: 16
     )
 
     #expect(
@@ -240,6 +244,52 @@ struct TerminalSplitTreeViewTests {
         currentTrigger: currentTrigger
       )
     )
+  }
+
+  @Test
+  func resizeOverlayUsesGridTextForGeometryChanges() {
+    let text = TerminalSplitTreeView.resizeOverlayText(
+      lastTrigger: .init(
+        viewSize: .init(width: 100, height: 100),
+        gridSize: .init(columns: 10, rows: 8),
+        cellSizeChangeCount: 1,
+        fontSizePoints: 15
+      ),
+      currentTrigger: .init(
+        viewSize: .init(width: 120, height: 100),
+        gridSize: .init(columns: 12, rows: 8),
+        cellSizeChangeCount: 1,
+        fontSizePoints: 15
+      )
+    )
+
+    #expect(text == "12 × 8")
+  }
+
+  @Test
+  func resizeOverlayUsesFontSizeTextForFontZoomChanges() {
+    let text = TerminalSplitTreeView.resizeOverlayText(
+      lastTrigger: .init(
+        viewSize: .init(width: 120, height: 100),
+        gridSize: .init(columns: 12, rows: 8),
+        cellSizeChangeCount: 1,
+        fontSizePoints: 15
+      ),
+      currentTrigger: .init(
+        viewSize: .init(width: 120, height: 100),
+        gridSize: .init(columns: 10, rows: 7),
+        cellSizeChangeCount: 2,
+        fontSizePoints: 16
+      )
+    )
+
+    #expect(text == "16 pt")
+  }
+
+  @Test
+  func formattedFontSizeKeepsSingleDecimalOnlyWhenNeeded() {
+    #expect(TerminalSplitTreeView.formattedFontSize(15) == "15 pt")
+    #expect(TerminalSplitTreeView.formattedFontSize(15.5) == "15.5 pt")
   }
 
   @Test
