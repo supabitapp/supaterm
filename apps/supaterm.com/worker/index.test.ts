@@ -140,6 +140,38 @@ describe("worker", () => {
     await expect(response.text()).resolves.toBe("index");
   });
 
+  it("rewrites OG meta tags for the changelog route", async () => {
+    const shellHtml = [
+      "<!doctype html><html><head>",
+      "<title>Supaterm</title>",
+      '<meta name="description" content="The terminal with skills" />',
+      '<meta property="og:title" content="Supaterm - The terminal with skills" />',
+      '<meta property="og:description" content="Fast native terminal for you and your agents." />',
+      '<meta property="og:url" content="https://supaterm.com" />',
+      '<meta name="twitter:title" content="Supaterm" />',
+      '<meta name="twitter:description" content="The terminal with skills" />',
+      "</head><body></body></html>",
+    ].join("\n");
+
+    const assetsFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
+      .mockResolvedValueOnce(new Response(shellHtml, { headers: { "content-type": "text/html" } }));
+
+    const response = await worker.fetch(new Request("https://supaterm.com/changelog"), {
+      ASSETS: { fetch: assetsFetch } as AssetBinding,
+    });
+
+    const html = await response.text();
+    expect(html).toContain("<title>Changelog | Supaterm</title>");
+    expect(html).toContain('og:title" content="Changelog | Supaterm"');
+    expect(html).toContain('og:description" content="See what\'s new in Supaterm');
+    expect(html).toContain('og:url" content="https://supaterm.com/changelog"');
+    expect(html).toContain('twitter:title" content="Changelog | Supaterm"');
+    expect(html).toContain('twitter:description" content="See what\'s new in Supaterm');
+    expect(html).not.toContain("The terminal with skills");
+  });
+
   it("does not serve the SPA shell for missing routes with file extensions", async () => {
     const assetsFetch = vi.fn().mockResolvedValue(new Response("missing", { status: 404 }));
 

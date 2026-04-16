@@ -15,6 +15,40 @@ type CloudflareRequestInit = RequestInit & {
   };
 };
 
+const routeMeta: Record<string, Record<string, string>> = {
+  "/changelog": {
+    title: "Changelog | Supaterm",
+    description: "See what's new in Supaterm — latest features, improvements, and fixes.",
+    "og:title": "Changelog | Supaterm",
+    "og:description": "See what's new in Supaterm — latest features, improvements, and fixes.",
+    "og:url": "https://supaterm.com/changelog",
+    "twitter:title": "Changelog | Supaterm",
+    "twitter:description": "See what's new in Supaterm — latest features, improvements, and fixes.",
+  },
+};
+
+const rewriteMeta = async (response: Response, meta: Record<string, string>): Promise<Response> => {
+  let html = await response.text();
+
+  for (const [attr, value] of Object.entries(meta)) {
+    if (attr === "title") {
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${value}</title>`);
+    } else {
+      const escaped = attr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      html = html.replace(
+        new RegExp(`(<meta\\s+(?:property|name)="${escaped}"\\s+content=")[^"]*"`),
+        `$1${value}"`,
+      );
+    }
+  }
+
+  return new Response(html, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+};
+
 const cacheControl = "public, max-age=300";
 const byteRangePattern = /^bytes=(\d*)-(\d*)$/;
 const methodNotAllowed = () =>
@@ -176,7 +210,10 @@ export default {
     const response = await assets.fetch(request);
 
     if (response.status === 404 && !new URL(request.url).pathname.includes(".")) {
-      return assets.fetch(new Request(new URL("/index.html", request.url), request));
+      const pathname = new URL(request.url).pathname;
+      const shell = await assets.fetch(new Request(new URL("/index.html", request.url), request));
+      const meta = routeMeta[pathname];
+      return meta ? rewriteMeta(shell, meta) : shell;
     }
 
     return response;
