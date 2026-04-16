@@ -306,6 +306,8 @@ def staged_blob_paths() -> dict[str, str]:
     fields = metadata.split()
     if len(fields) < 5:
       continue
+    if fields[1] == "160000":
+      continue
     object_paths[fields[3]] = path
   return object_paths
 

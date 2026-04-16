@@ -268,6 +268,20 @@ class BumpAndReleaseTest(unittest.TestCase):
       },
     )
 
+  @patch("bump_and_release.run")
+  def test_staged_blob_paths_ignores_gitlinks(self, run_mock) -> None:
+    run_mock.return_value = (
+      ":160000 160000 old-submodule new-submodule M\0integrations/supaterm-skills\0"
+      ":100644 100644 old-blob new-blob M\0path/to/file.txt\0"
+    )
+
+    self.assertEqual(
+      staged_blob_paths(),
+      {
+        "new-blob": "path/to/file.txt",
+      },
+    )
+
   @patch("bump_and_release.read_object_metadata")
   @patch("bump_and_release.staged_blob_paths")
   def test_oversized_staged_blobs_reports_large_staged_blobs(
