@@ -2,7 +2,53 @@ import Foundation
 import SupatermCLIShared
 
 enum SPTreeRenderer {
+  private struct Snapshot {
+    struct Window {
+      let index: Int
+      let isKey: Bool
+      let spaces: [Space]
+    }
+
+    struct Space {
+      let index: Int
+      let name: String
+      let isSelected: Bool
+      let tabs: [Tab]
+    }
+
+    struct Tab {
+      let index: Int
+      let title: String
+      let isSelected: Bool
+      let panes: [Pane]
+    }
+
+    struct Pane {
+      let index: Int
+      let displayTitle: String?
+      let isFocused: Bool
+    }
+
+    let windows: [Window]
+  }
+
   static func render(_ snapshot: SupatermTreeSnapshot) -> String {
+    render(projectedSnapshot(from: snapshot))
+  }
+
+  static func render(_ snapshot: SupatermAppDebugSnapshot) -> String {
+    render(projectedSnapshot(from: snapshot))
+  }
+
+  static func renderPlain(_ snapshot: SupatermTreeSnapshot) -> String {
+    renderPlain(projectedSnapshot(from: snapshot))
+  }
+
+  static func renderPlain(_ snapshot: SupatermAppDebugSnapshot) -> String {
+    renderPlain(projectedSnapshot(from: snapshot))
+  }
+
+  private static func render(_ snapshot: Snapshot) -> String {
     var lines: [String] = []
 
     for (windowOffset, window) in snapshot.windows.enumerated() {
@@ -17,7 +63,7 @@ enum SPTreeRenderer {
     return lines.joined(separator: "\n")
   }
 
-  static func renderPlain(_ snapshot: SupatermTreeSnapshot) -> String {
+  private static func renderPlain(_ snapshot: Snapshot) -> String {
     snapshot.windows.flatMap { window in
       window.spaces.flatMap { space in
         let spaceSelector = "\(space.index)"
@@ -31,8 +77,7 @@ enum SPTreeRenderer {
 
           let paneLines = tab.panes.map { pane in
             let paneSelector = "\(space.index)/\(tab.index)/\(pane.index)"
-            let paneFlags = pane.isFocused ? "\tfocused" : ""
-            return "\(paneSelector)\tpane\(paneFlags)"
+            return plainPaneLine(pane, selector: paneSelector)
           }
 
           return [tabLine] + paneLines
@@ -44,7 +89,71 @@ enum SPTreeRenderer {
     .joined(separator: "\n")
   }
 
-  private static func renderSpaces(_ spaces: [SupatermTreeSnapshot.Space]) -> [String] {
+  private static func projectedSnapshot(from snapshot: SupatermTreeSnapshot) -> Snapshot {
+    .init(
+      windows: snapshot.windows.map { window in
+        .init(
+          index: window.index,
+          isKey: window.isKey,
+          spaces: window.spaces.map { space in
+            .init(
+              index: space.index,
+              name: space.name,
+              isSelected: space.isSelected,
+              tabs: space.tabs.map { tab in
+                .init(
+                  index: tab.index,
+                  title: tab.title,
+                  isSelected: tab.isSelected,
+                  panes: tab.panes.map { pane in
+                    .init(
+                      index: pane.index,
+                      displayTitle: nil,
+                      isFocused: pane.isFocused
+                    )
+                  }
+                )
+              }
+            )
+          }
+        )
+      }
+    )
+  }
+
+  private static func projectedSnapshot(from snapshot: SupatermAppDebugSnapshot) -> Snapshot {
+    .init(
+      windows: snapshot.windows.map { window in
+        .init(
+          index: window.index,
+          isKey: window.isKey,
+          spaces: window.spaces.map { space in
+            .init(
+              index: space.index,
+              name: space.name,
+              isSelected: space.isSelected,
+              tabs: space.tabs.map { tab in
+                .init(
+                  index: tab.index,
+                  title: tab.title,
+                  isSelected: tab.isSelected,
+                  panes: tab.panes.map { pane in
+                    .init(
+                      index: pane.index,
+                      displayTitle: pane.displayTitle,
+                      isFocused: pane.isFocused
+                    )
+                  }
+                )
+              }
+            )
+          }
+        )
+      }
+    )
+  }
+
+  private static func renderSpaces(_ spaces: [Snapshot.Space]) -> [String] {
     spaces.enumerated().flatMap { spaceOffset, space in
       let isLastSpace = spaceOffset == spaces.count - 1
       let spaceBranch = isLastSpace ? "└─ " : "├─ "
@@ -57,7 +166,7 @@ enum SPTreeRenderer {
   }
 
   private static func renderTabs(
-    _ tabs: [SupatermTreeSnapshot.Tab],
+    _ tabs: [Snapshot.Tab],
     prefix: String
   ) -> [String] {
     tabs.enumerated().flatMap { tabOffset, tab in
@@ -76,7 +185,7 @@ enum SPTreeRenderer {
     }
   }
 
-  private static func windowLine(_ window: SupatermTreeSnapshot.Window) -> String {
+  private static func windowLine(_ window: Snapshot.Window) -> String {
     var labels: [String] = []
     if window.isKey {
       labels.append("key")
@@ -88,7 +197,7 @@ enum SPTreeRenderer {
     return "window \(window.index) [\(labels.joined(separator: ", "))]"
   }
 
-  private static func spaceLine(_ space: SupatermTreeSnapshot.Space) -> String {
+  private static func spaceLine(_ space: Snapshot.Space) -> String {
     var labels: [String] = []
     if space.isSelected {
       labels.append("selected")
@@ -100,7 +209,7 @@ enum SPTreeRenderer {
     return "space \(space.index) \"\(space.name)\" [\(labels.joined(separator: ", "))]"
   }
 
-  private static func tabLine(_ tab: SupatermTreeSnapshot.Tab) -> String {
+  private static func tabLine(_ tab: Snapshot.Tab) -> String {
     var labels: [String] = []
     if tab.isSelected {
       labels.append("selected")
@@ -112,16 +221,28 @@ enum SPTreeRenderer {
     return "tab \(tab.index) \"\(tab.title)\" [\(labels.joined(separator: ", "))]"
   }
 
-  private static func paneLine(_ pane: SupatermTreeSnapshot.Pane) -> String {
+  private static func paneLine(_ pane: Snapshot.Pane) -> String {
     var labels: [String] = []
     if pane.isFocused {
       labels.append("focused")
     }
+    let title = pane.displayTitle.map { " \"\($0)\"" } ?? ""
 
     if labels.isEmpty {
-      return "pane \(pane.index)"
+      return "pane \(pane.index)\(title)"
     }
-    return "pane \(pane.index) [\(labels.joined(separator: ", "))]"
+    return "pane \(pane.index)\(title) [\(labels.joined(separator: ", "))]"
+  }
+
+  private static func plainPaneLine(_ pane: Snapshot.Pane, selector: String) -> String {
+    var columns = [selector, "pane"]
+    if let displayTitle = pane.displayTitle {
+      columns.append(displayTitle)
+    }
+    if pane.isFocused {
+      columns.append("focused")
+    }
+    return columns.joined(separator: "\t")
   }
 }
 
@@ -291,7 +412,7 @@ enum SPDebugRenderer {
 
       lines.append("")
       lines.append("Topology")
-      lines.append(SPTreeRenderer.render(app.treeSnapshot))
+      lines.append(SPTreeRenderer.render(app))
     }
 
     let allProblems = report.problems + (report.app?.problems ?? [])
@@ -382,41 +503,5 @@ enum SPDebugRenderer {
 
   private static func value<T: CustomStringConvertible>(_ value: T?) -> String {
     value?.description ?? "none"
-  }
-}
-
-extension SupatermAppDebugSnapshot {
-  fileprivate var treeSnapshot: SupatermTreeSnapshot {
-    .init(
-      windows: windows.map { window in
-        .init(
-          index: window.index,
-          isKey: window.isKey,
-          spaces: window.spaces.map { space in
-            .init(
-              index: space.index,
-              id: space.id,
-              name: space.name,
-              isSelected: space.isSelected,
-              tabs: space.tabs.map { tab in
-                .init(
-                  index: tab.index,
-                  id: tab.id,
-                  title: tab.title,
-                  isSelected: tab.isSelected,
-                  panes: tab.panes.map { pane in
-                    .init(
-                      index: pane.index,
-                      id: pane.id,
-                      isFocused: pane.isFocused
-                    )
-                  }
-                )
-              }
-            )
-          }
-        )
-      }
-    )
   }
 }

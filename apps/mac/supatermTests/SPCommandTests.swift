@@ -182,6 +182,100 @@ struct SPCommandTests {
   }
 
   @Test
+  func treeRendererShowsPaneDisplayTitles() {
+    let snapshot = SupatermAppDebugSnapshot(
+      build: .init(
+        version: "1.0.0",
+        buildNumber: "1",
+        isDevelopmentBuild: true,
+        usesStubUpdateChecks: false
+      ),
+      update: .init(
+        canCheckForUpdates: true,
+        phase: "idle",
+        detail: ""
+      ),
+      summary: .init(
+        windowCount: 1,
+        spaceCount: 1,
+        tabCount: 1,
+        paneCount: 1,
+        keyWindowIndex: 1
+      ),
+      currentTarget: nil,
+      windows: [
+        .init(
+          index: 1,
+          isKey: true,
+          isVisible: true,
+          spaces: [
+            .init(
+              index: 1,
+              id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+              name: "A",
+              isSelected: true,
+              tabs: [
+                .init(
+                  index: 1,
+                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                  title: "fish",
+                  isSelected: true,
+                  isPinned: false,
+                  isDirty: false,
+                  isTitleLocked: false,
+                  hasRunningActivity: false,
+                  hasBell: false,
+                  hasReadOnly: false,
+                  hasSecureInput: false,
+                  panes: [
+                    .init(
+                      index: 1,
+                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                      isFocused: true,
+                      displayTitle: "build",
+                      pwd: nil,
+                      isReadOnly: false,
+                      hasSecureInput: false,
+                      bellCount: 0,
+                      isRunning: false,
+                      progressState: nil,
+                      progressValue: nil,
+                      needsCloseConfirmation: false,
+                      lastCommandExitCode: nil,
+                      lastCommandDurationMs: nil,
+                      lastChildExitCode: nil,
+                      lastChildExitTimeMs: nil
+                    )
+                  ]
+                )
+              ]
+            )
+          ]
+        )
+      ],
+      problems: []
+    )
+
+    #expect(
+      SPTreeRenderer.render(snapshot)
+        == """
+        window 1 [key]
+        └─ space 1 "A" [selected]
+           └─ tab 1 "fish" [selected]
+              └─ pane 1 "build" [focused]
+        """
+    )
+    #expect(
+      SPTreeRenderer.renderPlain(snapshot)
+        == """
+        1\tspace\tA\tselected
+        1/1\ttab\tfish\tselected
+        1/1/1\tpane\tbuild\tfocused
+        """
+    )
+  }
+
+  @Test
   func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
     let claudeCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hook", "claude"]) as? SP.InstallAgentHook.Claude

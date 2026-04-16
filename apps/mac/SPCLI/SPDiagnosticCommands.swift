@@ -32,19 +32,30 @@ extension SP {
         path: options.connection.explicitSocketPath,
         instance: options.connection.instance
       )
-      let response = try client.send(.tree())
-      guard response.ok else {
-        throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
-      }
-
-      let snapshot = try response.decodeResult(SupatermTreeSnapshot.self)
       switch options.output.mode {
       case .json:
+        let response = try client.send(.tree())
+        guard response.ok else {
+          throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+        }
+
+        let snapshot = try response.decodeResult(SupatermTreeSnapshot.self)
         print(try jsonString(snapshot))
-      case .plain:
-        print(SPTreeRenderer.renderPlain(snapshot))
-      case .human:
-        print(SPTreeRenderer.render(snapshot))
+      case .plain, .human:
+        let response = try client.send(.debug(.init(context: SupatermCLIContext.current)))
+        guard response.ok else {
+          throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+        }
+
+        let snapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
+        switch options.output.mode {
+        case .plain:
+          print(SPTreeRenderer.renderPlain(snapshot))
+        case .human:
+          print(SPTreeRenderer.render(snapshot))
+        case .json:
+          break
+        }
       }
     }
   }
