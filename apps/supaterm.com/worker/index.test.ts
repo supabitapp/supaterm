@@ -163,11 +163,11 @@ describe("worker", () => {
     });
 
     const html = await response.text();
-    expect(html).toContain("<title>Changelog | Supaterm</title>");
-    expect(html).toContain('og:title" content="Changelog | Supaterm"');
+    expect(html).toContain("<title>Supaterm - What's New</title>");
+    expect(html).toContain('og:title" content="Supaterm - What\'s New"');
     expect(html).toContain('og:description" content="See what\'s new in Supaterm');
     expect(html).toContain('og:url" content="https://supaterm.com/changelog"');
-    expect(html).toContain('twitter:title" content="Changelog | Supaterm"');
+    expect(html).toContain('twitter:title" content="Supaterm - What\'s New"');
     expect(html).toContain('twitter:description" content="See what\'s new in Supaterm');
     expect(html).not.toContain("The terminal with skills");
   });

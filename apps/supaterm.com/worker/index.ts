@@ -17,12 +17,12 @@ type CloudflareRequestInit = RequestInit & {
 
 const routeMeta: Record<string, Record<string, string>> = {
   "/changelog": {
-    title: "Changelog | Supaterm",
+    title: "Supaterm - What's New",
     description: "See what's new in Supaterm — latest features, improvements, and fixes.",
-    "og:title": "Changelog | Supaterm",
+    "og:title": "Supaterm - What's New",
     "og:description": "See what's new in Supaterm — latest features, improvements, and fixes.",
     "og:url": "https://supaterm.com/changelog",
-    "twitter:title": "Changelog | Supaterm",
+    "twitter:title": "Supaterm - What's New",
     "twitter:description": "See what's new in Supaterm — latest features, improvements, and fixes.",
   },
 };
