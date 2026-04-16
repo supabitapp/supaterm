@@ -35,6 +35,7 @@ final class GhosttySurfaceState {
   var sizeLimitMaxHeight: UInt32?
   var initialSizeWidth: UInt32?
   var initialSizeHeight: UInt32?
+  var cellSizeChangeCount: Int = 0
   var keySequenceActive: Bool?
   var keySequenceTrigger: ghostty_input_trigger_s?
   var keyTableTag: ghostty_action_key_table_tag_e?

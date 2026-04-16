@@ -577,6 +577,7 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_ACTION_CELL_SIZE:
       let cell = action.action.cell_size
       surfaceView?.updateCellSize(width: cell.width, height: cell.height)
+      state.cellSizeChangeCount += 1
       return true
 
     case GHOSTTY_ACTION_RESET_WINDOW_SIZE:

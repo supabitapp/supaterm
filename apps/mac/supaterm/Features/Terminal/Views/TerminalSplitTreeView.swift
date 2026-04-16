@@ -49,6 +49,12 @@ struct TerminalSplitTreeView: View {
     let rows: Int
   }
 
+  struct ResizeOverlayTrigger: Equatable {
+    let viewSize: CGSize
+    let gridSize: ResizeOverlayGridSize
+    let cellSizeChangeCount: Int
+  }
+
   enum OuterEdgeBranch {
     case left
     case right
@@ -121,12 +127,12 @@ struct TerminalSplitTreeView: View {
 
   static func resizeOverlayIsHidden(
     ready: Bool,
-    lastSize: CGSize?,
-    currentSize: CGSize
+    lastTrigger: ResizeOverlayTrigger?,
+    currentTrigger: ResizeOverlayTrigger
   ) -> Bool {
     guard ready else { return true }
-    guard let lastSize else { return true }
-    return lastSize == currentSize
+    guard let lastTrigger else { return true }
+    return lastTrigger == currentTrigger
   }
 
   var body: some View {
@@ -261,7 +267,8 @@ struct TerminalSplitTreeView: View {
           .overlay {
             ResizeOverlay(
               geoSize: geometry.size,
-              surfaceView: surfaceView
+              surfaceView: surfaceView,
+              state: surfaceView.bridge.state
             )
           }
           .onHover { hovering in
@@ -420,20 +427,13 @@ struct TerminalSplitTreeView: View {
   struct ResizeOverlay: View {
     let geoSize: CGSize
     let surfaceView: GhosttySurfaceView
+    let state: GhosttySurfaceState
 
-    @State private var lastSize: CGSize?
+    @State private var lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger?
     @State private var ready = false
 
     private let padding: CGFloat = 5
     private let durationMilliseconds: UInt64 = 750
-
-    private var hidden: Bool {
-      TerminalSplitTreeView.resizeOverlayIsHidden(
-        ready: ready,
-        lastSize: lastSize,
-        currentSize: geoSize
-      )
-    }
 
     private var gridSize: TerminalSplitTreeView.ResizeOverlayGridSize? {
       TerminalSplitTreeView.resizeOverlayGridSize(
@@ -442,8 +442,23 @@ struct TerminalSplitTreeView: View {
       )
     }
 
+    private var trigger: TerminalSplitTreeView.ResizeOverlayTrigger? {
+      guard let gridSize else { return nil }
+      return .init(
+        viewSize: geoSize,
+        gridSize: gridSize,
+        cellSizeChangeCount: state.cellSizeChangeCount
+      )
+    }
+
     var body: some View {
-      if let gridSize {
+      if let trigger {
+        let gridSize = trigger.gridSize
+        let hidden = TerminalSplitTreeView.resizeOverlayIsHidden(
+          ready: ready,
+          lastTrigger: lastTrigger,
+          currentTrigger: trigger
+        )
         Text(verbatim: "\(gridSize.columns) × \(gridSize.rows)")
           .padding(.init(top: padding, leading: padding, bottom: padding, trailing: padding))
           .background(
@@ -459,11 +474,11 @@ struct TerminalSplitTreeView: View {
             try? await Task.sleep(for: .milliseconds(500))
             ready = true
           }
-          .task(id: geoSize) {
+          .task(id: trigger) {
             if ready {
               try? await Task.sleep(for: .milliseconds(durationMilliseconds))
             }
-            lastSize = geoSize
+            lastTrigger = trigger
           }
       }
     }

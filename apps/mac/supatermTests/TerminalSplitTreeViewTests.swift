@@ -178,25 +178,34 @@ struct TerminalSplitTreeViewTests {
 
   @Test
   func resizeOverlayStaysHiddenUntilAfterFirstResize() {
+    let resizedTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
+      viewSize: .init(width: 120, height: 100),
+      gridSize: .init(columns: 12, rows: 8),
+      cellSizeChangeCount: 0
+    )
     let overlayIsVisibleAfterResize =
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: true,
-        lastSize: .init(width: 100, height: 100),
-        currentSize: .init(width: 120, height: 100)
+        lastTrigger: .init(
+          viewSize: .init(width: 100, height: 100),
+          gridSize: .init(columns: 10, rows: 8),
+          cellSizeChangeCount: 0
+        ),
+        currentTrigger: resizedTrigger
       ) == false
 
     #expect(
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: false,
-        lastSize: nil,
-        currentSize: .init(width: 100, height: 100)
+        lastTrigger: nil,
+        currentTrigger: resizedTrigger
       )
     )
     #expect(
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: true,
-        lastSize: nil,
-        currentSize: .init(width: 100, height: 100)
+        lastTrigger: nil,
+        currentTrigger: resizedTrigger
       )
     )
     if overlayIsVisibleAfterResize == false {
@@ -205,8 +214,30 @@ struct TerminalSplitTreeViewTests {
     #expect(
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: true,
-        lastSize: .init(width: 120, height: 100),
-        currentSize: .init(width: 120, height: 100)
+        lastTrigger: resizedTrigger,
+        currentTrigger: resizedTrigger
+      )
+    )
+  }
+
+  @Test
+  func resizeOverlayShowsWhenCellSizeChangesWithoutGeometryChange() {
+    let lastTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
+      viewSize: .init(width: 120, height: 100),
+      gridSize: .init(columns: 12, rows: 8),
+      cellSizeChangeCount: 1
+    )
+    let currentTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
+      viewSize: .init(width: 120, height: 100),
+      gridSize: .init(columns: 10, rows: 7),
+      cellSizeChangeCount: 2
+    )
+
+    #expect(
+      !TerminalSplitTreeView.resizeOverlayIsHidden(
+        ready: true,
+        lastTrigger: lastTrigger,
+        currentTrigger: currentTrigger
       )
     )
   }
