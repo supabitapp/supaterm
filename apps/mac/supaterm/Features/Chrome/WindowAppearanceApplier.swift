@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct WindowAppearanceApplier: NSViewRepresentable {
-  let appliedAppearance: NSAppearance
+  let appliedAppearance: NSAppearance?
 
   func makeNSView(context: Context) -> WindowAppearanceApplierView {
     let view = WindowAppearanceApplierView()
@@ -16,9 +16,7 @@ struct WindowAppearanceApplier: NSViewRepresentable {
 }
 
 final class WindowAppearanceApplierView: NSView {
-  var appliedAppearance: NSAppearance = NSAppearance(named: .darkAqua) ?? NSAppearance(
-    named: .aqua
-  )! {
+  var appliedAppearance: NSAppearance? {
     didSet {
       applyAppearance(reason: "appearanceChanged")
     }

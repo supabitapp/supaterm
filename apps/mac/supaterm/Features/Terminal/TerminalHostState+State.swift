@@ -114,17 +114,6 @@ extension TerminalHostState {
     return appearance == .darkAqua ? .dark : .light
   }
 
-  var terminalChromeAppearance: NSAppearance {
-    switch terminalChromeColorScheme {
-    case .light:
-      NSAppearance(named: .aqua) ?? NSAppearance(named: .darkAqua)!
-    case .dark:
-      NSAppearance(named: .darkAqua) ?? NSAppearance(named: .aqua)!
-    @unknown default:
-      NSAppearance(named: .darkAqua) ?? NSAppearance(named: .aqua)!
-    }
-  }
-
   var notificationAttentionColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)

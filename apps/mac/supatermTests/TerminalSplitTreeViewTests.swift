@@ -181,7 +181,6 @@ struct TerminalSplitTreeViewTests {
     let resizedTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 12, rows: 8),
-      cellSizeChangeCount: 0,
       fontSizePoints: nil
     )
     let overlayIsVisibleAfterResize =
@@ -190,7 +189,6 @@ struct TerminalSplitTreeViewTests {
         lastTrigger: .init(
           viewSize: .init(width: 100, height: 100),
           gridSize: .init(columns: 10, rows: 8),
-          cellSizeChangeCount: 0,
           fontSizePoints: nil
         ),
         currentTrigger: resizedTrigger
@@ -223,18 +221,16 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func resizeOverlayShowsWhenCellSizeChangesWithoutGeometryChange() {
+  func resizeOverlayShowsWhenGridChangesWithoutGeometryChange() {
     let lastTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 12, rows: 8),
-      cellSizeChangeCount: 1,
       fontSizePoints: 15
     )
     let currentTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
       viewSize: .init(width: 120, height: 100),
       gridSize: .init(columns: 10, rows: 7),
-      cellSizeChangeCount: 2,
-      fontSizePoints: 16
+      fontSizePoints: 15
     )
 
     #expect(
@@ -247,18 +243,16 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func resizeOverlayUsesGridTextForGeometryChanges() {
+  func resizeOverlayUsesGridTextWhenFontSizeIsUnchanged() {
     let text = TerminalSplitTreeView.resizeOverlayText(
       lastTrigger: .init(
         viewSize: .init(width: 100, height: 100),
         gridSize: .init(columns: 10, rows: 8),
-        cellSizeChangeCount: 1,
         fontSizePoints: 15
       ),
       currentTrigger: .init(
-        viewSize: .init(width: 120, height: 100),
+        viewSize: .init(width: 100, height: 100),
         gridSize: .init(columns: 12, rows: 8),
-        cellSizeChangeCount: 1,
         fontSizePoints: 15
       )
     )
@@ -272,13 +266,11 @@ struct TerminalSplitTreeViewTests {
       lastTrigger: .init(
         viewSize: .init(width: 120, height: 100),
         gridSize: .init(columns: 12, rows: 8),
-        cellSizeChangeCount: 1,
         fontSizePoints: 15
       ),
       currentTrigger: .init(
         viewSize: .init(width: 120, height: 100),
         gridSize: .init(columns: 10, rows: 7),
-        cellSizeChangeCount: 2,
         fontSizePoints: 16
       )
     )

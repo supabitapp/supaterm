@@ -52,7 +52,6 @@ struct TerminalSplitTreeView: View {
   struct ResizeOverlayTrigger: Equatable {
     let viewSize: CGSize
     let gridSize: ResizeOverlayGridSize
-    let cellSizeChangeCount: Int
     let fontSizePoints: Double?
   }
 
@@ -140,7 +139,7 @@ struct TerminalSplitTreeView: View {
     lastTrigger: ResizeOverlayTrigger?,
     currentTrigger: ResizeOverlayTrigger
   ) -> String {
-    if currentTrigger.cellSizeChangeCount != lastTrigger?.cellSizeChangeCount,
+    if currentTrigger.fontSizePoints != lastTrigger?.fontSizePoints,
       let fontSizePoints = currentTrigger.fontSizePoints
     {
       return formattedFontSize(fontSizePoints)
@@ -288,8 +287,7 @@ struct TerminalSplitTreeView: View {
           .overlay {
             ResizeOverlay(
               geoSize: geometry.size,
-              surfaceView: surfaceView,
-              state: surfaceView.bridge.state
+              surfaceView: surfaceView
             )
           }
           .onHover { hovering in
@@ -448,7 +446,6 @@ struct TerminalSplitTreeView: View {
   struct ResizeOverlay: View {
     let geoSize: CGSize
     let surfaceView: GhosttySurfaceView
-    let state: GhosttySurfaceState
 
     @State private var lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger?
     @State private var ready = false
@@ -468,7 +465,6 @@ struct TerminalSplitTreeView: View {
       return .init(
         viewSize: geoSize,
         gridSize: gridSize,
-        cellSizeChangeCount: state.cellSizeChangeCount,
         fontSizePoints: surfaceView.currentFontSizePoints()
       )
     }
