@@ -13,7 +13,8 @@ struct TerminalCommandPaletteStateTests {
 
     let rows = TerminalCommandPalettePresentation.rows(from: snapshot)
 
-    #expect(rows.first?.id == "update:\(snapshot.updateEntries[0].id)")
+    #expect(rows.first?.id == "supaterm:create-space")
+    #expect(rows.last?.id == "update:\(snapshot.updateEntries[0].id)")
     #expect(rows.contains(where: { $0.id == focusRowID }))
     #expect(
       rows.contains(where: {

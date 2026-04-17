@@ -95,8 +95,8 @@ enum TerminalCommandPalettePresentation {
   private static let toggleSidebarShortcut = KeyboardShortcut("s", modifiers: .command).display
 
   static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
-    var rows = snapshot.updateEntries.map(updateRow)
-    rows.append(contentsOf: sortRows(contextRows(from: snapshot)))
+    var rows = sortRows(contextRows(from: snapshot))
+    rows.append(contentsOf: snapshot.updateEntries.map(updateRow))
     return rows
   }
 
