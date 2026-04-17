@@ -124,6 +124,19 @@ struct SPCommandTests {
   }
 
   @Test
+  func internalPingDecodesSocketResultAsJson() throws {
+    let response = try SupatermSocketResponse.ok(
+      id: "ping-1",
+      encodableResult: SP.SPPingResult(pong: true)
+    )
+
+    let result = try SP.Ping.result(from: response)
+
+    #expect(result == .init(pong: true))
+    #expect(try JSONDecoder().decode(SP.SPPingResult.self, from: Data(try jsonString(result).utf8)) == result)
+  }
+
+  @Test
   func onboardRendererShowsWelcomeShortcutsAndSetupCommands() {
     let rendered = SPOnboardingRenderer.render(
       .init(

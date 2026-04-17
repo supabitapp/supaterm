@@ -3,6 +3,10 @@ import Foundation
 import SupatermCLIShared
 
 extension SP {
+  struct SPPingResult: Equatable, Codable {
+    let pong: Bool
+  }
+
   struct Internal: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "internal",
@@ -40,10 +44,15 @@ extension SP {
         responseTimeout: timeout
       )
       let response = try client.send(.ping())
+      let result = try Self.result(from: response)
+      print(try jsonString(result))
+    }
+
+    static func result(from response: SupatermSocketResponse) throws -> SPPingResult {
       guard response.ok else {
         throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
       }
-      print("pong")
+      return try response.decodeResult(SPPingResult.self)
     }
   }
 
