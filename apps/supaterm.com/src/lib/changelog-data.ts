@@ -16,6 +16,29 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v1.1.1",
+    date: "2026-04-17",
+    title: "Visibility and polish",
+    description:
+      "A smaller release focused on terminal visibility, cleaner update actions, and automatic appearance that follows the system again.",
+    sections: [
+      {
+        category: "improvements",
+        items: [
+          "Show pane titles in sp ls",
+          "Show terminal size and font size while zooming",
+          "Stop surfacing restart update actions in the command palette",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Fixed automatic appearance so terminal windows follow macOS light and dark changes",
+        ],
+      },
+    ],
+  },
+  {
     version: "v1.1.0",
     date: "2026-04-15",
     title: "The Ethan Release",
