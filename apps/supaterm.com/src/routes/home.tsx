@@ -168,9 +168,7 @@ function HomePage() {
                   Extensible - Automate via the <code className="text-white/72">sp</code> CLI and
                   agent skill.
                 </li>
-                <li>
-                  No compromises - Natively built by ppls who know what they're doing. No slop.
-                </li>
+                <li>Not vibe-coded - Natively built by ppls who know what they're doing.</li>
               </ul>
               <div className="mt-9 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                 <CtaLink
