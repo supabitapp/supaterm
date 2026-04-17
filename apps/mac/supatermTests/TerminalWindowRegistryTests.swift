@@ -337,7 +337,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotOmitsRestartEntriesWhenInstallIsPending() async throws {
+  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenInstallIsPending() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -364,13 +364,48 @@ struct TerminalWindowRegistryTests {
 
       let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
 
-      #expect(snapshot.updateEntries.isEmpty)
+      #expect(snapshot.updateEntries.map(\.title) == ["Restart to Update..."])
+      #expect(snapshot.updateEntries.first?.action == .restartNow)
       #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
 
   @Test
-  func commandPaletteSnapshotOmitsRestartEntryWhenRestartIsDeferred() async throws {
+  func commandPaletteSnapshotBuildsRestartActionsWhenPromptIsShown() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
+      var state = AppFeature.State()
+      state.update.phase = .installing(.init(isAutoUpdate: false))
+      let store = Store(initialState: state) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
+
+      #expect(snapshot.updateEntries.map(\.title) == ["Restart Later", "Restart Now"])
+      #expect(snapshot.updateEntries.map(\.action) == [.restartLater, .restartNow])
+      #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
+    }
+  }
+
+  @Test
+  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenRestartIsDeferred() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -397,7 +432,8 @@ struct TerminalWindowRegistryTests {
 
       let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
 
-      #expect(snapshot.updateEntries.isEmpty)
+      #expect(snapshot.updateEntries.map(\.title) == ["Restart to Update..."])
+      #expect(snapshot.updateEntries.first?.action == .restartNow)
       #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }

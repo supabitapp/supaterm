@@ -354,10 +354,6 @@ final class TerminalWindowRegistry {
   private static func commandPaletteUpdateEntries(
     for state: UpdateFeature.State
   ) -> [TerminalCommandPaletteUpdateEntry] {
-    if case .installing = state.phase {
-      return []
-    }
-
     let summary = state.phase.summaryText.trimmingCharacters(in: .whitespacesAndNewlines)
     let detail = state.phase.detailMessage.trimmingCharacters(in: .whitespacesAndNewlines)
 
