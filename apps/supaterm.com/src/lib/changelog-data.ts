@@ -18,9 +18,8 @@ const changelogData: ChangelogEntry[] = [
   {
     version: "v1.1.1",
     date: "2026-04-17",
-    title: "Visibility and polish",
-    description:
-      "A smaller release focused on terminal visibility, cleaner update actions, and automatic appearance that follows the system again.",
+    title: "Lightmode blindness",
+    description: "Some small UI improvements mostly",
     sections: [
       {
         category: "improvements",
