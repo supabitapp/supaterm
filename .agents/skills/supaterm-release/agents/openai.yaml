@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supaterm Release"
+  short_description: "Run Supaterm stable release workflow"
+  default_prompt: "Use $supaterm-release to prepare a Supaterm stable release with a human-confirmed changelog."
