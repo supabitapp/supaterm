@@ -1,6 +1,7 @@
 import Foundation
 import GhosttyKit
 import Testing
+import Textual
 
 @testable import supaterm
 

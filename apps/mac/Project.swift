@@ -337,6 +337,7 @@ let project = Project(
         .external(name: "PostHog"),
         .external(name: "Sentry"),
         .external(name: "Sharing"),
+        .external(name: "Textual"),
       ],
       settings: .settings(
         base: [
@@ -381,6 +382,7 @@ let project = Project(
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
         .external(name: "Sharing"),
+        .external(name: "Textual"),
       ],
       settings: .settings(
         base: [

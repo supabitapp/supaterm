@@ -3,6 +3,7 @@ import ComposableArchitecture
 import SupatermCLIShared
 import SupatermUpdateFeature
 import SwiftUI
+import Textual
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
@@ -590,9 +591,10 @@ struct TerminalSidebarTabSummaryView: View {
           )
 
       case .notification(let notificationPreviewMarkdown):
-        Text(SidebarNotificationMarkdown.inlineAttributedString(notificationPreviewMarkdown))
+        InlineText(markdown: notificationPreviewMarkdown)
           .font(.system(size: 11, weight: .medium))
           .foregroundStyle(notificationTextColor)
+          .textual.inlineStyle(notificationInlineStyle)
           .allowsHitTesting(false)
           .lineLimit(2)
           .truncationMode(.tail)
@@ -667,6 +669,15 @@ struct TerminalSidebarTabSummaryView: View {
     isSelected
       ? palette.selectedText.opacity(0.82)
       : palette.secondaryText
+  }
+
+  private var notificationInlineStyle: InlineStyle {
+    InlineStyle()
+      .code(.monospaced, .fontScale(0.94), .foregroundColor(notificationTextColor))
+      .emphasis(.italic)
+      .strong(.fontWeight(.semibold))
+      .link(.foregroundColor(notificationTextColor))
+      .strikethrough(.strikethroughStyle(.single))
   }
 }
 

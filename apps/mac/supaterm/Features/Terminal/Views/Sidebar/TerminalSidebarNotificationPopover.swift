@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Textual
 
 struct SidebarPopoverPresenter: NSViewRepresentable {
   let isPresented: Bool
@@ -45,9 +46,14 @@ private struct TerminalSidebarNotificationPopover: View {
   }
 
   var body: some View {
-    Text(SidebarNotificationMarkdown.popoverAttributedString(markdown))
+    StructuredText(
+      markdown,
+      parser: SidebarNotificationMarkdown.popoverParser
+    )
     .font(.system(size: 12))
     .foregroundStyle(palette.primaryText)
+    .textual.structuredTextStyle(.gitHub)
+    .textual.overflowMode(.wrap)
     .frame(width: contentWidth, alignment: .leading)
     .fixedSize(horizontal: false, vertical: true)
     .multilineTextAlignment(.leading)
@@ -70,35 +76,10 @@ private struct TerminalSidebarNotificationPopover: View {
 }
 
 enum SidebarNotificationMarkdown {
-  struct PopoverParser {
-    func attributedString(for markdown: String) throws -> AttributedString {
-      if let parsed = try? AttributedString(
-        markdown: markdown,
-        options: .init(interpretedSyntax: .full)
-      ) {
-        return parsed
-      }
-
-      return AttributedString(markdown)
-    }
-  }
-
-  static let popoverParser = PopoverParser()
-
-  static func inlineAttributedString(_ markdown: String) -> AttributedString {
-    if let parsed = try? AttributedString(
-      markdown: markdown,
-      options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-    ) {
-      return parsed
-    }
-
-    return AttributedString(markdown)
-  }
-
-  static func popoverAttributedString(_ markdown: String) -> AttributedString {
-    (try? popoverParser.attributedString(for: markdown)) ?? AttributedString(markdown)
-  }
+  static let popoverParser = AttributedStringMarkdownParser(
+    baseURL: nil,
+    options: .init(failurePolicy: .returnPartiallyParsedIfPossible)
+  )
 }
 
 final class SidebarPopoverAnchorView: NSView {
