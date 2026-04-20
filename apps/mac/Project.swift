@@ -94,6 +94,10 @@ let project = Project(
           "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
+        release: [
+          "ARCHS": "arm64",
+          "DEAD_CODE_STRIPPING": "YES",
+        ],
         defaultSettings: .essential
       )
     ),
@@ -346,7 +350,9 @@ let project = Project(
           "CODE_SIGN_ENTITLEMENTS": "supatermDebug.entitlements",
         ],
         release: [
+          "ARCHS": "arm64",
           "CODE_SIGN_ENTITLEMENTS": "supaterm.entitlements",
+          "DEAD_CODE_STRIPPING": "YES",
         ],
         defaultSettings: .essential
       )
