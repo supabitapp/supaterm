@@ -74,6 +74,7 @@ if [ -f "${ghostty_fingerprint_path}" ] &&
   [ -d "${ghostty_resources_path}" ] &&
   [ -d "${ghostty_terminfo_path}" ] &&
   [ "$(cat "${ghostty_fingerprint_path}")" = "${fingerprint}" ]; then
+  printf '%s\n' "Using cached native runtime build"
   exit 0
 fi
 
