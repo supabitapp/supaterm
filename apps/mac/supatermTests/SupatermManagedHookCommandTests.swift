@@ -61,6 +61,21 @@ struct SupatermManagedHookCommandTests {
       payload: hookPayload()
     )
   }
+
+  @Test
+  func commandDrainsStdinWhenCliExitsBeforeReading() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let executableURL = temporaryDirectory.appendingPathComponent("sp", isDirectory: false)
+    try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 1\n")
+
+    try runHookCommand(
+      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      environment: ["SUPATERM_CLI_PATH": executableURL.path],
+      payload: hookPayload()
+    )
+  }
 }
 
 private func hookPayload() -> Data {
