@@ -6,6 +6,12 @@ When running the app in development, to use the right CLI path for use `$SUPATER
 $SUPATERM_CLI_PATH diagnostic
 ```
 
+## Manual App Checks
+
+For UI-facing changes, use the `cua-driver` skill to launch Supaterm and exercise the app before handing off. 
+
+Snapshot the target window before and after each action, click around non-destructively, and save screenshots for the states touched.
+
 ## Warm Cache
 
 Warm the macOS Tuist cache from the repo root with:
