@@ -227,6 +227,8 @@ final class TerminalHostState {
   var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
+  @ObservationIgnored
+  let terminalBarRuntime = TerminalBarRuntime()
   let spaceManager = TerminalSpaceManager()
 
   var pendingEvents: [TerminalClient.Event] = []
@@ -1172,6 +1174,17 @@ final class TerminalHostState {
     view.bridge.onProgressReport = { [weak self] _ in
       guard let self else { return }
       self.updateRunningState(for: tabID)
+    }
+    view.bridge.onCommandFinished = { [weak self] in
+      guard let self else { return }
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        self.terminalBarRuntime.refresh(
+          settings: self.supatermSettings.bottomBarSettings,
+          context: self.selectedBarContext,
+          reason: .commandFinished
+        )
+      }
     }
     configureBridgeCloseCallbacks(for: view)
     view.bridge.onDesktopNotification = { [weak self, weak view] title, body in

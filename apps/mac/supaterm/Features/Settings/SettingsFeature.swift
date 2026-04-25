@@ -60,6 +60,7 @@ public struct SettingsFeature {
   public struct State: Equatable {
     var appearanceMode = SupatermSettings.default.appearanceMode
     var analyticsEnabled = SupatermSettings.default.analyticsEnabled
+    var bottomBarSettings = SupatermSettings.default.bottomBarSettings
     @Presents var alert: AlertState<Alert>?
     var claudeIntegration = SettingsAgentIntegrationState(
       settingsPath: SupatermAgentKind.claude.settingsPathDescription
@@ -269,6 +270,7 @@ public struct SettingsFeature {
   ) {
     state.appearanceMode = supatermSettings.appearanceMode
     state.analyticsEnabled = supatermSettings.analyticsEnabled
+    state.bottomBarSettings = supatermSettings.bottomBarSettings
     state.crashReportsEnabled = supatermSettings.crashReportsEnabled
     state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
     state.newTabPosition = supatermSettings.newTabPosition
@@ -287,6 +289,7 @@ public struct SettingsFeature {
     let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
+      bottomBarSettings: state.bottomBarSettings,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       newTabPosition: state.newTabPosition,

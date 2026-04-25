@@ -29,6 +29,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.bottomBarSettings == .default)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -53,6 +54,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.bottomBarSettings == .default)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -71,6 +73,12 @@ struct SupatermSettingsTests {
         == """
         [appearance]
         mode = "dark"
+
+        [bottom_bar]
+        center = []
+        enabled = true
+        left = ["directory", "git_branch", "git_status"]
+        right = ["agent", "exit_status"]
 
         [notifications]
         glowing_pane_ring = true
@@ -96,6 +104,12 @@ struct SupatermSettingsTests {
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: false,
+        bottomBarSettings: SupatermBottomBarSettings(
+          enabled: true,
+          left: [.paneTitle],
+          center: [.time],
+          right: [.gitBranch, .gitStatus, .commandDuration]
+        ),
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
         newTabPosition: .current,
@@ -111,6 +125,12 @@ struct SupatermSettingsTests {
         == SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          bottomBarSettings: SupatermBottomBarSettings(
+            enabled: true,
+            left: [.paneTitle],
+            center: [.time],
+            right: [.gitBranch, .gitStatus, .commandDuration]
+          ),
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -134,12 +154,48 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.bottomBarSettings == .default)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
+  }
+
+  @Test
+  func prefsDecodeUsesDefaultsForMissingBottomBarKeys() throws {
+    let data = Data(
+      #"""
+      [bottom_bar]
+      enabled = false
+      right = ["time"]
+      """#.utf8
+    )
+
+    let prefs = try SupatermSettingsCodec.decode(data)
+
+    #expect(!prefs.bottomBarSettings.enabled)
+    #expect(prefs.bottomBarSettings.left == SupatermBottomBarSettings.default.left)
+    #expect(prefs.bottomBarSettings.center == SupatermBottomBarSettings.default.center)
+    #expect(prefs.bottomBarSettings.right == [.time])
+  }
+
+  @Test
+  func unknownBottomBarModuleFailsDecoding() throws {
+    let data = Data(
+      #"""
+      [bottom_bar]
+      enabled = true
+      left = ["directory", "nope"]
+      center = []
+      right = []
+      """#.utf8
+    )
+
+    #expect(throws: Error.self) {
+      _ = try SupatermSettingsCodec.decode(data)
+    }
   }
 
   @Test

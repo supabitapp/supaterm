@@ -68,6 +68,45 @@ struct SettingsFeatureGeneralTests {
   }
 
   @Test
+  func generalSettingsPreserveBottomBarPrefs() async throws {
+    let bottomBarSettings = SupatermBottomBarSettings(
+      enabled: true,
+      left: [.paneTitle],
+      center: [.time],
+      right: [.gitBranch, .gitStatus]
+    )
+
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      @Shared(.supatermSettings) var supatermSettings = .default
+      $supatermSettings.withLock {
+        $0 = SupatermSettings(
+          appearanceMode: .dark,
+          analyticsEnabled: true,
+          bottomBarSettings: bottomBarSettings,
+          crashReportsEnabled: true,
+          updateChannel: .stable
+        )
+      }
+
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.settingsLoaded(supatermSettings)) {
+        $0.bottomBarSettings = bottomBarSettings
+      }
+
+      await store.send(.restoreTerminalLayoutEnabledChanged(false)) {
+        $0.restoreTerminalLayoutEnabled = false
+      }
+
+      #expect(supatermSettings.bottomBarSettings == bottomBarSettings)
+    }
+  }
+
+  @Test
   func newTabPositionSettingPersistsPrefs() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory

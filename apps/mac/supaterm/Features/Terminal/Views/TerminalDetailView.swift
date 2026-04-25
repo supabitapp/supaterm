@@ -45,6 +45,12 @@ struct TerminalDetailView: View {
         terminal: terminal,
         selectedTabID: selectedTabID
       )
+      if supatermSettings.bottomBarSettings.enabled {
+        TerminalBarView(
+          palette: palette,
+          terminal: terminal
+        )
+      }
     }
     .compositingGroup()
     .terminalPaneChrome(palette: palette)

@@ -1,8 +1,76 @@
 import Foundation
 
+public enum SupatermBottomBarModule: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
+  case directory
+  case gitBranch = "git_branch"
+  case gitStatus = "git_status"
+  case paneTitle = "pane_title"
+  case agent
+  case exitStatus = "exit_status"
+  case commandDuration = "command_duration"
+  case time
+}
+
+public struct SupatermBottomBarSettings: Codable, Equatable, Hashable, Sendable {
+  public var enabled: Bool
+  public var left: [SupatermBottomBarModule]
+  public var center: [SupatermBottomBarModule]
+  public var right: [SupatermBottomBarModule]
+
+  public init(
+    enabled: Bool,
+    left: [SupatermBottomBarModule],
+    center: [SupatermBottomBarModule],
+    right: [SupatermBottomBarModule]
+  ) {
+    self.enabled = enabled
+    self.left = left
+    self.center = center
+    self.right = right
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let defaults = Self.default
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      enabled: try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled,
+      left: try container.decodeIfPresent([SupatermBottomBarModule].self, forKey: .left) ?? defaults.left,
+      center: try container.decodeIfPresent([SupatermBottomBarModule].self, forKey: .center) ?? defaults.center,
+      right: try container.decodeIfPresent([SupatermBottomBarModule].self, forKey: .right) ?? defaults.right
+    )
+  }
+
+  public static let `default` = Self(
+    enabled: true,
+    left: [.directory, .gitBranch, .gitStatus],
+    center: [],
+    right: [.agent, .exitStatus]
+  )
+
+  public var modules: [SupatermBottomBarModule] {
+    left + center + right
+  }
+
+  public var containsGitModule: Bool {
+    modules.contains(.gitBranch) || modules.contains(.gitStatus)
+  }
+
+  public var containsTimeModule: Bool {
+    modules.contains(.time)
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case enabled
+    case left
+    case center
+    case right
+  }
+}
+
 public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
+  public var bottomBarSettings: SupatermBottomBarSettings
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var newTabPosition: NewTabPosition
@@ -13,6 +81,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public init(
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
+    bottomBarSettings: SupatermBottomBarSettings = .default,
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
     newTabPosition: NewTabPosition = .end,
@@ -22,6 +91,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
+    self.bottomBarSettings = bottomBarSettings
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.newTabPosition = newTabPosition
@@ -33,6 +103,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public static let `default` = Self(
     appearanceMode: .dark,
     analyticsEnabled: true,
+    bottomBarSettings: .default,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
     newTabPosition: .end,
@@ -55,6 +126,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let defaults = Self.default
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let appearance = try container.decodeIfPresent(PersistedAppearance.self, forKey: .appearance)
+    let bottomBar = try container.decodeIfPresent(SupatermBottomBarSettings.self, forKey: .bottomBar)
     let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
     let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
     let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
@@ -63,6 +135,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
+      bottomBarSettings: bottomBar ?? defaults.bottomBarSettings,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
       newTabPosition: terminal?.newTabPosition ?? defaults.newTabPosition,
@@ -75,6 +148,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
+    try container.encode(bottomBarSettings, forKey: .bottomBar)
     try container.encode(
       PersistedPrivacy(
         analyticsEnabled: analyticsEnabled,
@@ -103,6 +177,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 extension SupatermSettings {
   enum CodingKeys: String, CodingKey {
     case appearance
+    case bottomBar = "bottom_bar"
     case privacy
     case notifications
     case terminal
@@ -148,8 +223,8 @@ extension SupatermSettings {
   }
 }
 
-private extension SupatermSettings {
-  static func configDirectoryURL(homeDirectoryPath: String) -> URL {
+extension SupatermSettings {
+  fileprivate static func configDirectoryURL(homeDirectoryPath: String) -> URL {
     URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
       .appendingPathComponent(".config", isDirectory: true)
       .appendingPathComponent("supaterm", isDirectory: true)

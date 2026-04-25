@@ -35,6 +35,12 @@ struct SettingsFeatureTests {
         $0 = SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          bottomBarSettings: SupatermBottomBarSettings(
+            enabled: true,
+            left: [.paneTitle],
+            center: [.time],
+            right: [.gitBranch, .gitStatus]
+          ),
           crashReportsEnabled: true,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -57,6 +63,12 @@ struct SettingsFeatureTests {
       await store.receive(.settingsLoaded(supatermSettings), timeout: 0) {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
+        $0.bottomBarSettings = SupatermBottomBarSettings(
+          enabled: true,
+          left: [.paneTitle],
+          center: [.time],
+          right: [.gitBranch, .gitStatus]
+        )
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
         $0.about.updateChannel = .tip

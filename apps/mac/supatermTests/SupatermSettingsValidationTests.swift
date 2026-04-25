@@ -45,6 +45,13 @@ struct SupatermSettingsValidationTests {
       mode = "dark"
       extra = "ignored"
 
+      [bottom_bar]
+      enabled = true
+      left = ["directory"]
+      center = []
+      right = []
+      extra = "ignored"
+
       [privacy]
       analytics_enabled = true
       crash_reports_enabled = true
@@ -55,8 +62,38 @@ struct SupatermSettingsValidationTests {
     let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL).validate()
 
     #expect(result.status == .valid)
-    #expect(result.warnings == ["Unknown config key `appearance.extra`."])
+    #expect(
+      result.warnings == [
+        "Unknown config key `appearance.extra`.",
+        "Unknown config key `bottom_bar.extra`.",
+      ]
+    )
     #expect(result.errors.isEmpty)
+  }
+
+  @Test
+  func unknownBottomBarModuleReturnsFailure() throws {
+    let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
+    let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path)
+    try FileManager.default.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data(
+      #"""
+      [bottom_bar]
+      enabled = true
+      left = ["directory", "missing"]
+      center = []
+      right = []
+      """#.utf8
+    )
+    .write(to: settingsURL)
+
+    let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL).validate()
+
+    #expect(result.status == .invalid)
+    #expect(result.errors.count == 1)
   }
 
   @Test
