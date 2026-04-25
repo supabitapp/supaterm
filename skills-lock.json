@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "cua-driver": {
+      "source": "trycua/cua",
+      "ref": "main",
+      "sourceType": "github",
+      "computedHash": "0579255f8d876920b4bc9eeda6172408141adc7fd5924136b104fcc6ad427145"
+    }
+  }
+}
