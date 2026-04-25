@@ -48,6 +48,23 @@ struct GhosttySurfaceViewEnvironmentTests {
   }
 
   @Test
+  func supatermEnvironmentVariablesIncludeStateHomeWhenPresent() {
+    let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      surfaceID: UUID(),
+      tabID: UUID(),
+      socketPath: nil,
+      cliPath: nil,
+      processEnvironment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
+    )
+
+    #expect(
+      environmentVariables.contains(
+        .init(key: SupatermCLIEnvironment.stateHomeKey, value: "/tmp/supaterm-dev")
+      )
+    )
+  }
+
+  @Test
   func cliDirectoryReturnsBundledExecutableDirectory() {
     #expect(
       GhosttySurfaceView.cliDirectory("/Applications/Supaterm.app/Contents/Resources/bin/sp")

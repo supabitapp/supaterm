@@ -11,6 +11,7 @@ struct TerminalView: View {
   let updateStore: StoreOf<UpdateFeature>
   @Bindable var terminal: TerminalHostState
   @Shared(.supatermSettings) private var supatermSettings = .default
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var window: NSWindow?
 
@@ -197,14 +198,36 @@ struct TerminalView: View {
       } message: {
         Text(spaceDeleteMessage)
       }
-      .animation(.spring(response: 0.2, dampingFraction: 1.0), value: store.isSidebarCollapsed)
-      .animation(.easeOut(duration: 0.1), value: store.isFloatingSidebarVisible)
-      .animation(.easeOut(duration: 0.12), value: store.commandPalette != nil)
-      .animation(.spring(response: 0.3, dampingFraction: 0.82), value: store.confirmationRequest)
-      .animation(
-        .spring(response: 0.28, dampingFraction: 0.82), value: terminal.visibleTabs.map(\.id)
+      .terminalAnimation(
+        .spring(response: 0.2, dampingFraction: 1.0),
+        value: store.isSidebarCollapsed,
+        reduceMotion: reduceMotion
       )
-      .animation(.spring(response: 0.28, dampingFraction: 0.82), value: terminal.spaces.map(\.id))
+      .terminalAnimation(
+        .easeOut(duration: 0.1),
+        value: store.isFloatingSidebarVisible,
+        reduceMotion: reduceMotion
+      )
+      .terminalAnimation(
+        .easeOut(duration: 0.12),
+        value: store.commandPalette != nil,
+        reduceMotion: reduceMotion
+      )
+      .terminalAnimation(
+        .spring(response: 0.3, dampingFraction: 0.82),
+        value: store.confirmationRequest,
+        reduceMotion: reduceMotion
+      )
+      .terminalAnimation(
+        .spring(response: 0.28, dampingFraction: 0.82),
+        value: terminal.visibleTabs.map(\.id),
+        reduceMotion: reduceMotion
+      )
+      .terminalAnimation(
+        .spring(response: 0.28, dampingFraction: 0.82),
+        value: terminal.spaces.map(\.id),
+        reduceMotion: reduceMotion
+      )
       .environment(\.colorScheme, chromeColorScheme)
   }
 
@@ -274,7 +297,7 @@ struct TerminalView: View {
   }
 
   private func collapseSidebar() {
-    withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+    TerminalMotion.animate(.spring(response: 0.2, dampingFraction: 1.0), reduceMotion: reduceMotion) {
       _ = store.send(.collapseSidebarButtonTapped)
     }
   }

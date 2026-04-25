@@ -5,6 +5,7 @@ struct GhosttySurfaceSearchOverlay: View {
   let surfaceView: GhosttySurfaceView
   @Bindable var state: GhosttySurfaceState
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var searchText: String
   @State private var corner: GhosttySearchCorner = .topRight
   @State private var dragOffset: CGSize = .zero
@@ -104,7 +105,7 @@ struct GhosttySurfaceSearchOverlay: View {
                 y: centerPos.y + value.translation.height
               )
               let newCorner = closestCorner(to: newCenter, in: geo.size)
-              withAnimation(.easeOut(duration: 0.2)) {
+              TerminalMotion.animate(.easeOut(duration: 0.2), reduceMotion: reduceMotion) {
                 corner = newCorner
                 dragOffset = .zero
               }

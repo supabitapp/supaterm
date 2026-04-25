@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import GhosttyKit
+import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSupport
 
@@ -482,7 +483,9 @@ struct GhosttyTerminalConfigFile {
     environment: [String: String]
   ) -> URL {
     let configRoot: URL
-    if let xdgConfigHome = environment["XDG_CONFIG_HOME"], !xdgConfigHome.isEmpty {
+    if let stateHome = SupatermStateRoot.stateHomeURL(environment: environment) {
+      configRoot = stateHome
+    } else if let xdgConfigHome = environment["XDG_CONFIG_HOME"], !xdgConfigHome.isEmpty {
       configRoot = URL(fileURLWithPath: xdgConfigHome, isDirectory: true)
     } else {
       configRoot = homeDirectoryURL.appendingPathComponent(".config", isDirectory: true)

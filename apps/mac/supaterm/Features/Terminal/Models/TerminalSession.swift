@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
   static let currentVersion = 3
@@ -29,11 +30,15 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
     self.windows = try container.decode([TerminalWindowSession].self, forKey: .windows)
   }
 
-  static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
-    URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
-      .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("supaterm", isDirectory: true)
-      .appendingPathComponent("session.json", isDirectory: false)
+  static func defaultURL(
+    homeDirectoryPath: String = NSHomeDirectory(),
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL {
+    SupatermStateRoot.fileURL(
+      "session.json",
+      homeDirectoryPath: homeDirectoryPath,
+      environment: environment
+    )
   }
 
   static func fileStorageEncoder() -> JSONEncoder {

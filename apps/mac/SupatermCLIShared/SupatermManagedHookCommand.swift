@@ -2,7 +2,7 @@ import Foundation
 
 public enum SupatermManagedHookCommand {
   public static func receiveHookCommand(for agent: SupatermAgentKind) -> String {
-    #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue) || true"#
+    #"[ -x "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent \#(agent.rawValue) || cat >/dev/null || true"#
   }
 
   public static func installArguments(for agent: SupatermAgentKind) -> [String] {

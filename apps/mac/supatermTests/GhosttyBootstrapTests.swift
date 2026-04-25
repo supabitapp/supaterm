@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 import SupatermSupport
 import Testing
 
@@ -65,6 +66,27 @@ struct GhosttyBootstrapTests {
     #expect(
       locations.preferred
         == xdgDirectoryURL
+        .appendingPathComponent("config", isDirectory: false)
+    )
+  }
+
+  @Test
+  func configFileLocationsUseStateHomeWhenPresent() throws {
+    let homeDirectoryURL = URL(fileURLWithPath: "/tmp/supaterm-home", isDirectory: true)
+    let stateHomeURL = URL(fileURLWithPath: "/tmp/supaterm-state", isDirectory: true)
+
+    let locations = GhosttySupport.configFileLocations(
+      homeDirectoryURL: homeDirectoryURL,
+      environment: [
+        SupatermCLIEnvironment.stateHomeKey: stateHomeURL.path,
+        "XDG_CONFIG_HOME": "/tmp/ignored",
+      ]
+    )
+
+    #expect(
+      locations.preferred
+        == stateHomeURL
+        .appendingPathComponent("ghostty", isDirectory: true)
         .appendingPathComponent("config", isDirectory: false)
     )
   }

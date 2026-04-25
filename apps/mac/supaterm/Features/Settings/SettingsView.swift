@@ -37,6 +37,15 @@ public struct SettingsView: View {
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
     .alert(store: store.scope(state: \.$alert, action: \.alert))
+    .background {
+      AgentInstallFailureAlertPresenter(
+        failure: store.agentIntegrationInstallFailure,
+        dismiss: {
+          _ = store.send(.agentIntegrationInstallFailureDismissed)
+        }
+      )
+      .frame(width: 0, height: 0)
+    }
   }
 }
 

@@ -16,7 +16,7 @@ struct SupatermManagedHookCommandTests {
   func receiveHookCommandBuildsPiCommand() {
     #expect(
       SupatermManagedHookCommand.receiveHookCommand(for: .pi)
-        == #"[ -n "${SUPATERM_CLI_PATH:-}" ] && "$SUPATERM_CLI_PATH" agent receive-agent-hook --agent pi || true"#
+        == expectedSupatermHookCommand(agent: "pi")
     )
   }
 
@@ -43,4 +43,72 @@ struct SupatermManagedHookCommandTests {
       !AgentHookCommandOwnership.isSupatermManagedCommand(unmanagedCommand)
     )
   }
+
+  @Test
+  func commandDrainsStdinWithoutCliPath() throws {
+    try runHookCommand(
+      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      environment: [:],
+      payload: hookPayload()
+    )
+  }
+
+  @Test
+  func commandDrainsStdinWhenCliPathCannotRun() throws {
+    try runHookCommand(
+      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      environment: ["SUPATERM_CLI_PATH": "/tmp/supaterm-missing-sp"],
+      payload: hookPayload()
+    )
+  }
+
+  @Test
+  func commandDrainsStdinWhenCliExitsBeforeReading() throws {
+    let temporaryDirectory = try makeCommandExecutionTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    let executableURL = temporaryDirectory.appendingPathComponent("sp", isDirectory: false)
+    try writeExecutable(at: executableURL, script: "#!/bin/sh\nexit 1\n")
+
+    try runHookCommand(
+      SupatermManagedHookCommand.receiveHookCommand(for: .codex),
+      environment: ["SUPATERM_CLI_PATH": executableURL.path],
+      payload: hookPayload()
+    )
+  }
+}
+
+private func hookPayload() -> Data {
+  Data(repeating: 0x7b, count: 1024 * 1024)
+}
+
+private func runHookCommand(
+  _ command: String,
+  environment: [String: String],
+  payload: Data
+) throws {
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/bin/sh")
+  process.arguments = ["-c", command]
+
+  var processEnvironment = ProcessInfo.processInfo.environment
+  processEnvironment.removeValue(forKey: "SUPATERM_CLI_PATH")
+  for (key, value) in environment {
+    processEnvironment[key] = value
+  }
+  process.environment = processEnvironment
+
+  let stdin = Pipe()
+  let stdout = Pipe()
+  let stderr = Pipe()
+  process.standardInput = stdin
+  process.standardOutput = stdout
+  process.standardError = stderr
+
+  try process.run()
+  try stdin.fileHandleForWriting.write(contentsOf: payload)
+  try stdin.fileHandleForWriting.close()
+  process.waitUntilExit()
+
+  #expect(process.terminationStatus == 0)
 }

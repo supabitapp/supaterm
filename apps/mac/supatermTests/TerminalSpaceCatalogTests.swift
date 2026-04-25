@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
@@ -9,11 +10,21 @@ struct TerminalSpaceCatalogTests {
     let homeDirectory = "/tmp/SupatermTests/Home"
 
     #expect(
-      TerminalSpaceCatalog.defaultURL(homeDirectoryPath: homeDirectory)
+      TerminalSpaceCatalog.defaultURL(homeDirectoryPath: homeDirectory, environment: [:])
         == URL(fileURLWithPath: homeDirectory, isDirectory: true)
         .appendingPathComponent(".config", isDirectory: true)
         .appendingPathComponent("supaterm", isDirectory: true)
         .appendingPathComponent("spaces.json", isDirectory: false)
+    )
+  }
+
+  @Test
+  func defaultURLUsesStateHomeWhenPresent() {
+    #expect(
+      TerminalSpaceCatalog.defaultURL(
+        homeDirectoryPath: "/tmp/ignored",
+        environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
+      ).path == "/tmp/supaterm-dev/spaces.json"
     )
   }
 

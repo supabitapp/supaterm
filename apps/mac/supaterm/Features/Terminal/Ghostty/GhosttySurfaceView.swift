@@ -209,6 +209,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
+    if let stateHome = SupatermStateRoot.stateHomeURL(environment: processEnvironment) {
+      environmentVariables.append(
+        .init(
+          key: SupatermCLIEnvironment.stateHomeKey,
+          value: stateHome.path
+        )
+      )
+    }
     let path = prependedPath(
       cliDirectory(cliPath) ?? "",
       currentPath: processEnvironment["PATH"]

@@ -38,8 +38,12 @@ enum TerminalNotificationPulsePattern {
 }
 
 struct TerminalSplitTreeView: View {
+  let dimmingColor: Color
+  let dimmingOpacity: Double
+  let focusedSurfaceID: UUID?
   let notificationColor: Color
   let showsGlowingPaneRing: Bool
+  let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (Operation) -> Void
@@ -159,8 +163,12 @@ struct TerminalSplitTreeView: View {
     if let node = tree.zoomed ?? tree.root {
       SubtreeView(
         node: node,
+        dimmingColor: dimmingColor,
+        dimmingOpacity: dimmingOpacity,
+        focusedSurfaceID: focusedSurfaceID,
         notificationColor: notificationColor,
         showsGlowingPaneRing: showsGlowingPaneRing,
+        splitDividerColor: splitDividerColor,
         unreadSurfaceIDs: unreadSurfaceIDs,
         outerEdges: .all,
         isRoot: node == tree.root,
@@ -178,8 +186,12 @@ struct TerminalSplitTreeView: View {
 
   struct SubtreeView: View {
     let node: SplitTree<GhosttySurfaceView>.Node
+    let dimmingColor: Color
+    let dimmingOpacity: Double
+    let focusedSurfaceID: UUID?
     let notificationColor: Color
     let showsGlowingPaneRing: Bool
+    let splitDividerColor: Color
     let unreadSurfaceIDs: Set<UUID>
     let outerEdges: OuterEdges
     var isRoot: Bool = false
@@ -189,6 +201,9 @@ struct TerminalSplitTreeView: View {
       switch node {
       case .leaf(let leafView):
         LeafView(
+          dimmingColor: dimmingColor,
+          dimmingOpacity: dimmingOpacity,
+          focusedSurfaceID: focusedSurfaceID,
           notificationColor: notificationColor,
           showsGlowingPaneRing: showsGlowingPaneRing,
           surfaceView: leafView,
@@ -212,13 +227,17 @@ struct TerminalSplitTreeView: View {
             set: {
               action(.resize(node: node, ratio: Double($0)))
             }),
-          dividerColor: .secondary,
+          dividerColor: splitDividerColor,
           resizeIncrements: .init(width: 1, height: 1),
           left: {
             SubtreeView(
               node: split.left,
+              dimmingColor: dimmingColor,
+              dimmingOpacity: dimmingOpacity,
+              focusedSurfaceID: focusedSurfaceID,
               notificationColor: notificationColor,
               showsGlowingPaneRing: showsGlowingPaneRing,
+              splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.left, in: split.direction),
               action: action
@@ -227,8 +246,12 @@ struct TerminalSplitTreeView: View {
           right: {
             SubtreeView(
               node: split.right,
+              dimmingColor: dimmingColor,
+              dimmingOpacity: dimmingOpacity,
+              focusedSurfaceID: focusedSurfaceID,
               notificationColor: notificationColor,
               showsGlowingPaneRing: showsGlowingPaneRing,
+              splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
               outerEdges: outerEdges.child(.right, in: split.direction),
               action: action
@@ -243,6 +266,9 @@ struct TerminalSplitTreeView: View {
   }
 
   struct LeafView: View {
+    let dimmingColor: Color
+    let dimmingOpacity: Double
+    let focusedSurfaceID: UUID?
     let notificationColor: Color
     let showsGlowingPaneRing: Bool
     let surfaceView: GhosttySurfaceView
@@ -266,79 +292,7 @@ struct TerminalSplitTreeView: View {
 
     var body: some View {
       GeometryReader { geometry in
-        GhosttyTerminalView(surfaceView: surfaceView)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .overlay(alignment: .top) {
-            GhosttySurfaceProgressOverlay(state: surfaceView.bridge.state)
-          }
-          .overlay(alignment: .topTrailing) {
-            if surfaceView.bridge.state.searchNeedle != nil {
-              GhosttySurfaceSearchOverlay(surfaceView: surfaceView)
-            }
-          }
-          .overlay(alignment: .top) {
-            if isSplit {
-              DragHandle(
-                surfaceView: surfaceView,
-                isVisible: isPaneHovering
-              )
-            }
-          }
-          .overlay {
-            ResizeOverlay(
-              geoSize: geometry.size,
-              surfaceView: surfaceView
-            )
-          }
-          .onHover { hovering in
-            isPaneHovering = hovering
-          }
-          .background {
-            Color.clear
-              .contentShape(.rect)
-              .onDrop(
-                of: [TerminalSplitTreeView.dragType],
-                delegate: SplitDropDelegate(
-                  dropState: $dropState,
-                  viewSize: geometry.size,
-                  destinationId: surfaceView.id,
-                  action: action
-                ))
-          }
-          .background {
-            unreadGlowShape
-              .fill(notificationColor.opacity(backgroundOpacity))
-              .opacity(hasVisibleAttention ? 1 : 0)
-              .allowsHitTesting(false)
-          }
-          .overlay {
-            unreadGlowShape
-              .strokeBorder(notificationColor.opacity(strokeOpacity), lineWidth: lineWidth)
-              .shadow(color: notificationColor.opacity(shadowOpacity), radius: shadowRadius)
-              .compositingGroup()
-              .opacity(hasVisibleAttention ? 1 : 0)
-              .allowsHitTesting(false)
-          }
-          .overlay {
-            unreadGlowShape
-              .strokeBorder(
-                notificationColor.opacity(notificationPulseOpacity),
-                lineWidth: notificationPulseLineWidth
-              )
-              .shadow(
-                color: notificationColor.opacity(notificationPulseOpacity * 0.6),
-                radius: notificationPulseShadowRadius
-              )
-              .compositingGroup()
-              .opacity(showsGlowingPaneRing ? 1 : 0)
-              .allowsHitTesting(false)
-          }
-          .overlay {
-            if case .dropping(let zone) = dropState {
-              DropOverlayView(zone: zone, size: geometry.size)
-                .allowsHitTesting(false)
-            }
-          }
+        terminalContent(in: geometry)
           .onChange(of: isUnread) { oldValue, newValue in
             guard oldValue != newValue else { return }
             updateNotificationPulse(
@@ -361,12 +315,149 @@ struct TerminalSplitTreeView: View {
       }
     }
 
+    private func terminalContent(in geometry: GeometryProxy) -> some View {
+      baseTerminal(in: geometry)
+        .background {
+          dropTargetBackground(size: geometry.size)
+        }
+        .background {
+          unreadBackground
+        }
+        .overlay {
+          unreadRingOverlay
+        }
+        .overlay {
+          notificationPulseOverlay
+        }
+        .overlay {
+          dropOverlay(size: geometry.size)
+        }
+    }
+
+    private func baseTerminal(in geometry: GeometryProxy) -> some View {
+      GhosttyTerminalView(surfaceView: surfaceView)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .top) {
+          GhosttySurfaceProgressOverlay(state: surfaceView.bridge.state)
+        }
+        .overlay(alignment: .topTrailing) {
+          searchOverlay
+        }
+        .overlay {
+          resizeOverlay(size: geometry.size)
+        }
+        .overlay {
+          dimmingOverlay
+        }
+        .overlay(alignment: .top) {
+          dragHandleOverlay
+        }
+        .onHover { hovering in
+          isPaneHovering = hovering
+        }
+    }
+
+    private func resizeOverlay(size: CGSize) -> some View {
+      ResizeOverlay(
+        geoSize: size,
+        surfaceView: surfaceView
+      )
+    }
+
+    @ViewBuilder
+    private var searchOverlay: some View {
+      if surfaceView.bridge.state.searchNeedle != nil {
+        GhosttySurfaceSearchOverlay(surfaceView: surfaceView)
+      }
+    }
+
+    @ViewBuilder
+    private var dimmingOverlay: some View {
+      if shouldDimSplit {
+        Rectangle()
+          .fill(dimmingColor)
+          .opacity(dimmingOpacity)
+          .allowsHitTesting(false)
+      }
+    }
+
+    @ViewBuilder
+    private var dragHandleOverlay: some View {
+      if isSplit {
+        DragHandle(
+          surfaceView: surfaceView,
+          isVisible: isPaneHovering
+        )
+      }
+    }
+
+    private func dropTargetBackground(size: CGSize) -> some View {
+      Color.clear
+        .contentShape(.rect)
+        .onDrop(
+          of: [TerminalSplitTreeView.dragType],
+          delegate: SplitDropDelegate(
+            dropState: $dropState,
+            viewSize: size,
+            destinationId: surfaceView.id,
+            action: action
+          ))
+    }
+
+    private var unreadBackground: some View {
+      unreadGlowShape
+        .fill(notificationColor.opacity(backgroundOpacity))
+        .opacity(hasVisibleAttention ? 1 : 0)
+        .allowsHitTesting(false)
+    }
+
+    private var unreadRingOverlay: some View {
+      unreadGlowShape
+        .strokeBorder(notificationColor.opacity(strokeOpacity), lineWidth: lineWidth)
+        .shadow(color: notificationColor.opacity(shadowOpacity), radius: shadowRadius)
+        .compositingGroup()
+        .opacity(hasVisibleAttention ? 1 : 0)
+        .allowsHitTesting(false)
+    }
+
+    private var notificationPulseOverlay: some View {
+      unreadGlowShape
+        .strokeBorder(
+          notificationColor.opacity(notificationPulseOpacity),
+          lineWidth: notificationPulseLineWidth
+        )
+        .shadow(
+          color: notificationColor.opacity(notificationPulseOpacity * 0.6),
+          radius: notificationPulseShadowRadius
+        )
+        .compositingGroup()
+        .opacity(showsGlowingPaneRing ? 1 : 0)
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func dropOverlay(size: CGSize) -> some View {
+      if case .dropping(let zone) = dropState {
+        DropOverlayView(zone: zone, size: size)
+          .allowsHitTesting(false)
+      }
+    }
+
     private var backgroundOpacity: Double {
       isUnread ? 0.1 : 0
     }
 
     private var hasVisibleAttention: Bool {
       Self.hasVisibleAttention(isUnread: isUnread, showsGlowingPaneRing: showsGlowingPaneRing)
+    }
+
+    private var shouldDimSplit: Bool {
+      Self.shouldDimSplit(
+        isSplit: isSplit,
+        focusedSurfaceID: focusedSurfaceID,
+        surfaceID: surfaceView.id,
+        dimmingOpacity: dimmingOpacity
+      )
     }
 
     private var lineWidth: CGFloat {
@@ -395,6 +486,15 @@ struct TerminalSplitTreeView: View {
 
     static func hasVisibleAttention(isUnread: Bool, showsGlowingPaneRing: Bool) -> Bool {
       isUnread && showsGlowingPaneRing
+    }
+
+    static func shouldDimSplit(
+      isSplit: Bool,
+      focusedSurfaceID: UUID?,
+      surfaceID: UUID,
+      dimmingOpacity: Double
+    ) -> Bool {
+      isSplit && focusedSurfaceID != surfaceID && dimmingOpacity > 0
     }
 
     static func shouldTriggerNotificationPulse(
@@ -435,7 +535,7 @@ struct TerminalSplitTreeView: View {
       for segment in TerminalNotificationPulsePattern.segments {
         DispatchQueue.main.asyncAfter(deadline: .now() + segment.delay) {
           guard notificationPulseAnimationGeneration == generation else { return }
-          withAnimation(.easeInOut(duration: segment.duration)) {
+          TerminalMotion.animate(.easeInOut(duration: segment.duration), reduceMotion: reduceMotion) {
             notificationPulseOpacity = segment.targetOpacity
           }
         }
@@ -833,8 +933,12 @@ enum TerminalSplitAccessibility {
 /// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
+  let dimmingColor: Color
+  let dimmingOpacity: Double
+  let focusedSurfaceID: UUID?
   let notificationColor: Color
   let showsGlowingPaneRing: Bool
+  let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
   let unreadSurfaceIDs: Set<UUID>
   let action: (TerminalSplitTreeView.Operation) -> Void
@@ -849,8 +953,12 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
     nsView.update(
       rootView: AnyView(
         TerminalSplitTreeView(
+          dimmingColor: dimmingColor,
+          dimmingOpacity: dimmingOpacity,
+          focusedSurfaceID: focusedSurfaceID,
           notificationColor: notificationColor,
           showsGlowingPaneRing: showsGlowingPaneRing,
+          splitDividerColor: splitDividerColor,
           tree: tree,
           unreadSurfaceIDs: unreadSurfaceIDs,
           action: action

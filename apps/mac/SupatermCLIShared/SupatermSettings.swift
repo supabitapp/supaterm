@@ -112,14 +112,26 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     updateChannel: .stable
   )
 
-  public static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
-    configDirectoryURL(homeDirectoryPath: homeDirectoryPath)
-      .appendingPathComponent("settings.toml", isDirectory: false)
+  public static func defaultURL(
+    homeDirectoryPath: String = NSHomeDirectory(),
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL {
+    SupatermStateRoot.fileURL(
+      "settings.toml",
+      homeDirectoryPath: homeDirectoryPath,
+      environment: environment
+    )
   }
 
-  public static func legacyURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
-    configDirectoryURL(homeDirectoryPath: homeDirectoryPath)
-      .appendingPathComponent("settings.json", isDirectory: false)
+  public static func legacyURL(
+    homeDirectoryPath: String = NSHomeDirectory(),
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL {
+    SupatermStateRoot.fileURL(
+      "settings.json",
+      homeDirectoryPath: homeDirectoryPath,
+      environment: environment
+    )
   }
 
   public init(from decoder: any Decoder) throws {
@@ -220,14 +232,6 @@ extension SupatermSettings {
 
   struct PersistedUpdates: Codable, Equatable, Sendable {
     let channel: UpdateChannel
-  }
-}
-
-extension SupatermSettings {
-  fileprivate static func configDirectoryURL(homeDirectoryPath: String) -> URL {
-    URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
-      .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("supaterm", isDirectory: true)
   }
 }
 

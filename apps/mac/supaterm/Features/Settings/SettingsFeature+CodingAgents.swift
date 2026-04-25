@@ -61,6 +61,7 @@ extension SettingsFeature {
       guard !state[keyPath: keyPath].isPending else {
         return .none
       }
+      state.agentIntegrationInstallFailure = nil
       state[keyPath: keyPath].errorMessage = nil
       state[keyPath: keyPath].isEnabled = isEnabled
       state[keyPath: keyPath].isPending = true
@@ -102,16 +103,28 @@ extension SettingsFeature {
       return .none
 
     case .agentIntegrationToggleFinished(let agent, .failure(let message)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].errorMessage = message
-      state[keyPath: keyPath].isAvailable = true
-      state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
-      state[keyPath: keyPath].isPending = false
-      return .none
+      return handleAgentIntegrationToggleFailure(&state, agent: agent, message: message)
 
     default:
       return .none
     }
+  }
+
+  func handleAgentIntegrationToggleFailure(
+    _ state: inout State,
+    agent: SupatermAgentKind,
+    message: String
+  ) -> Effect<Action> {
+    let keyPath = agentIntegrationKeyPath(for: agent)
+    let isInstallFailure = state[keyPath: keyPath].isEnabled
+    state[keyPath: keyPath].errorMessage = message
+    state[keyPath: keyPath].isAvailable = true
+    state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
+    state[keyPath: keyPath].isPending = false
+    if isInstallFailure {
+      state.agentIntegrationInstallFailure = .init(agent: agent, log: message)
+    }
+    return .none
   }
 
   func agentIntegrationKeyPath(

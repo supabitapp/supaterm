@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 nonisolated struct PersistedPinnedTerminalTab: Equatable, Codable, Sendable {
   let id: TerminalTabID
@@ -15,11 +16,15 @@ nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
 
   static let `default` = Self(spaces: [])
 
-  static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
-    URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
-      .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("supaterm", isDirectory: true)
-      .appendingPathComponent("pinned-tabs.json", isDirectory: false)
+  static func defaultURL(
+    homeDirectoryPath: String = NSHomeDirectory(),
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL {
+    SupatermStateRoot.fileURL(
+      "pinned-tabs.json",
+      homeDirectoryPath: homeDirectoryPath,
+      environment: environment
+    )
   }
 
   static func sanitized(

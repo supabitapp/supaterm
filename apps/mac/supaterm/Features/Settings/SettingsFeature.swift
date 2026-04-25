@@ -42,6 +42,23 @@ struct SettingsAgentIntegrationState: Equatable {
   }
 }
 
+struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
+  let agent: SupatermAgentKind
+  let log: String
+
+  var id: String {
+    agent.rawValue
+  }
+
+  var title: String {
+    "Could Not Install \(agent.notificationTitle) Integration"
+  }
+
+  var message: String {
+    "Supaterm could not install the integration. Review the error log below."
+  }
+}
+
 struct SettingsAboutState: Equatable {
   var updateChannel = SupatermSettings.default.updateChannel
   var updatesAutomaticallyCheckForUpdates = true
@@ -75,6 +92,7 @@ public struct SettingsFeature {
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var newTabPosition = SupatermSettings.default.newTabPosition
     var about = SettingsAboutState()
+    var agentIntegrationInstallFailure: SettingsAgentIntegrationInstallFailure?
     var restoreTerminalLayoutEnabled = SupatermSettings.default.restoreTerminalLayoutEnabled
     public var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
@@ -86,6 +104,7 @@ public struct SettingsFeature {
   public enum Action: Equatable {
     case agentIntegrationStatusRefreshRequested(SupatermAgentKind)
     case agentIntegrationStatusRefreshed(SupatermAgentKind, SettingsAgentIntegrationResult)
+    case agentIntegrationInstallFailureDismissed
     case agentIntegrationToggled(SupatermAgentKind, Bool)
     case agentIntegrationToggleFinished(SupatermAgentKind, SettingsAgentIntegrationResult)
     case alert(PresentationAction<Alert>)
@@ -192,6 +211,10 @@ public struct SettingsFeature {
 
       case .alert(.dismiss), .alert(.presented(.dismiss)):
         state.alert = nil
+        return .none
+
+      case .agentIntegrationInstallFailureDismissed:
+        state.agentIntegrationInstallFailure = nil
         return .none
 
       case .alert(.presented(.openSystemNotificationSettings)):

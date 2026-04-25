@@ -64,6 +64,55 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func splitDividerColorUsesConfiguredValue() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      split-divider-color = #123456
+      """
+    )
+
+    #expect(hexString(runtime.splitDividerColor()) == "#123456")
+  }
+
+  @Test
+  func splitDividerColorFallsBackToDimmedBackground() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      """
+    )
+
+    #expect(hexString(runtime.splitDividerColor()) == "#0A0A0A")
+  }
+
+  @Test
+  func unfocusedSplitDimmingUsesConfiguredFillAndOpacity() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      unfocused-split-fill = #202020
+      unfocused-split-opacity = 0.42
+      """
+    )
+
+    #expect(hexString(runtime.unfocusedSplitDimmingColor()) == "#202020")
+    #expect(abs(runtime.unfocusedSplitDimmingOpacity() - 0.58) < 0.0001)
+  }
+
+  @Test
+  func unfocusedSplitDimmingFallsBackToBackgroundAndDefaultOpacity() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      background = #101010
+      """
+    )
+
+    #expect(hexString(runtime.unfocusedSplitDimmingColor()) == "#101010")
+    #expect(abs(runtime.unfocusedSplitDimmingOpacity() - 0.3) < 0.0001)
+  }
+
+  @Test
   func dispatchAppActionRoutesSupportedActions() {
     let app = NSApplication.shared
     let previousDelegate = app.delegate

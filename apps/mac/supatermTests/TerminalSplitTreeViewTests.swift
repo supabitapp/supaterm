@@ -102,6 +102,57 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func splitDimmingRequiresUnfocusedSplitPaneAndVisibleOpacity() {
+    let focusedID = UUID()
+    let otherID = UUID()
+
+    #expect(
+      TerminalSplitTreeView.LeafView.shouldDimSplit(
+        isSplit: true,
+        focusedSurfaceID: focusedID,
+        surfaceID: otherID,
+        dimmingOpacity: 0.3
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldDimSplit(
+        isSplit: true,
+        focusedSurfaceID: focusedID,
+        surfaceID: focusedID,
+        dimmingOpacity: 0.3
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldDimSplit(
+        isSplit: false,
+        focusedSurfaceID: focusedID,
+        surfaceID: otherID,
+        dimmingOpacity: 0.3
+      )
+    )
+    #expect(
+      !TerminalSplitTreeView.LeafView.shouldDimSplit(
+        isSplit: true,
+        focusedSurfaceID: focusedID,
+        surfaceID: otherID,
+        dimmingOpacity: 0
+      )
+    )
+  }
+
+  @Test
+  func splitDimmingTreatsMissingFocusAsUnfocused() {
+    #expect(
+      TerminalSplitTreeView.LeafView.shouldDimSplit(
+        isSplit: true,
+        focusedSurfaceID: nil,
+        surfaceID: UUID(),
+        dimmingOpacity: 0.3
+      )
+    )
+  }
+
+  @Test
   func horizontalSplitDropsInnerLeadingAndTrailingEdges() {
     let outerEdges: TerminalSplitTreeView.OuterEdges = .all
 

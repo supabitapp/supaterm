@@ -91,6 +91,10 @@ struct SettingsFeatureCodingAgentsTests {
         .failure("Claude settings must be valid JSON before Supaterm can install hooks.")
       )
     ) {
+      $0.agentIntegrationInstallFailure = .init(
+        agent: .claude,
+        log: "Claude settings must be valid JSON before Supaterm can install hooks."
+      )
       $0.claudeIntegration.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
       $0.claudeIntegration.isEnabled = false
       $0.claudeIntegration.isPending = false
@@ -197,6 +201,35 @@ struct SettingsFeatureCodingAgentsTests {
       $0.piIntegration.confirmedEnabled = true
       $0.piIntegration.isEnabled = true
       $0.piIntegration.isPending = false
+    }
+  }
+
+  @Test
+  func piIntegrationInstallFailureShowsErrorLogAlert() async {
+    let log = "clone failed\nfatal: repository not found"
+    let message = "Supaterm could not install the Pi package: \(log)"
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.piSettingsClient.installSupatermIntegration = {
+        throw PiSettingsInstallerError.installFailed(log)
+      }
+    }
+
+    await store.send(.agentIntegrationToggled(.pi, true)) {
+      $0.piIntegration.isEnabled = true
+      $0.piIntegration.isPending = true
+    }
+
+    await store.receive(.agentIntegrationToggleFinished(.pi, .failure(message)), timeout: 0) {
+      $0.agentIntegrationInstallFailure = .init(agent: .pi, log: message)
+      $0.piIntegration.errorMessage = message
+      $0.piIntegration.isEnabled = false
+      $0.piIntegration.isPending = false
+    }
+
+    await store.send(.agentIntegrationInstallFailureDismissed) {
+      $0.agentIntegrationInstallFailure = nil
     }
   }
 }

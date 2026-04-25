@@ -10,6 +10,8 @@ struct TerminalDetailView: View {
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
@@ -23,7 +25,10 @@ struct TerminalDetailView: View {
           _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
         },
         toggleSidebar: {
-          withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+          TerminalMotion.animate(
+            .spring(response: 0.2, dampingFraction: 1.0),
+            reduceMotion: reduceMotion
+          ) {
             _ = store.send(.toggleSidebarButtonTapped)
           }
         },
@@ -40,8 +45,12 @@ struct TerminalDetailView: View {
       )
       TerminalDetailSurface(
         store: store,
+        dimmingColor: terminal.unfocusedSplitDimmingColor,
+        dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
+        focusedSurfaceID: terminal.currentFocusedSurfaceID(),
         notificationColor: terminal.notificationAttentionColor,
         showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
+        splitDividerColor: terminal.splitDividerColor,
         terminal: terminal,
         selectedTabID: selectedTabID
       )
@@ -193,15 +202,23 @@ private struct SplitZoomButton: View {
 
 private struct TerminalDetailSurface: View {
   let store: StoreOf<TerminalWindowFeature>
+  let dimmingColor: Color
+  let dimmingOpacity: Double
+  let focusedSurfaceID: UUID?
   let notificationColor: Color
   let showsGlowingPaneRing: Bool
+  let splitDividerColor: Color
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
   var body: some View {
     TerminalSurfacePaneView(
+      dimmingColor: dimmingColor,
+      dimmingOpacity: dimmingOpacity,
+      focusedSurfaceID: focusedSurfaceID,
       notificationColor: notificationColor,
       showsGlowingPaneRing: showsGlowingPaneRing,
+      splitDividerColor: splitDividerColor,
       store: store,
       terminal: terminal,
       tabID: selectedTabID
@@ -211,16 +228,24 @@ private struct TerminalDetailSurface: View {
 }
 
 private struct TerminalSurfacePaneView: View {
+  let dimmingColor: Color
+  let dimmingOpacity: Double
+  let focusedSurfaceID: UUID?
   let notificationColor: Color
   let showsGlowingPaneRing: Bool
+  let splitDividerColor: Color
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tabID: TerminalTabID
 
   var body: some View {
     TerminalSplitTreeAXContainer(
+      dimmingColor: dimmingColor,
+      dimmingOpacity: dimmingOpacity,
+      focusedSurfaceID: focusedSurfaceID,
       notificationColor: notificationColor,
       showsGlowingPaneRing: showsGlowingPaneRing,
+      splitDividerColor: splitDividerColor,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
