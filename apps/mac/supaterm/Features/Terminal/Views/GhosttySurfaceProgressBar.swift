@@ -56,28 +56,13 @@ struct GhosttySurfaceProgressBar: View {
               .offset(x: position * (geometry.size.width * 0.75))
           }
           .onAppear {
-            guard !reduceMotion else { return }
-            TerminalMotion.animate(
-              .easeInOut(duration: 1.2)
-                .repeatForever(autoreverses: true),
-              reduceMotion: reduceMotion
-            ) {
-              position = 1
-            }
+            startIndeterminateAnimation(reduceMotion: reduceMotion)
           }
           .onDisappear {
             position = 0
           }
           .onChange(of: reduceMotion) { _, reduceMotion in
-            position = 0
-            guard !reduceMotion else { return }
-            TerminalMotion.animate(
-              .easeInOut(duration: 1.2)
-                .repeatForever(autoreverses: true),
-              reduceMotion: reduceMotion
-            ) {
-              position = 1
-            }
+            restartIndeterminateAnimation(reduceMotion: reduceMotion)
           }
         }
       }
@@ -89,5 +74,22 @@ struct GhosttySurfaceProgressBar: View {
     .accessibilityAddTraits(.updatesFrequently)
     .accessibilityLabel(accessibilityLabel)
     .accessibilityValue(accessibilityValue)
+  }
+
+  private var indeterminateAnimation: Animation {
+    .easeInOut(duration: 1.2)
+      .repeatForever(autoreverses: true)
+  }
+
+  private func startIndeterminateAnimation(reduceMotion: Bool) {
+    guard !reduceMotion else { return }
+    TerminalMotion.animate(indeterminateAnimation, reduceMotion: reduceMotion) {
+      position = 1
+    }
+  }
+
+  private func restartIndeterminateAnimation(reduceMotion: Bool) {
+    position = 0
+    startIndeterminateAnimation(reduceMotion: reduceMotion)
   }
 }
