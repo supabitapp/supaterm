@@ -9,6 +9,8 @@ struct ConfirmationOverlay: View {
   let onConfirm: () -> Void
   let onCancel: () -> Void
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   private static let transition: AnyTransition = .asymmetric(
     insertion: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity),
     removal: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity)
@@ -72,7 +74,7 @@ struct ConfirmationOverlay: View {
       .padding(3)
       .background(palette.dialogOuterBackground, in: .rect(cornerRadius: 14))
       .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
-      .transition(Self.transition)
+      .terminalTransition(Self.transition, reduceMotion: reduceMotion)
     }
   }
 }

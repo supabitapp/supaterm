@@ -5,6 +5,7 @@ struct GhosttySurfaceProgressBar: View {
   let progressState: ghostty_action_progress_report_state_e
   let progressValue: Int?
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var position: CGFloat = 0
 
   var body: some View {
@@ -44,7 +45,7 @@ struct GhosttySurfaceProgressBar: View {
               width: geometry.size.width * CGFloat(progress) / 100,
               height: geometry.size.height
             )
-            .animation(.easeInOut(duration: 0.2), value: progress)
+            .terminalAnimation(.easeInOut(duration: 0.2), value: progress, reduceMotion: reduceMotion)
         } else {
           ZStack(alignment: .leading) {
             Rectangle()
@@ -55,15 +56,13 @@ struct GhosttySurfaceProgressBar: View {
               .offset(x: position * (geometry.size.width * 0.75))
           }
           .onAppear {
-            withAnimation(
-              .easeInOut(duration: 1.2)
-                .repeatForever(autoreverses: true)
-            ) {
-              position = 1
-            }
+            startIndeterminateAnimation(reduceMotion: reduceMotion)
           }
           .onDisappear {
             position = 0
+          }
+          .onChange(of: reduceMotion) { _, reduceMotion in
+            restartIndeterminateAnimation(reduceMotion: reduceMotion)
           }
         }
       }
@@ -75,5 +74,22 @@ struct GhosttySurfaceProgressBar: View {
     .accessibilityAddTraits(.updatesFrequently)
     .accessibilityLabel(accessibilityLabel)
     .accessibilityValue(accessibilityValue)
+  }
+
+  private var indeterminateAnimation: Animation {
+    .easeInOut(duration: 1.2)
+      .repeatForever(autoreverses: true)
+  }
+
+  private func startIndeterminateAnimation(reduceMotion: Bool) {
+    guard !reduceMotion else { return }
+    TerminalMotion.animate(indeterminateAnimation, reduceMotion: reduceMotion) {
+      position = 1
+    }
+  }
+
+  private func restartIndeterminateAnimation(reduceMotion: Bool) {
+    position = 0
+    startIndeterminateAnimation(reduceMotion: reduceMotion)
   }
 }

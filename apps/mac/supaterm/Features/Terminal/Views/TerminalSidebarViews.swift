@@ -121,6 +121,7 @@ struct FloatingSidebarOverlay: View {
   let minFraction: CGFloat
   let maxFraction: CGFloat
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var dragFraction: CGFloat?
 
   var body: some View {
@@ -144,7 +145,7 @@ struct FloatingSidebarOverlay: View {
           width: floatingWidth
         )
         .frame(width: floatingWidth)
-        .transition(.move(edge: .leading))
+        .terminalTransition(.move(edge: .leading), reduceMotion: reduceMotion)
         .zIndex(1)
       }
 

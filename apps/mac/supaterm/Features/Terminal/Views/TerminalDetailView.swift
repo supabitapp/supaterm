@@ -10,6 +10,8 @@ struct TerminalDetailView: View {
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
@@ -23,7 +25,10 @@ struct TerminalDetailView: View {
           _ = store.send(.bindingMenuItemSelected(.equalizeSplits))
         },
         toggleSidebar: {
-          withAnimation(.spring(response: 0.2, dampingFraction: 1.0)) {
+          TerminalMotion.animate(
+            .spring(response: 0.2, dampingFraction: 1.0),
+            reduceMotion: reduceMotion
+          ) {
             _ = store.send(.toggleSidebarButtonTapped)
           }
         },

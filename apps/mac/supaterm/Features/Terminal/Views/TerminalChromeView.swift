@@ -127,6 +127,7 @@ enum WindowTrafficLightMetrics {
 }
 
 struct WindowTrafficLights: View {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
 
   var body: some View {
@@ -158,7 +159,7 @@ struct WindowTrafficLights: View {
     .padding(.leading, WindowTrafficLightMetrics.leadingPadding)
     .padding(.top, WindowTrafficLightMetrics.topPadding)
     .onHover { hovering in
-      withAnimation(.easeInOut(duration: 0.1)) {
+      TerminalMotion.animate(.easeInOut(duration: 0.1), reduceMotion: reduceMotion) {
         isHovering = hovering
       }
     }
