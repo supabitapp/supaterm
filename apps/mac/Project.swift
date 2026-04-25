@@ -326,6 +326,7 @@ let project = Project(
         ),
       ],
       dependencies: [
+        .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
@@ -355,7 +356,10 @@ let project = Project(
           "DEAD_CODE_STRIPPING": "YES",
         ],
         defaultSettings: .essential
-      )
+      ),
+      metadata: .metadata(tags: [
+        "tag:build-artifact:sp",
+      ])
     ),
     .target(
       name: "supatermTests",
@@ -399,10 +403,8 @@ let project = Project(
       name: "supaterm",
       buildAction: .buildAction(
         targets: [
-          .target("sp"),
           .target("supaterm"),
         ],
-        buildOrder: .manual,
         runPostActionsOnFailure: true
       ),
       testAction: .targets(
