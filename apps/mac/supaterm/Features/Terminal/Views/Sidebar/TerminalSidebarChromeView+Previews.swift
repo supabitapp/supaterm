@@ -23,7 +23,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let title: String
   let icon: String?
   let isSelected: Bool
-  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
@@ -47,7 +46,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       stateLabel,
       isSelected ? "Selected" : nil,
       paneCountLabel,
-      notificationPreviewMarkdown == nil ? nil : "Message",
     ]
     .compactMap { $0 }
 
@@ -93,7 +91,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     id: String,
     icon: String? = nil,
     isSelected: Bool = false,
-    notificationPreviewMarkdown: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentActivity: TerminalHostState.AgentActivity? = nil,
@@ -106,7 +103,6 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.title = title
     self.icon = icon
     self.isSelected = isSelected
-    self.notificationPreviewMarkdown = notificationPreviewMarkdown
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.agentActivity = agentActivity
@@ -180,7 +176,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       scenario: "Running agent inside a split coding tab",
       title: "Socket cleanup",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A05",
-      notificationPreviewMarkdown: "Applying patch to socket notification routing",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("docs")
@@ -193,7 +188,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Release note pass",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A06",
       icon: "doc.text",
-      notificationPreviewMarkdown: "Need input on wording before publish",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -206,7 +200,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       icon: "doc.text.magnifyingglass",
-      notificationPreviewMarkdown: "Review complete: no further changes needed",
       paneWorkingDirectories: cwdList(cwd("docs")),
       agentActivity: .claude(.idle)
     ),
@@ -228,7 +221,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
       icon: "shippingbox",
-      notificationPreviewMarkdown: "Local preview server is ready",
       paneWorkingDirectories: cwdList(
         cwd("apps", "supaterm.com"),
         cwd("docs")
@@ -241,7 +233,6 @@ private enum TerminalSidebarTabPreviewFixtures {
       title: "Build failures",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A09",
       icon: "hammer",
-      notificationPreviewMarkdown: "2 failures in TerminalSidebarChromeViewTests",
       paneWorkingDirectories: cwdList(
         cwd("apps", "mac"),
         cwd("apps", "mac", "supatermTests")
@@ -271,11 +262,9 @@ private struct TerminalSidebarTabPreviewRow: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
-      notificationPreviewMarkdown: item.notificationPreviewMarkdown,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       badgeActivity: item.agentActivity,
-      detailActivity: item.agentActivity,
       terminalProgress: item.terminalProgress,
       shortcutHint: nil,
       showsShortcutHint: false,
@@ -410,7 +399,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       title: "Ghostty vendor bump",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B02",
       icon: "shippingbox",
-      notificationPreviewMarkdown: "Build finished with 2 warnings",
       paneWorkingDirectories: [
         cwd("apps", "mac")
       ],
@@ -427,7 +415,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B03",
         icon: "sparkles",
         isSelected: true,
-        notificationPreviewMarkdown: "Preview server is ready for review",
         paneWorkingDirectories: [
           cwd("apps", "supaterm.com")
         ]
@@ -436,7 +423,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
         title: "Release notes",
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B04",
         icon: "doc.text",
-        notificationPreviewMarkdown: "Draft is ready for one last pass",
         paneWorkingDirectories: [
           cwd("docs")
         ]
@@ -445,7 +431,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
         title: "Smoke test",
         id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1B05",
         icon: "checkmark.seal",
-        notificationPreviewMarkdown: "Need input on the onboarding flow",
         paneWorkingDirectories: [
           cwd("apps", "mac"),
           cwd("apps", "supaterm.com"),
@@ -460,7 +445,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     id: String,
     icon: String? = nil,
     isSelected: Bool = false,
-    notificationPreviewMarkdown: String? = nil,
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentActivity: TerminalHostState.AgentActivity? = nil
@@ -472,7 +456,6 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
       id: id,
       icon: icon,
       isSelected: isSelected,
-      notificationPreviewMarkdown: notificationPreviewMarkdown,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       agentActivity: agentActivity

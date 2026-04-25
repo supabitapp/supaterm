@@ -195,84 +195,9 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func runningCodexDetailTakesSecondaryLinePrecedenceOverNotificationPreview() {
-    #expect(
-      TerminalSidebarTabSummaryView.secondaryContent(
-        detailActivity: .codex(.running, detail: "Bash · git status --short"),
-        notificationPreviewMarkdown: "Need approval"
-      ) == .activity("Bash · git status --short")
-    )
-  }
-
-  @Test
-  func notificationPreviewReturnsWhenCodexNeedsInput() {
-    #expect(
-      TerminalSidebarTabSummaryView.secondaryContent(
-        detailActivity: .codex(.needsInput, detail: "Bash · git status --short"),
-        notificationPreviewMarkdown: "Need approval"
-      ) == .notification("Need approval")
-    )
-  }
-
-  @Test
-  func notificationPreviewRemainsForNonCodexActivity() {
-    #expect(
-      TerminalSidebarTabSummaryView.secondaryContent(
-        detailActivity: .claude(.running, detail: "Thinking"),
-        notificationPreviewMarkdown: "Need approval"
-      ) == .notification("Need approval")
-    )
-  }
-
-  @Test
-  func notificationPreviewReturnsWhenCodexDetailIsHiddenForBackgroundPane() {
-    #expect(
-      TerminalSidebarTabSummaryView.secondaryContent(
-        detailActivity: nil,
-        notificationPreviewMarkdown: "Need approval"
-      ) == .notification("Need approval")
-    )
-  }
-
-  @Test
-  func secondaryContentIsNilWithoutActivityDetailOrNotificationPreview() {
-    #expect(
-      TerminalSidebarTabSummaryView.secondaryContent(
-        detailActivity: .codex(.running),
-        notificationPreviewMarkdown: nil
-      ) == nil
-    )
-  }
-
-  @Test
-  func runningCodexHoverMarkdownTakesPopoverPrecedenceOverNotificationMarkdown() {
+  func notificationMarkdownDrivesPopover() {
     #expect(
       TerminalSidebarTabSummaryView.popoverMarkdown(
-        codexHoverMarkdown: """
-          Inspecting transcript activity
-
-          Need approval?
-          """,
-        detailActivity: .codex(.idle),
-        notificationMarkdown: """
-          Need approval
-
-          Full notification body
-          """
-      ) == """
-        Inspecting transcript activity
-
-        Need approval?
-        """
-    )
-  }
-
-  @Test
-  func notificationMarkdownReturnsWhenCodexDetailIsHiddenForPopover() {
-    #expect(
-      TerminalSidebarTabSummaryView.popoverMarkdown(
-        codexHoverMarkdown: "Inspecting transcript activity",
-        detailActivity: nil,
         notificationMarkdown: """
           Need approval
 
@@ -287,11 +212,9 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func popoverMarkdownIsNilWithoutVisibleActivityDetailOrNotification() {
+  func popoverMarkdownIsNilWithoutNotification() {
     #expect(
       TerminalSidebarTabSummaryView.popoverMarkdown(
-        codexHoverMarkdown: nil,
-        detailActivity: nil,
         notificationMarkdown: nil
       ) == nil
     )

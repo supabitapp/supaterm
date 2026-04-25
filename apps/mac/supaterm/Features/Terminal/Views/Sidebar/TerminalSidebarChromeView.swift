@@ -3,7 +3,6 @@ import ComposableArchitecture
 import SupatermCLIShared
 import SupatermUpdateFeature
 import SwiftUI
-import Textual
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
@@ -293,7 +292,6 @@ struct TerminalSidebarChromeView: View {
     let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       tab: tab,
-      notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount
     )
@@ -445,25 +443,16 @@ struct TerminalSidebarTabSummaryView: View {
     case unreadCount(Int)
   }
 
-  enum SecondaryContent: Equatable {
-    case activity(String)
-    case notification(String)
-  }
-
   let tab: TerminalTabItem
   let palette: TerminalPalette
   let isSelected: Bool
-  let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
-  let detailActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
-
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   static func statusAccessory(
     isPinned: Bool,
@@ -510,34 +499,9 @@ struct TerminalSidebarTabSummaryView: View {
     return paneWorkingDirectories.joined(separator: "\n")
   }
 
-  static func secondaryContent(
-    detailActivity: TerminalHostState.AgentActivity?,
-    notificationPreviewMarkdown: String?
-  ) -> SecondaryContent? {
-    if let detailActivity,
-      detailActivity.kind == .codex,
-      detailActivity.phase == .running,
-      let detail = detailActivity.detail
-    {
-      return .activity(detail)
-    }
-    if let notificationPreviewMarkdown, !notificationPreviewMarkdown.isEmpty {
-      return .notification(notificationPreviewMarkdown)
-    }
-    return nil
-  }
-
   static func popoverMarkdown(
-    codexHoverMarkdown: String?,
-    detailActivity: TerminalHostState.AgentActivity?,
     notificationMarkdown: String?
   ) -> String? {
-    if detailActivity != nil,
-      let codexHoverMarkdown,
-      !codexHoverMarkdown.isEmpty
-    {
-      return codexHoverMarkdown
-    }
     return notificationMarkdown
   }
 
@@ -579,42 +543,6 @@ struct TerminalSidebarTabSummaryView: View {
             statusAccessoryView(statusAccessory)
           }
         }
-      }
-
-      switch Self.secondaryContent(
-        detailActivity: detailActivity,
-        notificationPreviewMarkdown: notificationPreviewMarkdown
-      ) {
-      case .activity(let detail):
-        Text(detail)
-          .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(notificationTextColor)
-          .lineLimit(2)
-          .truncationMode(.tail)
-          .multilineTextAlignment(.leading)
-          .terminalContentTransition(.opacity, reduceMotion: reduceMotion)
-          .terminalTransition(
-            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)),
-            reduceMotion: reduceMotion
-          )
-
-      case .notification(let notificationPreviewMarkdown):
-        InlineText(markdown: notificationPreviewMarkdown)
-          .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(notificationTextColor)
-          .textual.inlineStyle(notificationInlineStyle)
-          .allowsHitTesting(false)
-          .lineLimit(2)
-          .truncationMode(.tail)
-          .multilineTextAlignment(.leading)
-          .terminalContentTransition(.opacity, reduceMotion: reduceMotion)
-          .terminalTransition(
-            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)),
-            reduceMotion: reduceMotion
-          )
-
-      case nil:
-        EmptyView()
       }
 
       ForEach(paneWorkingDirectories, id: \.self) { workingDirectory in
@@ -672,21 +600,6 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
-  }
-
-  private var notificationTextColor: Color {
-    isSelected
-      ? palette.selectedText.opacity(0.82)
-      : palette.secondaryText
-  }
-
-  private var notificationInlineStyle: InlineStyle {
-    InlineStyle()
-      .code(.monospaced, .fontScale(0.94), .foregroundColor(notificationTextColor))
-      .emphasis(.italic)
-      .strong(.fontWeight(.semibold))
-      .link(.foregroundColor(notificationTextColor))
-      .strikethrough(.strikethroughStyle(.single))
   }
 }
 
@@ -849,9 +762,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private struct AnimatedPresentation: Equatable {
-    let agentPresentation: TerminalHostState.TabAgentPresentation
-    let notificationPreviewMarkdown: String?
-    let notificationMarkdown: String?
+    let badgeActivity: TerminalHostState.AgentActivity?
     let paneWorkingDirectories: [String]
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
@@ -924,11 +835,9 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
-          notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           badgeActivity: agentPresentation.badgeActivity,
-          detailActivity: agentPresentation.detailActivity,
           terminalProgress: terminalProgress,
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint,
@@ -1077,9 +986,7 @@ struct TerminalSidebarTabRow: View {
 
   private var animatedPresentation: AnimatedPresentation {
     .init(
-      agentPresentation: agentPresentation,
-      notificationPreviewMarkdown: notificationPresentation?.previewMarkdown,
-      notificationMarkdown: notificationPresentation?.markdown,
+      badgeActivity: agentPresentation.badgeActivity,
       paneWorkingDirectories: paneWorkingDirectories,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
@@ -1088,8 +995,6 @@ struct TerminalSidebarTabRow: View {
 
   private var popoverMarkdown: String? {
     TerminalSidebarTabSummaryView.popoverMarkdown(
-      codexHoverMarkdown: agentPresentation.hoverMarkdown,
-      detailActivity: agentPresentation.detailActivity,
       notificationMarkdown: notificationPresentation?.markdown
     )
   }
