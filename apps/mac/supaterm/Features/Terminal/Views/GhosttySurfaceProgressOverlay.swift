@@ -4,6 +4,8 @@ import SwiftUI
 struct GhosttySurfaceProgressOverlay: View {
   @Bindable var state: GhosttySurfaceState
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   init(state: GhosttySurfaceState) {
     self._state = Bindable(state)
   }
@@ -17,7 +19,7 @@ struct GhosttySurfaceProgressOverlay: View {
         progressState: progressState,
         progressValue: state.progressValue
       )
-      .transition(.opacity)
+      .terminalTransition(.opacity, reduceMotion: reduceMotion)
     }
   }
 }

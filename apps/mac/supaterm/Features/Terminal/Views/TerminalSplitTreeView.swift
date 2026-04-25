@@ -535,7 +535,7 @@ struct TerminalSplitTreeView: View {
       for segment in TerminalNotificationPulsePattern.segments {
         DispatchQueue.main.asyncAfter(deadline: .now() + segment.delay) {
           guard notificationPulseAnimationGeneration == generation else { return }
-          withAnimation(.easeInOut(duration: segment.duration)) {
+          TerminalMotion.animate(.easeInOut(duration: segment.duration), reduceMotion: reduceMotion) {
             notificationPulseOpacity = segment.targetOpacity
           }
         }

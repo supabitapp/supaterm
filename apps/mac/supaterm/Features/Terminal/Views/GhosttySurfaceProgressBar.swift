@@ -5,6 +5,7 @@ struct GhosttySurfaceProgressBar: View {
   let progressState: ghostty_action_progress_report_state_e
   let progressValue: Int?
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var position: CGFloat = 0
 
   var body: some View {
@@ -44,7 +45,7 @@ struct GhosttySurfaceProgressBar: View {
               width: geometry.size.width * CGFloat(progress) / 100,
               height: geometry.size.height
             )
-            .animation(.easeInOut(duration: 0.2), value: progress)
+            .terminalAnimation(.easeInOut(duration: 0.2), value: progress, reduceMotion: reduceMotion)
         } else {
           ZStack(alignment: .leading) {
             Rectangle()
@@ -55,15 +56,28 @@ struct GhosttySurfaceProgressBar: View {
               .offset(x: position * (geometry.size.width * 0.75))
           }
           .onAppear {
-            withAnimation(
+            guard !reduceMotion else { return }
+            TerminalMotion.animate(
               .easeInOut(duration: 1.2)
-                .repeatForever(autoreverses: true)
+                .repeatForever(autoreverses: true),
+              reduceMotion: reduceMotion
             ) {
               position = 1
             }
           }
           .onDisappear {
             position = 0
+          }
+          .onChange(of: reduceMotion) { _, reduceMotion in
+            position = 0
+            guard !reduceMotion else { return }
+            TerminalMotion.animate(
+              .easeInOut(duration: 1.2)
+                .repeatForever(autoreverses: true),
+              reduceMotion: reduceMotion
+            ) {
+              position = 1
+            }
           }
         }
       }

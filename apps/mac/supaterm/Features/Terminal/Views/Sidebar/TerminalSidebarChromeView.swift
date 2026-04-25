@@ -87,6 +87,7 @@ struct TerminalSidebarChromeView: View {
   let terminal: TerminalHostState
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
   @StateObject private var dragSession = TerminalSidebarDragSession()
@@ -184,7 +185,10 @@ struct TerminalSidebarChromeView: View {
               symbol: "chevron.up",
               palette: palette
             ) {
-              withAnimation(.easeInOut(duration: 0.3)) {
+              TerminalMotion.animate(
+                .easeInOut(duration: 0.3),
+                reduceMotion: accessibilityReduceMotion
+              ) {
                 proxy.scrollTo(terminalSidebarScrollTopID, anchor: .top)
               }
             }
@@ -331,9 +335,10 @@ struct TerminalSidebarChromeView: View {
       }
       .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
       .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
-      .animation(
+      .terminalAnimation(
         .spring(response: 0.3, dampingFraction: 0.8),
-        value: dragSession.insertionIndex[zoneID]
+        value: dragSession.insertionIndex[zoneID],
+        reduceMotion: accessibilityReduceMotion
       )
     }
   }
@@ -350,7 +355,7 @@ struct TerminalSidebarChromeView: View {
   }
 
   private func newTab() {
-    withAnimation(.easeInOut(duration: 0.2)) {
+    TerminalMotion.animate(.easeInOut(duration: 0.2), reduceMotion: accessibilityReduceMotion) {
       _ = store.send(
         .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
       )
@@ -360,7 +365,7 @@ struct TerminalSidebarChromeView: View {
   private func scrollToBottom(
     using proxy: ScrollViewProxy
   ) {
-    withAnimation(.easeInOut(duration: 0.3)) {
+    TerminalMotion.animate(.easeInOut(duration: 0.3), reduceMotion: accessibilityReduceMotion) {
       if let selectedTabID = terminal.selectedTabID {
         proxy.scrollTo(selectedTabID, anchor: .bottom)
       } else {
@@ -457,6 +462,8 @@ struct TerminalSidebarTabSummaryView: View {
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
+
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
   static func statusAccessory(
     isPinned: Bool,
@@ -585,9 +592,10 @@ struct TerminalSidebarTabSummaryView: View {
           .lineLimit(2)
           .truncationMode(.tail)
           .multilineTextAlignment(.leading)
-          .contentTransition(.opacity)
-          .transition(
-            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+          .terminalContentTransition(.opacity, reduceMotion: accessibilityReduceMotion)
+          .terminalTransition(
+            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)),
+            reduceMotion: accessibilityReduceMotion
           )
 
       case .notification(let notificationPreviewMarkdown):
@@ -599,9 +607,10 @@ struct TerminalSidebarTabSummaryView: View {
           .lineLimit(2)
           .truncationMode(.tail)
           .multilineTextAlignment(.leading)
-          .contentTransition(.opacity)
-          .transition(
-            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading))
+          .terminalContentTransition(.opacity, reduceMotion: accessibilityReduceMotion)
+          .terminalTransition(
+            .opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)),
+            reduceMotion: accessibilityReduceMotion
           )
 
       case nil:
@@ -730,7 +739,11 @@ private struct TerminalSidebarProgressIndicatorView: View {
                 style: StrokeStyle(lineWidth: 2, lineCap: .round)
               )
               .rotationEffect(.degrees(-90))
-              .animation(.easeInOut(duration: 0.2), value: fraction)
+              .terminalAnimation(
+                .easeInOut(duration: 0.2),
+                value: fraction,
+                reduceMotion: accessibilityReduceMotion
+              )
           } else {
             Circle()
               .trim(from: 0.14, to: 0.64)
@@ -758,7 +771,10 @@ private struct TerminalSidebarProgressIndicatorView: View {
       guard progress.indicatorStyle == .ring, progress.fraction == nil, !accessibilityReduceMotion else {
         return
       }
-      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+      TerminalMotion.animate(
+        .linear(duration: 0.9).repeatForever(autoreverses: false),
+        reduceMotion: accessibilityReduceMotion
+      ) {
         rotation = .degrees(360)
       }
     }
@@ -767,7 +783,10 @@ private struct TerminalSidebarProgressIndicatorView: View {
       guard progress.indicatorStyle == .ring, isIndeterminate, !accessibilityReduceMotion else {
         return
       }
-      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+      TerminalMotion.animate(
+        .linear(duration: 0.9).repeatForever(autoreverses: false),
+        reduceMotion: accessibilityReduceMotion
+      ) {
         rotation = .degrees(360)
       }
     }
@@ -776,7 +795,10 @@ private struct TerminalSidebarProgressIndicatorView: View {
       guard progress.indicatorStyle == .ring, progress.fraction == nil, !reduceMotion else {
         return
       }
-      withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+      TerminalMotion.animate(
+        .linear(duration: 0.9).repeatForever(autoreverses: false),
+        reduceMotion: reduceMotion
+      ) {
         rotation = .degrees(360)
       }
     }
@@ -959,7 +981,11 @@ struct TerminalSidebarTabRow: View {
       )
     }
     .buttonStyle(.plain)
-    .animation(rowAnimation, value: animatedPresentation)
+    .terminalAnimation(
+      .spring(response: 0.24, dampingFraction: 0.88),
+      value: animatedPresentation,
+      reduceMotion: accessibilityReduceMotion
+    )
     .background {
       SidebarPopoverPresenter(
         isPresented: showsPopover,
@@ -1066,10 +1092,6 @@ struct TerminalSidebarTabRow: View {
     )
   }
 
-  private var rowAnimation: Animation? {
-    accessibilityReduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88)
-  }
-
   private var popoverMarkdown: String? {
     TerminalSidebarTabSummaryView.popoverMarkdown(
       codexHoverMarkdown: agentPresentation.hoverMarkdown,
@@ -1087,7 +1109,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private func close() {
-    withAnimation(.easeInOut(duration: 0.15)) {
+    TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: accessibilityReduceMotion) {
       _ = store.send(.closeTabRequested(tab.id))
     }
   }
@@ -1125,7 +1147,7 @@ private struct TerminalSidebarAgentActivityView: View {
       .onAppear {
         guard !accessibilityReduceMotion else { return }
         if let animation {
-          withAnimation(animation) {
+          TerminalMotion.animate(animation, reduceMotion: accessibilityReduceMotion) {
             isAnimating = true
           }
         }
@@ -1134,7 +1156,7 @@ private struct TerminalSidebarAgentActivityView: View {
         isAnimating = false
         guard !accessibilityReduceMotion else { return }
         if let animation {
-          withAnimation(animation) {
+          TerminalMotion.animate(animation, reduceMotion: accessibilityReduceMotion) {
             isAnimating = true
           }
         }
@@ -1143,7 +1165,7 @@ private struct TerminalSidebarAgentActivityView: View {
         isAnimating = false
         guard !reduceMotion else { return }
         if let animation {
-          withAnimation(animation) {
+          TerminalMotion.animate(animation, reduceMotion: reduceMotion) {
             isAnimating = true
           }
         }
@@ -1225,7 +1247,7 @@ private struct TerminalSidebarAgentActivityView: View {
           .opacity(runningDotOpacity(for: index, phase: phase))
       }
     }
-    .animation(.smooth(duration: 0.16), value: phase)
+    .terminalAnimation(.smooth(duration: 0.16), value: phase, reduceMotion: accessibilityReduceMotion)
     .accessibilityHidden(true)
   }
 
@@ -1352,6 +1374,7 @@ private struct TerminalSidebarSpaceBar: View {
   let palette: TerminalPalette
   let terminal: TerminalHostState
 
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @State private var availableWidth: CGFloat = 0
   @State private var hoveredSpaceID: TerminalSpaceID?
   @State private var showPreview = false
@@ -1404,7 +1427,10 @@ private struct TerminalSidebarSpaceBar: View {
                 .foregroundStyle(palette.primaryText.opacity(0.7))
                 .lineLimit(1)
                 .id(hoveredSpace.id)
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .terminalTransition(
+                  .opacity.combined(with: .scale(scale: 0.96)),
+                  reduceMotion: accessibilityReduceMotion
+                )
                 .offset(y: -20)
             }
           }
@@ -1441,7 +1467,10 @@ private struct TerminalSidebarSpaceBar: View {
                 if !showPreview {
                   DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
                     if hoveredSpaceID == space.id && isHoveringList {
-                      withAnimation(.easeInOut(duration: 0.2)) {
+                      TerminalMotion.animate(
+                        .easeInOut(duration: 0.2),
+                        reduceMotion: accessibilityReduceMotion
+                      ) {
                         showPreview = true
                       }
                     }
@@ -1452,7 +1481,10 @@ private struct TerminalSidebarSpaceBar: View {
               }
             },
             onSelect: {
-              withAnimation(.easeOut(duration: 0.1)) {
+              TerminalMotion.animate(
+                .easeOut(duration: 0.1),
+                reduceMotion: accessibilityReduceMotion
+              ) {
                 _ = store.send(.selectSpaceButtonTapped(space.id))
               }
             },
@@ -1552,6 +1584,7 @@ private struct TerminalSidebarScrollIndicatorButton: View {
 }
 
 private struct TerminalSidebarRectButtonStyle: ButtonStyle {
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.isEnabled) private var isEnabled
   @State private var isHovering = false
@@ -1565,8 +1598,16 @@ private struct TerminalSidebarRectButtonStyle: ButtonStyle {
       .contentShape(.rect)
       .opacity(isEnabled ? 1 : 0.3)
       .scaleEffect(configuration.isPressed && isEnabled ? 0.95 : 1)
-      .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-      .animation(.easeInOut(duration: 0.15), value: isHovering)
+      .terminalAnimation(
+        .easeInOut(duration: 0.1),
+        value: configuration.isPressed,
+        reduceMotion: accessibilityReduceMotion
+      )
+      .terminalAnimation(
+        .easeInOut(duration: 0.15),
+        value: isHovering,
+        reduceMotion: accessibilityReduceMotion
+      )
       .onHover { isHovering = $0 }
   }
 
@@ -1579,6 +1620,7 @@ private struct TerminalSidebarRectButtonStyle: ButtonStyle {
 }
 
 private struct TerminalSidebarIconButtonStyle: ButtonStyle {
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize
@@ -1594,8 +1636,16 @@ private struct TerminalSidebarIconButtonStyle: ButtonStyle {
     .opacity(isEnabled ? 1 : 0.3)
     .contentShape(.rect)
     .scaleEffect(configuration.isPressed && isEnabled ? 0.95 : 1)
-    .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    .animation(.easeInOut(duration: 0.15), value: isHovering)
+    .terminalAnimation(
+      .easeInOut(duration: 0.1),
+      value: configuration.isPressed,
+      reduceMotion: accessibilityReduceMotion
+    )
+    .terminalAnimation(
+      .easeInOut(duration: 0.15),
+      value: isHovering,
+      reduceMotion: accessibilityReduceMotion
+    )
     .onHover { isHovering = $0 }
   }
 
@@ -1619,6 +1669,7 @@ private struct TerminalSidebarIconButtonStyle: ButtonStyle {
 }
 
 private struct TerminalSidebarSpaceButtonStyle: ButtonStyle {
+  @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize
@@ -1635,8 +1686,16 @@ private struct TerminalSidebarSpaceButtonStyle: ButtonStyle {
     .opacity(isEnabled ? 1 : 0.3)
     .contentShape(.rect)
     .scaleEffect(configuration.isPressed && isEnabled ? 0.95 : 1)
-    .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    .animation(.easeInOut(duration: 0.15), value: isHovering)
+    .terminalAnimation(
+      .easeInOut(duration: 0.1),
+      value: configuration.isPressed,
+      reduceMotion: accessibilityReduceMotion
+    )
+    .terminalAnimation(
+      .easeInOut(duration: 0.15),
+      value: isHovering,
+      reduceMotion: accessibilityReduceMotion
+    )
     .onHover { isHovering = $0 }
   }
 
