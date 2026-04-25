@@ -642,6 +642,26 @@ final class GhosttyRuntime {
     color(forKey: "background") ?? NSColor.windowBackgroundColor
   }
 
+  func splitDividerColor() -> NSColor {
+    if let color = color(forKey: "split-divider-color") {
+      return color
+    }
+    let background = backgroundColor()
+    return background.darken(by: background.isLightColor ? 0.08 : 0.4)
+  }
+
+  func unfocusedSplitDimmingColor() -> NSColor {
+    color(forKey: "unfocused-split-fill") ?? backgroundColor()
+  }
+
+  func unfocusedSplitDimmingOpacity() -> Double {
+    guard let config else { return 0.3 }
+    var value: Double = 0.7
+    let key = "unfocused-split-opacity"
+    _ = ghostty_config_get(config, &value, key, UInt(key.lengthOfBytes(using: .utf8)))
+    return 1 - min(max(value, 0.15), 1)
+  }
+
   func notificationAttentionColor() -> NSColor {
     let fallbackColor = color(forKey: "foreground") ?? .controlAccentColor
     guard
@@ -795,6 +815,21 @@ extension NSColor {
     let lighter = max(relativeLuminance, other.relativeLuminance)
     let darker = min(relativeLuminance, other.relativeLuminance)
     return (lighter + 0.05) / (darker + 0.05)
+  }
+
+  fileprivate func darken(by amount: CGFloat) -> NSColor {
+    guard let rgb = usingColorSpace(.sRGB) else { return self }
+    var hue: CGFloat = 0
+    var saturation: CGFloat = 0
+    var brightness: CGFloat = 0
+    var alpha: CGFloat = 0
+    rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+    return NSColor(
+      hue: hue,
+      saturation: saturation,
+      brightness: max(min(brightness * (1 - amount), 1), 0),
+      alpha: alpha
+    )
   }
 
   fileprivate convenience init(ghostty: ghostty_config_color_s) {
