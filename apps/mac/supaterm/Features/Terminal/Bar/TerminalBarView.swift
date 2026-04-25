@@ -22,23 +22,31 @@ struct TerminalBarView: View {
     )
   }
 
+  private var presentation: TerminalBarPresentation {
+    terminal.terminalBarRuntime.presentation
+  }
+
   var body: some View {
     HStack(spacing: 8) {
-      segmentGroup(terminal.terminalBarRuntime.presentation.left)
+      segmentGroup(presentation.left)
         .frame(maxWidth: .infinity, alignment: .leading)
-      segmentGroup(terminal.terminalBarRuntime.presentation.center)
+      segmentGroup(presentation.center)
         .frame(maxWidth: .infinity, alignment: .center)
-      segmentGroup(terminal.terminalBarRuntime.presentation.right)
+      segmentGroup(presentation.right)
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
     .padding(.horizontal, 10)
-    .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
+    .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
     .background(terminal.terminalBackgroundColor)
     .overlay(alignment: .top) {
-      Rectangle()
-        .fill(palette.detailStroke)
-        .frame(height: 1)
+      if !presentation.isEmpty {
+        Rectangle()
+          .fill(palette.detailStroke)
+          .frame(height: 1)
+      }
     }
+    .clipped()
+    .opacity(presentation.isEmpty ? 0 : 1)
     .task(id: refreshKey) {
       let reason = refreshKey.reason(comparedTo: previousRefreshKey)
       previousRefreshKey = refreshKey
@@ -58,6 +66,10 @@ struct TerminalBarView: View {
     }
   }
 
+  private var height: CGFloat {
+    presentation.isEmpty ? 0 : 28
+  }
+
   private func segmentGroup(_ segments: [TerminalBarSegment]) -> some View {
     HStack(spacing: 10) {
       ForEach(segments) { segment in
@@ -68,12 +80,20 @@ struct TerminalBarView: View {
   }
 
   private func segmentView(_ segment: TerminalBarSegment) -> some View {
-    Text(segment.text)
-      .font(.system(size: 12, weight: .medium))
-      .foregroundStyle(color(for: segment.tone))
-      .lineLimit(1)
-      .truncationMode(.middle)
-      .help(segment.tooltip ?? segment.text)
+    HStack(spacing: 4) {
+      if let symbol = segment.symbol {
+        Image(systemName: symbol)
+          .font(.system(size: 11, weight: .semibold))
+          .accessibilityHidden(true)
+        Text("-")
+      }
+      Text(segment.text)
+        .truncationMode(.middle)
+    }
+    .font(.system(size: 12, weight: .medium))
+    .foregroundStyle(color(for: segment.tone))
+    .lineLimit(1)
+    .help(segment.tooltip ?? segment.text)
   }
 
   private func color(for tone: TerminalBarSegmentTone) -> Color {

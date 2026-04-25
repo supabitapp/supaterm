@@ -13,9 +13,9 @@ struct TerminalBarRuntimeTests {
     let recorder = TerminalBarGitRecorder(outputs: ["## main\n"])
     let runtime = makeRuntime(clock: clock, recorder: recorder)
 
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/one"), reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/one"), reason: .focus)
     await clock.advance(by: .milliseconds(100))
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/two"), reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/two"), reason: .focus)
     await clock.advance(by: .milliseconds(199))
     await flushEffects()
     #expect(await recorder.calls() == [])
@@ -33,12 +33,12 @@ struct TerminalBarRuntimeTests {
     let runtime = makeRuntime(clock: clock, recorder: recorder)
     let now = Date()
 
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
     await clock.advance(by: .milliseconds(200))
     await flushEffects()
 
     runtime.refresh(
-      settings: .default,
+      settings: gitSettings,
       context: context(cwd: "/tmp/repo"),
       now: now.addingTimeInterval(1),
       reason: .focus
@@ -54,12 +54,12 @@ struct TerminalBarRuntimeTests {
     let runtime = makeRuntime(clock: clock, recorder: recorder)
     let now = Date()
 
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
     await clock.advance(by: .milliseconds(200))
     await flushEffects()
 
     runtime.refresh(
-      settings: .default,
+      settings: gitSettings,
       context: context(cwd: "/tmp/repo"),
       now: now.addingTimeInterval(3),
       reason: .focus
@@ -78,12 +78,12 @@ struct TerminalBarRuntimeTests {
     let runtime = makeRuntime(clock: clock, recorder: recorder)
     let now = Date()
 
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/repo"), now: now, reason: .focus)
     await clock.advance(by: .milliseconds(200))
     await flushEffects()
 
     runtime.refresh(
-      settings: .default,
+      settings: gitSettings,
       context: context(cwd: "/tmp/repo"),
       now: now.addingTimeInterval(1),
       reason: .commandFinished
@@ -112,7 +112,7 @@ struct TerminalBarRuntimeTests {
       sleep: { duration in try await clock.sleep(for: duration) }
     )
 
-    runtime.refresh(settings: .default, context: context(cwd: "/tmp/repo"), reason: .focus)
+    runtime.refresh(settings: gitSettings, context: context(cwd: "/tmp/repo"), reason: .focus)
     await clock.advance(by: .milliseconds(200))
     await clock.advance(by: .seconds(1))
     await flushEffects()
@@ -132,6 +132,15 @@ struct TerminalBarRuntimeTests {
       gitClient: client,
       debounceDuration: .milliseconds(200),
       sleep: { duration in try await clock.sleep(for: duration) }
+    )
+  }
+
+  private var gitSettings: SupatermBottomBarSettings {
+    SupatermBottomBarSettings(
+      enabled: true,
+      left: [.directory, .gitBranch, .gitStatus],
+      center: [],
+      right: []
     )
   }
 

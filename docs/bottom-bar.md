@@ -7,9 +7,9 @@ The default layout is:
 ```toml
 [bottom_bar]
 enabled = true
-left = ["directory", "git_branch", "git_status"]
+left = ["agent"]
 center = []
-right = ["agent", "exit_status"]
+right = []
 ```
 
 Available modules:

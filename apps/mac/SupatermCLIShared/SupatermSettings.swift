@@ -42,9 +42,9 @@ public struct SupatermBottomBarSettings: Codable, Equatable, Hashable, Sendable 
 
   public static let `default` = Self(
     enabled: true,
-    left: [.directory, .gitBranch, .gitStatus],
+    left: [.agent],
     center: [],
-    right: [.agent, .exitStatus]
+    right: []
   )
 
   public var modules: [SupatermBottomBarModule] {

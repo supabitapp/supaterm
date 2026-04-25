@@ -7,25 +7,28 @@ import Testing
 @MainActor
 struct TerminalBarPresentationTests {
   @Test
-  func defaultLayoutRendersWorkContext() {
+  func defaultLayoutRendersAgentStatus() {
     let presentation = TerminalBarPresenter.presentation(
       settings: .default,
       context: context(
         workingDirectoryPath: "/Users/khoi/code/supaterm",
         commandExitCode: 1,
-        agentActivity: .codex(.running)
+        agentActivity: .init(kind: .pi, phase: .needsInput, detail: "Approve command")
       ),
       gitState: gitState(stagedCount: 1, unstagedCount: 2),
       now: Date()
     )
 
-    #expect(presentation.left.map(\.id) == ["directory", "git_branch", "git_status"])
-    #expect(presentation.left.map(\.text) == ["supaterm", "main", "+1 ~2"])
-    #expect(presentation.right.map(\.id) == ["agent", "exit_status"])
+    #expect(presentation.left.map(\.id) == ["agent"])
+    #expect(presentation.left.map(\.symbol) == ["hammer"])
+    #expect(presentation.left.map(\.text) == ["needs input: Approve command"])
+    #expect(presentation.left.map(\.tooltip) == ["Pi needs input: Approve command"])
+    #expect(presentation.center.isEmpty)
+    #expect(presentation.right.isEmpty)
   }
 
   @Test
-  func missingCwdHidesDirectoryAndGitModules() {
+  func defaultLayoutHidesWhenAgentIsAbsent() {
     let presentation = TerminalBarPresenter.presentation(
       settings: .default,
       context: context(workingDirectoryPath: nil),
@@ -33,7 +36,29 @@ struct TerminalBarPresentationTests {
       now: Date()
     )
 
-    #expect(presentation.left.isEmpty)
+    #expect(presentation.isEmpty)
+  }
+
+  @Test
+  func configuredWorkModulesRender() {
+    let presentation = TerminalBarPresenter.presentation(
+      settings: SupatermBottomBarSettings(
+        enabled: true,
+        left: [.directory, .gitBranch, .gitStatus],
+        center: [],
+        right: [.exitStatus]
+      ),
+      context: context(
+        workingDirectoryPath: "/Users/khoi/code/supaterm",
+        commandExitCode: 1
+      ),
+      gitState: gitState(stagedCount: 1, unstagedCount: 2),
+      now: Date()
+    )
+
+    #expect(presentation.left.map(\.id) == ["directory", "git_branch", "git_status"])
+    #expect(presentation.left.map(\.text) == ["supaterm", "main", "+1 ~2"])
+    #expect(presentation.right.map(\.id) == ["exit_status"])
   }
 
   @Test

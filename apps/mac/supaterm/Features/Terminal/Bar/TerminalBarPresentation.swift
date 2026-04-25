@@ -113,7 +113,7 @@ nonisolated enum TerminalBarPresenter {
 
   private static func agentSegment(_ context: TerminalBarContext) -> TerminalBarSegment? {
     guard let activity = context.agentActivity else { return nil }
-    let phase =
+    let status =
       switch activity.phase {
       case .needsInput:
         "needs input"
@@ -122,10 +122,11 @@ nonisolated enum TerminalBarPresenter {
       case .idle:
         "idle"
       }
-    var text = "\(activity.kindTitle) \(phase)"
+    var text = status
     if let detail = normalized(activity.detail) {
       text += ": \(detail)"
     }
+    let tooltip = "\(activity.kindTitle) \(text)"
     let tone: TerminalBarSegmentTone =
       switch activity.tone {
       case .attention:
@@ -135,7 +136,7 @@ nonisolated enum TerminalBarPresenter {
       case .muted:
         .muted
       }
-    return TerminalBarSegment(id: "agent", text: text, tone: tone)
+    return TerminalBarSegment(id: "agent", symbol: "hammer", text: text, tooltip: tooltip, tone: tone)
   }
 
   private static func exitStatusSegment(_ context: TerminalBarContext) -> TerminalBarSegment? {

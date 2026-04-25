@@ -77,8 +77,8 @@ struct SupatermSettingsTests {
         [bottom_bar]
         center = []
         enabled = true
-        left = ["directory", "git_branch", "git_status"]
-        right = ["agent", "exit_status"]
+        left = ["agent"]
+        right = []
 
         [notifications]
         glowing_pane_ring = true
