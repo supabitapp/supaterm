@@ -11,16 +11,32 @@ import Testing
 struct SupatermSettingsTests {
   @Test
   func defaultURLUsesSupatermConfigPath() {
-    let url = SupatermSettings.defaultURL(homeDirectoryPath: "/tmp/khoi")
+    let url = SupatermSettings.defaultURL(
+      homeDirectoryPath: "/tmp/khoi",
+      environment: [:]
+    )
 
     #expect(url.path == "/tmp/khoi/.config/supaterm/settings.toml")
   }
 
   @Test
   func legacyURLUsesSupatermConfigPath() {
-    let url = SupatermSettings.legacyURL(homeDirectoryPath: "/tmp/khoi")
+    let url = SupatermSettings.legacyURL(
+      homeDirectoryPath: "/tmp/khoi",
+      environment: [:]
+    )
 
     #expect(url.path == "/tmp/khoi/.config/supaterm/settings.json")
+  }
+
+  @Test
+  func defaultURLUsesStateHomeWhenPresent() {
+    let url = SupatermSettings.defaultURL(
+      homeDirectoryPath: "/tmp/khoi",
+      environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
+    )
+
+    #expect(url.path == "/tmp/supaterm-dev/settings.toml")
   }
 
   @Test

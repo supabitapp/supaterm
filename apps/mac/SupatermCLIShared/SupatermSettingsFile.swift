@@ -60,13 +60,16 @@ public enum SupatermSettingsCodec {
 }
 
 public struct SupatermSettingsMigration {
+  let environment: [String: String]
   let fileManager: FileManager
   let homeDirectoryURL: URL
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default
   ) {
+    self.environment = environment
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
   }
@@ -76,8 +79,14 @@ public struct SupatermSettingsMigration {
   }
 
   public func migrateIfNeeded() throws {
-    let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path)
-    let legacyURL = SupatermSettings.legacyURL(homeDirectoryPath: homeDirectoryURL.path)
+    let settingsURL = SupatermSettings.defaultURL(
+      homeDirectoryPath: homeDirectoryURL.path,
+      environment: environment
+    )
+    let legacyURL = SupatermSettings.legacyURL(
+      homeDirectoryPath: homeDirectoryURL.path,
+      environment: environment
+    )
 
     if fileManager.fileExists(atPath: settingsURL.path) {
       guard let data = try? Data(contentsOf: settingsURL) else { return }
@@ -108,26 +117,37 @@ public struct SupatermSettingsMigration {
 }
 
 public struct SupatermSettingsValidator {
+  let environment: [String: String]
   let fileManager: FileManager
   let homeDirectoryURL: URL
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+    environment: [String: String] = ProcessInfo.processInfo.environment,
     fileManager: FileManager = .default
   ) {
+    self.environment = environment
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
   }
 
   public func validate(path explicitPath: URL? = nil) -> SupatermSettingsValidationResult {
     let isDefaultPath = explicitPath == nil
-    let path = explicitPath ?? SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path)
+    let path =
+      explicitPath
+      ?? SupatermSettings.defaultURL(
+        homeDirectoryPath: homeDirectoryURL.path,
+        environment: environment
+      )
 
     guard fileManager.fileExists(atPath: path.path) else {
       var warnings: [String] = []
       var errors: [String] = []
       if isDefaultPath {
-        let legacyURL = SupatermSettings.legacyURL(homeDirectoryPath: homeDirectoryURL.path)
+        let legacyURL = SupatermSettings.legacyURL(
+          homeDirectoryPath: homeDirectoryURL.path,
+          environment: environment
+        )
         if fileManager.fileExists(atPath: legacyURL.path) {
           warnings.append("Legacy settings file found at \(legacyURL.path). Run Supaterm to migrate it.")
         }

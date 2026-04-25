@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 public enum GhosttySupport {
   public struct ConfigFileLocations: Equatable {
@@ -101,6 +102,9 @@ public enum GhosttySupport {
     homeDirectoryURL: URL,
     environment: [String: String]
   ) -> URL {
+    if let stateHome = SupatermStateRoot.stateHomeURL(environment: environment) {
+      return stateHome
+    }
     if let xdgConfigHome = environment["XDG_CONFIG_HOME"], !xdgConfigHome.isEmpty {
       return URL(fileURLWithPath: xdgConfigHome, isDirectory: true)
     }

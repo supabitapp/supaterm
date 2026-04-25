@@ -1,9 +1,20 @@
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
 
 struct TerminalSessionCatalogTests {
+  @Test
+  func defaultURLUsesStateHomeWhenPresent() {
+    #expect(
+      TerminalSessionCatalog.defaultURL(
+        homeDirectoryPath: "/tmp/ignored",
+        environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
+      ).path == "/tmp/supaterm-dev/session.json"
+    )
+  }
+
   @Test
   func catalogRejectsUnsupportedVersion() throws {
     let data = Data(

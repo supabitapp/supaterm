@@ -11,6 +11,7 @@ struct SPHelpTests {
     #expect(help.contains("Environment:"))
     #expect(help.contains("SUPATERM_CLI_PATH"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
+    #expect(help.contains("SUPATERM_STATE_HOME"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))

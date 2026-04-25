@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 nonisolated struct TerminalSpaceID: Hashable, Identifiable, Codable, Sendable {
   let rawValue: UUID
@@ -46,11 +47,15 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
 
   static let `default` = Self.makeDefault()
 
-  static func defaultURL(homeDirectoryPath: String = NSHomeDirectory()) -> URL {
-    URL(fileURLWithPath: homeDirectoryPath, isDirectory: true)
-      .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("supaterm", isDirectory: true)
-      .appendingPathComponent("spaces.json", isDirectory: false)
+  static func defaultURL(
+    homeDirectoryPath: String = NSHomeDirectory(),
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> URL {
+    SupatermStateRoot.fileURL(
+      "spaces.json",
+      homeDirectoryPath: homeDirectoryPath,
+      environment: environment
+    )
   }
 
   static func sanitized(_ catalog: Self?) -> Self {

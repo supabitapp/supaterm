@@ -1,9 +1,20 @@
 import Foundation
+import SupatermCLIShared
 import Testing
 
 @testable import supaterm
 
 struct TerminalPinnedTabCatalogTests {
+  @Test
+  func defaultURLUsesStateHomeWhenPresent() {
+    #expect(
+      TerminalPinnedTabCatalog.defaultURL(
+        homeDirectoryPath: "/tmp/ignored",
+        environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
+      ).path == "/tmp/supaterm-dev/pinned-tabs.json"
+    )
+  }
+
   @Test
   func sanitizedPrunesInvalidSpacesDuplicateTabsAndEmptyEntries() throws {
     let validSpaceID = TerminalSpaceID()
