@@ -119,6 +119,21 @@ extension TerminalHostState {
     return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
   }
 
+  var splitDividerColor: Color {
+    _ = runtimeConfigGeneration
+    return Color(nsColor: runtime?.splitDividerColor() ?? .separatorColor)
+  }
+
+  var unfocusedSplitDimmingColor: Color {
+    _ = runtimeConfigGeneration
+    return Color(nsColor: runtime?.unfocusedSplitDimmingColor() ?? .windowBackgroundColor)
+  }
+
+  var unfocusedSplitDimmingOpacity: Double {
+    _ = runtimeConfigGeneration
+    return runtime?.unfocusedSplitDimmingOpacity() ?? 0
+  }
+
   func latestNotificationText(for tabID: TerminalTabID) -> String? {
     Self.notificationText(
       Self.latestNotification(
