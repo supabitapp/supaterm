@@ -127,7 +127,9 @@ public struct PiSettingsInstaller {
     guard !normalizedSource.isEmpty else {
       return false
     }
-    if normalizedSource.contains("github.com/supabitapp/supaterm-skills") {
+    if normalizedSource.contains("github.com/supabitapp/supaterm-skills")
+      || normalizedSource.contains("github.com:supabitapp/supaterm-skills")
+    {
       return true
     }
     guard
@@ -137,7 +139,15 @@ public struct PiSettingsInstaller {
     else {
       return false
     }
-    return URL(fileURLWithPath: normalizedSource).lastPathComponent == "supaterm-skills"
+    return packageName(for: normalizedSource) == "supaterm-skills"
+  }
+
+  private static func packageName(for source: String) -> String {
+    let lastPathComponent = URL(fileURLWithPath: source).lastPathComponent
+    guard lastPathComponent.hasSuffix(".git") else {
+      return lastPathComponent
+    }
+    return String(lastPathComponent.dropLast(4))
   }
 
   private func installedSupatermPackageSources() throws -> [String] {

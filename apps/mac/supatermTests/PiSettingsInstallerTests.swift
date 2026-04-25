@@ -32,6 +32,33 @@ struct PiSettingsInstallerTests {
   }
 
   @Test
+  func hasSupatermPackageInstalledMatchesSSHSource() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writePiSettings(
+      """
+      {
+        "packages": [
+          "git:git@github.com:supabitapp/supaterm-skills.git"
+        ]
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { _ in
+        .init(status: 0, standardOutput: "", standardError: "")
+      }
+    )
+
+    #expect(try installer.hasSupatermPackageInstalled())
+  }
+
+  @Test
   func hasSupatermPackageInstalledMatchesLocalPathSource() throws {
     let homeDirectoryURL = try temporaryPiHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
@@ -41,6 +68,33 @@ struct PiSettingsInstallerTests {
       {
         "packages": [
           "../../code/github.com/supabitapp/supaterm-skills"
+        ]
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installer = PiSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      checkPiAvailable: { true },
+      runPiCommand: { _ in
+        .init(status: 0, standardOutput: "", standardError: "")
+      }
+    )
+
+    #expect(try installer.hasSupatermPackageInstalled())
+  }
+
+  @Test
+  func hasSupatermPackageInstalledMatchesLocalGitPathSource() throws {
+    let homeDirectoryURL = try temporaryPiHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    try writePiSettings(
+      """
+      {
+        "packages": [
+          "../../code/github.com/supabitapp/supaterm-skills.git"
         ]
       }
       """,
