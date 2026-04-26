@@ -462,11 +462,14 @@ enum SPHelp {
   static let computerUseDiscussion = """
     Example:
       sp computer-use permissions
+      sp computer-use launch --bundle-id com.apple.TextEdit
       sp computer-use apps --json
-      sp computer-use windows --app TextEdit
-      sp computer-use snapshot --pid 123 --window 456 --image-out /tmp/window.png
-      sp computer-use click --pid 123 --window 456 --element 3
-      sp computer-use type --pid 123 "hello"
+      sp computer-use windows --app TextEdit --on-screen-only
+      sp computer-use snapshot --pid 123 --window 456 --query save --image-out /tmp/window.png
+      sp computer-use click --pid 123 --window 456 --element 3 --action press
+      sp computer-use type --pid 123 --window 456 --element 7 "hello"
+      sp computer-use key --pid 123 --window 456 return
+      sp computer-use scroll --pid 123 --window 456 --direction down --unit page
     """
 
   static let internalDiscussion = """

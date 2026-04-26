@@ -4,6 +4,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var computerUseShowAgentCursor: Bool
+  public var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var newTabPosition: NewTabPosition
@@ -15,6 +16,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     computerUseShowAgentCursor: Bool = true,
+    computerUseSnapshotMode: SupatermComputerUseSnapshotMode = .som,
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
     newTabPosition: NewTabPosition = .end,
@@ -25,6 +27,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.computerUseShowAgentCursor = computerUseShowAgentCursor
+    self.computerUseSnapshotMode = computerUseSnapshotMode
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.newTabPosition = newTabPosition
@@ -37,6 +40,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: .dark,
     analyticsEnabled: true,
     computerUseShowAgentCursor: true,
+    computerUseSnapshotMode: .som,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
     newTabPosition: .end,
@@ -81,6 +85,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
       computerUseShowAgentCursor: computerUse?.showAgentCursor ?? defaults.computerUseShowAgentCursor,
+      computerUseSnapshotMode: computerUse?.snapshotMode ?? defaults.computerUseSnapshotMode,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
       newTabPosition: terminal?.newTabPosition ?? defaults.newTabPosition,
@@ -93,7 +98,13 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
-    try container.encode(PersistedComputerUse(showAgentCursor: computerUseShowAgentCursor), forKey: .computerUse)
+    try container.encode(
+      PersistedComputerUse(
+        showAgentCursor: computerUseShowAgentCursor,
+        snapshotMode: computerUseSnapshotMode
+      ),
+      forKey: .computerUse
+    )
     try container.encode(
       PersistedPrivacy(
         analyticsEnabled: analyticsEnabled,
@@ -135,9 +146,29 @@ extension SupatermSettings {
 
   struct PersistedComputerUse: Codable, Equatable, Sendable {
     let showAgentCursor: Bool
+    let snapshotMode: SupatermComputerUseSnapshotMode
+
+    init(
+      showAgentCursor: Bool,
+      snapshotMode: SupatermComputerUseSnapshotMode = .som
+    ) {
+      self.showAgentCursor = showAgentCursor
+      self.snapshotMode = snapshotMode
+    }
+
+    init(from decoder: any Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      showAgentCursor = try container.decodeIfPresent(Bool.self, forKey: .showAgentCursor) ?? true
+      snapshotMode =
+        try container.decodeIfPresent(
+          SupatermComputerUseSnapshotMode.self,
+          forKey: .snapshotMode
+        ) ?? .som
+    }
 
     enum CodingKeys: String, CodingKey {
       case showAgentCursor = "show_agent_cursor"
+      case snapshotMode = "snapshot_mode"
     }
   }
 
@@ -180,6 +211,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
   var computerUseShowAgentCursor: Bool
+  var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   var crashReportsEnabled: Bool
   var glowingPaneRingEnabled: Bool
   var newTabPosition: NewTabPosition
@@ -195,6 +227,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
     self.computerUseShowAgentCursor = defaults.computerUseShowAgentCursor
+    self.computerUseSnapshotMode = defaults.computerUseSnapshotMode
     self.crashReportsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled
     self.glowingPaneRingEnabled =
@@ -216,6 +249,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
       computerUseShowAgentCursor: computerUseShowAgentCursor,
+      computerUseSnapshotMode: computerUseSnapshotMode,
       crashReportsEnabled: crashReportsEnabled,
       glowingPaneRingEnabled: glowingPaneRingEnabled,
       newTabPosition: newTabPosition,

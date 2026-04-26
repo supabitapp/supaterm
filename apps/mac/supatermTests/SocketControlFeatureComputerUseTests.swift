@@ -91,6 +91,60 @@ struct SocketControlFeatureComputerUseTests {
   }
 
   @Test
+  func launchRequestRoutesPayloadToComputerUseClient() async throws {
+    let recorder = SocketReplyRecorder()
+    let seenPayload = ComputerUseLaunchRecorder()
+    let handle = UUID(uuidString: "7603345C-4311-4919-9724-A2A4A9AC5D97")!
+    let payload = SupatermComputerUseLaunchRequest(
+      bundleID: "com.apple.TextEdit",
+      urls: ["file:///tmp/example.txt"],
+      arguments: ["--foreground"],
+      environment: ["FOO": "bar"],
+      createsNewInstance: true
+    )
+    let expected = SupatermComputerUseLaunchResult(
+      pid: 123,
+      bundleID: "com.apple.TextEdit",
+      name: "TextEdit",
+      isActive: false,
+      windows: [
+        .init(
+          id: 456,
+          pid: 123,
+          appName: "TextEdit",
+          title: "example.txt",
+          frame: .init(x: 0, y: 0, width: 800, height: 600),
+          isOnScreen: true,
+          zIndex: 1,
+          layer: 0,
+          onCurrentSpace: true,
+          spaceIDs: [1]
+        )
+      ]
+    )
+    let store = makeStore {
+      $0.computerUseClient.launch = { request in
+        await seenPayload.record(request)
+        return expected
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(
+      .requestReceived(
+        .init(handle: handle, payload: try .computerUseLaunch(payload, id: "computer-use-launch"))
+      )
+    )
+
+    #expect(await seenPayload.snapshot() == payload)
+    #expect(
+      try await recorder.snapshot().first?.response.decodeResult(
+        SupatermComputerUseLaunchResult.self) == expected)
+  }
+
+  @Test
   func elementDisplayTextFallsBackToAccessibilitySemantics() {
     let element = SupatermComputerUseElement(
       elementIndex: 1,
@@ -190,6 +244,18 @@ private actor ComputerUseClickRecorder {
   }
 
   func snapshot() -> SupatermComputerUseClickRequest? {
+    payload
+  }
+}
+
+private actor ComputerUseLaunchRecorder {
+  private var payload: SupatermComputerUseLaunchRequest?
+
+  func record(_ payload: SupatermComputerUseLaunchRequest) {
+    self.payload = payload
+  }
+
+  func snapshot() -> SupatermComputerUseLaunchRequest? {
     payload
   }
 }

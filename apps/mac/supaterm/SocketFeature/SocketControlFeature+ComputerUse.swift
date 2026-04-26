@@ -16,6 +16,11 @@ extension SocketControlFeature {
       let result = try await computerUseClient.apps()
       return try .ok(id: request.id, encodableResult: result)
 
+    case SupatermSocketMethod.computerUseLaunch:
+      let payload = try request.decodeParams(SupatermComputerUseLaunchRequest.self)
+      let result = try await computerUseClient.launch(payload)
+      return try .ok(id: request.id, encodableResult: result)
+
     case SupatermSocketMethod.computerUseWindows:
       let payload = try request.decodeParams(SupatermComputerUseWindowsRequest.self)
       let result = try await computerUseClient.windows(payload)

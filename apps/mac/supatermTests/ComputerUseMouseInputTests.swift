@@ -74,4 +74,12 @@ struct ComputerUseMouseInputTests {
     #expect(modifiedClick == .pidEvent)
     #expect(unavailableSkyLight == .pidEvent)
   }
+
+  @Test
+  func scrollDirectionsMapToKeyboardNavigation() {
+    #expect(ComputerUseKeyboardInput.scrollKeys(direction: .up, unit: .line).key == "up")
+    #expect(ComputerUseKeyboardInput.scrollKeys(direction: .down, unit: .page).key == "page-down")
+    #expect(ComputerUseKeyboardInput.scrollKeys(direction: .left, unit: .page).modifiers == [.option])
+    #expect(ComputerUseKeyboardInput.scrollKeys(direction: .right, unit: .page).modifiers == [.option])
+  }
 }

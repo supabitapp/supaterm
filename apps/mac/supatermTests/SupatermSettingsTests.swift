@@ -92,6 +92,7 @@ struct SupatermSettingsTests {
 
         [computer_use]
         show_agent_cursor = true
+        snapshot_mode = "som"
 
         [notifications]
         glowing_pane_ring = true

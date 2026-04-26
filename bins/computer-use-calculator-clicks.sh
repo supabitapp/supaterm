@@ -5,6 +5,7 @@ sp_cli=${SUPATERM_CLI_PATH:-sp}
 delay_seconds=1.4
 lead_seconds=3
 app_name=Calculator
+app_bundle_id=""
 mode=""
 stream_logs=${SUPATERM_COMPUTER_USE_STREAM_LOGS:-1}
 log_stream_pid=""
@@ -24,6 +25,7 @@ Options:
   --delay seconds    Delay between clicks. Default: 1.4
   --lead seconds     Wait before clicking. Default: 3
   --app name         Target app. Default: Calculator
+  --bundle-id id     Target bundle ID.
   --sp path          sp CLI path. Default: SUPATERM_CLI_PATH or sp
   --stream-logs      Stream computer-use logs. Default
   --no-stream-logs   Disable computer-use log streaming.
@@ -88,6 +90,15 @@ while [[ $# -gt 0 ]]; do
       app_name=${1#*=}
       shift
       ;;
+    --bundle-id)
+      require_value "$1" "${2:-}"
+      app_bundle_id=$2
+      shift 2
+      ;;
+    --bundle-id=*)
+      app_bundle_id=${1#*=}
+      shift
+      ;;
     --sp)
       require_value "$1" "${2:-}"
       sp_cli=$2
@@ -148,30 +159,55 @@ cleanup() {
 
 trap cleanup EXIT
 
+initial_frontmost=$(frontmost_app)
+log_state "initial"
+
 if [[ "$stream_logs" == "1" ]]; then
   log stream --style compact --level debug --predicate 'subsystem == "app.supabit.supaterm" AND category == "computer-use"' >&2 &
   log_stream_pid=$!
   sleep 0.2
 fi
 
-log_state "before open app=$app_name"
-open -g -a "$app_name"
-log_state "after open app=$app_name"
+launch_command=("$sp_cli" computer-use launch --json)
+app_filter=$app_name
+if [[ -n "$app_bundle_id" ]]; then
+  launch_command+=(--bundle-id "$app_bundle_id")
+  app_filter=$app_bundle_id
+else
+  launch_command+=(--name "$app_name")
+fi
+
+log_state "before launch app=$app_name bundle=$app_bundle_id"
+launch_json=$("${launch_command[@]}")
+log_state "after launch app=$app_name bundle=$app_bundle_id"
+LAUNCH_JSON=$launch_json python3 - <<'PY'
+import json
+import os
+
+launch = json.loads(os.environ["LAUNCH_JSON"])
+print(f'launch {launch["pid"]} {launch["name"]} active={launch["isActive"]}')
+PY
 sleep 0.5
 log_state "after launch wait app=$app_name"
 sleep "$lead_seconds"
 log_state "after lead wait app=$app_name"
 
-log_state "before windows app=$app_name"
-windows_json=$("$sp_cli" computer-use windows --app "$app_name" --json)
-log_state "after windows app=$app_name"
+log_state "before windows app=$app_filter"
+windows_json=$("$sp_cli" computer-use windows --app "$app_filter" --on-screen-only --json)
+log_state "after windows app=$app_filter"
 target=$(
   WINDOWS_JSON=$windows_json python3 - <<'PY'
 import json
 import os
 
 windows = json.loads(os.environ["WINDOWS_JSON"])["windows"]
-window = next((item for item in windows if item.get("isOnScreen")), windows[0])
+if not windows:
+    raise SystemExit("no windows")
+window = (
+    next((item for item in windows if item.get("isOnScreen") and item.get("onCurrentSpace") is True), None)
+    or next((item for item in windows if item.get("isOnScreen")), None)
+    or windows[0]
+)
 print(f'{window["pid"]} {window["id"]}')
 PY
 )
@@ -219,7 +255,7 @@ PY
   log_state "before click button=$names mode=$mode"
   status=0
   if [[ "$mode" == "element" ]]; then
-    "$sp_cli" computer-use click --pid "$pid" --window "$window" --element "$element" --json || status=$?
+    "$sp_cli" computer-use click --pid "$pid" --window "$window" --element "$element" --action press --json || status=$?
   else
     "$sp_cli" computer-use click --pid "$pid" --window "$window" --x "$x" --y "$y" --json || status=$?
   fi
@@ -255,9 +291,17 @@ snapshot = json.loads(os.environ["FINAL_SNAPSHOT_JSON"])
 values = [
     element
     for element in snapshot["elements"]
-    if element.get("role") == "AXStaticText" and "value" in element
+    if element.get("value") and element.get("role") in {"AXStaticText", "AXTextField", "AXTextArea"}
 ]
-display = max(values, key=lambda element: element["frame"]["y"])["value"].replace("\u200e", "")
-print(f"display {display}")
+if values:
+    display = max(values, key=lambda element: element.get("frame", {}).get("y", 0))["value"].replace("\u200e", "")
+    print(f"display {display}")
+else:
+    print(f'elements {len(snapshot["elements"])}')
 PY
+final_frontmost=$(frontmost_app)
+if [[ "$initial_frontmost" != "unknown" && "$final_frontmost" != "$initial_frontmost" ]]; then
+  printf 'frontmost changed: %s -> %s\n' "$initial_frontmost" "$final_frontmost" >&2
+  exit 1
+fi
 log_state "done"

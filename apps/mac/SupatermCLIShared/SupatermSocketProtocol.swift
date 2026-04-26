@@ -7,6 +7,7 @@ public enum SupatermSocketMethod {
   public static let computerUseApps = "computer_use.apps"
   public static let computerUseClick = "computer_use.click"
   public static let computerUseKey = "computer_use.key"
+  public static let computerUseLaunch = "computer_use.launch"
   public static let computerUsePermissions = "computer_use.permissions"
   public static let computerUseScroll = "computer_use.scroll"
   public static let computerUseSetValue = "computer_use.set_value"
@@ -144,6 +145,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
 
   public static func computerUseApps(id: String = UUID().uuidString) -> Self {
     Self(id: id, method: SupatermSocketMethod.computerUseApps)
+  }
+
+  public static func computerUseLaunch(
+    _ payload: SupatermComputerUseLaunchRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseLaunch,
+      params: try JSONObject(payload)
+    )
   }
 
   public static func computerUseWindows(

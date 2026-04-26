@@ -325,8 +325,22 @@ struct SPCommandTests {
     let permissions = try #require(
       try SP.parseAsRoot(["computer-use", "permissions"]) as? SP.ComputerUsePermissions
     )
+    let launch = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "launch",
+        "--bundle-id",
+        "com.apple.TextEdit",
+        "--url",
+        "file:///tmp/example.txt",
+        "--argument=--foreground",
+        "--env=FOO=bar",
+        "--new-instance",
+      ]) as? SP.ComputerUseLaunch
+    )
     let windows = try #require(
-      try SP.parseAsRoot(["computer-use", "windows", "--app", "TextEdit"]) as? SP.ComputerUseWindows
+      try SP.parseAsRoot(["computer-use", "windows", "--app", "TextEdit", "--on-screen-only"])
+        as? SP.ComputerUseWindows
     )
     let snapshot = try #require(
       try SP.parseAsRoot([
@@ -338,6 +352,10 @@ struct SPCommandTests {
         "456",
         "--image-out",
         "/tmp/window.png",
+        "--query",
+        "save",
+        "--mode",
+        "som",
       ]) as? SP.ComputerUseSnapshot
     )
     let click = try #require(
@@ -350,6 +368,8 @@ struct SPCommandTests {
         "456",
         "--element",
         "7",
+        "--action",
+        "open",
       ]) as? SP.ComputerUseClick
     )
     let coordinateClick = try #require(
@@ -374,31 +394,92 @@ struct SPCommandTests {
         "alt",
       ]) as? SP.ComputerUseClick
     )
+    #expect(type(of: permissions) == SP.ComputerUsePermissions.self)
+    #expect(launch.bundleID == "com.apple.TextEdit")
+    #expect(launch.url == ["file:///tmp/example.txt"])
+    #expect(launch.argument == ["--foreground"])
+    #expect(launch.env.count == 1)
+    #expect(launch.env.first?.key == "FOO")
+    #expect(launch.env.first?.value == "bar")
+    #expect(launch.createsNewInstance)
+    #expect(windows.app == "TextEdit")
+    #expect(windows.onScreenOnly)
+    #expect(snapshot.pid == 123)
+    #expect(snapshot.window == 456)
+    #expect(snapshot.imageOutputPath == "/tmp/window.png")
+    #expect(snapshot.query == "save")
+    #expect(snapshot.mode == .som)
+    #expect(click.element == 7)
+    #expect(click.action == .open)
+    #expect(coordinateClick.x == 320)
+    #expect(coordinateClick.y == 240)
+    #expect(coordinateClick.button == .right)
+    #expect(coordinateClick.count == 2)
+    #expect(coordinateClick.modifier == [.command, .option])
+  }
+
+  @Test
+  func computerUseParserAcceptsInputTargeting() throws {
+    let typeCommand = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "type",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--element",
+        "7",
+        "--delay-ms",
+        "0",
+        "hello",
+      ]) as? SP.ComputerUseType
+    )
     let key = try #require(
       try SP.parseAsRoot([
         "computer-use",
         "key",
         "--pid",
         "123",
+        "--window",
+        "456",
+        "--element",
+        "7",
         "--modifier",
         "command",
         "s",
       ]) as? SP.ComputerUseKey
     )
+    let scroll = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "scroll",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--element",
+        "7",
+        "--direction",
+        "down",
+        "--unit",
+        "page",
+        "--amount",
+        "2",
+      ]) as? SP.ComputerUseScroll
+    )
 
-    #expect(type(of: permissions) == SP.ComputerUsePermissions.self)
-    #expect(windows.app == "TextEdit")
-    #expect(snapshot.pid == 123)
-    #expect(snapshot.window == 456)
-    #expect(snapshot.imageOutputPath == "/tmp/window.png")
-    #expect(click.element == 7)
-    #expect(coordinateClick.x == 320)
-    #expect(coordinateClick.y == 240)
-    #expect(coordinateClick.button == .right)
-    #expect(coordinateClick.count == 2)
-    #expect(coordinateClick.modifier == [.command, .option])
+    #expect(typeCommand.window == 456)
+    #expect(typeCommand.element == 7)
+    #expect(typeCommand.delayMilliseconds == 0)
+    #expect(typeCommand.text == "hello")
+    #expect(key.window == 456)
+    #expect(key.element == 7)
     #expect(key.modifier == [.command])
     #expect(key.key == "s")
+    #expect(scroll.element == 7)
+    #expect(scroll.unit == .page)
+    #expect(scroll.amount == 2)
   }
 
   @Test

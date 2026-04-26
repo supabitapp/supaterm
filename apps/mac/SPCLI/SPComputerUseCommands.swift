@@ -11,6 +11,7 @@ extension SP {
       subcommands: [
         ComputerUsePermissions.self,
         ComputerUseApps.self,
+        ComputerUseLaunch.self,
         ComputerUseWindows.self,
         ComputerUseSnapshot.self,
         ComputerUseClick.self,
@@ -74,6 +75,62 @@ extension SP {
     }
   }
 
+  struct ComputerUseLaunch: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "launch",
+      abstract: "Launch an app in the background."
+    )
+
+    @Option(name: .customLong("bundle-id"), help: "Bundle ID to launch.")
+    var bundleID: String?
+
+    @Option(name: .long, help: "Application name to launch.")
+    var name: String?
+
+    @Option(name: .long, help: "URL or file path to hand to the app.")
+    var url: [String] = []
+
+    @Option(name: .long, help: "Argument passed to the app.")
+    var argument: [String] = []
+
+    @Option(name: .long, help: "Environment override in KEY=VALUE form.")
+    var env: [ComputerUseEnvironmentArgument] = []
+
+    @Flag(name: .customLong("new-instance"), help: "Create a new app instance.")
+    var createsNewInstance = false
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func validate() throws {
+      if bundleID == nil && name == nil {
+        throw ValidationError("Provide --bundle-id or --name.")
+      }
+    }
+
+    mutating func run() throws {
+      let result: SupatermComputerUseLaunchResult = try computerUseResult(
+        .computerUseLaunch(
+          .init(
+            bundleID: bundleID,
+            name: name,
+            urls: url,
+            arguments: argument,
+            environment: Dictionary(uniqueKeysWithValues: env.map { ($0.key, $0.value) }),
+            createsNewInstance: createsNewInstance
+          )
+        ),
+        options: options
+      )
+      try emitCommandResult(
+        result,
+        options: options.output,
+        plain: "\(result.pid)\t\(result.bundleID ?? "")\t\(result.name)",
+        human: "\(result.pid)  \(result.name)  \(result.bundleID ?? "-")"
+      )
+    }
+  }
+
   struct ComputerUseWindows: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "windows",
@@ -83,12 +140,15 @@ extension SP {
     @Option(name: .long, help: "Filter by bundle ID, app name, or pid.")
     var app: String?
 
+    @Flag(name: .customLong("on-screen-only"), help: "Only include on-screen windows.")
+    var onScreenOnly = false
+
     @OptionGroup
     var options: SPCommandOptions
 
     mutating func run() throws {
       let result: SupatermComputerUseWindowsResult = try computerUseResult(
-        .computerUseWindows(.init(app: app)),
+        .computerUseWindows(.init(app: app, onScreenOnly: onScreenOnly)),
         options: options
       )
       try emitCommandResult(
@@ -116,12 +176,26 @@ extension SP {
     @Option(name: .customLong("image-out"), help: "Write a PNG screenshot to this path.")
     var imageOutputPath: String?
 
+    @Option(name: .long, help: "Filter returned elements without changing indices.")
+    var query: String?
+
+    @Option(name: .long, help: "Snapshot mode.")
+    var mode: SupatermComputerUseSnapshotMode?
+
     @OptionGroup
     var options: SPCommandOptions
 
     mutating func run() throws {
       let result: SupatermComputerUseSnapshotResult = try computerUseResult(
-        .computerUseSnapshot(.init(pid: pid, windowID: window, imageOutputPath: imageOutputPath)),
+        .computerUseSnapshot(
+          .init(
+            pid: pid,
+            windowID: window,
+            imageOutputPath: imageOutputPath,
+            query: query,
+            mode: mode
+          )
+        ),
         options: options
       )
       try emitCommandResult(
@@ -164,6 +238,9 @@ extension SP {
     @Option(name: .long, help: "Click modifier.")
     var modifier: [SupatermComputerUseClickModifier] = []
 
+    @Option(name: .long, help: "Element action.")
+    var action: SupatermComputerUseClickAction = .press
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -190,7 +267,8 @@ extension SP {
             y: y,
             button: button,
             count: count,
-            modifiers: modifier
+            modifiers: modifier,
+            action: action
           )
         ),
         options: options
@@ -208,15 +286,41 @@ extension SP {
     @Option(name: .long, help: "Target process ID.")
     var pid: Int
 
+    @Option(name: .long, help: "Target window ID.")
+    var window: UInt32?
+
+    @Option(name: .long, help: "Element index from `snapshot`.")
+    var element: Int?
+
+    @Option(name: .customLong("delay-ms"), help: "Delay between fallback characters.")
+    var delayMilliseconds = 30
+
     @Argument(help: "Text to type.")
     var text: String
 
     @OptionGroup
     var options: SPCommandOptions
 
+    mutating func validate() throws {
+      if element != nil && window == nil {
+        throw ValidationError("--window is required with --element.")
+      }
+      if !(0...200).contains(delayMilliseconds) {
+        throw ValidationError("--delay-ms must be between 0 and 200.")
+      }
+    }
+
     mutating func run() throws {
       let result: SupatermComputerUseActionResult = try computerUseResult(
-        .computerUseType(.init(pid: pid, text: text)),
+        .computerUseType(
+          .init(
+            pid: pid,
+            windowID: window,
+            elementIndex: element,
+            text: text,
+            delayMilliseconds: delayMilliseconds
+          )
+        ),
         options: options
       )
       try emitActionResult(result, options: options.output)
@@ -232,6 +336,12 @@ extension SP {
     @Option(name: .long, help: "Target process ID.")
     var pid: Int
 
+    @Option(name: .long, help: "Target window ID.")
+    var window: UInt32?
+
+    @Option(name: .long, help: "Element index from `snapshot`.")
+    var element: Int?
+
     @Option(name: .long, help: "Modifier: command, shift, option, control.")
     var modifier: [SupatermComputerUseKeyModifier] = []
 
@@ -241,9 +351,15 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
+    mutating func validate() throws {
+      if element != nil && window == nil {
+        throw ValidationError("--window is required with --element.")
+      }
+    }
+
     mutating func run() throws {
       let result: SupatermComputerUseActionResult = try computerUseResult(
-        .computerUseKey(.init(pid: pid, key: key, modifiers: modifier)),
+        .computerUseKey(.init(pid: pid, windowID: window, elementIndex: element, key: key, modifiers: modifier)),
         options: options
       )
       try emitActionResult(result, options: options.output)
@@ -262,8 +378,14 @@ extension SP {
     @Option(name: .long, help: "Target window ID.")
     var window: UInt32
 
+    @Option(name: .long, help: "Element index from `snapshot`.")
+    var element: Int?
+
     @Option(name: .long, help: "Scroll direction.")
     var direction: SupatermComputerUseScrollDirection
+
+    @Option(name: .long, help: "Scroll unit.")
+    var unit: SupatermComputerUseScrollUnit = .line
 
     @Option(name: .long, help: "Scroll amount in lines.")
     var amount = 5
@@ -273,7 +395,16 @@ extension SP {
 
     mutating func run() throws {
       let result: SupatermComputerUseActionResult = try computerUseResult(
-        .computerUseScroll(.init(pid: pid, windowID: window, direction: direction, amount: amount)),
+        .computerUseScroll(
+          .init(
+            pid: pid,
+            windowID: window,
+            elementIndex: element,
+            direction: direction,
+            unit: unit,
+            amount: amount
+          )
+        ),
         options: options
       )
       try emitActionResult(result, options: options.output)
@@ -312,8 +443,11 @@ extension SP {
 }
 
 extension SupatermComputerUseClickButton: @retroactive ExpressibleByArgument {}
+extension SupatermComputerUseClickAction: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseKeyModifier: @retroactive ExpressibleByArgument {}
+extension SupatermComputerUseSnapshotMode: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseScrollDirection: @retroactive ExpressibleByArgument {}
+extension SupatermComputerUseScrollUnit: @retroactive ExpressibleByArgument {}
 
 extension SupatermComputerUseClickModifier: @retroactive ExpressibleByArgument {
   public init?(argument: String) {
@@ -331,6 +465,19 @@ extension SupatermComputerUseClickModifier: @retroactive ExpressibleByArgument {
     default:
       return nil
     }
+  }
+}
+
+struct ComputerUseEnvironmentArgument: ExpressibleByArgument {
+  let key: String
+  let value: String
+
+  init?(argument: String) {
+    guard let separator = argument.firstIndex(of: "="), separator > argument.startIndex else {
+      return nil
+    }
+    key = String(argument[..<separator])
+    value = String(argument[argument.index(after: separator)...])
   }
 }
 

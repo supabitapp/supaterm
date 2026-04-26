@@ -8,6 +8,12 @@ import Sharing
 import SupatermCLIShared
 import SupatermSupport
 
+@_silgen_name("_AXUIElementGetWindow")
+private func _AXUIElementGetWindow(
+  _ element: AXUIElement,
+  _ windowID: UnsafeMutablePointer<CGWindowID>
+) -> AXError
+
 @MainActor
 public final class ComputerUseRuntime: @unchecked Sendable {
   public static let shared = ComputerUseRuntime()
@@ -18,6 +24,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   }
 
   private let cursorOverlay = ComputerUseCursorOverlay()
+  private let focusGuard = ComputerUseFocusGuard()
   private var elementCache: [CacheKey: [Int: AXUIElement]] = [:]
 
   public init() {}
@@ -45,21 +52,86 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return .init(apps: apps)
   }
 
+  public func launch(
+    _ request: SupatermComputerUseLaunchRequest
+  ) async throws -> SupatermComputerUseLaunchResult {
+    guard request.bundleID != nil || request.name != nil else {
+      throw ComputerUseError.launchTargetRequired
+    }
+    let appURL = try applicationURL(bundleID: request.bundleID, name: request.name)
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = false
+    configuration.addsToRecentItems = false
+    configuration.createsNewApplicationInstance = request.createsNewInstance
+    if !request.arguments.isEmpty {
+      configuration.arguments = request.arguments
+    }
+    if !request.environment.isEmpty {
+      var environment = ProcessInfo.processInfo.environment
+      environment.merge(request.environment) { _, new in new }
+      configuration.environment = environment
+    }
+    if let bundleID = Bundle(url: appURL)?.bundleIdentifier ?? request.bundleID {
+      let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
+      configuration.appleEvent = NSAppleEventDescriptor(
+        eventClass: AEEventClass(kCoreEventClass),
+        eventID: AEEventID(kAEOpenApplication),
+        targetDescriptor: target,
+        returnID: AEReturnID(kAutoGenerateReturnID),
+        transactionID: AETransactionID(kAnyTransactionID)
+      )
+    }
+    let previous = NSWorkspace.shared.frontmostApplication
+    let urls = try request.urls.map(launchURL)
+    let app: NSRunningApplication = try await withCheckedThrowingContinuation { continuation in
+      let completion: @Sendable (NSRunningApplication?, Error?) -> Void = { app, error in
+        if let error {
+          continuation.resume(throwing: ComputerUseError.launchFailed(error.localizedDescription))
+        } else if let app {
+          continuation.resume(returning: app)
+        } else {
+          continuation.resume(throwing: ComputerUseError.launchFailed("LaunchServices returned no app."))
+        }
+      }
+      if urls.isEmpty {
+        NSWorkspace.shared.open(appURL, configuration: configuration, completionHandler: completion)
+      } else {
+        NSWorkspace.shared.open(
+          urls,
+          withApplicationAt: appURL,
+          configuration: configuration,
+          completionHandler: completion
+        )
+      }
+    }
+    if let previous, previous.processIdentifier != app.processIdentifier {
+      await restoreFocus(to: previous, awayFrom: app)
+    }
+    let windows = windows(.init(app: String(app.processIdentifier))).windows
+    return .init(
+      pid: Int(app.processIdentifier),
+      bundleID: app.bundleIdentifier,
+      name: app.localizedName ?? app.bundleIdentifier ?? String(app.processIdentifier),
+      isActive: app.isActive,
+      windows: windows
+    )
+  }
+
   public func windows(
     _ request: SupatermComputerUseWindowsRequest
   ) -> SupatermComputerUseWindowsResult {
     let pidFilter = pidFilter(for: request.app)
-    let windows = windowInfos()
+    let windows = windowInfos(onScreenOnly: request.onScreenOnly)
       .filter { info in
         guard let pidFilter else { return true }
         return info.pid == pidFilter
       }
       .map(\.window)
       .sorted {
-        if $0.pid == $1.pid {
+        if $0.zIndex == $1.zIndex {
           return $0.id < $1.id
         }
-        return $0.appName.localizedStandardCompare($1.appName) == .orderedAscending
+        return $0.zIndex > $1.zIndex
       }
     return .init(windows: windows)
   }
@@ -76,21 +148,30 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       throw ComputerUseError.windowNotFound(request.windowID)
     }
 
+    let mode = request.mode ?? currentSnapshotMode()
     let appElement = AXUIElementCreateApplication(pid_t(request.pid))
-    let targetWindow = matchingWindow(in: appElement, frame: windowInfo.window.frame)
-    let root = targetWindow ?? appElement
-    var elements: [SupatermComputerUseElement] = []
-    var cache: [Int: AXUIElement] = [:]
-    collectElements(root, elements: &elements, cache: &cache, nextIndex: 1, depth: 0)
-    elementCache[.init(pid: request.pid, windowID: request.windowID)] = cache
+    focusGuard.prepareSnapshot(pid: pid_t(request.pid), app: appElement)
+    var collection = ComputerUseElementCollection()
+    if mode != .vision {
+      collectElements(
+        appElement,
+        windowID: request.windowID,
+        collection: &collection,
+        depth: 0
+      )
+    }
+    elementCache[.init(pid: request.pid, windowID: request.windowID)] = collection.cache
+    let filteredElements = collection.elements.filter { elementMatchesQuery($0, query: request.query) }
 
-    let screenshot = try await screenshot(
-      windowID: request.windowID, outputPath: request.imageOutputPath)
+    let screenshot =
+      mode == .ax && request.imageOutputPath == nil
+      ? nil
+      : try await screenshot(windowID: request.windowID, outputPath: request.imageOutputPath)
     return .init(
       pid: request.pid,
       windowID: request.windowID,
       frame: windowInfo.window.frame,
-      elements: elements,
+      elements: filteredElements,
       screenshot: screenshot
     )
   }
@@ -117,78 +198,76 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   public func type(
     _ request: SupatermComputerUseTypeRequest
   ) throws -> SupatermComputerUseActionResult {
-    let source = CGEventSource(stateID: .hidSystemState)
-    var chars = Array(request.text.utf16)
-    guard !chars.isEmpty else {
-      return .init(ok: true, dispatch: "pid_event")
+    if let elementIndex = request.elementIndex {
+      guard let windowID = request.windowID else {
+        throw ComputerUseError.snapshotRequired
+      }
+      let element = try cachedElement(pid: request.pid, windowID: windowID, elementIndex: elementIndex)
+      do {
+        try focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
+          let result = AXUIElementSetAttributeValue(
+            element,
+            kAXSelectedTextAttribute as CFString,
+            request.text as CFTypeRef
+          )
+          guard result == .success else {
+            throw ComputerUseError.unsupportedBackgroundTarget
+          }
+        }
+        return .init(ok: true, dispatch: "accessibility")
+      } catch ComputerUseError.unsupportedBackgroundTarget {
+        focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
+          _ = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        }
+      }
     }
-    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
-    guard let keyDown, let keyUp else {
-      throw ComputerUseError.unsupportedBackgroundTarget
-    }
-    keyDown.keyboardSetUnicodeString(stringLength: chars.count, unicodeString: &chars)
-    keyUp.keyboardSetUnicodeString(stringLength: chars.count, unicodeString: &chars)
-    keyDown.postToPid(pid_t(request.pid))
-    keyUp.postToPid(pid_t(request.pid))
-    return .init(ok: true, dispatch: "pid_event")
+    let dispatch = try ComputerUseKeyboardInput.type(
+      text: request.text,
+      delayMilliseconds: request.delayMilliseconds,
+      pid: pid_t(request.pid)
+    )
+    return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
   public func key(
     _ request: SupatermComputerUseKeyRequest
   ) throws -> SupatermComputerUseActionResult {
-    guard let keyCode = keyCode(for: request.key) else {
-      throw ComputerUseError.keyUnsupported(request.key)
+    let target = try focusTarget(
+      pid: request.pid,
+      windowID: request.windowID,
+      elementIndex: request.elementIndex
+    )
+    let dispatch = try focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: target) {
+      try ComputerUseKeyboardInput.press(
+        key: request.key,
+        modifiers: request.modifiers,
+        pid: pid_t(request.pid)
+      )
     }
-    let flags = eventFlags(for: request.modifiers)
-    let source = CGEventSource(stateID: .hidSystemState)
-    guard
-      let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
-      let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
-    else {
-      throw ComputerUseError.unsupportedBackgroundTarget
-    }
-    keyDown.flags = flags
-    keyUp.flags = flags
-    keyDown.postToPid(pid_t(request.pid))
-    keyUp.postToPid(pid_t(request.pid))
-    return .init(ok: true, dispatch: "pid_event")
+    return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
   public func scroll(
     _ request: SupatermComputerUseScrollRequest
   ) throws -> SupatermComputerUseActionResult {
-    let delta = Int32(max(1, request.amount))
-    let wheel1: Int32
-    let wheel2: Int32
-    switch request.direction {
-    case .up:
-      wheel1 = delta
-      wheel2 = 0
-    case .down:
-      wheel1 = -delta
-      wheel2 = 0
-    case .left:
-      wheel1 = 0
-      wheel2 = delta
-    case .right:
-      wheel1 = 0
-      wheel2 = -delta
+    let target = try focusTarget(
+      pid: request.pid,
+      windowID: request.windowID,
+      elementIndex: request.elementIndex
+    )
+    let key = ComputerUseKeyboardInput.scrollKeys(direction: request.direction, unit: request.unit)
+    var dispatch = ComputerUseKeyboardDispatch.pidEvent
+    try focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: target) {
+      for _ in 0..<max(1, request.amount) {
+        dispatch = try ComputerUseKeyboardInput.press(
+          key: key.key,
+          modifiers: key.modifiers,
+          pid: pid_t(request.pid)
+        )
+        usleep(18_000)
+      }
     }
-    guard
-      let event = CGEvent(
-        scrollWheelEvent2Source: CGEventSource(stateID: .hidSystemState),
-        units: .line,
-        wheelCount: 2,
-        wheel1: wheel1,
-        wheel2: wheel2,
-        wheel3: 0
-      )
-    else {
-      throw ComputerUseError.unsupportedBackgroundTarget
-    }
-    event.postToPid(pid_t(request.pid))
-    return .init(ok: true, dispatch: "pid_event")
+    return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
   public func setValue(
@@ -199,11 +278,17 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       windowID: request.windowID,
       elementIndex: request.elementIndex
     )
-    let result = AXUIElementSetAttributeValue(
-      element, kAXValueAttribute as CFString, request.value as CFTypeRef)
-    guard result == .success else {
-      throw ComputerUseError.unsupportedBackgroundTarget
+    if axString(element, kAXRoleAttribute as CFString) == kAXPopUpButtonRole as String {
+      return try selectPopupValue(element, request: request)
     }
+    let result = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
+      AXUIElementSetAttributeValue(
+        element,
+        kAXValueAttribute as CFString,
+        request.value as CFTypeRef
+      )
+    }
+    guard result == .success else { throw ComputerUseError.unsupportedBackgroundTarget }
     return .init(ok: true, dispatch: "accessibility")
   }
 
@@ -216,15 +301,24 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     }
   }
 
-  private func windowInfos() -> [ComputerUseWindowInfo] {
+  private func windowInfos(onScreenOnly: Bool = false) -> [ComputerUseWindowInfo] {
+    let options: CGWindowListOption =
+      onScreenOnly ? [.optionOnScreenOnly, .excludeDesktopElements] : [.optionAll, .excludeDesktopElements]
     guard
       let array = CGWindowListCopyWindowInfo(
-        [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        options,
+        kCGNullWindowID
+      )
         as? [[String: Any]]
     else {
       return []
     }
-    return array.compactMap(ComputerUseWindowInfo.init)
+    let currentSpaceID = ComputerUseSpaceLookup.currentSpaceID()
+    let total = array.count
+    return array.enumerated().compactMap { offset, dictionary in
+      ComputerUseWindowInfo(dictionary, zIndex: total - offset, currentSpaceID: currentSpaceID)
+    }
+    .filter { $0.window.layer == 0 }
   }
 
   private func windowInfo(windowID: UInt32, pid: Int) -> ComputerUseWindowInfo? {
@@ -242,45 +336,215 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     .map { Int($0.processIdentifier) }
   }
 
+  private func applicationURL(bundleID: String?, name: String?) throws -> URL {
+    if let bundleID,
+      let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+    {
+      return url
+    }
+    if let name {
+      if name.hasPrefix("/") || name.hasPrefix("~") {
+        let path = NSString(string: name).expandingTildeInPath
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: url.path) {
+          return url
+        }
+      }
+      for directory in applicationSearchDirectories() {
+        let url = directory.appendingPathComponent("\(name).app")
+        if FileManager.default.fileExists(atPath: url.path) {
+          return url
+        }
+      }
+      if let running = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == name }),
+        let url = running.bundleURL
+      {
+        return url
+      }
+    }
+    throw ComputerUseError.launchFailed("Could not find the requested application.")
+  }
+
+  private func launchURL(_ rawValue: String) throws -> URL {
+    let expanded = NSString(string: rawValue).expandingTildeInPath
+    if let url = URL(string: rawValue), url.scheme != nil {
+      return url
+    }
+    return URL(fileURLWithPath: expanded)
+  }
+
+  private func applicationSearchDirectories() -> [URL] {
+    var urls = [
+      URL(fileURLWithPath: "/Applications"),
+      URL(fileURLWithPath: "/System/Applications"),
+      URL(fileURLWithPath: "/System/Applications/Utilities"),
+    ]
+    urls.append(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications"))
+    return urls
+  }
+
+  private func restoreFocus(
+    to previous: NSRunningApplication,
+    awayFrom app: NSRunningApplication
+  ) async {
+    for _ in 0..<4 {
+      if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
+        _ = previous.activate(options: [])
+      }
+      try? await Task.sleep(nanoseconds: 40_000_000)
+    }
+  }
+
   private func matchingWindow(
     in appElement: AXUIElement,
-    frame: SupatermComputerUseRect
+    windowID: UInt32
   ) -> AXUIElement? {
-    axArray(appElement, kAXWindowsAttribute as CFString)?
-      .min { lhs, rhs in
-        frameDistance(elementFrame(lhs), frame) < frameDistance(elementFrame(rhs), frame)
-      }
+    topLevelChildren(of: appElement).first { element in
+      axString(element, kAXRoleAttribute as CFString) == kAXWindowRole as String
+        && elementWindowID(element) == windowID
+    }
+  }
+
+  private func focusTarget(
+    pid: Int,
+    windowID: UInt32?,
+    elementIndex: Int?
+  ) throws -> AXUIElement? {
+    if let elementIndex {
+      guard let windowID else { throw ComputerUseError.snapshotRequired }
+      return try cachedElement(pid: pid, windowID: windowID, elementIndex: elementIndex)
+    }
+    if let windowID {
+      return matchingWindow(in: AXUIElementCreateApplication(pid_t(pid)), windowID: windowID)
+    }
+    return nil
+  }
+
+  private func currentSnapshotMode() -> SupatermComputerUseSnapshotMode {
+    @Shared(.supatermSettings) var supatermSettings = .default
+    return supatermSettings.computerUseSnapshotMode
+  }
+
+  private func elementMatchesQuery(
+    _ element: SupatermComputerUseElement,
+    query: String?
+  ) -> Bool {
+    guard let query, !query.isEmpty else { return true }
+    let haystack = [
+      element.role,
+      element.title,
+      element.value,
+      element.description,
+      element.identifier,
+      element.help,
+      element.actions.joined(separator: " "),
+    ]
+    .compactMap(\.self)
+    .joined(separator: " ")
+    return haystack.localizedCaseInsensitiveContains(query)
   }
 
   private func collectElements(
     _ element: AXUIElement,
-    elements: inout [SupatermComputerUseElement],
-    cache: inout [Int: AXUIElement],
-    nextIndex: Int,
+    windowID: UInt32,
+    collection: inout ComputerUseElementCollection,
     depth: Int
   ) {
-    guard depth <= 8, elements.count < 300 else { return }
-    let index = elements.count + nextIndex
-    cache[index] = element
-    elements.append(
-      .init(
-        elementIndex: index,
-        role: axString(element, kAXRoleAttribute as CFString) ?? "unknown",
-        title: axString(element, kAXTitleAttribute as CFString),
-        value: axString(element, kAXValueAttribute as CFString),
-        description: axString(element, kAXDescriptionAttribute as CFString),
-        identifier: axString(element, kAXIdentifierAttribute as CFString),
-        help: axString(element, kAXHelpAttribute as CFString),
-        frame: elementFrame(element).map(rect),
-        isEnabled: axBool(element, kAXEnabledAttribute as CFString),
-        isFocused: axBool(element, kAXFocusedAttribute as CFString)
+    guard depth <= 10, collection.cache.count < 400 else { return }
+    let role = axString(element, kAXRoleAttribute as CFString) ?? "unknown"
+    let actions = actionNames(element)
+    let frame = elementFrame(element).map(rect)
+    let isActionable = actionable(role: role, actions: actions, frame: frame)
+    if isActionable {
+      let index = collection.nextIndex
+      collection.nextIndex += 1
+      collection.cache[index] = element
+      collection.elements.append(
+        .init(
+          elementIndex: index,
+          role: role,
+          title: axString(element, kAXTitleAttribute as CFString),
+          value: axString(element, kAXValueAttribute as CFString),
+          description: axString(element, kAXDescriptionAttribute as CFString),
+          identifier: axString(element, kAXIdentifierAttribute as CFString),
+          help: axString(element, kAXHelpAttribute as CFString),
+          frame: frame,
+          isEnabled: axBool(element, kAXEnabledAttribute as CFString),
+          isFocused: axBool(element, kAXFocusedAttribute as CFString),
+          actions: actions
+        )
       )
-    )
-
-    for child in axArray(element, kAXChildrenAttribute as CFString) ?? [] {
-      collectElements(
-        child, elements: &elements, cache: &cache, nextIndex: nextIndex, depth: depth + 1)
     }
+    if role == kAXMenuRole as String && !menuIsOpen(element) {
+      return
+    }
+    var children =
+      depth == 0 && role == kAXApplicationRole as String
+      ? topLevelChildren(of: element)
+      : axArray(element, kAXChildrenAttribute as CFString) ?? []
+    if depth == 0 && role == kAXApplicationRole as String {
+      children = children.filter { child in
+        let childRole = axString(child, kAXRoleAttribute as CFString)
+        guard childRole == kAXWindowRole as String else { return true }
+        return elementWindowID(child) == windowID
+      }
+    }
+    for child in children {
+      collectElements(
+        child,
+        windowID: windowID,
+        collection: &collection,
+        depth: depth + 1
+      )
+    }
+  }
+
+  private func actionable(
+    role: String,
+    actions: [String],
+    frame: SupatermComputerUseRect?
+  ) -> Bool {
+    if !actions.isEmpty { return true }
+    guard frame != nil else { return false }
+    return actionableRoles.contains(role)
+  }
+
+  private func topLevelChildren(of appElement: AXUIElement) -> [AXUIElement] {
+    var children = axArray(appElement, kAXChildrenAttribute as CFString) ?? []
+    for window in axArray(appElement, kAXWindowsAttribute as CFString) ?? []
+    where !children.contains(where: { CFEqual($0, window) }) {
+      children.append(window)
+    }
+    return children
+  }
+
+  private func menuIsOpen(_ element: AXUIElement) -> Bool {
+    !(axArray(element, "AXVisibleChildren" as CFString) ?? []).isEmpty
+  }
+
+  private func actionNames(_ element: AXUIElement) -> [String] {
+    var names: CFArray?
+    guard AXUIElementCopyActionNames(element, &names) == .success else { return [] }
+    return (names as? [String] ?? []).map(cleanActionName)
+  }
+
+  private func cleanActionName(_ raw: String) -> String {
+    if raw.hasPrefix("AX") { return raw }
+    for line in raw.split(whereSeparator: \.isNewline) {
+      if let range = line.range(of: "Name:") {
+        let name = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty { return name }
+      }
+    }
+    return raw
+  }
+
+  private func elementWindowID(_ element: AXUIElement) -> UInt32? {
+    var windowID = CGWindowID(0)
+    guard _AXUIElementGetWindow(element, &windowID) == .success, windowID != 0 else {
+      return nil
+    }
+    return UInt32(windowID)
   }
 
   private func screenshot(windowID: UInt32, outputPath: String?) async throws
@@ -327,10 +591,10 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       guard CGImageDestinationFinalize(destination) else {
         throw ComputerUseError.imageWriteFailed(outputPath)
       }
-      return .init(path: url.path, width: image.width, height: image.height)
+      return .init(path: url.path, width: image.width, height: image.height, scale: Double(scale))
     }
 
-    return .init(path: nil, width: image.width, height: image.height)
+    return .init(path: nil, width: image.width, height: image.height, scale: Double(scale))
   }
 
   private func captureImage(filter: SCContentFilter, configuration: SCStreamConfiguration)
@@ -369,22 +633,40 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     _ element: AXUIElement,
     request: SupatermComputerUseClickRequest
   ) throws -> SupatermComputerUseActionResult {
-    let point = elementTargetPoint(element)
-    if request.button == .left, request.count == 1, request.modifiers.isEmpty,
-      performAction(kAXPressAction as CFString, on: element)
-    {
-      if let point {
-        moveCursor(to: point, aboveWindowID: request.windowID)
-      }
-      return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
+    if axBool(element, kAXEnabledAttribute as CFString) == false, let index = request.elementIndex {
+      throw ComputerUseError.elementDisabled(index)
     }
-    if request.button == .right, request.count == 1, request.modifiers.isEmpty,
-      performAction(kAXShowMenuAction as CFString, on: element)
-    {
-      if let point {
-        moveCursor(to: point, aboveWindowID: request.windowID)
+    let point = elementTargetPoint(element)
+    let axAction = resolvedClickAction(request)
+    if request.count == 1, request.modifiers.isEmpty {
+      let actions = actionNames(element)
+      if actions.contains(axAction) {
+        let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
+          performAction(axAction as CFString, on: element)
+        }
+        if success {
+          if let point {
+            moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: elementFrame(element))
+          }
+          if axAction == kAXPressAction as String,
+            isTextEntryRole(axString(element, kAXRoleAttribute as CFString))
+          {
+            usleep(120_000)
+          }
+          let warning =
+            axString(element, kAXRoleAttribute as CFString) == kAXPopUpButtonRole as String
+            ? "popup_value_may_require_set_value"
+            : nil
+          return .init(
+            ok: true,
+            dispatch: ComputerUseMouseDispatch.accessibility.rawValue,
+            warning: warning
+          )
+        }
       }
-      return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
+      if let index = request.elementIndex {
+        throw ComputerUseError.actionUnsupported(index, axAction)
+      }
     }
     guard let point else {
       throw ComputerUseError.unsupportedBackgroundTarget
@@ -402,7 +684,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
       throw ComputerUseError.windowNotFound(request.windowID)
     }
-    moveCursor(to: point, aboveWindowID: request.windowID)
+    moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: nil)
     let dispatch = try ComputerUseMouseInput.click(
       .init(
         point: point,
@@ -416,12 +698,17 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
-  private func moveCursor(to point: CGPoint, aboveWindowID windowID: UInt32) {
+  private func moveCursor(
+    to point: CGPoint,
+    aboveWindowID windowID: UInt32,
+    focusFrame: CGRect?
+  ) {
     @Shared(.supatermSettings) var supatermSettings = .default
     cursorOverlay.move(
       to: point,
       enabled: supatermSettings.computerUseShowAgentCursor,
-      targetWindowID: windowID
+      targetWindowID: windowID,
+      focusFrame: focusFrame
     )
   }
 
@@ -521,13 +808,61 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       else {
         return false
       }
-      current = unsafeBitCast(parent, to: AXUIElement.self)
+      current = unsafeDowncast(parent, to: AXUIElement.self)
     }
     return false
   }
 
   private func performAction(_ action: CFString, on element: AXUIElement) -> Bool {
     AXUIElementPerformAction(element, action) == .success
+  }
+
+  private func resolvedClickAction(_ request: SupatermComputerUseClickRequest) -> String {
+    if request.button == .right, request.action == .press {
+      return kAXShowMenuAction as String
+    }
+    switch request.action {
+    case .press:
+      return kAXPressAction as String
+    case .showMenu:
+      return kAXShowMenuAction as String
+    case .pick:
+      return "AXPick"
+    case .confirm:
+      return "AXConfirm"
+    case .cancel:
+      return "AXCancel"
+    case .open:
+      return "AXOpen"
+    }
+  }
+
+  private func isTextEntryRole(_ role: String?) -> Bool {
+    guard let role else { return false }
+    return role == kAXTextFieldRole as String
+      || role == kAXTextAreaRole as String
+      || role == kAXComboBoxRole as String
+      || role == "AXSearchField"
+  }
+
+  private func selectPopupValue(
+    _ element: AXUIElement,
+    request: SupatermComputerUseSetValueRequest
+  ) throws -> SupatermComputerUseActionResult {
+    let children = axArray(element, kAXChildrenAttribute as CFString) ?? []
+    let normalized = request.value.lowercased()
+    for child in children {
+      let title = axString(child, kAXTitleAttribute as CFString)?.lowercased()
+      let value = axString(child, kAXValueAttribute as CFString)?.lowercased()
+      if title == normalized || value == normalized {
+        let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: child) {
+          performAction(kAXPressAction as CFString, on: child)
+        }
+        guard success else { throw ComputerUseError.unsupportedBackgroundTarget }
+        return .init(ok: true, dispatch: "accessibility")
+      }
+    }
+    throw ComputerUseError.actionUnsupported(request.elementIndex, "select_option")
   }
 
   private func axValue(_ value: CFTypeRef?) -> AXValue? {
@@ -576,108 +911,38 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return 1
   }
 
-  private func frameDistance(_ lhs: CGRect?, _ rhs: SupatermComputerUseRect) -> Double {
-    guard let lhs else { return .greatestFiniteMagnitude }
-    return abs(lhs.origin.x - rhs.x) + abs(lhs.origin.y - rhs.y) + abs(lhs.width - rhs.width)
-      + abs(lhs.height - rhs.height)
-  }
-
-  private func keyCode(for key: String) -> CGKeyCode? {
-    let normalized = key.lowercased()
-    if let mapped = namedKeyCodes[normalized] {
-      return mapped
-    }
-    if normalized.count == 1, let character = normalized.first {
-      return characterKeyCodes[character]
-    }
-    return nil
-  }
-
-  private func eventFlags(for modifiers: [SupatermComputerUseKeyModifier]) -> CGEventFlags {
-    modifiers.reduce(into: []) { flags, modifier in
-      switch modifier {
-      case .command:
-        flags.insert(.maskCommand)
-      case .shift:
-        flags.insert(.maskShift)
-      case .option:
-        flags.insert(.maskAlternate)
-      case .control:
-        flags.insert(.maskControl)
-      }
-    }
-  }
-
-  private let namedKeyCodes: [String: CGKeyCode] = [
-    "return": 36,
-    "enter": 36,
-    "tab": 48,
-    "space": 49,
-    "delete": 51,
-    "escape": 53,
-    "esc": 53,
-    "left": 123,
-    "right": 124,
-    "down": 125,
-    "up": 126,
+  private let actionableRoles: Set<String> = [
+    kAXButtonRole as String,
+    kAXCheckBoxRole as String,
+    kAXComboBoxRole as String,
+    kAXDisclosureTriangleRole as String,
+    "AXLink",
+    kAXMenuButtonRole as String,
+    kAXMenuItemRole as String,
+    kAXPopUpButtonRole as String,
+    kAXRadioButtonRole as String,
+    kAXSliderRole as String,
+    kAXTextAreaRole as String,
+    kAXTextFieldRole as String,
+    "AXSearchField",
   ]
+}
 
-  private let characterKeyCodes: [Character: CGKeyCode] = [
-    "a": 0,
-    "s": 1,
-    "d": 2,
-    "f": 3,
-    "h": 4,
-    "g": 5,
-    "z": 6,
-    "x": 7,
-    "c": 8,
-    "v": 9,
-    "b": 11,
-    "q": 12,
-    "w": 13,
-    "e": 14,
-    "r": 15,
-    "y": 16,
-    "t": 17,
-    "1": 18,
-    "2": 19,
-    "3": 20,
-    "4": 21,
-    "6": 22,
-    "5": 23,
-    "=": 24,
-    "9": 25,
-    "7": 26,
-    "-": 27,
-    "8": 28,
-    "0": 29,
-    "]": 30,
-    "o": 31,
-    "u": 32,
-    "[": 33,
-    "i": 34,
-    "p": 35,
-    "l": 37,
-    "j": 38,
-    "'": 39,
-    "k": 40,
-    ";": 41,
-    "\\": 42,
-    ",": 43,
-    "/": 44,
-    "n": 45,
-    "m": 46,
-    ".": 47,
-    "`": 50,
-  ]
+private struct ComputerUseElementCollection {
+  var elements: [SupatermComputerUseElement] = []
+  var cache: [Int: AXUIElement] = [:]
+  var nextIndex = 1
 }
 
 private struct ComputerUseWindowInfo {
   let window: SupatermComputerUseWindow
   let pid: Int
 
-  init?(_ dictionary: [String: Any]) {
+  init?(
+    _ dictionary: [String: Any],
+    zIndex: Int,
+    currentSpaceID: UInt64?
+  ) {
     guard
       let windowNumber = dictionary[kCGWindowNumber as String] as? NSNumber,
       let pidNumber = dictionary[kCGWindowOwnerPID as String] as? NSNumber,
@@ -698,6 +963,8 @@ private struct ComputerUseWindowInfo {
     let height = heightNumber.doubleValue
     let title = dictionary[kCGWindowName as String] as? String
     let isOnScreen = (dictionary[kCGWindowIsOnscreen as String] as? Bool) ?? true
+    let layer = (dictionary[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+    let spaceIDs = ComputerUseSpaceLookup.spaceIDs(for: windowID)
     self.pid = pid
     self.window = .init(
       id: windowID,
@@ -705,7 +972,11 @@ private struct ComputerUseWindowInfo {
       appName: appName,
       title: title?.isEmpty == true ? nil : title,
       frame: .init(x: x, y: y, width: width, height: height),
-      isOnScreen: isOnScreen
+      isOnScreen: isOnScreen,
+      zIndex: zIndex,
+      layer: layer,
+      onCurrentSpace: currentSpaceID.flatMap { current in spaceIDs?.contains(current) },
+      spaceIDs: spaceIDs
     )
   }
 }

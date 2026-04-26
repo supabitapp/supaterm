@@ -6,6 +6,10 @@ public enum ComputerUseError: Equatable, LocalizedError {
   case accessibilityPermissionMissing
   case elementNotFound(Int)
   case imageWriteFailed(String)
+  case launchFailed(String)
+  case launchTargetRequired
+  case elementDisabled(Int)
+  case actionUnsupported(Int, String)
   case invalidClickTarget
   case keyUnsupported(String)
   case screenRecordingPermissionMissing
@@ -21,6 +25,14 @@ public enum ComputerUseError: Equatable, LocalizedError {
       return "element_not_found"
     case .imageWriteFailed:
       return "image_write_failed"
+    case .launchFailed:
+      return "launch_failed"
+    case .launchTargetRequired:
+      return "launch_target_required"
+    case .elementDisabled:
+      return "element_disabled"
+    case .actionUnsupported:
+      return "action_unsupported"
     case .invalidClickTarget:
       return "invalid_click_target"
     case .keyUnsupported:
@@ -44,6 +56,14 @@ public enum ComputerUseError: Equatable, LocalizedError {
       return "No element with index \(index) exists in the latest snapshot."
     case .imageWriteFailed(let path):
       return "Could not write screenshot to \(path)."
+    case .launchFailed(let reason):
+      return reason
+    case .launchTargetRequired:
+      return "Provide --bundle-id or --name."
+    case .elementDisabled(let index):
+      return "Element \(index) is disabled."
+    case .actionUnsupported(let index, let action):
+      return "Element \(index) does not support \(action)."
     case .invalidClickTarget:
       return "Provide either --element or both --x and --y."
     case .keyUnsupported(let key):
@@ -63,6 +83,9 @@ public enum ComputerUseError: Equatable, LocalizedError {
 public struct ComputerUseClient: Sendable {
   public var permissions: @MainActor @Sendable () async -> SupatermComputerUsePermissionsResult
   public var apps: @MainActor @Sendable () async throws -> SupatermComputerUseAppsResult
+  public var launch:
+    @MainActor @Sendable (SupatermComputerUseLaunchRequest) async throws ->
+      SupatermComputerUseLaunchResult
   public var windows:
     @MainActor @Sendable (SupatermComputerUseWindowsRequest) async throws ->
       SupatermComputerUseWindowsResult
@@ -88,6 +111,10 @@ public struct ComputerUseClient: Sendable {
   public init(
     permissions: @escaping @MainActor @Sendable () async -> SupatermComputerUsePermissionsResult,
     apps: @escaping @MainActor @Sendable () async throws -> SupatermComputerUseAppsResult,
+    launch:
+      @escaping @MainActor @Sendable (
+        SupatermComputerUseLaunchRequest
+      ) async throws -> SupatermComputerUseLaunchResult,
     windows:
       @escaping @MainActor @Sendable (
         SupatermComputerUseWindowsRequest
@@ -119,6 +146,7 @@ public struct ComputerUseClient: Sendable {
   ) {
     self.permissions = permissions
     self.apps = apps
+    self.launch = launch
     self.windows = windows
     self.snapshot = snapshot
     self.click = click
@@ -138,6 +166,9 @@ extension ComputerUseClient: DependencyKey {
     },
     apps: {
       .init(apps: [])
+    },
+    launch: { request in
+      .init(pid: 0, bundleID: request.bundleID, name: request.name ?? "", isActive: false, windows: [])
     },
     windows: { _ in
       .init(windows: [])
@@ -169,6 +200,9 @@ extension ComputerUseClient: DependencyKey {
       },
       apps: {
         runtime.apps()
+      },
+      launch: { request in
+        try await runtime.launch(request)
       },
       windows: { request in
         runtime.windows(request)
