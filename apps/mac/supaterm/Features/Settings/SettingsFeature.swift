@@ -59,6 +59,12 @@ struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
   }
 }
 
+struct SettingsComputerUseState: Equatable {
+  var accessibility = ComputerUsePermissionStatus.unknown
+  var isRefreshing = false
+  var screenRecording = ComputerUsePermissionStatus.unknown
+}
+
 struct SettingsAboutState: Equatable {
   var updateChannel = SupatermSettings.default.updateChannel
   var updatesAutomaticallyCheckForUpdates = true
@@ -88,6 +94,7 @@ public struct SettingsFeature {
       settingsPath: SupatermAgentKind.pi.settingsPathDescription
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
+    var computerUse = SettingsComputerUseState()
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var newTabPosition = SupatermSettings.default.newTabPosition
     var about = SettingsAboutState()
@@ -110,6 +117,10 @@ public struct SettingsFeature {
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
+    case computerUsePermissionGrantButtonTapped(ComputerUsePermissionKind)
+    case computerUsePermissionsRefreshRequested
+    case computerUsePermissionsRefreshed(ComputerUsePermissionsSnapshot)
+    case computerUsePermissionSettingsButtonTapped(ComputerUsePermissionKind)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case newTabPositionSelected(NewTabPosition)
@@ -146,6 +157,7 @@ public struct SettingsFeature {
     case terminal
     case notifications
     case codingAgents
+    case computerUse
     case about
 
     public var id: String {
@@ -156,6 +168,8 @@ public struct SettingsFeature {
       switch self {
       case .codingAgents:
         "hammer"
+      case .computerUse:
+        "display.and.cursorarrow"
       case .general:
         "gearshape"
       case .terminal:
@@ -171,6 +185,8 @@ public struct SettingsFeature {
       switch self {
       case .codingAgents:
         "Coding Agents"
+      case .computerUse:
+        "Computer Use"
       case .general:
         "General"
       case .terminal:
@@ -187,6 +203,7 @@ public struct SettingsFeature {
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
   @Dependency(PiSettingsClient.self) var piSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
+  @Dependency(ComputerUsePermissionsClient.self) var computerUsePermissionsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
   @Dependency(UpdateClient.self) var updateClient
@@ -225,7 +242,10 @@ public struct SettingsFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
-        return .none
+        guard tab == .computerUse else {
+          return .none
+        }
+        return reduceComputerUse(&state, action: .computerUsePermissionsRefreshRequested)
 
       case .appearanceModeSelected,
         .analyticsEnabledChanged,
@@ -239,6 +259,12 @@ public struct SettingsFeature {
         .systemNotificationsAuthorizationChecked,
         .systemNotificationsAuthorizationResult:
         return reduceNotifications(&state, action: action)
+
+      case .computerUsePermissionGrantButtonTapped,
+        .computerUsePermissionsRefreshRequested,
+        .computerUsePermissionsRefreshed,
+        .computerUsePermissionSettingsButtonTapped:
+        return reduceComputerUse(&state, action: action)
 
       case .agentIntegrationStatusRefreshRequested,
         .agentIntegrationStatusRefreshed,

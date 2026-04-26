@@ -21,7 +21,7 @@ struct SettingsFeatureTests {
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .codingAgents, .about]
+        == [.general, .terminal, .notifications, .codingAgents, .computerUse, .about]
     )
   }
 
@@ -163,6 +163,19 @@ struct SettingsFeatureTests {
 
     await store.send(.tabSelected(.codingAgents)) {
       $0.selectedTab = .codingAgents
+    }
+
+    await store.send(.tabSelected(.computerUse)) {
+      $0.selectedTab = .computerUse
+      $0.computerUse.isRefreshing = true
+    }
+    await store.receive(
+      .computerUsePermissionsRefreshed(.init(accessibility: .missing, screenRecording: .missing)),
+      timeout: 0
+    ) {
+      $0.computerUse.accessibility = .missing
+      $0.computerUse.screenRecording = .missing
+      $0.computerUse.isRefreshing = false
     }
 
     await store.send(.tabSelected(.notifications)) {

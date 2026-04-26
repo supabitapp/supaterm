@@ -1,3 +1,4 @@
+import AppKit
 import SupatermCLIShared
 import SwiftUI
 
@@ -104,6 +105,59 @@ struct SettingsSurfaceCard<Content: View>: View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
           .strokeBorder(.quaternary, lineWidth: 1)
       }
+  }
+}
+
+struct SettingsSkillInstallRow: View {
+  @State private var didCopy = false
+
+  var body: some View {
+    HStack(alignment: .center, spacing: 12) {
+      Image(systemName: "terminal")
+        .frame(width: 18, height: 18)
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Supaterm Skill")
+        Text("Install through npx in Terminal.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Spacer(minLength: 12)
+
+      HStack(spacing: 8) {
+        Text(SupatermSkillInstaller.manualInstallCommand)
+          .font(.caption.monospaced())
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+
+        Button {
+          let pasteboard = NSPasteboard.general
+          pasteboard.clearContents()
+          pasteboard.setString(SupatermSkillInstaller.manualInstallCommand, forType: .string)
+          didCopy = true
+        } label: {
+          Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+            .frame(width: 16, height: 16)
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Copy command")
+        .help("Copy command")
+      }
+    }
+    .padding(.vertical, 2)
+    .onChange(of: didCopy) {
+      guard didCopy else { return }
+      Task {
+        try? await Task.sleep(for: .seconds(1.2))
+        await MainActor.run {
+          didCopy = false
+        }
+      }
+    }
   }
 }
 
