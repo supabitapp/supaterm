@@ -55,6 +55,9 @@ struct SocketControlFeatureComputerUseTests {
           role: "AXButton",
           title: "OK",
           value: nil,
+          description: "Confirm",
+          identifier: "confirm-button",
+          help: "Confirm selection",
           frame: nil,
           isEnabled: true,
           isFocused: false
@@ -85,6 +88,24 @@ struct SocketControlFeatureComputerUseTests {
     #expect(
       try await recorder.snapshot().first?.response.decodeResult(
         SupatermComputerUseSnapshotResult.self) == expected)
+  }
+
+  @Test
+  func elementDisplayTextFallsBackToAccessibilitySemantics() {
+    let element = SupatermComputerUseElement(
+      elementIndex: 1,
+      role: "AXButton",
+      title: nil,
+      value: nil,
+      description: "Seven",
+      identifier: "Seven",
+      help: nil,
+      frame: nil,
+      isEnabled: true,
+      isFocused: false
+    )
+
+    #expect(element.displayText == "Seven")
   }
 
   @Test

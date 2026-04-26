@@ -127,7 +127,7 @@ extension SP {
       try emitCommandResult(
         result,
         options: options.output,
-        plain: result.elements.map { "\($0.elementIndex)\t\($0.role)\t\($0.title ?? $0.value ?? "")" }
+        plain: result.elements.map { "\($0.elementIndex)\t\($0.role)\t\($0.displayText ?? "")" }
           .joined(separator: "\n"),
         human: "Snapshot \(result.windowID): \(result.elements.count) elements"
       )

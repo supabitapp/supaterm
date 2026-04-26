@@ -273,6 +273,9 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         role: axString(element, kAXRoleAttribute as CFString) ?? "unknown",
         title: axString(element, kAXTitleAttribute as CFString),
         value: axString(element, kAXValueAttribute as CFString),
+        description: axString(element, kAXDescriptionAttribute as CFString),
+        identifier: axString(element, kAXIdentifierAttribute as CFString),
+        help: axString(element, kAXHelpAttribute as CFString),
         frame: elementFrame(element).map(rect),
         isEnabled: axBool(element, kAXEnabledAttribute as CFString),
         isFocused: axBool(element, kAXFocusedAttribute as CFString)

@@ -146,6 +146,9 @@ public struct SupatermComputerUseElement: Codable, Equatable, Identifiable, Send
   public let role: String
   public let title: String?
   public let value: String?
+  public let description: String?
+  public let identifier: String?
+  public let help: String?
   public let frame: SupatermComputerUseRect?
   public let isEnabled: Bool?
   public let isFocused: Bool?
@@ -154,11 +157,18 @@ public struct SupatermComputerUseElement: Codable, Equatable, Identifiable, Send
     elementIndex
   }
 
+  public var displayText: String? {
+    title ?? value ?? description ?? identifier ?? help
+  }
+
   public init(
     elementIndex: Int,
     role: String,
     title: String?,
     value: String?,
+    description: String?,
+    identifier: String?,
+    help: String?,
     frame: SupatermComputerUseRect?,
     isEnabled: Bool?,
     isFocused: Bool?
@@ -167,6 +177,9 @@ public struct SupatermComputerUseElement: Codable, Equatable, Identifiable, Send
     self.role = role
     self.title = title
     self.value = value
+    self.description = description
+    self.identifier = identifier
+    self.help = help
     self.frame = frame
     self.isEnabled = isEnabled
     self.isFocused = isFocused
