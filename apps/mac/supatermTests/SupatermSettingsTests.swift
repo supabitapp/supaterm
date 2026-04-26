@@ -45,6 +45,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
@@ -70,6 +71,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
@@ -91,6 +93,7 @@ struct SupatermSettingsTests {
         mode = "dark"
 
         [computer_use]
+        always_float_agent_cursor = false
         show_agent_cursor = true
         snapshot_mode = "som"
 
@@ -118,6 +121,7 @@ struct SupatermSettingsTests {
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: false,
+        computerUseAlwaysFloatAgentCursor: true,
         computerUseShowAgentCursor: false,
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
@@ -134,6 +138,7 @@ struct SupatermSettingsTests {
         == SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          computerUseAlwaysFloatAgentCursor: true,
           computerUseShowAgentCursor: false,
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
@@ -158,6 +163,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
+    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)

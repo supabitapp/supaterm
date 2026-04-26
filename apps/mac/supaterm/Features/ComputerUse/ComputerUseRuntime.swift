@@ -733,6 +733,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return await cursorOverlay.prepareClick(
       to: point,
       enabled: supatermSettings.computerUseShowAgentCursor,
+      alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
       targetPid: pid_t(targetPid),
       targetWindowID: windowID
     )

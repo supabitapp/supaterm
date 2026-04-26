@@ -11,6 +11,7 @@ final class ComputerUseCursorOverlay {
   private var pinResolver = ComputerUseCursorOverlayPinResolver()
   private var targetPid: pid_t?
   private var targetWindowID: UInt32 = 0
+  private var alwaysFloat = false
   private var visibilityGeneration = 0
   private let visibleWindows: @MainActor () -> [ComputerUseCursorOverlayWindowSnapshot]
 
@@ -24,6 +25,7 @@ final class ComputerUseCursorOverlay {
   func prepareClick(
     to point: CGPoint,
     enabled: Bool,
+    alwaysFloat: Bool,
     targetPid: pid_t,
     targetWindowID: UInt32
   ) async -> ComputerUsePreparedCursor? {
@@ -33,6 +35,11 @@ final class ComputerUseCursorOverlay {
     }
     let panel = window ?? makeWindow()
     window = panel
+    self.alwaysFloat = alwaysFloat
+    panel.level = alwaysFloat ? .floating : .normal
+    if alwaysFloat, !panel.isVisible {
+      panel.orderFrontRegardless()
+    }
     self.targetPid = targetPid
     self.targetWindowID = targetWindowID
     visibilityGeneration += 1
@@ -66,6 +73,7 @@ final class ComputerUseCursorOverlay {
     removeActivationObserver()
     targetPid = nil
     targetWindowID = 0
+    alwaysFloat = false
     pinResolver.resetMisses()
     if reason.isAnimated {
       await contentView?.hideCursor {
@@ -111,7 +119,11 @@ final class ComputerUseCursorOverlay {
       windows: visibleWindows()
     )
     if decision.shouldOrderFront {
-      panel.orderFront(nil)
+      if alwaysFloat {
+        panel.orderFrontRegardless()
+      } else {
+        panel.orderFront(nil)
+      }
     } else if let windowID = decision.relativeWindowID {
       panel.order(.above, relativeTo: Int(windowID))
     } else if decision.shouldHide {

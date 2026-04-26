@@ -47,6 +47,15 @@ struct SettingsComputerUseView: View {
             set: { _ = store.send(.computerUseShowAgentCursorChanged($0)) }
           )
         )
+        SettingsToggleRow(
+          title: "Always Float Agent Cursor",
+          subtitle: "Keep the cursor marker visible above foreground app windows.",
+          isOn: Binding(
+            get: { store.computerUse.alwaysFloatAgentCursor },
+            set: { _ = store.send(.computerUseAlwaysFloatAgentCursorChanged($0)) }
+          )
+        )
+        .disabled(!store.computerUse.showAgentCursor)
       }
 
       Section {

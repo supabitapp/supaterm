@@ -3,6 +3,7 @@ import Foundation
 public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
+  public var computerUseAlwaysFloatAgentCursor: Bool
   public var computerUseShowAgentCursor: Bool
   public var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   public var crashReportsEnabled: Bool
@@ -15,6 +16,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public init(
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
+    computerUseAlwaysFloatAgentCursor: Bool = false,
     computerUseShowAgentCursor: Bool = true,
     computerUseSnapshotMode: SupatermComputerUseSnapshotMode = .som,
     crashReportsEnabled: Bool,
@@ -26,6 +28,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
+    self.computerUseAlwaysFloatAgentCursor = computerUseAlwaysFloatAgentCursor
     self.computerUseShowAgentCursor = computerUseShowAgentCursor
     self.computerUseSnapshotMode = computerUseSnapshotMode
     self.crashReportsEnabled = crashReportsEnabled
@@ -39,6 +42,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public static let `default` = Self(
     appearanceMode: .dark,
     analyticsEnabled: true,
+    computerUseAlwaysFloatAgentCursor: false,
     computerUseShowAgentCursor: true,
     computerUseSnapshotMode: .som,
     crashReportsEnabled: true,
@@ -84,6 +88,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
+      computerUseAlwaysFloatAgentCursor: computerUse?.alwaysFloatAgentCursor
+        ?? defaults.computerUseAlwaysFloatAgentCursor,
       computerUseShowAgentCursor: computerUse?.showAgentCursor ?? defaults.computerUseShowAgentCursor,
       computerUseSnapshotMode: computerUse?.snapshotMode ?? defaults.computerUseSnapshotMode,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
@@ -100,6 +106,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
     try container.encode(
       PersistedComputerUse(
+        alwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
         showAgentCursor: computerUseShowAgentCursor,
         snapshotMode: computerUseSnapshotMode
       ),
@@ -145,19 +152,24 @@ extension SupatermSettings {
   }
 
   struct PersistedComputerUse: Codable, Equatable, Sendable {
+    let alwaysFloatAgentCursor: Bool
     let showAgentCursor: Bool
     let snapshotMode: SupatermComputerUseSnapshotMode
 
     init(
+      alwaysFloatAgentCursor: Bool = false,
       showAgentCursor: Bool,
       snapshotMode: SupatermComputerUseSnapshotMode = .som
     ) {
+      self.alwaysFloatAgentCursor = alwaysFloatAgentCursor
       self.showAgentCursor = showAgentCursor
       self.snapshotMode = snapshotMode
     }
 
     init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
+      alwaysFloatAgentCursor =
+        try container.decodeIfPresent(Bool.self, forKey: .alwaysFloatAgentCursor) ?? false
       showAgentCursor = try container.decodeIfPresent(Bool.self, forKey: .showAgentCursor) ?? true
       snapshotMode =
         try container.decodeIfPresent(
@@ -167,6 +179,7 @@ extension SupatermSettings {
     }
 
     enum CodingKeys: String, CodingKey {
+      case alwaysFloatAgentCursor = "always_float_agent_cursor"
       case showAgentCursor = "show_agent_cursor"
       case snapshotMode = "snapshot_mode"
     }
@@ -210,6 +223,7 @@ extension SupatermSettings {
 struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
+  var computerUseAlwaysFloatAgentCursor: Bool
   var computerUseShowAgentCursor: Bool
   var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   var crashReportsEnabled: Bool
@@ -226,6 +240,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? defaults.appearanceMode
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
+    self.computerUseAlwaysFloatAgentCursor = defaults.computerUseAlwaysFloatAgentCursor
     self.computerUseShowAgentCursor = defaults.computerUseShowAgentCursor
     self.computerUseSnapshotMode = defaults.computerUseSnapshotMode
     self.crashReportsEnabled =
@@ -248,6 +263,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     SupatermSettings(
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
+      computerUseAlwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
       computerUseShowAgentCursor: computerUseShowAgentCursor,
       computerUseSnapshotMode: computerUseSnapshotMode,
       crashReportsEnabled: crashReportsEnabled,

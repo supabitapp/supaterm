@@ -65,6 +65,9 @@ struct SupatermSettingsValidationTests {
       mode = "dark"
       extra = "ignored"
 
+      [computer_use]
+      always_float_agent_cursor = true
+
       [privacy]
       analytics_enabled = true
       crash_reports_enabled = true

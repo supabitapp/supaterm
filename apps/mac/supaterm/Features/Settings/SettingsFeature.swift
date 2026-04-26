@@ -61,6 +61,7 @@ struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
 
 struct SettingsComputerUseState: Equatable {
   var accessibility = ComputerUsePermissionStatus.unknown
+  var alwaysFloatAgentCursor = SupatermSettings.default.computerUseAlwaysFloatAgentCursor
   var isRefreshing = false
   var screenRecording = ComputerUsePermissionStatus.unknown
   var showAgentCursor = SupatermSettings.default.computerUseShowAgentCursor
@@ -123,6 +124,7 @@ public struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case computerUsePermissionGrantButtonTapped(ComputerUsePermissionKind)
+    case computerUseAlwaysFloatAgentCursorChanged(Bool)
     case computerUsePermissionsRefreshRequested
     case computerUsePermissionsRefreshed(ComputerUsePermissionsSnapshot)
     case computerUsePermissionSettingsButtonTapped(ComputerUsePermissionKind)
@@ -268,6 +270,7 @@ public struct SettingsFeature {
         return reduceNotifications(&state, action: action)
 
       case .computerUsePermissionGrantButtonTapped,
+        .computerUseAlwaysFloatAgentCursorChanged,
         .computerUsePermissionsRefreshRequested,
         .computerUsePermissionsRefreshed,
         .computerUsePermissionSettingsButtonTapped,
@@ -332,6 +335,7 @@ public struct SettingsFeature {
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
+    state.computerUse.alwaysFloatAgentCursor = supatermSettings.computerUseAlwaysFloatAgentCursor
     state.computerUse.showAgentCursor = supatermSettings.computerUseShowAgentCursor
   }
 
@@ -345,6 +349,7 @@ public struct SettingsFeature {
     let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
+      computerUseAlwaysFloatAgentCursor: state.computerUse.alwaysFloatAgentCursor,
       computerUseShowAgentCursor: state.computerUse.showAgentCursor,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,

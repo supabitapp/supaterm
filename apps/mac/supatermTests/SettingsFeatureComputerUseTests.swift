@@ -96,6 +96,24 @@ struct SettingsFeatureComputerUseTests {
   }
 
   @Test
+  func alwaysFloatAgentCursorSettingPersistsPrefs() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.computerUseAlwaysFloatAgentCursorChanged(true)) {
+        $0.computerUse.alwaysFloatAgentCursor = true
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(supatermSettings.computerUseAlwaysFloatAgentCursor)
+    }
+  }
+
+  @Test
   func requiredPermissionsRequireBothGrants() {
     var state = SettingsComputerUseState()
     #expect(!state.hasRequiredPermissions)
