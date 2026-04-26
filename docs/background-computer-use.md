@@ -1,5 +1,7 @@
 # Background Computer Use
 
+This is heavily inspired by the amazing work from Cua team https://github.com/trycua/cua/blob/main/blog/inside-macos-window-internals.md
+
 Supaterm's computer-use path lets `sp` inspect and control macOS app windows through the running Supaterm app process. The app process owns Accessibility, Screen Recording, window lookup, element caching, and input dispatch. The CLI only sends typed socket requests.
 
 The source remains authoritative for current command flags and payload shapes.
@@ -81,31 +83,3 @@ For pixel clicks in background windows, Supaterm uses pid-targeted event deliver
 - `set-value` sets `AXValue`. Popup buttons are handled by pressing a matching child option.
 
 Keyboard-backed actions can still fail on apps that require a real active key window or a specific responder chain.
-
-## Failure Modes
-
-Common computer-use errors:
-
-- `accessibility_permission_missing`
-- `screen_recording_permission_missing`
-- `snapshot_required`
-- `window_not_found`
-- `element_not_found`
-- `element_disabled`
-- `action_unsupported`
-- `unsupported_background_target`
-
-`unsupported_background_target` means Supaterm could not find a safe background route for the requested action. Callers should refresh the snapshot, choose a more specific element action, or fall back to a foreground/user-mediated workflow.
-
-## Code Index
-
-- `apps/mac/SPCLI/SPComputerUseCommands.swift`: CLI commands and flags
-- `apps/mac/SupatermCLIShared/SupatermComputerUse.swift`: shared request/result contracts
-- `apps/mac/supaterm/SocketFeature/SocketControlFeature+ComputerUse.swift`: socket routing
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseRuntime.swift`: orchestration
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseFocusGuard.swift`: synthetic AX focus guard
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseSystemFocusStealPreventer.swift`: frontmost-app restoration
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseMouseInput.swift`: mouse dispatch selection
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseKeyboardInput.swift`: keyboard dispatch
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseSkyLightEventPost.swift`: pid-targeted event support
-- `apps/mac/supaterm/Features/ComputerUse/ComputerUseFocusWithoutRaise.swift`: focus-without-raise event support
