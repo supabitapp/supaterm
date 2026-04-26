@@ -6,9 +6,8 @@ delay_seconds=${1:-1.4}
 lead_seconds=${2:-3}
 app_name=${3:-Calculator}
 
-open -a "$app_name"
+open -g -a "$app_name"
 sleep 0.5
-open -a Finder
 sleep "$lead_seconds"
 
 windows_json=$("$sp_cli" computer-use windows --app "$app_name" --json)

@@ -374,7 +374,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       performAction(kAXPressAction as CFString, on: element)
     {
       if let point {
-        moveCursor(to: point)
+        moveCursor(to: point, aboveWindowID: request.windowID)
       }
       return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
     }
@@ -382,7 +382,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       performAction(kAXShowMenuAction as CFString, on: element)
     {
       if let point {
-        moveCursor(to: point)
+        moveCursor(to: point, aboveWindowID: request.windowID)
       }
       return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
     }
@@ -402,7 +402,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
       throw ComputerUseError.windowNotFound(request.windowID)
     }
-    moveCursor(to: point)
+    moveCursor(to: point, aboveWindowID: request.windowID)
     let dispatch = try ComputerUseMouseInput.click(
       .init(
         point: point,
@@ -416,9 +416,13 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
-  private func moveCursor(to point: CGPoint) {
+  private func moveCursor(to point: CGPoint, aboveWindowID windowID: UInt32) {
     @Shared(.supatermSettings) var supatermSettings = .default
-    cursorOverlay.move(to: point, enabled: supatermSettings.computerUseShowAgentCursor)
+    cursorOverlay.move(
+      to: point,
+      enabled: supatermSettings.computerUseShowAgentCursor,
+      targetWindowID: windowID
+    )
   }
 
   private func axArray(_ element: AXUIElement, _ attribute: CFString) -> [AXUIElement]? {

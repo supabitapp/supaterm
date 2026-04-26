@@ -3,10 +3,10 @@ import CoreGraphics
 
 @MainActor
 final class ComputerUseCursorOverlay {
-  private var window: NSPanel?
+  private var window: ComputerUseCursorOverlayWindow?
   private var contentView: ComputerUseCursorOverlayView?
 
-  func move(to point: CGPoint, enabled: Bool) {
+  func move(to point: CGPoint, enabled: Bool, targetWindowID: UInt32) {
     guard enabled else {
       window?.orderOut(nil)
       return
@@ -14,28 +14,39 @@ final class ComputerUseCursorOverlay {
     let panel = window ?? makeWindow()
     window = panel
     contentView?.move(to: point)
-    panel.orderFrontRegardless()
+    if targetWindowID == 0 {
+      panel.orderFront(nil)
+    } else {
+      panel.order(.above, relativeTo: Int(targetWindowID))
+    }
   }
 
-  private func makeWindow() -> NSPanel {
+  private func makeWindow() -> ComputerUseCursorOverlayWindow {
     let frame = NSScreen.main?.frame ?? NSScreen.screens.first?.frame ?? .zero
-    let panel = NSPanel(
+    let panel = ComputerUseCursorOverlayWindow(
       contentRect: frame,
-      styleMask: [.borderless],
+      styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
     panel.backgroundColor = .clear
-    panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     panel.hasShadow = false
+    panel.hidesOnDeactivate = false
     panel.ignoresMouseEvents = true
     panel.isOpaque = false
-    panel.level = .floating
+    panel.isReleasedWhenClosed = false
+    panel.level = .normal
     let view = ComputerUseCursorOverlayView(frame: .init(origin: .zero, size: frame.size))
     contentView = view
     panel.contentView = view
     return panel
   }
+}
+
+private final class ComputerUseCursorOverlayWindow: NSPanel {
+  override var canBecomeKey: Bool { false }
+  override var canBecomeMain: Bool { false }
 }
 
 private final class ComputerUseCursorOverlayView: NSView {
