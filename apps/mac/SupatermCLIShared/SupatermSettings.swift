@@ -3,6 +3,7 @@ import Foundation
 public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
+  public var computerUseShowAgentCursor: Bool
   public var crashReportsEnabled: Bool
   public var glowingPaneRingEnabled: Bool
   public var newTabPosition: NewTabPosition
@@ -13,6 +14,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public init(
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
+    computerUseShowAgentCursor: Bool = true,
     crashReportsEnabled: Bool,
     glowingPaneRingEnabled: Bool = true,
     newTabPosition: NewTabPosition = .end,
@@ -22,6 +24,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
+    self.computerUseShowAgentCursor = computerUseShowAgentCursor
     self.crashReportsEnabled = crashReportsEnabled
     self.glowingPaneRingEnabled = glowingPaneRingEnabled
     self.newTabPosition = newTabPosition
@@ -33,6 +36,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public static let `default` = Self(
     appearanceMode: .dark,
     analyticsEnabled: true,
+    computerUseShowAgentCursor: true,
     crashReportsEnabled: true,
     glowingPaneRingEnabled: true,
     newTabPosition: .end,
@@ -67,6 +71,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let defaults = Self.default
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let appearance = try container.decodeIfPresent(PersistedAppearance.self, forKey: .appearance)
+    let computerUse = try container.decodeIfPresent(PersistedComputerUse.self, forKey: .computerUse)
     let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
     let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
     let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
@@ -75,6 +80,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
+      computerUseShowAgentCursor: computerUse?.showAgentCursor ?? defaults.computerUseShowAgentCursor,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
       glowingPaneRingEnabled: notifications?.glowingPaneRing ?? defaults.glowingPaneRingEnabled,
       newTabPosition: terminal?.newTabPosition ?? defaults.newTabPosition,
@@ -87,6 +93,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
+    try container.encode(PersistedComputerUse(showAgentCursor: computerUseShowAgentCursor), forKey: .computerUse)
     try container.encode(
       PersistedPrivacy(
         analyticsEnabled: analyticsEnabled,
@@ -115,6 +122,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 extension SupatermSettings {
   enum CodingKeys: String, CodingKey {
     case appearance
+    case computerUse = "computer_use"
     case privacy
     case notifications
     case terminal
@@ -123,6 +131,14 @@ extension SupatermSettings {
 
   struct PersistedAppearance: Codable, Equatable, Sendable {
     let mode: AppearanceMode
+  }
+
+  struct PersistedComputerUse: Codable, Equatable, Sendable {
+    let showAgentCursor: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case showAgentCursor = "show_agent_cursor"
+    }
   }
 
   struct PersistedPrivacy: Codable, Equatable, Sendable {
@@ -163,6 +179,7 @@ extension SupatermSettings {
 struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
+  var computerUseShowAgentCursor: Bool
   var crashReportsEnabled: Bool
   var glowingPaneRingEnabled: Bool
   var newTabPosition: NewTabPosition
@@ -177,6 +194,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? defaults.appearanceMode
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
+    self.computerUseShowAgentCursor = defaults.computerUseShowAgentCursor
     self.crashReportsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .crashReportsEnabled) ?? defaults.crashReportsEnabled
     self.glowingPaneRingEnabled =
@@ -197,6 +215,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     SupatermSettings(
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
+      computerUseShowAgentCursor: computerUseShowAgentCursor,
       crashReportsEnabled: crashReportsEnabled,
       glowingPaneRingEnabled: glowingPaneRingEnabled,
       newTabPosition: newTabPosition,

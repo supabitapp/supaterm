@@ -54,6 +54,25 @@ func jsonString<T: Encodable>(_ value: T) throws -> String {
   return String(decoding: try encoder.encode(value), as: UTF8.self)
 }
 
+func emitCommandResult<T: Encodable>(
+  _ result: T,
+  options: SPOutputOptions,
+  plain: @autoclosure () -> String,
+  human: @autoclosure () -> String
+) throws {
+  guard !options.quiet else {
+    return
+  }
+  switch options.mode {
+  case .json:
+    print(try jsonString(result))
+  case .plain:
+    print(plain())
+  case .human:
+    print(human())
+  }
+}
+
 func resolvedSocketTarget(
   explicitPath: String?,
   instance: String?,

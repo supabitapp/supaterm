@@ -45,6 +45,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -69,6 +70,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -87,6 +89,9 @@ struct SupatermSettingsTests {
         == """
         [appearance]
         mode = "dark"
+
+        [computer_use]
+        show_agent_cursor = true
 
         [notifications]
         glowing_pane_ring = true
@@ -112,6 +117,7 @@ struct SupatermSettingsTests {
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: false,
+        computerUseShowAgentCursor: false,
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
         newTabPosition: .current,
@@ -127,6 +133,7 @@ struct SupatermSettingsTests {
         == SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          computerUseShowAgentCursor: false,
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -150,6 +157,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)

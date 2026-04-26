@@ -63,6 +63,7 @@ struct SettingsComputerUseState: Equatable {
   var accessibility = ComputerUsePermissionStatus.unknown
   var isRefreshing = false
   var screenRecording = ComputerUsePermissionStatus.unknown
+  var showAgentCursor = SupatermSettings.default.computerUseShowAgentCursor
 }
 
 struct SettingsAboutState: Equatable {
@@ -121,6 +122,7 @@ public struct SettingsFeature {
     case computerUsePermissionsRefreshRequested
     case computerUsePermissionsRefreshed(ComputerUsePermissionsSnapshot)
     case computerUsePermissionSettingsButtonTapped(ComputerUsePermissionKind)
+    case computerUseShowAgentCursorChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case newTabPositionSelected(NewTabPosition)
@@ -263,7 +265,8 @@ public struct SettingsFeature {
       case .computerUsePermissionGrantButtonTapped,
         .computerUsePermissionsRefreshRequested,
         .computerUsePermissionsRefreshed,
-        .computerUsePermissionSettingsButtonTapped:
+        .computerUsePermissionSettingsButtonTapped,
+        .computerUseShowAgentCursorChanged:
         return reduceComputerUse(&state, action: action)
 
       case .agentIntegrationStatusRefreshRequested,
@@ -324,6 +327,7 @@ public struct SettingsFeature {
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
+    state.computerUse.showAgentCursor = supatermSettings.computerUseShowAgentCursor
   }
 
   func openSystemNotificationSettings() -> Effect<Action> {
@@ -336,6 +340,7 @@ public struct SettingsFeature {
     let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
+      computerUseShowAgentCursor: state.computerUse.showAgentCursor,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       newTabPosition: state.newTabPosition,

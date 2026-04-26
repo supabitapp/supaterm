@@ -4,6 +4,15 @@ public enum SupatermSocketMethod {
   public static let appOnboarding = "app.onboarding"
   public static let appDebug = "app.debug"
   public static let appTree = "app.tree"
+  public static let computerUseApps = "computer_use.apps"
+  public static let computerUseClick = "computer_use.click"
+  public static let computerUseKey = "computer_use.key"
+  public static let computerUsePermissions = "computer_use.permissions"
+  public static let computerUseScroll = "computer_use.scroll"
+  public static let computerUseSetValue = "computer_use.set_value"
+  public static let computerUseSnapshot = "computer_use.snapshot"
+  public static let computerUseType = "computer_use.type"
+  public static let computerUseWindows = "computer_use.windows"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalAgentHook = "terminal.agent_hook"
@@ -125,6 +134,91 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.appDebug,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUsePermissions(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.computerUsePermissions)
+  }
+
+  public static func computerUseApps(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.computerUseApps)
+  }
+
+  public static func computerUseWindows(
+    _ payload: SupatermComputerUseWindowsRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseWindows,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseSnapshot(
+    _ payload: SupatermComputerUseSnapshotRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseSnapshot,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseClick(
+    _ payload: SupatermComputerUseClickRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseClick,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseType(
+    _ payload: SupatermComputerUseTypeRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseType,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseKey(
+    _ payload: SupatermComputerUseKeyRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseKey,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseScroll(
+    _ payload: SupatermComputerUseScrollRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseScroll,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseSetValue(
+    _ payload: SupatermComputerUseSetValueRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseSetValue,
       params: try JSONObject(payload)
     )
   }

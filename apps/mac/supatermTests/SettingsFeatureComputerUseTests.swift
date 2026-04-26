@@ -1,6 +1,9 @@
 import ComposableArchitecture
+import Sharing
+import SupatermSupport
 import Testing
 
+@testable import SupatermCLIShared
 @testable import SupatermSettingsFeature
 
 @MainActor
@@ -72,6 +75,24 @@ struct SettingsFeatureComputerUseTests {
     await store.send(.computerUsePermissionSettingsButtonTapped(.accessibility))
 
     #expect(await recorder.opens == [.accessibility])
+  }
+
+  @Test
+  func showAgentCursorSettingPersistsPrefs() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.computerUseShowAgentCursorChanged(false)) {
+        $0.computerUse.showAgentCursor = false
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.computerUseShowAgentCursor)
+    }
   }
 }
 

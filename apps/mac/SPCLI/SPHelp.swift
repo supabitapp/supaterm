@@ -16,6 +16,7 @@ enum SPHelp {
       sp ls
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
+      sp computer-use permissions
       sp diagnostic
       sp instance ls
     """
@@ -456,6 +457,16 @@ enum SPHelp {
     Example:
       sp agent install-hook claude
       sp agent install-hook codex
+    """
+
+  static let computerUseDiscussion = """
+    Example:
+      sp computer-use permissions
+      sp computer-use apps --json
+      sp computer-use windows --app TextEdit
+      sp computer-use snapshot --pid 123 --window 456 --image-out /tmp/window.png
+      sp computer-use click --pid 123 --window 456 --element 3
+      sp computer-use type --pid 123 "hello"
     """
 
   static let internalDiscussion = """

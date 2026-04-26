@@ -28,6 +28,10 @@ extension SettingsFeature {
         await computerUsePermissionsClient.openSettings(permission)
       }
 
+    case .computerUseShowAgentCursorChanged(let isEnabled):
+      state.computerUse.showAgentCursor = isEnabled
+      return persist(state)
+
     default:
       return .none
     }

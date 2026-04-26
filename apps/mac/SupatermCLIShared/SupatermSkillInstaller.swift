@@ -8,6 +8,8 @@ public struct SupatermSkillInstaller {
 
   public static let manualInstallCommand =
     "npx skills add supabitapp/supaterm-skills --skill supaterm -g"
+  public static let manualComputerUseInstallCommand =
+    "npx skills add supabitapp/supaterm-skills --skill supaterm-computer-use -g"
   public static let automatedInstallCommand = "\(manualInstallCommand) -y"
 
   let homeDirectoryURL: URL

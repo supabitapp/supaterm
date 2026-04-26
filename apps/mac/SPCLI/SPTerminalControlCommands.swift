@@ -1013,17 +1013,7 @@ private func emitMutatingResult<T: Encodable>(
   plain: @autoclosure () -> String,
   human: @autoclosure () -> String
 ) throws {
-  guard !options.quiet else {
-    return
-  }
-  switch options.mode {
-  case .json:
-    print(try jsonString(result))
-  case .plain:
-    print(plain())
-  case .human:
-    print(human())
-  }
+  try emitCommandResult(result, options: options, plain: plain(), human: human())
 }
 
 private func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpaceTargetRequest {

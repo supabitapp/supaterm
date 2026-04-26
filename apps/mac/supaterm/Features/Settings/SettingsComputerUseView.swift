@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermCLIShared
 import SwiftUI
 
 struct SettingsComputerUseView: View {
@@ -28,10 +29,25 @@ struct SettingsComputerUseView: View {
       }
 
       Section {
-        SettingsSkillInstallRow()
+        SettingsToggleRow(
+          title: "Show Agent Cursor",
+          subtitle: "Show a cursor marker while computer-use actions run.",
+          isOn: Binding(
+            get: { store.computerUse.showAgentCursor },
+            set: { _ = store.send(.computerUseShowAgentCursorChanged($0)) }
+          )
+        )
+      }
+
+      Section {
+        SettingsSkillInstallRow(
+          title: "Computer Use Skill",
+          subtitle: "Install through npx in Terminal.",
+          command: SupatermSkillInstaller.manualComputerUseInstallCommand
+        )
       } footer: {
         Text(
-          "Install the Supaterm skill so agents can discover the local commands for terminal control and computer use.")
+          "Install the Computer Use skill so agents can discover app, window, snapshot, and action commands.")
       }
     }
     .navigationTitle("Computer Use")

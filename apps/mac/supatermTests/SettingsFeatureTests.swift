@@ -35,6 +35,7 @@ struct SettingsFeatureTests {
         $0 = SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          computerUseShowAgentCursor: false,
           crashReportsEnabled: true,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -59,6 +60,7 @@ struct SettingsFeatureTests {
         $0.analyticsEnabled = false
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
+        $0.computerUse.showAgentCursor = false
         $0.about.updateChannel = .tip
         $0.newTabPosition = .current
         $0.restoreTerminalLayoutEnabled = false

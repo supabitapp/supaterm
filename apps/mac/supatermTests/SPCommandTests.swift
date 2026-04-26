@@ -318,6 +318,60 @@ struct SPCommandTests {
   }
 
   @Test
+  func computerUseParserAcceptsCoreSubcommands() throws {
+    let permissions = try #require(
+      try SP.parseAsRoot(["computer-use", "permissions"]) as? SP.ComputerUsePermissions
+    )
+    let windows = try #require(
+      try SP.parseAsRoot(["computer-use", "windows", "--app", "TextEdit"]) as? SP.ComputerUseWindows
+    )
+    let snapshot = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "snapshot",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--image-out",
+        "/tmp/window.png",
+      ]) as? SP.ComputerUseSnapshot
+    )
+    let click = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "click",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--element",
+        "7",
+      ]) as? SP.ComputerUseClick
+    )
+    let key = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "key",
+        "--pid",
+        "123",
+        "--modifier",
+        "command",
+        "s",
+      ]) as? SP.ComputerUseKey
+    )
+
+    #expect(type(of: permissions) == SP.ComputerUsePermissions.self)
+    #expect(windows.app == "TextEdit")
+    #expect(snapshot.pid == 123)
+    #expect(snapshot.window == 456)
+    #expect(snapshot.imageOutputPath == "/tmp/window.png")
+    #expect(click.element == 7)
+    #expect(key.modifier == [.command])
+    #expect(key.key == "s")
+  }
+
+  @Test
   func configParserAcceptsValidateSubcommand() throws {
     let command = try #require(
       try SP.parseAsRoot(["config", "validate", "--path", "./settings.toml"]) as? SP.ValidateConfig

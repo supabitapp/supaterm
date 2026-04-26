@@ -109,7 +109,21 @@ struct SettingsSurfaceCard<Content: View>: View {
 }
 
 struct SettingsSkillInstallRow: View {
+  let title: String
+  let subtitle: String
+  let command: String
+
   @State private var didCopy = false
+
+  init(
+    title: String = "Supaterm Skill",
+    subtitle: String = "Install through npx in Terminal.",
+    command: String = SupatermSkillInstaller.manualInstallCommand
+  ) {
+    self.title = title
+    self.subtitle = subtitle
+    self.command = command
+  }
 
   var body: some View {
     HStack(alignment: .center, spacing: 12) {
@@ -119,8 +133,8 @@ struct SettingsSkillInstallRow: View {
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 2) {
-        Text("Supaterm Skill")
-        Text("Install through npx in Terminal.")
+        Text(title)
+        Text(subtitle)
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -128,7 +142,7 @@ struct SettingsSkillInstallRow: View {
       Spacer(minLength: 12)
 
       HStack(spacing: 8) {
-        Text(SupatermSkillInstaller.manualInstallCommand)
+        Text(command)
           .font(.caption.monospaced())
           .foregroundStyle(.secondary)
           .textSelection(.enabled)
@@ -136,7 +150,7 @@ struct SettingsSkillInstallRow: View {
         Button {
           let pasteboard = NSPasteboard.general
           pasteboard.clearContents()
-          pasteboard.setString(SupatermSkillInstaller.manualInstallCommand, forType: .string)
+          pasteboard.setString(command, forType: .string)
           didCopy = true
         } label: {
           Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
