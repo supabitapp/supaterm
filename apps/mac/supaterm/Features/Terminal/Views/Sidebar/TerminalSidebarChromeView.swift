@@ -1279,7 +1279,8 @@ private struct TerminalSidebarSpaceBar: View {
       }
       .buttonStyle(TerminalSidebarIconButtonStyle())
       .foregroundStyle(palette.primaryText)
-      .accessibilityLabel("Add space")
+      .accessibilityLabel("Create Space")
+      .help("Create Space")
     }
     .fixedSize(horizontal: false, vertical: true)
     .frame(height: 32)
