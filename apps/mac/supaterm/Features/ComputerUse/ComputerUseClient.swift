@@ -211,7 +211,7 @@ extension ComputerUseClient: DependencyKey {
         try await runtime.snapshot(request)
       },
       click: { request in
-        try runtime.click(request)
+        try await runtime.click(request)
       },
       type: { request in
         try runtime.type(request)

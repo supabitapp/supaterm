@@ -178,17 +178,17 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   public func click(
     _ request: SupatermComputerUseClickRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     if let elementIndex = request.elementIndex {
       let element = try cachedElement(
         pid: request.pid, windowID: request.windowID, elementIndex: elementIndex)
-      return try clickElement(element, request: request)
+      return try await clickElement(element, request: request)
     }
 
     guard let x = request.x, let y = request.y else {
       throw ComputerUseError.invalidClickTarget
     }
-    return try postClick(
+    return try await postClick(
       point: try screenPoint(
         windowPixel: .init(x: x, y: y), pid: request.pid, windowID: request.windowID),
       request: request
@@ -632,7 +632,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func clickElement(
     _ element: AXUIElement,
     request: SupatermComputerUseClickRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     if axBool(element, kAXEnabledAttribute as CFString) == false, let index = request.elementIndex {
       throw ComputerUseError.elementDisabled(index)
     }
@@ -642,13 +642,22 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       request: request,
       advertisedActions: actions
     ) {
+      let cursorPrepared: Bool
+      if let point {
+        cursorPrepared = await prepareCursor(
+          to: point,
+          aboveWindowID: request.windowID,
+          targetPid: request.pid,
+          focusFrame: elementFrame(element)
+        )
+      } else {
+        cursorPrepared = false
+      }
       let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
         performAction(axAction as CFString, on: element)
       }
       if success {
-        if let point {
-          moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: elementFrame(element))
-        }
+        await finishCursorClick(cursorPrepared)
         if axAction == kAXPressAction as String,
           isTextEntryRole(axString(element, kAXRoleAttribute as CFString))
         {
@@ -665,13 +674,22 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         )
       }
       if actions.contains(axAction), let index = request.elementIndex {
+        cancelCursorClick(cursorPrepared)
         throw ComputerUseError.actionUnsupported(index, axAction)
       }
+      guard let point else {
+        throw ComputerUseError.unsupportedBackgroundTarget
+      }
+      return try await postClick(
+        point: point,
+        request: request,
+        cursorPrepared: cursorPrepared
+      )
     }
     guard let point else {
       throw ComputerUseError.unsupportedBackgroundTarget
     }
-    return try postClick(
+    return try await postClick(
       point: point,
       request: request
     )
@@ -679,37 +697,66 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   private func postClick(
     point: CGPoint,
-    request: SupatermComputerUseClickRequest
-  ) throws -> SupatermComputerUseActionResult {
+    request: SupatermComputerUseClickRequest,
+    cursorPrepared: Bool = false
+  ) async throws -> SupatermComputerUseActionResult {
     guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
       throw ComputerUseError.windowNotFound(request.windowID)
     }
-    moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: nil)
-    let dispatch = try ComputerUseMouseInput.click(
-      .init(
-        point: point,
-        pid: pid_t(request.pid),
-        window: .init(id: windowInfo.window.id, frame: windowInfo.window.frame),
-        button: request.button,
-        count: request.count,
-        modifiers: request.modifiers
+    let prepared: Bool
+    if cursorPrepared {
+      prepared = true
+    } else {
+      prepared = await prepareCursor(
+        to: point,
+        aboveWindowID: request.windowID,
+        targetPid: request.pid,
+        focusFrame: nil
       )
-    )
-    return .init(ok: true, dispatch: dispatch.rawValue)
+    }
+    do {
+      let dispatch = try ComputerUseMouseInput.click(
+        .init(
+          point: point,
+          pid: pid_t(request.pid),
+          window: .init(id: windowInfo.window.id, frame: windowInfo.window.frame),
+          button: request.button,
+          count: request.count,
+          modifiers: request.modifiers
+        )
+      )
+      await finishCursorClick(prepared)
+      return .init(ok: true, dispatch: dispatch.rawValue)
+    } catch {
+      cancelCursorClick(prepared)
+      throw error
+    }
   }
 
-  private func moveCursor(
+  private func prepareCursor(
     to point: CGPoint,
     aboveWindowID windowID: UInt32,
+    targetPid: Int,
     focusFrame: CGRect?
-  ) {
+  ) async -> Bool {
     @Shared(.supatermSettings) var supatermSettings = .default
-    cursorOverlay.move(
+    return await cursorOverlay.prepareClick(
       to: point,
       enabled: supatermSettings.computerUseShowAgentCursor,
+      targetPid: pid_t(targetPid),
       targetWindowID: windowID,
       focusFrame: focusFrame
     )
+  }
+
+  private func finishCursorClick(_ prepared: Bool) async {
+    guard prepared else { return }
+    await cursorOverlay.completeClick()
+  }
+
+  private func cancelCursorClick(_ prepared: Bool) {
+    guard prepared else { return }
+    cursorOverlay.cancelClick()
   }
 
   private func axArray(_ element: AXUIElement, _ attribute: CFString) -> [AXUIElement]? {
