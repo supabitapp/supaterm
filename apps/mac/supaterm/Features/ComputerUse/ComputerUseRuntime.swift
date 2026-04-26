@@ -637,34 +637,34 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       throw ComputerUseError.elementDisabled(index)
     }
     let point = elementTargetPoint(element)
-    let axAction = resolvedClickAction(request)
-    if request.count == 1, request.modifiers.isEmpty {
-      let actions = actionNames(element)
-      if actions.contains(axAction) {
-        let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
-          performAction(axAction as CFString, on: element)
-        }
-        if success {
-          if let point {
-            moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: elementFrame(element))
-          }
-          if axAction == kAXPressAction as String,
-            isTextEntryRole(axString(element, kAXRoleAttribute as CFString))
-          {
-            usleep(120_000)
-          }
-          let warning =
-            axString(element, kAXRoleAttribute as CFString) == kAXPopUpButtonRole as String
-            ? "popup_value_may_require_set_value"
-            : nil
-          return .init(
-            ok: true,
-            dispatch: ComputerUseMouseDispatch.accessibility.rawValue,
-            warning: warning
-          )
-        }
+    let actions = actionNames(element)
+    if let axAction = ComputerUseClickActionResolver.accessibilityAction(
+      request: request,
+      advertisedActions: actions
+    ) {
+      let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
+        performAction(axAction as CFString, on: element)
       }
-      if let index = request.elementIndex {
+      if success {
+        if let point {
+          moveCursor(to: point, aboveWindowID: request.windowID, focusFrame: elementFrame(element))
+        }
+        if axAction == kAXPressAction as String,
+          isTextEntryRole(axString(element, kAXRoleAttribute as CFString))
+        {
+          usleep(800_000)
+        }
+        return .init(
+          ok: true,
+          dispatch: ComputerUseMouseDispatch.accessibility.rawValue,
+          warning: ComputerUseClickActionResolver.warning(
+            role: axString(element, kAXRoleAttribute as CFString),
+            action: axAction,
+            advertisedActions: actions
+          )
+        )
+      }
+      if actions.contains(axAction), let index = request.elementIndex {
         throw ComputerUseError.actionUnsupported(index, axAction)
       }
     }
@@ -815,26 +815,6 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   private func performAction(_ action: CFString, on element: AXUIElement) -> Bool {
     AXUIElementPerformAction(element, action) == .success
-  }
-
-  private func resolvedClickAction(_ request: SupatermComputerUseClickRequest) -> String {
-    if request.button == .right, request.action == .press {
-      return kAXShowMenuAction as String
-    }
-    switch request.action {
-    case .press:
-      return kAXPressAction as String
-    case .showMenu:
-      return kAXShowMenuAction as String
-    case .pick:
-      return "AXPick"
-    case .confirm:
-      return "AXConfirm"
-    case .cancel:
-      return "AXCancel"
-    case .open:
-      return "AXOpen"
-    }
   }
 
   private func isTextEntryRole(_ role: String?) -> Bool {

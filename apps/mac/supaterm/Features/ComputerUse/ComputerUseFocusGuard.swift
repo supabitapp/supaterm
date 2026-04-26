@@ -7,6 +7,7 @@ final class ComputerUseFocusGuard {
   private var assertedPids: Set<pid_t> = []
   private var nonAssertablePids: Set<pid_t> = []
   private var observers: [pid_t: AXObserver] = [:]
+  private let focusStealPreventer = ComputerUseSystemFocusStealPreventer()
 
   func withFocusSuppressed<T>(
     pid: pid_t,
@@ -21,12 +22,19 @@ final class ComputerUseFocusGuard {
     }
     let window = element.flatMap(enclosingWindow)
     let state = setSyntheticFocus(window: window, element: element)
+    let suppression = focusStealPreventer.begin(targetPid: pid)
     do {
       let result = try body()
       restoreSyntheticFocus(state)
+      if let suppression {
+        focusStealPreventer.end(suppression)
+      }
       return result
     } catch {
       restoreSyntheticFocus(state)
+      if let suppression {
+        focusStealPreventer.end(suppression, drainInterval: 0)
+      }
       throw error
     }
   }
