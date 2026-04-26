@@ -26,6 +26,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private let cursorOverlay = ComputerUseCursorOverlay()
   private let focusGuard = ComputerUseFocusGuard()
   private let launchFocusStealPreventer = ComputerUseSystemFocusStealPreventer()
+  private let pageRuntime = ComputerUsePageRuntime()
   private var elementCache: [CacheKey: [Int: AXUIElement]] = [:]
 
   public init() {}
@@ -64,12 +65,21 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     configuration.activates = false
     configuration.addsToRecentItems = false
     configuration.createsNewApplicationInstance = request.createsNewInstance
-    if !request.arguments.isEmpty {
-      configuration.arguments = request.arguments
+    var arguments = request.arguments
+    if let electronDebuggingPort = request.electronDebuggingPort {
+      arguments.append("--remote-debugging-port=\(electronDebuggingPort)")
     }
-    if !request.environment.isEmpty {
+    if !arguments.isEmpty {
+      configuration.arguments = arguments
+    }
+    var requestEnvironment = request.environment
+    if let webkitInspectorPort = request.webkitInspectorPort {
+      requestEnvironment["WEBKIT_INSPECTOR_SERVER"] = "127.0.0.1:\(webkitInspectorPort)"
+      requestEnvironment["TAURI_WEBVIEW_AUTOMATION"] = "1"
+    }
+    if !requestEnvironment.isEmpty {
       var environment = ProcessInfo.processInfo.environment
-      environment.merge(request.environment) { _, new in new }
+      environment.merge(requestEnvironment) { _, new in new }
       configuration.environment = environment
     }
     if let bundleID = Bundle(url: appURL)?.bundleIdentifier ?? request.bundleID {
@@ -291,14 +301,14 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   public func setValue(
     _ request: SupatermComputerUseSetValueRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     let element = try cachedElement(
       pid: request.pid,
       windowID: request.windowID,
       elementIndex: request.elementIndex
     )
     if axString(element, kAXRoleAttribute as CFString) == kAXPopUpButtonRole as String {
-      return try selectPopupValue(element, request: request)
+      return try await selectPopupValue(element, request: request)
     }
     let result = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
       AXUIElementSetAttributeValue(
@@ -309,6 +319,12 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     }
     guard result == .success else { throw ComputerUseError.unsupportedBackgroundTarget }
     return .init(ok: true, dispatch: "accessibility")
+  }
+
+  public func page(
+    _ request: SupatermComputerUsePageRequest
+  ) async throws -> SupatermComputerUsePageResult {
+    try await pageRuntime.page(request)
   }
 
   private func screenRecordingGranted() async -> Bool {
@@ -985,7 +1001,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func selectPopupValue(
     _ element: AXUIElement,
     request: SupatermComputerUseSetValueRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     let children = axArray(element, kAXChildrenAttribute as CFString) ?? []
     let normalized = request.value.lowercased()
     for child in children {
@@ -999,7 +1015,25 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         return .init(ok: true, dispatch: "accessibility")
       }
     }
+    if bundleID(for: request.pid) == "com.apple.Safari" {
+      switch try await pageRuntime.setSafariSelectValue(request.value, windowID: request.windowID) {
+      case .selected:
+        return .init(ok: true, dispatch: "apple_events")
+      case .notFound(let available):
+        return .init(
+          ok: false,
+          dispatch: "apple_events",
+          warning: "No matching option found. Available: \(available.joined(separator: ", "))"
+        )
+      }
+    }
     throw ComputerUseError.actionUnsupported(request.elementIndex, "select_option")
+  }
+
+  private func bundleID(for pid: Int) -> String? {
+    NSWorkspace.shared.runningApplications
+      .first { Int($0.processIdentifier) == pid }?
+      .bundleIdentifier
   }
 
   private func axValue(_ value: CFTypeRef?) -> AXValue? {

@@ -100,6 +100,8 @@ struct SocketControlFeatureComputerUseTests {
       urls: ["file:///tmp/example.txt"],
       arguments: ["--foreground"],
       environment: ["FOO": "bar"],
+      electronDebuggingPort: 9222,
+      webkitInspectorPort: 9226,
       createsNewInstance: true
     )
     let expected = SupatermComputerUseLaunchResult(
@@ -222,6 +224,45 @@ struct SocketControlFeatureComputerUseTests {
       try await recorder.snapshot().first?.response.decodeResult(
         SupatermComputerUseActionResult.self) == .init(ok: true, dispatch: "pid_event"))
   }
+
+  @Test
+  func pageRequestRoutesPayloadToComputerUseClient() async throws {
+    let recorder = SocketReplyRecorder()
+    let seenPayload = ComputerUsePageRecorder()
+    let handle = UUID(uuidString: "549DD74E-D8EB-45E6-B293-869689231985")!
+    let payload = SupatermComputerUsePageRequest(
+      pid: 123,
+      windowID: 456,
+      action: .queryDOM,
+      cssSelector: "a",
+      attributes: ["href"]
+    )
+    let expected = SupatermComputerUsePageResult(
+      action: .queryDOM,
+      dispatch: "accessibility_tree",
+      json: .array([.object(["tag": .string("a"), "text": .string("Docs")])])
+    )
+    let store = makeStore {
+      $0.computerUseClient.page = { request in
+        await seenPayload.record(request)
+        return expected
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(
+      .requestReceived(
+        .init(handle: handle, payload: try .computerUsePage(payload, id: "computer-use-page"))
+      )
+    )
+
+    #expect(await seenPayload.snapshot() == payload)
+    #expect(
+      try await recorder.snapshot().first?.response.decodeResult(
+        SupatermComputerUsePageResult.self) == expected)
+  }
 }
 
 private actor ComputerUseSnapshotRecorder {
@@ -256,6 +297,18 @@ private actor ComputerUseLaunchRecorder {
   }
 
   func snapshot() -> SupatermComputerUseLaunchRequest? {
+    payload
+  }
+}
+
+private actor ComputerUsePageRecorder {
+  private var payload: SupatermComputerUsePageRequest?
+
+  func record(_ payload: SupatermComputerUsePageRequest) {
+    self.payload = payload
+  }
+
+  func snapshot() -> SupatermComputerUsePageRequest? {
     payload
   }
 }

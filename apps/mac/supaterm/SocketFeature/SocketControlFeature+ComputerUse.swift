@@ -56,6 +56,11 @@ extension SocketControlFeature {
       let result = try await computerUseClient.setValue(payload)
       return try .ok(id: request.id, encodableResult: result)
 
+    case SupatermSocketMethod.computerUsePage:
+      let payload = try request.decodeParams(SupatermComputerUsePageRequest.self)
+      let result = try await computerUseClient.page(payload)
+      return try .ok(id: request.id, encodableResult: result)
+
     default:
       return nil
     }

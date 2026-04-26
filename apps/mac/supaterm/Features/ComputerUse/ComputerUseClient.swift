@@ -13,6 +13,11 @@ public enum ComputerUseError: Equatable, LocalizedError {
   case actionUnsupported(Int, String)
   case invalidClickTarget
   case keyUnsupported(String)
+  case pageExecutionFailed(String)
+  case pagePermissionRequired(String)
+  case pageTargetRequired
+  case pageTimedOut(String)
+  case pageUnsupported(String)
   case screenRecordingPermissionMissing
   case snapshotRequired
   case unsupportedBackgroundTarget
@@ -40,6 +45,16 @@ public enum ComputerUseError: Equatable, LocalizedError {
       return "invalid_click_target"
     case .keyUnsupported:
       return "key_unsupported"
+    case .pageExecutionFailed:
+      return "page_execution_failed"
+    case .pagePermissionRequired:
+      return "page_permission_required"
+    case .pageTargetRequired:
+      return "page_target_required"
+    case .pageTimedOut:
+      return "page_timed_out"
+    case .pageUnsupported:
+      return "page_unsupported"
     case .screenRecordingPermissionMissing:
       return "screen_recording_permission_missing"
     case .snapshotRequired:
@@ -73,6 +88,16 @@ public enum ComputerUseError: Equatable, LocalizedError {
       return "Provide either --element or both --x and --y."
     case .keyUnsupported(let key):
       return "Unsupported key '\(key)'."
+    case .pageExecutionFailed(let reason):
+      return reason
+    case .pagePermissionRequired(let reason):
+      return reason
+    case .pageTargetRequired:
+      return "This page operation requires --pid and --window."
+    case .pageTimedOut(let reason):
+      return reason
+    case .pageUnsupported(let reason):
+      return reason
     case .screenRecordingPermissionMissing:
       return "Grant Screen Recording in Settings > Computer Use."
     case .snapshotRequired:
@@ -112,6 +137,9 @@ public struct ComputerUseClient: Sendable {
   public var setValue:
     @MainActor @Sendable (SupatermComputerUseSetValueRequest) async throws ->
       SupatermComputerUseActionResult
+  public var page:
+    @MainActor @Sendable (SupatermComputerUsePageRequest) async throws ->
+      SupatermComputerUsePageResult
 
   public init(
     permissions: @escaping @MainActor @Sendable () async -> SupatermComputerUsePermissionsResult,
@@ -147,7 +175,11 @@ public struct ComputerUseClient: Sendable {
     setValue:
       @escaping @MainActor @Sendable (
         SupatermComputerUseSetValueRequest
-      ) async throws -> SupatermComputerUseActionResult
+      ) async throws -> SupatermComputerUseActionResult,
+    page:
+      @escaping @MainActor @Sendable (
+        SupatermComputerUsePageRequest
+      ) async throws -> SupatermComputerUsePageResult
   ) {
     self.permissions = permissions
     self.apps = apps
@@ -159,6 +191,7 @@ public struct ComputerUseClient: Sendable {
     self.key = key
     self.scroll = scroll
     self.setValue = setValue
+    self.page = page
   }
 }
 
@@ -195,6 +228,9 @@ extension ComputerUseClient: DependencyKey {
     },
     setValue: { _ in
       .init(ok: true, dispatch: "test")
+    },
+    page: { request in
+      .init(action: request.action, dispatch: "test")
     }
   )
 
@@ -228,7 +264,10 @@ extension ComputerUseClient: DependencyKey {
         try runtime.scroll(request)
       },
       setValue: { request in
-        try runtime.setValue(request)
+        try await runtime.setValue(request)
+      },
+      page: { request in
+        try await runtime.page(request)
       }
     )
   }

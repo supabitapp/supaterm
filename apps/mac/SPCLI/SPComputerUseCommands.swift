@@ -19,6 +19,7 @@ extension SP {
         ComputerUseKey.self,
         ComputerUseScroll.self,
         ComputerUseSetValue.self,
+        ComputerUsePage.self,
       ]
     )
 
@@ -96,6 +97,12 @@ extension SP {
     @Option(name: .long, help: "Environment override in KEY=VALUE form.")
     var env: [ComputerUseEnvironmentArgument] = []
 
+    @Option(name: .customLong("electron-debugging-port"), help: "Launch Electron with --remote-debugging-port.")
+    var electronDebuggingPort: Int?
+
+    @Option(name: .customLong("webkit-inspector-port"), help: "Launch WKWebView/Tauri with WEBKIT_INSPECTOR_SERVER.")
+    var webkitInspectorPort: Int?
+
     @Flag(name: .customLong("new-instance"), help: "Create a new app instance.")
     var createsNewInstance = false
 
@@ -106,6 +113,8 @@ extension SP {
       if bundleID == nil && name == nil {
         throw ValidationError("Provide --bundle-id or --name.")
       }
+      try validatePort(electronDebuggingPort, name: "--electron-debugging-port")
+      try validatePort(webkitInspectorPort, name: "--webkit-inspector-port")
     }
 
     mutating func run() throws {
@@ -117,6 +126,8 @@ extension SP {
             urls: url,
             arguments: argument,
             environment: Dictionary(uniqueKeysWithValues: env.map { ($0.key, $0.value) }),
+            electronDebuggingPort: electronDebuggingPort,
+            webkitInspectorPort: webkitInspectorPort,
             createsNewInstance: createsNewInstance
           )
         ),
@@ -440,6 +451,146 @@ extension SP {
       try emitActionResult(result, options: options.output)
     }
   }
+
+  struct ComputerUsePage: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "page",
+      abstract: "Read and operate browser page content.",
+      discussion: SPHelp.computerUsePageDiscussion,
+      subcommands: [
+        ComputerUsePageGetText.self,
+        ComputerUsePageQueryDOM.self,
+        ComputerUsePageExecuteJavaScript.self,
+        ComputerUsePageEnableJavaScriptAppleEvents.self,
+      ]
+    )
+
+    mutating func run() throws {
+      print(Self.helpMessage())
+    }
+  }
+
+  struct ComputerUsePageGetText: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "get-text",
+      abstract: "Read text from a browser page."
+    )
+
+    @Option(name: .long, help: "Target process ID.")
+    var pid: Int
+
+    @Option(name: .long, help: "Target window ID.")
+    var window: UInt32
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      let result: SupatermComputerUsePageResult = try computerUseResult(
+        .computerUsePage(.init(pid: pid, windowID: window, action: .getText)),
+        options: options
+      )
+      try emitPageResult(result, options: options.output)
+    }
+  }
+
+  struct ComputerUsePageQueryDOM: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "query-dom",
+      abstract: "Query browser page elements with a CSS selector."
+    )
+
+    @Option(name: .long, help: "Target process ID.")
+    var pid: Int
+
+    @Option(name: .long, help: "Target window ID.")
+    var window: UInt32
+
+    @Option(name: .long, help: "CSS selector.")
+    var selector: String
+
+    @Option(name: .long, help: "Attribute to include in each result.")
+    var attribute: [String] = []
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      let result: SupatermComputerUsePageResult = try computerUseResult(
+        .computerUsePage(
+          .init(
+            pid: pid,
+            windowID: window,
+            action: .queryDOM,
+            cssSelector: selector,
+            attributes: attribute
+          )
+        ),
+        options: options
+      )
+      try emitPageResult(result, options: options.output)
+    }
+  }
+
+  struct ComputerUsePageExecuteJavaScript: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "execute-javascript",
+      abstract: "Run JavaScript in a browser page."
+    )
+
+    @Option(name: .long, help: "Target process ID.")
+    var pid: Int
+
+    @Option(name: .long, help: "Target window ID.")
+    var window: UInt32
+
+    @Argument(help: "JavaScript to execute.")
+    var javascript: String
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      let result: SupatermComputerUsePageResult = try computerUseResult(
+        .computerUsePage(
+          .init(
+            pid: pid,
+            windowID: window,
+            action: .executeJavaScript,
+            javascript: javascript
+          )
+        ),
+        options: options
+      )
+      try emitPageResult(result, options: options.output)
+    }
+  }
+
+  struct ComputerUsePageEnableJavaScriptAppleEvents: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "enable-javascript-apple-events",
+      abstract: "Enable browser JavaScript from Apple Events."
+    )
+
+    @Option(name: .long, help: "Browser to configure: chrome or safari.")
+    var browser: SupatermComputerUsePageBrowser
+
+    @OptionGroup
+    var options: SPCommandOptions
+
+    mutating func run() throws {
+      let result: SupatermComputerUsePageResult = try computerUseResult(
+        .computerUsePage(
+          .init(
+            action: .enableJavaScriptAppleEvents,
+            browser: browser
+          )
+        ),
+        options: options
+      )
+      try emitPageResult(result, options: options.output)
+    }
+  }
 }
 
 extension SupatermComputerUseClickButton: @retroactive ExpressibleByArgument {}
@@ -448,6 +599,7 @@ extension SupatermComputerUseKeyModifier: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseSnapshotMode: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseScrollDirection: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseScrollUnit: @retroactive ExpressibleByArgument {}
+extension SupatermComputerUsePageBrowser: @retroactive ExpressibleByArgument {}
 
 extension SupatermComputerUseClickModifier: @retroactive ExpressibleByArgument {
   public init?(argument: String) {
@@ -492,9 +644,24 @@ private func computerUseResult<T: Decodable>(
   )
   let response = try client.send(request)
   guard response.ok else {
-    throw ValidationError(response.error?.message ?? "Supaterm socket request failed.")
+    try emitComputerUseErrorResponse(response, options: options.output)
+    throw ExitCode.failure
   }
   return try response.decodeResult(T.self)
+}
+
+private func emitComputerUseErrorResponse(
+  _ response: SupatermSocketResponse,
+  options: SPOutputOptions
+) throws {
+  guard !options.quiet else { return }
+  switch options.mode {
+  case .json:
+    print(try jsonString(response))
+  case .plain, .human:
+    let message = response.error?.message ?? "Supaterm socket request failed."
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+  }
 }
 
 private func emitActionResult(
@@ -507,4 +674,24 @@ private func emitActionResult(
     plain: result.dispatch,
     human: result.ok ? "OK (\(result.dispatch))" : "Failed (\(result.dispatch))"
   )
+}
+
+private func emitPageResult(
+  _ result: SupatermComputerUsePageResult,
+  options: SPOutputOptions
+) throws {
+  let plain = try result.text ?? result.json?.stableJSONString() ?? ""
+  try emitCommandResult(
+    result,
+    options: options,
+    plain: plain,
+    human: plain.isEmpty ? result.dispatch : plain
+  )
+}
+
+private func validatePort(_ port: Int?, name: String) throws {
+  guard let port else { return }
+  if !(1...65_535).contains(port) {
+    throw ValidationError("\(name) must be between 1 and 65535.")
+  }
 }

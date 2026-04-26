@@ -335,6 +335,10 @@ struct SPCommandTests {
         "file:///tmp/example.txt",
         "--argument=--foreground",
         "--env=FOO=bar",
+        "--electron-debugging-port",
+        "9222",
+        "--webkit-inspector-port",
+        "9226",
         "--new-instance",
       ]) as? SP.ComputerUseLaunch
     )
@@ -401,6 +405,8 @@ struct SPCommandTests {
     #expect(launch.env.count == 1)
     #expect(launch.env.first?.key == "FOO")
     #expect(launch.env.first?.value == "bar")
+    #expect(launch.electronDebuggingPort == 9222)
+    #expect(launch.webkitInspectorPort == 9226)
     #expect(launch.createsNewInstance)
     #expect(windows.app == "TextEdit")
     #expect(windows.onScreenOnly)
@@ -416,6 +422,73 @@ struct SPCommandTests {
     #expect(coordinateClick.button == .right)
     #expect(coordinateClick.count == 2)
     #expect(coordinateClick.modifier == [.command, .option])
+  }
+
+  @Test
+  func computerUseParserAcceptsPageSubcommands() throws {
+    let getText = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "page",
+        "get-text",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+      ]) as? SP.ComputerUsePageGetText
+    )
+    let queryDOM = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "page",
+        "query-dom",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--selector",
+        "a",
+        "--attribute",
+        "href",
+      ]) as? SP.ComputerUsePageQueryDOM
+    )
+    let executeJavaScript = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "page",
+        "execute-javascript",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "(() => document.title)()",
+      ]) as? SP.ComputerUsePageExecuteJavaScript
+    )
+    let enable = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "page",
+        "enable-javascript-apple-events",
+        "--browser",
+        "chrome",
+      ]) as? SP.ComputerUsePageEnableJavaScriptAppleEvents
+    )
+
+    #expect(getText.pid == 123)
+    #expect(getText.window == 456)
+    #expect(queryDOM.selector == "a")
+    #expect(queryDOM.attribute == ["href"])
+    #expect(executeJavaScript.javascript == "(() => document.title)()")
+    #expect(enable.browser == .chrome)
+    #expect(throws: (any Error).self) {
+      try SP.parseAsRoot([
+        "computer-use",
+        "page",
+        "enable-javascript-apple-events",
+        "--bundle-id",
+        "com.google.Chrome",
+      ])
+    }
   }
 
   @Test

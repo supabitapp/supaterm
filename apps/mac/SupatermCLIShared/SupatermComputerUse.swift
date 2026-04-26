@@ -74,6 +74,8 @@ public struct SupatermComputerUseLaunchRequest: Codable, Equatable, Sendable {
   public let urls: [String]
   public let arguments: [String]
   public let environment: [String: String]
+  public let electronDebuggingPort: Int?
+  public let webkitInspectorPort: Int?
   public let createsNewInstance: Bool
 
   public init(
@@ -82,6 +84,8 @@ public struct SupatermComputerUseLaunchRequest: Codable, Equatable, Sendable {
     urls: [String] = [],
     arguments: [String] = [],
     environment: [String: String] = [:],
+    electronDebuggingPort: Int? = nil,
+    webkitInspectorPort: Int? = nil,
     createsNewInstance: Bool = false
   ) {
     self.bundleID = bundleID
@@ -89,6 +93,8 @@ public struct SupatermComputerUseLaunchRequest: Codable, Equatable, Sendable {
     self.urls = urls
     self.arguments = arguments
     self.environment = environment
+    self.electronDebuggingPort = electronDebuggingPort
+    self.webkitInspectorPort = webkitInspectorPort
     self.createsNewInstance = createsNewInstance
   }
 }
@@ -454,6 +460,74 @@ public struct SupatermComputerUseSetValueRequest: Codable, Equatable, Sendable {
     self.windowID = windowID
     self.elementIndex = elementIndex
     self.value = value
+  }
+}
+
+public enum SupatermComputerUsePageAction: String, Codable, CaseIterable, Sendable {
+  case executeJavaScript = "execute-javascript"
+  case getText = "get-text"
+  case queryDOM = "query-dom"
+  case enableJavaScriptAppleEvents = "enable-javascript-apple-events"
+}
+
+public enum SupatermComputerUsePageBrowser: String, Codable, CaseIterable, Sendable {
+  case chrome
+  case safari
+
+  public var bundleID: String {
+    switch self {
+    case .chrome:
+      return "com.google.Chrome"
+    case .safari:
+      return "com.apple.Safari"
+    }
+  }
+}
+
+public struct SupatermComputerUsePageRequest: Codable, Equatable, Sendable {
+  public let pid: Int?
+  public let windowID: UInt32?
+  public let action: SupatermComputerUsePageAction
+  public let javascript: String?
+  public let cssSelector: String?
+  public let attributes: [String]
+  public let browser: SupatermComputerUsePageBrowser?
+
+  public init(
+    pid: Int? = nil,
+    windowID: UInt32? = nil,
+    action: SupatermComputerUsePageAction,
+    javascript: String? = nil,
+    cssSelector: String? = nil,
+    attributes: [String] = [],
+    browser: SupatermComputerUsePageBrowser? = nil
+  ) {
+    self.pid = pid
+    self.windowID = windowID
+    self.action = action
+    self.javascript = javascript
+    self.cssSelector = cssSelector
+    self.attributes = attributes
+    self.browser = browser
+  }
+}
+
+public struct SupatermComputerUsePageResult: Codable, Equatable, Sendable {
+  public let action: SupatermComputerUsePageAction
+  public let dispatch: String
+  public let text: String?
+  public let json: JSONValue?
+
+  public init(
+    action: SupatermComputerUsePageAction,
+    dispatch: String,
+    text: String? = nil,
+    json: JSONValue? = nil
+  ) {
+    self.action = action
+    self.dispatch = dispatch
+    self.text = text
+    self.json = json
   }
 }
 

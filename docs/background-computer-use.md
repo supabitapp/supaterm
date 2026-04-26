@@ -80,6 +80,47 @@ For pixel clicks in background windows, Supaterm uses pid-targeted event deliver
 - `type` without an element posts each character to the target pid.
 - `key` posts a key down/up pair to the target pid.
 - `scroll` maps direction/unit to keyboard navigation and posts those key events.
-- `set-value` sets `AXValue`. Popup buttons are handled by pressing a matching child option.
+- `set-value` sets `AXValue`. Popup buttons are handled by pressing a matching child option. Safari popup buttons without AX option children fall back to page JavaScript that sets a matching HTML `select` option and dispatches `change`.
 
 Keyboard-backed actions can still fail on apps that require a real active key window or a specific responder chain.
+
+## Page Operations
+
+`sp computer-use page` targets browser-like page content using the same pid and window IDs as `snapshot`, `click`, and `set-value`.
+
+```bash
+sp computer-use launch --bundle-id com.google.Chrome --url https://example.com --new-instance --json
+sp computer-use windows --app com.google.Chrome --json
+sp computer-use page get-text --pid 123 --window 456 --json
+sp computer-use page query-dom --pid 123 --window 456 --selector a --attribute href --json
+sp computer-use page execute-javascript --pid 123 --window 456 '(() => document.title)()' --json
+```
+
+`get-text` reads `document.body.innerText` through browser APIs when available. For WKWebView and Tauri-style apps on macOS, it falls back to a full accessibility-tree text extraction path because arbitrary WebKit inspector JavaScript requires a private Apple entitlement unless the app exposes a normal TCP CDP endpoint.
+
+`query-dom` runs `document.querySelectorAll` and returns typed JSON when JavaScript transport is available. With the AX fallback it supports a limited CSS-to-AX-role mapping such as `a`, `button`, `input`, `select`, headings, table roles, and wildcard or class/id selectors.
+
+`execute-javascript` runs browser page JavaScript. It is not a native AX-control API. Chrome and Safari use Apple Events and may require explicit setup:
+
+```bash
+sp computer-use page enable-javascript-apple-events --browser chrome --json
+sp computer-use page enable-javascript-apple-events --browser safari --json
+```
+
+The setup command may activate, quit, or relaunch the browser.
+
+Electron DOM access works best when the app is launched with a renderer debugging port:
+
+```bash
+sp computer-use launch --bundle-id com.example.ElectronApp --electron-debugging-port 9222 --json
+```
+
+WKWebView or Tauri apps can be launched with WebKit inspector environment variables:
+
+```bash
+sp computer-use launch --bundle-id com.example.TauriApp --webkit-inspector-port 9226 --json
+```
+
+On macOS this only enables JavaScript when the app exposes a normal TCP CDP endpoint. Otherwise `get-text` and limited `query-dom` use AX fallback, and `execute-javascript` returns `page_unsupported`.
+
+Use `launch --url` for browser navigation. Do not set the omnibox through `set-value`; the page runtime owns page reads and JavaScript, while native element actions stay in the accessibility command set.

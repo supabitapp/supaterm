@@ -470,6 +470,17 @@ enum SPHelp {
       sp computer-use type --pid 123 --window 456 --element 7 "hello"
       sp computer-use key --pid 123 --window 456 return
       sp computer-use scroll --pid 123 --window 456 --direction down --unit page
+      sp computer-use page get-text --pid 123 --window 456 --json
+      sp computer-use page query-dom --pid 123 --window 456 --selector a --attribute href --json
+    """
+
+  static let computerUsePageDiscussion = """
+    Example:
+      sp computer-use page get-text --pid 123 --window 456 --json
+      sp computer-use page query-dom --pid 123 --window 456 --selector a --attribute href --json
+      sp computer-use page execute-javascript --pid 123 --window 456 '(() => document.title)()' --json
+      sp computer-use page enable-javascript-apple-events --browser chrome --json
+      sp computer-use page enable-javascript-apple-events --browser safari --json
     """
 
   static let internalDiscussion = """
