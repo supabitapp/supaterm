@@ -327,8 +327,8 @@ private final class ComputerUseCursorOverlayWindow: NSPanel {
 }
 
 private final class ComputerUseCursorOverlayView: NSView {
-  private let dotView = ComputerUseCursorDotView(
-    frame: .init(x: -100, y: -100, width: 20, height: 20)
+  private let cursorView = ComputerUseCursorSymbolView(
+    frame: .init(origin: .init(x: -100, y: -100), size: ComputerUseCursorSymbolView.size)
   )
   private let tooltipView = ComputerUseCursorTooltipView(frame: .zero)
   private var hasPosition = false
@@ -337,7 +337,7 @@ private final class ComputerUseCursorOverlayView: NSView {
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    addSubview(dotView)
+    addSubview(cursorView)
     addSubview(tooltipView)
   }
 
@@ -347,17 +347,17 @@ private final class ComputerUseCursorOverlayView: NSView {
   }
 
   func move(to point: CGPoint, tooltip: ComputerUseCursorOverlayTooltip) async {
-    dotView.layer?.removeAllAnimations()
+    cursorView.layer?.removeAllAnimations()
     tooltipView.layer?.removeAllAnimations()
-    dotView.alphaValue = 1
+    cursorView.alphaValue = 1
     tooltipView.alphaValue = 1
-    dotView.isHidden = false
+    cursorView.isHidden = false
     tooltipView.isHidden = !tooltip.isVisible
     tooltipView.update(tooltip)
-    let origin = CGPoint(x: point.x - 10, y: point.y - 10)
-    let tooltipOrigin = tooltipOrigin(for: point, size: tooltipView.frame.size)
+    let cursorFrame = CGRect(origin: point, size: ComputerUseCursorSymbolView.size)
+    let tooltipOrigin = tooltipOrigin(for: cursorFrame, size: tooltipView.frame.size)
     guard hasPosition else {
-      dotView.setFrameOrigin(origin)
+      cursorView.setFrameOrigin(point)
       tooltipView.setFrameOrigin(tooltipOrigin)
       hasPosition = true
       try? await Task.sleep(nanoseconds: 220_000_000)
@@ -367,7 +367,7 @@ private final class ComputerUseCursorOverlayView: NSView {
       NSAnimationContext.runAnimationGroup { context in
         context.duration = 0.22
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        dotView.animator().setFrameOrigin(origin)
+        cursorView.animator().setFrameOrigin(point)
         tooltipView.animator().setFrameOrigin(tooltipOrigin)
       } completionHandler: {
         continuation.resume()
@@ -376,35 +376,29 @@ private final class ComputerUseCursorOverlayView: NSView {
   }
 
   func hideCursor(isCurrent: @MainActor () -> Bool) async {
-    guard !dotView.isHidden else { return }
+    guard !cursorView.isHidden else { return }
     await NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.18
-      dotView.animator().alphaValue = 0
+      cursorView.animator().alphaValue = 0
       tooltipView.animator().alphaValue = 0
     }
     guard isCurrent() else { return }
-    dotView.isHidden = true
+    cursorView.isHidden = true
     tooltipView.isHidden = true
-    dotView.alphaValue = 1
+    cursorView.alphaValue = 1
     tooltipView.alphaValue = 1
   }
 
-  private func tooltipOrigin(for point: CGPoint, size: CGSize) -> CGPoint {
+  private func tooltipOrigin(for cursorFrame: CGRect, size: CGSize) -> CGPoint {
     let margin: CGFloat = 8
-    let spacing: CGFloat = 18
+    let spacing: CGFloat = 8
     let maxX = max(bounds.maxX, size.width + margin * 2)
     let maxY = max(bounds.maxY, size.height + margin * 2)
-    var x = point.x + spacing
-    var y = point.y - 6
+    var x = cursorFrame.maxX + spacing
+    var y = cursorFrame.minY
 
     if x + size.width + margin > maxX {
-      x = point.x - size.width - spacing
-    }
-    if y + size.height + margin > maxY {
-      y = point.y - size.height - spacing
-    }
-    if y < margin {
-      y = point.y + spacing
+      x = cursorFrame.minX - size.width - spacing
     }
 
     x = min(max(margin, x), max(margin, maxX - size.width - margin))
@@ -413,14 +407,27 @@ private final class ComputerUseCursorOverlayView: NSView {
   }
 }
 
-private final class ComputerUseCursorDotView: NSView {
+private final class ComputerUseCursorSymbolView: NSView {
+  static let size = CGSize(width: 28, height: 28)
+
+  private let imageView = NSImageView(
+    frame: .init(origin: .zero, size: ComputerUseCursorSymbolView.size)
+  )
+
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    wantsLayer = true
-    layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.28).cgColor
-    layer?.borderColor = NSColor.systemBlue.cgColor
-    layer?.borderWidth = 2
-    layer?.cornerRadius = 10
+    let shadow = NSShadow()
+    shadow.shadowColor = NSColor.black.withAlphaComponent(0.42)
+    shadow.shadowOffset = .init(width: 0, height: -1)
+    shadow.shadowBlurRadius = 2
+    imageView.image =
+      NSImage(systemSymbolName: "wand.and.sparkles", accessibilityDescription: nil)?
+      .withSymbolConfiguration(.init(pointSize: 22, weight: .semibold))
+    imageView.contentTintColor = .systemBlue
+    imageView.imageAlignment = .alignTopLeft
+    imageView.imageScaling = .scaleProportionallyUpOrDown
+    imageView.shadow = shadow
+    addSubview(imageView)
   }
 
   @available(*, unavailable)
