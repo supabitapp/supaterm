@@ -96,7 +96,7 @@ func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {
 
 func shellCommandInput(_ tokens: [String]) -> String? {
   guard !tokens.isEmpty else { return nil }
-  return tokens.map(shellEscapedToken).joined(separator: " ")
+  return tokens.map(SupatermShellCommand.escapedToken).joined(separator: " ")
 }
 
 func validateStartupCommand(script: String?, tokens: [String]) throws {
@@ -162,18 +162,6 @@ func stdinIsTTY() -> Bool {
 
 func stdoutIsTTY() -> Bool {
   isatty(FileHandle.standardOutput.fileDescriptor) != 0
-}
-
-private func shellEscapedToken(_ token: String) -> String {
-  guard !token.isEmpty else { return "''" }
-
-  let safeScalars = CharacterSet(
-    charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@%_+=:,./-")
-  if token.unicodeScalars.allSatisfy(safeScalars.contains) {
-    return token
-  }
-
-  return "'\(token.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
 }
 
 private enum SPTerminalStyle {

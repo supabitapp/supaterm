@@ -268,7 +268,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
       workingDirectoryCString = nil
     }
     if let startupCommand {
-      startupCommandCString = startupCommand.withCString { strdup($0) }
+      let ghosttyCommand = SupatermShellCommand.ghosttyStartupCommand(for: startupCommand)
+      startupCommandCString = ghosttyCommand.withCString { strdup($0) }
     } else {
       startupCommandCString = nil
     }
