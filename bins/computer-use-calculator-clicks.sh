@@ -2,10 +2,130 @@
 set -euo pipefail
 
 sp_cli=${SUPATERM_CLI_PATH:-sp}
-delay_seconds=${1:-1.4}
-lead_seconds=${2:-3}
-app_name=${3:-Calculator}
+delay_seconds=1.4
+lead_seconds=3
+app_name=Calculator
+mode=""
+stream_logs=${SUPATERM_COMPUTER_USE_STREAM_LOGS:-1}
 log_stream_pid=""
+
+usage() {
+  cat <<USAGE
+Usage:
+  ./bins/computer-use-calculator-clicks.sh --mode xy [options]
+  ./bins/computer-use-calculator-clicks.sh --mode element [options]
+
+Modes:
+  xy       Resolve each button from the snapshot, then click with --x and --y.
+  element  Resolve each button from the snapshot, then click with --element.
+
+Options:
+  --mode xy|element  Click mode.
+  --delay seconds    Delay between clicks. Default: 1.4
+  --lead seconds     Wait before clicking. Default: 3
+  --app name         Target app. Default: Calculator
+  --sp path          sp CLI path. Default: SUPATERM_CLI_PATH or sp
+  --stream-logs      Stream computer-use logs. Default
+  --no-stream-logs   Disable computer-use log streaming.
+  -h, --help         Show this help.
+USAGE
+}
+
+die() {
+  printf 'error: %s\n\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+require_value() {
+  local option=$1
+  local value=${2:-}
+  if [[ -z "$value" || "$value" == --* ]]; then
+    die "$option requires a value"
+  fi
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      require_value "$1" "${2:-}"
+      mode=$2
+      shift 2
+      ;;
+    --mode=*)
+      mode=${1#*=}
+      shift
+      ;;
+    --delay)
+      require_value "$1" "${2:-}"
+      delay_seconds=$2
+      shift 2
+      ;;
+    --delay=*)
+      delay_seconds=${1#*=}
+      shift
+      ;;
+    --lead)
+      require_value "$1" "${2:-}"
+      lead_seconds=$2
+      shift 2
+      ;;
+    --lead=*)
+      lead_seconds=${1#*=}
+      shift
+      ;;
+    --app)
+      require_value "$1" "${2:-}"
+      app_name=$2
+      shift 2
+      ;;
+    --app=*)
+      app_name=${1#*=}
+      shift
+      ;;
+    --sp)
+      require_value "$1" "${2:-}"
+      sp_cli=$2
+      shift 2
+      ;;
+    --sp=*)
+      sp_cli=${1#*=}
+      shift
+      ;;
+    --stream-logs)
+      stream_logs=1
+      shift
+      ;;
+    --no-stream-logs)
+      stream_logs=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+if [[ -z "$mode" ]]; then
+  die "missing --mode"
+fi
+
+case "$mode" in
+  xy|element)
+    ;;
+  *)
+    die "--mode must be xy or element"
+    ;;
+esac
 
 timestamp() {
   date +"%Y-%m-%dT%H:%M:%S%z"
@@ -28,7 +148,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-if [[ "${SUPATERM_COMPUTER_USE_STREAM_LOGS:-1}" == "1" ]]; then
+if [[ "$stream_logs" == "1" ]]; then
   log stream --style compact --level debug --predicate 'subsystem == "app.supabit.supaterm" AND category == "computer-use"' >&2 &
   log_stream_pid=$!
   sleep 0.2
@@ -61,14 +181,16 @@ log_state "target app=$app_name pid=$pid window=$window"
 click_button() {
   local names=$1
   local snapshot
-  local point
+  local target
+  local element
+  local status
   local x
   local y
 
   log_state "before snapshot button=$names"
   snapshot=$("$sp_cli" computer-use snapshot --pid "$pid" --window "$window" --json)
   log_state "after snapshot button=$names"
-  point=$(
+  target=$(
     SNAPSHOT_JSON=$snapshot python3 - "$names" <<'PY'
 import json
 import os
@@ -86,19 +208,24 @@ for element in snapshot["elements"]:
         element_frame = element["frame"]
         x = (element_frame["x"] + element_frame["width"] / 2 - frame["x"]) * x_scale
         y = (element_frame["y"] + element_frame["height"] / 2 - frame["y"]) * y_scale
-        print(f"{round(x)} {round(y)}")
+        print(f'{element["elementIndex"]} {round(x)} {round(y)}')
         raise SystemExit(0)
 
 raise SystemExit(f"missing button: {sys.argv[1]}")
 PY
   )
-  read -r x y <<< "$point"
-  log_state "button=$names x=$x y=$y"
-  log_state "before click button=$names"
-  if "$sp_cli" computer-use click --pid "$pid" --window "$window" --x "$x" --y "$y" --json; then
+  read -r element x y <<< "$target"
+  log_state "button=$names mode=$mode element=$element x=$x y=$y"
+  log_state "before click button=$names mode=$mode"
+  status=0
+  if [[ "$mode" == "element" ]]; then
+    "$sp_cli" computer-use click --pid "$pid" --window "$window" --element "$element" --json || status=$?
+  else
+    "$sp_cli" computer-use click --pid "$pid" --window "$window" --x "$x" --y "$y" --json || status=$?
+  fi
+  if [[ "$status" -eq 0 ]]; then
     log_state "after click button=$names status=ok"
   else
-    local status=$?
     log_state "after click button=$names status=$status"
     return "$status"
   fi
