@@ -2,7 +2,8 @@
 set -euo pipefail
 
 sp_cli=${SUPATERM_CLI_PATH:-sp}
-delay_seconds=0.5
+default_delay_seconds=0.5
+delay_seconds=$default_delay_seconds
 app_name=Calculator
 app_bundle_id=""
 mode=""
@@ -21,7 +22,7 @@ Modes:
 
 Options:
   --mode xy|element  Click mode.
-  --delay seconds    Delay between clicks. Default: 0.5
+  --delay seconds    Delay between clicks. Default: $default_delay_seconds
   --app name         Target app. Default: Calculator
   --bundle-id id     Target bundle ID.
   --sp path          sp CLI path. Default: SUPATERM_CLI_PATH or sp
