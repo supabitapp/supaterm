@@ -129,7 +129,8 @@ public struct SettingsFeature {
     case restoreTerminalLayoutEnabledChanged(Bool)
     case settingsLoaded(SupatermSettings)
     case systemNotificationsAuthorizationChecked(DesktopNotificationClient.AuthorizationStatus)
-    case systemNotificationsAuthorizationResult(DesktopNotificationClient.AuthorizationRequestResult)
+    case systemNotificationsAuthorizationResult(
+      DesktopNotificationClient.AuthorizationRequestResult)
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
@@ -171,7 +172,7 @@ public struct SettingsFeature {
       case .codingAgents:
         "hammer"
       case .computerUse:
-        "display.and.cursorarrow"
+        "pointer.arrow.motionlines"
       case .general:
         "gearshape"
       case .terminal:

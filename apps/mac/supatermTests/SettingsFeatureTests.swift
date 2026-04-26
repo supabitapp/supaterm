@@ -26,6 +26,11 @@ struct SettingsFeatureTests {
   }
 
   @Test
+  func computerUseTabUsesPointerIcon() {
+    #expect(SettingsFeature.Tab.computerUse.symbol == "pointer.arrow.motionlines")
+  }
+
+  @Test
   func taskLoadsPersistedSettings() async throws {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
