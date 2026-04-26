@@ -101,25 +101,16 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let elementIndex = request.elementIndex {
       let element = try cachedElement(
         pid: request.pid, windowID: request.windowID, elementIndex: elementIndex)
-      if AXUIElementPerformAction(element, kAXPressAction as CFString) == .success {
-        if let frame = elementFrame(element) {
-          moveCursor(to: center(of: frame))
-        }
-        return .init(ok: true, dispatch: "accessibility")
-      }
-      guard let frame = elementFrame(element) else {
-        throw ComputerUseError.unsupportedBackgroundTarget
-      }
-      return try postClick(pid: request.pid, point: center(of: frame))
+      return try clickElement(element, request: request)
     }
 
     guard let x = request.x, let y = request.y else {
       throw ComputerUseError.invalidClickTarget
     }
     return try postClick(
-      pid: request.pid,
       point: try screenPoint(
-        windowPixel: .init(x: x, y: y), pid: request.pid, windowID: request.windowID)
+        windowPixel: .init(x: x, y: y), pid: request.pid, windowID: request.windowID),
+      request: request
     )
   }
 
@@ -374,52 +365,55 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return element
   }
 
-  private func postClick(pid: Int, point: CGPoint) throws -> SupatermComputerUseActionResult {
-    if NSRunningApplication(processIdentifier: pid_t(pid))?.isActive == true {
-      return try postFrontmostClick(point: point)
+  private func clickElement(
+    _ element: AXUIElement,
+    request: SupatermComputerUseClickRequest
+  ) throws -> SupatermComputerUseActionResult {
+    let point = elementTargetPoint(element)
+    if request.button == .left, request.count == 1, request.modifiers.isEmpty,
+      performAction(kAXPressAction as CFString, on: element)
+    {
+      if let point {
+        moveCursor(to: point)
+      }
+      return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
     }
-
-    let source = CGEventSource(stateID: .hidSystemState)
-    guard
-      let down = CGEvent(
-        mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point,
-        mouseButton: .left),
-      let up = CGEvent(
-        mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point,
-        mouseButton: .left)
-    else {
+    if request.button == .right, request.count == 1, request.modifiers.isEmpty,
+      performAction(kAXShowMenuAction as CFString, on: element)
+    {
+      if let point {
+        moveCursor(to: point)
+      }
+      return .init(ok: true, dispatch: ComputerUseMouseDispatch.accessibility.rawValue)
+    }
+    guard let point else {
       throw ComputerUseError.unsupportedBackgroundTarget
     }
-    moveCursor(to: point)
-    down.postToPid(pid_t(pid))
-    up.postToPid(pid_t(pid))
-    return .init(ok: true, dispatch: "pid_event")
+    return try postClick(
+      point: point,
+      request: request
+    )
   }
 
-  private func postFrontmostClick(point: CGPoint) throws -> SupatermComputerUseActionResult {
-    let source = CGEventSource(stateID: .hidSystemState)
-    guard
-      let move = CGEvent(
-        mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point,
-        mouseButton: .left),
-      let down = CGEvent(
-        mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point,
-        mouseButton: .left),
-      let up = CGEvent(
-        mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point,
-        mouseButton: .left)
-    else {
-      throw ComputerUseError.unsupportedBackgroundTarget
+  private func postClick(
+    point: CGPoint,
+    request: SupatermComputerUseClickRequest
+  ) throws -> SupatermComputerUseActionResult {
+    guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
+      throw ComputerUseError.windowNotFound(request.windowID)
     }
-    down.setIntegerValueField(.mouseEventClickState, value: 1)
-    up.setIntegerValueField(.mouseEventClickState, value: 1)
     moveCursor(to: point)
-    move.post(tap: .cghidEventTap)
-    usleep(20_000)
-    down.post(tap: .cghidEventTap)
-    usleep(30_000)
-    up.post(tap: .cghidEventTap)
-    return .init(ok: true, dispatch: "hid_event")
+    let dispatch = try ComputerUseMouseInput.click(
+      .init(
+        point: point,
+        pid: pid_t(request.pid),
+        window: .init(id: windowInfo.window.id, frame: windowInfo.window.frame),
+        button: request.button,
+        count: request.count,
+        modifiers: request.modifiers
+      )
+    )
+    return .init(ok: true, dispatch: dispatch.rawValue)
   }
 
   private func moveCursor(to point: CGPoint) {
@@ -474,6 +468,62 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       return nil
     }
     return .init(origin: position, size: size)
+  }
+
+  private func elementTargetPoint(_ element: AXUIElement) -> CGPoint? {
+    guard let frame = elementFrame(element) else { return nil }
+    let point = center(of: frame)
+    if hitTestResolves(to: element, at: point) {
+      return point
+    }
+    let columns = 5
+    let rows = 5
+    for row in 0..<rows {
+      for column in 0..<columns {
+        if (row == 0 || row == rows - 1) && (column == 0 || column == columns - 1) {
+          continue
+        }
+        let x = frame.minX + frame.width * ((CGFloat(column) + 0.5) / CGFloat(columns))
+        let y = frame.minY + frame.height * ((CGFloat(row) + 0.5) / CGFloat(rows))
+        let candidate = CGPoint(x: x, y: y)
+        if hitTestResolves(to: element, at: candidate) {
+          return candidate
+        }
+      }
+    }
+    return point
+  }
+
+  private func hitTestResolves(to target: AXUIElement, at point: CGPoint) -> Bool {
+    let system = AXUIElementCreateSystemWide()
+    var hit: AXUIElement?
+    guard
+      AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &hit) == .success,
+      let hit
+    else {
+      return false
+    }
+    var current: AXUIElement? = hit
+    for _ in 0..<16 {
+      guard let node = current else { return false }
+      if CFEqual(node, target) {
+        return true
+      }
+      var parent: CFTypeRef?
+      guard
+        AXUIElementCopyAttributeValue(node, kAXParentAttribute as CFString, &parent) == .success,
+        let parent,
+        CFGetTypeID(parent) == AXUIElementGetTypeID()
+      else {
+        return false
+      }
+      current = unsafeBitCast(parent, to: AXUIElement.self)
+    }
+    return false
+  }
+
+  private func performAction(_ action: CFString, on element: AXUIElement) -> Bool {
+    AXUIElementPerformAction(element, action) == .success
   }
 
   private func axValue(_ value: CFTypeRef?) -> AXValue? {

@@ -155,6 +155,15 @@ extension SP {
     @Option(name: .long, help: "Window screenshot y coordinate.")
     var y: Double?
 
+    @Option(name: .long, help: "Mouse button.")
+    var button: SupatermComputerUseClickButton = .left
+
+    @Option(name: .long, help: "Click count.")
+    var count = 1
+
+    @Option(name: .long, help: "Click modifier.")
+    var modifier: [SupatermComputerUseClickModifier] = []
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -165,11 +174,25 @@ extension SP {
       if element != nil && (x != nil || y != nil) {
         throw ValidationError("--element cannot be combined with --x or --y.")
       }
+      if !(1...3).contains(count) {
+        throw ValidationError("--count must be between 1 and 3.")
+      }
     }
 
     mutating func run() throws {
       let result: SupatermComputerUseActionResult = try computerUseResult(
-        .computerUseClick(.init(pid: pid, windowID: window, elementIndex: element, x: x, y: y)),
+        .computerUseClick(
+          .init(
+            pid: pid,
+            windowID: window,
+            elementIndex: element,
+            x: x,
+            y: y,
+            button: button,
+            count: count,
+            modifiers: modifier
+          )
+        ),
         options: options
       )
       try emitActionResult(result, options: options.output)
@@ -288,8 +311,28 @@ extension SP {
   }
 }
 
+extension SupatermComputerUseClickButton: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseKeyModifier: @retroactive ExpressibleByArgument {}
 extension SupatermComputerUseScrollDirection: @retroactive ExpressibleByArgument {}
+
+extension SupatermComputerUseClickModifier: @retroactive ExpressibleByArgument {
+  public init?(argument: String) {
+    switch argument.lowercased() {
+    case "command", "cmd":
+      self = .command
+    case "shift":
+      self = .shift
+    case "option", "alt", "opt":
+      self = .option
+    case "control", "ctrl":
+      self = .control
+    case "function", "fn":
+      self = .function
+    default:
+      return nil
+    }
+  }
+}
 
 private func computerUseResult<T: Decodable>(
   _ request: SupatermSocketRequest,

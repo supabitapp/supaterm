@@ -214,20 +214,43 @@ public struct SupatermComputerUseClickRequest: Codable, Equatable, Sendable {
   public let elementIndex: Int?
   public let x: Double?
   public let y: Double?
+  public let button: SupatermComputerUseClickButton
+  public let count: Int
+  public let modifiers: [SupatermComputerUseClickModifier]
 
   public init(
     pid: Int,
     windowID: UInt32,
     elementIndex: Int? = nil,
     x: Double? = nil,
-    y: Double? = nil
+    y: Double? = nil,
+    button: SupatermComputerUseClickButton = .left,
+    count: Int = 1,
+    modifiers: [SupatermComputerUseClickModifier] = []
   ) {
     self.pid = pid
     self.windowID = windowID
     self.elementIndex = elementIndex
     self.x = x
     self.y = y
+    self.button = button
+    self.count = count
+    self.modifiers = modifiers
   }
+}
+
+public enum SupatermComputerUseClickButton: String, Codable, CaseIterable, Sendable {
+  case left
+  case right
+  case middle
+}
+
+public enum SupatermComputerUseClickModifier: String, Codable, CaseIterable, Sendable {
+  case command
+  case shift
+  case option
+  case control
+  case function
 }
 
 public struct SupatermComputerUseTypeRequest: Codable, Equatable, Sendable {

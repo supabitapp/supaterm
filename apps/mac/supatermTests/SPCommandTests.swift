@@ -133,7 +133,9 @@ struct SPCommandTests {
     let result = try SP.Ping.result(from: response)
 
     #expect(result == .init(pong: true))
-    #expect(try JSONDecoder().decode(SP.SPPingResult.self, from: Data(try jsonString(result).utf8)) == result)
+    #expect(
+      try JSONDecoder().decode(SP.SPPingResult.self, from: Data(try jsonString(result).utf8))
+        == result)
   }
 
   @Test
@@ -303,7 +305,8 @@ struct SPCommandTests {
       try SP.parseAsRoot(["agent", "remove-hook", "codex"]) as? SP.RemoveAgentHook.Codex
     )
     let receiveClaudeCommand = try #require(
-      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"]) as? SP.ReceiveAgentHook
+      try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "claude"])
+        as? SP.ReceiveAgentHook
     )
     let receivePiCommand = try #require(
       try SP.parseAsRoot(["agent", "receive-agent-hook", "--agent", "pi"]) as? SP.ReceiveAgentHook
@@ -361,6 +364,14 @@ struct SPCommandTests {
         "320",
         "--y",
         "240",
+        "--button",
+        "right",
+        "--count",
+        "2",
+        "--modifier",
+        "cmd",
+        "--modifier",
+        "alt",
       ]) as? SP.ComputerUseClick
     )
     let key = try #require(
@@ -383,6 +394,9 @@ struct SPCommandTests {
     #expect(click.element == 7)
     #expect(coordinateClick.x == 320)
     #expect(coordinateClick.y == 240)
+    #expect(coordinateClick.button == .right)
+    #expect(coordinateClick.count == 2)
+    #expect(coordinateClick.modifier == [.command, .option])
     #expect(key.modifier == [.command])
     #expect(key.key == "s")
   }
@@ -443,7 +457,8 @@ struct SPCommandTests {
   @Test
   func startupCommandEscapesTokenCommands() throws {
     #expect(try startupCommand(script: nil, tokens: ["pwd"]) == "pwd")
-    #expect(try startupCommand(script: nil, tokens: ["echo", "hello world"]) == "echo 'hello world'")
+    #expect(
+      try startupCommand(script: nil, tokens: ["echo", "hello world"]) == "echo 'hello world'")
   }
 
   @Test(arguments: [

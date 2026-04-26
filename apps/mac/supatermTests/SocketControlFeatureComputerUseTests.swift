@@ -132,6 +132,42 @@ struct SocketControlFeatureComputerUseTests {
     #expect(!response.ok)
     #expect(response.error?.code == "snapshot_required")
   }
+
+  @Test
+  func clickRequestRoutesClickOptionsToComputerUseClient() async throws {
+    let recorder = SocketReplyRecorder()
+    let seenPayload = ComputerUseClickRecorder()
+    let handle = UUID(uuidString: "CF42DC57-7D57-4F8C-BBC4-951450282287")!
+    let payload = SupatermComputerUseClickRequest(
+      pid: 123,
+      windowID: 456,
+      x: 20,
+      y: 30,
+      button: .right,
+      count: 2,
+      modifiers: [.command, .option]
+    )
+    let store = makeStore {
+      $0.computerUseClient.click = { request in
+        await seenPayload.record(request)
+        return .init(ok: true, dispatch: "pid_event")
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    await store.send(
+      .requestReceived(
+        .init(handle: handle, payload: try .computerUseClick(payload, id: "computer-use-click"))
+      )
+    )
+
+    #expect(await seenPayload.snapshot() == payload)
+    #expect(
+      try await recorder.snapshot().first?.response.decodeResult(
+        SupatermComputerUseActionResult.self) == .init(ok: true, dispatch: "pid_event"))
+  }
 }
 
 private actor ComputerUseSnapshotRecorder {
@@ -142,6 +178,18 @@ private actor ComputerUseSnapshotRecorder {
   }
 
   func snapshot() -> SupatermComputerUseSnapshotRequest? {
+    payload
+  }
+}
+
+private actor ComputerUseClickRecorder {
+  private var payload: SupatermComputerUseClickRequest?
+
+  func record(_ payload: SupatermComputerUseClickRequest) {
+    self.payload = payload
+  }
+
+  func snapshot() -> SupatermComputerUseClickRequest? {
     payload
   }
 }
