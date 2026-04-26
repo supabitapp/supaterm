@@ -22,26 +22,22 @@ final class ComputerUseCursorOverlay {
     self.visibleWindows = visibleWindows
   }
 
-  func prepareClick(
-    to point: CGPoint,
-    enabled: Bool,
-    alwaysFloat: Bool,
-    targetPid: pid_t,
-    targetWindowID: UInt32
-  ) async -> ComputerUsePreparedCursor? {
-    guard enabled else {
+  func prepareClick(_ request: ComputerUseCursorOverlayClickRequest) async
+    -> ComputerUsePreparedCursor?
+  {
+    guard request.enabled else {
       await stop(.close)
       return nil
     }
     let panel = window ?? makeWindow()
     window = panel
-    self.alwaysFloat = alwaysFloat
-    panel.level = alwaysFloat ? .floating : .normal
-    if alwaysFloat, !panel.isVisible {
+    alwaysFloat = request.alwaysFloat
+    panel.level = request.alwaysFloat ? .floating : .normal
+    if request.alwaysFloat, !panel.isVisible {
       panel.orderFrontRegardless()
     }
-    self.targetPid = targetPid
-    self.targetWindowID = targetWindowID
+    targetPid = request.targetPid
+    targetWindowID = request.targetWindowID
     visibilityGeneration += 1
     hideTask?.cancel()
     hideTask = nil
@@ -49,7 +45,10 @@ final class ComputerUseCursorOverlay {
     ensureActivationObserver()
     startRepin()
     await reapplyPin()
-    await contentView?.move(to: point)
+    await contentView?.move(
+      to: request.point,
+      tooltip: .init(appName: appName(for: request.targetPid), activity: request.activity)
+    )
     await reapplyPin()
     return .init()
   }
@@ -171,6 +170,13 @@ final class ComputerUseCursorOverlay {
     }
   }
 
+  private func appName(for pid: pid_t) -> String {
+    if let app = NSRunningApplication(processIdentifier: pid) {
+      return app.localizedName ?? app.bundleIdentifier ?? "pid \(pid)"
+    }
+    return "pid \(pid)"
+  }
+
   private static func defaultVisibleWindows() -> [ComputerUseCursorOverlayWindowSnapshot] {
     guard
       let array = CGWindowListCopyWindowInfo(
@@ -197,6 +203,24 @@ final class ComputerUseCursorOverlay {
         layer: (dictionary[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
       )
     }
+  }
+}
+
+struct ComputerUseCursorOverlayClickRequest: Sendable {
+  let point: CGPoint
+  let enabled: Bool
+  let alwaysFloat: Bool
+  let activity: String
+  let targetPid: pid_t
+  let targetWindowID: UInt32
+}
+
+struct ComputerUseCursorOverlayTooltip: Equatable, Sendable {
+  let appName: String
+  let activity: String
+
+  var isVisible: Bool {
+    !appName.isEmpty || !activity.isEmpty
   }
 }
 
@@ -306,6 +330,7 @@ private final class ComputerUseCursorOverlayView: NSView {
   private let dotView = ComputerUseCursorDotView(
     frame: .init(x: -100, y: -100, width: 20, height: 20)
   )
+  private let tooltipView = ComputerUseCursorTooltipView(frame: .zero)
   private var hasPosition = false
 
   override var isFlipped: Bool { true }
@@ -313,6 +338,7 @@ private final class ComputerUseCursorOverlayView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     addSubview(dotView)
+    addSubview(tooltipView)
   }
 
   @available(*, unavailable)
@@ -320,13 +346,19 @@ private final class ComputerUseCursorOverlayView: NSView {
     nil
   }
 
-  func move(to point: CGPoint) async {
+  func move(to point: CGPoint, tooltip: ComputerUseCursorOverlayTooltip) async {
     dotView.layer?.removeAllAnimations()
+    tooltipView.layer?.removeAllAnimations()
     dotView.alphaValue = 1
+    tooltipView.alphaValue = 1
     dotView.isHidden = false
+    tooltipView.isHidden = !tooltip.isVisible
+    tooltipView.update(tooltip)
     let origin = CGPoint(x: point.x - 10, y: point.y - 10)
+    let tooltipOrigin = tooltipOrigin(for: point, size: tooltipView.frame.size)
     guard hasPosition else {
       dotView.setFrameOrigin(origin)
+      tooltipView.setFrameOrigin(tooltipOrigin)
       hasPosition = true
       try? await Task.sleep(nanoseconds: 220_000_000)
       return
@@ -336,6 +368,7 @@ private final class ComputerUseCursorOverlayView: NSView {
         context.duration = 0.22
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         dotView.animator().setFrameOrigin(origin)
+        tooltipView.animator().setFrameOrigin(tooltipOrigin)
       } completionHandler: {
         continuation.resume()
       }
@@ -347,10 +380,36 @@ private final class ComputerUseCursorOverlayView: NSView {
     await NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.18
       dotView.animator().alphaValue = 0
+      tooltipView.animator().alphaValue = 0
     }
     guard isCurrent() else { return }
     dotView.isHidden = true
+    tooltipView.isHidden = true
     dotView.alphaValue = 1
+    tooltipView.alphaValue = 1
+  }
+
+  private func tooltipOrigin(for point: CGPoint, size: CGSize) -> CGPoint {
+    let margin: CGFloat = 8
+    let spacing: CGFloat = 18
+    let maxX = max(bounds.maxX, size.width + margin * 2)
+    let maxY = max(bounds.maxY, size.height + margin * 2)
+    var x = point.x + spacing
+    var y = point.y - 6
+
+    if x + size.width + margin > maxX {
+      x = point.x - size.width - spacing
+    }
+    if y + size.height + margin > maxY {
+      y = point.y - size.height - spacing
+    }
+    if y < margin {
+      y = point.y + spacing
+    }
+
+    x = min(max(margin, x), max(margin, maxX - size.width - margin))
+    y = min(max(margin, y), max(margin, maxY - size.height - margin))
+    return .init(x: x, y: y)
   }
 }
 
@@ -367,5 +426,96 @@ private final class ComputerUseCursorDotView: NSView {
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     nil
+  }
+}
+
+private final class ComputerUseCursorTooltipView: NSView {
+  private static let horizontalPadding: CGFloat = 10
+  private static let verticalPadding: CGFloat = 7
+  private static let lineSpacing: CGFloat = 2
+  private static let maxWidth: CGFloat = 260
+  private static let minWidth: CGFloat = 104
+  private static let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+  private static let detailFont = NSFont.systemFont(ofSize: 11, weight: .regular)
+
+  private let titleField = NSTextField(labelWithString: "")
+  private let detailField = NSTextField(labelWithString: "")
+
+  override var isFlipped: Bool { true }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    wantsLayer = true
+    layer?.backgroundColor = NSColor.black.withAlphaComponent(0.78).cgColor
+    layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+    layer?.borderWidth = 1
+    layer?.cornerRadius = 7
+    isHidden = true
+    setupLabel(titleField, font: Self.titleFont, color: .white)
+    setupLabel(detailField, font: Self.detailFont, color: NSColor.white.withAlphaComponent(0.78))
+    addSubview(titleField)
+    addSubview(detailField)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  func update(_ tooltip: ComputerUseCursorOverlayTooltip) {
+    titleField.stringValue = tooltip.appName
+    detailField.stringValue = tooltip.activity
+    detailField.isHidden = tooltip.activity.isEmpty
+    setFrameSize(size(for: tooltip))
+    needsLayout = true
+  }
+
+  override func layout() {
+    super.layout()
+    let inset = Self.horizontalPadding
+    let titleHeight = Self.titleFont.ascender - Self.titleFont.descender + 1
+    let detailHeight = Self.detailFont.ascender - Self.detailFont.descender + 1
+    let availableWidth = max(0, bounds.width - inset * 2)
+    titleField.frame = .init(
+      x: inset,
+      y: Self.verticalPadding,
+      width: availableWidth,
+      height: titleHeight
+    )
+    detailField.frame = .init(
+      x: inset,
+      y: Self.verticalPadding + titleHeight + Self.lineSpacing,
+      width: availableWidth,
+      height: detailHeight
+    )
+  }
+
+  private func setupLabel(_ label: NSTextField, font: NSFont, color: NSColor) {
+    label.font = font
+    label.textColor = color
+    label.lineBreakMode = .byTruncatingTail
+    label.maximumNumberOfLines = 1
+  }
+
+  private func size(for tooltip: ComputerUseCursorOverlayTooltip) -> CGSize {
+    let titleWidth = textWidth(tooltip.appName, font: Self.titleFont)
+    let detailWidth = textWidth(tooltip.activity, font: Self.detailFont)
+    let textWidth = max(titleWidth, detailWidth)
+    let width = min(
+      Self.maxWidth,
+      max(Self.minWidth, ceil(textWidth + Self.horizontalPadding * 2))
+    )
+    let titleHeight = Self.titleFont.ascender - Self.titleFont.descender + 1
+    let detailHeight =
+      tooltip.activity.isEmpty
+      ? 0
+      : Self.lineSpacing + Self.detailFont.ascender - Self.detailFont.descender + 1
+    let height = ceil(Self.verticalPadding * 2 + titleHeight + detailHeight)
+    return .init(width: width, height: height)
+  }
+
+  private func textWidth(_ text: String, font: NSFont) -> CGFloat {
+    guard !text.isEmpty else { return 0 }
+    return (text as NSString).size(withAttributes: [.font: font]).width
   }
 }

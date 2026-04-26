@@ -683,7 +683,8 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         preparedCursor = await prepareCursor(
           to: point,
           aboveWindowID: request.windowID,
-          targetPid: request.pid
+          targetPid: request.pid,
+          activity: cursorActivity(request: request, element: element)
         )
       } else {
         preparedCursor = nil
@@ -719,14 +720,16 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     }
     return try await postClick(
       point: point,
-      request: request
+      request: request,
+      activity: cursorActivity(request: request, element: element)
     )
   }
 
   private func postClick(
     point: CGPoint,
     request: SupatermComputerUseClickRequest,
-    preparedCursor: ComputerUsePreparedCursor? = nil
+    preparedCursor: ComputerUsePreparedCursor? = nil,
+    activity: String? = nil
   ) async throws -> SupatermComputerUseActionResult {
     guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
       throw ComputerUseError.windowNotFound(request.windowID)
@@ -738,7 +741,8 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       cursor = await prepareCursor(
         to: point,
         aboveWindowID: request.windowID,
-        targetPid: request.pid
+        targetPid: request.pid,
+        activity: activity ?? cursorActivity(request: request, element: nil)
       )
     }
     do {
@@ -763,16 +767,96 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func prepareCursor(
     to point: CGPoint,
     aboveWindowID windowID: UInt32,
-    targetPid: Int
+    targetPid: Int,
+    activity: String
   ) async -> ComputerUsePreparedCursor? {
     @Shared(.supatermSettings) var supatermSettings = .default
     return await cursorOverlay.prepareClick(
-      to: point,
-      enabled: supatermSettings.computerUseShowAgentCursor,
-      alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
-      targetPid: pid_t(targetPid),
-      targetWindowID: windowID
+      .init(
+        point: point,
+        enabled: supatermSettings.computerUseShowAgentCursor,
+        alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
+        activity: activity,
+        targetPid: pid_t(targetPid),
+        targetWindowID: windowID
+      )
     )
+  }
+
+  private func cursorActivity(
+    request: SupatermComputerUseClickRequest,
+    element: AXUIElement?
+  ) -> String {
+    let verb = cursorClickVerb(request)
+    guard let target = element.flatMap(cursorElementName) else {
+      return "\(verb) point"
+    }
+    return "\(verb) \(target)"
+  }
+
+  private func cursorClickVerb(_ request: SupatermComputerUseClickRequest) -> String {
+    switch request.action {
+    case .showMenu:
+      return "Opening menu"
+    case .pick:
+      return "Picking"
+    case .confirm:
+      return "Confirming"
+    case .cancel:
+      return "Canceling"
+    case .open:
+      return "Opening"
+    case .press:
+      break
+    }
+
+    if request.button == .right {
+      return "Right-clicking"
+    }
+    if request.button == .middle {
+      return "Middle-clicking"
+    }
+    switch request.count {
+    case 2:
+      return "Double-clicking"
+    case 3:
+      return "Triple-clicking"
+    default:
+      return "Clicking"
+    }
+  }
+
+  private func cursorElementName(_ element: AXUIElement) -> String? {
+    let candidates = [
+      axString(element, kAXDescriptionAttribute as CFString),
+      axString(element, kAXTitleAttribute as CFString),
+      axString(element, kAXValueAttribute as CFString),
+      axString(element, kAXIdentifierAttribute as CFString),
+    ]
+    for candidate in candidates {
+      if let cleaned = cleanedCursorLabel(candidate) {
+        return cleaned
+      }
+    }
+    return axString(element, kAXRoleAttribute as CFString).flatMap(cursorRoleName)
+  }
+
+  private func cleanedCursorLabel(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let cleaned =
+      value
+      .replacingOccurrences(of: "\u{200e}", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? nil : cleaned
+  }
+
+  private func cursorRoleName(_ role: String) -> String? {
+    let normalized =
+      role
+      .replacingOccurrences(of: "AX", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return nil }
+    return normalized.lowercased()
   }
 
   private func finishCursorClick(_ cursor: ComputerUsePreparedCursor?) async {
