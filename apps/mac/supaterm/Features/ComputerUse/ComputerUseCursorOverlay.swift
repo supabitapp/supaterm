@@ -11,6 +11,7 @@ final class ComputerUseCursorOverlay {
   private var pinResolver = ComputerUseCursorOverlayPinResolver()
   private var targetPid: pid_t?
   private var targetWindowID: UInt32 = 0
+  private var visibilityGeneration = 0
   private let visibleWindows: @MainActor () -> [ComputerUseCursorOverlayWindowSnapshot]
 
   init(
@@ -34,6 +35,7 @@ final class ComputerUseCursorOverlay {
     window = panel
     self.targetPid = targetPid
     self.targetWindowID = targetWindowID
+    visibilityGeneration += 1
     hideTask?.cancel()
     hideTask = nil
     pinResolver.resetMisses()
@@ -56,6 +58,7 @@ final class ComputerUseCursorOverlay {
   }
 
   private func stop(_ reason: ComputerUseCursorOverlayStop) async {
+    let generation = visibilityGeneration
     hideTask?.cancel()
     hideTask = nil
     repinTask?.cancel()
@@ -65,7 +68,10 @@ final class ComputerUseCursorOverlay {
     targetWindowID = 0
     pinResolver.resetMisses()
     if reason.isAnimated {
-      await contentView?.hideCursor()
+      await contentView?.hideCursor {
+        generation == visibilityGeneration
+      }
+      guard generation == visibilityGeneration else { return }
     }
     window?.orderOut(nil)
     if reason.closesWindow {
@@ -303,6 +309,8 @@ private final class ComputerUseCursorOverlayView: NSView {
   }
 
   func move(to point: CGPoint) async {
+    dotView.layer?.removeAllAnimations()
+    dotView.alphaValue = 1
     dotView.isHidden = false
     let origin = CGPoint(x: point.x - 10, y: point.y - 10)
     guard hasPosition else {
@@ -322,13 +330,13 @@ private final class ComputerUseCursorOverlayView: NSView {
     }
   }
 
-  func hideCursor() async {
+  func hideCursor(isCurrent: @MainActor () -> Bool) async {
     guard !dotView.isHidden else { return }
     await NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.18
       dotView.animator().alphaValue = 0
     }
-    guard !Task.isCancelled else { return }
+    guard isCurrent() else { return }
     dotView.isHidden = true
     dotView.alphaValue = 1
   }
