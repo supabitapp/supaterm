@@ -7,6 +7,7 @@
 ## Documentation
 
 - `./docs/development.md` - general development doc
+- `./docs/background-computer-use.md` - background computer-use architecture, dispatch, and focus behavior
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the sp cli and the macOS app talk through socket IPC
 - Keep `integrations/supaterm-skills` in sync when CLI behavior or coding-agent integrations change; we maintain the user-facing `supaterm` skill there
@@ -48,17 +49,6 @@ make web-build          # production build
 - Spaces are the top-level container in a window
 - Tabs belong to spaces and can be pinned
 - Panes belong to tabs, and a tab can have multiple panes
-
-## macOS App Architecture
-
-The app uses The Composable Architecture (TCA) with a feature-based folder structure under `apps/mac/supaterm/`:
-
-- `App/` — App entry point (`main.swift` + `AppDelegate`), `TerminalWindowController`, `ContentView`, `SupatermMenuController`, `GhosttyBootstrap`
-- `Features/App/` — Root `AppFeature` reducer: composes child features, manages terminal tab selection and quit flow
-- `Features/Terminal/` — Core terminal UI: sidebar, detail pane, split tree, tab catalog, and space management. `TerminalWindowFeature` is the main reducer; `TerminalHostState` owns the Ghostty runtime and surface views per window
-- `Features/Update/` — `UpdateFeature` reducer + `UpdateClient` wrapping Sparkle (SPU). Lifecycle modeled as `UpdatePhase` enum
-- `Features/Socket/` — Unix domain socket server for the `sp` CLI. `SocketControlFeature` dispatches JSON-RPC-style requests (`app.debug`, `app.tree`, `system.ping`, `terminal.new_pane`)
-- `Features/Chrome/` — AppKit/SwiftUI bridge utilities (blur effects, mouse tracking, window reader)
 
 ## Tools
 
