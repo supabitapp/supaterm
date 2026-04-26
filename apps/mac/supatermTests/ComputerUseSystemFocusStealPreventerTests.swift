@@ -96,34 +96,6 @@ struct ComputerUseFocusStealPreventerTests {
   }
 
   @Test
-  func drainingEndCatchesDeferredActivation() throws {
-    var activatedPid: pid_t?
-    var handler: (@MainActor (pid_t) -> Void)?
-    let preventer = ComputerUseSystemFocusStealPreventer(
-      frontmostApplication: {
-        .init(processIdentifier: 1) {
-          activatedPid = 1
-        }
-      },
-      observeActivations: { onActivate in
-        handler = onActivate
-        return NSObject()
-      },
-      removeObserver: { _ in }
-    )
-    let handle = try #require(preventer.begin(targetPid: 2))
-
-    Timer.scheduledTimer(withTimeInterval: 0.001, repeats: false) { _ in
-      MainActor.assumeIsolated {
-        handler?(2)
-      }
-    }
-    preventer.end(handle, afterDrainingFor: 0.05)
-
-    #expect(activatedPid == 1)
-  }
-
-  @Test
   func endRemovesObserverWhenLastSuppressionEnds() throws {
     var removedObserver = false
     let observer = NSObject()

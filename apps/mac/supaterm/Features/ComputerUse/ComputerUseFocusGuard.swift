@@ -4,7 +4,6 @@ import Foundation
 
 @MainActor
 final class ComputerUseFocusGuard {
-  private let postActionFocusDrainDuration: TimeInterval = 0.05
   private var assertedPids: Set<pid_t> = []
   private var nonAssertablePids: Set<pid_t> = []
   private var observers: [pid_t: AXObserver] = [:]
@@ -28,7 +27,7 @@ final class ComputerUseFocusGuard {
       let result = try body()
       restoreSyntheticFocus(state)
       if let suppression {
-        focusStealPreventer.end(suppression, afterDrainingFor: postActionFocusDrainDuration)
+        focusStealPreventer.end(suppression)
       }
       return result
     } catch {

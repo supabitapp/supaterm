@@ -83,23 +83,10 @@ final class ComputerUseSystemFocusStealPreventer {
     }
   }
 
-  func end(_ handle: Handle, afterDrainingFor duration: TimeInterval) {
-    drainRunLoop(for: duration)
-    end(handle)
-  }
-
   private func handleActivation(pid: pid_t) {
     guard let suppression = suppressions.values.first(where: { $0.targetPid == pid }) else {
       return
     }
     suppression.restoreTo.activate()
-  }
-
-  private func drainRunLoop(for duration: TimeInterval) {
-    guard duration > 0 else { return }
-    let deadline = Date().addingTimeInterval(duration)
-    while Date() < deadline {
-      RunLoop.current.run(mode: .default, before: min(deadline, Date().addingTimeInterval(0.01)))
-    }
   }
 }
