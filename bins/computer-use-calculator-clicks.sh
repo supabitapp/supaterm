@@ -61,7 +61,15 @@ PY
   "$sp_cli" computer-use click --pid "$pid" --window "$window" --x "$x" --y "$y" --json
 }
 
-for button in "Clear|AllClear" One Two Add Four Five Equals; do
+buttons=(
+  "Clear|AllClear"
+  One Two Three Four Five Six Seven Eight Nine
+  Add
+  Nine Eight Seven Six Five Four Three Two One
+  Equals
+)
+
+for button in "${buttons[@]}"; do
   click_button "$button"
   sleep "$delay_seconds"
 done
