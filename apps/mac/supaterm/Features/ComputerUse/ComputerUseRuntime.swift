@@ -647,8 +647,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         preparedCursor = await prepareCursor(
           to: point,
           aboveWindowID: request.windowID,
-          targetPid: request.pid,
-          focusFrame: elementFrame(element)
+          targetPid: request.pid
         )
       } else {
         preparedCursor = nil
@@ -703,8 +702,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       cursor = await prepareCursor(
         to: point,
         aboveWindowID: request.windowID,
-        targetPid: request.pid,
-        focusFrame: nil
+        targetPid: request.pid
       )
     }
     do {
@@ -729,16 +727,14 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func prepareCursor(
     to point: CGPoint,
     aboveWindowID windowID: UInt32,
-    targetPid: Int,
-    focusFrame: CGRect?
+    targetPid: Int
   ) async -> ComputerUsePreparedCursor? {
     @Shared(.supatermSettings) var supatermSettings = .default
     return await cursorOverlay.prepareClick(
       to: point,
       enabled: supatermSettings.computerUseShowAgentCursor,
       targetPid: pid_t(targetPid),
-      targetWindowID: windowID,
-      focusFrame: focusFrame
+      targetWindowID: windowID
     )
   }
 

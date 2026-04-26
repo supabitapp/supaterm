@@ -24,8 +24,7 @@ final class ComputerUseCursorOverlay {
     to point: CGPoint,
     enabled: Bool,
     targetPid: pid_t,
-    targetWindowID: UInt32,
-    focusFrame: CGRect?
+    targetWindowID: UInt32
   ) async -> ComputerUsePreparedCursor? {
     guard enabled else {
       await stop(.close)
@@ -41,7 +40,7 @@ final class ComputerUseCursorOverlay {
     ensureActivationObserver()
     startRepin()
     await reapplyPin()
-    await contentView?.move(to: point, focusFrame: focusFrame)
+    await contentView?.move(to: point)
     await reapplyPin()
     return .init()
   }
@@ -49,8 +48,6 @@ final class ComputerUseCursorOverlay {
   func completeClick(_: ComputerUsePreparedCursor) async {
     guard window != nil else { return }
     await reapplyPin()
-    contentView?.pulse()
-    try? await Task.sleep(nanoseconds: 180_000_000)
     scheduleStop(after: 8, .hide(animated: true))
   }
 
@@ -288,18 +285,16 @@ private final class ComputerUseCursorOverlayWindow: NSPanel {
 }
 
 private final class ComputerUseCursorOverlayView: NSView {
-  private let cursorView = ComputerUseCursorArrowView(
-    frame: .init(x: -100, y: -100, width: 34, height: 42)
+  private let dotView = ComputerUseCursorDotView(
+    frame: .init(x: -100, y: -100, width: 20, height: 20)
   )
-  private let focusView = ComputerUseFocusRectView(frame: .zero)
   private var hasPosition = false
 
   override var isFlipped: Bool { true }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    addSubview(focusView)
-    addSubview(cursorView)
+    addSubview(dotView)
   }
 
   @available(*, unavailable)
@@ -307,17 +302,11 @@ private final class ComputerUseCursorOverlayView: NSView {
     nil
   }
 
-  func move(to point: CGPoint, focusFrame: CGRect?) async {
-    cursorView.isHidden = false
-    let origin = CGPoint(x: point.x - 3, y: point.y - 2)
-    if let focusFrame {
-      focusView.isHidden = false
-      focusView.frame = focusFrame.insetBy(dx: -4, dy: -4)
-    } else {
-      focusView.isHidden = true
-    }
+  func move(to point: CGPoint) async {
+    dotView.isHidden = false
+    let origin = CGPoint(x: point.x - 10, y: point.y - 10)
     guard hasPosition else {
-      cursorView.setFrameOrigin(origin)
+      dotView.setFrameOrigin(origin)
       hasPosition = true
       try? await Task.sleep(nanoseconds: 220_000_000)
       return
@@ -326,94 +315,33 @@ private final class ComputerUseCursorOverlayView: NSView {
       NSAnimationContext.runAnimationGroup { context in
         context.duration = 0.22
         context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        cursorView.animator().setFrameOrigin(origin)
+        dotView.animator().setFrameOrigin(origin)
       } completionHandler: {
         continuation.resume()
       }
     }
-  }
-
-  func pulse() {
-    cursorView.pulse()
   }
 
   func hideCursor() async {
-    guard !cursorView.isHidden || !focusView.isHidden else { return }
-    await withCheckedContinuation { continuation in
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0.18
-        cursorView.animator().alphaValue = 0
-        focusView.animator().alphaValue = 0
-      } completionHandler: {
-        self.cursorView.isHidden = true
-        self.focusView.isHidden = true
-        self.cursorView.alphaValue = 1
-        self.focusView.alphaValue = 1
-        continuation.resume()
-      }
+    guard !dotView.isHidden else { return }
+    await NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.18
+      dotView.animator().alphaValue = 0
     }
+    guard !Task.isCancelled else { return }
+    dotView.isHidden = true
+    dotView.alphaValue = 1
   }
 }
 
-private final class ComputerUseCursorArrowView: NSView {
-  private let shape = CAShapeLayer()
-  private let pulseLayer = CAShapeLayer()
-
+private final class ComputerUseCursorDotView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
-    layer?.addSublayer(pulseLayer)
-    layer?.addSublayer(shape)
-    pulseLayer.fillColor = NSColor.systemBlue.withAlphaComponent(0.18).cgColor
-    shape.fillColor = NSColor.white.cgColor
-    shape.strokeColor = NSColor.systemBlue.cgColor
-    shape.lineWidth = 2
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    nil
-  }
-
-  override func layout() {
-    super.layout()
-    let path = CGMutablePath()
-    path.move(to: CGPoint(x: 2, y: 2))
-    path.addLine(to: CGPoint(x: 2, y: 31))
-    path.addLine(to: CGPoint(x: 11, y: 23))
-    path.addLine(to: CGPoint(x: 17, y: 38))
-    path.addLine(to: CGPoint(x: 24, y: 35))
-    path.addLine(to: CGPoint(x: 18, y: 20))
-    path.addLine(to: CGPoint(x: 31, y: 20))
-    path.closeSubpath()
-    shape.path = path
-    pulseLayer.path = CGPath(ellipseIn: bounds.insetBy(dx: 1, dy: 3), transform: nil)
-  }
-
-  func pulse() {
-    pulseLayer.removeAllAnimations()
-    let scale = CABasicAnimation(keyPath: "transform.scale")
-    scale.fromValue = 0.7
-    scale.toValue = 1.25
-    let opacity = CABasicAnimation(keyPath: "opacity")
-    opacity.fromValue = 0.8
-    opacity.toValue = 0
-    let group = CAAnimationGroup()
-    group.animations = [scale, opacity]
-    group.duration = 0.32
-    group.timingFunction = CAMediaTimingFunction(name: .easeOut)
-    pulseLayer.add(group, forKey: "pulse")
-  }
-}
-
-private final class ComputerUseFocusRectView: NSView {
-  override init(frame frameRect: NSRect) {
-    super.init(frame: frameRect)
-    wantsLayer = true
-    layer?.borderColor = NSColor.systemBlue.withAlphaComponent(0.9).cgColor
+    layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.28).cgColor
+    layer?.borderColor = NSColor.systemBlue.cgColor
     layer?.borderWidth = 2
-    layer?.cornerRadius = 6
-    isHidden = true
+    layer?.cornerRadius = 10
   }
 
   @available(*, unavailable)
