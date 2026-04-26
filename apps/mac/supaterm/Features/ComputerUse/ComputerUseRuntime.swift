@@ -25,6 +25,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   private let cursorOverlay = ComputerUseCursorOverlay()
   private let focusGuard = ComputerUseFocusGuard()
+  private let launchFocusStealPreventer = ComputerUseSystemFocusStealPreventer()
   private var elementCache: [CacheKey: [Int: AXUIElement]] = [:]
 
   public init() {}
@@ -82,30 +83,48 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       )
     }
     let previous = NSWorkspace.shared.frontmostApplication
+    let previousRestoreTarget = previous.map { restoreTarget(for: $0) }
+    let launchSuppression = previousRestoreTarget.flatMap {
+      launchFocusStealPreventer.begin(targetPid: 0, restoreTo: $0)
+    }
     let urls = try request.urls.map(launchURL)
-    let app: NSRunningApplication = try await withCheckedThrowingContinuation { continuation in
-      let completion: @Sendable (NSRunningApplication?, Error?) -> Void = { app, error in
-        if let error {
-          continuation.resume(throwing: ComputerUseError.launchFailed(error.localizedDescription))
-        } else if let app {
-          continuation.resume(returning: app)
+    let app: NSRunningApplication
+    do {
+      app = try await withCheckedThrowingContinuation { continuation in
+        let completion: @Sendable (NSRunningApplication?, Error?) -> Void = { app, error in
+          if let error {
+            continuation.resume(throwing: ComputerUseError.launchFailed(error.localizedDescription))
+          } else if let app {
+            continuation.resume(returning: app)
+          } else {
+            continuation.resume(throwing: ComputerUseError.launchFailed("LaunchServices returned no app."))
+          }
+        }
+        if urls.isEmpty {
+          NSWorkspace.shared.open(appURL, configuration: configuration, completionHandler: completion)
         } else {
-          continuation.resume(throwing: ComputerUseError.launchFailed("LaunchServices returned no app."))
+          NSWorkspace.shared.open(
+            urls,
+            withApplicationAt: appURL,
+            configuration: configuration,
+            completionHandler: completion
+          )
         }
       }
-      if urls.isEmpty {
-        NSWorkspace.shared.open(appURL, configuration: configuration, completionHandler: completion)
-      } else {
-        NSWorkspace.shared.open(
-          urls,
-          withApplicationAt: appURL,
-          configuration: configuration,
-          completionHandler: completion
-        )
+    } catch {
+      if let launchSuppression {
+        launchFocusStealPreventer.end(launchSuppression)
       }
+      throw error
     }
-    if let previous, previous.processIdentifier != app.processIdentifier {
-      await restoreFocus(to: previous, awayFrom: app)
+    if let previousRestoreTarget, previous?.processIdentifier != app.processIdentifier {
+      await suppressLaunchFocusSteal(
+        target: app,
+        restoreTo: previousRestoreTarget,
+        placeholderSuppression: launchSuppression
+      )
+    } else if let launchSuppression {
+      launchFocusStealPreventer.end(launchSuppression)
     }
     let windows = windows(.init(app: String(app.processIdentifier))).windows
     return .init(
@@ -383,15 +402,32 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return urls
   }
 
-  private func restoreFocus(
-    to previous: NSRunningApplication,
-    awayFrom app: NSRunningApplication
+  private func restoreTarget(
+    for app: NSRunningApplication
+  ) -> ComputerUseSystemFocusStealPreventer.RunningApplication {
+    .init(processIdentifier: app.processIdentifier) {
+      _ = app.activate(options: [])
+    }
+  }
+
+  private func suppressLaunchFocusSteal(
+    target app: NSRunningApplication,
+    restoreTo restoreTarget: ComputerUseSystemFocusStealPreventer.RunningApplication,
+    placeholderSuppression: ComputerUseSystemFocusStealPreventer.Handle?
   ) async {
-    for _ in 0..<4 {
-      if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
-        _ = previous.activate(options: [])
-      }
-      try? await Task.sleep(nanoseconds: 40_000_000)
+    if let placeholderSuppression {
+      launchFocusStealPreventer.end(placeholderSuppression)
+    }
+    let suppression = launchFocusStealPreventer.begin(
+      targetPid: app.processIdentifier,
+      restoreTo: restoreTarget
+    )
+    try? await Task.sleep(nanoseconds: 500_000_000)
+    if let suppression {
+      launchFocusStealPreventer.end(suppression)
+    }
+    if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier {
+      restoreTarget.activate()
     }
   }
 

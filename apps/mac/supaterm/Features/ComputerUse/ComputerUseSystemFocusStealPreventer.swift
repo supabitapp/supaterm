@@ -59,16 +59,19 @@ final class ComputerUseSystemFocusStealPreventer {
   func begin(targetPid: pid_t) -> Handle? {
     guard let frontmost = frontmostApplication(),
       frontmost.processIdentifier != targetPid
-    else {
-      return nil
-    }
+    else { return nil }
+    return begin(targetPid: targetPid, restoreTo: frontmost)
+  }
+
+  func begin(targetPid: pid_t, restoreTo: RunningApplication) -> Handle? {
+    guard restoreTo.processIdentifier != targetPid else { return nil }
     if observer == nil {
       observer = observeActivations { [weak self] pid in
         self?.handleActivation(pid: pid)
       }
     }
     let handle = Handle(id: UUID())
-    suppressions[handle.id] = .init(targetPid: targetPid, restoreTo: frontmost)
+    suppressions[handle.id] = .init(targetPid: targetPid, restoreTo: restoreTo)
     return handle
   }
 

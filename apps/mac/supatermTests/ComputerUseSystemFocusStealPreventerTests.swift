@@ -50,6 +50,33 @@ struct ComputerUseFocusStealPreventerTests {
   }
 
   @Test
+  func explicitRestoreTargetCanSuppressWhenTargetIsAlreadyFrontmost() {
+    var activatedPid: pid_t?
+    var handler: (@MainActor (pid_t) -> Void)?
+    let preventer = ComputerUseSystemFocusStealPreventer(
+      frontmostApplication: {
+        .init(processIdentifier: 2) {}
+      },
+      observeActivations: { onActivate in
+        handler = onActivate
+        return NSObject()
+      },
+      removeObserver: { _ in }
+    )
+
+    let handle = preventer.begin(
+      targetPid: 2,
+      restoreTo: .init(processIdentifier: 1) {
+        activatedPid = 1
+      }
+    )
+    #expect(handle != nil)
+    handler?(2)
+
+    #expect(activatedPid == 1)
+  }
+
+  @Test
   func endDoesNotRestoreWithoutActivation() throws {
     var activatedPid: pid_t?
     let preventer = ComputerUseSystemFocusStealPreventer(
