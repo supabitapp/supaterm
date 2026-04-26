@@ -26,10 +26,10 @@ final class ComputerUseCursorOverlay {
     targetPid: pid_t,
     targetWindowID: UInt32,
     focusFrame: CGRect?
-  ) async -> Bool {
+  ) async -> ComputerUsePreparedCursor? {
     guard enabled else {
-      stop(closeWindow: true)
-      return false
+      await stop(.close)
+      return nil
     }
     let panel = window ?? makeWindow()
     window = panel
@@ -43,22 +43,22 @@ final class ComputerUseCursorOverlay {
     await reapplyPin()
     await contentView?.move(to: point, focusFrame: focusFrame)
     await reapplyPin()
-    return true
+    return .init()
   }
 
-  func completeClick() async {
+  func completeClick(_: ComputerUsePreparedCursor) async {
     guard window != nil else { return }
     await reapplyPin()
     contentView?.pulse()
     try? await Task.sleep(nanoseconds: 180_000_000)
-    scheduleHide(after: 8)
+    scheduleStop(after: 8, .hide(animated: true))
   }
 
-  func cancelClick() {
-    scheduleHide(after: 0.4)
+  func cancelClick(_: ComputerUsePreparedCursor) {
+    scheduleStop(after: 0.4, .hide(animated: true))
   }
 
-  private func stop(closeWindow: Bool) {
+  private func stop(_ reason: ComputerUseCursorOverlayStop) async {
     hideTask?.cancel()
     hideTask = nil
     repinTask?.cancel()
@@ -67,8 +67,11 @@ final class ComputerUseCursorOverlay {
     targetPid = nil
     targetWindowID = 0
     pinResolver.resetMisses()
+    if reason.isAnimated {
+      await contentView?.hideCursor()
+    }
     window?.orderOut(nil)
-    if closeWindow {
+    if reason.closesWindow {
       window?.close()
       window = nil
       contentView = nil
@@ -109,17 +112,16 @@ final class ComputerUseCursorOverlay {
     } else if let windowID = decision.relativeWindowID {
       panel.order(.above, relativeTo: Int(windowID))
     } else if decision.shouldHide {
-      await hideOverlay(animated: true)
+      await stop(.hide(animated: true))
     }
   }
 
-  private func scheduleHide(after delay: TimeInterval) {
+  private func scheduleStop(after delay: TimeInterval, _ reason: ComputerUseCursorOverlayStop) {
     hideTask?.cancel()
     hideTask = Task { @MainActor [weak self] in
       try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
       guard !Task.isCancelled else { return }
-      await self?.hideOverlay(animated: true)
-      self?.hideTask = nil
+      await self?.stop(reason)
     }
   }
 
@@ -154,21 +156,6 @@ final class ComputerUseCursorOverlay {
     }
   }
 
-  private func hideOverlay(animated: Bool) async {
-    hideTask?.cancel()
-    hideTask = nil
-    repinTask?.cancel()
-    repinTask = nil
-    removeActivationObserver()
-    targetPid = nil
-    targetWindowID = 0
-    pinResolver.resetMisses()
-    if animated {
-      await contentView?.hideCursor()
-    }
-    window?.orderOut(nil)
-  }
-
   private static func defaultVisibleWindows() -> [ComputerUseCursorOverlayWindowSnapshot] {
     guard
       let array = CGWindowListCopyWindowInfo(
@@ -194,6 +181,33 @@ final class ComputerUseCursorOverlay {
         zIndex: total - offset,
         layer: (dictionary[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
       )
+    }
+  }
+}
+
+struct ComputerUsePreparedCursor: Sendable {
+  fileprivate init() {}
+}
+
+private enum ComputerUseCursorOverlayStop: Sendable {
+  case hide(animated: Bool)
+  case close
+
+  var isAnimated: Bool {
+    switch self {
+    case .hide(let animated):
+      return animated
+    case .close:
+      return false
+    }
+  }
+
+  var closesWindow: Bool {
+    switch self {
+    case .hide:
+      return false
+    case .close:
+      return true
     }
   }
 }

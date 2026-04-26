@@ -642,22 +642,22 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       request: request,
       advertisedActions: actions
     ) {
-      let cursorPrepared: Bool
+      let preparedCursor: ComputerUsePreparedCursor?
       if let point {
-        cursorPrepared = await prepareCursor(
+        preparedCursor = await prepareCursor(
           to: point,
           aboveWindowID: request.windowID,
           targetPid: request.pid,
           focusFrame: elementFrame(element)
         )
       } else {
-        cursorPrepared = false
+        preparedCursor = nil
       }
       let success = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
         performAction(axAction as CFString, on: element)
       }
       if success {
-        await finishCursorClick(cursorPrepared)
+        await finishCursorClick(preparedCursor)
         if axAction == kAXPressAction as String,
           isTextEntryRole(axString(element, kAXRoleAttribute as CFString))
         {
@@ -674,7 +674,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         )
       }
       if actions.contains(axAction), let index = request.elementIndex {
-        cancelCursorClick(cursorPrepared)
+        cancelCursorClick(preparedCursor)
         throw ComputerUseError.actionUnsupported(index, axAction)
       }
       guard let point else {
@@ -683,7 +683,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       return try await postClick(
         point: point,
         request: request,
-        cursorPrepared: cursorPrepared
+        preparedCursor: preparedCursor
       )
     }
     guard let point else {
@@ -698,16 +698,16 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func postClick(
     point: CGPoint,
     request: SupatermComputerUseClickRequest,
-    cursorPrepared: Bool = false
+    preparedCursor: ComputerUsePreparedCursor? = nil
   ) async throws -> SupatermComputerUseActionResult {
     guard let windowInfo = windowInfo(windowID: request.windowID, pid: request.pid) else {
       throw ComputerUseError.windowNotFound(request.windowID)
     }
-    let prepared: Bool
-    if cursorPrepared {
-      prepared = true
+    let cursor: ComputerUsePreparedCursor?
+    if let preparedCursor {
+      cursor = preparedCursor
     } else {
-      prepared = await prepareCursor(
+      cursor = await prepareCursor(
         to: point,
         aboveWindowID: request.windowID,
         targetPid: request.pid,
@@ -725,10 +725,10 @@ public final class ComputerUseRuntime: @unchecked Sendable {
           modifiers: request.modifiers
         )
       )
-      await finishCursorClick(prepared)
+      await finishCursorClick(cursor)
       return .init(ok: true, dispatch: dispatch.rawValue)
     } catch {
-      cancelCursorClick(prepared)
+      cancelCursorClick(cursor)
       throw error
     }
   }
@@ -738,7 +738,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     aboveWindowID windowID: UInt32,
     targetPid: Int,
     focusFrame: CGRect?
-  ) async -> Bool {
+  ) async -> ComputerUsePreparedCursor? {
     @Shared(.supatermSettings) var supatermSettings = .default
     return await cursorOverlay.prepareClick(
       to: point,
@@ -749,14 +749,14 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     )
   }
 
-  private func finishCursorClick(_ prepared: Bool) async {
-    guard prepared else { return }
-    await cursorOverlay.completeClick()
+  private func finishCursorClick(_ cursor: ComputerUsePreparedCursor?) async {
+    guard let cursor else { return }
+    await cursorOverlay.completeClick(cursor)
   }
 
-  private func cancelCursorClick(_ prepared: Bool) {
-    guard prepared else { return }
-    cursorOverlay.cancelClick()
+  private func cancelCursorClick(_ cursor: ComputerUsePreparedCursor?) {
+    guard let cursor else { return }
+    cursorOverlay.cancelClick(cursor)
   }
 
   private func axArray(_ element: AXUIElement, _ attribute: CFString) -> [AXUIElement]? {
