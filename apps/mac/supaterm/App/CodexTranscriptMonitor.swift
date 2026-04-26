@@ -563,8 +563,8 @@ private struct AssistantMessageState: Equatable {
   var hoverMessages: [String] = []
 }
 
-private extension CodexConversationTurn {
-  var transcriptStatus: CodexTranscriptTurnStatus {
+extension CodexConversationTurn {
+  fileprivate var transcriptStatus: CodexTranscriptTurnStatus {
     switch status {
     case .inProgress:
       return .started(id)

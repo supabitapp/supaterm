@@ -86,9 +86,10 @@ private func resolvedConfigPath(_ path: String?) throws -> URL? {
 }
 
 private func renderPlain(_ result: SupatermSettingsValidationResult) -> String {
-  let lines = [
-    "\(result.status.rawValue)\t\(result.path)"
-  ] + result.warnings.map { "warning\t\($0)" } + result.errors.map { "error\t\($0)" }
+  let lines =
+    [
+      "\(result.status.rawValue)\t\(result.path)"
+    ] + result.warnings.map { "warning\t\($0)" } + result.errors.map { "error\t\($0)" }
   return lines.joined(separator: "\n")
 }
 
@@ -98,7 +99,8 @@ private func renderHuman(_ result: SupatermSettingsValidationResult) -> String {
   case .valid:
     headline = "Valid config: \(result.path)"
   case .missing:
-    headline = result.errors.isEmpty
+    headline =
+      result.errors.isEmpty
       ? "No config file at \(result.path). Defaults are in effect."
       : "Missing config: \(result.path)"
   case .invalid:

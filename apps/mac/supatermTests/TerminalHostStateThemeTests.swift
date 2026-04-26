@@ -1,8 +1,8 @@
 import Foundation
 import Observation
+import SwiftUI
 import Synchronization
 import Testing
-import SwiftUI
 
 @testable import supaterm
 
