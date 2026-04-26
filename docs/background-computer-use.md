@@ -54,7 +54,7 @@ Element clicks first try Accessibility when the request can map to a single AX a
 - right press maps to `AXShowMenu`
 - double left click maps to `AXOpen` only when the element advertises `AXOpen`
 
-For single unmodified element clicks, Supaterm tries the resolved AX action even when the element does not advertise it. If it succeeds, the result uses `dispatch: "accessibility"` and may include `warning: "action_not_advertised"`.
+For single unmodified element clicks, Supaterm tries the resolved AX action even when the element does not advertise it. If it succeeds, the result uses `dispatch: "accessibility"` and may include `warning: "action_not_advertised"`. If a selected AX action fails, Supaterm returns `action_failed` and does not silently retry as a pixel click.
 
 If the AX path cannot handle the request and the element has a target point, Supaterm falls back to a pixel click:
 

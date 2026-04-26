@@ -50,14 +50,12 @@ struct ComputerUseFocusStealPreventerTests {
   }
 
   @Test
-  func endRestoresWhenTargetRemainsFrontmost() throws {
-    var currentPid: pid_t = 1
+  func endDoesNotRestoreWithoutActivation() throws {
     var activatedPid: pid_t?
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        .init(processIdentifier: currentPid) {
+        .init(processIdentifier: 1) {
           activatedPid = 1
-          currentPid = 1
         }
       },
       observeActivations: { _ in NSObject() },
@@ -65,11 +63,29 @@ struct ComputerUseFocusStealPreventerTests {
     )
     let handle = try #require(preventer.begin(targetPid: 2))
 
-    currentPid = 2
-    preventer.end(handle, drainInterval: 0)
+    preventer.end(handle)
 
-    #expect(activatedPid == 1)
-    #expect(currentPid == 1)
+    #expect(activatedPid == nil)
+  }
+
+  @Test
+  func endRemovesObserverWhenLastSuppressionEnds() throws {
+    var removedObserver = false
+    let observer = NSObject()
+    let preventer = ComputerUseSystemFocusStealPreventer(
+      frontmostApplication: {
+        .init(processIdentifier: 1) {}
+      },
+      observeActivations: { _ in observer },
+      removeObserver: { removed in
+        removedObserver = removed === observer
+      }
+    )
+    let handle = try #require(preventer.begin(targetPid: 2))
+
+    preventer.end(handle)
+
+    #expect(removedObserver)
   }
 
   @Test

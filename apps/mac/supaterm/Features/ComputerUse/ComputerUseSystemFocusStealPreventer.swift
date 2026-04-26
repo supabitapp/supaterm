@@ -35,14 +35,14 @@ final class ComputerUseSystemFocusStealPreventer {
       NSWorkspace.shared.notificationCenter.addObserver(
         forName: NSWorkspace.didActivateApplicationNotification,
         object: nil,
-        queue: .main
+        queue: nil
       ) { notification in
         guard
           let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
         else {
           return
         }
-        Task { @MainActor in
+        MainActor.assumeIsolated {
           onActivate(app.processIdentifier)
         }
       }
@@ -72,18 +72,7 @@ final class ComputerUseSystemFocusStealPreventer {
     return handle
   }
 
-  func end(_ handle: Handle, drainInterval: TimeInterval = 0.05) {
-    if drainInterval > 0 {
-      let deadline = Date().addingTimeInterval(drainInterval)
-      while Date() < deadline {
-        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-      }
-    }
-    if let suppression = suppressions[handle.id],
-      frontmostApplication()?.processIdentifier == suppression.targetPid
-    {
-      suppression.restoreTo.activate()
-    }
+  func end(_ handle: Handle) {
     suppressions.removeValue(forKey: handle.id)
     if suppressions.isEmpty, let observer {
       removeObserver(observer)

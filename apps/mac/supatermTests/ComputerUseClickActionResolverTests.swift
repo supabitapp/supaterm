@@ -61,4 +61,12 @@ struct ComputerUseClickActionResolverTests {
 
     #expect(warning == "popup_value_may_require_set_value")
   }
+
+  @Test
+  func failedSelectedAccessibilityActionUsesActionFailedError() {
+    let error = ComputerUseError.actionFailed(3, kAXPressAction as String)
+
+    #expect(error.code == "action_failed")
+    #expect(error.errorDescription == "Element 3 failed AXPress.")
+  }
 }

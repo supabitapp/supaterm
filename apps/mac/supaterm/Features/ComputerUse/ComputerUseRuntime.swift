@@ -673,18 +673,11 @@ public final class ComputerUseRuntime: @unchecked Sendable {
           )
         )
       }
-      if actions.contains(axAction), let index = request.elementIndex {
-        cancelCursorClick(preparedCursor)
-        throw ComputerUseError.actionUnsupported(index, axAction)
+      cancelCursorClick(preparedCursor)
+      if let index = request.elementIndex {
+        throw ComputerUseError.actionFailed(index, axAction)
       }
-      guard let point else {
-        throw ComputerUseError.unsupportedBackgroundTarget
-      }
-      return try await postClick(
-        point: point,
-        request: request,
-        preparedCursor: preparedCursor
-      )
+      throw ComputerUseError.unsupportedBackgroundTarget
     }
     guard let point else {
       throw ComputerUseError.unsupportedBackgroundTarget

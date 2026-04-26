@@ -4,6 +4,7 @@ import SupatermCLIShared
 
 public enum ComputerUseError: Equatable, LocalizedError {
   case accessibilityPermissionMissing
+  case actionFailed(Int, String)
   case elementNotFound(Int)
   case imageWriteFailed(String)
   case launchFailed(String)
@@ -21,6 +22,8 @@ public enum ComputerUseError: Equatable, LocalizedError {
     switch self {
     case .accessibilityPermissionMissing:
       return "accessibility_permission_missing"
+    case .actionFailed:
+      return "action_failed"
     case .elementNotFound:
       return "element_not_found"
     case .imageWriteFailed:
@@ -52,6 +55,8 @@ public enum ComputerUseError: Equatable, LocalizedError {
     switch self {
     case .accessibilityPermissionMissing:
       return "Grant Accessibility in Settings > Computer Use."
+    case .actionFailed(let index, let action):
+      return "Element \(index) failed \(action)."
     case .elementNotFound(let index):
       return "No element with index \(index) exists in the latest snapshot."
     case .imageWriteFailed(let path):

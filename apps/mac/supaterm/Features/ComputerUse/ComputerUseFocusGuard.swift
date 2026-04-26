@@ -33,7 +33,7 @@ final class ComputerUseFocusGuard {
     } catch {
       restoreSyntheticFocus(state)
       if let suppression {
-        focusStealPreventer.end(suppression, drainInterval: 0)
+        focusStealPreventer.end(suppression)
       }
       throw error
     }
@@ -93,7 +93,7 @@ final class ComputerUseFocusGuard {
   }
 
   private func pumpRunLoop() {
-    let deadline = Date().addingTimeInterval(0.12)
+    let deadline = Date().addingTimeInterval(0.5)
     while Date() < deadline {
       RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
     }
