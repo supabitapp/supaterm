@@ -110,7 +110,7 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
   )
   let window = makeWindow()
   registry.updateWindow(window, for: windowControllerID)
-  host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+  host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
   let surfaceID = try #require(host.selectedSurfaceView?.id)
   let tabID = try #require(host.selectedTabID)

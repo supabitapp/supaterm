@@ -224,7 +224,7 @@ extension TerminalHostState {
     case .leaf(let leaf):
       let surface = createSurface(
         tabID: tabID,
-        initialInput: nil,
+        startupCommand: nil,
         inheritingFromSurfaceID: nil,
         workingDirectory: existingWorkingDirectoryURL(for: leaf.workingDirectoryPath),
         context: context

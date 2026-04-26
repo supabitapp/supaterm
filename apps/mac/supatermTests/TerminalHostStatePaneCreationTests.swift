@@ -19,7 +19,7 @@ struct TerminalHostStatePaneCreationTests {
 
       _ = try host.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: true,
@@ -47,7 +47,7 @@ struct TerminalHostStatePaneCreationTests {
 
       _ = try host.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: false,

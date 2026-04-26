@@ -99,28 +99,20 @@ func shellCommandInput(_ tokens: [String]) -> String? {
   return tokens.map(shellEscapedToken).joined(separator: " ")
 }
 
-func validateStartupInput(script: String?, tokens: [String]) throws {
+func validateStartupCommand(script: String?, tokens: [String]) throws {
   if script != nil && !tokens.isEmpty {
     throw ValidationError("--script cannot be used with a trailing command.")
   }
 }
 
-func startupInput(script: String?, tokens: [String]) throws -> String? {
+func startupCommand(script: String?, tokens: [String]) throws -> String? {
   if let script {
     if script.isEmpty {
       throw ValidationError("--script must not be empty.")
     }
-    return normalizedStartupInput(script)
+    return script
   }
-  return shellCommandInput(tokens).map(normalizedStartupInput)
-}
-
-private func normalizedStartupInput(_ text: String) -> String {
-  var text = text
-  while let last = text.last, last == "\n" || last == "\r" {
-    text.removeLast()
-  }
-  return "\(text)\n"
+  return shellCommandInput(tokens)
 }
 
 func resolvedWorkingDirectory(_ path: String?) throws -> String? {

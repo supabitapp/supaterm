@@ -41,7 +41,7 @@ extension SocketControlFeature {
     try validateCreateTabPayload(payload)
 
     return .init(
-      initialInput: payload.initialInput,
+      startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
       target: try createTabTarget(from: payload)
@@ -89,7 +89,7 @@ extension SocketControlFeature {
     try validateCreatePanePayload(payload)
 
     return .init(
-      initialInput: payload.initialInput,
+      startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       direction: payload.direction,
       focus: payload.focus,

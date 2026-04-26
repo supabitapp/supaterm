@@ -129,7 +129,7 @@ struct AppDelegateTests {
       requests == [
         .init(
           session: nil,
-          startupInput: "sp onboard\n",
+          startupCommand: #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#,
         )
       ]
     )
@@ -147,7 +147,7 @@ struct AppDelegateTests {
       requests == [
         .init(
           session: nil,
-          startupInput: nil,
+          startupCommand: nil,
         )
       ]
     )
@@ -170,7 +170,7 @@ struct AppDelegateTests {
       requests == [
         .init(
           session: session,
-          startupInput: nil,
+          startupCommand: nil,
         )
       ]
     )

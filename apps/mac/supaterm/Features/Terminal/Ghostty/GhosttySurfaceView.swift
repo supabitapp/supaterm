@@ -53,7 +53,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
-  private let initialInputCString: UnsafeMutablePointer<CChar>?
+  private let startupCommandCString: UnsafeMutablePointer<CChar>?
   private let environmentVariables: [SupatermCLIEnvironmentVariable]
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
@@ -238,7 +238,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     runtime: GhosttyRuntime,
     tabID: UUID,
     workingDirectory: URL?,
-    initialInput: String? = nil,
+    startupCommand: String? = nil,
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false
@@ -267,10 +267,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
       initialWorkingDirectoryPath = nil
       workingDirectoryCString = nil
     }
-    if let initialInput {
-      initialInputCString = initialInput.withCString { strdup($0) }
+    if let startupCommand {
+      startupCommandCString = startupCommand.withCString { strdup($0) }
     } else {
-      initialInputCString = nil
+      startupCommandCString = nil
     }
     super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
     wantsLayer = true
@@ -309,8 +309,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     if let workingDirectoryCString {
       free(workingDirectoryCString)
     }
-    if let initialInputCString {
-      free(initialInputCString)
+    if let startupCommandCString {
+      free(startupCommandCString)
     }
   }
 
@@ -1001,7 +1001,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     config.scale_factor = backingScaleFactor()
     config.font_size = fontSize
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
-    config.initial_input = initialInputCString.map { UnsafePointer($0) }
+    config.command = startupCommandCString.map { UnsafePointer($0) }
     config.context = context
     Self.withEnvironmentVariables(environmentVariables) { envVars, count in
       config.env_vars = envVars

@@ -61,12 +61,12 @@ struct TerminalHostStateZoomTests {
   }
 
   private func makeZoomNavigationSetup(host: TerminalHostState) throws -> ZoomNavigationSetup {
-    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
     let secondPane = try host.createPane(
       .init(
-        initialInput: nil,
+        startupCommand: nil,
         direction: .right,
         focus: true,
         equalize: false,
@@ -75,7 +75,7 @@ struct TerminalHostStateZoomTests {
     )
     let thirdPane = try host.createPane(
       .init(
-        initialInput: nil,
+        startupCommand: nil,
         direction: .right,
         focus: true,
         equalize: false,

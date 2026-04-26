@@ -77,7 +77,7 @@ struct TerminalHostStateCommandPaletteTests {
 
       let host = TerminalHostState()
       let homeDirectoryPath = FileManager.default.homeDirectoryForCurrentUser.path
-      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
       let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
       host.selectedSurfaceView?.bridge.state.title = "ping 1.1.1.1"
@@ -85,7 +85,7 @@ struct TerminalHostStateCommandPaletteTests {
 
       _ = try host.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: false,

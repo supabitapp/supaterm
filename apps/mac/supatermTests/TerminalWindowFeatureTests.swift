@@ -25,7 +25,7 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.task)
-    #expect(recorder.commands == [.ensureInitialTab(focusing: false, startupInput: nil)])
+    #expect(recorder.commands == [.ensureInitialTab(focusing: false, startupCommand: nil)])
 
     continuation.yield(.newTabRequested(inheritingFromSurfaceID: surfaceID))
 
@@ -34,7 +34,7 @@ struct TerminalWindowFeatureTests {
 
     #expect(
       recorder.commands == [
-        .ensureInitialTab(focusing: false, startupInput: nil),
+        .ensureInitialTab(focusing: false, startupCommand: nil),
         .createTab(inheritingFromSurfaceID: surfaceID),
       ])
 
@@ -43,11 +43,11 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func taskConsumesInitialStartupInputOnce() async {
+  func taskConsumesInitialStartupCommandOnce() async {
     let recorder = TerminalCommandRecorder()
     let store = TestStore(
       initialState: TerminalWindowFeature.State(
-        startupInput: "sp onboard\n"
+        startupCommand: "sp onboard"
       )
     ) {
       TerminalWindowFeature()
@@ -56,14 +56,14 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(.task) {
-      $0.startupInput = nil
+      $0.startupCommand = nil
     }
 
     #expect(
       recorder.commands == [
         .ensureInitialTab(
           focusing: false,
-          startupInput: "sp onboard\n",
+          startupCommand: "sp onboard",
         )
       ]
     )
@@ -74,11 +74,11 @@ struct TerminalWindowFeatureTests {
       recorder.commands == [
         .ensureInitialTab(
           focusing: false,
-          startupInput: "sp onboard\n"
+          startupCommand: "sp onboard"
         ),
         .ensureInitialTab(
           focusing: false,
-          startupInput: nil,
+          startupCommand: nil,
         ),
       ]
     )
@@ -924,7 +924,7 @@ struct TerminalWindowFeatureTests {
     #expect(
       requests.first
         == .init(
-          initialInput: nil,
+          startupCommand: nil,
           cwd: nil,
           direction: SupatermPaneDirection.right,
           focus: false,
@@ -973,7 +973,7 @@ struct TerminalWindowFeatureTests {
     #expect(
       requests.first
         == .init(
-          initialInput: nil,
+          startupCommand: nil,
           cwd: nil,
           direction: SupatermPaneDirection.down,
           focus: false,

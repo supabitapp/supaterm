@@ -16,7 +16,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState(managesTerminalSurfaces: false)
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
 
       writer.handleCommand(.togglePinned(tabID))
@@ -40,7 +40,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState(managesTerminalSurfaces: false)
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       writer.handleCommand(.togglePinned(tabID))
       await flushPinnedTabCatalogObservation()
@@ -63,7 +63,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState()
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       writer.handleCommand(.togglePinned(tabID))
       await flushPinnedTabCatalogObservation()
@@ -89,7 +89,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState()
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       writer.handleCommand(.togglePinned(tabID))
       await flushPinnedTabCatalogObservation()
@@ -99,7 +99,7 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       _ = try writer.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: false,
@@ -132,14 +132,14 @@ struct TerminalHostStatePinnedTabSharingTests {
     } operation: {
       let writer = TerminalHostState()
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       writer.handleCommand(.togglePinned(tabID))
       await flushPinnedTabCatalogObservation()
 
       _ = try writer.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: false,
@@ -169,7 +169,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState()
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       writer.handleCommand(.togglePinned(tabID))
       await flushPinnedTabCatalogObservation()
@@ -198,7 +198,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let writer = TerminalHostState()
       let receiver = TerminalHostState()
 
-      writer.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      writer.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let tabID = try #require(writer.selectedTabID)
       let selectedSpaceID = try #require(writer.selectedSpaceID)
 
@@ -278,7 +278,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       initializeGhosttyForTests()
     } operation: {
       let host = TerminalHostState()
-      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
       let pinnedTabID = try #require(host.selectedTabID)
       host.handleCommand(.togglePinned(pinnedTabID))

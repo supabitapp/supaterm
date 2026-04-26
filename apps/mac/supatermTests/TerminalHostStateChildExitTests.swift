@@ -13,7 +13,7 @@ struct TerminalHostStateChildExitTests {
     let host = TerminalHostState()
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
-    host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let surface = try #require(host.selectedSurfaceView)
     let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())

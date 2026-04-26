@@ -26,7 +26,7 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("script"), help: "Raw shell script to send when the new tab opens.")
+    @Option(name: .customLong("script"), help: "Shell script to run as the new tab startup command.")
     var script: String?
 
     @Argument(help: "Command and arguments to run when the new tab opens.")
@@ -63,11 +63,11 @@ extension SP {
     }
 
     func validate() throws {
-      try validateStartupInput(script: script, tokens: input)
+      try validateStartupCommand(script: script, tokens: input)
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
-      let initialInput = try startupInput(script: script, tokens: input)
+      let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicNewTabTarget(
         space,
@@ -76,7 +76,7 @@ extension SP {
       ) {
       case .context(let contextPaneID):
         return SupatermNewTabRequest(
-          initialInput: initialInput,
+          startupCommand: command,
           contextPaneID: contextPaneID,
           cwd: cwd,
           focus: focus
@@ -84,7 +84,7 @@ extension SP {
 
       case .space(let windowIndex, let spaceIndex):
         return SupatermNewTabRequest(
-          initialInput: initialInput,
+          startupCommand: command,
           cwd: cwd,
           focus: focus,
           targetWindowIndex: windowIndex,
@@ -148,7 +148,7 @@ extension SP {
     @OptionGroup
     var options: SPCommandOptions
 
-    @Option(name: .customLong("script"), help: "Raw shell script to send when the new pane opens.")
+    @Option(name: .customLong("script"), help: "Shell script to run as the new pane startup command.")
     var script: String?
 
     @Argument(help: "Command and arguments to run when the new pane opens.")
@@ -185,11 +185,11 @@ extension SP {
     }
 
     func validate() throws {
-      try validateStartupInput(script: script, tokens: input)
+      try validateStartupCommand(script: script, tokens: input)
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewPaneRequest {
-      let initialInput = try startupInput(script: script, tokens: input)
+      let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicSplitTarget(
         container,
@@ -198,7 +198,7 @@ extension SP {
       ) {
       case .context(let contextPaneID):
         return SupatermNewPaneRequest(
-          initialInput: initialInput,
+          startupCommand: command,
           contextPaneID: contextPaneID,
           cwd: cwd,
           direction: direction.direction,
@@ -208,7 +208,7 @@ extension SP {
 
       case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
-          initialInput: initialInput,
+          startupCommand: command,
           cwd: cwd,
           direction: direction.direction,
           focus: focus,
@@ -221,7 +221,7 @@ extension SP {
 
       case .tab(let windowIndex, let spaceIndex, let tabIndex):
         return SupatermNewPaneRequest(
-          initialInput: initialInput,
+          startupCommand: command,
           cwd: cwd,
           direction: direction.direction,
           focus: focus,

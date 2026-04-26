@@ -25,7 +25,7 @@ struct TerminalHostStateSessionRestoreTests {
       }
 
       let host = TerminalHostState()
-      host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
       let firstSpaceID = try #require(host.selectedSpaceID)
       let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
@@ -33,7 +33,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       _ = try host.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true,
@@ -49,7 +49,7 @@ struct TerminalHostStateSessionRestoreTests {
 
       _ = try host.createTab(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           cwd: restoredPathString,
           focus: false,
           target: .space(windowIndex: 1, spaceIndex: 2)

@@ -18,7 +18,7 @@ protocol GhosttyAppActionPerforming: AnyObject {
 final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerforming {
   struct LaunchWindowRequest: Equatable {
     let session: TerminalWindowSession?
-    let startupInput: String?
+    let startupCommand: String?
   }
 
   @Shared(.supatermSettings)
@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
 
-  private static let onboardingStartupInput = "sp onboard\n"
+  private static let onboardingStartupCommand = #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#
 
   override init() {
     AppCrashReporting.setup()
@@ -174,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     for request in requests {
       lastController = createWindow(
         session: request.session,
-        startupInput: request.startupInput
+        startupCommand: request.startupCommand
       )
     }
     suppressesSessionSave = false
@@ -187,12 +187,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   private func createWindow(
     session: TerminalWindowSession? = nil,
-    startupInput: String? = nil
+    startupCommand: String? = nil
   ) -> TerminalWindowController {
     let controller = TerminalWindowController(
       registry: terminalWindowRegistry,
       session: session,
-      startupInput: startupInput
+      startupCommand: startupCommand
     ) { [weak self] in
       self?.saveSession()
     }
@@ -266,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     return sessions.enumerated().map { index, session in
       LaunchWindowRequest(
         session: session,
-        startupInput: index == onboardingWindowIndex ? onboardingStartupInput : nil
+        startupCommand: index == onboardingWindowIndex ? onboardingStartupCommand : nil
       )
     }
   }

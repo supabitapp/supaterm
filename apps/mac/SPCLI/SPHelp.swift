@@ -60,9 +60,9 @@ enum SPHelp {
 
     `--in` accepts a tab selector, a pane selector, or a UUID.
 
-    Trailing arguments after `--` are treated as a command and its arguments.
+    Trailing arguments after `--` are treated as a terminal startup command.
 
-    `--script` sends raw shell script text exactly as provided.
+    `--script` runs shell script text as the terminal startup command.
 
     Example:
       sp pane split right
@@ -81,9 +81,9 @@ enum SPHelp {
 
     `--in` accepts a space selector or UUID.
 
-    Trailing arguments after `--` are treated as a command and its arguments.
+    Trailing arguments after `--` are treated as a terminal startup command.
 
-    `--script` sends raw shell script text exactly as provided.
+    `--script` runs shell script text as the terminal startup command.
 
     Example:
       sp tab new -- ping 1.1.1.1

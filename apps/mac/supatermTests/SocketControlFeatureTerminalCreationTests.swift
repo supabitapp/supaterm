@@ -16,7 +16,7 @@ struct SocketControlCreationTests {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "52A01791-C69B-423B-B58E-021239595B1D")!
     let requestPayload = SupatermNewTabRequest(
-      initialInput: "pwd",
+      startupCommand: "pwd",
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
@@ -47,7 +47,7 @@ struct SocketControlCreationTests {
         #expect(
           request
             == .init(
-              initialInput: "pwd",
+              startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
               target: .space(windowIndex: 1, spaceIndex: 2)
@@ -73,7 +73,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newTab(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           contextPaneID: paneID,
           focus: false
         ),
@@ -101,7 +101,7 @@ struct SocketControlCreationTests {
         #expect(
           request
             == .init(
-              initialInput: nil,
+              startupCommand: nil,
               cwd: nil,
               focus: false,
               target: .contextPane(paneID)
@@ -126,7 +126,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newTab(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           focus: false
         ),
         id: "new-tab-3"
@@ -163,7 +163,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newTab(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           focus: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 2
@@ -202,7 +202,7 @@ struct SocketControlCreationTests {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "0708C52C-64A0-4B3D-B469-3AB200CB4128")!
     let requestPayload = SupatermNewPaneRequest(
-      initialInput: "pwd",
+      startupCommand: "pwd",
       cwd: "/tmp/example",
       direction: .down,
       focus: false,
@@ -237,7 +237,7 @@ struct SocketControlCreationTests {
         #expect(
           request
             == .init(
-              initialInput: "pwd",
+              startupCommand: "pwd",
               cwd: "/tmp/example",
               direction: .down,
               focus: false,
@@ -264,7 +264,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true
@@ -303,7 +303,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true,
@@ -348,7 +348,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .left,
           focus: true,
           equalize: true,
@@ -388,7 +388,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true,
@@ -428,7 +428,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true,
@@ -469,7 +469,7 @@ struct SocketControlCreationTests {
       handle: handle,
       payload: try .newPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: true,
           equalize: true,

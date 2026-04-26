@@ -343,7 +343,7 @@ struct SPCommandTests {
     ["pane", "split", "right", "--script", "echo 1", "echo", "2"],
     ["tab", "new", "--script", "echo 1", "echo", "2"],
   ])
-  func parserRejectsShellWithTrailingCommand(arguments: [String]) {
+  func parserRejectsScriptWithTrailingCommand(arguments: [String]) {
     do {
       _ = try SP.parseAsRoot(arguments)
       Issue.record("Expected parsing to reject combining --script with a trailing command.")
@@ -354,10 +354,10 @@ struct SPCommandTests {
   }
 
   @Test
-  func startupInputRejectsEmptyShell() {
+  func startupCommandRejectsEmptyScript() {
     do {
-      _ = try startupInput(script: "", tokens: [])
-      Issue.record("Expected startupInput to reject an empty --script.")
+      _ = try startupCommand(script: "", tokens: [])
+      Issue.record("Expected startupCommand to reject an empty --script.")
     } catch {
       let message = String(describing: error)
       #expect(message.contains("--script must not be empty."))
@@ -365,15 +365,15 @@ struct SPCommandTests {
   }
 
   @Test
-  func startupInputNormalizesTrailingNewline() throws {
-    #expect(try startupInput(script: "echo 1\necho 2", tokens: []) == "echo 1\necho 2\n")
-    #expect(try startupInput(script: "echo 1\necho 2\n", tokens: []) == "echo 1\necho 2\n")
+  func startupCommandPreservesScriptText() throws {
+    #expect(try startupCommand(script: "echo 1\necho 2", tokens: []) == "echo 1\necho 2")
+    #expect(try startupCommand(script: "echo 1\necho 2\n", tokens: []) == "echo 1\necho 2\n")
   }
 
   @Test
-  func startupInputEscapesTokenCommandsAndAppendsNewline() throws {
-    #expect(try startupInput(script: nil, tokens: ["pwd"]) == "pwd\n")
-    #expect(try startupInput(script: nil, tokens: ["echo", "hello world"]) == "echo 'hello world'\n")
+  func startupCommandEscapesTokenCommands() throws {
+    #expect(try startupCommand(script: nil, tokens: ["pwd"]) == "pwd")
+    #expect(try startupCommand(script: nil, tokens: ["echo", "hello world"]) == "echo 'hello world'")
   }
 
   @Test(arguments: [

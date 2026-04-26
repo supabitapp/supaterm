@@ -68,7 +68,7 @@ struct TerminalWindowFeature {
   struct State: Equatable {
     var commandPalette: TerminalCommandPaletteState?
     var confirmationRequest: ConfirmationRequest?
-    var startupInput: String?
+    var startupCommand: String?
     var isFloatingSidebarVisible = false
     var isSidebarCollapsed = false
     var pendingCloseRequest: PendingCloseRequest?
@@ -365,7 +365,7 @@ struct TerminalWindowFeature {
         return .run { [terminalClient] _ in
           _ = try? await terminalClient.createPane(
             .init(
-              initialInput: nil,
+              startupCommand: nil,
               cwd: nil,
               direction: direction,
               focus: false,
@@ -392,13 +392,13 @@ struct TerminalWindowFeature {
         return sendCommand(.selectTab(tabID))
 
       case .task:
-        let startupInput = state.startupInput
-        state.startupInput = nil
+        let startupCommand = state.startupCommand
+        state.startupCommand = nil
         return .merge(
           sendCommand(
             .ensureInitialTab(
               focusing: false,
-              startupInput: startupInput
+              startupCommand: startupCommand
             )
           ),
           .run { [terminalClient] send in

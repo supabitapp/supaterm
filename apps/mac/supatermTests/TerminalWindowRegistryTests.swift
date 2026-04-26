@@ -455,7 +455,7 @@ struct TerminalWindowRegistryTests {
 
       _ = try host.createPane(
         .init(
-          initialInput: nil,
+          startupCommand: nil,
           direction: .right,
           focus: false,
           equalize: false,
@@ -530,10 +530,10 @@ struct TerminalWindowRegistryTests {
 
       let registry = TerminalWindowRegistry()
       let firstHost = TerminalHostState()
-      firstHost.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      firstHost.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
       let secondHost = TerminalHostState()
-      secondHost.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+      secondHost.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       secondHost.handleCommand(.createTab(inheritingFromSurfaceID: nil))
 
       let firstStore = Store(initialState: AppFeature.State()) {
@@ -790,7 +790,7 @@ private func makeCommandPaletteHost(
   workingDirectory: String?
 ) throws -> TerminalHostState {
   let host = TerminalHostState()
-  host.handleCommand(.ensureInitialTab(focusing: false, startupInput: nil))
+  host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
   host.selectedSurfaceView?.bridge.state.title = title
   host.selectedSurfaceView?.bridge.state.titleOverride = nil
   host.selectedSurfaceView?.bridge.state.pwd = workingDirectory

@@ -378,10 +378,10 @@ final class TerminalHostState {
     switch command {
     case .createTab(let inheritingFromSurfaceID):
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
-    case .ensureInitialTab(let focusing, let startupInput):
+    case .ensureInitialTab(let focusing, let startupCommand):
       ensureInitialTab(
         focusing: focusing,
-        startupInput: startupInput
+        startupCommand: startupCommand
       )
     case .createSpace(let name):
       _ = try? createSpace(named: name)
@@ -448,19 +448,19 @@ final class TerminalHostState {
 
   func ensureInitialTab(
     focusing: Bool,
-    startupInput: String? = nil
+    startupCommand: String? = nil
   ) {
     guard tabs.isEmpty else { return }
     _ = createTab(
       focusing: focusing,
-      initialInput: startupInput
+      startupCommand: startupCommand
     )
   }
 
   @discardableResult
   func createTab(
     focusing: Bool = true,
-    initialInput: String? = nil,
+    startupCommand: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
@@ -471,7 +471,7 @@ final class TerminalHostState {
     return createTab(
       in: target.spaceID,
       focusing: focusing,
-      initialInput: initialInput,
+      startupCommand: startupCommand,
       inheritingFromSurfaceID: target.inheritedSurfaceID,
       insertion: resolvedNewTabInsertion(anchorTabID: target.anchorTabID),
       sessionChangesEnabled: sessionChangesEnabled
@@ -482,7 +482,7 @@ final class TerminalHostState {
   func createTab(
     in spaceID: TerminalSpaceID,
     focusing: Bool = true,
-    initialInput: String? = nil,
+    startupCommand: String? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
     insertion: TerminalTabManager.Insertion = .end,
@@ -502,7 +502,7 @@ final class TerminalHostState {
     let tree = splitTree(
       for: tabID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
-      initialInput: initialInput,
+      startupCommand: startupCommand,
       workingDirectory: workingDirectory,
       context: context
     )
@@ -832,7 +832,7 @@ final class TerminalHostState {
   func splitTree(
     for tabID: TerminalTabID,
     inheritingFromSurfaceID: UUID? = nil,
-    initialInput: String? = nil,
+    startupCommand: String? = nil,
     workingDirectory: URL? = nil,
     context: ghostty_surface_context_e = GHOSTTY_SURFACE_CONTEXT_TAB
   ) -> SplitTree<GhosttySurfaceView> {
@@ -841,7 +841,7 @@ final class TerminalHostState {
     }
     let surface = createSurface(
       tabID: tabID,
-      initialInput: initialInput,
+      startupCommand: startupCommand,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
       workingDirectory: workingDirectory,
       context: context
@@ -863,7 +863,7 @@ final class TerminalHostState {
     case .newSplit(let direction):
       let newSurface = createSurface(
         tabID: tabID,
-        initialInput: nil,
+        startupCommand: nil,
         inheritingFromSurfaceID: surfaceID,
         context: GHOSTTY_SURFACE_CONTEXT_SPLIT
       )
@@ -1061,7 +1061,7 @@ final class TerminalHostState {
 
   func createSurface(
     tabID: TerminalTabID,
-    initialInput: String?,
+    startupCommand: String?,
     inheritingFromSurfaceID: UUID?,
     workingDirectory: URL? = nil,
     context: ghostty_surface_context_e
@@ -1074,7 +1074,7 @@ final class TerminalHostState {
       runtime: runtime,
       tabID: tabID.rawValue,
       workingDirectory: workingDirectory ?? inherited.workingDirectory,
-      initialInput: initialInput,
+      startupCommand: startupCommand,
       fontSize: inherited.fontSize,
       context: context,
       managesWindowAppearance: false
