@@ -423,7 +423,7 @@ private final class ComputerUseCursorSymbolView: NSView {
     let image = NSImage(named: Self.assetName)
     image?.isTemplate = true
     imageView.image = image
-    imageView.contentTintColor = .white
+    imageView.contentTintColor = Self.tintColor
     imageView.imageAlignment = .alignTopLeft
     imageView.imageScaling = .scaleProportionallyUpOrDown
     imageView.shadow = shadow
@@ -436,6 +436,12 @@ private final class ComputerUseCursorSymbolView: NSView {
   }
 
   private static let assetName = "ComputerUseCursorMagicSelection"
+  private static let tintColor = NSColor(
+    srgbRed: 229 / 255,
+    green: 77 / 255,
+    blue: 46 / 255,
+    alpha: 1
+  )
 }
 
 private final class ComputerUseCursorTooltipView: NSView {
