@@ -349,6 +349,20 @@ struct SPCommandTests {
         "7",
       ]) as? SP.ComputerUseClick
     )
+    let coordinateClick = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "click",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--x",
+        "320",
+        "--y",
+        "240",
+      ]) as? SP.ComputerUseClick
+    )
     let key = try #require(
       try SP.parseAsRoot([
         "computer-use",
@@ -367,6 +381,8 @@ struct SPCommandTests {
     #expect(snapshot.window == 456)
     #expect(snapshot.imageOutputPath == "/tmp/window.png")
     #expect(click.element == 7)
+    #expect(coordinateClick.x == 320)
+    #expect(coordinateClick.y == 240)
     #expect(key.modifier == [.command])
     #expect(key.key == "s")
   }

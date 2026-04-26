@@ -4,6 +4,7 @@ import CoreGraphics
 @MainActor
 final class ComputerUseCursorOverlay {
   private var window: NSPanel?
+  private var contentView: ComputerUseCursorOverlayView?
 
   func move(to point: CGPoint, enabled: Bool) {
     guard enabled else {
@@ -12,16 +13,14 @@ final class ComputerUseCursorOverlay {
     }
     let panel = window ?? makeWindow()
     window = panel
-    panel.setFrame(
-      .init(x: point.x - 10, y: point.y - 10, width: 20, height: 20),
-      display: true
-    )
+    contentView?.move(to: point)
     panel.orderFrontRegardless()
   }
 
   private func makeWindow() -> NSPanel {
+    let frame = NSScreen.main?.frame ?? NSScreen.screens.first?.frame ?? .zero
     let panel = NSPanel(
-      contentRect: .init(x: 0, y: 0, width: 20, height: 20),
+      contentRect: frame,
       styleMask: [.borderless],
       backing: .buffered,
       defer: false
@@ -32,9 +31,42 @@ final class ComputerUseCursorOverlay {
     panel.ignoresMouseEvents = true
     panel.isOpaque = false
     panel.level = .floating
-    panel.contentView = ComputerUseCursorDotView(
-      frame: panel.contentView?.bounds ?? .init(x: 0, y: 0, width: 20, height: 20))
+    let view = ComputerUseCursorOverlayView(frame: .init(origin: .zero, size: frame.size))
+    contentView = view
+    panel.contentView = view
     return panel
+  }
+}
+
+private final class ComputerUseCursorOverlayView: NSView {
+  private let dotView = ComputerUseCursorDotView(
+    frame: .init(x: -100, y: -100, width: 20, height: 20))
+  private var hasPosition = false
+
+  override var isFlipped: Bool { true }
+
+  override init(frame frameRect: NSRect) {
+    super.init(frame: frameRect)
+    addSubview(dotView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  func move(to point: CGPoint) {
+    let origin = CGPoint(x: point.x - 10, y: point.y - 10)
+    guard hasPosition else {
+      dotView.setFrameOrigin(origin)
+      hasPosition = true
+      return
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.32
+      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      dotView.animator().setFrameOrigin(origin)
+    }
   }
 }
 

@@ -149,10 +149,10 @@ extension SP {
     @Option(name: .long, help: "Element index from `snapshot`.")
     var element: Int?
 
-    @Option(name: .long, help: "Global x coordinate.")
+    @Option(name: .long, help: "Window screenshot x coordinate.")
     var x: Double?
 
-    @Option(name: .long, help: "Global y coordinate.")
+    @Option(name: .long, help: "Window screenshot y coordinate.")
     var y: Double?
 
     @OptionGroup

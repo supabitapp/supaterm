@@ -116,7 +116,11 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     guard let x = request.x, let y = request.y else {
       throw ComputerUseError.invalidClickTarget
     }
-    return try postClick(pid: request.pid, point: .init(x: x, y: y))
+    return try postClick(
+      pid: request.pid,
+      point: try screenPoint(
+        windowPixel: .init(x: x, y: y), pid: request.pid, windowID: request.windowID)
+    )
   }
 
   public func type(
@@ -371,6 +375,10 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   }
 
   private func postClick(pid: Int, point: CGPoint) throws -> SupatermComputerUseActionResult {
+    if NSRunningApplication(processIdentifier: pid_t(pid))?.isActive == true {
+      return try postFrontmostClick(point: point)
+    }
+
     let source = CGEventSource(stateID: .hidSystemState)
     guard
       let down = CGEvent(
@@ -386,6 +394,32 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     down.postToPid(pid_t(pid))
     up.postToPid(pid_t(pid))
     return .init(ok: true, dispatch: "pid_event")
+  }
+
+  private func postFrontmostClick(point: CGPoint) throws -> SupatermComputerUseActionResult {
+    let source = CGEventSource(stateID: .hidSystemState)
+    guard
+      let move = CGEvent(
+        mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point,
+        mouseButton: .left),
+      let down = CGEvent(
+        mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point,
+        mouseButton: .left),
+      let up = CGEvent(
+        mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point,
+        mouseButton: .left)
+    else {
+      throw ComputerUseError.unsupportedBackgroundTarget
+    }
+    down.setIntegerValueField(.mouseEventClickState, value: 1)
+    up.setIntegerValueField(.mouseEventClickState, value: 1)
+    moveCursor(to: point)
+    move.post(tap: .cghidEventTap)
+    usleep(20_000)
+    down.post(tap: .cghidEventTap)
+    usleep(30_000)
+    up.post(tap: .cghidEventTap)
+    return .init(ok: true, dispatch: "hid_event")
   }
 
   private func moveCursor(to point: CGPoint) {
@@ -453,6 +487,39 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   private func center(of frame: CGRect) -> CGPoint {
     .init(x: frame.midX, y: frame.midY)
+  }
+
+  private func screenPoint(windowPixel: CGPoint, pid: Int, windowID: UInt32) throws -> CGPoint {
+    guard let window = windowInfo(windowID: windowID, pid: pid) else {
+      throw ComputerUseError.windowNotFound(windowID)
+    }
+    let scale = backingScale(for: window.window.frame)
+    return .init(
+      x: window.window.frame.x + windowPixel.x / scale,
+      y: window.window.frame.y + windowPixel.y / scale
+    )
+  }
+
+  private func backingScale(for frame: SupatermComputerUseRect) -> Double {
+    let rect = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+    var best: NSScreen?
+    var bestArea = 0.0
+    for screen in NSScreen.screens {
+      let intersection = screen.frame.intersection(rect)
+      guard !intersection.isNull else { continue }
+      let area = intersection.width * intersection.height
+      if area > bestArea {
+        bestArea = area
+        best = screen
+      }
+    }
+    if let best {
+      return Double(best.backingScaleFactor)
+    }
+    if let main = NSScreen.main {
+      return Double(main.backingScaleFactor)
+    }
+    return 1
   }
 
   private func frameDistance(_ lhs: CGRect?, _ rhs: SupatermComputerUseRect) -> Double {
