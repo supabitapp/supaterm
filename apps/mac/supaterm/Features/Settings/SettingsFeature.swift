@@ -64,6 +64,10 @@ struct SettingsComputerUseState: Equatable {
   var isRefreshing = false
   var screenRecording = ComputerUsePermissionStatus.unknown
   var showAgentCursor = SupatermSettings.default.computerUseShowAgentCursor
+
+  var hasRequiredPermissions: Bool {
+    accessibility == .granted && screenRecording == .granted
+  }
 }
 
 struct SettingsAboutState: Equatable {

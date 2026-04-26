@@ -94,6 +94,18 @@ struct SettingsFeatureComputerUseTests {
       #expect(!supatermSettings.computerUseShowAgentCursor)
     }
   }
+
+  @Test
+  func requiredPermissionsRequireBothGrants() {
+    var state = SettingsComputerUseState()
+    #expect(!state.hasRequiredPermissions)
+
+    state.accessibility = .granted
+    #expect(!state.hasRequiredPermissions)
+
+    state.screenRecording = .granted
+    #expect(state.hasRequiredPermissions)
+  }
 }
 
 private actor ComputerUsePermissionRecorder {

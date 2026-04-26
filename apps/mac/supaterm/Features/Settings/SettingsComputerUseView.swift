@@ -5,27 +5,37 @@ import SwiftUI
 struct SettingsComputerUseView: View {
   let store: StoreOf<SettingsFeature>
 
+  private var showsPermissionsReadySummary: Bool {
+    store.computerUse.hasRequiredPermissions && !store.computerUse.isRefreshing
+  }
+
   var body: some View {
     Form {
       Section {
-        ForEach(ComputerUsePermissionKind.allCases) { permission in
-          ComputerUsePermissionRow(
-            permission: permission,
-            status: store.computerUse.status(for: permission),
-            isRefreshing: store.computerUse.isRefreshing,
-            grant: {
-              _ = store.send(.computerUsePermissionGrantButtonTapped(permission))
-            },
-            openSettings: {
-              _ = store.send(.computerUsePermissionSettingsButtonTapped(permission))
-            }
-          )
+        if showsPermissionsReadySummary {
+          ComputerUsePermissionReadyRow()
+        } else {
+          ForEach(ComputerUsePermissionKind.allCases) { permission in
+            ComputerUsePermissionRow(
+              permission: permission,
+              status: store.computerUse.status(for: permission),
+              isRefreshing: store.computerUse.isRefreshing,
+              grant: {
+                _ = store.send(.computerUsePermissionGrantButtonTapped(permission))
+              },
+              openSettings: {
+                _ = store.send(.computerUsePermissionSettingsButtonTapped(permission))
+              }
+            )
+          }
         }
       } footer: {
-        Text(
-          "Computer use needs Accessibility to inspect and control app UI, "
-            + "and Screen Recording to capture windows for the agent."
-        )
+        if !showsPermissionsReadySummary {
+          Text(
+            "Computer use needs Accessibility to inspect and control app UI, "
+              + "and Screen Recording to capture windows for the agent."
+          )
+        }
       }
 
       Section {
@@ -47,11 +57,30 @@ struct SettingsComputerUseView: View {
         )
       } footer: {
         Text(
-          "Install the Computer Use skill so agents can discover app, window, snapshot, and action commands.")
+          "Install the Computer Use skill so agents can discover app, window, snapshot, and action commands."
+        )
       }
     }
     .navigationTitle("Computer Use")
     .settingsFormLayout()
+  }
+}
+
+private struct ComputerUsePermissionReadyRow: View {
+  var body: some View {
+    HStack(alignment: .center, spacing: 12) {
+      Image(systemName: "checkmark.circle.fill")
+        .frame(width: 18, height: 18)
+        .foregroundStyle(.green)
+        .accessibilityHidden(true)
+
+      SettingsRowLabel(
+        title: "Ready",
+        subtitle: "Accessibility and Screen Recording are granted."
+      )
+    }
+    .padding(.vertical, 2)
+    .accessibilityElement(children: .combine)
   }
 }
 
@@ -78,10 +107,12 @@ private struct ComputerUsePermissionRow: View {
 
       PermissionStatusView(status: status, isRefreshing: isRefreshing)
 
-      Button("Grant", action: grant)
-        .disabled(status == .granted || isRefreshing)
+      if status != .granted {
+        Button("Grant", action: grant)
+          .disabled(isRefreshing)
 
-      Button("Open Settings", action: openSettings)
+        Button("Open Settings", action: openSettings)
+      }
     }
     .padding(.vertical, 2)
   }
