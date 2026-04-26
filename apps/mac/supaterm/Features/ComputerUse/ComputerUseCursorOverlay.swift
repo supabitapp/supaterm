@@ -417,13 +417,13 @@ private final class ComputerUseCursorSymbolView: NSView {
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     let shadow = NSShadow()
-    shadow.shadowColor = NSColor.black.withAlphaComponent(0.42)
-    shadow.shadowOffset = .init(width: 0, height: -1)
-    shadow.shadowBlurRadius = 2
-    imageView.image =
-      NSImage(systemSymbolName: "wand.and.sparkles", accessibilityDescription: nil)?
-      .withSymbolConfiguration(.init(pointSize: 22, weight: .semibold))
-    imageView.contentTintColor = .systemBlue
+    shadow.shadowColor = NSColor.black.withAlphaComponent(0.9)
+    shadow.shadowOffset = .zero
+    shadow.shadowBlurRadius = 1.6
+    let image = NSImage(named: Self.assetName)
+    image?.isTemplate = true
+    imageView.image = image
+    imageView.contentTintColor = .white
     imageView.imageAlignment = .alignTopLeft
     imageView.imageScaling = .scaleProportionallyUpOrDown
     imageView.shadow = shadow
@@ -434,6 +434,8 @@ private final class ComputerUseCursorSymbolView: NSView {
   required init?(coder: NSCoder) {
     nil
   }
+
+  private static let assetName = "ComputerUseCursorMagicSelection"
 }
 
 private final class ComputerUseCursorTooltipView: NSView {
