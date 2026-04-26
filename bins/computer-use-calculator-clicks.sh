@@ -2,8 +2,7 @@
 set -euo pipefail
 
 sp_cli=${SUPATERM_CLI_PATH:-sp}
-delay_seconds=1.4
-lead_seconds=3
+delay_seconds=0.5
 app_name=Calculator
 app_bundle_id=""
 mode=""
@@ -22,8 +21,7 @@ Modes:
 
 Options:
   --mode xy|element  Click mode.
-  --delay seconds    Delay between clicks. Default: 1.4
-  --lead seconds     Wait before clicking. Default: 3
+  --delay seconds    Delay between clicks. Default: 0.5
   --app name         Target app. Default: Calculator
   --bundle-id id     Target bundle ID.
   --sp path          sp CLI path. Default: SUPATERM_CLI_PATH or sp
@@ -70,15 +68,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --delay=*)
       delay_seconds=${1#*=}
-      shift
-      ;;
-    --lead)
-      require_value "$1" "${2:-}"
-      lead_seconds=$2
-      shift 2
-      ;;
-    --lead=*)
-      lead_seconds=${1#*=}
       shift
       ;;
     --app)
@@ -189,8 +178,6 @@ print(f'launch {launch["pid"]} {launch["name"]} active={launch["isActive"]}')
 PY
 sleep 0.5
 log_state "after launch wait app=$app_name"
-sleep "$lead_seconds"
-log_state "after lead wait app=$app_name"
 
 log_state "before windows app=$app_filter"
 windows_json=$("$sp_cli" computer-use windows --app "$app_filter" --on-screen-only --json)
