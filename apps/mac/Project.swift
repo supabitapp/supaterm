@@ -349,7 +349,6 @@ let project = Project(
       dependencies: [
         .target(name: "sp"),
         .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermComputerUseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),
