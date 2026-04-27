@@ -723,7 +723,7 @@ private struct TerminalSidebarRingIndicatorView: View {
   }
 
   private var rotationAnimation: Animation {
-    .linear(duration: 0.9).repeatForever(autoreverses: false)
+    .linear(duration: 1.6).repeatForever(autoreverses: false)
   }
 
   private func startRotation(reduceMotion: Bool) {
@@ -1051,7 +1051,7 @@ private struct TerminalSidebarAgentActivityView: View {
           TerminalSidebarRingIndicatorView(
             fraction: nil,
             color: runningIndicatorColor,
-            trackColor: runningIndicatorColor.opacity(isSelected ? 0.24 : 0.18)
+            trackColor: runningIndicatorTrackColor
           )
 
         case .idle:
@@ -1096,10 +1096,7 @@ private struct TerminalSidebarAgentActivityView: View {
     case .needsInput:
       return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     case .running:
-      if isSelected {
-        return palette.selectedText.opacity(0.12)
-      }
-      return palette.secondaryText.opacity(0.14)
+      return .clear
     case .idle:
       return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     }
@@ -1115,9 +1112,16 @@ private struct TerminalSidebarAgentActivityView: View {
 
   private var runningIndicatorColor: Color {
     if isSelected {
-      return palette.selectedIcon
+      return palette.selectedIcon.opacity(0.56)
     }
-    return Color.accentColor
+    return palette.secondaryText.opacity(0.72)
+  }
+
+  private var runningIndicatorTrackColor: Color {
+    if isSelected {
+      return palette.selectedIcon.opacity(0.18)
+    }
+    return palette.secondaryText.opacity(0.22)
   }
 
   private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
