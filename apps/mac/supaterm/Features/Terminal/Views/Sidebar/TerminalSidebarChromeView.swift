@@ -633,41 +633,15 @@ private struct TerminalSidebarProgressIndicatorView: View {
   let isSelected: Bool
   let palette: TerminalPalette
 
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var rotation = Angle.zero
-
   var body: some View {
     Group {
       switch progress.indicatorStyle {
       case .ring:
-        ZStack {
-          Circle()
-            .stroke(trackColor, lineWidth: 2)
-
-          if let fraction = progress.fraction {
-            Circle()
-              .trim(from: 0, to: fraction)
-              .stroke(
-                color,
-                style: StrokeStyle(lineWidth: 2, lineCap: .round)
-              )
-              .rotationEffect(.degrees(-90))
-              .terminalAnimation(
-                .easeInOut(duration: 0.2),
-                value: fraction,
-                reduceMotion: reduceMotion
-              )
-          } else {
-            Circle()
-              .trim(from: 0.14, to: 0.64)
-              .stroke(
-                color,
-                style: StrokeStyle(lineWidth: 2, lineCap: .round)
-              )
-              .rotationEffect(rotation)
-          }
-        }
-        .frame(width: 16, height: 16)
+        TerminalSidebarRingIndicatorView(
+          fraction: progress.fraction,
+          color: color,
+          trackColor: trackColor
+        )
       case .pauseIcon:
         RoundedRectangle(cornerRadius: 5, style: .continuous)
           .fill(color.opacity(isSelected ? 0.24 : 0.16))
@@ -680,36 +654,7 @@ private struct TerminalSidebarProgressIndicatorView: View {
           }
       }
     }
-    .onAppear {
-      startRotation(reduceMotion: reduceMotion)
-    }
-    .onChange(of: progress.fraction == nil) { _, _ in
-      restartRotation(reduceMotion: reduceMotion)
-    }
-    .onChange(of: reduceMotion) { _, reduceMotion in
-      restartRotation(reduceMotion: reduceMotion)
-    }
     .accessibilityHidden(true)
-  }
-
-  private var isIndeterminateRing: Bool {
-    progress.indicatorStyle == .ring && progress.fraction == nil
-  }
-
-  private var rotationAnimation: Animation {
-    .linear(duration: 0.9).repeatForever(autoreverses: false)
-  }
-
-  private func startRotation(reduceMotion: Bool) {
-    guard isIndeterminateRing, !reduceMotion else { return }
-    TerminalMotion.animate(rotationAnimation, reduceMotion: reduceMotion) {
-      rotation = .degrees(360)
-    }
-  }
-
-  private func restartRotation(reduceMotion: Bool) {
-    rotation = .zero
-    startRotation(reduceMotion: reduceMotion)
   }
 
   private var trackColor: Color {
@@ -725,6 +670,72 @@ private struct TerminalSidebarProgressIndicatorView: View {
     case .error:
       return .red
     }
+  }
+}
+
+private struct TerminalSidebarRingIndicatorView: View {
+  let fraction: Double?
+  let color: Color
+  let trackColor: Color
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var rotation = Angle.zero
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .stroke(trackColor, lineWidth: 2)
+
+      if let fraction {
+        Circle()
+          .trim(from: 0, to: fraction)
+          .stroke(
+            color,
+            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+          )
+          .rotationEffect(.degrees(-90))
+          .terminalAnimation(
+            .easeInOut(duration: 0.2),
+            value: fraction,
+            reduceMotion: reduceMotion
+          )
+      } else {
+        Circle()
+          .trim(from: 0.14, to: 0.64)
+          .stroke(
+            color,
+            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+          )
+          .rotationEffect(rotation)
+      }
+    }
+    .frame(width: 16, height: 16)
+    .onAppear {
+      startRotation(reduceMotion: reduceMotion)
+    }
+    .onChange(of: fraction == nil) { _, _ in
+      restartRotation(reduceMotion: reduceMotion)
+    }
+    .onChange(of: reduceMotion) { _, reduceMotion in
+      restartRotation(reduceMotion: reduceMotion)
+    }
+    .accessibilityHidden(true)
+  }
+
+  private var rotationAnimation: Animation {
+    .linear(duration: 0.9).repeatForever(autoreverses: false)
+  }
+
+  private func startRotation(reduceMotion: Bool) {
+    guard fraction == nil, !reduceMotion else { return }
+    TerminalMotion.animate(rotationAnimation, reduceMotion: reduceMotion) {
+      rotation = .degrees(360)
+    }
+  }
+
+  private func restartRotation(reduceMotion: Bool) {
+    rotation = .zero
+    startRotation(reduceMotion: reduceMotion)
   }
 }
 
@@ -1037,7 +1048,11 @@ private struct TerminalSidebarAgentActivityView: View {
             .accessibilityHidden(true)
 
         case .running:
-          runningIndicator
+          TerminalSidebarRingIndicatorView(
+            fraction: nil,
+            color: runningIndicatorColor,
+            trackColor: runningIndicatorColor.opacity(isSelected ? 0.24 : 0.18)
+          )
 
         case .idle:
           EmptyView()
@@ -1059,10 +1074,7 @@ private struct TerminalSidebarAgentActivityView: View {
     case .needsInput:
       return .easeInOut(duration: 0.65)
         .repeatForever(autoreverses: true)
-    case .running:
-      return .easeInOut(duration: 0.9)
-        .repeatForever(autoreverses: true)
-    case .idle:
+    case .running, .idle:
       return nil
     }
   }
@@ -1077,18 +1089,6 @@ private struct TerminalSidebarAgentActivityView: View {
   private func restartActivityAnimation(reduceMotion: Bool) {
     isAnimating = false
     startActivityAnimation(reduceMotion: reduceMotion)
-  }
-
-  private var runningIndicator: some View {
-    Group {
-      if reduceMotion {
-        runningDots(phase: 0)
-      } else {
-        TimelineView(.periodic(from: .now, by: 0.24)) { context in
-          runningDots(phase: runningPhase(at: context.date))
-        }
-      }
-    }
   }
 
   private var backgroundColor: Color {
@@ -1113,51 +1113,11 @@ private struct TerminalSidebarAgentActivityView: View {
     activity.phase == .needsInput && isAnimating ? -1 : 0
   }
 
-  private func runningPhase(at date: Date) -> Int {
-    Int(date.timeIntervalSinceReferenceDate / 0.24) % 3
-  }
-
-  private func runningDots(phase: Int) -> some View {
-    HStack(spacing: 2) {
-      ForEach(0..<3, id: \.self) { index in
-        Circle()
-          .fill(runningIndicatorColor)
-          .frame(width: 3, height: 3)
-          .scaleEffect(runningDotScale(for: index, phase: phase))
-          .opacity(runningDotOpacity(for: index, phase: phase))
-      }
-    }
-    .terminalAnimation(.smooth(duration: 0.16), value: phase, reduceMotion: reduceMotion)
-    .accessibilityHidden(true)
-  }
-
   private var runningIndicatorColor: Color {
     if isSelected {
-      return palette.selectedText.opacity(0.72)
+      return palette.selectedIcon
     }
-    return palette.secondaryText
-  }
-
-  private func runningDotScale(for index: Int, phase: Int) -> CGFloat {
-    switch (phase - index + 3) % 3 {
-    case 0:
-      return 1.15
-    case 1:
-      return 1
-    default:
-      return 0.82
-    }
-  }
-
-  private func runningDotOpacity(for index: Int, phase: Int) -> Double {
-    switch (phase - index + 3) % 3 {
-    case 0:
-      return 1
-    case 1:
-      return 0.62
-    default:
-      return 0.32
-    }
+    return Color.accentColor
   }
 
   private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
