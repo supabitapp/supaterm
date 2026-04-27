@@ -113,6 +113,28 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func globalKeybindDetectionRequiresGlobalPrefix() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+shift+0=toggle_visibility
+      """
+    )
+
+    #expect(!runtime.hasGlobalKeybinds())
+  }
+
+  @Test
+  func globalKeybindDetectionReadsGhosttyConfig() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = global:super+shift+0=toggle_visibility
+      """
+    )
+
+    #expect(runtime.hasGlobalKeybinds())
+  }
+
+  @Test
   func dispatchAppActionRoutesSupportedActions() {
     let app = NSApplication.shared
     let previousDelegate = app.delegate
@@ -126,12 +148,14 @@ struct GhosttyRuntimeTests {
     #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_CLOSE_ALL_WINDOWS, action: .init())))
     #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_CHECK_FOR_UPDATES, action: .init())))
     #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_OPEN_CONFIG, action: .init())))
+    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_TOGGLE_VISIBILITY, action: .init())))
     #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_QUIT, action: .init())))
 
     #expect(delegate.newWindowCount == 1)
     #expect(delegate.closeAllWindowsCount == 1)
     #expect(delegate.checkForUpdatesCount == 1)
     #expect(delegate.openConfigCount == 1)
+    #expect(delegate.toggleVisibilityCount == 1)
     #expect(delegate.quitCount == 1)
   }
 

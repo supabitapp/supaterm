@@ -12,6 +12,15 @@ protocol GhosttyAppActionPerforming: AnyObject {
   func performCloseAllWindows() -> Bool
   func performNewWindow() -> Bool
   func performQuit() -> Bool
+  func performToggleVisibility() -> Bool
+}
+
+private final class WeakToggleVisibilityWindow {
+  weak var value: NSWindow?
+
+  init(_ value: NSWindow) {
+    self.value = value
+  }
 }
 
 @MainActor
@@ -29,11 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var sessionCatalog = TerminalSessionCatalog.default
 
   private let menuController: SupatermMenuController
+  private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
   private var settingsWindowController: SettingsWindowController?
   private var terminatingSessionCatalog: TerminalSessionCatalog?
+  private var toggleVisibilityState: ToggleVisibilityState?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
 
@@ -46,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     let terminalWindowRegistry = TerminalWindowRegistry()
     let terminalCommandExecutor = TerminalCommandExecutor(registry: terminalWindowRegistry)
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
+    let globalKeybindManager = GhosttyGlobalKeybindManager.shared
     let quitConfirmationPresenter = QuitConfirmationPresenter()
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
@@ -53,13 +65,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }
     self.menuController = menuController
+    self.globalKeybindManager = globalKeybindManager
     self.quitConfirmationPresenter = quitConfirmationPresenter
     self.socketStore = socketStore
     self.terminalWindowRegistry = terminalWindowRegistry
     super.init()
+    globalKeybindManager.setRuntimeProvider { [weak terminalWindowRegistry] in
+      terminalWindowRegistry?.globalKeybindRuntimes() ?? []
+    }
     terminalWindowRegistry.commandExecutor = terminalCommandExecutor
-    terminalWindowRegistry.onChange = { [weak menuController] in
+    terminalWindowRegistry.onChange = { [weak menuController, weak globalKeybindManager] in
       menuController?.refresh()
+      globalKeybindManager?.refresh()
     }
     menuController.setNewWindowAction { [weak self] in
       self?.performNewWindow() ?? false
@@ -80,8 +97,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
+    guard toggleVisibilityState == nil else { return }
     guard !NSApp.windows.contains(where: \.isVisible) else { return }
     _ = showExistingWindowOrCreate()
+  }
+
+  func applicationDidHide(_ notification: Notification) {
+    if toggleVisibilityState == nil {
+      toggleVisibilityState = .init()
+    }
+  }
+
+  func applicationDidUnhide(_ notification: Notification) {
+    if NSApp.windows.contains(where: \.isVisible) {
+      toggleVisibilityState = nil
+    }
   }
 
   func applicationWillTerminate(_ notification: Notification) {
@@ -91,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
         pendingTerminationSessionCatalog: terminatingSessionCatalog
       )
     )
+    globalKeybindManager.disable()
     socketStore.send(.shutdown)
   }
 
@@ -141,6 +172,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   func performQuit() -> Bool {
     NSApp.terminate(nil)
     return true
+  }
+
+  @discardableResult
+  func performToggleVisibility() -> Bool {
+    if NSApp.isActive {
+      if let keyWindow = NSApp.keyWindow,
+        keyWindow.styleMask.contains(.fullScreen)
+      {
+        return false
+      }
+      toggleVisibilityState = .init()
+      NSApp.hide(nil)
+      return true
+    }
+
+    let state = toggleVisibilityState
+    NSApp.activate(ignoringOtherApps: true)
+    if let state {
+      state.restore()
+      toggleVisibilityState = nil
+      return true
+    }
+    return showExistingWindowOrCreate()
   }
 
   @discardableResult
@@ -302,5 +356,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     pendingTerminationSessionCatalog: TerminalSessionCatalog?
   ) -> Bool {
     !suppressesSessionSave && pendingTerminationSessionCatalog == nil
+  }
+
+  struct ToggleVisibilityState {
+    private let hiddenWindows: [WeakToggleVisibilityWindow]
+    private let keyWindow: WeakToggleVisibilityWindow?
+
+    init(windows: [NSWindow] = NSApp.windows, keyWindow: NSWindow? = NSApp.keyWindow) {
+      self.keyWindow = keyWindow.map(WeakToggleVisibilityWindow.init)
+      var visibleWindows: [WeakToggleVisibilityWindow] = []
+      for window in windows where window.isVisible && !window.styleMask.contains(.fullScreen) {
+        let windowToHide = window.tabGroup?.selectedWindow ?? window
+        if !visibleWindows.contains(where: { $0.value === windowToHide }) {
+          visibleWindows.append(WeakToggleVisibilityWindow(windowToHide))
+        }
+      }
+      self.hiddenWindows = visibleWindows
+    }
+
+    func restore() {
+      for window in hiddenWindows {
+        window.value?.orderFrontRegardless()
+      }
+      keyWindow?.value?.makeKey()
+    }
   }
 }

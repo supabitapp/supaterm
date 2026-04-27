@@ -254,10 +254,10 @@ final class GhosttySurfaceBridge {
   }
 
   private func handleAppAction(_ action: ghostty_action_s) -> Bool? {
-    let performer = NSApp.delegate as? any GhosttyAppActionPerforming
+    if let result = handleSharedAppAction(action) {
+      return result
+    }
     switch action.tag {
-    case GHOSTTY_ACTION_NEW_WINDOW:
-      return performer?.performNewWindow() ?? false
     case GHOSTTY_ACTION_NEW_TAB:
       return onNewTab?() ?? false
     case GHOSTTY_ACTION_CLOSE_TAB:
@@ -266,18 +266,12 @@ final class GhosttySurfaceBridge {
       guard let window = surfaceView?.window else { return false }
       window.performClose(nil)
       return true
-    case GHOSTTY_ACTION_CLOSE_ALL_WINDOWS:
-      return performer?.performCloseAllWindows() ?? false
     case GHOSTTY_ACTION_GOTO_TAB:
       return onGotoTab?(action.action.goto_tab) ?? false
     case GHOSTTY_ACTION_MOVE_TAB:
       return onMoveTab?(action.action.move_tab) ?? false
     case GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE:
       return onCommandPaletteToggle?() ?? false
-    case GHOSTTY_ACTION_OPEN_CONFIG:
-      return (NSApp.delegate as? any GhosttyOpenConfigPerforming)?.performOpenConfig() ?? false
-    case GHOSTTY_ACTION_QUIT:
-      return performer?.performQuit() ?? false
     case GHOSTTY_ACTION_GOTO_WINDOW,
       GHOSTTY_ACTION_TOGGLE_QUICK_TERMINAL:
       return false
@@ -287,6 +281,19 @@ final class GhosttySurfaceBridge {
     case GHOSTTY_ACTION_REDO:
       NSApp.sendAction(#selector(UndoManager.redo), to: nil, from: nil)
       return true
+    default:
+      return nil
+    }
+  }
+
+  private func handleSharedAppAction(_ action: ghostty_action_s) -> Bool? {
+    switch action.tag {
+    case GHOSTTY_ACTION_NEW_WINDOW,
+      GHOSTTY_ACTION_CLOSE_ALL_WINDOWS,
+      GHOSTTY_ACTION_OPEN_CONFIG,
+      GHOSTTY_ACTION_QUIT,
+      GHOSTTY_ACTION_TOGGLE_VISIBILITY:
+      return GhosttyRuntime.dispatchAppAction(action)
     default:
       return nil
     }

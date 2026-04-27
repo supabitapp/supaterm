@@ -71,6 +71,48 @@ struct TerminalWindowRegistryTests {
 
     #expect(registry.bypassesQuitConfirmation)
   }
+
+  @Test
+  func globalKeybindRuntimesPreferActiveEntry() throws {
+    let registry = TerminalWindowRegistry()
+    let firstRuntime = try makeGhosttyRuntime("")
+    let secondRuntime = try makeGhosttyRuntime("")
+    let firstHost = TerminalHostState(runtime: firstRuntime, managesTerminalSurfaces: false)
+    let secondHost = TerminalHostState(runtime: secondRuntime, managesTerminalSurfaces: false)
+    firstHost.windowActivity = .init(isKeyWindow: false, isVisible: true)
+    secondHost.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    let firstID = UUID()
+    let secondID = UUID()
+    let firstStore = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let secondStore = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: firstID,
+      store: firstStore,
+      terminal: firstHost,
+      requestConfirmedWindowClose: {}
+    )
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: secondID,
+      store: secondStore,
+      terminal: secondHost,
+      requestConfirmedWindowClose: {}
+    )
+    registry.updateWindow(makeWindow(), for: firstID)
+    registry.updateWindow(makeWindow(), for: secondID)
+
+    let runtimes = registry.globalKeybindRuntimes()
+
+    #expect(runtimes.count == 2)
+    #expect(runtimes[0] === secondRuntime)
+    #expect(runtimes[1] === firstRuntime)
+  }
+
   @Test
   func menuContextShowsRestartToUpdateWhenInstallIsPending() {
     let registry = TerminalWindowRegistry()

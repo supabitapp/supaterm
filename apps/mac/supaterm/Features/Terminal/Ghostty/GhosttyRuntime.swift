@@ -557,6 +557,20 @@ final class GhosttyRuntime {
     return Self.keyboardShortcut(for: trigger)
   }
 
+  func hasGlobalKeybinds() -> Bool {
+    guard let app else { return false }
+    return ghostty_app_has_global_keybinds(app)
+  }
+
+  func handleGlobalKeyEvent(_ event: GhosttyGlobalKeyEvent) -> Bool {
+    guard let app else { return false }
+    let key = GhosttyKeyEvent.make(
+      event,
+      action: GHOSTTY_ACTION_PRESS
+    )
+    return ghostty_app_key(app, key)
+  }
+
   @MainActor
   static func dispatchAppAction(_ action: ghostty_action_s) -> Bool {
     let performer = NSApp.delegate as? any GhosttyAppActionPerforming
@@ -575,6 +589,8 @@ final class GhosttyRuntime {
       return performer?.performCheckForUpdates() ?? false
     case GHOSTTY_ACTION_OPEN_CONFIG:
       return (NSApp.delegate as? any GhosttyOpenConfigPerforming)?.performOpenConfig() ?? false
+    case GHOSTTY_ACTION_TOGGLE_VISIBILITY:
+      return performer?.performToggleVisibility() ?? false
     default:
       return false
     }

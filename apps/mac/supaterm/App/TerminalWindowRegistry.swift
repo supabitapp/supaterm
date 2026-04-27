@@ -347,6 +347,15 @@ final class TerminalWindowRegistry {
     preferredActiveEntry() ?? entries.first
   }
 
+  func globalKeybindRuntimes() -> [GhosttyRuntime] {
+    let entries = activeEntries()
+    guard let preferred = preferredActiveEntry() else {
+      return entries.compactMap(\.terminal.runtime)
+    }
+    return ([preferred] + entries.filter { $0.windowControllerID != preferred.windowControllerID })
+      .compactMap(\.terminal.runtime)
+  }
+
   private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {
     state.phase.menuItemAction ?? (state.canCheckForUpdates ? .checkForUpdates : nil)
   }

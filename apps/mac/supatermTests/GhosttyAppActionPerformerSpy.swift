@@ -11,6 +11,7 @@ final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, Ghost
   var newWindowCount = 0
   var openConfigCount = 0
   var quitCount = 0
+  var toggleVisibilityCount = 0
 
   func performCheckForUpdates() -> Bool {
     checkForUpdatesCount += 1
@@ -34,6 +35,11 @@ final class GhosttyAppActionPerformerSpy: NSObject, NSApplicationDelegate, Ghost
 
   func performQuit() -> Bool {
     quitCount += 1
+    return true
+  }
+
+  func performToggleVisibility() -> Bool {
+    toggleVisibilityCount += 1
     return true
   }
 }
