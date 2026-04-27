@@ -6,15 +6,24 @@ public enum SupatermSocketMethod {
   public static let appTree = "app.tree"
   public static let computerUseApps = "computer_use.apps"
   public static let computerUseClick = "computer_use.click"
+  public static let computerUseCursorPosition = "computer_use.cursor_position"
+  public static let computerUseCursorSet = "computer_use.cursor_set"
+  public static let computerUseCursorState = "computer_use.cursor_state"
   public static let computerUseKey = "computer_use.key"
+  public static let computerUseHotkey = "computer_use.hotkey"
   public static let computerUseLaunch = "computer_use.launch"
+  public static let computerUseMoveCursor = "computer_use.move_cursor"
   public static let computerUsePage = "computer_use.page"
   public static let computerUsePermissions = "computer_use.permissions"
+  public static let computerUseRecording = "computer_use.recording"
   public static let computerUseScroll = "computer_use.scroll"
+  public static let computerUseScreenSize = "computer_use.screen_size"
   public static let computerUseSetValue = "computer_use.set_value"
+  public static let computerUseScreenshot = "computer_use.screenshot"
   public static let computerUseSnapshot = "computer_use.snapshot"
   public static let computerUseType = "computer_use.type"
   public static let computerUseWindows = "computer_use.windows"
+  public static let computerUseZoom = "computer_use.zoom"
   public static let systemIdentity = "system.identity"
   public static let systemPing = "system.ping"
   public static let terminalAgentHook = "terminal.agent_hook"
@@ -148,6 +157,40 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(id: id, method: SupatermSocketMethod.computerUseApps)
   }
 
+  public static func computerUseScreenSize(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.computerUseScreenSize)
+  }
+
+  public static func computerUseCursorPosition(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.computerUseCursorPosition)
+  }
+
+  public static func computerUseCursorState(id: String = UUID().uuidString) -> Self {
+    Self(id: id, method: SupatermSocketMethod.computerUseCursorState)
+  }
+
+  public static func computerUseMoveCursor(
+    _ payload: SupatermComputerUseMoveCursorRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseMoveCursor,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseCursorSet(
+    _ payload: SupatermComputerUseCursorRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseCursorSet,
+      params: try JSONObject(payload)
+    )
+  }
+
   public static func computerUseLaunch(
     _ payload: SupatermComputerUseLaunchRequest,
     id: String = UUID().uuidString
@@ -177,6 +220,28 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.computerUseSnapshot,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseScreenshot(
+    _ payload: SupatermComputerUseScreenshotRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseScreenshot,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseZoom(
+    _ payload: SupatermComputerUseZoomRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseZoom,
       params: try JSONObject(payload)
     )
   }
@@ -214,6 +279,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     )
   }
 
+  public static func computerUseHotkey(
+    _ payload: SupatermComputerUseHotkeyRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseHotkey,
+      params: try JSONObject(payload)
+    )
+  }
+
   public static func computerUseScroll(
     _ payload: SupatermComputerUseScrollRequest,
     id: String = UUID().uuidString
@@ -243,6 +319,17 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     Self(
       id: id,
       method: SupatermSocketMethod.computerUsePage,
+      params: try JSONObject(payload)
+    )
+  }
+
+  public static func computerUseRecording(
+    _ payload: SupatermComputerUseRecordingRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    Self(
+      id: id,
+      method: SupatermSocketMethod.computerUseRecording,
       params: try JSONObject(payload)
     )
   }

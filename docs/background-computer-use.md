@@ -1,7 +1,5 @@
 # Background Computer Use
 
-This is heavily inspired by the amazing work from Cua team https://github.com/trycua/cua/blob/main/blog/inside-macos-window-internals.md
-
 Supaterm's computer-use path lets `sp` inspect and control macOS app windows through the running Supaterm app process. The app process owns Accessibility, Screen Recording, window lookup, element caching, and input dispatch. The CLI only sends typed socket requests.
 
 The source remains authoritative for current command flags and payload shapes.
@@ -31,6 +29,7 @@ sp computer-use permissions
 sp computer-use launch --bundle-id com.apple.TextEdit
 sp computer-use windows --app TextEdit --on-screen-only --json
 sp computer-use snapshot --pid 123 --window 456 --image-out /tmp/window.png --json
+sp computer-use zoom --pid 123 --window 456 --x 80 --y 120 --width 320 --height 180 --image-out /tmp/zoom.png
 sp computer-use click --pid 123 --window 456 --element 3
 ```
 
@@ -45,6 +44,12 @@ sp computer-use click --pid 123 --window 456 --element 3
 - `vision`: screenshot only
 
 The default mode comes from Supaterm settings. `--query` filters returned elements without renumbering them, so an `elementIndex` remains stable for the cached snapshot.
+
+`--javascript` runs a browser-page JavaScript read during the same snapshot request and places the result under `javascript`.
+
+Screenshots are resized to the configured maximum image dimension and retain their original dimensions in metadata. `zoom` uses the latest snapshot resize ratio to crop the requested region from native-resolution pixels. `click --from-zoom` interprets coordinates inside the latest zoom crop for that process/window pair.
+
+Use `sp computer-use screenshot --image-out /tmp/screen.png` for a standalone display capture or add `--window` for a single window.
 
 ## Click Dispatch
 
@@ -64,6 +69,8 @@ If the AX path cannot handle the request and the element has a target point, Sup
 
 Coordinate clicks always use the pixel path. `--x` and `--y` are window screenshot coordinates.
 
+`click --debug-image-out /tmp/click.png` writes a screenshot with a marker at the requested coordinate.
+
 ## Focus Behavior
 
 Computer-use actions should not intentionally steal foreground focus.
@@ -78,7 +85,9 @@ For pixel clicks in background windows, Supaterm uses pid-targeted event deliver
 
 - `type --element` first tries to set `AXSelectedText` on the element. If that fails, it focuses the element synthetically and falls back to pid-targeted keyboard events.
 - `type` without an element posts each character to the target pid.
-- `key` posts a key down/up pair to the target pid.
+- `type-chars` always posts raw character events.
+- `key` posts a key down/up pair to the target pid. Named keys include arrows, paging keys, `forwarddelete`, and `f1` through `f12`; modifiers include command, shift, option, control, and function.
+- `hotkey` accepts a combined key chord such as `command+shift+p`.
 - `scroll` maps direction/unit to keyboard navigation and posts those key events.
 - `set-value` sets `AXValue`. Popup buttons are handled by pressing a matching child option. Safari popup buttons without AX option children fall back to page JavaScript that sets a matching HTML `select` option and dispatches `change`.
 
@@ -100,10 +109,12 @@ sp computer-use page execute-javascript --pid 123 --window 456 '(() => document.
 
 `query-dom` runs `document.querySelectorAll` and returns typed JSON when JavaScript transport is available. With the AX fallback it supports a limited CSS-to-AX-role mapping such as `a`, `button`, `input`, `select`, headings, table roles, and wildcard or class/id selectors.
 
-`execute-javascript` runs browser page JavaScript. It is not a native AX-control API. Chrome and Safari use Apple Events and may require explicit setup:
+`execute-javascript` runs browser page JavaScript. It is not a native AX-control API. Chromium browsers and Safari use Apple Events and may require explicit setup:
 
 ```bash
 sp computer-use page enable-javascript-apple-events --browser chrome --json
+sp computer-use page enable-javascript-apple-events --browser brave --json
+sp computer-use page enable-javascript-apple-events --browser edge --json
 sp computer-use page enable-javascript-apple-events --browser safari --json
 ```
 
@@ -124,3 +135,24 @@ sp computer-use launch --bundle-id com.example.TauriApp --webkit-inspector-port 
 On macOS this only enables JavaScript when the app exposes a normal TCP CDP endpoint. Otherwise `get-text` and limited `query-dom` use AX fallback, and `execute-javascript` returns `page_unsupported`.
 
 Use `launch --url` for browser navigation. Do not set the omnibox through `set-value`; the page runtime owns page reads and JavaScript, while native element actions stay in the accessibility command set.
+
+## Cursor and Recording
+
+`screen-size`, `cursor position`, and `cursor move` expose cheap display and pointer utilities. `cursor state` and `cursor set` control the visible agent cursor and its motion parameters.
+
+```bash
+sp computer-use screen-size --json
+sp computer-use cursor position --json
+sp computer-use cursor move --x 600 --y 420
+sp computer-use cursor set --glide-ms 120 --dwell-ms 40 --idle-hide-ms 700
+```
+
+Recording captures action JSON plus per-turn screenshots and click markers when possible. Replay re-runs recorded actions. Render writes an MP4 from the recorded screenshot sequence.
+
+```bash
+sp computer-use recording start --directory /tmp/cu-run --json
+sp computer-use click --pid 123 --window 456 --x 80 --y 120
+sp computer-use recording stop --json
+sp computer-use recording replay --directory /tmp/cu-run --json
+sp computer-use recording render --directory /tmp/cu-run --output /tmp/cu-run.mp4 --json
+```

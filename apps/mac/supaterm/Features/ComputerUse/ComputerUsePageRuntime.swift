@@ -25,6 +25,23 @@ struct ComputerUsePageRuntime {
     }
   }
 
+  func evaluateSnapshotJavaScript(
+    _ javascript: String,
+    pid: Int,
+    windowID: UInt32
+  ) async throws -> SupatermComputerUseSnapshotJavaScriptResult {
+    let evaluation = try await executeJavaScript(
+      javascript,
+      bundleID: bundleID(for: pid) ?? "",
+      pid: pid,
+      windowID: windowID
+    )
+    if let json = Self.jsonValue(fromJSONString: evaluation.value) {
+      return .init(ok: true, dispatch: evaluation.dispatch, json: json)
+    }
+    return .init(ok: true, dispatch: evaluation.dispatch, text: evaluation.value)
+  }
+
   private func enableJavaScriptAppleEvents(
     _ request: SupatermComputerUsePageRequest
   ) async throws -> SupatermComputerUsePageResult {
@@ -157,7 +174,7 @@ struct ComputerUsePageRuntime {
 
   private func enableJavaScriptAppleEvents(browser: SupatermComputerUsePageBrowser) async throws -> String {
     switch browser {
-    case .chrome:
+    case .brave, .chrome, .edge:
       try await enableChromiumJavaScriptAppleEvents(bundleID: browser.bundleID)
       return "browser_preferences"
     case .safari:
@@ -169,7 +186,7 @@ struct ComputerUsePageRuntime {
   private func enableChromiumJavaScriptAppleEvents(bundleID: String) async throws {
     guard let profileDirectory = AppleEventsBrowser.profileDirectory(bundleID: bundleID) else {
       throw ComputerUseError.pageUnsupported(
-        "JavaScript from Apple Events can only be enabled automatically for Chrome."
+        "JavaScript from Apple Events can only be enabled automatically for Chromium browsers."
       )
     }
     if let appName = AppleEventsBrowser.appName(bundleID: bundleID) {
@@ -480,6 +497,10 @@ private enum AppleEventsBrowser {
     switch bundleID {
     case "com.google.Chrome":
       return "\(home)/Library/Application Support/Google/Chrome"
+    case "com.brave.Browser":
+      return "\(home)/Library/Application Support/BraveSoftware/Brave-Browser"
+    case "com.microsoft.edgemac":
+      return "\(home)/Library/Application Support/Microsoft Edge"
     default:
       return nil
     }
@@ -526,6 +547,14 @@ private enum AppleEventsBrowser {
       return
         "Google Chrome requires JavaScript from Apple Events. "
         + "Run `sp computer-use page enable-javascript-apple-events --browser chrome`, then retry."
+    case "com.brave.Browser":
+      return
+        "Brave Browser requires JavaScript from Apple Events. "
+        + "Run `sp computer-use page enable-javascript-apple-events --browser brave`, then retry."
+    case "com.microsoft.edgemac":
+      return
+        "Microsoft Edge requires JavaScript from Apple Events. "
+        + "Run `sp computer-use page enable-javascript-apple-events --browser edge`, then retry."
     case "com.apple.Safari":
       return
         "Safari requires Allow JavaScript from Apple Events. "

@@ -46,6 +46,8 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
+    #expect(prefs.computerUseCursorMotion == .default)
+    #expect(prefs.computerUseMaxImageDimension == 1600)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
@@ -72,6 +74,8 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
+    #expect(prefs.computerUseCursorMotion == .default)
+    #expect(prefs.computerUseMaxImageDimension == 1600)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
@@ -94,6 +98,15 @@ struct SupatermSettingsTests {
 
         [computer_use]
         always_float_agent_cursor = false
+        cursor_arc_flow = 0.36
+        cursor_arc_size = 80.0
+        cursor_dwell_after_click_ms = 80
+        cursor_end_handle = 0.76
+        cursor_glide_duration_ms = 220
+        cursor_idle_hide_ms = 900
+        cursor_spring = 0.16
+        cursor_start_handle = 0.24
+        max_image_dimension = 1600
         show_agent_cursor = true
         snapshot_mode = "som"
 
@@ -122,6 +135,17 @@ struct SupatermSettingsTests {
         appearanceMode: .dark,
         analyticsEnabled: false,
         computerUseAlwaysFloatAgentCursor: true,
+        computerUseCursorMotion: .init(
+          startHandle: 0.1,
+          endHandle: 0.9,
+          arcSize: 40,
+          arcFlow: 0.2,
+          spring: 0.05,
+          glideDurationMilliseconds: 90,
+          dwellAfterClickMilliseconds: 20,
+          idleHideMilliseconds: 300
+        ),
+        computerUseMaxImageDimension: 1200,
         computerUseShowAgentCursor: false,
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
@@ -139,6 +163,17 @@ struct SupatermSettingsTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           computerUseAlwaysFloatAgentCursor: true,
+          computerUseCursorMotion: .init(
+            startHandle: 0.1,
+            endHandle: 0.9,
+            arcSize: 40,
+            arcFlow: 0.2,
+            spring: 0.05,
+            glideDurationMilliseconds: 90,
+            dwellAfterClickMilliseconds: 20,
+            idleHideMilliseconds: 300
+          ),
+          computerUseMaxImageDimension: 1200,
           computerUseShowAgentCursor: false,
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
@@ -164,6 +199,8 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
+    #expect(prefs.computerUseCursorMotion == .default)
+    #expect(prefs.computerUseMaxImageDimension == 1600)
     #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)

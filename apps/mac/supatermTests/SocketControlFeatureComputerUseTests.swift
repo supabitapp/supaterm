@@ -263,6 +263,100 @@ struct SocketControlFeatureComputerUseTests {
       try await recorder.snapshot().first?.response.decodeResult(
         SupatermComputerUsePageResult.self) == expected)
   }
+
+  @Test
+  func utilityRequestsRoutePayloadsToComputerUseClient() async throws {
+    let recorder = SocketReplyRecorder()
+    let zoomRecorder = ComputerUsePayloadRecorder<SupatermComputerUseZoomRequest>()
+    let recordingRecorder = ComputerUsePayloadRecorder<SupatermComputerUseRecordingRequest>()
+    let hotkeyRecorder = ComputerUsePayloadRecorder<SupatermComputerUseHotkeyRequest>()
+    let screenSize = SupatermComputerUseScreenSizeResult(width: 1512, height: 982, scale: 2)
+    let zoomPayload = SupatermComputerUseZoomRequest(
+      pid: 123,
+      windowID: 456,
+      x: 1,
+      y: 2,
+      width: 30,
+      height: 40,
+      imageOutputPath: "/tmp/zoom.png"
+    )
+    let zoomResult = SupatermComputerUseZoomResult(
+      pid: 123,
+      windowID: 456,
+      source: .init(x: 1, y: 2, width: 30, height: 40),
+      screenshot: .init(path: "/tmp/zoom.png", width: 30, height: 40),
+      snapshotToNativeRatio: 2
+    )
+    let recordingPayload = SupatermComputerUseRecordingRequest(action: .replay, directory: "/tmp/run")
+    let recordingResult = SupatermComputerUseRecordingResult(
+      active: false,
+      directory: "/tmp/run",
+      turns: 3,
+      succeeded: 3,
+      failed: 0
+    )
+    let hotkeyPayload = SupatermComputerUseHotkeyRequest(
+      pid: 123,
+      windowID: 456,
+      keys: ["cmd+shift+p"]
+    )
+    let hotkeyResult = SupatermComputerUseActionResult(ok: true, dispatch: "pid_event")
+    let store = makeStore {
+      $0.computerUseClient.screenSize = { screenSize }
+      $0.computerUseClient.zoom = { request in
+        await zoomRecorder.record(request)
+        return zoomResult
+      }
+      $0.computerUseClient.recording = { request in
+        await recordingRecorder.record(request)
+        return recordingResult
+      }
+      $0.computerUseClient.hotkey = { request in
+        await hotkeyRecorder.record(request)
+        return hotkeyResult
+      }
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+    }
+
+    let screenHandle = UUID(uuidString: "1F9C05E8-13D3-4F25-97B4-24592B8129EC")!
+    await store.send(
+      .requestReceived(.init(handle: screenHandle, payload: .computerUseScreenSize(id: "screen-size")))
+    )
+    let zoomHandle = UUID(uuidString: "35F7AF90-476B-49FB-9C42-91107D2636D2")!
+    await store.send(
+      .requestReceived(
+        .init(handle: zoomHandle, payload: try .computerUseZoom(zoomPayload, id: "zoom"))
+      )
+    )
+    let recordingHandle = UUID(uuidString: "7F18F082-C4C2-46A8-9F1A-20B6A41B852D")!
+    await store.send(
+      .requestReceived(
+        .init(
+          handle: recordingHandle,
+          payload: try .computerUseRecording(recordingPayload, id: "recording")
+        )
+      )
+    )
+    let hotkeyHandle = UUID(uuidString: "8D63E6CB-8B5E-491C-937B-58578E1C76AD")!
+    await store.send(
+      .requestReceived(
+        .init(handle: hotkeyHandle, payload: try .computerUseHotkey(hotkeyPayload, id: "hotkey"))
+      )
+    )
+
+    let responses = await recorder.snapshot()
+    #expect(try responses[0].response.decodeResult(SupatermComputerUseScreenSizeResult.self) == screenSize)
+    #expect(await zoomRecorder.snapshot() == zoomPayload)
+    #expect(try responses[1].response.decodeResult(SupatermComputerUseZoomResult.self) == zoomResult)
+    #expect(await recordingRecorder.snapshot() == recordingPayload)
+    #expect(
+      try responses[2].response.decodeResult(SupatermComputerUseRecordingResult.self)
+        == recordingResult)
+    #expect(await hotkeyRecorder.snapshot() == hotkeyPayload)
+    #expect(try responses[3].response.decodeResult(SupatermComputerUseActionResult.self) == hotkeyResult)
+  }
 }
 
 private actor ComputerUseSnapshotRecorder {
@@ -309,6 +403,18 @@ private actor ComputerUsePageRecorder {
   }
 
   func snapshot() -> SupatermComputerUsePageRequest? {
+    payload
+  }
+}
+
+private actor ComputerUsePayloadRecorder<Payload: Sendable> {
+  private var payload: Payload?
+
+  func record(_ payload: Payload) {
+    self.payload = payload
+  }
+
+  func snapshot() -> Payload? {
     payload
   }
 }

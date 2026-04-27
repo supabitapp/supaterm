@@ -23,11 +23,29 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     let windowID: UInt32
   }
 
+  private struct ZoomContext {
+    let source: CGRect
+    let snapshotToNativeRatio: Double
+  }
+
+  private struct ScreenshotCaptureRequest {
+    let windowID: UInt32
+    let outputPath: String?
+    let format: SupatermComputerUseImageFormat
+    let quality: Double?
+    let maxImageDimension: Int
+    let cacheKey: CacheKey?
+  }
+
   private let cursorOverlay = ComputerUseCursorOverlay()
   private let focusGuard = ComputerUseFocusGuard()
   private let launchFocusStealPreventer = ComputerUseSystemFocusStealPreventer()
   private let pageRuntime = ComputerUsePageRuntime()
+  private let recorder = ComputerUseRecorder()
   private var elementCache: [CacheKey: [Int: AXUIElement]] = [:]
+  private var resizeRatios: [CacheKey: Double] = [:]
+  private var zoomContexts: [CacheKey: ZoomContext] = [:]
+  private var recordingSuppressed = false
 
   public init() {}
 
@@ -52,6 +70,114 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       }
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     return .init(apps: apps)
+  }
+
+  public func screenSize() -> SupatermComputerUseScreenSizeResult {
+    let displayID = CGMainDisplayID()
+    let bounds = CGDisplayBounds(displayID)
+    let scale =
+      bounds.width > 0 ? Double(CGDisplayPixelsWide(displayID)) / Double(bounds.width) : 1
+    return .init(width: bounds.width, height: bounds.height, scale: scale)
+  }
+
+  public func cursorPosition() -> SupatermComputerUseCursorPositionResult {
+    let point = CGEvent(source: nil)?.location ?? .zero
+    return .init(x: point.x, y: point.y)
+  }
+
+  public func moveCursor(
+    _ request: SupatermComputerUseMoveCursorRequest
+  ) throws -> SupatermComputerUseActionResult {
+    CGWarpMouseCursorPosition(.init(x: request.x, y: request.y))
+    CGAssociateMouseAndMouseCursorPosition(boolean_t(1))
+    return .init(ok: true, dispatch: "core-graphics")
+  }
+
+  public func cursorState() -> SupatermComputerUseCursorResult {
+    @Shared(.supatermSettings) var supatermSettings = .default
+    return .init(
+      enabled: supatermSettings.computerUseShowAgentCursor,
+      alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
+      motion: supatermSettings.computerUseCursorMotion
+    )
+  }
+
+  public func cursorSet(
+    _ request: SupatermComputerUseCursorRequest
+  ) throws -> SupatermComputerUseCursorResult {
+    @Shared(.supatermSettings) var supatermSettings = .default
+    var next = supatermSettings
+    if let enabled = request.enabled {
+      next.computerUseShowAgentCursor = enabled
+    }
+    if let alwaysFloat = request.alwaysFloat {
+      next.computerUseAlwaysFloatAgentCursor = alwaysFloat
+    }
+    if let motion = request.motion {
+      next.computerUseCursorMotion = motion
+    }
+    if request.startHandle != nil
+      || request.endHandle != nil
+      || request.arcSize != nil
+      || request.arcFlow != nil
+      || request.spring != nil
+      || request.glideDurationMilliseconds != nil
+      || request.dwellAfterClickMilliseconds != nil
+      || request.idleHideMilliseconds != nil
+    {
+      let current = next.computerUseCursorMotion
+      next.computerUseCursorMotion = .init(
+        startHandle: request.startHandle ?? current.startHandle,
+        endHandle: request.endHandle ?? current.endHandle,
+        arcSize: request.arcSize ?? current.arcSize,
+        arcFlow: request.arcFlow ?? current.arcFlow,
+        spring: request.spring ?? current.spring,
+        glideDurationMilliseconds: request.glideDurationMilliseconds ?? current.glideDurationMilliseconds,
+        dwellAfterClickMilliseconds: request.dwellAfterClickMilliseconds ?? current.dwellAfterClickMilliseconds,
+        idleHideMilliseconds: request.idleHideMilliseconds ?? current.idleHideMilliseconds
+      )
+    }
+    $supatermSettings.withLock {
+      $0 = next
+    }
+    return .init(
+      enabled: next.computerUseShowAgentCursor,
+      alwaysFloat: next.computerUseAlwaysFloatAgentCursor,
+      motion: next.computerUseCursorMotion
+    )
+  }
+
+  private func hotkeyParts(
+    _ values: [String]
+  ) throws -> (key: String, modifiers: [SupatermComputerUseKeyModifier]) {
+    let tokens =
+      values
+      .flatMap { $0.split(separator: "+") }
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+      .filter { !$0.isEmpty }
+    var modifiers = Set<SupatermComputerUseKeyModifier>()
+    var key: String?
+    for token in tokens {
+      switch token {
+      case "cmd", "command", "meta":
+        modifiers.insert(.command)
+      case "shift":
+        modifiers.insert(.shift)
+      case "alt", "option", "opt":
+        modifiers.insert(.option)
+      case "control", "ctrl":
+        modifiers.insert(.control)
+      case "fn", "function":
+        modifiers.insert(.function)
+      default:
+        key = token
+      }
+    }
+    guard let key else {
+      throw ComputerUseError.keyUnsupported(values.joined(separator: "+"))
+    }
+    let order: [SupatermComputerUseKeyModifier] = [.command, .shift, .option, .control, .function]
+    return (key, order.filter(modifiers.contains))
   }
 
   public func launch(
@@ -195,13 +321,104 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     let screenshot =
       mode == .ax && request.imageOutputPath == nil
       ? nil
-      : try await screenshot(windowID: request.windowID, outputPath: request.imageOutputPath)
+      : try await screenshot(
+        .init(
+          windowID: request.windowID,
+          outputPath: request.imageOutputPath,
+          format: .png,
+          quality: nil,
+          maxImageDimension: currentMaxImageDimension(),
+          cacheKey: .init(pid: request.pid, windowID: request.windowID)
+        )
+      )
+    let javascript = await snapshotJavaScript(request)
     return .init(
       pid: request.pid,
       windowID: request.windowID,
       frame: windowInfo.window.frame,
       elements: filteredElements,
-      screenshot: screenshot
+      screenshot: screenshot,
+      javascript: javascript
+    )
+  }
+
+  public func screenshot(
+    _ request: SupatermComputerUseScreenshotRequest
+  ) async throws -> SupatermComputerUseScreenshot {
+    if let windowID = request.windowID {
+      guard
+        let screenshot = try await screenshot(
+          .init(
+            windowID: windowID,
+            outputPath: request.imageOutputPath,
+            format: request.format,
+            quality: request.quality,
+            maxImageDimension: currentMaxImageDimension(),
+            cacheKey: nil
+          )
+        )
+      else {
+        throw ComputerUseError.screenRecordingPermissionMissing
+      }
+      return screenshot
+    }
+    let image = try await mainDisplayImage()
+    let prepared = resizedImage(image, maxImageDimension: currentMaxImageDimension())
+    let url = URL(fileURLWithPath: NSString(string: request.imageOutputPath).expandingTildeInPath)
+    try writeImage(prepared.image, to: url, format: request.format, quality: request.quality)
+    return .init(
+      path: url.path,
+      width: prepared.image.width,
+      height: prepared.image.height,
+      originalWidth: image.width,
+      originalHeight: image.height,
+      scale: screenSize().scale
+    )
+  }
+
+  public func zoom(
+    _ request: SupatermComputerUseZoomRequest
+  ) async throws -> SupatermComputerUseZoomResult {
+    guard windowInfo(windowID: request.windowID, pid: request.pid) != nil else {
+      throw ComputerUseError.windowNotFound(request.windowID)
+    }
+    let key = CacheKey(pid: request.pid, windowID: request.windowID)
+    let ratio = resizeRatios[key] ?? 1
+    let capture = try await windowImage(windowID: request.windowID)
+    let nativeSource = CGRect(
+      x: request.x * ratio,
+      y: request.y * ratio,
+      width: request.width * ratio,
+      height: request.height * ratio
+    )
+    let padded = nativeSource.insetBy(dx: -nativeSource.width * 0.2, dy: -nativeSource.height * 0.2)
+    let bounds = CGRect(x: 0, y: 0, width: capture.image.width, height: capture.image.height)
+    let crop = padded.intersection(bounds)
+    guard !crop.isNull, let cropped = capture.image.cropping(to: crop.integral) else {
+      throw ComputerUseError.invalidClickTarget
+    }
+    let url = URL(fileURLWithPath: NSString(string: request.imageOutputPath).expandingTildeInPath)
+    try writeImage(cropped, to: url, format: .png, quality: nil)
+    let source = SupatermComputerUseRect(
+      x: crop.origin.x,
+      y: crop.origin.y,
+      width: crop.width,
+      height: crop.height
+    )
+    zoomContexts[key] = .init(source: crop, snapshotToNativeRatio: ratio)
+    return .init(
+      pid: request.pid,
+      windowID: request.windowID,
+      source: source,
+      screenshot: .init(
+        path: url.path,
+        width: cropped.width,
+        height: cropped.height,
+        originalWidth: cropped.width,
+        originalHeight: cropped.height,
+        scale: capture.scale
+      ),
+      snapshotToNativeRatio: ratio
     )
   }
 
@@ -211,22 +428,52 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let elementIndex = request.elementIndex {
       let element = try cachedElement(
         pid: request.pid, windowID: request.windowID, elementIndex: elementIndex)
-      return try await clickElement(element, request: request)
+      let result = try await clickElement(element, request: request)
+      await recordAction(
+        method: SupatermSocketMethod.computerUseClick,
+        request: request,
+        result: result,
+        windowID: request.windowID,
+        marker: nil
+      )
+      return result
     }
 
     guard let x = request.x, let y = request.y else {
       throw ComputerUseError.invalidClickTarget
     }
-    return try await postClick(
+    if request.debugImageOutputPath != nil && request.fromZoom {
+      throw ComputerUseError.invalidClickTarget
+    }
+    if let debugImageOutputPath = request.debugImageOutputPath {
+      try await writeDebugClickImage(
+        windowID: request.windowID,
+        point: .init(x: x, y: y),
+        outputPath: debugImageOutputPath
+      )
+    }
+    let result = try await postClick(
       point: try screenPoint(
-        windowPixel: .init(x: x, y: y), pid: request.pid, windowID: request.windowID),
+        windowPixel: .init(x: x, y: y),
+        pid: request.pid,
+        windowID: request.windowID,
+        fromZoom: request.fromZoom
+      ),
       request: request
     )
+    await recordAction(
+      method: SupatermSocketMethod.computerUseClick,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: request.fromZoom ? nil : .init(x: x, y: y)
+    )
+    return result
   }
 
   public func type(
     _ request: SupatermComputerUseTypeRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     if let elementIndex = request.elementIndex {
       guard let windowID = request.windowID else {
         throw ComputerUseError.snapshotRequired
@@ -243,7 +490,15 @@ public final class ComputerUseRuntime: @unchecked Sendable {
             throw ComputerUseError.unsupportedBackgroundTarget
           }
         }
-        return .init(ok: true, dispatch: "accessibility")
+        let result = SupatermComputerUseActionResult(ok: true, dispatch: "accessibility")
+        await recordAction(
+          method: SupatermSocketMethod.computerUseType,
+          request: request,
+          result: result,
+          windowID: request.windowID,
+          marker: nil
+        )
+        return result
       } catch ComputerUseError.unsupportedBackgroundTarget {
         focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
           _ = AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
@@ -255,12 +510,20 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       delayMilliseconds: request.delayMilliseconds,
       pid: pid_t(request.pid)
     )
-    return .init(ok: true, dispatch: dispatch.rawValue)
+    let result = SupatermComputerUseActionResult(ok: true, dispatch: dispatch.rawValue)
+    await recordAction(
+      method: SupatermSocketMethod.computerUseType,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return result
   }
 
   public func key(
     _ request: SupatermComputerUseKeyRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     let target = try focusTarget(
       pid: request.pid,
       windowID: request.windowID,
@@ -273,12 +536,51 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         pid: pid_t(request.pid)
       )
     }
-    return .init(ok: true, dispatch: dispatch.rawValue)
+    let result = SupatermComputerUseActionResult(ok: true, dispatch: dispatch.rawValue)
+    await recordAction(
+      method: SupatermSocketMethod.computerUseKey,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return result
+  }
+
+  public func hotkey(
+    _ request: SupatermComputerUseHotkeyRequest
+  ) async throws -> SupatermComputerUseActionResult {
+    let parsed = try hotkeyParts(request.keys)
+    let wasSuppressed = recordingSuppressed
+    recordingSuppressed = true
+    let keyRequest = SupatermComputerUseKeyRequest(
+      pid: request.pid,
+      windowID: request.windowID,
+      elementIndex: request.elementIndex,
+      key: parsed.key,
+      modifiers: parsed.modifiers
+    )
+    let result: SupatermComputerUseActionResult
+    do {
+      result = try await key(keyRequest)
+    } catch {
+      recordingSuppressed = wasSuppressed
+      throw error
+    }
+    recordingSuppressed = wasSuppressed
+    await recordAction(
+      method: SupatermSocketMethod.computerUseHotkey,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return result
   }
 
   public func scroll(
     _ request: SupatermComputerUseScrollRequest
-  ) throws -> SupatermComputerUseActionResult {
+  ) async throws -> SupatermComputerUseActionResult {
     let target = try focusTarget(
       pid: request.pid,
       windowID: request.windowID,
@@ -296,7 +598,15 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         usleep(18_000)
       }
     }
-    return .init(ok: true, dispatch: dispatch.rawValue)
+    let result = SupatermComputerUseActionResult(ok: true, dispatch: dispatch.rawValue)
+    await recordAction(
+      method: SupatermSocketMethod.computerUseScroll,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return result
   }
 
   public func setValue(
@@ -308,7 +618,15 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       elementIndex: request.elementIndex
     )
     if axString(element, kAXRoleAttribute as CFString) == kAXPopUpButtonRole as String {
-      return try await selectPopupValue(element, request: request)
+      let result = try await selectPopupValue(element, request: request)
+      await recordAction(
+        method: SupatermSocketMethod.computerUseSetValue,
+        request: request,
+        result: result,
+        windowID: request.windowID,
+        marker: nil
+      )
+      return result
     }
     let result = focusGuard.withFocusSuppressed(pid: pid_t(request.pid), element: element) {
       AXUIElementSetAttributeValue(
@@ -318,13 +636,146 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       )
     }
     guard result == .success else { throw ComputerUseError.unsupportedBackgroundTarget }
-    return .init(ok: true, dispatch: "accessibility")
+    let actionResult = SupatermComputerUseActionResult(ok: true, dispatch: "accessibility")
+    await recordAction(
+      method: SupatermSocketMethod.computerUseSetValue,
+      request: request,
+      result: actionResult,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return actionResult
   }
 
   public func page(
     _ request: SupatermComputerUsePageRequest
   ) async throws -> SupatermComputerUsePageResult {
-    try await pageRuntime.page(request)
+    let result = try await pageRuntime.page(request)
+    await recordAction(
+      method: SupatermSocketMethod.computerUsePage,
+      request: request,
+      result: result,
+      windowID: request.windowID,
+      marker: nil
+    )
+    return result
+  }
+
+  public func recording(
+    _ request: SupatermComputerUseRecordingRequest
+  ) async throws -> SupatermComputerUseRecordingResult {
+    switch request.action {
+    case .start:
+      return try recorder.start(directory: request.directory)
+    case .stop:
+      return recorder.stop()
+    case .status:
+      return recorder.status()
+    case .replay:
+      return try await replayRecording(request)
+    case .render:
+      return try recorder.render(directory: request.directory, outputPath: request.outputPath)
+    }
+  }
+
+  private func recordAction<Request: Encodable, Result: Encodable>(
+    method: String,
+    request: Request,
+    result: Result,
+    windowID: UInt32?,
+    marker: CGPoint?
+  ) async {
+    guard !recordingSuppressed, let turn = try? recorder.beginTurn() else {
+      return
+    }
+    var screenshotPath: String?
+    var markerPath: String?
+    if let windowID {
+      let screenshotURL = turn.directory.appendingPathComponent("screenshot.png")
+      if (try? await screenshot(
+        .init(
+          windowID: windowID,
+          outputPath: screenshotURL.path,
+          format: .png,
+          quality: nil,
+          maxImageDimension: currentMaxImageDimension(),
+          cacheKey: nil
+        )
+      )) != nil {
+        screenshotPath = screenshotURL.path
+      }
+      if let marker {
+        let markerURL = turn.directory.appendingPathComponent("click.png")
+        if (try? await writeDebugClickImage(windowID: windowID, point: marker, outputPath: markerURL.path)) != nil {
+          markerPath = markerURL.path
+        }
+      }
+    }
+    try? recorder.finishTurn(
+      turn,
+      .init(
+        method: method,
+        request: request,
+        result: result,
+        screenshotPath: screenshotPath,
+        markerPath: markerPath
+      )
+    )
+  }
+
+  private func replayRecording(
+    _ request: SupatermComputerUseRecordingRequest
+  ) async throws -> SupatermComputerUseRecordingResult {
+    let requests = try recorder.recordedRequests(directory: request.directory)
+    let wasSuppressed = recordingSuppressed
+    recordingSuppressed = true
+    var succeeded = 0
+    var failed = 0
+    for recordedRequest in requests {
+      do {
+        try await performRecorded(recordedRequest)
+        succeeded += 1
+      } catch {
+        failed += 1
+        if !request.keepGoing {
+          recordingSuppressed = wasSuppressed
+          throw error
+        }
+      }
+      let delayMilliseconds = max(0, request.delayMilliseconds)
+      if delayMilliseconds > 0 {
+        try? await Task.sleep(nanoseconds: UInt64(delayMilliseconds) * 1_000_000)
+      }
+    }
+    recordingSuppressed = wasSuppressed
+    return .init(
+      active: recorder.isActive,
+      directory: request.directory ?? recorder.currentDirectoryPath,
+      turns: requests.count,
+      succeeded: succeeded,
+      failed: failed
+    )
+  }
+
+  private func performRecorded(_ request: SupatermSocketRequest) async throws {
+    switch request.method {
+    case SupatermSocketMethod.computerUseClick:
+      _ = try await click(request.decodeParams(SupatermComputerUseClickRequest.self))
+    case SupatermSocketMethod.computerUseType:
+      _ = try await type(request.decodeParams(SupatermComputerUseTypeRequest.self))
+    case SupatermSocketMethod.computerUseKey:
+      _ = try await key(request.decodeParams(SupatermComputerUseKeyRequest.self))
+    case SupatermSocketMethod.computerUseHotkey:
+      _ = try await hotkey(request.decodeParams(SupatermComputerUseHotkeyRequest.self))
+    case SupatermSocketMethod.computerUseScroll:
+      _ = try await scroll(request.decodeParams(SupatermComputerUseScrollRequest.self))
+    case SupatermSocketMethod.computerUseSetValue:
+      _ = try await setValue(request.decodeParams(SupatermComputerUseSetValueRequest.self))
+    case SupatermSocketMethod.computerUsePage:
+      _ = try await page(request.decodeParams(SupatermComputerUsePageRequest.self))
+    default:
+      throw ComputerUseError.pageUnsupported("Recording cannot replay \(request.method).")
+    }
   }
 
   private func screenRecordingGranted() async -> Bool {
@@ -477,6 +928,30 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return supatermSettings.computerUseSnapshotMode
   }
 
+  private func currentMaxImageDimension() -> Int {
+    @Shared(.supatermSettings) var supatermSettings = .default
+    return max(0, supatermSettings.computerUseMaxImageDimension)
+  }
+
+  private func snapshotJavaScript(
+    _ request: SupatermComputerUseSnapshotRequest
+  ) async -> SupatermComputerUseSnapshotJavaScriptResult? {
+    guard let javascript = request.javascript?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !javascript.isEmpty
+    else {
+      return nil
+    }
+    do {
+      return try await pageRuntime.evaluateSnapshotJavaScript(
+        javascript,
+        pid: request.pid,
+        windowID: request.windowID
+      )
+    } catch {
+      return .init(ok: false, error: error.localizedDescription)
+    }
+  }
+
   private func elementMatchesQuery(
     _ element: SupatermComputerUseElement,
     query: String?
@@ -599,25 +1074,54 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     return UInt32(windowID)
   }
 
-  private func screenshot(windowID: UInt32, outputPath: String?) async throws
+  private func screenshot(
+    _ request: ScreenshotCaptureRequest
+  ) async throws
     -> SupatermComputerUseScreenshot?
   {
-    let content: SCShareableContent
+    let capture: (image: CGImage, scale: Double)
     do {
-      content = try await SCShareableContent.excludingDesktopWindows(
-        false, onScreenWindowsOnly: true)
+      capture = try await windowImage(windowID: request.windowID)
     } catch {
-      if outputPath != nil {
+      if request.outputPath != nil {
         throw ComputerUseError.screenRecordingPermissionMissing
       }
       return nil
     }
+    let prepared = resizedImage(capture.image, maxImageDimension: request.maxImageDimension)
+    if let cacheKey = request.cacheKey {
+      resizeRatios[cacheKey] = prepared.snapshotToNativeRatio
+    }
+
+    if let outputPath = request.outputPath {
+      let url = URL(fileURLWithPath: NSString(string: outputPath).expandingTildeInPath)
+      try writeImage(prepared.image, to: url, format: request.format, quality: request.quality)
+      return .init(
+        path: url.path,
+        width: prepared.image.width,
+        height: prepared.image.height,
+        originalWidth: capture.image.width,
+        originalHeight: capture.image.height,
+        scale: capture.scale
+      )
+    }
+
+    return .init(
+      path: nil,
+      width: prepared.image.width,
+      height: prepared.image.height,
+      originalWidth: capture.image.width,
+      originalHeight: capture.image.height,
+      scale: capture.scale
+    )
+  }
+
+  private func windowImage(windowID: UInt32) async throws -> (image: CGImage, scale: Double) {
+    let content = try await SCShareableContent.excludingDesktopWindows(
+      false, onScreenWindowsOnly: true)
 
     guard let window = content.windows.first(where: { $0.windowID == CGWindowID(windowID) }) else {
-      if outputPath != nil {
-        throw ComputerUseError.screenRecordingPermissionMissing
-      }
-      return nil
+      throw ComputerUseError.windowNotFound(windowID)
     }
 
     let filter = SCContentFilter(desktopIndependentWindow: window)
@@ -629,24 +1133,132 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     configuration.scalesToFit = true
     configuration.ignoreShadowsSingleWindow = true
 
-    let image = try await captureImage(filter: filter, configuration: configuration)
+    return (
+      image: try await captureImage(filter: filter, configuration: configuration),
+      scale: Double(scale)
+    )
+  }
 
-    if let outputPath {
-      let url = URL(fileURLWithPath: NSString(string: outputPath).expandingTildeInPath)
-      guard
-        let destination = CGImageDestinationCreateWithURL(
-          url as CFURL, "public.png" as CFString, 1, nil)
-      else {
-        throw ComputerUseError.imageWriteFailed(outputPath)
-      }
-      CGImageDestinationAddImage(destination, image, nil)
-      guard CGImageDestinationFinalize(destination) else {
-        throw ComputerUseError.imageWriteFailed(outputPath)
-      }
-      return .init(path: url.path, width: image.width, height: image.height, scale: Double(scale))
+  private func mainDisplayImage() async throws -> CGImage {
+    let content = try await SCShareableContent.excludingDesktopWindows(
+      false,
+      onScreenWindowsOnly: true
+    )
+    guard let display = content.displays.first else {
+      throw ComputerUseError.screenRecordingPermissionMissing
     }
+    let filter = SCContentFilter(display: display, excludingWindows: [])
+    let configuration = SCStreamConfiguration()
+    configuration.width = display.width
+    configuration.height = display.height
+    configuration.showsCursor = true
+    configuration.scalesToFit = true
+    return try await captureImage(filter: filter, configuration: configuration)
+  }
 
-    return .init(path: nil, width: image.width, height: image.height, scale: Double(scale))
+  private func resizedImage(
+    _ image: CGImage,
+    maxImageDimension: Int
+  ) -> (image: CGImage, snapshotToNativeRatio: Double) {
+    let largest = max(image.width, image.height)
+    guard maxImageDimension > 0, largest > maxImageDimension else {
+      return (image, 1)
+    }
+    let ratio = Double(largest) / Double(maxImageDimension)
+    let width = max(1, Int((Double(image.width) / ratio).rounded()))
+    let height = max(1, Int((Double(image.height) / ratio).rounded()))
+    guard
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      return (image, 1)
+    }
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    guard let resized = context.makeImage() else {
+      return (image, 1)
+    }
+    return (resized, ratio)
+  }
+
+  private func writeImage(
+    _ image: CGImage,
+    to url: URL,
+    format: SupatermComputerUseImageFormat,
+    quality: Double?
+  ) throws {
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true,
+      attributes: nil
+    )
+    let type: CFString
+    switch format {
+    case .png:
+      type = "public.png" as CFString
+    case .jpeg:
+      type = "public.jpeg" as CFString
+    }
+    guard let destination = CGImageDestinationCreateWithURL(url as CFURL, type, 1, nil) else {
+      throw ComputerUseError.imageWriteFailed(url.path)
+    }
+    var properties: [CFString: Any] = [:]
+    if format == .jpeg, let quality {
+      properties[kCGImageDestinationLossyCompressionQuality] = min(1, max(0, quality))
+    }
+    CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+    guard CGImageDestinationFinalize(destination) else {
+      throw ComputerUseError.imageWriteFailed(url.path)
+    }
+  }
+
+  private func writeDebugClickImage(
+    windowID: UInt32,
+    point: CGPoint,
+    outputPath: String
+  ) async throws {
+    let capture = try await windowImage(windowID: windowID)
+    let prepared = resizedImage(capture.image, maxImageDimension: currentMaxImageDimension())
+    guard
+      let context = CGContext(
+        data: nil,
+        width: prepared.image.width,
+        height: prepared.image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      throw ComputerUseError.imageWriteFailed(outputPath)
+    }
+    context.draw(
+      prepared.image,
+      in: CGRect(x: 0, y: 0, width: prepared.image.width, height: prepared.image.height)
+    )
+    context.setStrokeColor(NSColor.systemRed.cgColor)
+    context.setLineWidth(4)
+    let radius = 18.0
+    context.strokeEllipse(
+      in: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)
+    )
+    context.move(to: CGPoint(x: point.x - radius * 1.5, y: point.y))
+    context.addLine(to: CGPoint(x: point.x + radius * 1.5, y: point.y))
+    context.move(to: CGPoint(x: point.x, y: point.y - radius * 1.5))
+    context.addLine(to: CGPoint(x: point.x, y: point.y + radius * 1.5))
+    context.strokePath()
+    guard let image = context.makeImage() else {
+      throw ComputerUseError.imageWriteFailed(outputPath)
+    }
+    let url = URL(fileURLWithPath: NSString(string: outputPath).expandingTildeInPath)
+    try writeImage(image, to: url, format: .png, quality: nil)
   }
 
   private func captureImage(filter: SCContentFilter, configuration: SCStreamConfiguration)
@@ -794,7 +1406,8 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
         activity: activity,
         targetPid: pid_t(targetPid),
-        targetWindowID: windowID
+        targetWindowID: windowID,
+        motion: supatermSettings.computerUseCursorMotion
       )
     )
   }
@@ -1049,14 +1662,33 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     .init(x: frame.midX, y: frame.midY)
   }
 
-  private func screenPoint(windowPixel: CGPoint, pid: Int, windowID: UInt32) throws -> CGPoint {
+  private func screenPoint(
+    windowPixel: CGPoint,
+    pid: Int,
+    windowID: UInt32,
+    fromZoom: Bool = false
+  ) throws -> CGPoint {
     guard let window = windowInfo(windowID: windowID, pid: pid) else {
       throw ComputerUseError.windowNotFound(windowID)
     }
     let scale = backingScale(for: window.window.frame)
+    let key = CacheKey(pid: pid, windowID: windowID)
+    let nativePixel: CGPoint
+    if fromZoom {
+      guard let context = zoomContexts[key] else {
+        throw ComputerUseError.snapshotRequired
+      }
+      nativePixel = .init(
+        x: context.source.origin.x + windowPixel.x,
+        y: context.source.origin.y + windowPixel.y
+      )
+    } else {
+      let ratio = resizeRatios[key] ?? 1
+      nativePixel = .init(x: windowPixel.x * ratio, y: windowPixel.y * ratio)
+    }
     return .init(
-      x: window.window.frame.x + windowPixel.x / scale,
-      y: window.window.frame.y + windowPixel.y / scale
+      x: window.window.frame.x + nativePixel.x / scale,
+      y: window.window.frame.y + nativePixel.y / scale
     )
   }
 

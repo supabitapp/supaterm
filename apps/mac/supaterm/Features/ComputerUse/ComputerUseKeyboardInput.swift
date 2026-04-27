@@ -135,6 +135,8 @@ enum ComputerUseKeyboardInput {
         flags.insert(.maskAlternate)
       case .control:
         flags.insert(.maskControl)
+      case .function:
+        flags.insert(.maskSecondaryFn)
       }
     }
   }
@@ -145,8 +147,23 @@ enum ComputerUseKeyboardInput {
     "tab": 48,
     "space": 49,
     "delete": 51,
+    "del": 51,
+    "forwarddelete": 117,
+    "forward-delete": 117,
     "escape": 53,
     "esc": 53,
+    "f1": 122,
+    "f2": 120,
+    "f3": 99,
+    "f4": 118,
+    "f5": 96,
+    "f6": 97,
+    "f7": 98,
+    "f8": 100,
+    "f9": 101,
+    "f10": 109,
+    "f11": 103,
+    "f12": 111,
     "page-up": 116,
     "pageup": 116,
     "page-down": 121,

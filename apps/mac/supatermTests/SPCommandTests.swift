@@ -425,6 +425,193 @@ struct SPCommandTests {
   }
 
   @Test
+  func computerUseParserAcceptsSnapshotJavaScriptAndDebugClick() throws {
+    let snapshot = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "snapshot",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--javascript",
+        "document.title",
+      ]) as? SP.ComputerUseSnapshot
+    )
+    let coordinateClick = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "click",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--x",
+        "320",
+        "--y",
+        "240",
+        "--debug-image-out",
+        "/tmp/click.png",
+      ]) as? SP.ComputerUseClick
+    )
+
+    #expect(snapshot.javascript == "document.title")
+    #expect(coordinateClick.debugImageOutputPath == "/tmp/click.png")
+  }
+
+  @Test
+  func computerUseParserAcceptsScreenAndCursorSubcommands() throws {
+    let screenSize = try #require(
+      try SP.parseAsRoot(["computer-use", "screen-size"]) as? SP.ComputerUseScreenSize
+    )
+    let cursorPosition = try #require(
+      try SP.parseAsRoot(["computer-use", "cursor", "position"]) as? SP.ComputerUseCursorPosition
+    )
+    let cursorMove = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "cursor",
+        "move",
+        "--x",
+        "12",
+        "--y",
+        "34",
+      ]) as? SP.ComputerUseCursorMove
+    )
+    let cursorSet = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "cursor",
+        "set",
+        "--enable",
+        "--always-float",
+        "--glide-ms",
+        "10",
+        "--dwell-ms",
+        "20",
+      ]) as? SP.ComputerUseCursorSet
+    )
+    #expect(type(of: screenSize) == SP.ComputerUseScreenSize.self)
+    #expect(type(of: cursorPosition) == SP.ComputerUseCursorPosition.self)
+    #expect(cursorMove.x == 12)
+    #expect(cursorMove.y == 34)
+    #expect(cursorSet.enable)
+    #expect(cursorSet.alwaysFloat)
+    #expect(cursorSet.glideMilliseconds == 10)
+    #expect(cursorSet.dwellMilliseconds == 20)
+  }
+
+  @Test
+  func computerUseParserAcceptsCaptureAndInputSubcommands() throws {
+    let screenshot = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "screenshot",
+        "--window",
+        "456",
+        "--image-out",
+        "/tmp/screen.jpg",
+        "--format",
+        "jpeg",
+        "--quality",
+        "0.85",
+      ]) as? SP.ComputerUseScreenshot
+    )
+    let zoom = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "zoom",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "--x",
+        "1",
+        "--y",
+        "2",
+        "--width",
+        "30",
+        "--height",
+        "40",
+        "--image-out",
+        "/tmp/zoom.png",
+      ]) as? SP.ComputerUseZoom
+    )
+    let typeChars = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "type-chars",
+        "--pid",
+        "123",
+        "--delay-ms",
+        "10",
+        "hello",
+      ]) as? SP.ComputerUseTypeChars
+    )
+    let hotkey = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "hotkey",
+        "--pid",
+        "123",
+        "--window",
+        "456",
+        "cmd+shift+p",
+      ]) as? SP.ComputerUseHotkey
+    )
+
+    #expect(screenshot.window == 456)
+    #expect(screenshot.format == .jpeg)
+    #expect(screenshot.quality == 0.85)
+    #expect(zoom.width == 30)
+    #expect(zoom.height == 40)
+    #expect(typeChars.text == "hello")
+    #expect(typeChars.delayMilliseconds == 10)
+    #expect(hotkey.combo == "cmd+shift+p")
+  }
+
+  @Test
+  func computerUseParserAcceptsRecordingSubcommands() throws {
+    let recordingStart = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "recording",
+        "start",
+        "--directory",
+        "/tmp/run",
+      ]) as? SP.ComputerUseRecordingStart
+    )
+    let recordingReplay = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "recording",
+        "replay",
+        "--directory",
+        "/tmp/run",
+        "--delay-ms",
+        "5",
+        "--keep-going",
+      ]) as? SP.ComputerUseRecordingReplay
+    )
+    let recordingRender = try #require(
+      try SP.parseAsRoot([
+        "computer-use",
+        "recording",
+        "render",
+        "--directory",
+        "/tmp/run",
+        "--output",
+        "/tmp/run.mp4",
+      ]) as? SP.ComputerUseRecordingRender
+    )
+
+    #expect(recordingStart.directory == "/tmp/run")
+    #expect(recordingReplay.delayMilliseconds == 5)
+    #expect(recordingReplay.keepGoing)
+    #expect(recordingRender.outputPath == "/tmp/run.mp4")
+  }
+
+  @Test
   func computerUseParserAcceptsPageSubcommands() throws {
     let getText = try #require(
       try SP.parseAsRoot([
@@ -470,7 +657,7 @@ struct SPCommandTests {
         "page",
         "enable-javascript-apple-events",
         "--browser",
-        "chrome",
+        "brave",
       ]) as? SP.ComputerUsePageEnableJavaScriptAppleEvents
     )
 
@@ -479,7 +666,7 @@ struct SPCommandTests {
     #expect(queryDOM.selector == "a")
     #expect(queryDOM.attribute == ["href"])
     #expect(executeJavaScript.javascript == "(() => document.title)()")
-    #expect(enable.browser == .chrome)
+    #expect(enable.browser == .brave)
     #expect(throws: (any Error).self) {
       try SP.parseAsRoot([
         "computer-use",

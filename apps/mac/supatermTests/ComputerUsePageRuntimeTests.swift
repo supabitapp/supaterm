@@ -37,6 +37,8 @@ struct ComputerUsePageRuntimeTests {
   @Test
   func browserEnumMapsToBundleIDs() {
     #expect(SupatermComputerUsePageBrowser.chrome.bundleID == "com.google.Chrome")
+    #expect(SupatermComputerUsePageBrowser.brave.bundleID == "com.brave.Browser")
+    #expect(SupatermComputerUsePageBrowser.edge.bundleID == "com.microsoft.edgemac")
     #expect(SupatermComputerUsePageBrowser.safari.bundleID == "com.apple.Safari")
   }
 
@@ -56,15 +58,24 @@ struct ComputerUsePageRuntimeTests {
       appName: "Google Chrome",
       bundleID: "com.google.Chrome"
     )
+    let edge = ComputerUsePageRuntime.appleEventsPermissionMessage(
+      detail: "Executing JavaScript through AppleScript is turned off.",
+      appName: "Microsoft Edge",
+      bundleID: "com.microsoft.edgemac"
+    )
     let expectedSafari =
       "Safari requires Allow JavaScript from Apple Events. "
       + "Run `sp computer-use page enable-javascript-apple-events --browser safari`, then retry."
     let expectedChrome =
       "Google Chrome requires JavaScript from Apple Events. "
       + "Run `sp computer-use page enable-javascript-apple-events --browser chrome`, then retry."
+    let expectedEdge =
+      "Microsoft Edge requires JavaScript from Apple Events. "
+      + "Run `sp computer-use page enable-javascript-apple-events --browser edge`, then retry."
 
     #expect(safari == expectedSafari)
     #expect(chrome == expectedChrome)
+    #expect(edge == expectedEdge)
     #expect(safari?.contains("/var") == false)
     #expect(safari?.contains("osascript") == false)
   }

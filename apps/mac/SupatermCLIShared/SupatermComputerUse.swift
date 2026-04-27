@@ -188,19 +188,22 @@ public struct SupatermComputerUseSnapshotRequest: Codable, Equatable, Sendable {
   public let imageOutputPath: String?
   public let query: String?
   public let mode: SupatermComputerUseSnapshotMode?
+  public let javascript: String?
 
   public init(
     pid: Int,
     windowID: UInt32,
     imageOutputPath: String? = nil,
     query: String? = nil,
-    mode: SupatermComputerUseSnapshotMode? = nil
+    mode: SupatermComputerUseSnapshotMode? = nil,
+    javascript: String? = nil
   ) {
     self.pid = pid
     self.windowID = windowID
     self.imageOutputPath = imageOutputPath
     self.query = query
     self.mode = mode
+    self.javascript = javascript
   }
 }
 
@@ -283,19 +286,22 @@ public struct SupatermComputerUseSnapshotResult: Codable, Equatable, Sendable {
   public let frame: SupatermComputerUseRect?
   public let elements: [SupatermComputerUseElement]
   public let screenshot: SupatermComputerUseScreenshot?
+  public let javascript: SupatermComputerUseSnapshotJavaScriptResult?
 
   public init(
     pid: Int,
     windowID: UInt32,
     frame: SupatermComputerUseRect?,
     elements: [SupatermComputerUseElement],
-    screenshot: SupatermComputerUseScreenshot?
+    screenshot: SupatermComputerUseScreenshot?,
+    javascript: SupatermComputerUseSnapshotJavaScriptResult? = nil
   ) {
     self.pid = pid
     self.windowID = windowID
     self.frame = frame
     self.elements = elements
     self.screenshot = screenshot
+    self.javascript = javascript
   }
 }
 
@@ -309,6 +315,8 @@ public struct SupatermComputerUseClickRequest: Codable, Equatable, Sendable {
   public let count: Int
   public let modifiers: [SupatermComputerUseClickModifier]
   public let action: SupatermComputerUseClickAction
+  public let fromZoom: Bool
+  public let debugImageOutputPath: String?
 
   public init(
     pid: Int,
@@ -319,7 +327,9 @@ public struct SupatermComputerUseClickRequest: Codable, Equatable, Sendable {
     button: SupatermComputerUseClickButton = .left,
     count: Int = 1,
     modifiers: [SupatermComputerUseClickModifier] = [],
-    action: SupatermComputerUseClickAction = .press
+    action: SupatermComputerUseClickAction = .press,
+    fromZoom: Bool = false,
+    debugImageOutputPath: String? = nil
   ) {
     self.pid = pid
     self.windowID = windowID
@@ -330,6 +340,8 @@ public struct SupatermComputerUseClickRequest: Codable, Equatable, Sendable {
     self.count = count
     self.modifiers = modifiers
     self.action = action
+    self.fromZoom = fromZoom
+    self.debugImageOutputPath = debugImageOutputPath
   }
 }
 
@@ -383,6 +395,7 @@ public enum SupatermComputerUseKeyModifier: String, Codable, CaseIterable, Senda
   case shift
   case option
   case control
+  case function
 }
 
 public struct SupatermComputerUseKeyRequest: Codable, Equatable, Sendable {
@@ -472,12 +485,18 @@ public enum SupatermComputerUsePageAction: String, Codable, CaseIterable, Sendab
 
 public enum SupatermComputerUsePageBrowser: String, Codable, CaseIterable, Sendable {
   case chrome
+  case brave
+  case edge
   case safari
 
   public var bundleID: String {
     switch self {
     case .chrome:
       return "com.google.Chrome"
+    case .brave:
+      return "com.brave.Browser"
+    case .edge:
+      return "com.microsoft.edgemac"
     case .safari:
       return "com.apple.Safari"
     }
@@ -528,6 +547,297 @@ public struct SupatermComputerUsePageResult: Codable, Equatable, Sendable {
     self.dispatch = dispatch
     self.text = text
     self.json = json
+  }
+}
+
+public struct SupatermComputerUseScreenSizeResult: Codable, Equatable, Sendable {
+  public let width: Double
+  public let height: Double
+  public let scale: Double
+
+  public init(width: Double, height: Double, scale: Double) {
+    self.width = width
+    self.height = height
+    self.scale = scale
+  }
+}
+
+public struct SupatermComputerUseCursorPositionResult: Codable, Equatable, Sendable {
+  public let x: Double
+  public let y: Double
+
+  public init(x: Double, y: Double) {
+    self.x = x
+    self.y = y
+  }
+}
+
+public struct SupatermComputerUseMoveCursorRequest: Codable, Equatable, Sendable {
+  public let x: Double
+  public let y: Double
+
+  public init(x: Double, y: Double) {
+    self.x = x
+    self.y = y
+  }
+}
+
+public enum SupatermComputerUseImageFormat: String, Codable, CaseIterable, Sendable {
+  case png
+  case jpeg
+}
+
+public struct SupatermComputerUseScreenshotRequest: Codable, Equatable, Sendable {
+  public let windowID: UInt32?
+  public let imageOutputPath: String
+  public let format: SupatermComputerUseImageFormat
+  public let quality: Double?
+
+  public init(
+    windowID: UInt32? = nil,
+    imageOutputPath: String,
+    format: SupatermComputerUseImageFormat = .png,
+    quality: Double? = nil
+  ) {
+    self.windowID = windowID
+    self.imageOutputPath = imageOutputPath
+    self.format = format
+    self.quality = quality
+  }
+}
+
+public struct SupatermComputerUseZoomRequest: Codable, Equatable, Sendable {
+  public let pid: Int
+  public let windowID: UInt32
+  public let x: Double
+  public let y: Double
+  public let width: Double
+  public let height: Double
+  public let imageOutputPath: String
+
+  public init(
+    pid: Int,
+    windowID: UInt32,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    imageOutputPath: String
+  ) {
+    self.pid = pid
+    self.windowID = windowID
+    self.x = x
+    self.y = y
+    self.width = width
+    self.height = height
+    self.imageOutputPath = imageOutputPath
+  }
+}
+
+public struct SupatermComputerUseZoomResult: Codable, Equatable, Sendable {
+  public let pid: Int
+  public let windowID: UInt32
+  public let source: SupatermComputerUseRect
+  public let screenshot: SupatermComputerUseScreenshot
+  public let snapshotToNativeRatio: Double
+
+  public init(
+    pid: Int,
+    windowID: UInt32,
+    source: SupatermComputerUseRect,
+    screenshot: SupatermComputerUseScreenshot,
+    snapshotToNativeRatio: Double
+  ) {
+    self.pid = pid
+    self.windowID = windowID
+    self.source = source
+    self.screenshot = screenshot
+    self.snapshotToNativeRatio = snapshotToNativeRatio
+  }
+}
+
+public struct SupatermComputerUseHotkeyRequest: Codable, Equatable, Sendable {
+  public let pid: Int
+  public let windowID: UInt32?
+  public let elementIndex: Int?
+  public let keys: [String]
+
+  public init(
+    pid: Int,
+    windowID: UInt32? = nil,
+    elementIndex: Int? = nil,
+    keys: [String]
+  ) {
+    self.pid = pid
+    self.windowID = windowID
+    self.elementIndex = elementIndex
+    self.keys = keys
+  }
+}
+
+public struct SupatermComputerUseSnapshotJavaScriptResult: Codable, Equatable, Sendable {
+  public let ok: Bool
+  public let dispatch: String?
+  public let text: String?
+  public let json: JSONValue?
+  public let error: String?
+
+  public init(
+    ok: Bool,
+    dispatch: String? = nil,
+    text: String? = nil,
+    json: JSONValue? = nil,
+    error: String? = nil
+  ) {
+    self.ok = ok
+    self.dispatch = dispatch
+    self.text = text
+    self.json = json
+    self.error = error
+  }
+}
+
+public struct SupatermComputerUseCursorMotion: Codable, Equatable, Sendable {
+  public static let `default` = SupatermComputerUseCursorMotion()
+
+  public let startHandle: Double
+  public let endHandle: Double
+  public let arcSize: Double
+  public let arcFlow: Double
+  public let spring: Double
+  public let glideDurationMilliseconds: Int
+  public let dwellAfterClickMilliseconds: Int
+  public let idleHideMilliseconds: Int
+
+  public init(
+    startHandle: Double = 0.24,
+    endHandle: Double = 0.76,
+    arcSize: Double = 80,
+    arcFlow: Double = 0.36,
+    spring: Double = 0.16,
+    glideDurationMilliseconds: Int = 220,
+    dwellAfterClickMilliseconds: Int = 80,
+    idleHideMilliseconds: Int = 900
+  ) {
+    self.startHandle = startHandle
+    self.endHandle = endHandle
+    self.arcSize = arcSize
+    self.arcFlow = arcFlow
+    self.spring = spring
+    self.glideDurationMilliseconds = glideDurationMilliseconds
+    self.dwellAfterClickMilliseconds = dwellAfterClickMilliseconds
+    self.idleHideMilliseconds = idleHideMilliseconds
+  }
+}
+
+public struct SupatermComputerUseCursorRequest: Codable, Equatable, Sendable {
+  public let enabled: Bool?
+  public let alwaysFloat: Bool?
+  public let motion: SupatermComputerUseCursorMotion?
+  public let startHandle: Double?
+  public let endHandle: Double?
+  public let arcSize: Double?
+  public let arcFlow: Double?
+  public let spring: Double?
+  public let glideDurationMilliseconds: Int?
+  public let dwellAfterClickMilliseconds: Int?
+  public let idleHideMilliseconds: Int?
+
+  public init(
+    enabled: Bool? = nil,
+    alwaysFloat: Bool? = nil,
+    motion: SupatermComputerUseCursorMotion? = nil,
+    startHandle: Double? = nil,
+    endHandle: Double? = nil,
+    arcSize: Double? = nil,
+    arcFlow: Double? = nil,
+    spring: Double? = nil,
+    glideDurationMilliseconds: Int? = nil,
+    dwellAfterClickMilliseconds: Int? = nil,
+    idleHideMilliseconds: Int? = nil
+  ) {
+    self.enabled = enabled
+    self.alwaysFloat = alwaysFloat
+    self.motion = motion
+    self.startHandle = startHandle
+    self.endHandle = endHandle
+    self.arcSize = arcSize
+    self.arcFlow = arcFlow
+    self.spring = spring
+    self.glideDurationMilliseconds = glideDurationMilliseconds
+    self.dwellAfterClickMilliseconds = dwellAfterClickMilliseconds
+    self.idleHideMilliseconds = idleHideMilliseconds
+  }
+}
+
+public struct SupatermComputerUseCursorResult: Codable, Equatable, Sendable {
+  public let enabled: Bool
+  public let alwaysFloat: Bool
+  public let motion: SupatermComputerUseCursorMotion
+
+  public init(
+    enabled: Bool,
+    alwaysFloat: Bool,
+    motion: SupatermComputerUseCursorMotion
+  ) {
+    self.enabled = enabled
+    self.alwaysFloat = alwaysFloat
+    self.motion = motion
+  }
+}
+
+public enum SupatermComputerUseRecordingAction: String, Codable, CaseIterable, Sendable {
+  case start
+  case stop
+  case status
+  case replay
+  case render
+}
+
+public struct SupatermComputerUseRecordingRequest: Codable, Equatable, Sendable {
+  public let action: SupatermComputerUseRecordingAction
+  public let directory: String?
+  public let outputPath: String?
+  public let delayMilliseconds: Int
+  public let keepGoing: Bool
+
+  public init(
+    action: SupatermComputerUseRecordingAction,
+    directory: String? = nil,
+    outputPath: String? = nil,
+    delayMilliseconds: Int = 120,
+    keepGoing: Bool = false
+  ) {
+    self.action = action
+    self.directory = directory
+    self.outputPath = outputPath
+    self.delayMilliseconds = delayMilliseconds
+    self.keepGoing = keepGoing
+  }
+}
+
+public struct SupatermComputerUseRecordingResult: Codable, Equatable, Sendable {
+  public let active: Bool
+  public let directory: String?
+  public let turns: Int
+  public let succeeded: Int?
+  public let failed: Int?
+  public let renderedPath: String?
+
+  public init(
+    active: Bool,
+    directory: String? = nil,
+    turns: Int = 0,
+    succeeded: Int? = nil,
+    failed: Int? = nil,
+    renderedPath: String? = nil
+  ) {
+    self.active = active
+    self.directory = directory
+    self.turns = turns
+    self.succeeded = succeeded
+    self.failed = failed
+    self.renderedPath = renderedPath
   }
 }
 

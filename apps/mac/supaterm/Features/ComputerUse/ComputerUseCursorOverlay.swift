@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import SupatermCLIShared
 
 @MainActor
 final class ComputerUseCursorOverlay {
@@ -12,6 +13,7 @@ final class ComputerUseCursorOverlay {
   private var targetPid: pid_t?
   private var targetWindowID: UInt32 = 0
   private var alwaysFloat = false
+  private var motion = SupatermComputerUseCursorMotion.default
   private var visibilityGeneration = 0
   private let visibleWindows: @MainActor () -> [ComputerUseCursorOverlayWindowSnapshot]
 
@@ -32,6 +34,7 @@ final class ComputerUseCursorOverlay {
     let panel = window ?? makeWindow()
     window = panel
     alwaysFloat = request.alwaysFloat
+    motion = request.motion
     panel.level = request.alwaysFloat ? .floating : .normal
     if request.alwaysFloat, !panel.isVisible {
       panel.orderFrontRegardless()
@@ -47,7 +50,8 @@ final class ComputerUseCursorOverlay {
     await reapplyPin()
     await contentView?.move(
       to: request.point,
-      tooltip: .init(appName: appName(for: request.targetPid), activity: request.activity)
+      tooltip: .init(appName: appName(for: request.targetPid), activity: request.activity),
+      motion: request.motion
     )
     await reapplyPin()
     return .init()
@@ -56,7 +60,10 @@ final class ComputerUseCursorOverlay {
   func completeClick(_: ComputerUsePreparedCursor) async {
     guard window != nil else { return }
     await reapplyPin()
-    scheduleStop(after: 8, .hide(animated: true))
+    if motion.dwellAfterClickMilliseconds > 0 {
+      try? await Task.sleep(nanoseconds: UInt64(max(0, motion.dwellAfterClickMilliseconds)) * 1_000_000)
+    }
+    scheduleStop(after: Double(max(0, motion.idleHideMilliseconds)) / 1000, .hide(animated: true))
   }
 
   func cancelClick(_: ComputerUsePreparedCursor) {
@@ -73,6 +80,7 @@ final class ComputerUseCursorOverlay {
     targetPid = nil
     targetWindowID = 0
     alwaysFloat = false
+    motion = .default
     pinResolver.resetMisses()
     if reason.isAnimated {
       await contentView?.hideCursor {
@@ -213,6 +221,7 @@ struct ComputerUseCursorOverlayClickRequest: Sendable {
   let activity: String
   let targetPid: pid_t
   let targetWindowID: UInt32
+  let motion: SupatermComputerUseCursorMotion
 }
 
 struct ComputerUseCursorOverlayTooltip: Equatable, Sendable {
@@ -346,7 +355,11 @@ private final class ComputerUseCursorOverlayView: NSView {
     nil
   }
 
-  func move(to point: CGPoint, tooltip: ComputerUseCursorOverlayTooltip) async {
+  func move(
+    to point: CGPoint,
+    tooltip: ComputerUseCursorOverlayTooltip,
+    motion: SupatermComputerUseCursorMotion
+  ) async {
     cursorView.layer?.removeAllAnimations()
     tooltipView.layer?.removeAllAnimations()
     cursorView.alphaValue = 1
@@ -355,24 +368,30 @@ private final class ComputerUseCursorOverlayView: NSView {
     tooltipView.isHidden = !tooltip.isVisible
     tooltipView.update(tooltip)
     let cursorFrame = CGRect(origin: point, size: ComputerUseCursorSymbolView.size)
-    let tooltipOrigin = tooltipOrigin(for: cursorFrame, size: tooltipView.frame.size)
+    let targetTooltipOrigin = tooltipOrigin(for: cursorFrame, size: tooltipView.frame.size)
     guard hasPosition else {
       cursorView.setFrameOrigin(point)
-      tooltipView.setFrameOrigin(tooltipOrigin)
+      tooltipView.setFrameOrigin(targetTooltipOrigin)
       hasPosition = true
-      try? await Task.sleep(nanoseconds: 220_000_000)
+      try? await Task.sleep(nanoseconds: UInt64(max(0, motion.glideDurationMilliseconds)) * 1_000_000)
       return
     }
-    await withCheckedContinuation { continuation in
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0.22
-        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        cursorView.animator().setFrameOrigin(point)
-        tooltipView.animator().setFrameOrigin(tooltipOrigin)
-      } completionHandler: {
-        continuation.resume()
+    let start = cursorView.frame.origin
+    let duration = max(0, motion.glideDurationMilliseconds)
+    let frames = max(1, Int((Double(duration) / 1000) * 60))
+    for frame in 1...frames {
+      let progress = Double(frame) / Double(frames)
+      let eased = cursorProgress(progress, spring: motion.spring)
+      let next = cursorPoint(from: start, to: point, progress: eased, motion: motion)
+      cursorView.setFrameOrigin(next)
+      let cursorFrame = CGRect(origin: next, size: ComputerUseCursorSymbolView.size)
+      tooltipView.setFrameOrigin(tooltipOrigin(for: cursorFrame, size: tooltipView.frame.size))
+      if duration > 0 {
+        try? await Task.sleep(nanoseconds: UInt64(duration) * 1_000_000 / UInt64(frames))
       }
     }
+    cursorView.setFrameOrigin(point)
+    tooltipView.setFrameOrigin(targetTooltipOrigin)
   }
 
   func hideCursor(isCurrent: @MainActor () -> Bool) async {
@@ -404,6 +423,42 @@ private final class ComputerUseCursorOverlayView: NSView {
     x = min(max(margin, x), max(margin, maxX - size.width - margin))
     y = min(max(margin, y), max(margin, maxY - size.height - margin))
     return .init(x: x, y: y)
+  }
+
+  private func cursorPoint(
+    from start: CGPoint,
+    to end: CGPoint,
+    progress: Double,
+    motion: SupatermComputerUseCursorMotion
+  ) -> CGPoint {
+    let dx = end.x - start.x
+    let dy = end.y - start.y
+    let length = max(1, hypot(dx, dy))
+    let normal = CGPoint(x: -dy / length, y: dx / length)
+    let arc = CGFloat(motion.arcSize * motion.arcFlow)
+    let startHandle = CGFloat(motion.startHandle)
+    let endHandle = CGFloat(motion.endHandle)
+    let c1 = CGPoint(
+      x: start.x + dx * startHandle + normal.x * arc,
+      y: start.y + dy * startHandle + normal.y * arc
+    )
+    let c2 = CGPoint(
+      x: start.x + dx * endHandle + normal.x * arc,
+      y: start.y + dy * endHandle + normal.y * arc
+    )
+    let t = CGFloat(progress)
+    let mt = 1 - t
+    return .init(
+      x: mt * mt * mt * start.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * end.x,
+      y: mt * mt * mt * start.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * end.y
+    )
+  }
+
+  private func cursorProgress(_ progress: Double, spring: Double) -> Double {
+    let eased = 0.5 - cos(progress * .pi) / 2
+    guard spring > 0 else { return eased }
+    let overshoot = sin(progress * .pi) * spring * (1 - progress)
+    return min(1.12, max(0, eased + overshoot))
   }
 }
 

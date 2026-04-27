@@ -4,6 +4,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var computerUseAlwaysFloatAgentCursor: Bool
+  public var computerUseCursorMotion: SupatermComputerUseCursorMotion
+  public var computerUseMaxImageDimension: Int
   public var computerUseShowAgentCursor: Bool
   public var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   public var crashReportsEnabled: Bool
@@ -17,6 +19,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     computerUseAlwaysFloatAgentCursor: Bool = false,
+    computerUseCursorMotion: SupatermComputerUseCursorMotion = .default,
+    computerUseMaxImageDimension: Int = 1600,
     computerUseShowAgentCursor: Bool = true,
     computerUseSnapshotMode: SupatermComputerUseSnapshotMode = .som,
     crashReportsEnabled: Bool,
@@ -29,6 +33,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.computerUseAlwaysFloatAgentCursor = computerUseAlwaysFloatAgentCursor
+    self.computerUseCursorMotion = computerUseCursorMotion
+    self.computerUseMaxImageDimension = computerUseMaxImageDimension
     self.computerUseShowAgentCursor = computerUseShowAgentCursor
     self.computerUseSnapshotMode = computerUseSnapshotMode
     self.crashReportsEnabled = crashReportsEnabled
@@ -43,6 +49,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: .dark,
     analyticsEnabled: true,
     computerUseAlwaysFloatAgentCursor: false,
+    computerUseCursorMotion: .default,
+    computerUseMaxImageDimension: 1600,
     computerUseShowAgentCursor: true,
     computerUseSnapshotMode: .som,
     crashReportsEnabled: true,
@@ -90,6 +98,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
       computerUseAlwaysFloatAgentCursor: computerUse?.alwaysFloatAgentCursor
         ?? defaults.computerUseAlwaysFloatAgentCursor,
+      computerUseCursorMotion: computerUse?.cursorMotion ?? defaults.computerUseCursorMotion,
+      computerUseMaxImageDimension: computerUse?.maxImageDimension ?? defaults.computerUseMaxImageDimension,
       computerUseShowAgentCursor: computerUse?.showAgentCursor ?? defaults.computerUseShowAgentCursor,
       computerUseSnapshotMode: computerUse?.snapshotMode ?? defaults.computerUseSnapshotMode,
       crashReportsEnabled: privacy?.crashReportsEnabled ?? defaults.crashReportsEnabled,
@@ -107,6 +117,8 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     try container.encode(
       PersistedComputerUse(
         alwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
+        cursorMotion: computerUseCursorMotion,
+        maxImageDimension: computerUseMaxImageDimension,
         showAgentCursor: computerUseShowAgentCursor,
         snapshotMode: computerUseSnapshotMode
       ),
@@ -153,15 +165,21 @@ extension SupatermSettings {
 
   struct PersistedComputerUse: Codable, Equatable, Sendable {
     let alwaysFloatAgentCursor: Bool
+    let cursorMotion: SupatermComputerUseCursorMotion
+    let maxImageDimension: Int
     let showAgentCursor: Bool
     let snapshotMode: SupatermComputerUseSnapshotMode
 
     init(
       alwaysFloatAgentCursor: Bool = false,
+      cursorMotion: SupatermComputerUseCursorMotion = .default,
+      maxImageDimension: Int = 1600,
       showAgentCursor: Bool,
       snapshotMode: SupatermComputerUseSnapshotMode = .som
     ) {
       self.alwaysFloatAgentCursor = alwaysFloatAgentCursor
+      self.cursorMotion = cursorMotion
+      self.maxImageDimension = maxImageDimension
       self.showAgentCursor = showAgentCursor
       self.snapshotMode = snapshotMode
     }
@@ -170,6 +188,28 @@ extension SupatermSettings {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       alwaysFloatAgentCursor =
         try container.decodeIfPresent(Bool.self, forKey: .alwaysFloatAgentCursor) ?? false
+      cursorMotion = SupatermComputerUseCursorMotion(
+        startHandle: try container.decodeIfPresent(Double.self, forKey: .cursorStartHandle)
+          ?? SupatermComputerUseCursorMotion.default.startHandle,
+        endHandle: try container.decodeIfPresent(Double.self, forKey: .cursorEndHandle)
+          ?? SupatermComputerUseCursorMotion.default.endHandle,
+        arcSize: try container.decodeIfPresent(Double.self, forKey: .cursorArcSize)
+          ?? SupatermComputerUseCursorMotion.default.arcSize,
+        arcFlow: try container.decodeIfPresent(Double.self, forKey: .cursorArcFlow)
+          ?? SupatermComputerUseCursorMotion.default.arcFlow,
+        spring: try container.decodeIfPresent(Double.self, forKey: .cursorSpring)
+          ?? SupatermComputerUseCursorMotion.default.spring,
+        glideDurationMilliseconds: try container.decodeIfPresent(Int.self, forKey: .cursorGlideDurationMilliseconds)
+          ?? SupatermComputerUseCursorMotion.default.glideDurationMilliseconds,
+        dwellAfterClickMilliseconds: try container.decodeIfPresent(
+          Int.self,
+          forKey: .cursorDwellAfterClickMilliseconds
+        ) ?? SupatermComputerUseCursorMotion.default.dwellAfterClickMilliseconds,
+        idleHideMilliseconds: try container.decodeIfPresent(Int.self, forKey: .cursorIdleHideMilliseconds)
+          ?? SupatermComputerUseCursorMotion.default.idleHideMilliseconds
+      )
+      maxImageDimension =
+        try container.decodeIfPresent(Int.self, forKey: .maxImageDimension) ?? 1600
       showAgentCursor = try container.decodeIfPresent(Bool.self, forKey: .showAgentCursor) ?? true
       snapshotMode =
         try container.decodeIfPresent(
@@ -180,8 +220,36 @@ extension SupatermSettings {
 
     enum CodingKeys: String, CodingKey {
       case alwaysFloatAgentCursor = "always_float_agent_cursor"
+      case cursorArcFlow = "cursor_arc_flow"
+      case cursorArcSize = "cursor_arc_size"
+      case cursorDwellAfterClickMilliseconds = "cursor_dwell_after_click_ms"
+      case cursorEndHandle = "cursor_end_handle"
+      case cursorGlideDurationMilliseconds = "cursor_glide_duration_ms"
+      case cursorIdleHideMilliseconds = "cursor_idle_hide_ms"
+      case cursorSpring = "cursor_spring"
+      case cursorStartHandle = "cursor_start_handle"
+      case maxImageDimension = "max_image_dimension"
       case showAgentCursor = "show_agent_cursor"
       case snapshotMode = "snapshot_mode"
+    }
+
+    func encode(to encoder: any Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(alwaysFloatAgentCursor, forKey: .alwaysFloatAgentCursor)
+      try container.encode(cursorMotion.arcFlow, forKey: .cursorArcFlow)
+      try container.encode(cursorMotion.arcSize, forKey: .cursorArcSize)
+      try container.encode(
+        cursorMotion.dwellAfterClickMilliseconds,
+        forKey: .cursorDwellAfterClickMilliseconds
+      )
+      try container.encode(cursorMotion.endHandle, forKey: .cursorEndHandle)
+      try container.encode(cursorMotion.glideDurationMilliseconds, forKey: .cursorGlideDurationMilliseconds)
+      try container.encode(cursorMotion.idleHideMilliseconds, forKey: .cursorIdleHideMilliseconds)
+      try container.encode(cursorMotion.spring, forKey: .cursorSpring)
+      try container.encode(cursorMotion.startHandle, forKey: .cursorStartHandle)
+      try container.encode(maxImageDimension, forKey: .maxImageDimension)
+      try container.encode(showAgentCursor, forKey: .showAgentCursor)
+      try container.encode(snapshotMode, forKey: .snapshotMode)
     }
   }
 
@@ -224,6 +292,8 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
   var computerUseAlwaysFloatAgentCursor: Bool
+  var computerUseCursorMotion: SupatermComputerUseCursorMotion
+  var computerUseMaxImageDimension: Int
   var computerUseShowAgentCursor: Bool
   var computerUseSnapshotMode: SupatermComputerUseSnapshotMode
   var crashReportsEnabled: Bool
@@ -241,6 +311,8 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
     self.computerUseAlwaysFloatAgentCursor = defaults.computerUseAlwaysFloatAgentCursor
+    self.computerUseCursorMotion = defaults.computerUseCursorMotion
+    self.computerUseMaxImageDimension = defaults.computerUseMaxImageDimension
     self.computerUseShowAgentCursor = defaults.computerUseShowAgentCursor
     self.computerUseSnapshotMode = defaults.computerUseSnapshotMode
     self.crashReportsEnabled =
@@ -264,6 +336,8 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
       computerUseAlwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
+      computerUseCursorMotion: computerUseCursorMotion,
+      computerUseMaxImageDimension: computerUseMaxImageDimension,
       computerUseShowAgentCursor: computerUseShowAgentCursor,
       computerUseSnapshotMode: computerUseSnapshotMode,
       crashReportsEnabled: crashReportsEnabled,

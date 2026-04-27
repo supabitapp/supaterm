@@ -62,9 +62,12 @@ struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
 struct SettingsComputerUseState: Equatable {
   var accessibility = ComputerUsePermissionStatus.unknown
   var alwaysFloatAgentCursor = SupatermSettings.default.computerUseAlwaysFloatAgentCursor
+  var cursorMotion = SupatermSettings.default.computerUseCursorMotion
   var isRefreshing = false
+  var maxImageDimension = SupatermSettings.default.computerUseMaxImageDimension
   var screenRecording = ComputerUsePermissionStatus.unknown
   var showAgentCursor = SupatermSettings.default.computerUseShowAgentCursor
+  var snapshotMode = SupatermSettings.default.computerUseSnapshotMode
 
   var hasRequiredPermissions: Bool {
     accessibility == .granted && screenRecording == .granted
@@ -336,7 +339,10 @@ public struct SettingsFeature {
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
     state.computerUse.alwaysFloatAgentCursor = supatermSettings.computerUseAlwaysFloatAgentCursor
+    state.computerUse.cursorMotion = supatermSettings.computerUseCursorMotion
+    state.computerUse.maxImageDimension = supatermSettings.computerUseMaxImageDimension
     state.computerUse.showAgentCursor = supatermSettings.computerUseShowAgentCursor
+    state.computerUse.snapshotMode = supatermSettings.computerUseSnapshotMode
   }
 
   func openSystemNotificationSettings() -> Effect<Action> {
@@ -350,7 +356,10 @@ public struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       computerUseAlwaysFloatAgentCursor: state.computerUse.alwaysFloatAgentCursor,
+      computerUseCursorMotion: state.computerUse.cursorMotion,
+      computerUseMaxImageDimension: state.computerUse.maxImageDimension,
       computerUseShowAgentCursor: state.computerUse.showAgentCursor,
+      computerUseSnapshotMode: state.computerUse.snapshotMode,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       newTabPosition: state.newTabPosition,

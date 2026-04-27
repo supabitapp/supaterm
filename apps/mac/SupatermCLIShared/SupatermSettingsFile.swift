@@ -202,7 +202,20 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
       contentsOf: try Self.unknownNestedKeys(
         in: container,
         section: "computer_use",
-        allowedKeys: ["always_float_agent_cursor", "show_agent_cursor", "snapshot_mode"]
+        allowedKeys: [
+          "always_float_agent_cursor",
+          "cursor_arc_flow",
+          "cursor_arc_size",
+          "cursor_dwell_after_click_ms",
+          "cursor_end_handle",
+          "cursor_glide_duration_ms",
+          "cursor_idle_hide_ms",
+          "cursor_spring",
+          "cursor_start_handle",
+          "max_image_dimension",
+          "show_agent_cursor",
+          "snapshot_mode",
+        ]
       )
     )
     warnings.append(
