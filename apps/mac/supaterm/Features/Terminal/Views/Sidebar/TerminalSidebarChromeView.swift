@@ -700,24 +700,17 @@ private struct TerminalSidebarRingIndicatorView: View {
             reduceMotion: reduceMotion
           )
       } else {
-        ZStack {
-          Circle()
-            .stroke(
-              AngularGradient(
-                gradient: Gradient(colors: [color, color.opacity(0.3)]),
-                center: .center,
-                startAngle: .degrees(0),
-                endAngle: .degrees(360)
-              ),
-              style: StrokeStyle(lineWidth: 2, lineCap: .round)
-            )
-
-          Circle()
-            .fill(color)
-            .frame(width: 2, height: 2)
-            .offset(x: 8)
-        }
-        .rotationEffect(rotation)
+        Circle()
+          .stroke(
+            AngularGradient(
+              gradient: Gradient(colors: [color, color.opacity(0.3)]),
+              center: .center,
+              startAngle: .degrees(0),
+              endAngle: .degrees(360)
+            ),
+            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+          )
+          .rotationEffect(rotation)
       }
     }
     .frame(width: 16, height: 16)
