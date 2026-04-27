@@ -664,7 +664,7 @@ private struct TerminalSidebarProgressIndicatorView: View {
   private var color: Color {
     switch progress.tone {
     case .active:
-      return isSelected ? palette.selectedIcon : Color.accentColor
+      return isSelected ? palette.selectedText.opacity(0.72) : palette.secondaryText
     case .paused:
       return .orange
     case .error:
@@ -683,10 +683,10 @@ private struct TerminalSidebarRingIndicatorView: View {
 
   var body: some View {
     ZStack {
-      Circle()
-        .stroke(trackColor, lineWidth: 2)
-
       if let fraction {
+        Circle()
+          .stroke(trackColor, lineWidth: 2)
+
         Circle()
           .trim(from: 0, to: fraction)
           .stroke(
@@ -700,13 +700,24 @@ private struct TerminalSidebarRingIndicatorView: View {
             reduceMotion: reduceMotion
           )
       } else {
-        Circle()
-          .trim(from: 0.14, to: 0.64)
-          .stroke(
-            color,
-            style: StrokeStyle(lineWidth: 2, lineCap: .round)
-          )
-          .rotationEffect(rotation)
+        ZStack {
+          Circle()
+            .stroke(
+              AngularGradient(
+                gradient: Gradient(colors: [color, color.opacity(0.3)]),
+                center: .center,
+                startAngle: .degrees(0),
+                endAngle: .degrees(360)
+              ),
+              style: StrokeStyle(lineWidth: 2, lineCap: .round)
+            )
+
+          Circle()
+            .fill(color)
+            .frame(width: 2, height: 2)
+            .offset(x: 8)
+        }
+        .rotationEffect(rotation)
       }
     }
     .frame(width: 16, height: 16)
