@@ -125,20 +125,7 @@ struct GhosttyGlobalKeybindManagerTests {
       isAppActive: { true },
       runtimes: { [runtime] }
     )
-    let event = try GhosttyGlobalKeyEvent(#require(
-      NSEvent.keyEvent(
-        with: .keyDown,
-        location: .zero,
-        modifierFlags: [.command, .shift],
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        characters: ")",
-        charactersIgnoringModifiers: "0",
-        isARepeat: false,
-        keyCode: UInt16(kVK_ANSI_0)
-      )
-    ))
+    let event = try toggleVisibilityKeyEvent()
 
     #expect(!manager.handle(event))
   }
@@ -161,24 +148,28 @@ struct GhosttyGlobalKeybindManagerTests {
       isAppActive: { false },
       runtimes: { [runtime] }
     )
-    let event = try GhosttyGlobalKeyEvent(#require(
-      NSEvent.keyEvent(
-        with: .keyDown,
-        location: .zero,
-        modifierFlags: [.command, .shift],
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        characters: ")",
-        charactersIgnoringModifiers: "0",
-        isARepeat: false,
-        keyCode: UInt16(kVK_ANSI_0)
-      )
-    ))
+    let event = try toggleVisibilityKeyEvent()
 
     #expect(manager.handle(event))
     #expect(delegate.toggleVisibilityCount == 1)
   }
+}
+
+private func toggleVisibilityKeyEvent() throws -> GhosttyGlobalKeyEvent {
+  try GhosttyGlobalKeyEvent(#require(
+    NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [.command, .shift],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: ")",
+      charactersIgnoringModifiers: "0",
+      isARepeat: false,
+      keyCode: UInt16(kVK_ANSI_0)
+    )
+  ))
 }
 
 private final class FakeGhosttyGlobalEventTapRegistration: GhosttyGlobalEventTapRegistration {

@@ -65,19 +65,14 @@ final class GhosttyGlobalKeybindManager {
 
   func handle(_ event: GhosttyGlobalKeyEvent) -> Bool {
     guard !isAppActive() else { return false }
-    for runtime in runtimes() where runtime.handleGlobalKeyEvent(event) {
-      return true
-    }
-    return false
+    return runtimes().contains { $0.handleGlobalKeyEvent(event) }
   }
 
   private func enable() {
     guard eventTapRegistration == nil else { return }
     enableTimer?.invalidate()
     enableTimer = nil
-    if tryEnable() {
-      return
-    }
+    guard !tryEnable() else { return }
     enableTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
       Task { @MainActor [weak self] in
         _ = self?.tryEnable()
@@ -86,11 +81,8 @@ final class GhosttyGlobalKeybindManager {
   }
 
   private func tryEnable() -> Bool {
-    if !isAccessibilityTrusted() {
-      if !hasRequestedAccessibilityTrust {
-        hasRequestedAccessibilityTrust = true
-        requestAccessibilityTrust()
-      }
+    guard isAccessibilityTrusted() else {
+      requestAccessibilityTrustIfNeeded()
       return false
     }
     guard let registration = makeEventTapRegistration() else { return false }
@@ -98,6 +90,12 @@ final class GhosttyGlobalKeybindManager {
     enableTimer?.invalidate()
     enableTimer = nil
     return true
+  }
+
+  private func requestAccessibilityTrustIfNeeded() {
+    guard !hasRequestedAccessibilityTrust else { return }
+    hasRequestedAccessibilityTrust = true
+    requestAccessibilityTrust()
   }
 
   private func installConfigObserver() {
