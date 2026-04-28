@@ -19,17 +19,6 @@ extension SupatermAgentKind {
     }
   }
 
-  var settingsMarkImageName: String {
-    switch self {
-    case .claude:
-      return "claude-code-mark"
-    case .codex:
-      return "codex-mark"
-    case .pi:
-      return "pi-mark"
-    }
-  }
-
   var settingsPathDescription: String {
     switch self {
     case .claude:

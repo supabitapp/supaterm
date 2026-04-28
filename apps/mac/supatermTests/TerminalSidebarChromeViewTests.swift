@@ -97,6 +97,30 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func agentMarkImageNameUsesAgentKindAssetMapping() {
+    #expect(
+      TerminalSidebarTabSummaryView.agentMarkImageName(
+        for: .init(kind: .pi, phase: .idle)
+      ) == "pi-mark"
+    )
+    #expect(
+      TerminalSidebarTabSummaryView.agentMarkImageName(
+        for: .codex(.running)
+      ) == "codex-mark"
+    )
+    #expect(
+      TerminalSidebarTabSummaryView.agentMarkImageName(
+        for: .claude(.running)
+      ) == "claude-code-mark"
+    )
+  }
+
+  @Test
+  func agentMarkImageNameIsNilWithoutAgentActivity() {
+    #expect(TerminalSidebarTabSummaryView.agentMarkImageName(for: nil) == nil)
+  }
+
+  @Test
   func quietTabShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(

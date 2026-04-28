@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 
 struct SettingsCodingAgentsView: View {
@@ -71,7 +72,7 @@ private struct SettingsAgentListRow: View {
         Label {
           Text(agent.notificationTitle)
         } icon: {
-          Image(agent.settingsMarkImageName)
+          Image(agent.markImageName)
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 18, height: 18)

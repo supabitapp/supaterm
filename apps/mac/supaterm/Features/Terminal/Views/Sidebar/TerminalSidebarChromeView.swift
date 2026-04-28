@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SupatermCLIShared
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -290,10 +291,12 @@ struct TerminalSidebarChromeView: View {
     let paneWorkingDirectories = terminal.paneWorkingDirectories(for: tab.id)
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
+    let agentPresentation = terminal.tabAgentPresentation(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       tab: tab,
       paneWorkingDirectories: paneWorkingDirectories,
-      unreadCount: unreadCount
+      unreadCount: unreadCount,
+      badgeActivity: agentPresentation.badgeActivity
     )
 
     TerminalSidebarDragSourceView(
@@ -505,6 +508,12 @@ struct TerminalSidebarTabSummaryView: View {
     return notificationMarkdown
   }
 
+  static func agentMarkImageName(
+    for agentActivity: TerminalHostState.AgentActivity?
+  ) -> String? {
+    agentActivity?.kind.markImageName
+  }
+
   var body: some View {
     let titleAccessories = Self.titleAccessories(
       shortcutHint: shortcutHint,
@@ -520,6 +529,10 @@ struct TerminalSidebarTabSummaryView: View {
 
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
+        if let markImageName = Self.agentMarkImageName(for: badgeActivity) {
+          TerminalSidebarAgentMarkImage(imageName: markImageName)
+        }
+
         Text(tab.title)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
@@ -600,6 +613,18 @@ struct TerminalSidebarTabSummaryView: View {
         palette: palette
       )
     }
+  }
+}
+
+private struct TerminalSidebarAgentMarkImage: View {
+  let imageName: String
+
+  var body: some View {
+    Image(imageName)
+      .resizable()
+      .aspectRatio(contentMode: .fit)
+      .frame(width: 14, height: 14)
+      .accessibilityHidden(true)
   }
 }
 

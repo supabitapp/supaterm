@@ -21,6 +21,7 @@ struct TerminalSidebarDragPreviewItem {
   let tab: TerminalTabItem
   let paneWorkingDirectories: [String]
   let unreadCount: Int
+  let badgeActivity: TerminalHostState.AgentActivity?
 }
 
 struct TerminalSidebarPendingReorder: Equatable {
@@ -490,6 +491,7 @@ private struct TerminalSidebarDragPreviewContent: View {
           tab: preview.tab,
           paneWorkingDirectories: preview.paneWorkingDirectories,
           unreadCount: preview.unreadCount,
+          badgeActivity: preview.badgeActivity,
           rowWidth: manager.previewRowWidth,
           palette: palette
         )
@@ -508,6 +510,7 @@ private struct TerminalSidebarMorphingPreview: View {
   let tab: TerminalTabItem
   let paneWorkingDirectories: [String]
   let unreadCount: Int
+  let badgeActivity: TerminalHostState.AgentActivity?
   let rowWidth: CGFloat
   let palette: TerminalPalette
 
@@ -518,7 +521,7 @@ private struct TerminalSidebarMorphingPreview: View {
       isSelected: false,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
-      badgeActivity: nil,
+      badgeActivity: badgeActivity,
       terminalProgress: nil,
       shortcutHint: nil,
       showsShortcutHint: false,

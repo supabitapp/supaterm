@@ -192,7 +192,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "supaterm.com"),
         cwd("docs")
       ),
-      agentActivity: .claude(.needsInput)
+      agentActivity: .codex(.needsInput)
     ),
     .init(
       section: .codingAgents,
@@ -201,7 +201,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       icon: "doc.text.magnifyingglass",
       paneWorkingDirectories: cwdList(cwd("docs")),
-      agentActivity: .claude(.idle)
+      agentActivity: .init(kind: .pi, phase: .idle)
     ),
     .init(
       section: .terminalProgress,
