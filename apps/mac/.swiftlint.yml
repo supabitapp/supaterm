@@ -15,6 +15,21 @@ opt_in_rules:
   - accessibility_label_for_image
   - accessibility_trait_for_button
   - async_without_await
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_range_nil_comparison
+  - discarded_notification_center_observer
+  - first_where
+  - flatmap_over_map_reduce
+  - identical_operands
+  - last_where
+  - private_swiftui_state
+  - reduce_into
+  - sorted_first_last
+  - toggle_bool
+  - unhandled_throwing_task
+  - weak_delegate
+  - yoda_condition
 
 opening_brace:
   ignore_multiline_function_signatures: true
