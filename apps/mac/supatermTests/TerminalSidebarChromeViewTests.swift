@@ -97,27 +97,27 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentMarkImageNameUsesAgentKindAssetMapping() {
+  func agentMarkPresentationUsesAgentKindAssetMapping() {
     #expect(
-      TerminalSidebarTabSummaryView.agentMarkImageName(
+      TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .init(kind: .pi, phase: .idle)
-      ) == "pi-mark"
+      ) == .init(imageName: "pi-mark-glyph", usesTextTint: true)
     )
     #expect(
-      TerminalSidebarTabSummaryView.agentMarkImageName(
+      TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .codex(.running)
-      ) == "codex-mark"
+      ) == .init(imageName: "codex-mark", usesTextTint: false)
     )
     #expect(
-      TerminalSidebarTabSummaryView.agentMarkImageName(
+      TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .claude(.running)
-      ) == "claude-code-mark"
+      ) == .init(imageName: "claude-code-mark", usesTextTint: false)
     )
   }
 
   @Test
-  func agentMarkImageNameIsNilWithoutAgentActivity() {
-    #expect(TerminalSidebarTabSummaryView.agentMarkImageName(for: nil) == nil)
+  func agentMarkPresentationIsNilWithoutAgentActivity() {
+    #expect(TerminalSidebarTabSummaryView.agentMarkPresentation(for: nil) == nil)
   }
 
   @Test

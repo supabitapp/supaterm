@@ -11,4 +11,13 @@ public extension SupatermAgentKind {
       return "pi-mark"
     }
   }
+
+  var tabTitleMarkImageName: String {
+    switch self {
+    case .claude, .codex:
+      return markImageName
+    case .pi:
+      return "pi-mark-glyph"
+    }
+  }
 }

@@ -483,6 +483,11 @@ struct TerminalSidebarTabSummaryView: View {
     let statusAccessory: StatusAccessory?
   }
 
+  struct AgentMarkPresentation: Equatable {
+    let imageName: String
+    let usesTextTint: Bool
+  }
+
   static func titleAccessories(
     shortcutHint: String?,
     showsShortcutHint: Bool,
@@ -508,10 +513,16 @@ struct TerminalSidebarTabSummaryView: View {
     return notificationMarkdown
   }
 
-  static func agentMarkImageName(
+  static func agentMarkPresentation(
     for agentActivity: TerminalHostState.AgentActivity?
-  ) -> String? {
-    agentActivity?.kind.markImageName
+  ) -> AgentMarkPresentation? {
+    guard let kind = agentActivity?.kind else {
+      return nil
+    }
+    return .init(
+      imageName: kind.tabTitleMarkImageName,
+      usesTextTint: kind == .pi
+    )
   }
 
   var body: some View {
@@ -529,8 +540,12 @@ struct TerminalSidebarTabSummaryView: View {
 
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
-        if let markImageName = Self.agentMarkImageName(for: badgeActivity) {
-          TerminalSidebarAgentMarkImage(imageName: markImageName)
+        if let markPresentation = Self.agentMarkPresentation(for: badgeActivity) {
+          TerminalSidebarAgentMarkImage(
+            isSelected: isSelected,
+            palette: palette,
+            presentation: markPresentation
+          )
         }
 
         Text(tab.title)
@@ -617,13 +632,17 @@ struct TerminalSidebarTabSummaryView: View {
 }
 
 private struct TerminalSidebarAgentMarkImage: View {
-  let imageName: String
+  let isSelected: Bool
+  let palette: TerminalPalette
+  let presentation: TerminalSidebarTabSummaryView.AgentMarkPresentation
 
   var body: some View {
-    Image(imageName)
+    Image(presentation.imageName)
+      .renderingMode(presentation.usesTextTint ? .template : .original)
       .resizable()
       .aspectRatio(contentMode: .fit)
       .frame(width: 14, height: 14)
+      .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
       .accessibilityHidden(true)
   }
 }
