@@ -1247,7 +1247,7 @@ private final class TerminalSidebarMiddleClickNSView: NSView {
   }
 
   @available(*, unavailable)
-  required init?(coder: NSCoder) { fatalError() }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard let event = NSApp.currentEvent,

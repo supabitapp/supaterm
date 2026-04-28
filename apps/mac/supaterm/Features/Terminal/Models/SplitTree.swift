@@ -176,9 +176,8 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     // surface, otherwise we move to the previous one.
     if root.leftmostLeaf() === node.leftmostLeaf() {
       return focusTarget(for: .next, from: node)
-    } else {
-      return focusTarget(for: .previous, from: node)
     }
+    return focusTarget(for: .previous, from: node)
   }
 
   func equalized() -> Self {
@@ -584,9 +583,11 @@ extension SplitTree.Node {
       let newRight = split.right.remove(target)
       if newLeft == nil && newRight == nil {
         return nil
-      } else if newLeft == nil {
+      }
+      if newLeft == nil {
         return newRight
-      } else if newRight == nil {
+      }
+      if newRight == nil {
         return newLeft
       }
       return .split(

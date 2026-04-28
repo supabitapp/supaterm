@@ -17,15 +17,21 @@ opt_in_rules:
   - async_without_await
   - contains_over_filter_count
   - contains_over_filter_is_empty
+  - contains_over_first_not_nil
   - contains_over_range_nil_comparison
   - discarded_notification_center_observer
+  - empty_count
+  - empty_string
+  - fatal_error_message
   - first_where
   - flatmap_over_map_reduce
   - identical_operands
   - last_where
   - private_swiftui_state
+  - redundant_nil_coalescing
   - reduce_into
   - sorted_first_last
+  - superfluous_else
   - toggle_bool
   - unhandled_throwing_task
   - weak_delegate

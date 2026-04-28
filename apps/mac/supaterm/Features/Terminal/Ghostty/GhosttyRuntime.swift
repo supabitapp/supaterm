@@ -890,7 +890,7 @@ extension NSPasteboard {
 
   func getOpinionatedStringContents() -> String? {
     if let urls = readObjects(forClasses: [NSURL.self]) as? [URL],
-      urls.count > 0
+      !urls.isEmpty
     {
       return
         urls

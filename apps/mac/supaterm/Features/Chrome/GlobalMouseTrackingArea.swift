@@ -59,7 +59,7 @@ private final class GlobalTrackingStrip: NSView {
 
   @available(*, unavailable)
   required init?(coder: NSCoder) {
-    fatalError()
+    fatalError("init(coder:) is unavailable")
   }
 
   override func viewWillMove(toWindow newWindow: NSWindow?) {

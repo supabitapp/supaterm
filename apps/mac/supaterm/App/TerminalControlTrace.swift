@@ -24,8 +24,8 @@ enum TerminalControlTrace {
       ("event", event),
     ]
 
-    for key in fields.keys.sorted() {
-      if let value = fields[key] ?? nil {
+    for (key, value) in fields.sorted(by: { $0.key < $1.key }) {
+      if let value {
         values.append((key, value))
       }
     }

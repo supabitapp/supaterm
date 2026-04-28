@@ -94,7 +94,7 @@ struct SPCommandTests {
       try SP.parseAsRoot(["pane", "notify", "--body", ""]) as? SP.Notify
     )
 
-    #expect(command.body == "")
+    #expect(command.body?.isEmpty == true)
   }
 
   @Test
