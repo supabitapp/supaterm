@@ -172,7 +172,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     var components =
       currentPath?
       .split(separator: ":")
-      .map(String.init)
+      .map { String($0) }
       .filter { !$0.isEmpty && $0 != trimmedDirectory } ?? []
     components.insert(trimmedDirectory, at: 0)
     return components.joined(separator: ":")

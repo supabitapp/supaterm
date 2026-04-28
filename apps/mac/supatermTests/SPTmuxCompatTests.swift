@@ -98,7 +98,7 @@ struct SPTmuxCompatTests {
     #expect(environment["TERM_PROGRAM"] == "ghostty")
     #expect(environment["TERM_PROGRAM_VERSION"] == "1.2.3")
     #expect(environment["TMUX_PANE"] == "%2b8b3a57-d7f8-4ef7-930f-46b1f7281b2a")
-    #expect(environment["PATH"]?.split(separator: ":").first.map(String.init) == shimDirectory.path)
+    #expect(environment["PATH"]?.split(separator: ":").first.map { String($0) } == shimDirectory.path)
     #expect(FileManager.default.isExecutableFile(atPath: shimURL.path))
   }
 

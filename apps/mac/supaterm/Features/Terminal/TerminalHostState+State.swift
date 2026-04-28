@@ -805,7 +805,7 @@ extension TerminalHostState {
     in value: String
   ) -> String? {
     guard let trimmed = trimmedNonEmpty(value) else { return nil }
-    return trimmed.split(whereSeparator: \.isWhitespace).first.map(String.init)
+    return trimmed.split(whereSeparator: \.isWhitespace).first.map { String($0) }
   }
 }
 

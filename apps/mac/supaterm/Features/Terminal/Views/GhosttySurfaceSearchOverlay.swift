@@ -140,7 +140,7 @@ struct GhosttySurfaceSearchOverlay: View {
   @ViewBuilder
   private var matchLabel: some View {
     if let selected = state.searchSelected {
-      let totalLabel = state.searchTotal.map(String.init) ?? "?"
+      let totalLabel = state.searchTotal.map { String($0) } ?? "?"
       Text("\(selected + 1)/\(totalLabel)")
         .font(.caption)
         .foregroundStyle(.secondary)

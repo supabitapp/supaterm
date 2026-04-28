@@ -148,7 +148,7 @@ struct SupatermSkillExamplesTests {
     return
       output
       .split(separator: "\n", omittingEmptySubsequences: false)
-      .map(String.init)
+      .map { String($0) }
       .filter { !$0.isEmpty }
   }
 }
