@@ -925,6 +925,7 @@ final class TerminalHostState {
       guard tree.isSplit else { return false }
       let newZoomed = tree.zoomed == targetNode ? nil : targetNode
       trees[tabID] = tree.settingZoomed(newZoomed)
+      focusSurface(targetSurface, in: tabID)
       return true
     }
   }

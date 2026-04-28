@@ -60,6 +60,38 @@ struct TerminalHostStateZoomTests {
     }
   }
 
+  @Test
+  func toggleSplitZoomRestoresFirstResponderToTargetSurface() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let host = TerminalHostState(runtime: GhosttyRuntime())
+      let setup = try makeZoomNavigationSetup(host: host)
+      let surface = try #require(host.surfaces[setup.middleSurfaceID])
+      let window = NSWindow(
+        contentRect: .init(x: 0, y: 0, width: 400, height: 300),
+        styleMask: [],
+        backing: .buffered,
+        defer: false
+      )
+      let container = NSView(frame: window.contentView?.bounds ?? .zero)
+      let firstResponder = PaneZoomFirstResponderView(frame: .init(x: 0, y: 0, width: 10, height: 10))
+
+      window.contentView = container
+      surface.frame = container.bounds
+      container.addSubview(surface)
+      container.addSubview(firstResponder)
+      window.makeFirstResponder(firstResponder)
+
+      #expect(host.performSplitAction(.toggleSplitZoom, for: setup.middleSurfaceID))
+      await Task.yield()
+
+      #expect(window.firstResponder === surface)
+    }
+  }
+
   private func makeZoomNavigationSetup(host: TerminalHostState) throws -> ZoomNavigationSetup {
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
@@ -108,6 +140,10 @@ private final class PaneZoomTestView: NSView, Identifiable {
   required init?(coder: NSCoder) {
     nil
   }
+}
+
+private final class PaneZoomFirstResponderView: NSView {
+  override var acceptsFirstResponder: Bool { true }
 }
 
 private struct ZoomNavigationSetup {
