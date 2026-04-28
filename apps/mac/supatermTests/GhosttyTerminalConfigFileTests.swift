@@ -17,7 +17,7 @@ struct GhosttyTerminalConfigFileTests {
       homeDirectoryURL: rootURL,
       environment: environment,
       availableThemesProvider: {
-        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+        GhosttyTerminalThemeCatalog(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
       effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { ["JetBrains Mono", "SF Mono"] }
@@ -84,7 +84,7 @@ struct GhosttyTerminalConfigFileTests {
       environment: environment,
       notificationCenter: center,
       availableThemesProvider: {
-        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light", "Builtin Light"])
+        GhosttyTerminalThemeCatalog(dark: ["Zenbones Dark"], light: ["Zenbones Light", "Builtin Light"])
       },
       effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
@@ -144,7 +144,7 @@ struct GhosttyTerminalConfigFileTests {
       homeDirectoryURL: rootURL,
       environment: environment,
       availableThemesProvider: {
-        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+        GhosttyTerminalThemeCatalog(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
       effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
@@ -195,7 +195,7 @@ struct GhosttyTerminalConfigFileTests {
       homeDirectoryURL: rootURL,
       environment: environment,
       availableThemesProvider: {
-        .init(dark: ["Builtin Dark"], light: ["Builtin Light"])
+        GhosttyTerminalThemeCatalog(dark: ["Builtin Dark"], light: ["Builtin Light"])
       },
       effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
@@ -313,7 +313,7 @@ struct GhosttyTerminalConfigFileTests {
       environment: environment,
       notificationCenter: center,
       availableThemesProvider: {
-        .init(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
+        GhosttyTerminalThemeCatalog(dark: ["Zenbones Dark"], light: ["Zenbones Light"])
       },
       effectiveFontSizeProvider: testEffectiveFontSize,
       availableFontFamiliesProvider: { [] }
@@ -358,7 +358,7 @@ private nonisolated func terminalSettingsDraft(
   fontSize: Double = 15,
   lightTheme: String? = "Zenbones Light"
 ) -> GhosttyTerminalSettingsDraft {
-  .init(
+  GhosttyTerminalSettingsDraft(
     confirmCloseSurface: confirmCloseSurface,
     darkTheme: darkTheme,
     fontFamily: fontFamily,

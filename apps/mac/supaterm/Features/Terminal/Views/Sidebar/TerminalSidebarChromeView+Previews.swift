@@ -97,7 +97,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
-    tabID = .init(rawValue: Self.uuid(id))
+    tabID = TerminalTabID(rawValue: Self.uuid(id))
     self.section = section
     self.scenario = scenario
     self.title = title
@@ -130,14 +130,14 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 
 private enum TerminalSidebarTabPreviewFixtures {
   static let items: [TerminalSidebarTabPreviewItem] = [
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .shellTitles,
       scenario: "Prompt title from fish, one pane",
       title: "\(cwd()) - fish",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A01",
       paneWorkingDirectories: cwdList(cwd())
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .shellTitles,
       scenario: "Selected manual title for focused work",
       title: "Sidebar polish",
@@ -148,7 +148,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supaterm", "Features", "Terminal", "Views", "Sidebar")
       )
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .splitPanes,
       scenario: "Three panes with distinct working trees",
       title: "Socket routing",
@@ -160,7 +160,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supatermTests")
       )
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .splitPanes,
       scenario: "Four panes with duplicate roots collapsed",
       title: "mac-check",
@@ -171,7 +171,7 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac", "supatermTests")
       )
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .codingAgents,
       scenario: "Running agent inside a split coding tab",
       title: "Socket cleanup",
@@ -182,7 +182,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       ),
       agentActivity: .claude(.running)
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .codingAgents,
       scenario: "Agent is waiting for input",
       title: "Release note pass",
@@ -194,16 +194,16 @@ private enum TerminalSidebarTabPreviewFixtures {
       ),
       agentActivity: .codex(.needsInput)
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .codingAgents,
       scenario: "Agent finished and the leading indicator is hidden",
       title: "Docs audit",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A07",
       icon: "doc.text.magnifyingglass",
       paneWorkingDirectories: cwdList(cwd("docs")),
-      agentActivity: .init(kind: .pi, phase: .idle)
+      agentActivity: TerminalHostState.AgentActivity(kind: .pi, phase: .idle)
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .terminalProgress,
       scenario: "Shell command is reporting OSC 9;4 progress",
       title: "Archive export",
@@ -213,9 +213,9 @@ private enum TerminalSidebarTabPreviewFixtures {
         cwd("apps", "mac"),
         cwd("docs")
       ),
-      terminalProgress: .init(fraction: 0.68, tone: .active)
+      terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .active)
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .attention,
       scenario: "Single unread pane",
       title: "Deploy smoke test",
@@ -227,7 +227,7 @@ private enum TerminalSidebarTabPreviewFixtures {
       ),
       unreadCount: 1
     ),
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .attention,
       scenario: "Unread count overrides agent attention",
       title: "Build failures",
@@ -292,7 +292,7 @@ private struct TerminalSidebarTabPreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: TerminalPalette {
-    .init(colorScheme: colorScheme)
+    TerminalPalette(colorScheme: colorScheme)
   }
 
   var body: some View {
@@ -450,7 +450,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
     unreadCount: Int = 0,
     agentActivity: TerminalHostState.AgentActivity? = nil
   ) -> TerminalSidebarTabPreviewItem {
-    .init(
+    TerminalSidebarTabPreviewItem(
       section: .attention,
       scenario: "",
       title: title,
@@ -600,7 +600,7 @@ private struct TerminalSidebarGroupedTabPreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: TerminalPalette {
-    .init(colorScheme: colorScheme)
+    TerminalPalette(colorScheme: colorScheme)
   }
 
   var body: some View {

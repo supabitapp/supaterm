@@ -187,7 +187,7 @@ struct CodexConversationState: Equatable {
   }
 
   var sidebarSnapshot: CodexSidebarSnapshot {
-    .init(
+    CodexSidebarSnapshot(
       status: activityStatus,
       detail: detail,
       hoverMessages: hoverMessages
@@ -312,7 +312,7 @@ struct CodexConversationState: Equatable {
     case "user_message":
       if let message = normalizedMessage(payload["message"]?.stringValue) {
         appendItem(
-          .message(.init(role: "user", text: message, phase: nil)),
+          .message(CodexConversationMessage(role: "user", text: message, phase: nil)),
           preferredTurnID: preferredTurnID
         )
       }
@@ -365,7 +365,7 @@ struct CodexConversationState: Equatable {
         )
       } else {
         let item = CodexConversationItem.message(
-          .init(role: role, text: text, phase: payload["phase"]?.stringValue)
+          CodexConversationMessage(role: role, text: text, phase: payload["phase"]?.stringValue)
         )
         appendItem(item, preferredTurnID: preferredTurnID)
       }
@@ -419,7 +419,7 @@ struct CodexConversationState: Equatable {
       return
     }
     turns[index].items.append(
-      .reasoning(.init(summary: normalizedSummary, content: normalizedContent))
+      .reasoning(CodexConversationReasoning(summary: normalizedSummary, content: normalizedContent))
     )
   }
 
@@ -457,7 +457,7 @@ struct CodexConversationState: Equatable {
     }
     let index = turns.count
     turns.append(
-      .init(
+      CodexConversationTurn(
         id: id,
         status: .inProgress,
         error: nil,

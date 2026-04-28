@@ -22,6 +22,7 @@ opt_in_rules:
   - discarded_notification_center_observer
   - empty_count
   - empty_string
+  - explicit_init
   - fatal_error_message
   - first_where
   - flatmap_over_map_reduce
@@ -49,6 +50,10 @@ cyclomatic_complexity:
 function_body_length:
   warning: 100
   error: 150
+
+explicit_init:
+  include_bare_init: true
+  severity: error
 
 redundant_discardable_let:
   ignore_swiftui_view_bodies: true

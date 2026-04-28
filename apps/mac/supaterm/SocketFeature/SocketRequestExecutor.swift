@@ -142,11 +142,11 @@ extension SocketRequestExecutor: DependencyKey {
       case .debugSnapshot:
         return .debugSnapshot(Self.emptyDebugSnapshot)
       case .treeSnapshot:
-        return .treeSnapshot(.init(windows: []))
+        return .treeSnapshot(SupatermTreeSnapshot(windows: []))
       case .notify:
         throw TerminalCreatePaneError.creationFailed
       case .agentHook:
-        return .agentHook(.init(desktopNotification: nil))
+        return .agentHook(TerminalAgentHookResult(desktopNotification: nil))
       }
     },
     executeTerminalCreation: { request in
@@ -226,18 +226,18 @@ extension SocketRequestExecutor: DependencyKey {
   public static let testValue = liveValue
 
   private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
-    build: .init(
+    build: SupatermAppDebugSnapshot.Build(
       version: "",
       buildNumber: "",
       isDevelopmentBuild: false,
       usesStubUpdateChecks: false
     ),
-    update: .init(
+    update: SupatermAppDebugSnapshot.Update(
       canCheckForUpdates: false,
       phase: "idle",
       detail: ""
     ),
-    summary: .init(
+    summary: SupatermAppDebugSnapshot.Summary(
       windowCount: 0,
       spaceCount: 0,
       tabCount: 0,

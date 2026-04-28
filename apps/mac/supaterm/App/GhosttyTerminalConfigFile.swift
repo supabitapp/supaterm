@@ -127,7 +127,7 @@ struct GhosttyTerminalConfigFile {
       contents: contents,
       fontSize: fontSize
     )
-    return .init(
+    return GhosttyTerminalSettingsSnapshot(
       availableFontFamilies: availableFontFamiliesProvider(),
       availableDarkThemes: themes.dark,
       availableLightThemes: themes.light,
@@ -147,7 +147,7 @@ struct GhosttyTerminalConfigFile {
     fontSize: Double
   ) -> GhosttyTerminalSettingsValues {
     let selection = selectedTheme(in: contents)
-    return .init(
+    return GhosttyTerminalSettingsValues(
       confirmCloseSurface: selectedConfirmCloseSurface(in: contents) ?? .whenNotAtPrompt,
       configPath: configURL.path,
       darkTheme: selection?.dark,
@@ -300,11 +300,11 @@ struct GhosttyTerminalConfigFile {
     let darkTheme = normalizedThemeName(darkTheme)
     switch (lightTheme, darkTheme) {
     case (let light?, let dark?):
-      return .init(dark: dark, light: light)
+      return ThemeSelection(dark: dark, light: light)
     case (let light?, nil):
-      return .init(dark: light, light: light)
+      return ThemeSelection(dark: light, light: light)
     case (nil, let dark?):
-      return .init(dark: dark, light: dark)
+      return ThemeSelection(dark: dark, light: dark)
     case (nil, nil):
       return nil
     }
@@ -424,9 +424,9 @@ struct GhosttyTerminalConfigFile {
       guard let darkTheme, let lightTheme else {
         return nil
       }
-      return .init(dark: darkTheme, light: lightTheme)
+      return ThemeSelection(dark: darkTheme, light: lightTheme)
     }
-    return .init(dark: value, light: value)
+    return ThemeSelection(dark: value, light: value)
   }
 
   private static func availableFontFamilies() -> [String] {
@@ -472,7 +472,7 @@ struct GhosttyTerminalConfigFile {
       }
     }
 
-    return .init(
+    return GhosttyTerminalThemeCatalog(
       dark: sortedThemeNames(in: classifications, isDark: true),
       light: sortedThemeNames(in: classifications, isDark: false)
     )

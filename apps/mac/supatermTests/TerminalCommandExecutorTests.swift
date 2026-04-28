@@ -16,7 +16,7 @@ struct TerminalCommandExecutorTests {
     let registry = TerminalWindowRegistry()
     let commandExecutor = makeCommandExecutor(registry: registry)
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     var state = AppFeature.State()
     state.update.canCheckForUpdates = true
     state.update.phase = .checking
@@ -35,7 +35,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    let snapshot = commandExecutor.debugSnapshot(.init())
+    let snapshot = commandExecutor.debugSnapshot(SupatermDebugRequest())
     #expect(snapshot.update.canCheckForUpdates)
     #expect(snapshot.update.phase == "checking")
     #expect(snapshot.update.detail == "Please wait while Supaterm checks for available updates.")
@@ -133,7 +133,7 @@ struct TerminalCommandExecutorTests {
       registry.updateWindow(window, for: windowControllerID)
 
       let result = try commandExecutor.createTab(
-        .init(
+        TerminalCreateTabRequest(
           startupCommand: nil,
           cwd: nil,
           focus: false,
@@ -186,7 +186,7 @@ struct TerminalCommandExecutorTests {
       registry.updateWindow(window, for: windowControllerID)
 
       let result = try commandExecutor.createTab(
-        .init(
+        TerminalCreateTabRequest(
           startupCommand: nil,
           cwd: nil,
           focus: false,
@@ -219,7 +219,7 @@ struct TerminalCommandExecutorTests {
 
     #expect(
       TerminalWindowRegistry.rewrite(result, windowIndex: 2)
-        == .init(
+        == SupatermNewTabResult(
           isFocused: false,
           isSelectedSpace: false,
           isSelectedTab: false,
@@ -250,7 +250,7 @@ struct TerminalCommandExecutorTests {
 
     #expect(
       TerminalWindowRegistry.rewrite(result, windowIndex: 2)
-        == .init(
+        == SupatermNewPaneResult(
           direction: .right,
           isFocused: true,
           isSelectedTab: true,
@@ -293,7 +293,7 @@ struct TerminalCommandExecutorTests {
 
     #expect(
       TerminalWindowRegistry.rewrite(result, windowIndex: 2)
-        == .init(
+        == SupatermNotifyResult(
           attentionState: .unread,
           desktopNotificationDisposition: .deliver,
           resolvedTitle: "Deploy complete",

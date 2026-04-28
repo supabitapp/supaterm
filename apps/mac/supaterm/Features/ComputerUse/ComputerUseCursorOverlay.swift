@@ -50,11 +50,11 @@ final class ComputerUseCursorOverlay {
     await reapplyPin()
     await contentView?.move(
       to: request.point,
-      tooltip: .init(appName: appName(for: request.targetPid), activity: request.activity),
+      tooltip: ComputerUseCursorOverlayTooltip(appName: appName(for: request.targetPid), activity: request.activity),
       motion: request.motion
     )
     await reapplyPin()
-    return .init()
+    return ComputerUsePreparedCursor()
   }
 
   func completeClick(_: ComputerUsePreparedCursor) async {
@@ -112,7 +112,7 @@ final class ComputerUseCursorOverlay {
     panel.isOpaque = false
     panel.isReleasedWhenClosed = false
     panel.level = .normal
-    let view = ComputerUseCursorOverlayView(frame: .init(origin: .zero, size: frame.size))
+    let view = ComputerUseCursorOverlayView(frame: NSRect(origin: .zero, size: frame.size))
     contentView = view
     panel.contentView = view
     return panel
@@ -203,7 +203,7 @@ final class ComputerUseCursorOverlay {
       else {
         return nil
       }
-      return .init(
+      return ComputerUseCursorOverlayWindowSnapshot(
         id: windowNumber.uint32Value,
         pid: pidNumber.intValue,
         isOnScreen: (dictionary[kCGWindowIsOnscreen as String] as? Bool) ?? true,
@@ -302,14 +302,14 @@ struct ComputerUseCursorOverlayPinResolver {
   ) -> ComputerUseCursorOverlayPinDecision {
     if targetWindowID == 0 {
       missedTargetCount = 0
-      return .init(relativeWindowID: nil, shouldOrderFront: true, shouldHide: false)
+      return ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: true, shouldHide: false)
     }
 
     let visibleNormalWindows = windows.filter { $0.isOnScreen && $0.layer == 0 }
     let targetPid = Int(targetPid)
     if visibleNormalWindows.contains(where: { $0.id == targetWindowID && $0.pid == targetPid }) {
       missedTargetCount = 0
-      return .init(relativeWindowID: targetWindowID, shouldOrderFront: false, shouldHide: false)
+      return ComputerUseCursorOverlayPinDecision(relativeWindowID: targetWindowID, shouldOrderFront: false, shouldHide: false)
     }
 
     if let fallback =
@@ -318,11 +318,11 @@ struct ComputerUseCursorOverlayPinResolver {
       .max(by: { $0.zIndex < $1.zIndex })
     {
       missedTargetCount = 0
-      return .init(relativeWindowID: fallback.id, shouldOrderFront: false, shouldHide: false)
+      return ComputerUseCursorOverlayPinDecision(relativeWindowID: fallback.id, shouldOrderFront: false, shouldHide: false)
     }
 
     missedTargetCount += 1
-    return .init(
+    return ComputerUseCursorOverlayPinDecision(
       relativeWindowID: nil,
       shouldOrderFront: false,
       shouldHide: missedTargetCount >= 2
@@ -337,7 +337,7 @@ private final class ComputerUseCursorOverlayWindow: NSPanel {
 
 private final class ComputerUseCursorOverlayView: NSView {
   private let cursorView = ComputerUseCursorSymbolView(
-    frame: .init(origin: .init(x: -100, y: -100), size: ComputerUseCursorSymbolView.size)
+    frame: NSRect(origin: NSPoint(x: -100, y: -100), size: ComputerUseCursorSymbolView.size)
   )
   private let tooltipView = ComputerUseCursorTooltipView(frame: .zero)
   private var hasPosition = false
@@ -422,7 +422,7 @@ private final class ComputerUseCursorOverlayView: NSView {
 
     x = min(max(margin, x), max(margin, maxX - size.width - margin))
     y = min(max(margin, y), max(margin, maxY - size.height - margin))
-    return .init(x: x, y: y)
+    return CGPoint(x: x, y: y)
   }
 
   private func cursorPoint(
@@ -448,7 +448,7 @@ private final class ComputerUseCursorOverlayView: NSView {
     )
     let t = CGFloat(progress)
     let mt = 1 - t
-    return .init(
+    return CGPoint(
       x: mt * mt * mt * start.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * end.x,
       y: mt * mt * mt * start.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * end.y
     )
@@ -466,7 +466,7 @@ private final class ComputerUseCursorSymbolView: NSView {
   static let size = CGSize(width: 28, height: 28)
 
   private let imageView = NSImageView(
-    frame: .init(origin: .zero, size: ComputerUseCursorSymbolView.size)
+    frame: NSRect(origin: .zero, size: ComputerUseCursorSymbolView.size)
   )
 
   override init(frame frameRect: NSRect) {
@@ -546,13 +546,13 @@ private final class ComputerUseCursorTooltipView: NSView {
     let titleHeight = Self.titleFont.ascender - Self.titleFont.descender + 1
     let detailHeight = Self.detailFont.ascender - Self.detailFont.descender + 1
     let availableWidth = max(0, bounds.width - inset * 2)
-    titleField.frame = .init(
+    titleField.frame = NSRect(
       x: inset,
       y: Self.verticalPadding,
       width: availableWidth,
       height: titleHeight
     )
-    detailField.frame = .init(
+    detailField.frame = NSRect(
       x: inset,
       y: Self.verticalPadding + titleHeight + Self.lineSpacing,
       width: availableWidth,
@@ -581,7 +581,7 @@ private final class ComputerUseCursorTooltipView: NSView {
       ? 0
       : Self.lineSpacing + Self.detailFont.ascender - Self.detailFont.descender + 1
     let height = ceil(Self.verticalPadding * 2 + titleHeight + detailHeight)
-    return .init(width: width, height: height)
+    return CGSize(width: width, height: height)
   }
 
   private func textWidth(_ text: String, font: NSFont) -> CGFloat {

@@ -101,9 +101,9 @@ struct TerminalCommandExecutorAgentHookTests {
       ClaudeHookFixtures.request(ClaudeHookFixtures.sessionStart, context: harness.context)
     )
     let result = try harness.commandExecutor.handleAgentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .claude,
-        event: .init(
+        event: SupatermAgentHookEvent(
           hookEventName: .notification,
           sessionID: ClaudeHookFixtures.sessionID,
           title: "Needs input"
@@ -132,7 +132,7 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(
       result.desktopNotification
-        == .init(
+        == DesktopNotificationRequest(
           body: "Claude needs your attention",
           subtitle: "Needs input",
           title: "Claude Code"
@@ -219,7 +219,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.idle))
     #expect(
       result.desktopNotification
-        == .init(
+        == DesktopNotificationRequest(
           body: "Done.",
           subtitle: "Turn complete",
           title: "Claude Code"
@@ -383,10 +383,10 @@ struct TerminalCommandExecutorAgentHookTests {
     try CodexTranscriptFixtures.append(.assistantMessage("Resuming after clear"), to: transcriptPath)
 
     _ = try harness.commandExecutor.handleAgentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .codex,
         context: harness.context,
-        event: .init(
+        event: SupatermAgentHookEvent(
           cwd: CodexHookFixtures.cwd,
           hookEventName: .sessionStart,
           sessionID: CodexHookFixtures.sessionID,
@@ -782,7 +782,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
     #expect(
       result.desktopNotification
-        == .init(
+        == DesktopNotificationRequest(
           body: "Done.",
           subtitle: "Turn complete",
           title: "Codex"
@@ -852,7 +852,7 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(
       result.desktopNotification
-        == .init(
+        == DesktopNotificationRequest(
           body: "Foreground done.",
           subtitle: "Turn complete",
           title: "Codex"
@@ -1061,10 +1061,10 @@ struct TerminalCommandExecutorAgentHookTests {
     try CodexTranscriptFixtures.append(.assistantMessage("Transcript path arrived late"), to: transcriptPath)
 
     _ = try harness.commandExecutor.handleAgentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .codex,
         context: harness.context,
-        event: .init(
+        event: SupatermAgentHookEvent(
           cwd: CodexHookFixtures.cwd,
           hookEventName: .sessionStart,
           sessionID: CodexHookFixtures.sessionID
@@ -1075,10 +1075,10 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
     _ = try harness.commandExecutor.handleAgentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .codex,
         context: harness.context,
-        event: .init(
+        event: SupatermAgentHookEvent(
           cwd: CodexHookFixtures.cwd,
           hookEventName: .userPromptSubmit,
           sessionID: CodexHookFixtures.sessionID,
@@ -1100,9 +1100,9 @@ struct TerminalCommandExecutorAgentHookTests {
       CodexHookFixtures.request(CodexHookFixtures.sessionStart, context: harness.context)
     )
     let result = try harness.commandExecutor.handleAgentHook(
-      .init(
+      SupatermAgentHookRequest(
         agent: .codex,
-        event: .init(
+        event: SupatermAgentHookEvent(
           cwd: CodexHookFixtures.cwd,
           hookEventName: .stop,
           lastAssistantMessage: "   ",

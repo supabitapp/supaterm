@@ -42,7 +42,7 @@ struct UpdatePhaseTests {
   @Test
   func updateAvailableUsesVersionBadgeAndDetail() {
     let phase = UpdatePhase.updateAvailable(
-      .init(
+      UpdatePhase.Available(
         buildVersion: "1000",
         contentLength: 1024,
         releaseDate: Date(timeIntervalSince1970: 0),
@@ -59,7 +59,7 @@ struct UpdatePhaseTests {
   @Test
   func downloadingExposesProgressTextAndValue() {
     let phase = UpdatePhase.downloading(
-      .init(
+      UpdatePhase.Downloading(
         expectedLength: 400,
         progress: 100
       )
@@ -74,7 +74,7 @@ struct UpdatePhaseTests {
   @Test
   func installingBypassesQuitConfirmation() {
     let phase = UpdatePhase.installing(
-      .init(
+      UpdatePhase.Installing(
         buildVersion: "1000",
         isAutoUpdate: true,
         version: "1.2.3"
@@ -89,7 +89,7 @@ struct UpdatePhaseTests {
 
   @Test
   func autoUpdateInstallingKeepsRestartMenuActionWhileHidingSidebarSection() {
-    let phase = UpdatePhase.installing(.init(isAutoUpdate: true))
+    let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true))
 
     #expect(!phase.showsSidebarSection)
     #expect(phase.menuItemAction == .restartNow)
@@ -99,7 +99,7 @@ struct UpdatePhaseTests {
 
   @Test
   func manualInstallingKeepsSidebarSectionVisible() {
-    let phase = UpdatePhase.installing(.init(isAutoUpdate: false))
+    let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: false))
 
     #expect(phase.showsSidebarSection)
     #expect(phase.menuItemAction == .restartNow)
@@ -107,14 +107,14 @@ struct UpdatePhaseTests {
 
   @Test
   func installingFallsBackWhenUpdatedVersionIsUnavailable() {
-    let phase = UpdatePhase.installing(.init(isAutoUpdate: true))
+    let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true))
 
     #expect(phase.detailMessage == "The update is ready. Restart Supaterm to complete installation.")
   }
 
   @Test
   func errorUsesFailureMessageAsDetail() {
-    let phase = UpdatePhase.error(.init(message: "Network error"))
+    let phase = UpdatePhase.error(UpdatePhase.Failure(message: "Network error"))
 
     #expect(phase.summaryText == "Update Failed")
     #expect(phase.detailMessage == "Network error")

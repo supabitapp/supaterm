@@ -151,7 +151,7 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "shell",
     isSelected: false,
     panes: [
-      .init(index: 1, id: firstPaneID, isFocused: false)
+      SupatermTreeSnapshot.Pane(index: 1, id: firstPaneID, isFocused: false)
     ]
   )
   let firstWindowSecondTab = SupatermTreeSnapshot.Tab(
@@ -160,8 +160,8 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "logs",
     isSelected: false,
     panes: [
-      .init(index: 1, id: UUID(uuidString: "E66DDF0D-E6FF-456A-A8FB-004D9134A4AF")!, isFocused: false),
-      .init(index: 2, id: secondPaneID, isFocused: true),
+      SupatermTreeSnapshot.Pane(index: 1, id: UUID(uuidString: "E66DDF0D-E6FF-456A-A8FB-004D9134A4AF")!, isFocused: false),
+      SupatermTreeSnapshot.Pane(index: 2, id: secondPaneID, isFocused: true),
     ]
   )
   let secondWindowFirstTab = SupatermTreeSnapshot.Tab(
@@ -170,7 +170,7 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "editor",
     isSelected: false,
     panes: [
-      .init(index: 1, id: UUID(uuidString: "B7A710CF-1F53-415B-B034-7924FDF6DE24")!, isFocused: false)
+      SupatermTreeSnapshot.Pane(index: 1, id: UUID(uuidString: "B7A710CF-1F53-415B-B034-7924FDF6DE24")!, isFocused: false)
     ]
   )
   let secondWindowSecondTab = SupatermTreeSnapshot.Tab(
@@ -179,7 +179,7 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "tests",
     isSelected: true,
     panes: [
-      .init(index: 1, id: thirdPaneID, isFocused: true)
+      SupatermTreeSnapshot.Pane(index: 1, id: thirdPaneID, isFocused: true)
     ]
   )
   let firstWindowSpaces = [
@@ -207,14 +207,14 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
   )
   let secondWindowSpaces = [secondWindowSpace]
 
-  return .init(
+  return SupatermTreeSnapshot(
     windows: [
-      .init(
+      SupatermTreeSnapshot.Window(
         index: 1,
         isKey: false,
         spaces: firstWindowSpaces
       ),
-      .init(
+      SupatermTreeSnapshot.Window(
         index: 2,
         isKey: true,
         spaces: secondWindowSpaces

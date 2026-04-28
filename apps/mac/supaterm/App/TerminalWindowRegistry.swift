@@ -99,10 +99,10 @@ final class TerminalWindowRegistry {
 
   func commandAvailability() -> CommandAvailability {
     guard let entry = preferredActiveEntry() else {
-      return .init(hasWindow: false, hasTab: false, hasSurface: false)
+      return CommandAvailability(hasWindow: false, hasTab: false, hasSurface: false)
     }
 
-    return .init(
+    return CommandAvailability(
       hasWindow: true,
       hasTab: entry.terminal.selectedTabID != nil,
       hasSurface: entry.terminal.selectedSurfaceView != nil
@@ -112,8 +112,8 @@ final class TerminalWindowRegistry {
   func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
     let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
     guard let entry = preferredActiveEntry() else {
-      return .init(
-        availability: .init(hasWindow: false, hasTab: false, hasSurface: false),
+      return MenuContext(
+        availability: CommandAvailability(hasWindow: false, hasTab: false, hasSurface: false),
         closesKeyWindowDirectly: closesKeyWindowDirectly,
         hasSearch: false,
         updateMenuItemText: "Check for Updates...",
@@ -126,8 +126,8 @@ final class TerminalWindowRegistry {
     let updateState = entry.store.withState(\.update)
     let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
 
-    return .init(
-      availability: .init(
+    return MenuContext(
+      availability: CommandAvailability(
         hasWindow: true,
         hasTab: entry.terminal.selectedTabID != nil,
         hasSurface: entry.terminal.selectedSurfaceView != nil
@@ -293,7 +293,7 @@ final class TerminalWindowRegistry {
       )
     }
 
-    return .init(
+    return TerminalCommandPaletteSnapshot(
       ghosttyCommands: terminal.commandPaletteGhosttyCommands(),
       ghosttyShortcutDisplayByAction: terminal.commandPaletteGhosttyShortcutDisplayByAction(),
       hasFocusedSurface: terminal.selectedSurfaceView != nil,
@@ -310,7 +310,7 @@ final class TerminalWindowRegistry {
     guard let entry = entry(forWindowControllerID: target.windowControllerID) else { return }
     guard let window = entry.windowReference.value else { return }
     window.makeKeyAndOrderFront(nil)
-    entry.terminal.updateWindowActivity(.init(isKeyWindow: true, isVisible: true))
+    entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
     _ = try? entry.terminal.focusPane(.contextPane(target.surfaceID))
   }
 
@@ -404,7 +404,7 @@ final class TerminalWindowRegistry {
   private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
     entries.compactMap { entry in
       guard let window = entry.windowReference.value else { return nil }
-      return .init(
+      return CloseAllWindowsCandidate(
         windowID: ObjectIdentifier(window),
         needsConfirmation: entry.terminal.windowNeedsCloseConfirmation()
       )
@@ -429,7 +429,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermNewTabResult,
     windowIndex: Int
   ) -> SupatermNewTabResult {
-    .init(
+    SupatermNewTabResult(
       isFocused: result.isFocused,
       isSelectedSpace: result.isSelectedSpace,
       isSelectedTab: result.isSelectedTab,
@@ -447,7 +447,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermSpaceTarget,
     windowIndex: Int
   ) -> SupatermSpaceTarget {
-    .init(
+    SupatermSpaceTarget(
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
@@ -459,7 +459,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermTabTarget,
     windowIndex: Int
   ) -> SupatermTabTarget {
-    .init(
+    SupatermTabTarget(
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
@@ -473,7 +473,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermPaneTarget,
     windowIndex: Int
   ) -> SupatermPaneTarget {
-    .init(
+    SupatermPaneTarget(
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
@@ -488,7 +488,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermFocusPaneResult,
     windowIndex: Int
   ) -> SupatermFocusPaneResult {
-    .init(
+    SupatermFocusPaneResult(
       isFocused: result.isFocused,
       isSelectedTab: result.isSelectedTab,
       target: rewrite(result.target, windowIndex: windowIndex)
@@ -499,7 +499,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermSelectTabResult,
     windowIndex: Int
   ) -> SupatermSelectTabResult {
-    .init(
+    SupatermSelectTabResult(
       isFocused: result.isFocused,
       isSelectedSpace: result.isSelectedSpace,
       isSelectedTab: result.isSelectedTab,
@@ -514,7 +514,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermSelectSpaceResult,
     windowIndex: Int
   ) -> SupatermSelectSpaceResult {
-    .init(
+    SupatermSelectSpaceResult(
       isFocused: result.isFocused,
       isSelectedSpace: result.isSelectedSpace,
       isSelectedTab: result.isSelectedTab,
@@ -530,7 +530,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermCapturePaneResult,
     windowIndex: Int
   ) -> SupatermCapturePaneResult {
-    .init(
+    SupatermCapturePaneResult(
       target: rewrite(result.target, windowIndex: windowIndex),
       text: result.text
     )
@@ -540,7 +540,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermRenameTabResult,
     windowIndex: Int
   ) -> SupatermRenameTabResult {
-    .init(
+    SupatermRenameTabResult(
       isTitleLocked: result.isTitleLocked,
       target: rewrite(result.target, windowIndex: windowIndex)
     )
@@ -550,7 +550,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermPinTabResult,
     windowIndex: Int
   ) -> SupatermPinTabResult {
-    .init(
+    SupatermPinTabResult(
       isPinned: result.isPinned,
       target: rewrite(result.target, windowIndex: windowIndex)
     )
@@ -560,7 +560,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermNewPaneResult,
     windowIndex: Int
   ) -> SupatermNewPaneResult {
-    .init(
+    SupatermNewPaneResult(
       direction: result.direction,
       isFocused: result.isFocused,
       isSelectedTab: result.isSelectedTab,
@@ -637,7 +637,7 @@ final class TerminalWindowRegistry {
     _ result: SupatermNotifyResult,
     windowIndex: Int
   ) -> SupatermNotifyResult {
-    .init(
+    SupatermNotifyResult(
       attentionState: result.attentionState,
       desktopNotificationDisposition: result.desktopNotificationDisposition,
       resolvedTitle: result.resolvedTitle,

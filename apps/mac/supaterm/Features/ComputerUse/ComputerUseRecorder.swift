@@ -49,7 +49,7 @@ final class ComputerUseRecorder {
     activeDirectory = directory
     turnCount = 0
     try writeSession(to: directory)
-    return .init(active: true, directory: directory.path, turns: 0)
+    return SupatermComputerUseRecordingResult(active: true, directory: directory.path, turns: 0)
   }
 
   func stop() -> SupatermComputerUseRecordingResult {
@@ -57,11 +57,11 @@ final class ComputerUseRecorder {
     let turns = turnCount
     activeDirectory = nil
     turnCount = 0
-    return .init(active: false, directory: directory?.path, turns: turns)
+    return SupatermComputerUseRecordingResult(active: false, directory: directory?.path, turns: turns)
   }
 
   func status() -> SupatermComputerUseRecordingResult {
-    .init(active: isActive, directory: activeDirectory?.path, turns: turnCount)
+    SupatermComputerUseRecordingResult(active: isActive, directory: activeDirectory?.path, turns: turnCount)
   }
 
   func beginTurn() throws -> Turn? {
@@ -76,7 +76,7 @@ final class ComputerUseRecorder {
       withIntermediateDirectories: true,
       attributes: nil
     )
-    return .init(directory: directory)
+    return Turn(directory: directory)
   }
 
   func finishTurn<Request: Encodable, Result: Encodable>(
@@ -128,7 +128,7 @@ final class ComputerUseRecorder {
       return FileManager.default.fileExists(atPath: screenshot.path) ? screenshot : nil
     }
     try ComputerUseRecordingVideoRenderer.render(imageURLs: images, outputURL: outputURL)
-    return .init(
+    return SupatermComputerUseRecordingResult(
       active: isActive,
       directory: directory.path,
       turns: images.count,

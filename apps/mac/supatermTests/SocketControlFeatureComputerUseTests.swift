@@ -26,7 +26,7 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(handle: handle, payload: .computerUsePermissions(id: "computer-use-permissions"))
+        SocketControlClient.Request(handle: handle, payload: .computerUsePermissions(id: "computer-use-permissions"))
       )
     )
 
@@ -48,9 +48,9 @@ struct SocketControlFeatureComputerUseTests {
     let expected = SupatermComputerUseSnapshotResult(
       pid: 123,
       windowID: 456,
-      frame: .init(x: 1, y: 2, width: 300, height: 200),
+      frame: SupatermComputerUseRect(x: 1, y: 2, width: 300, height: 200),
       elements: [
-        .init(
+        SupatermComputerUseElement(
           elementIndex: 1,
           role: "AXButton",
           title: "OK",
@@ -63,7 +63,7 @@ struct SocketControlFeatureComputerUseTests {
           isFocused: false
         )
       ],
-      screenshot: .init(path: "/tmp/window.png", width: 300, height: 200)
+      screenshot: SupatermComputerUseScreenshot(path: "/tmp/window.png", width: 300, height: 200)
     )
     let seenPayload = ComputerUseSnapshotRecorder()
     let handle = UUID(uuidString: "2F892312-025F-4DCD-A71A-11D95F5B69AA")!
@@ -79,7 +79,7 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(
+        SocketControlClient.Request(
           handle: handle, payload: try .computerUseSnapshot(payload, id: "computer-use-snapshot"))
       )
     )
@@ -110,12 +110,12 @@ struct SocketControlFeatureComputerUseTests {
       name: "TextEdit",
       isActive: false,
       windows: [
-        .init(
+        SupatermComputerUseWindow(
           id: 456,
           pid: 123,
           appName: "TextEdit",
           title: "example.txt",
-          frame: .init(x: 0, y: 0, width: 800, height: 600),
+          frame: SupatermComputerUseRect(x: 0, y: 0, width: 800, height: 600),
           isOnScreen: true,
           zIndex: 1,
           layer: 0,
@@ -136,7 +136,7 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(handle: handle, payload: try .computerUseLaunch(payload, id: "computer-use-launch"))
+        SocketControlClient.Request(handle: handle, payload: try .computerUseLaunch(payload, id: "computer-use-launch"))
       )
     )
 
@@ -180,7 +180,7 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(handle: handle, payload: try .computerUseClick(payload, id: "computer-use-click"))
+        SocketControlClient.Request(handle: handle, payload: try .computerUseClick(payload, id: "computer-use-click"))
       )
     )
 
@@ -206,7 +206,7 @@ struct SocketControlFeatureComputerUseTests {
     let store = makeStore {
       $0.computerUseClient.click = { request in
         await seenPayload.record(request)
-        return .init(ok: true, dispatch: "pid_event")
+        return SupatermComputerUseActionResult(ok: true, dispatch: "pid_event")
       }
       $0.socketControlClient.reply = { handle, response in
         await recorder.record(handle: handle, response: response)
@@ -215,14 +215,14 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(handle: handle, payload: try .computerUseClick(payload, id: "computer-use-click"))
+        SocketControlClient.Request(handle: handle, payload: try .computerUseClick(payload, id: "computer-use-click"))
       )
     )
 
     #expect(await seenPayload.snapshot() == payload)
     #expect(
       try await recorder.snapshot().first?.response.decodeResult(
-        SupatermComputerUseActionResult.self) == .init(ok: true, dispatch: "pid_event"))
+        SupatermComputerUseActionResult.self) == SupatermComputerUseActionResult(ok: true, dispatch: "pid_event"))
   }
 
   @Test
@@ -254,7 +254,7 @@ struct SocketControlFeatureComputerUseTests {
 
     await store.send(
       .requestReceived(
-        .init(handle: handle, payload: try .computerUsePage(payload, id: "computer-use-page"))
+        SocketControlClient.Request(handle: handle, payload: try .computerUsePage(payload, id: "computer-use-page"))
       )
     )
 
@@ -283,8 +283,8 @@ struct SocketControlFeatureComputerUseTests {
     let zoomResult = SupatermComputerUseZoomResult(
       pid: 123,
       windowID: 456,
-      source: .init(x: 1, y: 2, width: 30, height: 40),
-      screenshot: .init(path: "/tmp/zoom.png", width: 30, height: 40),
+      source: SupatermComputerUseRect(x: 1, y: 2, width: 30, height: 40),
+      screenshot: SupatermComputerUseScreenshot(path: "/tmp/zoom.png", width: 30, height: 40),
       snapshotToNativeRatio: 2
     )
     let recordingPayload = SupatermComputerUseRecordingRequest(action: .replay, directory: "/tmp/run")
@@ -322,18 +322,18 @@ struct SocketControlFeatureComputerUseTests {
 
     let screenHandle = UUID(uuidString: "1F9C05E8-13D3-4F25-97B4-24592B8129EC")!
     await store.send(
-      .requestReceived(.init(handle: screenHandle, payload: .computerUseScreenSize(id: "screen-size")))
+      .requestReceived(SocketControlClient.Request(handle: screenHandle, payload: .computerUseScreenSize(id: "screen-size")))
     )
     let zoomHandle = UUID(uuidString: "35F7AF90-476B-49FB-9C42-91107D2636D2")!
     await store.send(
       .requestReceived(
-        .init(handle: zoomHandle, payload: try .computerUseZoom(zoomPayload, id: "zoom"))
+        SocketControlClient.Request(handle: zoomHandle, payload: try .computerUseZoom(zoomPayload, id: "zoom"))
       )
     )
     let recordingHandle = UUID(uuidString: "7F18F082-C4C2-46A8-9F1A-20B6A41B852D")!
     await store.send(
       .requestReceived(
-        .init(
+        SocketControlClient.Request(
           handle: recordingHandle,
           payload: try .computerUseRecording(recordingPayload, id: "recording")
         )
@@ -342,7 +342,7 @@ struct SocketControlFeatureComputerUseTests {
     let hotkeyHandle = UUID(uuidString: "8D63E6CB-8B5E-491C-937B-58578E1C76AD")!
     await store.send(
       .requestReceived(
-        .init(handle: hotkeyHandle, payload: try .computerUseHotkey(hotkeyPayload, id: "hotkey"))
+        SocketControlClient.Request(handle: hotkeyHandle, payload: try .computerUseHotkey(hotkeyPayload, id: "hotkey"))
       )
     )
 

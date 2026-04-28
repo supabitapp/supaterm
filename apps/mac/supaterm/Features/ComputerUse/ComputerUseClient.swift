@@ -257,74 +257,74 @@ extension ComputerUseClient: DependencyKey {
 
   public static let testValue = Self(
     permissions: {
-      .init(accessibility: .missing, screenRecording: .missing)
+      SupatermComputerUsePermissionsResult(accessibility: .missing, screenRecording: .missing)
     },
     apps: {
-      .init(apps: [])
+      SupatermComputerUseAppsResult(apps: [])
     },
     screenSize: {
-      .init(width: 0, height: 0, scale: 1)
+      SupatermComputerUseScreenSizeResult(width: 0, height: 0, scale: 1)
     },
     cursorPosition: {
-      .init(x: 0, y: 0)
+      SupatermComputerUseCursorPositionResult(x: 0, y: 0)
     },
     cursorState: {
-      .init(enabled: true, alwaysFloat: false, motion: .default)
+      SupatermComputerUseCursorResult(enabled: true, alwaysFloat: false, motion: .default)
     },
     moveCursor: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     cursorSet: { request in
-      .init(
+      SupatermComputerUseCursorResult(
         enabled: request.enabled ?? true,
         alwaysFloat: request.alwaysFloat ?? false,
         motion: request.motion ?? .default
       )
     },
     launch: { request in
-      .init(pid: 0, bundleID: request.bundleID, name: request.name ?? "", isActive: false, windows: [])
+      SupatermComputerUseLaunchResult(pid: 0, bundleID: request.bundleID, name: request.name ?? "", isActive: false, windows: [])
     },
     windows: { _ in
-      .init(windows: [])
+      SupatermComputerUseWindowsResult(windows: [])
     },
     snapshot: { request in
-      .init(pid: request.pid, windowID: request.windowID, frame: nil, elements: [], screenshot: nil)
+      SupatermComputerUseSnapshotResult(pid: request.pid, windowID: request.windowID, frame: nil, elements: [], screenshot: nil)
     },
     screenshot: { request in
-      .init(path: request.imageOutputPath, width: 0, height: 0)
+      SupatermComputerUseScreenshot(path: request.imageOutputPath, width: 0, height: 0)
     },
     zoom: { request in
-      .init(
+      SupatermComputerUseZoomResult(
         pid: request.pid,
         windowID: request.windowID,
-        source: .init(x: request.x, y: request.y, width: request.width, height: request.height),
-        screenshot: .init(path: request.imageOutputPath, width: 0, height: 0),
+        source: SupatermComputerUseRect(x: request.x, y: request.y, width: request.width, height: request.height),
+        screenshot: SupatermComputerUseScreenshot(path: request.imageOutputPath, width: 0, height: 0),
         snapshotToNativeRatio: 1
       )
     },
     click: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     type: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     key: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     hotkey: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     scroll: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     setValue: { _ in
-      .init(ok: true, dispatch: "test")
+      SupatermComputerUseActionResult(ok: true, dispatch: "test")
     },
     page: { request in
-      .init(action: request.action, dispatch: "test")
+      SupatermComputerUsePageResult(action: request.action, dispatch: "test")
     },
     recording: { request in
-      .init(active: request.action == .start, directory: request.directory)
+      SupatermComputerUseRecordingResult(active: request.action == .start, directory: request.directory)
     }
   )
 

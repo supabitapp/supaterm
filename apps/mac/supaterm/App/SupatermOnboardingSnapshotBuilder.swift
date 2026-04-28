@@ -7,7 +7,7 @@ enum SupatermOnboardingSnapshotBuilder {
     hasShortcutSource: Bool = false,
     shortcutForAction: (String) -> KeyboardShortcut?
   ) -> SupatermOnboardingSnapshot {
-    .init(
+    SupatermOnboardingSnapshot(
       items: onboardingItems(
         hasShortcutSource: hasShortcutSource,
         shortcutForAction: shortcutForAction
@@ -20,7 +20,7 @@ enum SupatermOnboardingSnapshotBuilder {
   ) -> [SupatermOnboardingShortcut] {
     [
       resolvedItem(
-        for: .init(
+        for: CuratedEntry(
           action: "toggle_command_palette",
           fallbackShortcut: "⌘⇧P",
           title: "Open command palette"
@@ -29,12 +29,12 @@ enum SupatermOnboardingSnapshotBuilder {
         shortcutForAction: shortcutForAction
       ),
       resolvedItem(
-        for: .init(action: nil, fallbackShortcut: "⌘S", title: "Toggle sidebar"),
+        for: CuratedEntry(action: nil, fallbackShortcut: "⌘S", title: "Toggle sidebar"),
         hasShortcutSource: hasShortcutSource,
         shortcutForAction: shortcutForAction
       ),
       resolvedItem(
-        for: .init(
+        for: CuratedEntry(
           action: SupatermCommand.newTab.ghosttyBindingAction,
           fallbackShortcut: "⌘T",
           title: "New tab"
@@ -50,7 +50,7 @@ enum SupatermOnboardingSnapshotBuilder {
       )
       + [
         resolvedItem(
-          for: .init(
+          for: CuratedEntry(
             action: SupatermCommand.closeSurface.ghosttyBindingAction,
             fallbackShortcut: "⌘W",
             title: "Close pane"
@@ -59,7 +59,7 @@ enum SupatermOnboardingSnapshotBuilder {
           shortcutForAction: shortcutForAction
         ),
         resolvedItem(
-          for: .init(
+          for: CuratedEntry(
             action: SupatermCommand.closeTab.ghosttyBindingAction,
             fallbackShortcut: "⌘⌥W",
             title: "Close tab"
@@ -68,12 +68,12 @@ enum SupatermOnboardingSnapshotBuilder {
           shortcutForAction: shortcutForAction
         ),
         resolvedItem(
-          for: .init(action: nil, fallbackShortcut: "⌃1-0", title: "Go to space 1-10"),
+          for: CuratedEntry(action: nil, fallbackShortcut: "⌃1-0", title: "Go to space 1-10"),
           hasShortcutSource: hasShortcutSource,
           shortcutForAction: shortcutForAction
         ),
         resolvedItem(
-          for: .init(
+          for: CuratedEntry(
             action: SupatermCommand.newSplit(.right).ghosttyBindingAction,
             fallbackShortcut: "⌘D",
             title: "Split right"
@@ -82,7 +82,7 @@ enum SupatermOnboardingSnapshotBuilder {
           shortcutForAction: shortcutForAction
         ),
         resolvedItem(
-          for: .init(
+          for: CuratedEntry(
             action: SupatermCommand.newSplit(.down).ghosttyBindingAction,
             fallbackShortcut: "⌘⇧D",
             title: "Split down"
@@ -91,7 +91,7 @@ enum SupatermOnboardingSnapshotBuilder {
           shortcutForAction: shortcutForAction
         ),
         resolvedItem(
-          for: .init(
+          for: CuratedEntry(
             action: SupatermCommand.startSearch.ghosttyBindingAction,
             fallbackShortcut: "⌘F",
             title: "Find"
@@ -110,13 +110,13 @@ enum SupatermOnboardingSnapshotBuilder {
   ) -> SupatermOnboardingShortcut? {
     if let action = entry.action {
       if let shortcut = shortcutForAction(action)?.display {
-        return .init(shortcut: shortcut, title: entry.title)
+        return SupatermOnboardingShortcut(shortcut: shortcut, title: entry.title)
       }
       if hasShortcutSource {
         return nil
       }
     }
-    return .init(shortcut: entry.fallbackShortcut, title: entry.title)
+    return SupatermOnboardingShortcut(shortcut: entry.fallbackShortcut, title: entry.title)
   }
 
   private static func tabNavigationItems(
@@ -163,7 +163,7 @@ enum SupatermOnboardingSnapshotBuilder {
         command.defaultKeyboardShortcut?.display
       }
     guard let shortcut else { return nil }
-    return .init(shortcut: shortcut, title: title)
+    return SupatermOnboardingShortcut(shortcut: shortcut, title: title)
   }
 
   private static func tabItem(
@@ -173,12 +173,12 @@ enum SupatermOnboardingSnapshotBuilder {
     shortcutForAction: (String) -> KeyboardShortcut?
   ) -> SupatermOnboardingShortcut? {
     if let shortcut = shortcutForAction(command.ghosttyBindingAction)?.display {
-      return .init(shortcut: shortcut, title: title)
+      return SupatermOnboardingShortcut(shortcut: shortcut, title: title)
     }
     guard !hasShortcutSource, let shortcut = command.defaultKeyboardShortcut?.display else {
       return nil
     }
-    return .init(shortcut: shortcut, title: title)
+    return SupatermOnboardingShortcut(shortcut: shortcut, title: title)
   }
 
   private static func tabRangeShortcut(

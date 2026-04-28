@@ -28,11 +28,11 @@ struct GhosttySurfaceViewEnvironmentTests {
 
     #expect(
       environmentVariables == [
-        .init(key: SupatermCLIEnvironment.surfaceIDKey, value: surfaceID.uuidString),
-        .init(key: SupatermCLIEnvironment.tabIDKey, value: tabID.uuidString),
-        .init(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
-        .init(key: SupatermCLIEnvironment.cliPathKey, value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"),
-        .init(key: "PATH", value: path),
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.surfaceIDKey, value: surfaceID.uuidString),
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.tabIDKey, value: tabID.uuidString),
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.cliPathKey, value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"),
+        SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
     )
   }
@@ -59,7 +59,7 @@ struct GhosttySurfaceViewEnvironmentTests {
 
     #expect(
       environmentVariables.contains(
-        .init(key: SupatermCLIEnvironment.stateHomeKey, value: "/tmp/supaterm-dev")
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.stateHomeKey, value: "/tmp/supaterm-dev")
       )
     )
   }

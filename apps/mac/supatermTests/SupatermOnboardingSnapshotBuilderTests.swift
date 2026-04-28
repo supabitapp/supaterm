@@ -27,17 +27,17 @@ struct SupatermOnboardingSnapshotBuilderTests {
 
     #expect(
       snapshot.items == [
-        .init(shortcut: "⌘⇧P", title: "Open command palette"),
-        .init(shortcut: "⌘S", title: "Toggle sidebar"),
-        .init(shortcut: "⌘T", title: "New tab"),
-        .init(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
-        .init(shortcut: "⌘9", title: "Last tab"),
-        .init(shortcut: "⌘W", title: "Close pane"),
-        .init(shortcut: "⌘⇧W", title: "Close tab"),
-        .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
-        .init(shortcut: "⌘D", title: "Split right"),
-        .init(shortcut: "⌘⇧D", title: "Split down"),
-        .init(shortcut: "⌘F", title: "Find"),
+        SupatermOnboardingShortcut(shortcut: "⌘⇧P", title: "Open command palette"),
+        SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+        SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
+        SupatermOnboardingShortcut(shortcut: "⌘9", title: "Last tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘W", title: "Close pane"),
+        SupatermOnboardingShortcut(shortcut: "⌘⇧W", title: "Close tab"),
+        SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
+        SupatermOnboardingShortcut(shortcut: "⌘D", title: "Split right"),
+        SupatermOnboardingShortcut(shortcut: "⌘⇧D", title: "Split down"),
+        SupatermOnboardingShortcut(shortcut: "⌘F", title: "Find"),
       ]
     )
   }
@@ -51,17 +51,17 @@ struct SupatermOnboardingSnapshotBuilderTests {
 
     #expect(
       snapshot.items == [
-        .init(shortcut: "⌘⇧P", title: "Open command palette"),
-        .init(shortcut: "⌘S", title: "Toggle sidebar"),
-        .init(shortcut: "⌘T", title: "New tab"),
-        .init(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
-        .init(shortcut: "⌘0", title: "Go to tab 10"),
-        .init(shortcut: "⌘W", title: "Close pane"),
-        .init(shortcut: "⌘⌥W", title: "Close tab"),
-        .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
-        .init(shortcut: "⌘D", title: "Split right"),
-        .init(shortcut: "⌘⇧D", title: "Split down"),
-        .init(shortcut: "⌘F", title: "Find"),
+        SupatermOnboardingShortcut(shortcut: "⌘⇧P", title: "Open command palette"),
+        SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+        SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
+        SupatermOnboardingShortcut(shortcut: "⌘0", title: "Go to tab 10"),
+        SupatermOnboardingShortcut(shortcut: "⌘W", title: "Close pane"),
+        SupatermOnboardingShortcut(shortcut: "⌘⌥W", title: "Close tab"),
+        SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
+        SupatermOnboardingShortcut(shortcut: "⌘D", title: "Split right"),
+        SupatermOnboardingShortcut(shortcut: "⌘⇧D", title: "Split down"),
+        SupatermOnboardingShortcut(shortcut: "⌘F", title: "Find"),
       ]
     )
   }
@@ -78,9 +78,9 @@ struct SupatermOnboardingSnapshotBuilderTests {
 
     #expect(
       snapshot.items == [
-        .init(shortcut: "⌘S", title: "Toggle sidebar"),
-        .init(shortcut: "⌘T", title: "New tab"),
-        .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
+        SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+        SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
       ]
     )
   }

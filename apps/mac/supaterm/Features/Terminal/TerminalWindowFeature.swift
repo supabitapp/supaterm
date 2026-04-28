@@ -225,7 +225,7 @@ struct TerminalWindowFeature {
           guard event.desktopNotificationDisposition.shouldDeliver else { return .none }
           return .run { [desktopNotificationClient] _ in
             await desktopNotificationClient.deliver(
-              .init(
+              DesktopNotificationRequest(
                 body: event.body,
                 subtitle: event.subtitle,
                 title: event.resolvedTitle
@@ -364,7 +364,7 @@ struct TerminalWindowFeature {
       case .sidebarTabSplitRequested(let surfaceID, let direction):
         return .run { [terminalClient] _ in
           _ = try? await terminalClient.createPane(
-            .init(
+            TerminalCreatePaneRequest(
               startupCommand: nil,
               cwd: nil,
               direction: direction,
@@ -411,11 +411,11 @@ struct TerminalWindowFeature {
         )
 
       case .spaceCreateButtonTapped:
-        state.spaceEditor = .init(mode: .create, draftName: "")
+        state.spaceEditor = TerminalSpaceEditorState(mode: .create, draftName: "")
         return .none
 
       case .spaceDeleteRequested(let space):
-        state.pendingSpaceDeleteRequest = .init(space: space)
+        state.pendingSpaceDeleteRequest = TerminalSpaceDeleteRequest(space: space)
         return .none
 
       case .spaceEditorCancelButtonTapped:
@@ -423,7 +423,7 @@ struct TerminalWindowFeature {
         return .none
 
       case .spaceRenameRequested(let space):
-        state.spaceEditor = .init(mode: .rename(space), draftName: space.name)
+        state.spaceEditor = TerminalSpaceEditorState(mode: .rename(space), draftName: space.name)
         return .none
 
       case .spaceEditorSaveButtonTapped:

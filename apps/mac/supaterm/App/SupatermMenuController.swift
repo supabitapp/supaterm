@@ -11,7 +11,7 @@ final class SupatermMenuController: NSObject {
 
     init(shortcut: KeyboardShortcut) {
       self.keyEquivalent = shortcut.key.character.description.lowercased()
-      self.modifierMask = .init(swiftUIFlags: shortcut.modifiers).intersection(.deviceIndependentFlagsMask)
+      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers).intersection(.deviceIndependentFlagsMask)
     }
 
     func matches(_ event: NSEvent) -> Bool {
@@ -417,7 +417,7 @@ final class SupatermMenuController: NSObject {
     let item = makeItem(
       title: "Tab \(slot)",
       action: #selector(selectTab(_:)),
-      identifier: .init(MenuItemIdentifier.selectTabPrefix + "\(slot)")
+      identifier: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectTabPrefix + "\(slot)")
     )
     item.representedObject = slot as NSNumber
     return item
@@ -510,7 +510,7 @@ final class SupatermMenuController: NSObject {
     let item = makeItem(
       title: "Space \(slot)",
       action: #selector(selectSpace(_:)),
-      identifier: .init(MenuItemIdentifier.selectSpacePrefix + "\(slot)")
+      identifier: NSUserInterfaceItemIdentifier(MenuItemIdentifier.selectSpacePrefix + "\(slot)")
     )
     let key = slot == 10 ? "0" : "\(slot)"
     SupatermMenuShortcut.apply(
@@ -880,8 +880,8 @@ final class SupatermMenuController: NSObject {
   private func syncGhosttyBindingItem(_ item: NSMenuItem, shortcut: KeyboardShortcut?) {
     guard let shortcut else { return }
     ghosttyBindingItems.append(
-      .init(
-        shortcut: .init(shortcut: shortcut),
+      GhosttyBindingMenuItem(
+        shortcut: MenuShortcutKey(shortcut: shortcut),
         item: item
       )
     )
@@ -1045,7 +1045,7 @@ enum SupatermMenuShortcut {
     }
 
     item.keyEquivalent = shortcut.key.character.description
-    item.keyEquivalentModifierMask = .init(swiftUIFlags: shortcut.modifiers)
+    item.keyEquivalentModifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers)
   }
 }
 

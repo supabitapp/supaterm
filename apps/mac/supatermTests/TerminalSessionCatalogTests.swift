@@ -35,12 +35,12 @@ struct TerminalSessionCatalogTests {
     let session = TerminalWindowSession(
       selectedSpaceID: missingSpace,
       spaces: [
-        .init(
+        TerminalWindowSpaceSession(
           id: missingSpace,
           selectedTabIndex: nil,
           tabs: []
         ),
-        .init(
+        TerminalWindowSpaceSession(
           id: validSpace,
           selectedTabIndex: nil,
           tabs: []
@@ -61,11 +61,11 @@ struct TerminalSessionCatalogTests {
       lockedTitle: "  ",
       focusedPaneIndex: 99,
       root: .split(
-        .init(
+        TerminalPaneSplitSession(
           direction: .horizontal,
           ratio: 0,
-          left: .leaf(.init(workingDirectoryPath: "/tmp", titleOverride: "  ")),
-          right: .leaf(.init(workingDirectoryPath: "/var"))
+          left: .leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp", titleOverride: "  ")),
+          right: .leaf(TerminalPaneLeafSession(workingDirectoryPath: "/var"))
         )
       )
     )
@@ -92,17 +92,17 @@ struct TerminalSessionCatalogTests {
       id: TerminalSpaceID(),
       selectedTabIndex: 42,
       tabs: [
-        .init(
+        TerminalTabSession(
           isPinned: false,
           lockedTitle: nil,
           focusedPaneIndex: 0,
-          root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
+          root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil, titleOverride: nil))
         ),
-        .init(
+        TerminalTabSession(
           isPinned: true,
           lockedTitle: "Pinned",
           focusedPaneIndex: 0,
-          root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
+          root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil, titleOverride: nil))
         ),
       ]
     )
@@ -118,17 +118,17 @@ struct TerminalSessionCatalogTests {
   func catalogEncodingOmitsDerivedTitlesAndPaneIDs() throws {
     let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!)
     let tabs: [TerminalTabSession] = [
-      .init(
+      TerminalTabSession(
         isPinned: false,
         lockedTitle: nil,
         focusedPaneIndex: 0,
-        root: .leaf(.init(workingDirectoryPath: "/tmp", titleOverride: "Pane"))
+        root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp", titleOverride: "Pane"))
       ),
-      .init(
+      TerminalTabSession(
         isPinned: true,
         lockedTitle: "Pinned",
         focusedPaneIndex: 0,
-        root: .leaf(.init(workingDirectoryPath: nil, titleOverride: nil))
+        root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil, titleOverride: nil))
       ),
     ]
     let space = TerminalWindowSpaceSession(

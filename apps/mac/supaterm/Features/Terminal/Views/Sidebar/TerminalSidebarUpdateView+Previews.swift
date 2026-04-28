@@ -14,18 +14,18 @@ private struct TerminalSidebarUpdatePreviewItem: Identifiable {
 
 private enum TerminalSidebarUpdatePreviewFixtures {
   static let items: [TerminalSidebarUpdatePreviewItem] = [
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Permission Request",
       phase: .permissionRequest
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Checking",
       phase: .checking
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Update Available",
       phase: .updateAvailable(
-        .init(
+        UpdatePhase.Available(
           buildVersion: "1000",
           contentLength: 82_300_000,
           releaseDate: Date(timeIntervalSince1970: 1_742_582_400),
@@ -33,41 +33,41 @@ private enum TerminalSidebarUpdatePreviewFixtures {
         )
       )
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Downloading",
       phase: .downloading(
-        .init(
+        UpdatePhase.Downloading(
           expectedLength: 82_300_000,
           progress: 46_900_000
         )
       )
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Extracting",
       phase: .extracting(
-        .init(progress: 0.72)
+        UpdatePhase.Extracting(progress: 0.72)
       )
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Installing",
       phase: .installing(
-        .init(isAutoUpdate: false)
+        UpdatePhase.Installing(isAutoUpdate: false)
       )
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Auto Update Ready",
       phase: .installing(
-        .init(isAutoUpdate: true)
+        UpdatePhase.Installing(isAutoUpdate: true)
       )
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "No Updates Found",
       phase: .notFound
     ),
-    .init(
+    TerminalSidebarUpdatePreviewItem(
       title: "Error",
       phase: .error(
-        .init(message: "Unable to reach the update server.")
+        UpdatePhase.Failure(message: "Unable to reach the update server.")
       )
     ),
   ]
@@ -77,7 +77,7 @@ private struct TerminalSidebarUpdatePreviewGallery: View {
   let colorScheme: ColorScheme
 
   private var palette: TerminalPalette {
-    .init(colorScheme: colorScheme)
+    TerminalPalette(colorScheme: colorScheme)
   }
 
   var body: some View {

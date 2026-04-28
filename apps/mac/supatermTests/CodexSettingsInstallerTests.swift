@@ -11,7 +11,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -50,7 +50,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -107,7 +107,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -167,7 +167,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -221,7 +221,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -264,7 +264,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -308,7 +308,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.installSupatermHooks()
@@ -346,7 +346,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     #expect(try installer.hasSupatermHooks())
@@ -387,7 +387,7 @@ struct CodexSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       runEnableHooksCommand: {
         Issue.record("removeSupatermHooks should not invoke the enable hooks command.")
-        return .init(status: 0, standardError: "")
+        return CodexSettingsInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -430,7 +430,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     try installer.removeSupatermHooks()
@@ -452,7 +452,7 @@ struct CodexSettingsInstallerTests {
 
     let installer = CodexSettingsInstaller(
       homeDirectoryURL: homeDirectoryURL,
-      runEnableHooksCommand: { .init(status: 0, standardError: "") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 0, standardError: "") }
     )
 
     #expect(throws: CodexSettingsInstallerError.invalidJSON) {
@@ -480,7 +480,7 @@ struct CodexSettingsInstallerTests {
   @Test
   func installFailsWhenCodexFeatureEnableCommandFails() {
     let installer = CodexSettingsInstaller(
-      runEnableHooksCommand: { .init(status: 1, standardError: "feature update failed") }
+      runEnableHooksCommand: { CodexSettingsInstaller.CommandResult(status: 1, standardError: "feature update failed") }
     )
 
     #expect(throws: CodexSettingsInstallerError.enableHooksFailed("feature update failed")) {

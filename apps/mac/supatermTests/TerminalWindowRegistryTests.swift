@@ -39,7 +39,7 @@ struct TerminalWindowRegistryTests {
 
       #expect(
         registry.commandAvailability()
-          == .init(
+          == TerminalWindowRegistry.CommandAvailability(
             hasWindow: true,
             hasTab: true,
             hasSurface: false
@@ -51,9 +51,9 @@ struct TerminalWindowRegistryTests {
   func bypassesQuitConfirmationReflectsInstallingUpdatePhase() {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -79,8 +79,8 @@ struct TerminalWindowRegistryTests {
     let secondRuntime = try makeGhosttyRuntime("")
     let firstHost = TerminalHostState(runtime: firstRuntime, managesTerminalSurfaces: false)
     let secondHost = TerminalHostState(runtime: secondRuntime, managesTerminalSurfaces: false)
-    firstHost.windowActivity = .init(isKeyWindow: false, isVisible: true)
-    secondHost.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    firstHost.windowActivity = WindowActivityState(isKeyWindow: false, isVisible: true)
+    secondHost.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     let firstID = UUID()
     let secondID = UUID()
     let firstStore = Store(initialState: AppFeature.State()) {
@@ -117,9 +117,9 @@ struct TerminalWindowRegistryTests {
   func menuContextShowsRestartToUpdateWhenInstallIsPending() {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -143,9 +143,9 @@ struct TerminalWindowRegistryTests {
   func menuContextShowsRestartToUpdateWhenRestartIsDeferred() {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -200,7 +200,7 @@ struct TerminalWindowRegistryTests {
     let recorder = UpdateMenuActionRecorder()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
     let store = Store(initialState: state) {
       AppFeature()
     } withDependencies: {
@@ -323,7 +323,7 @@ struct TerminalWindowRegistryTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     var state = AppFeature.State()
-    state.update.phase = .updateAvailable(.init(contentLength: 42, releaseDate: nil, version: "1.2.3"))
+    state.update.phase = .updateAvailable(UpdatePhase.Available(contentLength: 42, releaseDate: nil, version: "1.2.3"))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -388,7 +388,7 @@ struct TerminalWindowRegistryTests {
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
       var state = AppFeature.State()
-      state.update.phase = .installing(.init(isAutoUpdate: true))
+      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -422,7 +422,7 @@ struct TerminalWindowRegistryTests {
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
       var state = AppFeature.State()
-      state.update.phase = .installing(.init(isAutoUpdate: false))
+      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: false))
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -456,7 +456,7 @@ struct TerminalWindowRegistryTests {
       let registry = TerminalWindowRegistry()
       let host = try makeCommandPaletteHost(title: "alpha", workingDirectory: nil)
       var state = AppFeature.State()
-      state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+      state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
       let store = Store(initialState: state) {
         AppFeature()
       }
@@ -496,7 +496,7 @@ struct TerminalWindowRegistryTests {
       let selectedSurfaceID = try #require(host.selectedSurfaceView?.id)
 
       _ = try host.createPane(
-        .init(
+        TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,
@@ -778,8 +778,8 @@ struct TerminalWindowRegistryTests {
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        .init(windowID: ObjectIdentifier(confirmWindow), needsConfirmation: true),
-        .init(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(confirmWindow), needsConfirmation: true),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
       ]
     )
 
@@ -799,8 +799,8 @@ struct TerminalWindowRegistryTests {
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        .init(windowID: ObjectIdentifier(firstWindow), needsConfirmation: false),
-        .init(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(firstWindow), needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
       ]
     )
 

@@ -72,8 +72,8 @@ struct GhosttySurfaceBridgeTests {
     }
 
     let bridge = GhosttySurfaceBridge()
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    let action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_CONFIG, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_CONFIG, action: ghostty_action_u())
 
     #expect(bridge.handleAction(target: target, action: action))
     #expect(delegate.openConfigCount == 1)
@@ -88,8 +88,8 @@ struct GhosttySurfaceBridgeTests {
       return true
     }
 
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    let action = ghostty_action_s(tag: GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_TOGGLE_COMMAND_PALETTE, action: ghostty_action_u())
 
     #expect(bridge.handleAction(target: target, action: action))
     #expect(toggleCount == 1)
@@ -107,8 +107,8 @@ struct GhosttySurfaceBridgeTests {
       promptTabTitle += 1
     }
 
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: ghostty_action_u())
     action.action.prompt_title = GHOSTTY_PROMPT_TITLE_SURFACE
 
     #expect(bridge.handleAction(target: target, action: action) == false)
@@ -128,8 +128,8 @@ struct GhosttySurfaceBridgeTests {
       promptTabTitle += 1
     }
 
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_PROMPT_TITLE, action: ghostty_action_u())
     action.action.prompt_title = GHOSTTY_PROMPT_TITLE_TAB
 
     #expect(bridge.handleAction(target: target, action: action) == false)
@@ -144,8 +144,8 @@ struct GhosttySurfaceBridgeTests {
     var emittedTitles: [String] = []
     bridge.onTitleChange = { emittedTitles.append($0) }
 
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_SET_TITLE, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_SET_TITLE, action: ghostty_action_u())
     let title = strdup("sleep 10")
     action.action.set_title.title = UnsafePointer(title)
     defer {
@@ -162,7 +162,7 @@ struct GhosttySurfaceBridgeTests {
   func openUrlReturnsHandledResult() {
     let bridge = GhosttySurfaceBridge()
 
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
     withOpenURLAction(url: "not a valid url") { action in
       #expect(bridge.handleAction(target: target, action: action))
       #expect(bridge.state.openUrl == "not a valid url")
@@ -175,7 +175,7 @@ struct GhosttySurfaceBridgeTests {
     kind: ghostty_action_open_url_kind_e = GHOSTTY_ACTION_OPEN_URL_KIND_UNKNOWN,
     _ body: (ghostty_action_s) -> T
   ) -> T {
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: .init())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_OPEN_URL, action: ghostty_action_u())
     action.action.open_url.kind = kind
     guard let pointer = strdup(url) else {
       Issue.record("strdup failed")

@@ -15,7 +15,7 @@ extension TerminalCommandExecutor {
         spaces: snapshot.windows.first?.spaces ?? []
       )
     }
-    return .init(windows: windows)
+    return SupatermTreeSnapshot(windows: windows)
   }
 
   func onboardingSnapshot() -> SupatermOnboardingSnapshot? {
@@ -42,15 +42,15 @@ extension TerminalCommandExecutor {
       problems.append("No active windows.")
     }
 
-    return .init(
-      build: .init(
+    return SupatermAppDebugSnapshot(
+      build: SupatermAppDebugSnapshot.Build(
         version: AppBuild.version,
         buildNumber: AppBuild.buildNumber,
         isDevelopmentBuild: AppBuild.isDevelopmentBuild,
         usesStubUpdateChecks: AppBuild.usesStubUpdateChecks
       ),
       update: updateSnapshot(updateEntry.map { $0.store.withState(\.update) }),
-      summary: .init(
+      summary: SupatermAppDebugSnapshot.Summary(
         windowCount: windows.count,
         spaceCount: windows.reduce(0) { $0 + $1.spaces.count },
         tabCount: windows.reduce(0) { partial, window in
@@ -151,13 +151,13 @@ extension TerminalCommandExecutor {
 
   func updateSnapshot(_ state: UpdateFeature.State?) -> SupatermAppDebugSnapshot.Update {
     guard let state else {
-      return .init(
+      return SupatermAppDebugSnapshot.Update(
         canCheckForUpdates: false,
         phase: "idle",
         detail: ""
       )
     }
-    return .init(
+    return SupatermAppDebugSnapshot.Update(
       canCheckForUpdates: state.canCheckForUpdates,
       phase: state.phase.debugIdentifier,
       detail: state.phase.detailMessage

@@ -46,7 +46,7 @@ struct SocketControlCreationTests {
       $0.terminalWindowsClient.createTab = { request in
         #expect(
           request
-            == .init(
+            == TerminalCreateTabRequest(
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
@@ -72,7 +72,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newTab(
-        .init(
+        SupatermNewTabRequest(
           startupCommand: nil,
           contextPaneID: paneID,
           focus: false
@@ -100,7 +100,7 @@ struct SocketControlCreationTests {
       $0.terminalWindowsClient.createTab = { request in
         #expect(
           request
-            == .init(
+            == TerminalCreateTabRequest(
               startupCommand: nil,
               cwd: nil,
               focus: false,
@@ -125,7 +125,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newTab(
-        .init(
+        SupatermNewTabRequest(
           startupCommand: nil,
           focus: false
         ),
@@ -145,7 +145,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-tab-3",
@@ -162,7 +162,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newTab(
-        .init(
+        SupatermNewTabRequest(
           startupCommand: nil,
           focus: true,
           targetWindowIndex: 1,
@@ -187,7 +187,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-tab-4",
@@ -236,7 +236,7 @@ struct SocketControlCreationTests {
       $0.terminalWindowsClient.createPane = { request in
         #expect(
           request
-            == .init(
+            == TerminalCreatePaneRequest(
               startupCommand: "pwd",
               cwd: "/tmp/example",
               direction: .down,
@@ -263,7 +263,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: true,
@@ -285,7 +285,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-2",
@@ -302,7 +302,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: true,
@@ -330,7 +330,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-3",
@@ -347,7 +347,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .left,
           focus: true,
@@ -370,7 +370,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-4",
@@ -387,7 +387,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: true,
@@ -410,7 +410,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-5",
@@ -427,7 +427,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: true,
@@ -451,7 +451,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-6",
@@ -468,7 +468,7 @@ struct SocketControlCreationTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .newPane(
-        .init(
+        SupatermNewPaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: true,
@@ -496,7 +496,7 @@ struct SocketControlCreationTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "new-pane-7",

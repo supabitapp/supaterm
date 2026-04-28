@@ -197,7 +197,7 @@ struct SupatermSocketProtocolTests {
 
     #expect(
       endpoint
-        == .init(
+        == SupatermSocketEndpoint(
           id: endpointID,
           name: "dev",
           path:
@@ -242,14 +242,14 @@ struct SupatermSocketProtocolTests {
       environment: ["TMPDIR": "/tmp/SupatermTests"],
       endpointID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
       processID: 42,
-      startedAt: .init(timeIntervalSince1970: 0),
+      startedAt: Date(timeIntervalSince1970: 0),
       userID: 501
     )
     let second = SupatermProcessSocketEndpoint.make(
       environment: ["TMPDIR": "/tmp/SupatermTests"],
       endpointID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
       processID: 42,
-      startedAt: .init(timeIntervalSince1970: 1),
+      startedAt: Date(timeIntervalSince1970: 1),
       userID: 501
     )
 
@@ -372,7 +372,7 @@ struct SupatermSocketProtocolTests {
         environmentPath: "/tmp/environment.sock",
         instance: "alpha",
         discoveredEndpoints: [alpha, beta]
-      ) == .init(endpoint: nil, path: "/tmp/explicit.sock", source: .explicitPath)
+      ) == SupatermResolvedSocketTarget(endpoint: nil, path: "/tmp/explicit.sock", source: .explicitPath)
     )
 
     #expect(
@@ -381,7 +381,7 @@ struct SupatermSocketProtocolTests {
         environmentPath: "/tmp/environment.sock",
         instance: "alpha",
         discoveredEndpoints: [alpha, beta]
-      ) == .init(endpoint: nil, path: "/tmp/environment.sock", source: .environmentPath)
+      ) == SupatermResolvedSocketTarget(endpoint: nil, path: "/tmp/environment.sock", source: .environmentPath)
     )
 
     #expect(
@@ -390,7 +390,7 @@ struct SupatermSocketProtocolTests {
         environmentPath: nil,
         instance: alpha.id.uuidString,
         discoveredEndpoints: [alpha, beta]
-      ) == .init(endpoint: alpha, path: alpha.path, source: .explicitInstance)
+      ) == SupatermResolvedSocketTarget(endpoint: alpha, path: alpha.path, source: .explicitInstance)
     )
 
     #expect(
@@ -399,7 +399,7 @@ struct SupatermSocketProtocolTests {
         environmentPath: nil,
         instance: "beta",
         discoveredEndpoints: [alpha, beta]
-      ) == .init(endpoint: beta, path: beta.path, source: .explicitInstance)
+      ) == SupatermResolvedSocketTarget(endpoint: beta, path: beta.path, source: .explicitInstance)
     )
 
     #expect(
@@ -408,7 +408,7 @@ struct SupatermSocketProtocolTests {
         environmentPath: nil,
         instance: alpha.id.uuidString.lowercased(),
         discoveredEndpoints: [alpha, beta]
-      ) == .init(endpoint: alpha, path: alpha.path, source: .explicitInstance)
+      ) == SupatermResolvedSocketTarget(endpoint: alpha, path: alpha.path, source: .explicitInstance)
     )
 
     do {
@@ -521,12 +521,12 @@ struct SupatermSocketProtocolTests {
       title: "zsh",
       isSelected: true,
       panes: [
-        .init(
+        SupatermTreeSnapshot.Pane(
           index: 1,
           id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
           isFocused: true
         ),
-        .init(
+        SupatermTreeSnapshot.Pane(
           index: 2,
           id: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
           isFocused: false
@@ -560,8 +560,8 @@ struct SupatermSocketProtocolTests {
   func onboardingRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
     let snapshot = SupatermOnboardingSnapshot(
       items: [
-        .init(shortcut: "⌘S", title: "Toggle sidebar"),
-        .init(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+        SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
       ]
     )
 
@@ -624,25 +624,25 @@ struct SupatermSocketProtocolTests {
       spaces: [space]
     )
     let snapshot = SupatermAppDebugSnapshot(
-      build: .init(
+      build: SupatermAppDebugSnapshot.Build(
         version: "1.2.3",
         buildNumber: "45",
         isDevelopmentBuild: true,
         usesStubUpdateChecks: true
       ),
-      update: .init(
+      update: SupatermAppDebugSnapshot.Update(
         canCheckForUpdates: true,
         phase: "checking",
         detail: "Please wait while Supaterm checks for available updates."
       ),
-      summary: .init(
+      summary: SupatermAppDebugSnapshot.Summary(
         windowCount: 1,
         spaceCount: 1,
         tabCount: 1,
         paneCount: 1,
         keyWindowIndex: 1
       ),
-      currentTarget: .init(
+      currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
         windowIndex: 1,
         spaceIndex: 1,
         spaceID: space.id,
@@ -658,13 +658,13 @@ struct SupatermSocketProtocolTests {
     )
 
     let request = try SupatermSocketRequest.debug(
-      .init(context: context),
+      SupatermDebugRequest(context: context),
       id: "debug-1"
     )
     let response = try SupatermSocketResponse.ok(id: "debug-1", encodableResult: snapshot)
 
     #expect(request.method == SupatermSocketMethod.appDebug)
-    #expect(try request.decodeParams(SupatermDebugRequest.self) == .init(context: context))
+    #expect(try request.decodeParams(SupatermDebugRequest.self) == SupatermDebugRequest(context: context))
     #expect(try response.decodeResult(SupatermAppDebugSnapshot.self) == snapshot)
   }
 
@@ -778,7 +778,7 @@ struct SupatermSocketProtocolTests {
 
     #expect(
       try request.decodeParams(SupatermNotifyRequest.self)
-        == .init(
+        == SupatermNotifyRequest(
           body: "Build finished",
           targetSpaceIndex: 1,
           targetTabIndex: 2
@@ -791,7 +791,7 @@ struct SupatermSocketProtocolTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
     let requestPayload = SupatermAgentHookRequest(
       agent: .claude,
-      context: .init(
+      context: SupatermCLIContext(
         surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
       ),
@@ -816,7 +816,7 @@ struct SupatermSocketProtocolTests {
       paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     )
     let focusRequest = try SupatermSocketRequest.focusPane(
-      .init(
+      SupatermPaneTargetRequest(
         targetWindowIndex: 1,
         targetSpaceIndex: 2,
         targetTabIndex: 3,
@@ -833,8 +833,8 @@ struct SupatermSocketProtocolTests {
       )
     )
     let sendTextRequest = try SupatermSocketRequest.sendText(
-      .init(
-        target: .init(
+      SupatermSendTextRequest(
+        target: SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3,
@@ -845,10 +845,10 @@ struct SupatermSocketProtocolTests {
       id: "send-text-1"
     )
     let setPaneSizeRequest = try SupatermSocketRequest.setPaneSize(
-      .init(
+      SupatermSetPaneSizeRequest(
         amount: 30,
         axis: .horizontal,
-        target: .init(
+        target: SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3,
@@ -862,7 +862,7 @@ struct SupatermSocketProtocolTests {
     #expect(focusRequest.method == SupatermSocketMethod.terminalFocusPane)
     #expect(
       try focusRequest.decodeParams(SupatermPaneTargetRequest.self)
-        == .init(
+        == SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3,
@@ -873,8 +873,8 @@ struct SupatermSocketProtocolTests {
     #expect(sendTextRequest.method == SupatermSocketMethod.terminalSendText)
     #expect(
       try sendTextRequest.decodeParams(SupatermSendTextRequest.self)
-        == .init(
-          target: .init(
+        == SupatermSendTextRequest(
+          target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
             targetTabIndex: 3,
@@ -886,10 +886,10 @@ struct SupatermSocketProtocolTests {
     #expect(setPaneSizeRequest.method == SupatermSocketMethod.terminalSetPaneSize)
     #expect(
       try setPaneSizeRequest.decodeParams(SupatermSetPaneSizeRequest.self)
-        == .init(
+        == SupatermSetPaneSizeRequest(
           amount: 30,
           axis: .horizontal,
-          target: .init(
+          target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
             targetTabIndex: 3,
@@ -903,14 +903,14 @@ struct SupatermSocketProtocolTests {
   @Test
   func spaceAndLayoutRequestsRoundTripThroughTypedHelpers() throws {
     let createSpaceRequest = try SupatermSocketRequest.createSpace(
-      .init(
+      SupatermCreateSpaceRequest(
         name: "Build",
-        target: .init(targetWindowIndex: 1)
+        target: SupatermSpaceNavigationRequest(targetWindowIndex: 1)
       ),
       id: "create-space-1"
     )
     let equalizeRequest = try SupatermSocketRequest.equalizePanes(
-      .init(
+      SupatermTabTargetRequest(
         targetWindowIndex: 1,
         targetSpaceIndex: 2,
         targetTabIndex: 3
@@ -918,7 +918,7 @@ struct SupatermSocketProtocolTests {
       id: "equalize-panes-1"
     )
     let tileRequest = try SupatermSocketRequest.tilePanes(
-      .init(
+      SupatermTabTargetRequest(
         targetWindowIndex: 4,
         targetSpaceIndex: 5,
         targetTabIndex: 6
@@ -926,7 +926,7 @@ struct SupatermSocketProtocolTests {
       id: "tile-panes-1"
     )
     let mainVerticalRequest = try SupatermSocketRequest.mainVerticalPanes(
-      .init(
+      SupatermTabTargetRequest(
         targetWindowIndex: 7,
         targetSpaceIndex: 8,
         targetTabIndex: 9
@@ -937,15 +937,15 @@ struct SupatermSocketProtocolTests {
     #expect(createSpaceRequest.method == SupatermSocketMethod.terminalCreateSpace)
     #expect(
       try createSpaceRequest.decodeParams(SupatermCreateSpaceRequest.self)
-        == .init(
+        == SupatermCreateSpaceRequest(
           name: "Build",
-          target: .init(targetWindowIndex: 1)
+          target: SupatermSpaceNavigationRequest(targetWindowIndex: 1)
         )
     )
     #expect(equalizeRequest.method == SupatermSocketMethod.terminalEqualizePanes)
     #expect(
       try equalizeRequest.decodeParams(SupatermTabTargetRequest.self)
-        == .init(
+        == SupatermTabTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
           targetTabIndex: 3
@@ -954,7 +954,7 @@ struct SupatermSocketProtocolTests {
     #expect(tileRequest.method == SupatermSocketMethod.terminalTilePanes)
     #expect(
       try tileRequest.decodeParams(SupatermTabTargetRequest.self)
-        == .init(
+        == SupatermTabTargetRequest(
           targetWindowIndex: 4,
           targetSpaceIndex: 5,
           targetTabIndex: 6
@@ -963,7 +963,7 @@ struct SupatermSocketProtocolTests {
     #expect(mainVerticalRequest.method == SupatermSocketMethod.terminalMainVerticalPanes)
     #expect(
       try mainVerticalRequest.decodeParams(SupatermTabTargetRequest.self)
-        == .init(
+        == SupatermTabTargetRequest(
           targetWindowIndex: 7,
           targetSpaceIndex: 8,
           targetTabIndex: 9
@@ -974,9 +974,9 @@ struct SupatermSocketProtocolTests {
   @Test
   func sendKeyRequestRoundTripsThroughTypedHelper() throws {
     let request = try SupatermSocketRequest.sendKey(
-      .init(
+      SupatermSendKeyRequest(
         key: .enter,
-        target: .init(
+        target: SupatermPaneTargetRequest(
           targetWindowIndex: 7,
           targetSpaceIndex: 8,
           targetTabIndex: 9,
@@ -989,9 +989,9 @@ struct SupatermSocketProtocolTests {
     #expect(request.method == SupatermSocketMethod.terminalSendKey)
     #expect(
       try request.decodeParams(SupatermSendKeyRequest.self)
-        == .init(
+        == SupatermSendKeyRequest(
           key: .enter,
-          target: .init(
+          target: SupatermPaneTargetRequest(
             targetWindowIndex: 7,
             targetSpaceIndex: 8,
             targetTabIndex: 9,
@@ -1009,12 +1009,12 @@ private func socketEndpoint(
   pid: Int32,
   startedAt: TimeInterval
 ) -> SupatermSocketEndpoint {
-  .init(
+  SupatermSocketEndpoint(
     id: id,
     name: name,
     path: path,
     pid: pid,
-    startedAt: .init(timeIntervalSince1970: startedAt)
+    startedAt: Date(timeIntervalSince1970: startedAt)
   )
 }
 

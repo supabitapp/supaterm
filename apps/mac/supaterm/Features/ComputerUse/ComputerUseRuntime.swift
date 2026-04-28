@@ -51,7 +51,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
 
   public func permissions() async -> SupatermComputerUsePermissionsResult {
     let screenRecording = await screenRecordingGranted()
-    return .init(
+    return SupatermComputerUsePermissionsResult(
       accessibility: AXIsProcessTrusted() ? .granted : .missing,
       screenRecording: screenRecording ? .granted : .missing
     )
@@ -69,7 +69,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         )
       }
       .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    return .init(apps: apps)
+    return SupatermComputerUseAppsResult(apps: apps)
   }
 
   public func screenSize() -> SupatermComputerUseScreenSizeResult {
@@ -77,25 +77,25 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     let bounds = CGDisplayBounds(displayID)
     let scale =
       bounds.width > 0 ? Double(CGDisplayPixelsWide(displayID)) / Double(bounds.width) : 1
-    return .init(width: bounds.width, height: bounds.height, scale: scale)
+    return SupatermComputerUseScreenSizeResult(width: bounds.width, height: bounds.height, scale: scale)
   }
 
   public func cursorPosition() -> SupatermComputerUseCursorPositionResult {
     let point = CGEvent(source: nil)?.location ?? .zero
-    return .init(x: point.x, y: point.y)
+    return SupatermComputerUseCursorPositionResult(x: point.x, y: point.y)
   }
 
   public func moveCursor(
     _ request: SupatermComputerUseMoveCursorRequest
   ) throws -> SupatermComputerUseActionResult {
-    CGWarpMouseCursorPosition(.init(x: request.x, y: request.y))
+    CGWarpMouseCursorPosition(CGPoint(x: request.x, y: request.y))
     CGAssociateMouseAndMouseCursorPosition(boolean_t(1))
-    return .init(ok: true, dispatch: "core-graphics")
+    return SupatermComputerUseActionResult(ok: true, dispatch: "core-graphics")
   }
 
   public func cursorState() -> SupatermComputerUseCursorResult {
     @Shared(.supatermSettings) var supatermSettings = .default
-    return .init(
+    return SupatermComputerUseCursorResult(
       enabled: supatermSettings.computerUseShowAgentCursor,
       alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
       motion: supatermSettings.computerUseCursorMotion
@@ -126,7 +126,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       || request.idleHideMilliseconds != nil
     {
       let current = next.computerUseCursorMotion
-      next.computerUseCursorMotion = .init(
+      next.computerUseCursorMotion = SupatermComputerUseCursorMotion(
         startHandle: request.startHandle ?? current.startHandle,
         endHandle: request.endHandle ?? current.endHandle,
         arcSize: request.arcSize ?? current.arcSize,
@@ -140,7 +140,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     $supatermSettings.withLock {
       $0 = next
     }
-    return .init(
+    return SupatermComputerUseCursorResult(
       enabled: next.computerUseShowAgentCursor,
       alwaysFloat: next.computerUseAlwaysFloatAgentCursor,
       motion: next.computerUseCursorMotion
@@ -262,8 +262,8 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     } else if let launchSuppression {
       launchFocusStealPreventer.end(launchSuppression)
     }
-    let windows = windows(.init(app: String(app.processIdentifier))).windows
-    return .init(
+    let windows = windows(SupatermComputerUseWindowsRequest(app: String(app.processIdentifier))).windows
+    return SupatermComputerUseLaunchResult(
       pid: Int(app.processIdentifier),
       bundleID: app.bundleIdentifier,
       name: app.localizedName ?? app.bundleIdentifier ?? String(app.processIdentifier),
@@ -288,7 +288,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         }
         return $0.zIndex > $1.zIndex
       }
-    return .init(windows: windows)
+    return SupatermComputerUseWindowsResult(windows: windows)
   }
 
   public func snapshot(
@@ -315,24 +315,24 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         depth: 0
       )
     }
-    elementCache[.init(pid: request.pid, windowID: request.windowID)] = collection.cache
+    elementCache[CacheKey(pid: request.pid, windowID: request.windowID)] = collection.cache
     let filteredElements = collection.elements.filter { elementMatchesQuery($0, query: request.query) }
 
     let screenshot =
       mode == .ax && request.imageOutputPath == nil
       ? nil
       : try await screenshot(
-        .init(
+        ScreenshotCaptureRequest(
           windowID: request.windowID,
           outputPath: request.imageOutputPath,
           format: .png,
           quality: nil,
           maxImageDimension: currentMaxImageDimension(),
-          cacheKey: .init(pid: request.pid, windowID: request.windowID)
+          cacheKey: CacheKey(pid: request.pid, windowID: request.windowID)
         )
       )
     let javascript = await snapshotJavaScript(request)
-    return .init(
+    return SupatermComputerUseSnapshotResult(
       pid: request.pid,
       windowID: request.windowID,
       frame: windowInfo.window.frame,
@@ -348,7 +348,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let windowID = request.windowID {
       guard
         let screenshot = try await screenshot(
-          .init(
+          ScreenshotCaptureRequest(
             windowID: windowID,
             outputPath: request.imageOutputPath,
             format: request.format,
@@ -366,7 +366,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     let prepared = resizedImage(image, maxImageDimension: currentMaxImageDimension())
     let url = URL(fileURLWithPath: NSString(string: request.imageOutputPath).expandingTildeInPath)
     try writeImage(prepared.image, to: url, format: request.format, quality: request.quality)
-    return .init(
+    return SupatermComputerUseScreenshot(
       path: url.path,
       width: prepared.image.width,
       height: prepared.image.height,
@@ -405,12 +405,12 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       width: crop.width,
       height: crop.height
     )
-    zoomContexts[key] = .init(source: crop, snapshotToNativeRatio: ratio)
-    return .init(
+    zoomContexts[key] = ZoomContext(source: crop, snapshotToNativeRatio: ratio)
+    return SupatermComputerUseZoomResult(
       pid: request.pid,
       windowID: request.windowID,
       source: source,
-      screenshot: .init(
+      screenshot: SupatermComputerUseScreenshot(
         path: url.path,
         width: cropped.width,
         height: cropped.height,
@@ -448,13 +448,13 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let debugImageOutputPath = request.debugImageOutputPath {
       try await writeDebugClickImage(
         windowID: request.windowID,
-        point: .init(x: x, y: y),
+        point: CGPoint(x: x, y: y),
         outputPath: debugImageOutputPath
       )
     }
     let result = try await postClick(
       point: try screenPoint(
-        windowPixel: .init(x: x, y: y),
+        windowPixel: CGPoint(x: x, y: y),
         pid: request.pid,
         windowID: request.windowID,
         fromZoom: request.fromZoom
@@ -466,7 +466,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       request: request,
       result: result,
       windowID: request.windowID,
-      marker: request.fromZoom ? nil : .init(x: x, y: y)
+      marker: request.fromZoom ? nil : CGPoint(x: x, y: y)
     )
     return result
   }
@@ -693,7 +693,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let windowID {
       let screenshotURL = turn.directory.appendingPathComponent("screenshot.png")
       if (try? await screenshot(
-        .init(
+        ScreenshotCaptureRequest(
           windowID: windowID,
           outputPath: screenshotURL.path,
           format: .png,
@@ -713,7 +713,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     }
     try? recorder.finishTurn(
       turn,
-      .init(
+      ComputerUseRecorder.FinishedTurn(
         method: method,
         request: request,
         result: result,
@@ -748,7 +748,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       }
     }
     recordingSuppressed = wasSuppressed
-    return .init(
+    return SupatermComputerUseRecordingResult(
       active: recorder.isActive,
       directory: request.directory ?? recorder.currentDirectoryPath,
       turns: requests.count,
@@ -872,7 +872,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   private func restoreTarget(
     for app: NSRunningApplication
   ) -> ComputerUseSystemFocusStealPreventer.RunningApplication {
-    .init(processIdentifier: app.processIdentifier) {
+    ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: app.processIdentifier) {
       _ = app.activate(options: [])
     }
   }
@@ -948,7 +948,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         windowID: request.windowID
       )
     } catch {
-      return .init(ok: false, error: error.localizedDescription)
+      return SupatermComputerUseSnapshotJavaScriptResult(ok: false, error: error.localizedDescription)
     }
   }
 
@@ -987,7 +987,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       collection.nextIndex += 1
       collection.cache[index] = element
       collection.elements.append(
-        .init(
+        SupatermComputerUseElement(
           elementIndex: index,
           role: role,
           title: axString(element, kAXTitleAttribute as CFString),
@@ -1096,7 +1096,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     if let outputPath = request.outputPath {
       let url = URL(fileURLWithPath: NSString(string: outputPath).expandingTildeInPath)
       try writeImage(prepared.image, to: url, format: request.format, quality: request.quality)
-      return .init(
+      return SupatermComputerUseScreenshot(
         path: url.path,
         width: prepared.image.width,
         height: prepared.image.height,
@@ -1106,7 +1106,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       )
     }
 
-    return .init(
+    return SupatermComputerUseScreenshot(
       path: nil,
       width: prepared.image.width,
       height: prepared.image.height,
@@ -1284,7 +1284,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     windowID: UInt32,
     elementIndex: Int
   ) throws -> AXUIElement {
-    guard let cache = elementCache[.init(pid: pid, windowID: windowID)] else {
+    guard let cache = elementCache[CacheKey(pid: pid, windowID: windowID)] else {
       throw ComputerUseError.snapshotRequired
     }
     guard let element = cache[elementIndex] else {
@@ -1327,7 +1327,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
         {
           usleep(800_000)
         }
-        return .init(
+        return SupatermComputerUseActionResult(
           ok: true,
           dispatch: ComputerUseMouseDispatch.accessibility.rawValue,
           warning: ComputerUseClickActionResolver.warning(
@@ -1375,17 +1375,17 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     }
     do {
       let dispatch = try ComputerUseMouseInput.click(
-        .init(
+        ComputerUseMouseClick(
           point: point,
           pid: pid_t(request.pid),
-          window: .init(id: windowInfo.window.id, frame: windowInfo.window.frame),
+          window: ComputerUseMouseWindow(id: windowInfo.window.id, frame: windowInfo.window.frame),
           button: request.button,
           count: request.count,
           modifiers: request.modifiers
         )
       )
       await finishCursorClick(cursor)
-      return .init(ok: true, dispatch: dispatch.rawValue)
+      return SupatermComputerUseActionResult(ok: true, dispatch: dispatch.rawValue)
     } catch {
       cancelCursorClick(cursor)
       throw error
@@ -1400,7 +1400,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   ) async -> ComputerUsePreparedCursor? {
     @Shared(.supatermSettings) var supatermSettings = .default
     return await cursorOverlay.prepareClick(
-      .init(
+      ComputerUseCursorOverlayClickRequest(
         point: point,
         enabled: supatermSettings.computerUseShowAgentCursor,
         alwaysFloat: supatermSettings.computerUseAlwaysFloatAgentCursor,
@@ -1544,7 +1544,7 @@ public final class ComputerUseRuntime: @unchecked Sendable {
     else {
       return nil
     }
-    return .init(origin: position, size: size)
+    return CGRect(origin: position, size: size)
   }
 
   private func elementTargetPoint(_ element: AXUIElement) -> CGPoint? {
@@ -1625,15 +1625,15 @@ public final class ComputerUseRuntime: @unchecked Sendable {
           performAction(kAXPressAction as CFString, on: child)
         }
         guard success else { throw ComputerUseError.unsupportedBackgroundTarget }
-        return .init(ok: true, dispatch: "accessibility")
+        return SupatermComputerUseActionResult(ok: true, dispatch: "accessibility")
       }
     }
     if bundleID(for: request.pid) == "com.apple.Safari" {
       switch try await pageRuntime.setSafariSelectValue(request.value, windowID: request.windowID) {
       case .selected:
-        return .init(ok: true, dispatch: "apple_events")
+        return SupatermComputerUseActionResult(ok: true, dispatch: "apple_events")
       case .notFound(let available):
-        return .init(
+        return SupatermComputerUseActionResult(
           ok: false,
           dispatch: "apple_events",
           warning: "No matching option found. Available: \(available.joined(separator: ", "))"
@@ -1655,11 +1655,11 @@ public final class ComputerUseRuntime: @unchecked Sendable {
   }
 
   private func rect(_ frame: CGRect) -> SupatermComputerUseRect {
-    .init(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: frame.height)
+    SupatermComputerUseRect(x: frame.origin.x, y: frame.origin.y, width: frame.width, height: frame.height)
   }
 
   private func center(of frame: CGRect) -> CGPoint {
-    .init(x: frame.midX, y: frame.midY)
+    CGPoint(x: frame.midX, y: frame.midY)
   }
 
   private func screenPoint(
@@ -1678,15 +1678,15 @@ public final class ComputerUseRuntime: @unchecked Sendable {
       guard let context = zoomContexts[key] else {
         throw ComputerUseError.snapshotRequired
       }
-      nativePixel = .init(
+      nativePixel = CGPoint(
         x: context.source.origin.x + windowPixel.x,
         y: context.source.origin.y + windowPixel.y
       )
     } else {
       let ratio = resizeRatios[key] ?? 1
-      nativePixel = .init(x: windowPixel.x * ratio, y: windowPixel.y * ratio)
+      nativePixel = CGPoint(x: windowPixel.x * ratio, y: windowPixel.y * ratio)
     }
-    return .init(
+    return CGPoint(
       x: window.window.frame.x + nativePixel.x / scale,
       y: window.window.frame.y + nativePixel.y / scale
     )
@@ -1769,12 +1769,12 @@ private struct ComputerUseWindowInfo {
     let layer = (dictionary[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
     let spaceIDs = ComputerUseSpaceLookup.spaceIDs(for: windowID)
     self.pid = pid
-    self.window = .init(
+    self.window = SupatermComputerUseWindow(
       id: windowID,
       pid: pid,
       appName: appName,
       title: title?.isEmpty == true ? nil : title,
-      frame: .init(x: x, y: y, width: width, height: height),
+      frame: SupatermComputerUseRect(x: x, y: y, width: width, height: height),
       isOnScreen: isOnScreen,
       zIndex: zIndex,
       layer: layer,

@@ -195,7 +195,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     ).environmentVariables
     if let socketPath {
       environmentVariables.append(
-        .init(
+        SupatermCLIEnvironmentVariable(
           key: SupatermCLIEnvironment.socketPathKey,
           value: socketPath
         )
@@ -203,7 +203,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     if let cliPath {
       environmentVariables.append(
-        .init(
+        SupatermCLIEnvironmentVariable(
           key: SupatermCLIEnvironment.cliPathKey,
           value: cliPath
         )
@@ -211,7 +211,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
     if let stateHome = SupatermStateRoot.stateHomeURL(environment: processEnvironment) {
       environmentVariables.append(
-        .init(
+        SupatermCLIEnvironmentVariable(
           key: SupatermCLIEnvironment.stateHomeKey,
           value: stateHome.path
         )
@@ -223,7 +223,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     )
     if !path.isEmpty {
       environmentVariables.append(
-        .init(
+        SupatermCLIEnvironmentVariable(
           key: "PATH",
           value: path
         )
@@ -1730,7 +1730,7 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
     forSendType sendType: NSPasteboard.PasteboardType?,
     returnType: NSPasteboard.PasteboardType?
   ) -> Any? {
-    let receivable: [NSPasteboard.PasteboardType] = [.string, .init("public.utf8-plain-text")]
+    let receivable: [NSPasteboard.PasteboardType] = [.string, NSPasteboard.PasteboardType("public.utf8-plain-text")]
     let sendable = receivable
     let sendableRequiresSelection = sendable
 

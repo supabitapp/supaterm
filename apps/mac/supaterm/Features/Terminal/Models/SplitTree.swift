@@ -101,7 +101,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
 
   func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
     guard let root else { throw SplitError.viewNotFound }
-    return .init(
+    return Self(
       root: try root.inserting(view: view, at: anchor, direction: direction),
       zoomed: nil
     )
@@ -110,11 +110,11 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   func removing(_ target: Node) -> Self {
     guard let root else { return self }
     if root == target {
-      return .init(root: nil, zoomed: nil)
+      return Self(root: nil, zoomed: nil)
     }
     let newRoot = root.remove(target)
     let newZoomed = (zoomed == target) ? nil : zoomed
-    return .init(root: newRoot, zoomed: newZoomed)
+    return Self(root: newRoot, zoomed: newZoomed)
   }
 
   func replacing(node: Node, with newNode: Node) throws -> Self {
@@ -122,7 +122,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     guard let path = root.path(to: node) else { throw SplitError.viewNotFound }
     let newRoot = try root.replacingNode(at: path, with: newNode)
     let newZoomed = (zoomed == node) ? newNode : zoomed
-    return .init(root: newRoot, zoomed: newZoomed)
+    return Self(root: newRoot, zoomed: newZoomed)
   }
 
   func focusTarget(for direction: FocusDirection, from currentNode: Node) -> ViewType? {
@@ -183,7 +183,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   func equalized() -> Self {
     guard let root else { return self }
     let newRoot = root.equalize()
-    return .init(root: newRoot, zoomed: zoomed)
+    return Self(root: newRoot, zoomed: zoomed)
   }
 
   func tiled() -> Self {
@@ -201,7 +201,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
       let rowViews = Array(leaves[offset..<(offset + rowSize)])
       return Node.arranged(rowViews.map(Self.leafNode), direction: .horizontal)
     }
-    return .init(root: Node.arranged(rowNodes, direction: .vertical), zoomed: nil)
+    return Self(root: Node.arranged(rowNodes, direction: .vertical), zoomed: nil)
   }
 
   func mainVertical() -> Self {
@@ -211,9 +211,9 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     let leader = Self.leafNode(leaves[0])
     let teammateNodes = Array(leaves.dropFirst()).map(Self.leafNode)
     let teammates = Node.arranged(teammateNodes, direction: .vertical)
-    return .init(
+    return Self(
       root: .split(
-        .init(
+        Split(
           direction: .horizontal,
           ratio: 0.5,
           left: leader,
@@ -224,7 +224,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
   }
 
   func settingZoomed(_ node: Node?) -> Self {
-    .init(root: root, zoomed: node)
+    Self(root: root, zoomed: node)
   }
 
   func resizing(
@@ -276,7 +276,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     )
 
     let newRoot = try root.replacingNode(at: splitPath, with: .split(newSplit))
-    return .init(root: newRoot, zoomed: nil)
+    return Self(root: newRoot, zoomed: nil)
   }
 
   func sizing(
@@ -328,14 +328,14 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     let newRoot = try root.replacingNode(
       at: splitPath,
       with: .split(
-        .init(
+        Split(
           direction: split.direction,
           ratio: clampedRatio,
           left: split.left,
           right: split.right
         ))
     )
-    return .init(root: newRoot, zoomed: nil)
+    return Self(root: newRoot, zoomed: nil)
   }
 
   func viewBounds() -> CGSize {
@@ -381,7 +381,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
       guard let candidateNode = root.node(at: candidatePath) else { continue }
       guard case .split(let split) = candidateNode else { continue }
       if split.direction == direction {
-        return .init(pathToNode: pathToNode, splitNode: candidateNode, splitPath: candidatePath)
+        return SplitLocation(pathToNode: pathToNode, splitNode: candidateNode, splitPath: candidatePath)
       }
     }
 
@@ -531,7 +531,7 @@ extension SplitTree.Node {
     let newNode: Node = .leaf(view: view)
     let existingNode: Node = .leaf(view: anchor)
     let newSplit: Node = .split(
-      .init(
+      Split(
         direction: splitDirection,
         ratio: 0.5,
         left: newViewOnLeft ? newNode : existingNode,
@@ -553,7 +553,7 @@ extension SplitTree.Node {
       switch component {
       case .left:
         return .split(
-          .init(
+          Split(
             direction: split.direction,
             ratio: split.ratio,
             left: try replaceInner(current: split.left, pathOffset: pathOffset + 1),
@@ -561,7 +561,7 @@ extension SplitTree.Node {
           ))
       case .right:
         return .split(
-          .init(
+          Split(
             direction: split.direction,
             ratio: split.ratio,
             left: split.left,
@@ -591,7 +591,7 @@ extension SplitTree.Node {
         return newLeft
       }
       return .split(
-        .init(
+        Split(
           direction: split.direction,
           ratio: split.ratio,
           left: newLeft!,
@@ -606,7 +606,7 @@ extension SplitTree.Node {
       return self
     case .split(let split):
       return .split(
-        .init(
+        Split(
           direction: split.direction,
           ratio: ratio,
           left: split.left,
@@ -780,7 +780,7 @@ extension SplitTree.Node {
   private func spatialSlots(in bounds: CGRect) -> [SplitTree.SpatialSlot] {
     switch self {
     case .leaf:
-      return [.init(node: self, bounds: bounds)]
+      return [SplitTree.SpatialSlot(node: self, bounds: bounds)]
     case .split(let split):
       let leftBounds: CGRect
       let rightBounds: CGRect
@@ -814,7 +814,7 @@ extension SplitTree.Node {
           height: bounds.height * (1 - split.ratio)
         )
       }
-      var slots: [SplitTree.SpatialSlot] = [.init(node: self, bounds: bounds)]
+      var slots: [SplitTree.SpatialSlot] = [SplitTree.SpatialSlot(node: self, bounds: bounds)]
       slots += split.left.spatialSlots(in: leftBounds)
       slots += split.right.spatialSlots(in: rightBounds)
       return slots

@@ -132,7 +132,7 @@ struct SPCommandTests {
 
     let result = try SP.Ping.result(from: response)
 
-    #expect(result == .init(pong: true))
+    #expect(result == SP.SPPingResult(pong: true))
     #expect(
       try JSONDecoder().decode(SP.SPPingResult.self, from: Data(try jsonString(result).utf8))
         == result)
@@ -141,18 +141,18 @@ struct SPCommandTests {
   @Test
   func onboardRendererShowsWelcomeShortcutsAndSetupCommands() {
     let rendered = SPOnboardingRenderer.render(
-      .init(
+      SupatermOnboardingSnapshot(
         items: [
-          .init(shortcut: "⌘S", title: "Toggle sidebar"),
-          .init(shortcut: "⌘T", title: "New tab"),
-          .init(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
-          .init(shortcut: "⌘9", title: "Last tab"),
-          .init(shortcut: "⌘W", title: "Close pane"),
-          .init(shortcut: "⌘⌥W", title: "Close tab"),
-          .init(shortcut: "⌃1-0", title: "Go to space 1-10"),
-          .init(shortcut: "⌘D", title: "Split right"),
-          .init(shortcut: "⌘⇧D", title: "Split down"),
-          .init(shortcut: "⌘F", title: "Find"),
+          SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+          SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
+          SupatermOnboardingShortcut(shortcut: "⌘1-8", title: "Go to tabs 1-8"),
+          SupatermOnboardingShortcut(shortcut: "⌘9", title: "Last tab"),
+          SupatermOnboardingShortcut(shortcut: "⌘W", title: "Close pane"),
+          SupatermOnboardingShortcut(shortcut: "⌘⌥W", title: "Close tab"),
+          SupatermOnboardingShortcut(shortcut: "⌃1-0", title: "Go to space 1-10"),
+          SupatermOnboardingShortcut(shortcut: "⌘D", title: "Split right"),
+          SupatermOnboardingShortcut(shortcut: "⌘⇧D", title: "Split down"),
+          SupatermOnboardingShortcut(shortcut: "⌘F", title: "Find"),
         ]
       )
     ).replacingOccurrences(
@@ -199,18 +199,18 @@ struct SPCommandTests {
   @Test
   func treeRendererShowsPaneDisplayTitles() {
     let snapshot = SupatermAppDebugSnapshot(
-      build: .init(
+      build: SupatermAppDebugSnapshot.Build(
         version: "1.0.0",
         buildNumber: "1",
         isDevelopmentBuild: true,
         usesStubUpdateChecks: false
       ),
-      update: .init(
+      update: SupatermAppDebugSnapshot.Update(
         canCheckForUpdates: true,
         phase: "idle",
         detail: ""
       ),
-      summary: .init(
+      summary: SupatermAppDebugSnapshot.Summary(
         windowCount: 1,
         spaceCount: 1,
         tabCount: 1,
@@ -219,18 +219,18 @@ struct SPCommandTests {
       ),
       currentTarget: nil,
       windows: [
-        .init(
+        SupatermAppDebugSnapshot.Window(
           index: 1,
           isKey: true,
           isVisible: true,
           spaces: [
-            .init(
+            SupatermAppDebugSnapshot.Space(
               index: 1,
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               isSelected: true,
               tabs: [
-                .init(
+                SupatermAppDebugSnapshot.Tab(
                   index: 1,
                   id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
                   title: "fish",
@@ -243,7 +243,7 @@ struct SPCommandTests {
                   hasReadOnly: false,
                   hasSecureInput: false,
                   panes: [
-                    .init(
+                    SupatermAppDebugSnapshot.Pane(
                       index: 1,
                       id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
                       isFocused: true,

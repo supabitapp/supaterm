@@ -174,7 +174,7 @@ public struct TerminalWindowsClient: Sendable {
 extension TerminalWindowsClient: DependencyKey {
   public static let liveValue = Self(
     agentHook: { _ in
-      .init(desktopNotification: nil)
+      TerminalAgentHookResult(desktopNotification: nil)
     },
     capturePane: { _ in
       throw TerminalControlError.captureFailed
@@ -264,7 +264,7 @@ extension TerminalWindowsClient: DependencyKey {
     tilePanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
-    treeSnapshot: { .init(windows: []) },
+    treeSnapshot: { SupatermTreeSnapshot(windows: []) },
     unpinTab: { _ in
       throw TerminalControlError.contextPaneNotFound
     }
@@ -272,7 +272,7 @@ extension TerminalWindowsClient: DependencyKey {
 
   public static let testValue = Self(
     agentHook: { _ in
-      .init(desktopNotification: nil)
+      TerminalAgentHookResult(desktopNotification: nil)
     },
     capturePane: { _ in
       throw TerminalControlError.captureFailed
@@ -362,25 +362,25 @@ extension TerminalWindowsClient: DependencyKey {
     tilePanes: { _ in
       throw TerminalControlError.contextPaneNotFound
     },
-    treeSnapshot: { .init(windows: []) },
+    treeSnapshot: { SupatermTreeSnapshot(windows: []) },
     unpinTab: { _ in
       throw TerminalControlError.contextPaneNotFound
     }
   )
 
   private static let emptyDebugSnapshot = SupatermAppDebugSnapshot(
-    build: .init(
+    build: SupatermAppDebugSnapshot.Build(
       version: "",
       buildNumber: "",
       isDevelopmentBuild: false,
       usesStubUpdateChecks: false
     ),
-    update: .init(
+    update: SupatermAppDebugSnapshot.Update(
       canCheckForUpdates: false,
       phase: "idle",
       detail: ""
     ),
-    summary: .init(
+    summary: SupatermAppDebugSnapshot.Summary(
       windowCount: 0,
       spaceCount: 0,
       tabCount: 0,

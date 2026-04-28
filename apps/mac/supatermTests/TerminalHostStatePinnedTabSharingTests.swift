@@ -98,7 +98,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       #expect(originalReceiverPaneIDs.count == 1)
 
       _ = try writer.createPane(
-        .init(
+        TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,
@@ -138,7 +138,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       await flushPinnedTabCatalogObservation()
 
       _ = try writer.createPane(
-        .init(
+        TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,
@@ -238,16 +238,16 @@ struct TerminalHostStatePinnedTabSharingTests {
       $sharedPinnedTabCatalog.withLock {
         $0 = TerminalPinnedTabCatalog(
           spaces: [
-            .init(
+            PersistedPinnedTerminalTabsForSpace(
               id: secondSpace.id,
               tabs: [
-                .init(
+                PersistedPinnedTerminalTab(
                   id: TerminalTabID(),
-                  session: .init(
+                  session: TerminalTabSession(
                     isPinned: true,
                     lockedTitle: "Pinned",
                     focusedPaneIndex: 0,
-                    root: .leaf(.init(workingDirectoryPath: nil))
+                    root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
                   )
                 )
               ]
