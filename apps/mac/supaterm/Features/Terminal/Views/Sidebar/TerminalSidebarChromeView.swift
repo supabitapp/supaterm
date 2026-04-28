@@ -483,11 +483,6 @@ struct TerminalSidebarTabSummaryView: View {
     let statusAccessory: StatusAccessory?
   }
 
-  struct AgentMarkPresentation: Equatable {
-    let imageName: String
-    let usesTextTint: Bool
-  }
-
   static func titleAccessories(
     shortcutHint: String?,
     showsShortcutHint: Bool,
@@ -515,14 +510,8 @@ struct TerminalSidebarTabSummaryView: View {
 
   static func agentMarkPresentation(
     for agentActivity: TerminalHostState.AgentActivity?
-  ) -> AgentMarkPresentation? {
-    guard let kind = agentActivity?.kind else {
-      return nil
-    }
-    return .init(
-      imageName: kind.tabTitleMarkImageName,
-      usesTextTint: kind == .codex || kind == .pi
-    )
+  ) -> String? {
+    agentActivity?.kind.markImageName
   }
 
   var body: some View {
@@ -542,9 +531,9 @@ struct TerminalSidebarTabSummaryView: View {
       HStack(spacing: 6) {
         if let markPresentation = Self.agentMarkPresentation(for: badgeActivity) {
           TerminalSidebarAgentMarkImage(
+            imageName: markPresentation,
             isSelected: isSelected,
-            palette: palette,
-            presentation: markPresentation
+            palette: palette
           )
         }
 
@@ -632,13 +621,13 @@ struct TerminalSidebarTabSummaryView: View {
 }
 
 private struct TerminalSidebarAgentMarkImage: View {
+  let imageName: String
   let isSelected: Bool
   let palette: TerminalPalette
-  let presentation: TerminalSidebarTabSummaryView.AgentMarkPresentation
 
   var body: some View {
-    Image(presentation.imageName)
-      .renderingMode(presentation.usesTextTint ? .template : .original)
+    Image(imageName)
+      .renderingMode(.template)
       .resizable()
       .aspectRatio(contentMode: .fit)
       .frame(width: 14, height: 14)

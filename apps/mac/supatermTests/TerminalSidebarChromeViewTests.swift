@@ -101,17 +101,17 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .init(kind: .pi, phase: .idle)
-      ) == .init(imageName: "pi-mark-glyph", usesTextTint: true)
+      ) == "pi-mark-glyph"
     )
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .codex(.running)
-      ) == .init(imageName: "codex-mark", usesTextTint: true)
+      ) == "codex-mark"
     )
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .claude(.running)
-      ) == .init(imageName: "claude-code-mark", usesTextTint: false)
+      ) == "claude-code-mark"
     )
   }
 

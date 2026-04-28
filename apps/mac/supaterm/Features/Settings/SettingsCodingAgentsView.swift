@@ -73,9 +73,11 @@ private struct SettingsAgentListRow: View {
           Text(agent.notificationTitle)
         } icon: {
           Image(agent.markImageName)
+            .renderingMode(.template)
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 18, height: 18)
+            .foregroundStyle(.primary)
             .accessibilityHidden(true)
         }
 
