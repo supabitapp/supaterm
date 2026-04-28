@@ -81,7 +81,7 @@ final class TerminalAgentSessionStore {
     let key = SessionKey(agent: agent, sessionID: sessionID)
     var session =
       sessions[key]
-      ?? .init(
+      ?? Session(
         routing: .foreground,
         surfaceID: nil,
         transcriptPath: nil
@@ -125,21 +125,21 @@ final class TerminalAgentSessionStore {
     agent: SupatermAgentKind,
     sessionID: String
   ) -> Bool {
-    sessions[.init(agent: agent, sessionID: sessionID)] != nil
+    sessions[SessionKey(agent: agent, sessionID: sessionID)] != nil
   }
 
   func shouldRouteSession(
     agent: SupatermAgentKind,
     sessionID: String
   ) -> Bool {
-    sessions[.init(agent: agent, sessionID: sessionID)]?.routing == .foreground
+    sessions[SessionKey(agent: agent, sessionID: sessionID)]?.routing == .foreground
   }
 
   func sessionSurfaceID(
     agent: SupatermAgentKind,
     sessionID: String
   ) -> UUID? {
-    sessions[.init(agent: agent, sessionID: sessionID)]?.surfaceID
+    sessions[SessionKey(agent: agent, sessionID: sessionID)]?.surfaceID
   }
 
   func clearSession(

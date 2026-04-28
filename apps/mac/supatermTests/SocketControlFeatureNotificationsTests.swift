@@ -60,7 +60,7 @@ struct SocketControlFeatureNotificationsTests {
         $0.terminalWindowsClient.notify = { request in
           #expect(
             request
-              == .init(
+              == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "CI",
                 target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2),
@@ -80,7 +80,7 @@ struct SocketControlFeatureNotificationsTests {
       #expect(decodedResult == expectedResult)
       #expect(
         await desktopNotificationRecorder.snapshot()
-          == [.init(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
+          == [DesktopNotificationRequest(body: "Build finished", subtitle: "CI", title: "Deploy complete")]
       )
     }
   }
@@ -92,7 +92,7 @@ struct SocketControlFeatureNotificationsTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .notify(
-        .init(
+        SupatermNotifyRequest(
           body: "Build finished",
           subtitle: "",
           targetSpaceIndex: 1,
@@ -126,7 +126,7 @@ struct SocketControlFeatureNotificationsTests {
       $0.terminalWindowsClient.notify = { request in
         #expect(
           request
-            == .init(
+            == TerminalNotifyRequest(
               body: "Build finished",
               subtitle: "",
               target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
@@ -208,7 +208,7 @@ struct SocketControlFeatureNotificationsTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .notify(
-        .init(title: "Deploy complete"),
+        SupatermNotifyRequest(title: "Deploy complete"),
         id: "notify-3"
       )
     )
@@ -225,7 +225,7 @@ struct SocketControlFeatureNotificationsTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "notify-3",
@@ -243,7 +243,7 @@ struct SocketControlFeatureNotificationsTests {
     let request = SocketControlClient.Request(
       handle: handle,
       payload: try .notify(
-        .init(
+        SupatermNotifyRequest(
           body: "Build finished",
           targetSpaceIndex: 1,
           targetTabIndex: 1
@@ -282,7 +282,7 @@ struct SocketControlFeatureNotificationsTests {
         $0.terminalWindowsClient.notify = { request in
           #expect(
             request
-              == .init(
+              == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "",
                 target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
@@ -302,7 +302,7 @@ struct SocketControlFeatureNotificationsTests {
       #expect(decodedResult == expectedResult)
       #expect(
         await desktopNotificationRecorder.snapshot()
-          == [.init(body: "Build finished", subtitle: "", title: "Build")]
+          == [DesktopNotificationRequest(body: "Build finished", subtitle: "", title: "Build")]
       )
     }
   }
@@ -313,7 +313,7 @@ struct SocketControlFeatureNotificationsTests {
     let handle = UUID(uuidString: "0BFA1E47-4704-4E8A-A33D-3D1742681A9E")!
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
-      context: .init(
+      context: SupatermCLIContext(
         surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
         tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
       )
@@ -340,8 +340,8 @@ struct SocketControlFeatureNotificationsTests {
         }
         $0.terminalWindowsClient.agentHook = { payload in
           #expect(payload == requestPayload)
-          return .init(
-            desktopNotification: .init(
+          return TerminalAgentHookResult(
+            desktopNotification: DesktopNotificationRequest(
               body: "Claude needs your attention",
               subtitle: "Needs input",
               title: "Claude Code"
@@ -371,7 +371,7 @@ struct SocketControlFeatureNotificationsTests {
     let handle = UUID(uuidString: "563E9698-BBCD-46C1-8C66-3B104D899CD7")!
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
-      context: .init(
+      context: SupatermCLIContext(
         surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
         tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
       )
@@ -393,8 +393,8 @@ struct SocketControlFeatureNotificationsTests {
         }
         $0.terminalWindowsClient.agentHook = { payload in
           #expect(payload == requestPayload)
-          return .init(
-            desktopNotification: .init(
+          return TerminalAgentHookResult(
+            desktopNotification: DesktopNotificationRequest(
               body: "Claude needs your attention",
               subtitle: "Needs input",
               title: "Claude Code"
@@ -418,7 +418,7 @@ struct SocketControlFeatureNotificationsTests {
     let handle = UUID(uuidString: "DCFBCE7F-6432-4DEA-A333-5D9A81E720B6")!
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: .init(
+      payload: SupatermSocketRequest(
         id: "agent-hook-2",
         method: SupatermSocketMethod.terminalAgentHook,
         params: [:]

@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   func applicationDidHide(_ notification: Notification) {
     if toggleVisibilityState == nil {
-      toggleVisibilityState = .init()
+      toggleVisibilityState = ToggleVisibilityState()
     }
   }
 
@@ -182,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       {
         return false
       }
-      toggleVisibilityState = .init()
+      toggleVisibilityState = ToggleVisibilityState()
       NSApp.hide(nil)
       return true
     }

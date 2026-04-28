@@ -145,7 +145,7 @@ struct SettingsFeatureTests {
     }
 
     continuation.yield(
-      .init(
+      UpdateClient.Snapshot(
         automaticallyChecksForUpdates: false,
         automaticallyDownloadsUpdates: false,
         canCheckForUpdates: true,
@@ -181,7 +181,9 @@ struct SettingsFeatureTests {
       $0.computerUse.isRefreshing = true
     }
     await store.receive(
-      .computerUsePermissionsRefreshed(.init(accessibility: .missing, screenRecording: .missing)),
+      .computerUsePermissionsRefreshed(
+        ComputerUsePermissionsSnapshot(accessibility: .missing, screenRecording: .missing)
+      ),
       timeout: 0
     ) {
       $0.computerUse.accessibility = .missing

@@ -71,13 +71,13 @@ struct TerminalHostStateZoomTests {
       let setup = try makeZoomNavigationSetup(host: host)
       let surface = try #require(host.surfaces[setup.middleSurfaceID])
       let window = NSWindow(
-        contentRect: .init(x: 0, y: 0, width: 400, height: 300),
+        contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
         styleMask: [],
         backing: .buffered,
         defer: false
       )
       let container = NSView(frame: window.contentView?.bounds ?? .zero)
-      let firstResponder = PaneZoomFirstResponderView(frame: .init(x: 0, y: 0, width: 10, height: 10))
+      let firstResponder = PaneZoomFirstResponderView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
 
       window.contentView = container
       surface.frame = container.bounds
@@ -97,7 +97,7 @@ struct TerminalHostStateZoomTests {
 
     let firstSurfaceID = try #require(host.selectedSurfaceView?.id)
     let secondPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: true,
@@ -106,7 +106,7 @@ struct TerminalHostStateZoomTests {
       )
     )
     let thirdPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: true,

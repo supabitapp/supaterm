@@ -24,7 +24,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -51,7 +51,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -78,7 +78,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -105,7 +105,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -119,7 +119,7 @@ struct PiSettingsInstallerTests {
       checkPiAvailable: { true },
       runPiCommand: { arguments in
         capture.record(arguments)
-        return .init(status: 0, standardOutput: "", standardError: "")
+        return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -165,7 +165,7 @@ struct PiSettingsInstallerTests {
       checkPiAvailable: { true },
       runPiCommand: { arguments in
         capture.record(arguments)
-        return .init(status: 0, standardOutput: "", standardError: "")
+        return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -199,7 +199,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -212,7 +212,7 @@ struct PiSettingsInstallerTests {
       checkPiAvailable: { false },
       runPiCommand: { _ in
         Issue.record("runPiCommand should not be called when Pi is unavailable.")
-        return .init(status: 0, standardOutput: "", standardError: "")
+        return PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 
@@ -237,7 +237,7 @@ struct PiSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkPiAvailable: { true },
       runPiCommand: { _ in
-        .init(status: 0, standardOutput: "", standardError: "")
+        PiSettingsInstaller.CommandResult(status: 0, standardOutput: "", standardError: "")
       }
     )
 

@@ -40,7 +40,7 @@ extension SocketControlFeature {
   ) throws -> TerminalCreateTabRequest {
     try validateCreateTabPayload(payload)
 
-    return .init(
+    return TerminalCreateTabRequest(
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
@@ -88,7 +88,7 @@ extension SocketControlFeature {
   ) throws -> TerminalCreatePaneRequest {
     try validateCreatePanePayload(payload)
 
-    return .init(
+    return TerminalCreatePaneRequest(
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       direction: payload.direction,

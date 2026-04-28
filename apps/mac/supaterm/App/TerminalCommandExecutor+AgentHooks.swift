@@ -21,7 +21,7 @@ extension TerminalCommandExecutor {
       )
 
     case .unsupported:
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
 
     case .postToolUse, .preToolUse:
       return handleToolStateAgentHook(
@@ -67,7 +67,7 @@ extension TerminalCommandExecutor {
       context: context
     )
     _ = updateAgentActivity(
-      .init(
+      TerminalHostState.AgentActivity(
         kind: agent,
         phase: snapshot.status?.isFinal == true ? .idle : .running,
         detail: snapshot.status?.isFinal == true ? nil : snapshot.detail
@@ -85,7 +85,7 @@ extension TerminalCommandExecutor {
     context: SupatermCLIContext?
   ) {
     _ = updateAgentActivity(
-      .init(kind: agent, phase: .idle, detail: nil),
+      TerminalHostState.AgentActivity(kind: agent, phase: .idle, detail: nil),
       agent: agent,
       sessionID: sessionID,
       context: context
@@ -96,10 +96,10 @@ extension TerminalCommandExecutor {
     _ request: SupatermAgentHookRequest
   ) -> TerminalAgentHookResult {
     guard let sessionID = prepareAgentTurn(request) else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     _ = setAgentActivity(
-      .init(
+      TerminalHostState.AgentActivity(
         kind: request.agent,
         phase: .running
       ),
@@ -107,14 +107,14 @@ extension TerminalCommandExecutor {
       sessionID: sessionID,
       context: request.context
     )
-    return .init(desktopNotification: nil)
+    return TerminalAgentHookResult(desktopNotification: nil)
   }
 
   func handleUserPromptSubmitAgentHook(
     _ request: SupatermAgentHookRequest
   ) -> TerminalAgentHookResult {
     guard let sessionID = prepareAgentTurn(request) else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     if request.agent == .codex {
       _ = agentSessionStore.beginCodexTracking(
@@ -123,13 +123,13 @@ extension TerminalCommandExecutor {
       )
     } else {
       _ = setAgentActivity(
-        .init(kind: request.agent, phase: .running),
+        TerminalHostState.AgentActivity(kind: request.agent, phase: .running),
         agent: request.agent,
         sessionID: sessionID,
         context: request.context
       )
     }
-    return .init(desktopNotification: nil)
+    return TerminalAgentHookResult(desktopNotification: nil)
   }
 
   func handleSessionStartAgentHook(
@@ -137,7 +137,7 @@ extension TerminalCommandExecutor {
     routesToForegroundSession: Bool
   ) -> TerminalAgentHookResult {
     guard routesToForegroundSession else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     if let sessionID = request.event.sessionID {
       agentSessionStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
@@ -148,7 +148,7 @@ extension TerminalCommandExecutor {
         )
       }
     }
-    return .init(desktopNotification: nil)
+    return TerminalAgentHookResult(desktopNotification: nil)
   }
 
   func handleToolStateAgentHook(
@@ -156,7 +156,7 @@ extension TerminalCommandExecutor {
     routesToForegroundSession: Bool
   ) -> TerminalAgentHookResult {
     guard routesToForegroundSession else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     return handleRunningAgentHook(request)
   }
@@ -166,7 +166,7 @@ extension TerminalCommandExecutor {
     routesToForegroundSession: Bool
   ) -> TerminalAgentHookResult {
     guard routesToForegroundSession else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     return handleUserPromptSubmitAgentHook(request)
   }
@@ -176,12 +176,12 @@ extension TerminalCommandExecutor {
     routesToForegroundSession: Bool
   ) throws -> TerminalAgentHookResult {
     guard routesToForegroundSession else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     let event = request.event
     if let sessionID = event.sessionID {
       _ = setAgentActivity(
-        .init(kind: request.agent, phase: .idle),
+        TerminalHostState.AgentActivity(kind: request.agent, phase: .idle),
         agent: request.agent,
         sessionID: sessionID,
         context: request.context
@@ -200,13 +200,13 @@ extension TerminalCommandExecutor {
       let body = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
       !body.isEmpty
     else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     return try handleAgentEventNotification(
       request.agent,
       event: event,
       context: request.context,
-      notification: .init(
+      notification: AgentHookNotification(
         body: body,
         semantic: .completion,
         subtitle: "Turn complete"
@@ -218,7 +218,7 @@ extension TerminalCommandExecutor {
     _ request: SupatermAgentHookRequest
   ) -> TerminalAgentHookResult {
     guard let sessionID = request.event.sessionID else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     _ = clearAgentActivity(agent: request.agent, sessionID: sessionID, context: request.context)
     if request.agent == .codex {
@@ -229,7 +229,7 @@ extension TerminalCommandExecutor {
       )
     }
     agentSessionStore.clearSession(agent: request.agent, sessionID: sessionID)
-    return .init(desktopNotification: nil)
+    return TerminalAgentHookResult(desktopNotification: nil)
   }
 
   func handleAttentionAgentHook(
@@ -237,25 +237,25 @@ extension TerminalCommandExecutor {
     routesToForegroundSession: Bool
   ) throws -> TerminalAgentHookResult {
     guard routesToForegroundSession else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     let event = request.event
     if let sessionID = event.sessionID {
       _ = setAgentActivity(
-        .init(kind: request.agent, phase: .needsInput),
+        TerminalHostState.AgentActivity(kind: request.agent, phase: .needsInput),
         agent: request.agent,
         sessionID: sessionID,
         context: request.context
       )
     }
     guard let body = event.notificationMessage(), !body.isEmpty else {
-      return .init(desktopNotification: nil)
+      return TerminalAgentHookResult(desktopNotification: nil)
     }
     return try handleAgentEventNotification(
       request.agent,
       event: event,
       context: request.context,
-      notification: .init(
+      notification: AgentHookNotification(
         body: body,
         semantic: .attention,
         subtitle: event.title ?? "Attention"
@@ -302,7 +302,7 @@ extension TerminalCommandExecutor {
     for surfaceID in candidateSurfaceIDs {
       do {
         let result = try notifyStructuredAgent(
-          .init(
+          TerminalNotifyRequest(
             body: notification.body,
             subtitle: notification.subtitle,
             target: .contextPane(surfaceID),
@@ -311,9 +311,9 @@ extension TerminalCommandExecutor {
           ),
           semantic: notification.semantic
         )
-        return .init(
+        return TerminalAgentHookResult(
           desktopNotification: result.desktopNotificationDisposition.shouldDeliver
-            ? .init(
+            ? DesktopNotificationRequest(
               body: notification.body,
               subtitle: notification.subtitle,
               title: result.resolvedTitle
@@ -330,12 +330,12 @@ extension TerminalCommandExecutor {
             sessionID: sessionID,
             surfaceID: surfaceID
           )
-          return .init(desktopNotification: nil)
+          return TerminalAgentHookResult(desktopNotification: nil)
         }
       }
     }
 
-    return .init(desktopNotification: nil)
+    return TerminalAgentHookResult(desktopNotification: nil)
   }
 
   func prepareAgentTurn(

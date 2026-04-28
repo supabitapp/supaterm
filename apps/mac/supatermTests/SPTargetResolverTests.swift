@@ -160,7 +160,11 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "logs",
     isSelected: false,
     panes: [
-      SupatermTreeSnapshot.Pane(index: 1, id: UUID(uuidString: "E66DDF0D-E6FF-456A-A8FB-004D9134A4AF")!, isFocused: false),
+      SupatermTreeSnapshot.Pane(
+        index: 1,
+        id: UUID(uuidString: "E66DDF0D-E6FF-456A-A8FB-004D9134A4AF")!,
+        isFocused: false
+      ),
       SupatermTreeSnapshot.Pane(index: 2, id: secondPaneID, isFocused: true),
     ]
   )
@@ -170,7 +174,11 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     title: "editor",
     isSelected: false,
     panes: [
-      SupatermTreeSnapshot.Pane(index: 1, id: UUID(uuidString: "B7A710CF-1F53-415B-B034-7924FDF6DE24")!, isFocused: false)
+      SupatermTreeSnapshot.Pane(
+        index: 1,
+        id: UUID(uuidString: "B7A710CF-1F53-415B-B034-7924FDF6DE24")!,
+        isFocused: false
+      )
     ]
   )
   let secondWindowSecondTab = SupatermTreeSnapshot.Tab(

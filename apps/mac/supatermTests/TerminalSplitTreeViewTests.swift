@@ -31,9 +31,11 @@ struct TerminalSplitTreeViewTests {
     )
     #expect(TerminalNotificationPulsePattern.segments.map(\.duration) == Array(repeating: 1.0 / 7.0, count: 7))
     #expect(
-      TerminalNotificationPulsePattern.segments.first == .init(delay: 0, duration: 1.0 / 7.0, targetOpacity: 0.32))
+      TerminalNotificationPulsePattern.segments.first
+        == TerminalNotificationPulseSegment(delay: 0, duration: 1.0 / 7.0, targetOpacity: 0.32))
     #expect(
-      TerminalNotificationPulsePattern.segments.last == .init(delay: 6.0 / 7.0, duration: 1.0 / 7.0, targetOpacity: 0))
+      TerminalNotificationPulsePattern.segments.last
+        == TerminalNotificationPulseSegment(delay: 6.0 / 7.0, duration: 1.0 / 7.0, targetOpacity: 0))
   }
 
   @Test
@@ -194,8 +196,8 @@ struct TerminalSplitTreeViewTests {
   @Test
   func dropZoneUsesUpForTopEdge() {
     let zone = TerminalSplitTreeView.DropZone.calculate(
-      at: .init(x: 60, y: 4),
-      in: .init(width: 120, height: 120)
+      at: CGPoint(x: 60, y: 4),
+      in: CGSize(width: 120, height: 120)
     )
 
     #expect(zone == .up)
@@ -204,24 +206,24 @@ struct TerminalSplitTreeViewTests {
   @Test
   func resizeOverlayGridSizeUsesBackingPixelsAndCellSize() {
     let gridSize = TerminalSplitTreeView.resizeOverlayGridSize(
-      backingSize: .init(width: 1728, height: 980),
-      cellSize: .init(width: 13, height: 20)
+      backingSize: CGSize(width: 1728, height: 980),
+      cellSize: CGSize(width: 13, height: 20)
     )
 
-    #expect(gridSize == .init(columns: 132, rows: 49))
+    #expect(gridSize == TerminalSplitTreeView.ResizeOverlayGridSize(columns: 132, rows: 49))
   }
 
   @Test
   func resizeOverlayGridSizeRequiresValidMinimumGrid() {
     #expect(
       TerminalSplitTreeView.resizeOverlayGridSize(
-        backingSize: .init(width: 40, height: 30),
-        cellSize: .init(width: 10, height: 20)
+        backingSize: CGSize(width: 40, height: 30),
+        cellSize: CGSize(width: 10, height: 20)
       ) == nil
     )
     #expect(
       TerminalSplitTreeView.resizeOverlayGridSize(
-        backingSize: .init(width: 400, height: 300),
+        backingSize: CGSize(width: 400, height: 300),
         cellSize: .zero
       ) == nil
     )
@@ -230,16 +232,16 @@ struct TerminalSplitTreeViewTests {
   @Test
   func resizeOverlayStaysHiddenUntilAfterFirstResize() {
     let resizedTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
-      viewSize: .init(width: 120, height: 100),
-      gridSize: .init(columns: 12, rows: 8),
+      viewSize: CGSize(width: 120, height: 100),
+      gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 12, rows: 8),
       fontSizePoints: nil
     )
     let overlayIsVisibleAfterResize =
       TerminalSplitTreeView.resizeOverlayIsHidden(
         ready: true,
-        lastTrigger: .init(
-          viewSize: .init(width: 100, height: 100),
-          gridSize: .init(columns: 10, rows: 8),
+        lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger(
+          viewSize: CGSize(width: 100, height: 100),
+          gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 10, rows: 8),
           fontSizePoints: nil
         ),
         currentTrigger: resizedTrigger
@@ -274,13 +276,13 @@ struct TerminalSplitTreeViewTests {
   @Test
   func resizeOverlayShowsWhenGridChangesWithoutGeometryChange() {
     let lastTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
-      viewSize: .init(width: 120, height: 100),
-      gridSize: .init(columns: 12, rows: 8),
+      viewSize: CGSize(width: 120, height: 100),
+      gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 12, rows: 8),
       fontSizePoints: 15
     )
     let currentTrigger = TerminalSplitTreeView.ResizeOverlayTrigger(
-      viewSize: .init(width: 120, height: 100),
-      gridSize: .init(columns: 10, rows: 7),
+      viewSize: CGSize(width: 120, height: 100),
+      gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 10, rows: 7),
       fontSizePoints: 15
     )
 
@@ -296,14 +298,14 @@ struct TerminalSplitTreeViewTests {
   @Test
   func resizeOverlayUsesGridTextWhenFontSizeIsUnchanged() {
     let text = TerminalSplitTreeView.resizeOverlayText(
-      lastTrigger: .init(
-        viewSize: .init(width: 100, height: 100),
-        gridSize: .init(columns: 10, rows: 8),
+      lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger(
+        viewSize: CGSize(width: 100, height: 100),
+        gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 10, rows: 8),
         fontSizePoints: 15
       ),
-      currentTrigger: .init(
-        viewSize: .init(width: 100, height: 100),
-        gridSize: .init(columns: 12, rows: 8),
+      currentTrigger: TerminalSplitTreeView.ResizeOverlayTrigger(
+        viewSize: CGSize(width: 100, height: 100),
+        gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 12, rows: 8),
         fontSizePoints: 15
       )
     )
@@ -314,14 +316,14 @@ struct TerminalSplitTreeViewTests {
   @Test
   func resizeOverlayUsesFontSizeTextForFontZoomChanges() {
     let text = TerminalSplitTreeView.resizeOverlayText(
-      lastTrigger: .init(
-        viewSize: .init(width: 120, height: 100),
-        gridSize: .init(columns: 12, rows: 8),
+      lastTrigger: TerminalSplitTreeView.ResizeOverlayTrigger(
+        viewSize: CGSize(width: 120, height: 100),
+        gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 12, rows: 8),
         fontSizePoints: 15
       ),
-      currentTrigger: .init(
-        viewSize: .init(width: 120, height: 100),
-        gridSize: .init(columns: 10, rows: 7),
+      currentTrigger: TerminalSplitTreeView.ResizeOverlayTrigger(
+        viewSize: CGSize(width: 120, height: 100),
+        gridSize: TerminalSplitTreeView.ResizeOverlayGridSize(columns: 10, rows: 7),
         fontSizePoints: 16
       )
     )
@@ -340,12 +342,12 @@ struct TerminalSplitTreeViewTests {
     let views = (0..<3).map { _ in MockSurfaceView() }
     let tree = SplitTree(
       root: .split(
-        .init(
+        SplitTree<MockSurfaceView>.Split(
           direction: .horizontal,
           ratio: 0.5,
           left: .leaf(view: views[0]),
           right: .split(
-            .init(
+            SplitTree<MockSurfaceView>.Split(
               direction: .vertical,
               ratio: 0.25,
               left: .leaf(view: views[1]),
@@ -360,7 +362,7 @@ struct TerminalSplitTreeViewTests {
       in: CGRect(x: 0, y: 0, width: 200, height: 100)
     )
 
-    #expect(descriptors.map(\.path) == [.root, .init(components: [.right])])
+    #expect(descriptors.map(\.path) == [.root, TerminalSplitAXPath(components: [TerminalSplitAXPathComponent.right])])
     #expect(descriptors.map(\.accessibilityLabel) == ["Horizontal split divider", "Vertical split divider"])
     #expect(
       descriptors.map(\.accessibilityHelp) == [

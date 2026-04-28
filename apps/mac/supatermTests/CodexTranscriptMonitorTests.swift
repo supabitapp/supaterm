@@ -195,13 +195,13 @@ struct CodexTranscriptMonitorTests {
 
     let rebuiltConversation = CodexConversationState(
       turns: [
-        .init(
+        CodexConversationTurn(
           id: "turn-1",
           status: .inProgress,
           error: nil,
           items: [
-            .message(.init(role: "assistant", text: "Inspecting the repo", phase: nil)),
-            .message(.init(role: "assistant", text: "Done.", phase: "final_answer")),
+            .message(CodexConversationMessage(role: "assistant", text: "Inspecting the repo", phase: nil)),
+            .message(CodexConversationMessage(role: "assistant", text: "Done.", phase: "final_answer")),
           ],
           startedAt: nil,
           completedAt: nil,

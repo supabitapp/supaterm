@@ -19,7 +19,7 @@ struct SocketControlFeatureLifecycleTests {
       name: "test",
       path: "/tmp/supaterm.sock",
       pid: 1,
-      startedAt: .init(timeIntervalSince1970: 0)
+      startedAt: Date(timeIntervalSince1970: 0)
     )
 
     let store = makeStore {
@@ -57,7 +57,7 @@ struct SocketControlFeatureLifecycleTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .ok(id: "ping-1", result: ["pong": true])
         )
@@ -72,7 +72,7 @@ struct SocketControlFeatureLifecycleTests {
       name: "dev",
       path: "/tmp/dev.sock",
       pid: 42,
-      startedAt: .init(timeIntervalSince1970: 1)
+      startedAt: Date(timeIntervalSince1970: 1)
     )
     let request = SocketControlClient.Request(
       handle: handle,

@@ -309,7 +309,11 @@ struct ComputerUseCursorOverlayPinResolver {
     let targetPid = Int(targetPid)
     if visibleNormalWindows.contains(where: { $0.id == targetWindowID && $0.pid == targetPid }) {
       missedTargetCount = 0
-      return ComputerUseCursorOverlayPinDecision(relativeWindowID: targetWindowID, shouldOrderFront: false, shouldHide: false)
+      return ComputerUseCursorOverlayPinDecision(
+        relativeWindowID: targetWindowID,
+        shouldOrderFront: false,
+        shouldHide: false
+      )
     }
 
     if let fallback =
@@ -318,7 +322,11 @@ struct ComputerUseCursorOverlayPinResolver {
       .max(by: { $0.zIndex < $1.zIndex })
     {
       missedTargetCount = 0
-      return ComputerUseCursorOverlayPinDecision(relativeWindowID: fallback.id, shouldOrderFront: false, shouldHide: false)
+      return ComputerUseCursorOverlayPinDecision(
+        relativeWindowID: fallback.id,
+        shouldOrderFront: false,
+        shouldHide: false
+      )
     }
 
     missedTargetCount += 1

@@ -68,7 +68,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermSendTextRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .sendText(
-          .init(
+          TerminalSendTextRequest(
             target: try createPaneTarget(from: payload.target),
             text: payload.text
           )
@@ -83,7 +83,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermSendKeyRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .sendKey(
-          .init(
+          TerminalSendKeyRequest(
             key: payload.key,
             target: try createPaneTarget(from: payload.target)
           )
@@ -98,7 +98,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermCapturePaneRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .capturePane(
-          .init(
+          TerminalCapturePaneRequest(
             lines: payload.lines,
             scope: payload.scope,
             target: try createPaneTarget(from: payload.target)
@@ -114,7 +114,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermResizePaneRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .resizePane(
-          .init(
+          TerminalResizePaneRequest(
             amount: payload.amount,
             direction: payload.direction,
             target: try createPaneTarget(from: payload.target)
@@ -130,7 +130,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermSetPaneSizeRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .setPaneSize(
-          .init(
+          TerminalSetPaneSizeRequest(
             amount: payload.amount,
             axis: payload.axis,
             target: try createPaneTarget(from: payload.target),

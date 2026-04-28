@@ -179,7 +179,7 @@ extension TerminalHostState {
 
   func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
     guard let tree = trees[tabID] else {
-      return .init(badgeActivity: nil, detailActivity: nil, hoverMarkdown: nil)
+      return TabAgentPresentation(badgeActivity: nil, detailActivity: nil, hoverMarkdown: nil)
     }
 
     let focusedSurfaceID = focusedSurfaceIDByTab[tabID]
@@ -224,7 +224,7 @@ extension TerminalHostState {
       }
     }
 
-    return .init(
+    return TabAgentPresentation(
       badgeActivity: badgeActivity,
       detailActivity: detailActivity,
       hoverMarkdown: hoverMarkdown
@@ -246,7 +246,7 @@ extension TerminalHostState {
   @discardableResult
   func setAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
     guard tabID(containing: surfaceID) != nil else { return false }
-    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? .init()
+    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
     metadata.activity = activity
     metadata.activityRevision = nextAgentActivityRevision
     nextAgentActivityRevision += 1
@@ -280,7 +280,7 @@ extension TerminalHostState {
     for surfaceID: UUID
   ) -> Bool {
     guard tabID(containing: surfaceID) != nil else { return false }
-    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? .init()
+    var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
     var nextMessages = replacing ? [] : metadata.codexHoverMessages
     for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
       nextMessages.append(message)
@@ -456,19 +456,19 @@ extension TerminalHostState {
 
     switch state.progressState {
     case .some(GHOSTTY_PROGRESS_STATE_SET):
-      return .init(
+      return TerminalSidebarTerminalProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
         tone: .active
       )
     case .some(GHOSTTY_PROGRESS_STATE_INDETERMINATE):
-      return .init(fraction: nil, tone: .active)
+      return TerminalSidebarTerminalProgress(fraction: nil, tone: .active)
     case .some(GHOSTTY_PROGRESS_STATE_PAUSE):
-      return .init(
+      return TerminalSidebarTerminalProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 } ?? 1,
         tone: .paused
       )
     case .some(GHOSTTY_PROGRESS_STATE_ERROR):
-      return .init(
+      return TerminalSidebarTerminalProgress(
         fraction: state.progressValue.map { Double(Swift.max(0, Swift.min($0, 100))) / 100 },
         tone: .error
       )
@@ -493,7 +493,7 @@ extension TerminalHostState {
       recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
       return
     }
-    recentStructuredNotificationsBySurfaceID[surfaceID] = .init(
+    recentStructuredNotificationsBySurfaceID[surfaceID] = RecentStructuredNotification(
       recordedAt: createdAt,
       semantic: semantic,
       text: text
@@ -616,7 +616,7 @@ extension TerminalHostState {
     _ notification: PaneNotification?
   ) -> SidebarNotificationPresentation? {
     guard let markdown = notificationText(notification) else { return nil }
-    return .init(
+    return SidebarNotificationPresentation(
       markdown: markdown,
       previewMarkdown: sidebarNotificationPreviewMarkdown(markdown)
     )

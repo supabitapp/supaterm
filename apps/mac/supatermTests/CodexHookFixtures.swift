@@ -71,7 +71,7 @@ enum CodexHookFixtures {
     _ json: String,
     context: SupatermCLIContext? = nil
   ) throws -> SupatermAgentHookRequest {
-    .init(
+    SupatermAgentHookRequest(
       agent: .codex,
       context: context,
       event: try event(json)

@@ -153,14 +153,14 @@ final class TerminalHostState {
       _ phase: AgentActivityPhase,
       detail: String? = nil
     ) -> Self {
-      .init(kind: .claude, phase: phase, detail: detail)
+      AgentActivity(kind: .claude, phase: phase, detail: detail)
     }
 
     static func codex(
       _ phase: AgentActivityPhase,
       detail: String? = nil
     ) -> Self {
-      .init(kind: .codex, phase: phase, detail: detail)
+      AgentActivity(kind: .codex, phase: phase, detail: detail)
     }
 
     var tone: AgentActivityTone {
@@ -1337,7 +1337,7 @@ final class TerminalHostState {
       let anchorTabID = tabID(containing: inheritingFromSurfaceID),
       let space = spaceManager.space(for: anchorTabID)
     {
-      return .init(
+      return ResolvedLocalCreateTabTarget(
         anchorTabID: anchorTabID,
         inheritedSurfaceID: inheritingFromSurfaceID,
         spaceID: space.id
@@ -1348,7 +1348,7 @@ final class TerminalHostState {
       return nil
     }
 
-    return .init(
+    return ResolvedLocalCreateTabTarget(
       anchorTabID: spaceManager.selectedTabID(in: spaceID),
       inheritedSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
       spaceID: spaceID
@@ -1489,7 +1489,7 @@ final class TerminalHostState {
       throw TerminalCreatePaneError.creationFailed
     }
 
-    return .init(space: space, tabID: tabID, tree: tree)
+    return ResolvedCreatePaneTab(space: space, tabID: tabID, tree: tree)
   }
 
   func resolvedPaneLocation(
@@ -1506,7 +1506,7 @@ final class TerminalHostState {
       throw TerminalCreatePaneError.creationFailed
     }
 
-    return .init(
+    return ResolvedPaneLocation(
       paneIndex: paneIndex + 1,
       spaceIndex: spaceIndex,
       tabIndex: tabIndex + 1
@@ -1758,7 +1758,7 @@ final class TerminalHostState {
         )
       }
       return .request(
-        .init(
+        TerminalCloseRequest(
           target: .surface(surfaceID),
           needsConfirmation: needsConfirmationOverride ?? surfaceNeedsCloseConfirmation(surfaceID)
         )
@@ -1770,7 +1770,7 @@ final class TerminalHostState {
         return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
       }
       return .request(
-        .init(
+        TerminalCloseRequest(
           target: .tab(tabID),
           needsConfirmation: needsConfirmationOverride ?? tabNeedsCloseConfirmation(tabID)
         )
@@ -1783,7 +1783,7 @@ final class TerminalHostState {
         return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
       }
       return .request(
-        .init(
+        TerminalCloseRequest(
           target: .tabs(existingTabIDs),
           needsConfirmation: needsConfirmationOverride
             ?? existingTabIDs.contains(where: tabNeedsCloseConfirmation)
@@ -2186,7 +2186,7 @@ final class TerminalHostState {
     isFocused: Bool
   ) -> SupatermAppDebugSnapshot.Pane {
     let state = surface.bridge.state
-    return .init(
+    return SupatermAppDebugSnapshot.Pane(
       index: index,
       id: surface.id,
       isFocused: isFocused,

@@ -24,7 +24,10 @@ extension SettingsFeature {
       case .denied:
         return .send(
           .systemNotificationsAuthorizationResult(
-            .init(granted: false, errorMessage: "Authorization status is denied.")
+            DesktopNotificationClient.AuthorizationRequestResult(
+              granted: false,
+              errorMessage: "Authorization status is denied."
+            )
           )
         )
 

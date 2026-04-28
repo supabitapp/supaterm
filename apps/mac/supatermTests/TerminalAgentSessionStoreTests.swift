@@ -68,7 +68,7 @@ struct TerminalAgentSessionStoreTests {
     store.beginSession(
       agent: .codex,
       sessionID: "session-1",
-      context: .init(surfaceID: surfaceID, tabID: UUID()),
+      context: SupatermCLIContext(surfaceID: surfaceID, tabID: UUID()),
       transcriptPath: nil
     )
     store.armRunningTimeout(agent: .codex, sessionID: "session-1", context: nil)

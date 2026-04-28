@@ -127,7 +127,7 @@ struct AppDelegateTests {
 
     #expect(
       requests == [
-        .init(
+        AppDelegate.LaunchWindowRequest(
           session: nil,
           startupCommand: #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#,
         )
@@ -145,7 +145,7 @@ struct AppDelegateTests {
 
     #expect(
       requests == [
-        .init(
+        AppDelegate.LaunchWindowRequest(
           session: nil,
           startupCommand: nil,
         )
@@ -168,7 +168,7 @@ struct AppDelegateTests {
 
     #expect(
       requests == [
-        .init(
+        AppDelegate.LaunchWindowRequest(
           session: session,
           startupCommand: nil,
         )

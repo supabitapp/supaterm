@@ -618,7 +618,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
           self?.start(updateChannel: updateChannel)
         }
       })
-      phase = .error(.init(message: error.localizedDescription))
+      phase = .error(UpdatePhase.Failure(message: error.localizedDescription))
       publish()
     }
   }
@@ -640,7 +640,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   ) {
     guard sessionOrigin == .interactive else { return }
     interaction = .downloading(cancel)
-    phase = .downloading(.init(expectedLength: nil, progress: 0))
+    phase = .downloading(UpdatePhase.Downloading(expectedLength: nil, progress: 0))
     publish()
     fallback?()
   }
@@ -652,7 +652,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     guard sessionOrigin == .interactive else { return }
     guard case .downloading(let cancel) = interaction else { return }
     interaction = .downloading(cancel)
-    phase = .downloading(.init(expectedLength: expectedLength, progress: 0))
+    phase = .downloading(UpdatePhase.Downloading(expectedLength: expectedLength, progress: 0))
     publish()
     fallback?()
   }
@@ -673,7 +673,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       progress = length
     }
     interaction = .downloading(cancel)
-    phase = .downloading(.init(expectedLength: expectedLength, progress: progress))
+    phase = .downloading(UpdatePhase.Downloading(expectedLength: expectedLength, progress: progress))
     publish()
     fallback?()
   }
@@ -691,7 +691,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       return
     }
     interaction = .error(retry: retry)
-    phase = .error(.init(message: message))
+    phase = .error(UpdatePhase.Failure(message: message))
     publish()
     fallback?()
   }
@@ -701,7 +701,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   ) {
     guard sessionOrigin == .interactive else { return }
     interaction = .none
-    phase = .extracting(.init(progress: 0))
+    phase = .extracting(UpdatePhase.Extracting(progress: 0))
     publish()
     fallback?()
   }
@@ -712,7 +712,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   ) {
     guard sessionOrigin == .interactive else { return }
     interaction = .none
-    phase = .extracting(.init(progress: min(1, max(0, progress))))
+    phase = .extracting(UpdatePhase.Extracting(progress: min(1, max(0, progress))))
     publish()
     fallback?()
   }
@@ -727,7 +727,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     sessionOrigin = isAutoUpdate ? .background : .interactive
     interaction = .installing(restart)
     phase = .installing(
-      .init(
+      UpdatePhase.Installing(
         buildVersion: buildVersion,
         isAutoUpdate: isAutoUpdate,
         version: version
@@ -807,7 +807,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       return
     }
     phase = .installing(
-      .init(
+      UpdatePhase.Installing(
         buildVersion: installing.buildVersion,
         isAutoUpdate: installing.isAutoUpdate,
         showsPrompt: false,
@@ -955,7 +955,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   private func restartLater() {
     guard case .installing = interaction, case .installing(let installing) = phase else { return }
     phase = .installing(
-      .init(
+      UpdatePhase.Installing(
         buildVersion: installing.buildVersion,
         isAutoUpdate: installing.isAutoUpdate,
         showsPrompt: false,
@@ -1167,7 +1167,7 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     switch presentationMode {
     case .sidebar:
       runtime?.showUpdateAvailable(
-        .init(
+        UpdatePhase.Available(
           buildVersion: appcastItem.versionString,
           contentLength: contentLength,
           releaseDate: appcastItem.date,

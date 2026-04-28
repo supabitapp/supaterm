@@ -43,7 +43,7 @@ enum ComputerUseSkyLightEventPost {
       return nil
     }
 
-    return .init(
+    return Resolved(
       postToPid: postToPid,
       setAuthMessage: setAuthMessage,
       msgSendFactory: msgSendFactory,

@@ -24,27 +24,27 @@ struct TerminalPinnedTabCatalogTests {
       isPinned: false,
       lockedTitle: "Pinned",
       focusedPaneIndex: 0,
-      root: .leaf(.init(workingDirectoryPath: "/tmp"))
+      root: TerminalPaneNodeSession.leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp"))
     )
     let catalog = TerminalPinnedTabCatalog(
       spaces: [
-        .init(
+        PersistedPinnedTerminalTabsForSpace(
           id: validSpaceID,
           tabs: [
-            .init(id: duplicateTabID, session: validSession),
-            .init(id: duplicateTabID, session: validSession),
+            PersistedPinnedTerminalTab(id: duplicateTabID, session: validSession),
+            PersistedPinnedTerminalTab(id: duplicateTabID, session: validSession),
           ]
         ),
-        .init(
+        PersistedPinnedTerminalTabsForSpace(
           id: invalidSpaceID,
           tabs: [
-            .init(id: TerminalTabID(), session: validSession)
+            PersistedPinnedTerminalTab(id: TerminalTabID(), session: validSession)
           ]
         ),
-        .init(
+        PersistedPinnedTerminalTabsForSpace(
           id: validSpaceID,
           tabs: [
-            .init(id: TerminalTabID(), session: validSession)
+            PersistedPinnedTerminalTab(id: TerminalTabID(), session: validSession)
           ]
         ),
       ]

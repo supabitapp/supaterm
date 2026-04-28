@@ -1167,15 +1167,15 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
     subtitle: "~/Projects/network"
   )
 
-  return .init(
+  return TerminalCommandPaletteSnapshot(
     ghosttyCommands: [
-      .init(
+      GhosttyCommand(
         title: "Split Right",
         description: "Split the focused terminal to the right.",
         action: "new_split:right",
         actionKey: "new_split"
       ),
-      .init(
+      GhosttyCommand(
         title: "Open Config",
         description: "Open the configuration file.",
         action: "open_config",
@@ -1188,7 +1188,7 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
     ],
     hasFocusedSurface: true,
     updateEntries: [
-      .init(
+      TerminalCommandPaletteUpdateEntry(
         id: "update-available:install",
         title: "Install and Relaunch",
         subtitle: "Update Available",
@@ -1202,13 +1202,13 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
     focusTargets: [focusTarget],
     selectedSpaceID: selectedSpaceID,
     spaces: [
-      .init(id: selectedSpaceID, name: "Workspace Alpha"),
-      .init(id: otherSpaceID, name: "Workspace Beta"),
+      TerminalSpaceItem(id: selectedSpaceID, name: "Workspace Alpha"),
+      TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
     ],
     selectedTabID: selectedTabID,
     visibleTabs: [
-      .init(id: selectedTabID, title: "Main", icon: nil),
-      .init(id: otherTabID, title: "Logs", icon: "doc.plaintext"),
+      TerminalTabItem(id: selectedTabID, title: "Main", icon: nil),
+      TerminalTabItem(id: otherTabID, title: "Logs", icon: "doc.plaintext"),
     ]
   )
 }

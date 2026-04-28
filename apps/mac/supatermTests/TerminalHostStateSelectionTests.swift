@@ -133,12 +133,12 @@ struct TerminalHostStateSelectionTests {
     let paneID = UUID()
 
     let state = TerminalHostState.newTabSelectionState(
-      .init(
+      TerminalHostState.NewTabSelectionInput(
         selectedSpaceID: spaceID,
         targetSpaceID: spaceID,
         selectedTabID: tabID,
         targetTabID: tabID,
-        windowActivity: .init(isKeyWindow: true, isVisible: true),
+        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
         focusedSurfaceID: paneID,
         surfaceID: paneID
       )
@@ -157,12 +157,12 @@ struct TerminalHostStateSelectionTests {
     let paneID = UUID()
 
     let state = TerminalHostState.newTabSelectionState(
-      .init(
+      TerminalHostState.NewTabSelectionInput(
         selectedSpaceID: spaceID,
         targetSpaceID: spaceID,
         selectedTabID: selectedTabID,
         targetTabID: targetTabID,
-        windowActivity: .init(isKeyWindow: true, isVisible: true),
+        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
         focusedSurfaceID: paneID,
         surfaceID: paneID
       )
@@ -181,12 +181,12 @@ struct TerminalHostStateSelectionTests {
     let paneID = UUID()
 
     let state = TerminalHostState.newTabSelectionState(
-      .init(
+      TerminalHostState.NewTabSelectionInput(
         selectedSpaceID: selectedSpaceID,
         targetSpaceID: targetSpaceID,
         selectedTabID: targetTabID,
         targetTabID: targetTabID,
-        windowActivity: .init(isKeyWindow: true, isVisible: true),
+        windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
         focusedSurfaceID: paneID,
         surfaceID: paneID
       )
@@ -205,7 +205,7 @@ struct TerminalHostStateSelectionTests {
     let state = TerminalHostState.newPaneSelectionState(
       selectedTabID: tabID,
       targetTabID: tabID,
-      windowActivity: .init(isKeyWindow: true, isVisible: true),
+      windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
       focusedSurfaceID: paneID,
       surfaceID: paneID
     )
@@ -240,7 +240,7 @@ struct TerminalHostStateSelectionTests {
     let state = TerminalHostState.newPaneSelectionState(
       selectedTabID: selectedTabID,
       targetTabID: targetTabID,
-      windowActivity: .init(isKeyWindow: true, isVisible: true),
+      windowActivity: WindowActivityState(isKeyWindow: true, isVisible: true),
       focusedSurfaceID: paneID,
       surfaceID: paneID
     )

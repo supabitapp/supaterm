@@ -68,8 +68,14 @@ struct ComputerUseCursorOverlayPinResolverTests {
     let first = resolver.resolve(targetPid: 10, targetWindowID: 99, windows: [])
     let second = resolver.resolve(targetPid: 10, targetWindowID: 99, windows: [])
 
-    #expect(first == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: false))
-    #expect(second == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: true))
+    #expect(
+      first
+        == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: false)
+    )
+    #expect(
+      second
+        == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: true)
+    )
   }
 
   @Test
@@ -88,7 +94,10 @@ struct ComputerUseCursorOverlayPinResolverTests {
       recovered
         == ComputerUseCursorOverlayPinDecision(relativeWindowID: 1, shouldOrderFront: false, shouldHide: false)
     )
-    #expect(nextMiss == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: false))
+    #expect(
+      nextMiss
+        == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: false, shouldHide: false)
+    )
   }
 
   @Test
@@ -97,6 +106,9 @@ struct ComputerUseCursorOverlayPinResolverTests {
 
     let decision = resolver.resolve(targetPid: 10, targetWindowID: 0, windows: [])
 
-    #expect(decision == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: true, shouldHide: false))
+    #expect(
+      decision
+        == ComputerUseCursorOverlayPinDecision(relativeWindowID: nil, shouldOrderFront: true, shouldHide: false)
+    )
   }
 }

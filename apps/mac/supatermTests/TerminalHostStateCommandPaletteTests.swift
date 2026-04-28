@@ -84,7 +84,7 @@ struct TerminalHostStateCommandPaletteTests {
       host.selectedSurfaceView?.bridge.state.pwd = "\(homeDirectoryPath)/Projects/network"
 
       _ = try host.createPane(
-        .init(
+        TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,

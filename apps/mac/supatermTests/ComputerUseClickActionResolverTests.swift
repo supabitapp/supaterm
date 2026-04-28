@@ -8,7 +8,7 @@ struct ComputerUseClickActionResolverTests {
   @Test
   func singleUnmodifiedElementClicksTryResolvedActionEvenWhenUnadvertised() {
     let action = ComputerUseClickActionResolver.accessibilityAction(
-      request: .init(pid: 1, windowID: 2, elementIndex: 3),
+      request: SupatermComputerUseClickRequest(pid: 1, windowID: 2, elementIndex: 3),
       advertisedActions: []
     )
 
@@ -24,7 +24,7 @@ struct ComputerUseClickActionResolverTests {
   @Test
   func rightPressMapsToShowMenu() {
     let action = ComputerUseClickActionResolver.accessibilityAction(
-      request: .init(pid: 1, windowID: 2, elementIndex: 3, button: .right),
+      request: SupatermComputerUseClickRequest(pid: 1, windowID: 2, elementIndex: 3, button: .right),
       advertisedActions: []
     )
 
@@ -34,7 +34,7 @@ struct ComputerUseClickActionResolverTests {
   @Test
   func doubleClickUsesOpenWhenAdvertised() {
     let action = ComputerUseClickActionResolver.accessibilityAction(
-      request: .init(pid: 1, windowID: 2, elementIndex: 3, count: 2),
+      request: SupatermComputerUseClickRequest(pid: 1, windowID: 2, elementIndex: 3, count: 2),
       advertisedActions: ["AXOpen"]
     )
 
@@ -44,7 +44,7 @@ struct ComputerUseClickActionResolverTests {
   @Test
   func doubleClickWithoutOpenFallsBackToPixelPath() {
     let action = ComputerUseClickActionResolver.accessibilityAction(
-      request: .init(pid: 1, windowID: 2, elementIndex: 3, count: 2),
+      request: SupatermComputerUseClickRequest(pid: 1, windowID: 2, elementIndex: 3, count: 2),
       advertisedActions: [kAXPressAction as String]
     )
 

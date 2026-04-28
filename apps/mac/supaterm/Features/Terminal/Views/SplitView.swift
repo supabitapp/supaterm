@@ -44,7 +44,7 @@ struct SplitView<L: View, R: View>: View {
     _ direction: Direction,
     _ split: Binding<CGFloat>,
     dividerColor: Color,
-    resizeIncrements: CGSize = .init(width: 1, height: 1),
+    resizeIncrements: CGSize = CGSize(width: 1, height: 1),
     @ViewBuilder left: (() -> L),
     @ViewBuilder right: (() -> R),
     onEqualize: @escaping () -> Void

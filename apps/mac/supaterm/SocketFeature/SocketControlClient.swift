@@ -70,12 +70,12 @@ extension SocketControlClient: DependencyKey {
     },
     reply: { _, _ in },
     start: {
-      .init(
+      SupatermSocketEndpoint(
         id: UUID(uuidString: "8D630A04-61B5-48E8-9D7E-F7E0BB8B9B16")!,
         name: "test",
         path: "/tmp/supaterm-test.sock",
         pid: 1,
-        startedAt: .init(timeIntervalSince1970: 0)
+        startedAt: Date(timeIntervalSince1970: 0)
       )
     },
     stop: {}

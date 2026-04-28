@@ -122,7 +122,7 @@ struct SupatermSettingsTests {
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: true,
-        computerUseCursorMotion: .init(glideDurationMilliseconds: 90),
+        computerUseCursorMotion: SupatermComputerUseCursorMotion(glideDurationMilliseconds: 90),
         crashReportsEnabled: true,
         updateChannel: .stable
       )
@@ -146,7 +146,7 @@ struct SupatermSettingsTests {
         analyticsEnabled: false,
         codingAgentsShowIcons: false,
         computerUseAlwaysFloatAgentCursor: true,
-        computerUseCursorMotion: .init(
+        computerUseCursorMotion: SupatermComputerUseCursorMotion(
           startHandle: 0.1,
           endHandle: 0.9,
           arcSize: 40,
@@ -175,7 +175,7 @@ struct SupatermSettingsTests {
           analyticsEnabled: false,
           codingAgentsShowIcons: false,
           computerUseAlwaysFloatAgentCursor: true,
-          computerUseCursorMotion: .init(
+          computerUseCursorMotion: SupatermComputerUseCursorMotion(
             startHandle: 0.1,
             endHandle: 0.9,
             arcSize: 40,

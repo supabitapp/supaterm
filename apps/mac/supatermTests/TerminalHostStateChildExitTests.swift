@@ -16,8 +16,8 @@ struct TerminalHostStateChildExitTests {
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let surface = try #require(host.selectedSurfaceView)
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: .init())
-    var action = ghostty_action_s(tag: GHOSTTY_ACTION_SHOW_CHILD_EXITED, action: .init())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_SHOW_CHILD_EXITED, action: ghostty_action_u())
     action.action.child_exited.exit_code = 0
     action.action.child_exited.timetime_ms = 28
 

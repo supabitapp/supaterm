@@ -67,8 +67,8 @@ struct SocketControlFeatureAppTests {
     let handle = UUID(uuidString: "120B0BA1-4524-4C63-A0E6-CAC1327E7350")!
     let snapshot = SupatermOnboardingSnapshot(
       items: [
-        .init(shortcut: "⌘S", title: "Toggle sidebar"),
-        .init(shortcut: "⌘T", title: "New tab"),
+        SupatermOnboardingShortcut(shortcut: "⌘S", title: "Toggle sidebar"),
+        SupatermOnboardingShortcut(shortcut: "⌘T", title: "New tab"),
       ]
     )
     let request = SocketControlClient.Request(
@@ -99,18 +99,18 @@ struct SocketControlFeatureAppTests {
       tabID: UUID(uuidString: "3B9FB2DD-0C6E-4AE0-BE47-328F70A5A315")!
     )
     let snapshot = SupatermAppDebugSnapshot(
-      build: .init(
+      build: SupatermAppDebugSnapshot.Build(
         version: "1.2.3",
         buildNumber: "45",
         isDevelopmentBuild: true,
         usesStubUpdateChecks: false
       ),
-      update: .init(
+      update: SupatermAppDebugSnapshot.Update(
         canCheckForUpdates: true,
         phase: "checking",
         detail: "Please wait while Supaterm checks for available updates."
       ),
-      summary: .init(
+      summary: SupatermAppDebugSnapshot.Summary(
         windowCount: 1,
         spaceCount: 0,
         tabCount: 0,
@@ -123,7 +123,7 @@ struct SocketControlFeatureAppTests {
     )
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: try .debug(.init(context: context), id: "debug-1")
+      payload: try .debug(SupatermDebugRequest(context: context), id: "debug-1")
     )
 
     let store = makeStore {
@@ -131,7 +131,7 @@ struct SocketControlFeatureAppTests {
         await recorder.record(handle: handle, response: response)
       }
       $0.terminalWindowsClient.debugSnapshot = { request in
-        #expect(request == .init(context: context))
+        #expect(request == SupatermDebugRequest(context: context))
         return snapshot
       }
     }
@@ -149,7 +149,7 @@ struct SocketControlFeatureAppTests {
     let handle = UUID(uuidString: "B12602E1-5D37-470E-9388-55CD09D400CA")!
     let request = SocketControlClient.Request(
       handle: handle,
-      payload: .init(id: "request-2", method: "space.list")
+      payload: SupatermSocketRequest(id: "request-2", method: "space.list")
     )
 
     let store = makeStore {
@@ -164,7 +164,7 @@ struct SocketControlFeatureAppTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "request-2",
@@ -195,7 +195,7 @@ struct SocketControlFeatureAppTests {
     #expect(records.count == 1)
     #expect(
       records.first
-        == .init(
+        == SocketReplyRecorder.Record(
           handle: handle,
           response: .error(
             id: "onboarding-2",

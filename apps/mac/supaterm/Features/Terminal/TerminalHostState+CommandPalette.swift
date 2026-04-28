@@ -29,7 +29,7 @@ extension TerminalHostState {
             defaultValue: Self.paneFallbackTitle(for: surface.id, in: tree)
           )
           targets.append(
-            .init(
+            TerminalCommandPaletteFocusTarget(
               windowControllerID: windowControllerID,
               surfaceID: surface.id,
               title: displayTitle,

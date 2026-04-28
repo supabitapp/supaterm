@@ -10,7 +10,7 @@ struct ComputerUseFocusStealPreventerTests {
     var observerInstalled = false
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        RunningApplication(processIdentifier: 2) {}
+        ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 2) {}
       },
       observeActivations: { _ in
         observerInstalled = true
@@ -31,7 +31,7 @@ struct ComputerUseFocusStealPreventerTests {
     var handler: (@MainActor (pid_t) -> Void)?
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        RunningApplication(processIdentifier: 1) {
+        ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 1) {
           activatedPid = 1
         }
       },
@@ -55,7 +55,7 @@ struct ComputerUseFocusStealPreventerTests {
     var handler: (@MainActor (pid_t) -> Void)?
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        RunningApplication(processIdentifier: 2) {}
+        ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 2) {}
       },
       observeActivations: { onActivate in
         handler = onActivate
@@ -66,7 +66,7 @@ struct ComputerUseFocusStealPreventerTests {
 
     let handle = preventer.begin(
       targetPid: 2,
-      restoreTo: RunningApplication(processIdentifier: 1) {
+      restoreTo: ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 1) {
         activatedPid = 1
       }
     )
@@ -81,7 +81,7 @@ struct ComputerUseFocusStealPreventerTests {
     var activatedPid: pid_t?
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        RunningApplication(processIdentifier: 1) {
+        ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 1) {
           activatedPid = 1
         }
       },
@@ -101,7 +101,7 @@ struct ComputerUseFocusStealPreventerTests {
     let observer = NSObject()
     let preventer = ComputerUseSystemFocusStealPreventer(
       frontmostApplication: {
-        RunningApplication(processIdentifier: 1) {}
+        ComputerUseSystemFocusStealPreventer.RunningApplication(processIdentifier: 1) {}
       },
       observeActivations: { _ in observer },
       removeObserver: { removed in

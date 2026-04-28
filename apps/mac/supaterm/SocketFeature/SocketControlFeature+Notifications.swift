@@ -23,7 +23,7 @@ extension SocketControlFeature {
         && result.desktopNotificationDisposition.shouldDeliver
       {
         await desktopNotificationClient.deliver(
-          .init(
+          DesktopNotificationRequest(
             body: payload.body,
             subtitle: payload.subtitle,
             title: result.resolvedTitle
@@ -61,7 +61,7 @@ extension SocketControlFeature {
       paneIndex: payload.targetPaneIndex
     )
 
-    return .init(
+    return TerminalNotifyRequest(
       body: payload.body,
       subtitle: payload.subtitle,
       target: try createNotifyTarget(from: payload),

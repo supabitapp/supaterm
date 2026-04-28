@@ -322,7 +322,9 @@ struct SocketControlFeatureComputerUseTests {
 
     let screenHandle = UUID(uuidString: "1F9C05E8-13D3-4F25-97B4-24592B8129EC")!
     await store.send(
-      .requestReceived(SocketControlClient.Request(handle: screenHandle, payload: .computerUseScreenSize(id: "screen-size")))
+      .requestReceived(
+        SocketControlClient.Request(handle: screenHandle, payload: .computerUseScreenSize(id: "screen-size"))
+      )
     )
     let zoomHandle = UUID(uuidString: "35F7AF90-476B-49FB-9C42-91107D2636D2")!
     await store.send(

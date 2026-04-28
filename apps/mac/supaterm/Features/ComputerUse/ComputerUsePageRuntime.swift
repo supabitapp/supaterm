@@ -37,9 +37,9 @@ struct ComputerUsePageRuntime {
       windowID: windowID
     )
     if let json = Self.jsonValue(fromJSONString: evaluation.value) {
-      return .init(ok: true, dispatch: evaluation.dispatch, json: json)
+      return SupatermComputerUseSnapshotJavaScriptResult(ok: true, dispatch: evaluation.dispatch, json: json)
     }
-    return .init(ok: true, dispatch: evaluation.dispatch, text: evaluation.value)
+    return SupatermComputerUseSnapshotJavaScriptResult(ok: true, dispatch: evaluation.dispatch, text: evaluation.value)
   }
 
   private func enableJavaScriptAppleEvents(
@@ -49,7 +49,7 @@ struct ComputerUsePageRuntime {
       throw ComputerUseError.pageTargetRequired
     }
     let dispatch = try await enableJavaScriptAppleEvents(browser: browser)
-    return .init(action: request.action, dispatch: dispatch, text: browser.rawValue)
+    return SupatermComputerUsePageResult(action: request.action, dispatch: dispatch, text: browser.rawValue)
   }
 
   private func executeJavaScript(
@@ -66,9 +66,9 @@ struct ComputerUsePageRuntime {
       windowID: target.windowID
     )
     if let json = Self.jsonValue(fromJSONString: evaluation.value) {
-      return .init(action: request.action, dispatch: evaluation.dispatch, json: json)
+      return SupatermComputerUsePageResult(action: request.action, dispatch: evaluation.dispatch, json: json)
     }
-    return .init(action: request.action, dispatch: evaluation.dispatch, text: evaluation.value)
+    return SupatermComputerUsePageResult(action: request.action, dispatch: evaluation.dispatch, text: evaluation.value)
   }
 
   private func getText(_ request: SupatermComputerUsePageRequest) async throws -> SupatermComputerUsePageResult {
@@ -76,7 +76,7 @@ struct ComputerUsePageRuntime {
     if shouldUseAXFirst(bundleID: target.bundleID, pid: target.pid),
       let text = axText(pid: target.pid, windowID: target.windowID)
     {
-      return .init(action: request.action, dispatch: "accessibility_tree", text: text)
+      return SupatermComputerUsePageResult(action: request.action, dispatch: "accessibility_tree", text: text)
     }
     do {
       let evaluation = try await executeJavaScript(
@@ -85,12 +85,16 @@ struct ComputerUsePageRuntime {
         pid: target.pid,
         windowID: target.windowID
       )
-      return .init(action: request.action, dispatch: evaluation.dispatch, text: evaluation.value)
+      return SupatermComputerUsePageResult(
+        action: request.action,
+        dispatch: evaluation.dispatch,
+        text: evaluation.value
+      )
     } catch {
       if shouldUseAXAfterJavaScriptFailure(bundleID: target.bundleID, pid: target.pid),
         let text = axText(pid: target.pid, windowID: target.windowID)
       {
-        return .init(
+        return SupatermComputerUsePageResult(
           action: request.action,
           dispatch: "accessibility_tree",
           text: text
@@ -108,7 +112,7 @@ struct ComputerUsePageRuntime {
     if shouldUseAXFirst(bundleID: target.bundleID, pid: target.pid),
       let json = axQuery(selector: selector, pid: target.pid, windowID: target.windowID)
     {
-      return .init(action: request.action, dispatch: "accessibility_tree", json: json)
+      return SupatermComputerUsePageResult(action: request.action, dispatch: "accessibility_tree", json: json)
     }
     do {
       let js = try Self.queryDOMJavaScript(selector: selector, attributes: request.attributes)
@@ -121,12 +125,12 @@ struct ComputerUsePageRuntime {
       guard let json = Self.jsonValue(fromJSONString: evaluation.value) else {
         throw ComputerUseError.pageExecutionFailed("DOM query did not return valid JSON.")
       }
-      return .init(action: request.action, dispatch: evaluation.dispatch, json: json)
+      return SupatermComputerUsePageResult(action: request.action, dispatch: evaluation.dispatch, json: json)
     } catch {
       if shouldUseAXAfterJavaScriptFailure(bundleID: target.bundleID, pid: target.pid),
         let json = axQuery(selector: selector, pid: target.pid, windowID: target.windowID)
       {
-        return .init(
+        return SupatermComputerUsePageResult(
           action: request.action,
           dispatch: "accessibility_tree",
           json: json
@@ -163,7 +167,7 @@ struct ComputerUsePageRuntime {
     guard let pid = request.pid, let windowID = request.windowID else {
       throw ComputerUseError.pageTargetRequired
     }
-    return .init(pid: pid, windowID: windowID, bundleID: bundleID(for: pid) ?? "")
+    return PageTarget(pid: pid, windowID: windowID, bundleID: bundleID(for: pid) ?? "")
   }
 
   private func bundleID(for pid: Int) -> String? {
@@ -289,7 +293,7 @@ struct ComputerUsePageRuntime {
     windowID: UInt32
   ) async throws -> PageEvaluation {
     if AppleEventsBrowser.supports(bundleID: bundleID) {
-      return .init(
+      return PageEvaluation(
         dispatch: "apple_events",
         value: try await AppleEventsBrowser.execute(
           javascript: javascript,
@@ -300,7 +304,7 @@ struct ComputerUsePageRuntime {
     }
 
     if ElectronPageRuntime.isElectron(pid: pid) {
-      return .init(
+      return PageEvaluation(
         dispatch: "electron_cdp",
         value: try await ElectronPageRuntime.execute(javascript: javascript, pid: pid)
       )
@@ -308,7 +312,7 @@ struct ComputerUsePageRuntime {
 
     let isWKWebViewApp = WebKitDetector.isWKWebViewApp(pid: pid)
     if let port = await WebKitTCPRuntime.availablePort(pid: pid, includeFallback: isWKWebViewApp) {
-      return .init(
+      return PageEvaluation(
         dispatch: "webkit_cdp",
         value: try await CDPClient.evaluate(javascript: javascript, port: port)
       )
@@ -580,7 +584,7 @@ private enum AppleEventsBrowser {
   }
 
   private static func chromiumSpec(appName: String) -> Spec {
-    .init(appName: appName) { javascript, title in
+    Spec(appName: appName) { javascript, title in
       let escapedTitle =
         title
         .replacingOccurrences(of: "\\", with: "\\\\")
@@ -606,7 +610,7 @@ private enum AppleEventsBrowser {
   }
 
   private static func safariSpec() -> Spec {
-    .init(appName: "Safari") { javascript, title in
+    Spec(appName: "Safari") { javascript, title in
       let escapedTitle =
         title
         .replacingOccurrences(of: "\\", with: "\\\\")
@@ -970,7 +974,7 @@ enum PageAXCollector {
     let currentWindowID = elementWindowID(element)
     guard currentWindowID == nil || currentWindowID == targetWindowID else { return }
     result.append(
-      .init(
+      PageAXElement(
         role: role,
         title: axString(element, kAXTitleAttribute as CFString),
         value: axString(element, kAXValueAttribute as CFString),
@@ -1201,7 +1205,7 @@ private enum ProcessRunner {
       throw ComputerUseError.pageTimedOut(
         "\(URL(fileURLWithPath: executable).lastPathComponent) timed out after \(Int(timeout)) seconds.")
     }
-    return .init(
+    return ProcessOutput(
       status: process.terminationStatus,
       stdout: String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "",
       stderr: String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""

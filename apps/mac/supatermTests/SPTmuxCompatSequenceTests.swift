@@ -103,7 +103,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     let tabID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let tabTitle = "supaterm"
     var panes: [PaneState] = [
-      .init(index: 1, id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, isFocused: true)
+      PaneState(index: 1, id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, isFocused: true)
     ]
     var nextPaneIDs: [UUID] = [
       UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
@@ -127,10 +127,10 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         isFocused: request.focus
       )
       if request.focus {
-        panes = panes.map { .init(index: $0.index, id: $0.id, isFocused: false) }
+        panes = panes.map { PaneState(index: $0.index, id: $0.id, isFocused: false) }
       }
       panes.append(pane)
-      return .init(
+      return SupatermNewPaneResult(
         direction: request.direction,
         isFocused: request.focus,
         isSelectedTab: true,
@@ -148,7 +148,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
       guard let pane = panes.first(where: { $0.index == request.targetPaneIndex }) else {
         throw POSIXError(.ENOENT)
       }
-      return .init(
+      return SupatermPaneTarget(
         windowIndex: windowIndex,
         spaceIndex: spaceIndex,
         spaceID: spaceID,
@@ -160,7 +160,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     }
 
     func tabTarget() -> SupatermTabTarget {
-      .init(
+      SupatermTabTarget(
         windowIndex: windowIndex,
         spaceIndex: spaceIndex,
         spaceID: spaceID,
@@ -218,26 +218,26 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         isVisible: true,
         spaces: [debugSpace]
       )
-      return .init(
-        build: .init(
+      return SupatermAppDebugSnapshot(
+        build: SupatermAppDebugSnapshot.Build(
           version: "1.0",
           buildNumber: "1",
           isDevelopmentBuild: true,
           usesStubUpdateChecks: false
         ),
-        update: .init(
+        update: SupatermAppDebugSnapshot.Update(
           canCheckForUpdates: true,
           phase: "idle",
           detail: ""
         ),
-        summary: .init(
+        summary: SupatermAppDebugSnapshot.Summary(
           windowCount: 1,
           spaceCount: 1,
           tabCount: 1,
           paneCount: panes.count,
           keyWindowIndex: windowIndex
         ),
-        currentTarget: .init(
+        currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
           windowIndex: windowIndex,
           spaceIndex: spaceIndex,
           spaceID: spaceID,

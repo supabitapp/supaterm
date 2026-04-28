@@ -7,7 +7,7 @@ import Testing
 @testable import SupatermSettingsFeature
 
 nonisolated func terminalSettingsSnapshot() -> GhosttyTerminalSettingsSnapshot {
-  .init(
+  GhosttyTerminalSettingsSnapshot(
     availableFontFamilies: ["JetBrains Mono", "SF Mono"],
     availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
     availableLightThemes: ["Zenbones Light", "Builtin Light"],
@@ -57,7 +57,7 @@ nonisolated func terminalSettingsValues(
   lightTheme: String? = "Zenbones Light",
   warningMessage: String? = nil
 ) -> GhosttyTerminalSettingsValues {
-  .init(
+  GhosttyTerminalSettingsValues(
     confirmCloseSurface: confirmCloseSurface,
     configPath: "/tmp/ghostty/config",
     darkTheme: darkTheme,

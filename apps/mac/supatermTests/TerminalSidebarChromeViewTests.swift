@@ -100,7 +100,7 @@ struct TerminalSidebarChromeViewTests {
   func agentMarkPresentationUsesAgentKindAssetMapping() {
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
-        for: .init(kind: .pi, phase: .idle)
+        for: TerminalHostState.AgentActivity(kind: .pi, phase: .idle)
       ) == "pi-mark-glyph"
     )
     #expect(
@@ -179,7 +179,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       accessories
-        == .init(
+        == TerminalSidebarTabSummaryView.TitleAccessories(
           shortcutHint: "⌘1",
           statusAccessory: .pinned
         )
@@ -195,7 +195,7 @@ struct TerminalSidebarChromeViewTests {
         isRowHovering: true,
         statusAccessory: .unreadCount(2)
       )
-        == .init(
+        == TerminalSidebarTabSummaryView.TitleAccessories(
           shortcutHint: "⌘1",
           statusAccessory: nil
         )
@@ -212,7 +212,7 @@ struct TerminalSidebarChromeViewTests {
         isRowHovering: false,
         statusAccessory: .terminalProgress(progress)
       )
-        == .init(
+        == TerminalSidebarTabSummaryView.TitleAccessories(
           shortcutHint: "⌘1",
           statusAccessory: .terminalProgress(progress)
         )
@@ -349,7 +349,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalHostState.sidebarTerminalProgress(state: state)
-        == .init(fraction: nil, tone: .active)
+        == TerminalSidebarTerminalProgress(fraction: nil, tone: .active)
     )
   }
 
@@ -362,7 +362,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalHostState.sidebarTerminalProgress(state: state)
-        == .init(fraction: 0.42, tone: .active)
+        == TerminalSidebarTerminalProgress(fraction: 0.42, tone: .active)
     )
   }
 
@@ -374,7 +374,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalHostState.sidebarTerminalProgress(state: state)
-        == .init(fraction: 1, tone: .paused)
+        == TerminalSidebarTerminalProgress(fraction: 1, tone: .paused)
     )
   }
 
@@ -393,7 +393,7 @@ struct TerminalSidebarChromeViewTests {
 
     #expect(
       TerminalHostState.sidebarTerminalProgress(state: state)
-        == .init(fraction: nil, tone: .error)
+        == TerminalSidebarTerminalProgress(fraction: nil, tone: .error)
     )
   }
 

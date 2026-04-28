@@ -211,7 +211,7 @@ actor SocketControlRuntime {
 
     let handle = UUID()
     pendingReplies[handle] = PendingReply(clientSocket: clientSocket)
-    emit(.init(handle: handle, payload: request))
+    emit(SocketControlClient.Request(handle: handle, payload: request))
   }
 
   private func emit(_ request: SocketControlClient.Request) {

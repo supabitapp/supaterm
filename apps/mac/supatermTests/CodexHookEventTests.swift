@@ -21,10 +21,10 @@ struct CodexHookEventTests {
 
     #expect(event.hookEventName == .preToolUse)
     #expect(event.toolName == "Bash")
-    #expect(event.toolInput == .init())
+    #expect(event.toolInput == SupatermAgentHookToolInput())
     #expect(postToolUse.hookEventName == .postToolUse)
     #expect(postToolUse.toolName == "Bash")
-    #expect(postToolUse.toolInput == .init())
+    #expect(postToolUse.toolInput == SupatermAgentHookToolInput())
   }
 
   @Test

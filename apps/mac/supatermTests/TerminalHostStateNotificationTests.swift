@@ -25,7 +25,7 @@ struct TerminalHostStateNotificationTests {
 
     let updatedNotifications = TerminalHostState.notificationsAfterDirectInteraction(
       notifications,
-      activity: .init(isVisible: true, isFocused: true)
+      activity: TerminalHostState.SurfaceActivity(isVisible: true, isFocused: true)
     )
 
     #expect(updatedNotifications.map(\.attentionState) == [nil, nil])
@@ -160,7 +160,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(
       presentation
-        == .init(
+        == TerminalHostState.SidebarNotificationPresentation(
           markdown: """
             ## Release
 
@@ -187,7 +187,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(
       presentation
-        == .init(
+        == TerminalHostState.SidebarNotificationPresentation(
           markdown: "[Ship notes](https://example.com)",
           previewMarkdown: "Ship notes"
         )
@@ -199,7 +199,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     let stream = host.eventStream()
     var iterator = stream.makeAsyncIterator()
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
@@ -268,7 +268,7 @@ struct TerminalHostStateNotificationTests {
     let surface = try #require(host.selectedSurfaceView)
 
     _ = try host.notifyStructuredAgent(
-      .init(
+      TerminalNotifyRequest(
         body: "Done.",
         subtitle: "Turn complete",
         target: .contextPane(surface.id),
@@ -298,7 +298,7 @@ struct TerminalHostStateNotificationTests {
     surface.bridge.onDesktopNotification?("Codex", "Agent turn complete")
 
     _ = try host.notifyStructuredAgent(
-      .init(
+      TerminalNotifyRequest(
         body: "Done.",
         subtitle: "Turn complete",
         target: .contextPane(surface.id),
@@ -326,7 +326,7 @@ struct TerminalHostStateNotificationTests {
     #expect(host.setAgentActivity(.claude(.running), for: surface.id))
 
     let result = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
         target: .contextPane(surface.id),
@@ -346,7 +346,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
@@ -370,7 +370,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
@@ -393,7 +393,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
@@ -410,13 +410,13 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -447,13 +447,13 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -482,13 +482,13 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -513,13 +513,13 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondPane = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -545,7 +545,7 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
@@ -569,7 +569,7 @@ struct TerminalHostStateNotificationTests {
     let surface = try #require(host.selectedSurfaceView)
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
         target: .contextPane(surface.id),
@@ -577,7 +577,7 @@ struct TerminalHostStateNotificationTests {
       )
     )
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Deploy complete",
         subtitle: "",
         target: .contextPane(surface.id),
@@ -601,7 +601,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondSurface = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -611,7 +611,7 @@ struct TerminalHostStateNotificationTests {
     )
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
         target: .contextPane(firstSurface.id),
@@ -619,7 +619,7 @@ struct TerminalHostStateNotificationTests {
       )
     )
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Deploy complete",
         subtitle: "",
         target: .contextPane(secondSurface.paneID),
@@ -637,13 +637,13 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let firstTabID = try #require(host.selectedTabID)
     let firstSurface = try #require(host.selectedSurfaceView)
     let secondSurface = try host.createPane(
-      .init(
+      TerminalCreatePaneRequest(
         startupCommand: nil,
         direction: .right,
         focus: false,
@@ -653,7 +653,7 @@ struct TerminalHostStateNotificationTests {
     )
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
         target: .contextPane(secondSurface.paneID),
@@ -683,14 +683,14 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
         target: .contextPane(surface.id),
@@ -712,14 +712,14 @@ struct TerminalHostStateNotificationTests {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Claude needs your attention",
         subtitle: "Needs input",
         target: .contextPane(surface.id),
@@ -733,7 +733,7 @@ struct TerminalHostStateNotificationTests {
     host.windowActivity = .inactive
 
     _ = try host.notify(
-      .init(
+      TerminalNotifyRequest(
         body: "Build finished",
         subtitle: "",
         target: .contextPane(surface.id),
@@ -744,7 +744,7 @@ struct TerminalHostStateNotificationTests {
     #expect(host.unreadNotificationCount(for: tabID) == 1)
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID) == Set([surface.id]))
 
-    host.windowActivity = .init(isKeyWindow: true, isVisible: true)
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
     host.handleDirectInteraction(on: surface.id)
 
     #expect(host.latestNotificationText(for: tabID) == nil)
@@ -758,10 +758,10 @@ struct TerminalHostStateNotificationTests {
     createdAt: TimeInterval,
     title: String
   ) -> TerminalHostState.PaneNotification {
-    .init(
+    TerminalHostState.PaneNotification(
       attentionState: attentionState,
       body: body,
-      createdAt: .init(timeIntervalSince1970: createdAt),
+      createdAt: Date(timeIntervalSince1970: createdAt),
       subtitle: "",
       title: title
     )

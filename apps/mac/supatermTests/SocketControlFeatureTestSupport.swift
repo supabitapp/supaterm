@@ -154,7 +154,7 @@ actor SocketReplyRecorder {
     handle: UUID,
     response: SupatermSocketResponse
   ) {
-    records.append(.init(handle: handle, response: response))
+    records.append(Record(handle: handle, response: response))
   }
 
   func snapshot() -> [Record] {

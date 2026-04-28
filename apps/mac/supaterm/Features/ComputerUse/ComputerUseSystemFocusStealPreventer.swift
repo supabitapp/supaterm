@@ -71,7 +71,7 @@ final class ComputerUseSystemFocusStealPreventer {
       }
     }
     let handle = Handle(id: UUID())
-    suppressions[handle.id] = .init(targetPid: targetPid, restoreTo: restoreTo)
+    suppressions[handle.id] = Suppression(targetPid: targetPid, restoreTo: restoreTo)
     return handle
   }
 

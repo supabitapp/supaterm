@@ -33,7 +33,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalTilePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .tilePanes(.init(target: try createTabTarget(from: payload)))
+        .tilePanes(TerminalTilePanesRequest(target: try createTabTarget(from: payload)))
       )
       guard case .tilePanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -43,7 +43,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalEqualizePanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .equalizePanes(.init(target: try createTabTarget(from: payload)))
+        .equalizePanes(TerminalEqualizePanesRequest(target: try createTabTarget(from: payload)))
       )
       guard case .equalizePanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -53,7 +53,7 @@ extension SocketControlFeature {
     case SupatermSocketMethod.terminalMainVerticalPanes:
       let payload = try request.decodeParams(SupatermTabTargetRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
-        .mainVerticalPanes(.init(target: try createTabTarget(from: payload)))
+        .mainVerticalPanes(TerminalMainVerticalPanesRequest(target: try createTabTarget(from: payload)))
       )
       guard case .mainVerticalPanes(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
@@ -114,7 +114,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermRenameTabRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalTab(
         .renameTab(
-          .init(
+          TerminalRenameTabRequest(
             target: try createTabTarget(from: payload.target),
             title: payload.title
           )
@@ -210,7 +210,7 @@ extension SocketControlFeature {
   func createTabNavigationRequest(
     from payload: SupatermTabNavigationRequest
   ) -> TerminalTabNavigationRequest {
-    .init(
+    TerminalTabNavigationRequest(
       contextPaneID: payload.contextPaneID,
       spaceIndex: payload.targetSpaceIndex,
       windowIndex: payload.targetWindowIndex

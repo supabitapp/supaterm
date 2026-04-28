@@ -387,6 +387,6 @@ enum ComputerUseMouseInput {
 
   private static func cocoaLocation(from point: CGPoint) -> CGPoint {
     let height = NSScreen.main?.frame.height ?? NSScreen.screens.first?.frame.height ?? 0
-    return .init(x: point.x, y: height - point.y)
+    return CGPoint(x: point.x, y: height - point.y)
   }
 }

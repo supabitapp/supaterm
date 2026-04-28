@@ -21,7 +21,7 @@ struct BundledSPAgentHooksInstallerTests {
       ],
       runInstallCommand: { path, commandArguments, environment in
         capture.record(path: path, arguments: commandArguments, environment: environment)
-        return .init(status: 0, standardError: "")
+        return BundledSPAgentHooksInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -39,7 +39,7 @@ struct BundledSPAgentHooksInstallerTests {
       resourcesURL: nil,
       runInstallCommand: { _, _, _ in
         Issue.record("runInstallCommand should not be called when the bundled CLI is unavailable.")
-        return .init(status: 0, standardError: "")
+        return BundledSPAgentHooksInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -54,7 +54,10 @@ struct BundledSPAgentHooksInstallerTests {
       resourcesURL: URL(fileURLWithPath: "/tmp/Supaterm.app/Contents/Resources", isDirectory: true),
       isExecutableFile: { $0 == "/tmp/Supaterm.app/Contents/Resources/bin/sp" },
       runInstallCommand: { _, _, _ in
-        .init(status: 1, standardError: "Claude settings must be valid JSON before Supaterm can install hooks.")
+        BundledSPAgentHooksInstaller.CommandResult(
+          status: 1,
+          standardError: "Claude settings must be valid JSON before Supaterm can install hooks."
+        )
       }
     )
 

@@ -28,7 +28,7 @@ enum TerminalNotificationPulsePattern {
 
   static var segments: [TerminalNotificationPulseSegment] {
     targetOpacities.enumerated().map { index, targetOpacity in
-      .init(
+      TerminalNotificationPulseSegment(
         delay: Double(index) * stepDuration,
         duration: stepDuration,
         targetOpacity: targetOpacity
@@ -87,7 +87,7 @@ struct TerminalSplitTreeView: View {
     }
 
     func cornerRadii(cornerRadius: CGFloat) -> RectangleCornerRadii {
-      .init(
+      RectangleCornerRadii(
         topLeading: 0,
         bottomLeading: contains(.bottom) && contains(.leading) ? cornerRadius : 0,
         bottomTrailing: contains(.bottom) && contains(.trailing) ? cornerRadius : 0,
@@ -96,7 +96,7 @@ struct TerminalSplitTreeView: View {
     }
 
     private func removing(_ edges: Self) -> Self {
-      .init(rawValue: rawValue & ~edges.rawValue)
+      TerminalSplitTreeView.OuterEdges(rawValue: rawValue & ~edges.rawValue)
     }
   }
 
@@ -126,7 +126,7 @@ struct TerminalSplitTreeView: View {
     let columns = backingWidth / cellWidth
     let rows = backingHeight / cellHeight
     guard columns >= 5, rows >= 2 else { return nil }
-    return .init(columns: columns, rows: rows)
+    return ResizeOverlayGridSize(columns: columns, rows: rows)
   }
 
   static func resizeOverlayIsHidden(
@@ -220,7 +220,7 @@ struct TerminalSplitTreeView: View {
           }
         SplitView(
           splitViewDirection,
-          .init(
+          Binding<CGFloat>(
             get: {
               CGFloat(split.ratio)
             },
@@ -228,7 +228,7 @@ struct TerminalSplitTreeView: View {
               action(.resize(node: node, ratio: Double($0)))
             }),
           dividerColor: splitDividerColor,
-          resizeIncrements: .init(width: 1, height: 1),
+          resizeIncrements: CGSize(width: 1, height: 1),
           left: {
             SubtreeView(
               node: split.left,
@@ -562,7 +562,7 @@ struct TerminalSplitTreeView: View {
 
     private var trigger: TerminalSplitTreeView.ResizeOverlayTrigger? {
       guard let gridSize else { return nil }
-      return .init(
+      return TerminalSplitTreeView.ResizeOverlayTrigger(
         viewSize: geoSize,
         gridSize: gridSize,
         fontSizePoints: surfaceView.currentFontSizePoints()
@@ -581,7 +581,7 @@ struct TerminalSplitTreeView: View {
           currentTrigger: trigger
         )
         Text(verbatim: text)
-          .padding(.init(top: padding, leading: padding, bottom: padding, trailing: padding))
+          .padding(EdgeInsets(top: padding, leading: padding, bottom: padding, trailing: padding))
           .background(
             RoundedRectangle(cornerRadius: 4)
               .fill(.background)
@@ -774,7 +774,7 @@ struct TerminalSplitAXPath: Hashable {
   static let root = Self(components: [])
 
   func appending(_ component: TerminalSplitAXPathComponent) -> Self {
-    .init(components: components + [component])
+    TerminalSplitAXPath(components: components + [component])
   }
 }
 
@@ -1108,7 +1108,7 @@ final class TerminalSplitAXContainerView: NSView {
   }
 
   private func splitTreePath(for path: TerminalSplitAXPath) -> SplitTree<GhosttySurfaceView>.Path {
-    .init(
+    SplitTree<GhosttySurfaceView>.Path(
       path: path.components.map { component in
         switch component {
         case .left:

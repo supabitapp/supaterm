@@ -82,7 +82,7 @@ enum ClaudeHookFixtures {
     _ json: String,
     context: SupatermCLIContext? = nil
   ) throws -> SupatermAgentHookRequest {
-    .init(
+    SupatermAgentHookRequest(
       agent: .claude,
       context: context,
       event: try event(json)

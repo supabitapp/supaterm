@@ -24,12 +24,12 @@ extension UpdatePhase {
 
     case .permissionRequest:
       return [
-        .init(
+        UpdateActionPresentation(
           title: "Not Now",
           action: .declineAutomaticChecks,
           isProminent: false
         ),
-        .init(
+        UpdateActionPresentation(
           title: "Allow",
           action: .allowAutomaticChecks,
           isProminent: true
@@ -38,17 +38,17 @@ extension UpdatePhase {
 
     case .updateAvailable:
       return [
-        .init(
+        UpdateActionPresentation(
           title: "Skip",
           action: .skipVersion,
           isProminent: false
         ),
-        .init(
+        UpdateActionPresentation(
           title: "Later",
           action: .dismiss,
           isProminent: false
         ),
-        .init(
+        UpdateActionPresentation(
           title: "Install and Relaunch",
           action: .install,
           isProminent: true
@@ -57,7 +57,7 @@ extension UpdatePhase {
 
     case .downloading:
       return [
-        .init(
+        UpdateActionPresentation(
           title: "Cancel",
           action: .cancel,
           isProminent: false
@@ -67,12 +67,12 @@ extension UpdatePhase {
     case .installing(let installing):
       guard installing.showsPrompt else { return [] }
       return [
-        .init(
+        UpdateActionPresentation(
           title: "Restart Later",
           action: .restartLater,
           isProminent: false
         ),
-        .init(
+        UpdateActionPresentation(
           title: "Restart Now",
           action: .restartNow,
           isProminent: true
@@ -81,12 +81,12 @@ extension UpdatePhase {
 
     case .error:
       return [
-        .init(
+        UpdateActionPresentation(
           title: "OK",
           action: .dismiss,
           isProminent: false
         ),
-        .init(
+        UpdateActionPresentation(
           title: "Retry",
           action: .retry,
           isProminent: true

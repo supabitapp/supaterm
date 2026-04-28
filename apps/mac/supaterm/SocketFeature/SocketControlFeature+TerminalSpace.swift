@@ -12,7 +12,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermCreateSpaceRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalSpace(
         .createSpace(
-          .init(
+          TerminalCreateSpaceRequest(
             name: payload.name,
             target: createSpaceNavigationRequest(from: payload.target)
           )
@@ -47,7 +47,7 @@ extension SocketControlFeature {
       let payload = try request.decodeParams(SupatermRenameSpaceRequest.self)
       let execution = try await socketRequestExecutor.executeTerminalSpace(
         .renameSpace(
-          .init(
+          TerminalRenameSpaceRequest(
             name: payload.name,
             target: try createSpaceTarget(from: payload.target)
           )
@@ -118,7 +118,7 @@ extension SocketControlFeature {
   func createSpaceNavigationRequest(
     from payload: SupatermSpaceNavigationRequest
   ) -> TerminalSpaceNavigationRequest {
-    .init(
+    TerminalSpaceNavigationRequest(
       contextPaneID: payload.contextPaneID,
       windowIndex: payload.targetWindowIndex
     )

@@ -21,8 +21,8 @@ struct SupatermCLIContextTests {
 
     #expect(
       context.environmentVariables == [
-        .init(key: "SUPATERM_SURFACE_ID", value: surfaceID.uuidString),
-        .init(key: "SUPATERM_TAB_ID", value: tabID.uuidString),
+        SupatermCLIEnvironmentVariable(key: "SUPATERM_SURFACE_ID", value: surfaceID.uuidString),
+        SupatermCLIEnvironmentVariable(key: "SUPATERM_TAB_ID", value: tabID.uuidString),
       ]
     )
   }
@@ -36,7 +36,7 @@ struct SupatermCLIContextTests {
       SupatermCLIEnvironment.tabIDKey: tabID.uuidString,
     ]
 
-    #expect(SupatermCLIContext(environment: environment) == .init(surfaceID: surfaceID, tabID: tabID))
+    #expect(SupatermCLIContext(environment: environment) == SupatermCLIContext(surfaceID: surfaceID, tabID: tabID))
   }
 
   @Test

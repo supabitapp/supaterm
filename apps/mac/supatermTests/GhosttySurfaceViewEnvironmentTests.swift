@@ -31,7 +31,10 @@ struct GhosttySurfaceViewEnvironmentTests {
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.surfaceIDKey, value: surfaceID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.tabIDKey, value: tabID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
-        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.cliPathKey, value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"),
+        SupatermCLIEnvironmentVariable(
+          key: SupatermCLIEnvironment.cliPathKey,
+          value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"
+        ),
         SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
     )

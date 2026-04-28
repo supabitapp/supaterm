@@ -559,7 +559,7 @@ struct SupatermMenuControllerTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -581,7 +581,9 @@ struct SupatermMenuControllerTests {
 
     let appMenu = try #require(app.mainMenu?.items.first?.submenu)
     let item = try #require(
-      appMenu.items.first(where: { $0.identifier == .init("app.supabit.supaterm.app.checkForUpdates") }))
+      appMenu.items.first(where: {
+        $0.identifier == NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
+      }))
 
     #expect(controller.validateMenuItem(item))
     #expect(item.title == "Restart to Update...")
@@ -594,7 +596,7 @@ struct SupatermMenuControllerTests {
     let registry = TerminalWindowRegistry()
     let host = TerminalHostState(managesTerminalSurfaces: false)
     var state = AppFeature.State()
-    state.update.phase = .installing(.init(isAutoUpdate: true, showsPrompt: false))
+    state.update.phase = .installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
     let store = Store(initialState: state) {
       AppFeature()
     }
@@ -616,7 +618,9 @@ struct SupatermMenuControllerTests {
 
     let appMenu = try #require(app.mainMenu?.items.first?.submenu)
     let item = try #require(
-      appMenu.items.first(where: { $0.identifier == .init("app.supabit.supaterm.app.checkForUpdates") }))
+      appMenu.items.first(where: {
+        $0.identifier == NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
+      }))
 
     #expect(controller.validateMenuItem(item))
     #expect(item.title == "Restart to Update...")

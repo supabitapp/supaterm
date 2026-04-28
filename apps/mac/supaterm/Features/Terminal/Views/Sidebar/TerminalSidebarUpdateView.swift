@@ -24,7 +24,7 @@ struct TerminalSidebarUpdateSection: View {
   }
 
   private var style: TerminalSidebarUpdateStyle {
-    .init(
+    TerminalSidebarUpdateStyle(
       phase: phase,
       palette: palette
     )
@@ -375,7 +375,7 @@ private struct TerminalSidebarUpdateIndicator: View {
   let palette: TerminalPalette
 
   private var style: TerminalSidebarUpdateStyle {
-    .init(
+    TerminalSidebarUpdateStyle(
       phase: phase,
       palette: palette
     )

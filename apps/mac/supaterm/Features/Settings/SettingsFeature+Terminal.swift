@@ -157,7 +157,7 @@ extension SettingsFeature {
 
 extension SettingsTerminalState {
   var settingsDraft: GhosttyTerminalSettingsDraft {
-    .init(
+    GhosttyTerminalSettingsDraft(
       confirmCloseSurface: confirmCloseSurface,
       darkTheme: darkTheme,
       fontFamily: fontFamily,

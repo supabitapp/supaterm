@@ -12,7 +12,7 @@ enum SupatermDebugSnapshotResolver {
     context: SupatermCLIContext?
   ) -> Resolution {
     guard let context else {
-      return .init(currentTarget: nil, problems: [])
+      return Resolution(currentTarget: nil, problems: [])
     }
 
     for window in windows {
@@ -24,8 +24,8 @@ enum SupatermDebugSnapshotResolver {
             problems.append(
               "Context pane \(context.surfaceID.uuidString) was not found in tab \(context.tabID.uuidString).")
           }
-          return .init(
-            currentTarget: .init(
+          return Resolution(
+            currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
               windowIndex: window.index,
               spaceIndex: space.index,
               spaceID: space.id,
@@ -42,7 +42,7 @@ enum SupatermDebugSnapshotResolver {
       }
     }
 
-    return .init(
+    return Resolution(
       currentTarget: nil,
       problems: ["Context tab \(context.tabID.uuidString) was not found."]
     )

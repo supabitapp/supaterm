@@ -144,12 +144,22 @@ struct GhosttyRuntimeTests {
       app.delegate = previousDelegate
     }
 
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_NEW_WINDOW, action: .init())))
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_CLOSE_ALL_WINDOWS, action: .init())))
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_CHECK_FOR_UPDATES, action: .init())))
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_OPEN_CONFIG, action: .init())))
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_TOGGLE_VISIBILITY, action: .init())))
-    #expect(GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_QUIT, action: .init())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_NEW_WINDOW,
+      action: ghostty_action_u())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_CLOSE_ALL_WINDOWS,
+      action: ghostty_action_u())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_CHECK_FOR_UPDATES,
+      action: ghostty_action_u())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_OPEN_CONFIG,
+      action: ghostty_action_u())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_TOGGLE_VISIBILITY,
+      action: ghostty_action_u())))
+    #expect(GhosttyRuntime.dispatchAppAction(ghostty_action_s(tag: GHOSTTY_ACTION_QUIT, action: ghostty_action_u())))
 
     #expect(delegate.newWindowCount == 1)
     #expect(delegate.closeAllWindowsCount == 1)
@@ -161,7 +171,9 @@ struct GhosttyRuntimeTests {
 
   @Test
   func dispatchAppActionReturnsFalseForUnsupportedActions() {
-    #expect(!GhosttyRuntime.dispatchAppAction(.init(tag: GHOSTTY_ACTION_PRESENT_TERMINAL, action: .init())))
+    #expect(!GhosttyRuntime.dispatchAppAction(ghostty_action_s(
+      tag: GHOSTTY_ACTION_PRESENT_TERMINAL,
+      action: ghostty_action_u())))
   }
 
   @Test
@@ -239,8 +251,8 @@ struct GhosttyRuntimeTests {
       app.delegate = previousDelegate
     }
 
-    let action = ghostty_action_s(tag: GHOSTTY_ACTION_NEW_WINDOW, action: .init())
-    let target = ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: .init())
+    let action = ghostty_action_s(tag: GHOSTTY_ACTION_NEW_WINDOW, action: ghostty_action_u())
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: ghostty_target_u())
     let appBits = runtime.appBitsForTesting()
     let result = await Task.detached {
       GhosttyRuntime.actionCallbackForTesting(appBits, target, action)

@@ -83,7 +83,7 @@ nonisolated struct BundledSPAgentHooksInstaller {
         bytes: errorPipe.fileHandleForReading.readDataToEndOfFile(),
         encoding: .utf8
       ) ?? ""
-    return .init(
+    return CommandResult(
       status: process.terminationStatus,
       standardError: standardError.trimmingCharacters(in: .whitespacesAndNewlines)
     )

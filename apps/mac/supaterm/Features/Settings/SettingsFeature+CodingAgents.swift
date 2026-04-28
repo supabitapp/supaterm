@@ -122,7 +122,7 @@ extension SettingsFeature {
     state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
     state[keyPath: keyPath].isPending = false
     if isInstallFailure {
-      state.agentIntegrationInstallFailure = .init(agent: agent, log: message)
+      state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: agent, log: message)
     }
     return .none
   }

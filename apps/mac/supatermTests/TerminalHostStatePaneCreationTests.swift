@@ -18,7 +18,7 @@ struct TerminalHostStatePaneCreationTests {
       let paneID = try #require(host.selectedSurfaceView?.id)
 
       _ = try host.createPane(
-        .init(
+      TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,
@@ -46,7 +46,7 @@ struct TerminalHostStatePaneCreationTests {
       let paneID = try #require(host.selectedSurfaceView?.id)
 
       _ = try host.createPane(
-        .init(
+      TerminalCreatePaneRequest(
           startupCommand: nil,
           direction: .right,
           focus: false,
@@ -70,12 +70,12 @@ struct TerminalHostStatePaneCreationTests {
       isPinned: false,
       lockedTitle: nil,
       focusedPaneIndex: 1,
-      root: .split(
-        .init(
+      root: TerminalPaneNodeSession.split(
+        TerminalPaneSplitSession(
           direction: .horizontal,
           ratio: rootRatio,
-          left: .leaf(.init(workingDirectoryPath: "/tmp/left")),
-          right: .leaf(.init(workingDirectoryPath: "/tmp/right"))
+          left: TerminalPaneNodeSession.leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp/left")),
+          right: TerminalPaneNodeSession.leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp/right"))
         )
       )
     )

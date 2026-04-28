@@ -494,7 +494,7 @@ struct TerminalSidebarTabSummaryView: View {
     isRowHovering: Bool,
     statusAccessory: StatusAccessory?
   ) -> TitleAccessories {
-    .init(
+    TitleAccessories(
       shortcutHint: showsShortcutHint ? shortcutHint : nil,
       statusAccessory: isRowHovering ? nil : statusAccessory
     )
@@ -1049,7 +1049,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private var animatedPresentation: AnimatedPresentation {
-    .init(
+    AnimatedPresentation(
       badgeActivity: agentPresentation.badgeActivity,
       paneWorkingDirectories: paneWorkingDirectories,
       showsAgentMarks: showsAgentMarks,

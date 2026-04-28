@@ -58,7 +58,7 @@ extension TerminalHostState {
   }
 
   func debugWindowSnapshot(index: Int) -> SupatermAppDebugSnapshot.Window {
-    .init(
+    SupatermAppDebugSnapshot.Window(
       index: index,
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
@@ -243,7 +243,7 @@ extension TerminalHostState {
       }
 
       let selectionState = Self.newTabSelectionState(
-        .init(
+        NewTabSelectionInput(
           selectedSpaceID: spaceManager.selectedSpaceID,
           targetSpaceID: resolvedTarget.space.id,
           selectedTabID: spaceManager.selectedTabID,
@@ -254,7 +254,7 @@ extension TerminalHostState {
         )
       )
 
-      return .init(
+      return SupatermNewTabResult(
         isFocused: selectionState.isFocused,
         isSelectedSpace: selectionState.isSelectedSpace,
         isSelectedTab: selectionState.isSelectedTab,
@@ -358,7 +358,7 @@ extension TerminalHostState {
 
   func resolveClose(_ target: TerminalPaneTarget) throws -> ResolvedPaneClose {
     let resolvedTarget = try resolvePaneTarget(target)
-    return .init(
+    return ResolvedPaneClose(
       result: try paneTarget(
         spaceID: resolvedTarget.spaceID,
         tabID: resolvedTarget.tabID,
@@ -372,7 +372,7 @@ extension TerminalHostState {
 
   func resolveClose(_ target: TerminalTabTarget) throws -> ResolvedTabClose {
     let resolvedTarget = try resolveTabTarget(target)
-    return .init(
+    return ResolvedTabClose(
       result: try tabTarget(for: resolvedTarget.tabID),
       shouldCloseWindow: shouldCloseWindow(afterClosing: [resolvedTarget.tabID]),
       tabID: resolvedTarget.tabID
@@ -432,7 +432,7 @@ extension TerminalHostState {
     else {
       throw TerminalControlError.captureFailed
     }
-    return .init(
+    return SupatermCapturePaneResult(
       target: try paneTarget(
         spaceID: resolvedTarget.spaceID,
         tabID: resolvedTarget.tabID,
@@ -490,7 +490,7 @@ extension TerminalHostState {
     let resolvedTarget = try resolveTabTarget(request.target)
     let title = Self.trimmedNonEmpty(request.title)
     setLockedTabTitle(title, for: resolvedTarget.tabID)
-    return .init(
+    return SupatermRenameTabResult(
       isTitleLocked: title != nil,
       target: try tabTarget(for: resolvedTarget.tabID)
     )
@@ -882,7 +882,7 @@ extension TerminalHostState {
     guard let spaceIndex = spaceManager.spaceIndex(for: spaceID) else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
     }
-    return .init(
+    return SupatermSpaceTarget(
       windowIndex: 1,
       spaceIndex: spaceIndex,
       spaceID: spaceID.rawValue,
@@ -902,7 +902,7 @@ extension TerminalHostState {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: 1)
     }
     let tab = tabs[tabIndex]
-    return .init(
+    return SupatermTabTarget(
       windowIndex: 1,
       spaceIndex: spaceIndex,
       spaceID: space.id.rawValue,
@@ -924,7 +924,7 @@ extension TerminalHostState {
       surfaceID: surfaceID,
       tree: tree
     )
-    return .init(
+    return SupatermPaneTarget(
       windowIndex: 1,
       spaceIndex: location.spaceIndex,
       spaceID: spaceID.rawValue,
@@ -965,7 +965,7 @@ extension TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[tabID],
       surfaceID: surfaceID
     )
-    return .init(
+    return SupatermFocusPaneResult(
       isFocused: activity.isFocused,
       isSelectedTab: selectedTabID == tabID,
       target: target
@@ -993,7 +993,7 @@ extension TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[tabID],
       surfaceID: resolvedSurface.surface.id
     )
-    return .init(
+    return SupatermSelectTabResult(
       isFocused: activity.isFocused,
       isSelectedSpace: selectedSpaceID == space.id,
       isSelectedTab: selectedTabID == tabID,
@@ -1005,7 +1005,7 @@ extension TerminalHostState {
   }
 
   func pinTabResult(for tabID: TerminalTabID) throws -> SupatermPinTabResult {
-    .init(
+    SupatermPinTabResult(
       isPinned: spaceManager.tab(for: tabID)?.isPinned == true,
       target: try tabTarget(for: tabID)
     )
@@ -1036,7 +1036,7 @@ extension TerminalHostState {
       focusedSurfaceID: focusedSurfaceIDByTab[tabID],
       surfaceID: resolvedSurface.surface.id
     )
-    return .init(
+    return SupatermSelectSpaceResult(
       isFocused: activity.isFocused,
       isSelectedSpace: selectedSpaceID == spaceID,
       isSelectedTab: selectedTabID == tabID,
@@ -1100,7 +1100,7 @@ extension TerminalHostState {
       title: resolvedTitle
     )
 
-    return .init(
+    return SupatermNotifyResult(
       attentionState: attentionState,
       desktopNotificationDisposition: desktopNotificationDisposition,
       resolvedTitle: resolvedTitle,
@@ -1125,7 +1125,7 @@ extension TerminalHostState {
     }
     guard
       let result = try? notify(
-        .init(
+        TerminalNotifyRequest(
           body: body,
           subtitle: subtitle,
           target: .contextPane(surfaceID),
@@ -1138,7 +1138,7 @@ extension TerminalHostState {
     }
     emit(
       .notificationReceived(
-        .init(
+        TerminalNotificationEvent(
           attentionState: result.attentionState,
           body: body,
           desktopNotificationDisposition: result.desktopNotificationDisposition,

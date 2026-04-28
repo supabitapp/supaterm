@@ -23,7 +23,7 @@ extension TerminalCommandExecutor {
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreateSpaceRequest(
         name: request.name,
-        target: .init(contextPaneID: request.target.contextPaneID, windowIndex: 1)
+        target: TerminalSpaceNavigationRequest(contextPaneID: request.target.contextPaneID, windowIndex: 1)
       )
       do {
         return TerminalWindowRegistry.rewrite(
@@ -152,7 +152,9 @@ extension TerminalCommandExecutor {
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
-          try entry.terminal.nextSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          try entry.terminal.nextSpace(
+            TerminalSpaceNavigationRequest(contextPaneID: request.contextPaneID, windowIndex: 1)
+          ),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {
@@ -186,7 +188,7 @@ extension TerminalCommandExecutor {
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.previousSpace(
-            .init(contextPaneID: request.contextPaneID, windowIndex: 1)
+            TerminalSpaceNavigationRequest(contextPaneID: request.contextPaneID, windowIndex: 1)
           ),
           windowIndex: windowIndex
         )
@@ -220,7 +222,9 @@ extension TerminalCommandExecutor {
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
-          try entry.terminal.lastSpace(.init(contextPaneID: request.contextPaneID, windowIndex: 1)),
+          try entry.terminal.lastSpace(
+            TerminalSpaceNavigationRequest(contextPaneID: request.contextPaneID, windowIndex: 1)
+          ),
           windowIndex: windowIndex
         )
       } catch let error as TerminalControlError {

@@ -105,7 +105,7 @@ extension TerminalClient: DependencyKey {
     },
     events: { AsyncStream { $0.finish() } },
     send: { _ in },
-    treeSnapshot: { .init(windows: []) }
+    treeSnapshot: { SupatermTreeSnapshot(windows: []) }
   )
 
   static let testValue = Self(
@@ -114,7 +114,7 @@ extension TerminalClient: DependencyKey {
     },
     events: { AsyncStream { $0.finish() } },
     send: { _ in },
-    treeSnapshot: { .init(windows: []) }
+    treeSnapshot: { SupatermTreeSnapshot(windows: []) }
   )
 }
 

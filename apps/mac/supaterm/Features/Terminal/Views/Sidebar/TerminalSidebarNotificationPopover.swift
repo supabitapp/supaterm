@@ -78,7 +78,7 @@ private struct TerminalSidebarNotificationPopover: View {
 enum SidebarNotificationMarkdown {
   static let popoverParser = AttributedStringMarkdownParser(
     baseURL: nil,
-    options: .init(failurePolicy: .returnPartiallyParsedIfPossible)
+    options: AttributedString.MarkdownParsingOptions(failurePolicy: .returnPartiallyParsedIfPossible)
   )
 }
 

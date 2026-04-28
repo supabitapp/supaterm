@@ -17,7 +17,7 @@ struct SPTmuxCompatTests {
 
     #expect(
       invocation.connection
-        == .init(
+        == SPRawConnectionOptions(
           explicitSocketPath: "/tmp/supaterm.sock",
           instance: "work-mac"
         )
@@ -36,7 +36,7 @@ struct SPTmuxCompatTests {
 
     #expect(
       invocation.connection
-        == .init(
+        == SPRawConnectionOptions(
           explicitSocketPath: nil,
           instance: "work-mac"
         )

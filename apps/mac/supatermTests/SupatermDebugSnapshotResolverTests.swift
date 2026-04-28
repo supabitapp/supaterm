@@ -66,7 +66,7 @@ struct SupatermDebugSnapshotResolverTests {
     #expect(resolution.problems.isEmpty)
     #expect(
       resolution.currentTarget
-        == .init(
+        == SupatermAppDebugSnapshot.CurrentTarget(
           windowIndex: 1,
           spaceIndex: 1,
           spaceID: spaceID,
@@ -124,7 +124,7 @@ struct SupatermDebugSnapshotResolverTests {
 
     #expect(
       resolution.currentTarget
-        == .init(
+        == SupatermAppDebugSnapshot.CurrentTarget(
           windowIndex: 1,
           spaceIndex: 1,
           spaceID: spaceID,

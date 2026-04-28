@@ -115,12 +115,12 @@ struct TerminalCommandPaletteStateTests {
   }
 
   private var visibleTabs: [TerminalTabItem] = [
-    .init(
+    TerminalTabItem(
       id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000010")!),
       title: "Main",
       icon: nil
     ),
-    .init(
+    TerminalTabItem(
       id: TerminalTabID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000011")!),
       title: "Logs",
       icon: "doc.plaintext"
@@ -133,15 +133,15 @@ struct TerminalCommandPaletteStateTests {
     var visibleTabs = self.visibleTabs
     visibleTabs[0].isPinned = selectedTabIsPinned
 
-    return .init(
+    return TerminalCommandPaletteSnapshot(
       ghosttyCommands: [
-        .init(
+        GhosttyCommand(
           title: "Split Right",
           description: "Split the focused terminal to the right.",
           action: "new_split:right",
           actionKey: "new_split"
         ),
-        .init(
+        GhosttyCommand(
           title: "Open Config",
           description: "Open the configuration file.",
           action: "open_config",
@@ -154,7 +154,7 @@ struct TerminalCommandPaletteStateTests {
       ],
       hasFocusedSurface: true,
       updateEntries: [
-        .init(
+        TerminalCommandPaletteUpdateEntry(
           id: "update-available:install",
           title: "Install and Relaunch",
           subtitle: "Update Available",
@@ -166,13 +166,13 @@ struct TerminalCommandPaletteStateTests {
         )
       ],
       focusTargets: [
-        .init(
+        TerminalCommandPaletteFocusTarget(
           windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
           surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
           title: "ping 1.1.1.1",
           subtitle: "~/Projects/network"
         ),
-        .init(
+        TerminalCommandPaletteFocusTarget(
           windowControllerID: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
           surfaceID: UUID(uuidString: "00000000-0000-0000-0000-000000000204")!,
           title: "server.log",
@@ -181,8 +181,8 @@ struct TerminalCommandPaletteStateTests {
       ],
       selectedSpaceID: selectedSpaceID,
       spaces: [
-        .init(id: selectedSpaceID, name: "Workspace Alpha"),
-        .init(id: otherSpaceID, name: "Workspace Beta"),
+        TerminalSpaceItem(id: selectedSpaceID, name: "Workspace Alpha"),
+        TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
       ],
       selectedTabID: visibleTabs[0].id,
       visibleTabs: visibleTabs

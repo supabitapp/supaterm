@@ -282,13 +282,25 @@ extension ComputerUseClient: DependencyKey {
       )
     },
     launch: { request in
-      SupatermComputerUseLaunchResult(pid: 0, bundleID: request.bundleID, name: request.name ?? "", isActive: false, windows: [])
+      SupatermComputerUseLaunchResult(
+        pid: 0,
+        bundleID: request.bundleID,
+        name: request.name ?? "",
+        isActive: false,
+        windows: []
+      )
     },
     windows: { _ in
       SupatermComputerUseWindowsResult(windows: [])
     },
     snapshot: { request in
-      SupatermComputerUseSnapshotResult(pid: request.pid, windowID: request.windowID, frame: nil, elements: [], screenshot: nil)
+      SupatermComputerUseSnapshotResult(
+        pid: request.pid,
+        windowID: request.windowID,
+        frame: nil,
+        elements: [],
+        screenshot: nil
+      )
     },
     screenshot: { request in
       SupatermComputerUseScreenshot(path: request.imageOutputPath, width: 0, height: 0)

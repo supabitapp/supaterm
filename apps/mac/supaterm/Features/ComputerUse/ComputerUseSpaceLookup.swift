@@ -23,7 +23,7 @@ enum ComputerUseSpaceLookup {
     else {
       return nil
     }
-    return .init(
+    return Resolved(
       main: unsafeBitCast(main, to: MainConnectionFn.self),
       active: unsafeBitCast(active, to: ActiveSpaceFn.self),
       spacesForWindows: unsafeBitCast(spaces, to: SpacesForWindowsFn.self)

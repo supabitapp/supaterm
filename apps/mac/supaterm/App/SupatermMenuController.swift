@@ -11,7 +11,8 @@ final class SupatermMenuController: NSObject {
 
     init(shortcut: KeyboardShortcut) {
       self.keyEquivalent = shortcut.key.character.description.lowercased()
-      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers).intersection(.deviceIndependentFlagsMask)
+      self.modifierMask = NSEvent.ModifierFlags(swiftUIFlags: shortcut.modifiers)
+        .intersection(.deviceIndependentFlagsMask)
     }
 
     func matches(_ event: NSEvent) -> Bool {

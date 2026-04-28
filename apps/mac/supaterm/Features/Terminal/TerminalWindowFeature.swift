@@ -496,7 +496,7 @@ struct TerminalWindowFeature {
 
   private func openCommandPaletteState(windowID: ObjectIdentifier?) -> TerminalCommandPaletteState {
     let rows = TerminalCommandPalettePresentation.rows(from: commandPaletteSnapshot(windowID: windowID))
-    return .init(
+    return TerminalCommandPaletteState(
       selectedRowID: TerminalCommandPalettePresentation.normalizedSelection(nil, in: rows)
     )
   }
@@ -517,7 +517,7 @@ struct TerminalWindowFeature {
       commandPalette.selectedRowID,
       in: visibleRows
     )
-    return .init(
+    return ResolvedCommandPalette(
       visibleRows: visibleRows,
       selectedRowID: selectedRowID
     )
@@ -642,19 +642,19 @@ struct TerminalWindowFeature {
   private func pendingCloseRequest(for target: TerminalCloseTarget) -> PendingCloseRequest {
     switch target {
     case .surface(let surfaceID):
-      return .init(
+      return PendingCloseRequest(
         target: .surface(surfaceID),
         title: "Close Pane?",
         message: "A process is still running in this pane. Close it anyway?"
       )
     case .tab(let tabID):
-      return .init(
+      return PendingCloseRequest(
         target: .tab(tabID),
         title: "Close Tab?",
         message: "A process is still running in this tab. Close it anyway?"
       )
     case .tabs(let tabIDs):
-      return .init(
+      return PendingCloseRequest(
         target: .tabs(tabIDs),
         title: "Close Tabs?",
         message: "A process is still running in one or more of these tabs. Close them anyway?"
@@ -665,14 +665,14 @@ struct TerminalWindowFeature {
   private func confirmationRequest(for target: ConfirmationTarget) -> ConfirmationRequest {
     switch target {
     case .closeWindow(let windowID):
-      return .init(
+      return ConfirmationRequest(
         target: .closeWindow(windowID),
         title: "Close Window?",
         message: "A process is still running in this window. Close it anyway?",
         confirmTitle: "Close"
       )
     case .closeAllWindows(let windowIDs):
-      return .init(
+      return ConfirmationRequest(
         target: .closeAllWindows(windowIDs),
         title: "Close All Windows?",
         message: "All terminal sessions will be terminated.",

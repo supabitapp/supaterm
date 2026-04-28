@@ -198,9 +198,9 @@ struct TerminalHostStateSpaceSharingTests {
 
       #expect(throws: TerminalControlError.invalidSpaceName) {
         _ = try host.createSpace(
-          .init(
+          TerminalCreateSpaceRequest(
             name: "   ",
-            target: .init(contextPaneID: nil, windowIndex: 1)
+            target: TerminalSpaceNavigationRequest(contextPaneID: nil, windowIndex: 1)
           )
         )
       }
@@ -220,9 +220,9 @@ struct TerminalHostStateSpaceSharingTests {
 
       #expect(throws: TerminalControlError.spaceNameUnavailable) {
         _ = try host.createSpace(
-          .init(
+          TerminalCreateSpaceRequest(
             name: "A",
-            target: .init(contextPaneID: nil, windowIndex: 1)
+            target: TerminalSpaceNavigationRequest(contextPaneID: nil, windowIndex: 1)
           )
         )
       }

@@ -67,10 +67,10 @@ func codexHookRequest(
   context: SupatermCLIContext? = nil,
   lastAssistantMessage: String? = nil
 ) -> SupatermAgentHookRequest {
-  .init(
+  SupatermAgentHookRequest(
     agent: .codex,
     context: context,
-    event: .init(
+    event: SupatermAgentHookEvent(
       cwd: CodexHookFixtures.cwd,
       hookEventName: hookEventName,
       lastAssistantMessage: lastAssistantMessage,
@@ -83,7 +83,7 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
   agentRunningTimeout: Duration = .seconds(15),
   transcriptPollInterval: Duration = .seconds(1),
   clock: C = ContinuousClock(),
-  windowActivity: WindowActivityState = .init(isKeyWindow: true, isVisible: true)
+  windowActivity: WindowActivityState = WindowActivityState(isKeyWindow: true, isVisible: true)
 ) throws -> ClaudeHookHarness {
   initializeGhosttyForTests()
 
@@ -114,9 +114,9 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
 
   let surfaceID = try #require(host.selectedSurfaceView?.id)
   let tabID = try #require(host.selectedTabID)
-  return .init(
+  return ClaudeHookHarness(
     commandExecutor: commandExecutor,
-    context: .init(surfaceID: surfaceID, tabID: tabID.rawValue),
+    context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
     host: host,
     registry: registry,
     store: store,

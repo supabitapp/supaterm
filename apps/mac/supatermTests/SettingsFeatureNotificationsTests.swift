@@ -60,7 +60,10 @@ struct SettingsFeatureNotificationsTests {
         $0.desktopNotificationClient.authorizationStatus = { .notDetermined }
         $0.desktopNotificationClient.requestAuthorization = {
           await recorder.recordRequest()
-          return .init(granted: false, errorMessage: "Mock request error")
+          return DesktopNotificationClient.AuthorizationRequestResult(
+            granted: false,
+            errorMessage: "Mock request error"
+          )
         }
       }
 
@@ -70,7 +73,10 @@ struct SettingsFeatureNotificationsTests {
       await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined), timeout: 0)
       await store.receive(
         .systemNotificationsAuthorizationResult(
-          .init(granted: false, errorMessage: "Mock request error")
+          DesktopNotificationClient.AuthorizationRequestResult(
+            granted: false,
+            errorMessage: "Mock request error"
+          )
         )
       ) {
         $0.systemNotificationsEnabled = false
@@ -97,7 +103,7 @@ struct SettingsFeatureNotificationsTests {
         $0.desktopNotificationClient.authorizationStatus = { .denied }
         $0.desktopNotificationClient.requestAuthorization = {
           await recorder.recordRequest()
-          return .init(granted: true, errorMessage: nil)
+          return DesktopNotificationClient.AuthorizationRequestResult(granted: true, errorMessage: nil)
         }
       }
 
@@ -107,7 +113,10 @@ struct SettingsFeatureNotificationsTests {
       await store.receive(.systemNotificationsAuthorizationChecked(.denied), timeout: 0)
       await store.receive(
         .systemNotificationsAuthorizationResult(
-          .init(granted: false, errorMessage: "Authorization status is denied.")
+          DesktopNotificationClient.AuthorizationRequestResult(
+            granted: false,
+            errorMessage: "Authorization status is denied."
+          )
         )
       ) {
         $0.systemNotificationsEnabled = false

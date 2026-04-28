@@ -33,7 +33,7 @@ struct TerminalSpaceCatalogTests {
     let invalidSpace = PersistedTerminalSpace(name: "   ")
 
     let catalog = TerminalSpaceCatalog.sanitized(
-      .init(
+      TerminalSpaceCatalog(
         defaultSelectedSpaceID: invalidSpace.id,
         spaces: [invalidSpace]
       )
@@ -55,7 +55,7 @@ struct TerminalSpaceCatalogTests {
     )
 
     let catalog = TerminalSpaceCatalog.sanitized(
-      .init(
+      TerminalSpaceCatalog(
         defaultSelectedSpaceID: TerminalSpaceID(),
         spaces: [firstSpace, secondSpace]
       )

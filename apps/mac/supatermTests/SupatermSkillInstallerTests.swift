@@ -20,7 +20,7 @@ struct SupatermSkillInstallerTests {
       homeDirectoryURL: homeDirectoryURL,
       checkNPXAvailable: { true },
       runInstallCommand: { _ in
-        .init(status: 0, standardError: "")
+        SupatermSkillInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -34,7 +34,7 @@ struct SupatermSkillInstallerTests {
       checkNPXAvailable: { true },
       runInstallCommand: { arguments in
         capture.record(arguments)
-        return .init(status: 0, standardError: "")
+        return SupatermSkillInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -77,7 +77,7 @@ struct SupatermSkillInstallerTests {
       checkNPXAvailable: { false },
       runInstallCommand: { _ in
         Issue.record("runInstallCommand should not be called when npx is unavailable.")
-        return .init(status: 0, standardError: "")
+        return SupatermSkillInstaller.CommandResult(status: 0, standardError: "")
       }
     )
 
@@ -91,7 +91,7 @@ struct SupatermSkillInstallerTests {
     let installer = SupatermSkillInstaller(
       checkNPXAvailable: { true },
       runInstallCommand: { _ in
-        .init(status: 1, standardError: "skills install failed")
+        SupatermSkillInstaller.CommandResult(status: 1, standardError: "skills install failed")
       }
     )
 

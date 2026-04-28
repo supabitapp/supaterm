@@ -778,8 +778,12 @@ struct TerminalWindowRegistryTests {
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(confirmWindow), needsConfirmation: true),
-        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(
+          windowID: ObjectIdentifier(confirmWindow),
+          needsConfirmation: true),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(
+          windowID: ObjectIdentifier(secondWindow),
+          needsConfirmation: false),
       ]
     )
 
@@ -799,8 +803,12 @@ struct TerminalWindowRegistryTests {
 
     let plan = TerminalWindowRegistry.closeAllWindowsPlan(
       for: [
-        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(firstWindow), needsConfirmation: false),
-        TerminalWindowRegistry.CloseAllWindowsCandidate(windowID: ObjectIdentifier(secondWindow), needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(
+          windowID: ObjectIdentifier(firstWindow),
+          needsConfirmation: false),
+        TerminalWindowRegistry.CloseAllWindowsCandidate(
+          windowID: ObjectIdentifier(secondWindow),
+          needsConfirmation: false),
       ]
     )
 

@@ -67,17 +67,17 @@ extension ComputerUsePermissionsClient: DependencyKey {
 
   static let testValue = Self(
     snapshot: {
-      .init(accessibility: .missing, screenRecording: .missing)
+      ComputerUsePermissionsSnapshot(accessibility: .missing, screenRecording: .missing)
     },
     request: { _ in
-      .init(accessibility: .missing, screenRecording: .missing)
+      ComputerUsePermissionsSnapshot(accessibility: .missing, screenRecording: .missing)
     },
     openSettings: { _ in }
   )
 
   private static func currentSnapshot() async -> ComputerUsePermissionsSnapshot {
     async let screenRecording = screenRecordingGranted()
-    return await .init(
+    return await ComputerUsePermissionsSnapshot(
       accessibility: AXIsProcessTrusted() ? .granted : .missing,
       screenRecording: screenRecording ? .granted : .missing
     )

@@ -111,7 +111,7 @@ struct SettingsFeatureCodingAgentsTests {
         .failure("Claude settings must be valid JSON before Supaterm can install hooks.")
       )
     ) {
-      $0.agentIntegrationInstallFailure = .init(
+      $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(
         agent: .claude,
         log: "Claude settings must be valid JSON before Supaterm can install hooks."
       )
@@ -242,7 +242,7 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.receive(.agentIntegrationToggleFinished(.pi, .failure(message)), timeout: 0) {
-      $0.agentIntegrationInstallFailure = .init(agent: .pi, log: message)
+      $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: .pi, log: message)
       $0.piIntegration.errorMessage = message
       $0.piIntegration.isEnabled = false
       $0.piIntegration.isPending = false

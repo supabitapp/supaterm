@@ -26,7 +26,7 @@ struct TerminalCommandPaletteOverlay: View {
   }
 
   private var theme: TerminalCommandPaletteTheme {
-    .init(
+    TerminalCommandPaletteTheme(
       colorScheme: colorScheme,
       accent: palette.sky
     )
@@ -132,11 +132,11 @@ struct TerminalCommandPaletteOverlay: View {
       Group {
         Button(action: { onMoveSelection(-1) }, label: { Color.clear })
           .buttonStyle(.plain)
-          .keyboardShortcut(.init("p"), modifiers: [.control])
+          .keyboardShortcut(KeyEquivalent("p"), modifiers: [.control])
 
         Button(action: { onMoveSelection(1) }, label: { Color.clear })
           .buttonStyle(.plain)
-          .keyboardShortcut(.init("n"), modifiers: [.control])
+          .keyboardShortcut(KeyEquivalent("n"), modifiers: [.control])
       }
       .frame(width: 0, height: 0)
       .accessibilityHidden(true)
@@ -437,7 +437,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
   private var rows: [TerminalCommandPaletteRow] {
     TerminalCommandPalettePresentation.visibleRows(
       in: [
-        .init(
+        TerminalCommandPaletteRow(
           id: "update:install",
           title: "Install and Relaunch",
           subtitle: "Update Available",
@@ -448,7 +448,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           shortcut: nil,
           command: .update(.install)
         ),
-        .init(
+        TerminalCommandPaletteRow(
           id: "focus:ping",
           title: "Focus: ping 1.1.1.1",
           subtitle: "~/Projects/network",
@@ -458,7 +458,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           emphasis: false,
           shortcut: nil,
           command: .focusPane(
-            .init(
+            TerminalCommandPaletteFocusTarget(
               windowControllerID: UUID(),
               surfaceID: UUID(),
               title: "ping 1.1.1.1",
@@ -466,7 +466,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
             )
           )
         ),
-        .init(
+        TerminalCommandPaletteRow(
           id: "ghostty:new_split:right",
           title: "Split Right",
           subtitle: nil,
@@ -477,7 +477,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           shortcut: "⌘D",
           command: .ghosttyBindingAction("new_split:right")
         ),
-        .init(
+        TerminalCommandPaletteRow(
           id: "ghostty:new_split:down",
           title: "Split Down",
           subtitle: nil,
@@ -488,7 +488,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
           shortcut: "⌘⇧D",
           command: .ghosttyBindingAction("new_split:down")
         ),
-        .init(
+        TerminalCommandPaletteRow(
           id: "supaterm:toggle-sidebar",
           title: "Toggle Sidebar",
           subtitle: "View",
@@ -505,7 +505,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
   }
 
   private var state: TerminalCommandPaletteState {
-    .init(
+    TerminalCommandPaletteState(
       query: "split",
       selectedRowID: rows.indices.contains(1) ? rows[1].id : rows.first?.id
     )

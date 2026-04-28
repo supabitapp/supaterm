@@ -112,7 +112,7 @@ struct SocketControlRuntimeTests {
       environment: ["XDG_RUNTIME_DIR": xdgRuntimeDirectory.path],
       endpointID: UUID(uuidString: "804AD5E3-9956-4E82-BD6B-C40F4EF27F90")!,
       processID: 1,
-      startedAt: .init(timeIntervalSince1970: 0),
+      startedAt: Date(timeIntervalSince1970: 0),
       userID: getuid()
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
@@ -143,7 +143,7 @@ struct SocketControlRuntimeTests {
       environment: ["TMPDIR": temporaryDirectory.path],
       endpointID: UUID(uuidString: "11AA053B-4A30-4C39-9A88-97250768746E")!,
       processID: 1,
-      startedAt: .init(timeIntervalSince1970: 0),
+      startedAt: Date(timeIntervalSince1970: 0),
       userID: 501
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
@@ -172,7 +172,7 @@ struct SocketControlRuntimeTests {
       environment: ["XDG_RUNTIME_DIR": xdgRuntimeDirectory.path],
       endpointID: UUID(uuidString: "5E6A9FDD-B5D8-4F46-BDA7-79C20AC2A61F")!,
       processID: 1,
-      startedAt: .init(timeIntervalSince1970: 0),
+      startedAt: Date(timeIntervalSince1970: 0),
       userID: getuid()
     )!
     let runtime = SocketControlRuntime(endpointProvider: { endpoint })
@@ -256,11 +256,11 @@ private func createStaleSocket(at url: URL) throws {
 }
 
 nonisolated private func socketEndpoint(path: String) -> SupatermSocketEndpoint {
-  .init(
+  SupatermSocketEndpoint(
     id: UUID(uuidString: "F46D3E0B-B0C0-46CC-B14F-7C32B433179A")!,
     name: "test",
     path: path,
     pid: 1,
-    startedAt: .init(timeIntervalSince1970: 0)
+    startedAt: Date(timeIntervalSince1970: 0)
   )
 }

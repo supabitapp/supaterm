@@ -146,7 +146,7 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
 
   public nonisolated static let testValue = Self(
     load: {
-      .init(
+      GhosttyTerminalSettingsSnapshot(
         availableFontFamilies: ["JetBrains Mono", "SF Mono"],
         availableDarkThemes: ["Zenbones Dark", "Builtin Dark"],
         availableLightThemes: ["Zenbones Light", "Builtin Light"],
@@ -160,7 +160,7 @@ extension GhosttyTerminalSettingsClient: DependencyKey {
       )
     },
     apply: { settings in
-      .init(
+      GhosttyTerminalSettingsValues(
         confirmCloseSurface: settings.confirmCloseSurface,
         configPath: "/tmp/ghostty/config",
         darkTheme: settings.darkTheme,

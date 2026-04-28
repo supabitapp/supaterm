@@ -99,9 +99,9 @@ extension DesktopNotificationClient: DependencyKey {
       let center = configuredNotificationCenter()
       do {
         let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
-        return .init(granted: granted, errorMessage: nil)
+        return AuthorizationRequestResult(granted: granted, errorMessage: nil)
       } catch {
-        return .init(granted: false, errorMessage: error.localizedDescription)
+        return AuthorizationRequestResult(granted: false, errorMessage: error.localizedDescription)
       }
     },
     openSettings: {
@@ -128,7 +128,7 @@ extension DesktopNotificationClient: DependencyKey {
 
   public static let testValue = Self(
     authorizationStatus: { .notDetermined },
-    requestAuthorization: { .init(granted: false, errorMessage: nil) },
+    requestAuthorization: { AuthorizationRequestResult(granted: false, errorMessage: nil) },
     openSettings: {},
     deliver: { _ in }
   )

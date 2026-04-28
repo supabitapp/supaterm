@@ -208,7 +208,7 @@ final class GhosttyRuntime {
   func reloadAppConfig() {
     reloadConfig(
       soft: false,
-      target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: .init())
+      target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: ghostty_target_u())
     )
   }
 
@@ -725,7 +725,7 @@ final class GhosttyRuntime {
 
   private func color(forKey key: String) -> NSColor? {
     guard let config else { return nil }
-    var color: ghostty_config_color_s = .init()
+    var color: ghostty_config_color_s = ghostty_config_color_s()
     if !ghostty_config_get(config, &color, key, UInt(key.lengthOfBytes(using: .utf8))) {
       return nil
     }
@@ -885,7 +885,7 @@ extension NSPasteboard {
   }
 
   static var ghosttySelection: NSPasteboard = {
-    NSPasteboard(name: .init("com.mitchellh.ghostty.selection"))
+    NSPasteboard(name: NSPasteboard.Name("com.mitchellh.ghostty.selection"))
   }()
 
   func getOpinionatedStringContents() -> String? {

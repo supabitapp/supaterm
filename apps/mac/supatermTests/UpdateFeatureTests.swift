@@ -83,7 +83,7 @@ struct UpdateFeatureTests {
 
     await store.send(.task)
     continuation.yield(
-      .init(
+      UpdateClient.Snapshot(
         automaticallyChecksForUpdates: true,
         automaticallyDownloadsUpdates: true,
         canCheckForUpdates: true,

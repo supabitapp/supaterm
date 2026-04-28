@@ -72,7 +72,7 @@ enum GhosttyKeyEvent {
     composing: Bool,
     unshiftedCodepoint: UInt32
   ) -> ghostty_input_key_s {
-    var keyEvent: ghostty_input_key_s = .init()
+    var keyEvent: ghostty_input_key_s = ghostty_input_key_s()
     keyEvent.action = action
     keyEvent.keycode = UInt32(keyCode)
     keyEvent.text = nil

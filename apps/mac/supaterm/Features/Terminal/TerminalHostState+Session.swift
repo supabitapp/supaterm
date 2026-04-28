@@ -236,7 +236,7 @@ extension TerminalHostState {
       let left = restoreNode(split.left, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
       let right = restoreNode(split.right, in: tabID, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
       return .split(
-        .init(
+        SplitTree<GhosttySurfaceView>.Split(
           direction: mapSplitDirection(split.direction),
           ratio: split.ratio,
           left: left,

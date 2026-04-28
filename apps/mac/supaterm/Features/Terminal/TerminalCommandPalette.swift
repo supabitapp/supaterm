@@ -114,11 +114,11 @@ enum TerminalCommandPalettePresentation {
     guard !query.isEmpty else { return rows }
 
     let normalizedQuery = query.lowercased()
-    let matchedRows: [MatchedRow] = rows.enumerated().compactMap { index, row in
+    let matchedRows: [MatchedRow] = rows.enumerated().compactMap { index, row -> MatchedRow? in
       guard row.searchableText.lowercased().contains(normalizedQuery) else {
         return nil
       }
-      return .init(index: index, row: row)
+      return MatchedRow(index: index, row: row)
     }
 
     return
@@ -183,7 +183,7 @@ enum TerminalCommandPalettePresentation {
     _ command: GhosttyCommand,
     shortcut: String?
   ) -> TerminalCommandPaletteRow {
-    .init(
+    TerminalCommandPaletteRow(
       id: "ghostty:\(command.action)",
       title: command.title,
       subtitle: nil,
@@ -199,7 +199,7 @@ enum TerminalCommandPalettePresentation {
   private static func updateRow(
     _ entry: TerminalCommandPaletteUpdateEntry
   ) -> TerminalCommandPaletteRow {
-    .init(
+    TerminalCommandPaletteRow(
       id: "update:\(entry.id)",
       title: entry.title,
       subtitle: entry.subtitle,
@@ -215,7 +215,7 @@ enum TerminalCommandPalettePresentation {
   private static func focusRow(
     _ target: TerminalCommandPaletteFocusTarget
   ) -> TerminalCommandPaletteRow {
-    .init(
+    TerminalCommandPaletteRow(
       id: "focus:\(target.windowControllerID.uuidString):\(target.surfaceID.uuidString)",
       title: "Focus: \(target.title)",
       subtitle: target.subtitle,
@@ -269,7 +269,7 @@ enum TerminalCommandPalettePresentation {
 
   private static var baseSupatermRows: [TerminalCommandPaletteRow] {
     [
-      .init(
+      TerminalCommandPaletteRow(
         id: "supaterm:toggle-sidebar",
         title: "Toggle Sidebar",
         subtitle: "View",
@@ -280,7 +280,7 @@ enum TerminalCommandPalettePresentation {
         shortcut: toggleSidebarShortcut,
         command: .toggleSidebar
       ),
-      .init(
+      TerminalCommandPaletteRow(
         id: "supaterm:submit-github-issue",
         title: "Submit GitHub Issue",
         subtitle: "Help",
@@ -291,7 +291,7 @@ enum TerminalCommandPalettePresentation {
         shortcut: nil,
         command: .submitGitHubIssue
       ),
-      .init(
+      TerminalCommandPaletteRow(
         id: "supaterm:create-space",
         title: "Create Space",
         subtitle: "Spaces",
@@ -310,7 +310,7 @@ enum TerminalCommandPalettePresentation {
   ) -> TerminalCommandPaletteRow? {
     guard let selectedSpace = snapshot.selectedSpace else { return nil }
 
-    return .init(
+    return TerminalCommandPaletteRow(
       id: "supaterm:rename-space:\(selectedSpace.id.rawValue.uuidString)",
       title: "Rename Space",
       subtitle: selectedSpace.name,
@@ -328,7 +328,7 @@ enum TerminalCommandPalettePresentation {
   ) -> TerminalCommandPaletteRow? {
     guard let selectedTab = snapshot.selectedTab else { return nil }
 
-    return .init(
+    return TerminalCommandPaletteRow(
       id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
       title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
       subtitle: selectedTab.title,
@@ -344,9 +344,9 @@ enum TerminalCommandPalettePresentation {
   private static func spaceRows(
     from snapshot: TerminalCommandPaletteSnapshot
   ) -> [TerminalCommandPaletteRow] {
-    snapshot.spaces.compactMap { space in
+    snapshot.spaces.compactMap { space -> TerminalCommandPaletteRow? in
       guard space.id != snapshot.selectedSpaceID else { return nil }
-      return .init(
+      return TerminalCommandPaletteRow(
         id: "supaterm:space:\(space.id.rawValue.uuidString)",
         title: "Switch to \(space.name)",
         subtitle: "Space",
@@ -363,9 +363,9 @@ enum TerminalCommandPalettePresentation {
   private static func tabRows(
     from snapshot: TerminalCommandPaletteSnapshot
   ) -> [TerminalCommandPaletteRow] {
-    snapshot.visibleTabs.compactMap { tab in
+    snapshot.visibleTabs.compactMap { tab -> TerminalCommandPaletteRow? in
       guard tab.id != snapshot.selectedTabID else { return nil }
-      return .init(
+      return TerminalCommandPaletteRow(
         id: "supaterm:tab:\(tab.id.rawValue.uuidString)",
         title: "Switch to \(tab.title)",
         subtitle: "Tab",

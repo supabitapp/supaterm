@@ -292,7 +292,11 @@ extension TerminalCommandExecutor {
     do {
       return TerminalWindowRegistry.rewrite(
         try entry.terminal.nextTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          TerminalTabNavigationRequest(
+            contextPaneID: request.contextPaneID,
+            spaceIndex: request.spaceIndex,
+            windowIndex: 1
+          )
         ),
         windowIndex: windowIndex
       )
@@ -322,7 +326,11 @@ extension TerminalCommandExecutor {
     do {
       return TerminalWindowRegistry.rewrite(
         try entry.terminal.previousTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          TerminalTabNavigationRequest(
+            contextPaneID: request.contextPaneID,
+            spaceIndex: request.spaceIndex,
+            windowIndex: 1
+          )
         ),
         windowIndex: windowIndex
       )
@@ -352,7 +360,11 @@ extension TerminalCommandExecutor {
     do {
       return TerminalWindowRegistry.rewrite(
         try entry.terminal.lastTab(
-          .init(contextPaneID: request.contextPaneID, spaceIndex: request.spaceIndex, windowIndex: 1)
+          TerminalTabNavigationRequest(
+            contextPaneID: request.contextPaneID,
+            spaceIndex: request.spaceIndex,
+            windowIndex: 1
+          )
         ),
         windowIndex: windowIndex
       )

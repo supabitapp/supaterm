@@ -9,12 +9,12 @@ struct TerminalSidebarUpdatePresentationTests {
     let phases: [UpdatePhase] = [
       .permissionRequest,
       .checking,
-      .updateAvailable(.init(contentLength: nil, releaseDate: nil, version: "1.2.3")),
-      .downloading(.init(expectedLength: 400, progress: 100)),
-      .extracting(.init(progress: 0.72)),
-      .installing(.init(isAutoUpdate: false)),
+      UpdatePhase.updateAvailable(UpdatePhase.Available(contentLength: nil, releaseDate: nil, version: "1.2.3")),
+      UpdatePhase.downloading(UpdatePhase.Downloading(expectedLength: 400, progress: 100)),
+      UpdatePhase.extracting(UpdatePhase.Extracting(progress: 0.72)),
+      UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: false)),
       .notFound,
-      .error(.init(message: "Network error")),
+      UpdatePhase.error(UpdatePhase.Failure(message: "Network error")),
     ]
 
     for phase in phases {
