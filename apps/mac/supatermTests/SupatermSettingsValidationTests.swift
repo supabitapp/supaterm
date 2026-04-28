@@ -52,6 +52,23 @@ struct SupatermSettingsValidationTests {
   }
 
   @Test
+  func emptyTomlIsValid() throws {
+    let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
+    let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])
+    try FileManager.default.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data().write(to: settingsURL)
+
+    let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL, environment: [:]).validate()
+
+    #expect(result.status == .valid)
+    #expect(result.warnings.isEmpty)
+    #expect(result.errors.isEmpty)
+  }
+
+  @Test
   func validTomlWarnsOnUnknownKeys() throws {
     let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
     let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])

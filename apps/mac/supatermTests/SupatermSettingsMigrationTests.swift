@@ -31,6 +31,21 @@ struct SupatermSettingsMigrationTests {
     #expect(settings.appearanceMode == .light)
     #expect(!settings.analyticsEnabled)
     #expect(settings.updateChannel == .tip)
+    let string = try #require(String(data: Data(contentsOf: settingsURL), encoding: .utf8))
+      .trimmingCharacters(in: .newlines)
+    #expect(
+      string
+        == """
+        [appearance]
+        mode = "light"
+
+        [privacy]
+        analytics_enabled = false
+
+        [updates]
+        channel = "tip"
+        """
+    )
   }
 
   @Test

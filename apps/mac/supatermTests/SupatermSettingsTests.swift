@@ -88,47 +88,52 @@ struct SupatermSettingsTests {
   }
 
   @Test
-  func defaultPrefsEncodeAsGroupedToml() throws {
+  func defaultPrefsEncodeAsEmptyToml() throws {
     let data = try SupatermSettingsCodec.encode(SupatermSettings.default)
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
+
+    #expect(string.isEmpty)
+  }
+
+  @Test
+  func prefsEncodeOnlyChangedPrivacyValues() throws {
+    let data = try SupatermSettingsCodec.encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: false,
+        crashReportsEnabled: true,
+        updateChannel: .stable
+      )
+    )
     let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
 
     #expect(
       string
         == """
-        [appearance]
-        mode = "dark"
-
-        [coding_agents]
-        show_icons = true
-
-        [computer_use]
-        always_float_agent_cursor = false
-        cursor_arc_flow = 0.36
-        cursor_arc_size = 80.0
-        cursor_dwell_after_click_ms = 80
-        cursor_end_handle = 0.76
-        cursor_glide_duration_ms = 220
-        cursor_idle_hide_ms = 900
-        cursor_spring = 0.16
-        cursor_start_handle = 0.24
-        max_image_dimension = 1600
-        show_agent_cursor = true
-        snapshot_mode = "som"
-
-        [notifications]
-        glowing_pane_ring = true
-        system_notifications = false
-
         [privacy]
-        analytics_enabled = true
-        crash_reports_enabled = true
+        analytics_enabled = false
+        """
+    )
+  }
 
-        [terminal]
-        new_tab_position = "end"
-        restore_layout = true
+  @Test
+  func prefsEncodeOnlyChangedComputerUseValues() throws {
+    let data = try SupatermSettingsCodec.encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: true,
+        computerUseCursorMotion: .init(glideDurationMilliseconds: 90),
+        crashReportsEnabled: true,
+        updateChannel: .stable
+      )
+    )
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
 
-        [updates]
-        channel = "stable"
+    #expect(
+      string
+        == """
+        [computer_use]
+        cursor_glide_duration_ms = 90
         """
     )
   }
@@ -216,6 +221,13 @@ struct SupatermSettingsTests {
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
+  }
+
+  @Test
+  func prefsDecodeUsesDefaultsForEmptyToml() throws {
+    let prefs = try SupatermSettingsCodec.decode(Data())
+
+    #expect(prefs == .default)
   }
 
   @Test

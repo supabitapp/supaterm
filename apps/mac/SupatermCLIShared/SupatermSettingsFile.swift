@@ -32,7 +32,10 @@ public struct SupatermSettingsValidationResult: Codable, Equatable, Sendable {
 
 public enum SupatermSettingsCodec {
   public static func decode(_ data: Data) throws -> SupatermSettings {
-    try decoder().decode(SupatermSettings.self, from: data)
+    if isEmptyToml(data) {
+      return .default
+    }
+    return try decoder().decode(SupatermSettings.self, from: data)
   }
 
   public static func decodeLegacyJSON(_ data: Data) throws -> SupatermSettings {
@@ -40,11 +43,17 @@ public enum SupatermSettingsCodec {
   }
 
   public static func encode(_ settings: SupatermSettings) throws -> Data {
-    try encoder().encode(settings)
+    if settings == .default {
+      return Data()
+    }
+    return try encoder().encode(settings)
   }
 
   static func unknownKeyWarnings(in data: Data) throws -> [String] {
-    try decoder().decode(SupatermSettingsUnknownKeyAudit.self, from: data).warnings
+    if isEmptyToml(data) {
+      return []
+    }
+    return try decoder().decode(SupatermSettingsUnknownKeyAudit.self, from: data).warnings
   }
 
   public static func decoder() -> TOMLDecoder {
@@ -56,6 +65,11 @@ public enum SupatermSettingsCodec {
     let encoder = TOMLEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     return encoder
+  }
+
+  private static func isEmptyToml(_ data: Data) -> Bool {
+    guard let string = String(data: data, encoding: .utf8) else { return false }
+    return string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }
 
