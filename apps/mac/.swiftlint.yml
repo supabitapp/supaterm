@@ -38,6 +38,13 @@ opt_in_rules:
   - weak_delegate
   - yoda_condition
 
+analyzer_rules:
+  - capture_variable
+  - explicit_self
+  - typesafe_array_init
+  - unused_declaration
+  - unused_import
+
 opening_brace:
   ignore_multiline_function_signatures: true
   ignore_multiline_statement_conditions: true
