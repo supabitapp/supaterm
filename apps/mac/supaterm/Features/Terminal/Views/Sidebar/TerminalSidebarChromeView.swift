@@ -521,7 +521,7 @@ struct TerminalSidebarTabSummaryView: View {
     }
     return .init(
       imageName: kind.tabTitleMarkImageName,
-      usesTextTint: kind == .pi
+      usesTextTint: kind == .codex || kind == .pi
     )
   }
 

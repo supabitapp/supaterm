@@ -106,7 +106,7 @@ struct TerminalSidebarChromeViewTests {
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
         for: .codex(.running)
-      ) == .init(imageName: "codex-mark", usesTextTint: false)
+      ) == .init(imageName: "codex-mark", usesTextTint: true)
     )
     #expect(
       TerminalSidebarTabSummaryView.agentMarkPresentation(
