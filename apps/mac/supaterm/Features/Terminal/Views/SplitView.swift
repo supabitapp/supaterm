@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct SplitView<L: View, R: View>: View {
@@ -123,38 +122,25 @@ struct SplitView<L: View, R: View>: View {
     let visibleSize: CGFloat
     let invisibleSize: CGFloat
     let color: Color
-    @State private var isHovered = false
+
     var body: some View {
       ZStack {
+        Color.clear
+          .frame(width: hitboxWidth, height: hitboxHeight)
+          .contentShape(.rect)
         Rectangle()
           .fill(color)
           .frame(width: visibleWidth, height: visibleHeight)
       }
-      .frame(width: hitboxWidth, height: hitboxHeight)
-      .contentShape(.rect)
-      .onHover { hovering in
-        guard hovering != isHovered else { return }
-        isHovered = hovering
-        if hovering {
-          hoverCursor.push()
-        } else {
-          NSCursor.pop()
-        }
-      }
-      .onDisappear {
-        if isHovered {
-          isHovered = false
-          NSCursor.pop()
-        }
-      }
+      .pointerStyle(pointerStyle)
     }
 
-    private var hoverCursor: NSCursor {
+    private var pointerStyle: PointerStyle {
       switch direction {
       case .horizontal:
-        return .resizeLeftRight
+        return .frameResize(position: .trailing)
       case .vertical:
-        return .resizeUpDown
+        return .frameResize(position: .top)
       }
     }
 
