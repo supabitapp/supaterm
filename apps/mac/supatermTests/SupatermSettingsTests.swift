@@ -45,6 +45,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.codingAgentsShowIcons)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)
@@ -73,6 +74,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.codingAgentsShowIcons)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)
@@ -95,6 +97,9 @@ struct SupatermSettingsTests {
         == """
         [appearance]
         mode = "dark"
+
+        [coding_agents]
+        show_icons = true
 
         [computer_use]
         always_float_agent_cursor = false
@@ -134,6 +139,7 @@ struct SupatermSettingsTests {
       SupatermSettings(
         appearanceMode: .dark,
         analyticsEnabled: false,
+        codingAgentsShowIcons: false,
         computerUseAlwaysFloatAgentCursor: true,
         computerUseCursorMotion: .init(
           startHandle: 0.1,
@@ -162,6 +168,7 @@ struct SupatermSettingsTests {
         == SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          codingAgentsShowIcons: false,
           computerUseAlwaysFloatAgentCursor: true,
           computerUseCursorMotion: .init(
             startHandle: 0.1,
@@ -198,6 +205,7 @@ struct SupatermSettingsTests {
 
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
+    #expect(prefs.codingAgentsShowIcons)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)

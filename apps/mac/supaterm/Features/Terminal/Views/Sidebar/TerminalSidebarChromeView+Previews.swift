@@ -266,6 +266,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       unreadCount: item.unreadCount,
       badgeActivity: item.agentActivity,
       terminalProgress: item.terminalProgress,
+      showsAgentMarks: true,
       shortcutHint: nil,
       showsShortcutHint: false,
       isRowHovering: false

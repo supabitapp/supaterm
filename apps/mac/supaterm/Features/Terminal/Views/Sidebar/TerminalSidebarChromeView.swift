@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import Sharing
 import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
@@ -90,6 +91,7 @@ struct TerminalSidebarChromeView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
+  @Shared(.supatermSettings) private var supatermSettings = .default
   @StateObject private var dragSession = TerminalSidebarDragSession()
   @State private var scrollOffset: CGFloat = 0
   @State private var contentHeight: CGFloat = 0
@@ -296,7 +298,8 @@ struct TerminalSidebarChromeView: View {
       tab: tab,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
-      badgeActivity: agentPresentation.badgeActivity
+      badgeActivity: agentPresentation.badgeActivity,
+      showsAgentMarks: supatermSettings.codingAgentsShowIcons
     )
 
     TerminalSidebarDragSourceView(
@@ -317,6 +320,7 @@ struct TerminalSidebarChromeView: View {
         unreadCount: unreadCount,
         terminalProgress: terminalProgress,
         palette: palette,
+        showsAgentMarks: supatermSettings.codingAgentsShowIcons,
         shortcutHint: tabShortcutHintsByID[tab.id],
         showsShortcutHint: commandHoldObserver.isPressed
       )
@@ -453,6 +457,7 @@ struct TerminalSidebarTabSummaryView: View {
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
+  let showsAgentMarks: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
@@ -509,9 +514,13 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   static func agentMarkPresentation(
-    for agentActivity: TerminalHostState.AgentActivity?
+    for agentActivity: TerminalHostState.AgentActivity?,
+    showsAgentMarks: Bool = true
   ) -> String? {
-    agentActivity?.kind.markImageName
+    guard showsAgentMarks else {
+      return nil
+    }
+    return agentActivity?.kind.markImageName
   }
 
   var body: some View {
@@ -529,7 +538,10 @@ struct TerminalSidebarTabSummaryView: View {
 
     VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 6) {
-        if let markPresentation = Self.agentMarkPresentation(for: badgeActivity) {
+        if let markPresentation = Self.agentMarkPresentation(
+          for: badgeActivity,
+          showsAgentMarks: showsAgentMarks
+        ) {
           TerminalSidebarAgentMarkImage(
             imageName: markPresentation,
             isSelected: isSelected,
@@ -813,6 +825,7 @@ struct TerminalSidebarTabRow: View {
   private struct AnimatedPresentation: Equatable {
     let badgeActivity: TerminalHostState.AgentActivity?
     let paneWorkingDirectories: [String]
+    let showsAgentMarks: Bool
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
   }
@@ -825,6 +838,7 @@ struct TerminalSidebarTabRow: View {
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: TerminalPalette
+  let showsAgentMarks: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
 
@@ -888,6 +902,7 @@ struct TerminalSidebarTabRow: View {
           unreadCount: unreadCount,
           badgeActivity: agentPresentation.badgeActivity,
           terminalProgress: terminalProgress,
+          showsAgentMarks: showsAgentMarks,
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint,
           isRowHovering: isHovering
@@ -1037,6 +1052,7 @@ struct TerminalSidebarTabRow: View {
     .init(
       badgeActivity: agentPresentation.badgeActivity,
       paneWorkingDirectories: paneWorkingDirectories,
+      showsAgentMarks: showsAgentMarks,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )

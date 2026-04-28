@@ -96,6 +96,7 @@ public struct SettingsFeature {
     var claudeIntegration = SettingsAgentIntegrationState(
       settingsPath: SupatermAgentKind.claude.settingsPathDescription
     )
+    var codingAgentsShowIcons = SupatermSettings.default.codingAgentsShowIcons
     var codexIntegration = SettingsAgentIntegrationState(
       settingsPath: SupatermAgentKind.codex.settingsPathDescription
     )
@@ -126,6 +127,7 @@ public struct SettingsFeature {
     case appearanceModeSelected(AppearanceMode)
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
+    case codingAgentsShowIconsChanged(Bool)
     case computerUsePermissionGrantButtonTapped(ComputerUsePermissionKind)
     case computerUseAlwaysFloatAgentCursorChanged(Bool)
     case computerUsePermissionsRefreshRequested
@@ -259,6 +261,10 @@ public struct SettingsFeature {
         }
         return reduceComputerUse(&state, action: .computerUsePermissionsRefreshRequested)
 
+      case .codingAgentsShowIconsChanged(let isEnabled):
+        state.codingAgentsShowIcons = isEnabled
+        return persist(state)
+
       case .appearanceModeSelected,
         .analyticsEnabledChanged,
         .crashReportsEnabledChanged,
@@ -332,6 +338,7 @@ public struct SettingsFeature {
   ) {
     state.appearanceMode = supatermSettings.appearanceMode
     state.analyticsEnabled = supatermSettings.analyticsEnabled
+    state.codingAgentsShowIcons = supatermSettings.codingAgentsShowIcons
     state.crashReportsEnabled = supatermSettings.crashReportsEnabled
     state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
     state.newTabPosition = supatermSettings.newTabPosition
@@ -355,6 +362,7 @@ public struct SettingsFeature {
     let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
+      codingAgentsShowIcons: state.codingAgentsShowIcons,
       computerUseAlwaysFloatAgentCursor: state.computerUse.alwaysFloatAgentCursor,
       computerUseCursorMotion: state.computerUse.cursorMotion,
       computerUseMaxImageDimension: state.computerUse.maxImageDimension,

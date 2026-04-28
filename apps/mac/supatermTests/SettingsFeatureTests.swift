@@ -40,6 +40,7 @@ struct SettingsFeatureTests {
         $0 = SupatermSettings(
           appearanceMode: .dark,
           analyticsEnabled: false,
+          codingAgentsShowIcons: false,
           computerUseAlwaysFloatAgentCursor: true,
           computerUseShowAgentCursor: false,
           crashReportsEnabled: true,
@@ -64,6 +65,7 @@ struct SettingsFeatureTests {
       await store.receive(.settingsLoaded(supatermSettings), timeout: 0) {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
+        $0.codingAgentsShowIcons = false
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
         $0.computerUse.alwaysFloatAgentCursor = true

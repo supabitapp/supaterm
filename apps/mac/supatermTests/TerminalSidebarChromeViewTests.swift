@@ -121,6 +121,16 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func agentMarkPresentationIsNilWhenAgentMarksAreHidden() {
+    #expect(
+      TerminalSidebarTabSummaryView.agentMarkPresentation(
+        for: .claude(.running),
+        showsAgentMarks: false
+      ) == nil
+    )
+  }
+
+  @Test
   func quietTabShowsNoStatusAccessory() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(

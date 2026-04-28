@@ -1,4 +1,6 @@
 import ComposableArchitecture
+import Sharing
+import SupatermSupport
 import Testing
 
 @testable import SupatermCLIShared
@@ -6,6 +8,24 @@ import Testing
 
 @MainActor
 struct SettingsFeatureCodingAgentsTests {
+  @Test
+  func showIconsSettingPersistsPrefs() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.codingAgentsShowIconsChanged(false)) {
+        $0.codingAgentsShowIcons = false
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.codingAgentsShowIcons)
+    }
+  }
+
   @Test
   func taskLoadsAgentIntegrationStatuses() async {
     let store = TestStore(initialState: SettingsFeature.State()) {

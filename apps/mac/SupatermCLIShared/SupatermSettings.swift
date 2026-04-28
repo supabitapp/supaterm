@@ -3,6 +3,7 @@ import Foundation
 public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
+  public var codingAgentsShowIcons: Bool
   public var computerUseAlwaysFloatAgentCursor: Bool
   public var computerUseCursorMotion: SupatermComputerUseCursorMotion
   public var computerUseMaxImageDimension: Int
@@ -18,6 +19,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public init(
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
+    codingAgentsShowIcons: Bool = true,
     computerUseAlwaysFloatAgentCursor: Bool = false,
     computerUseCursorMotion: SupatermComputerUseCursorMotion = .default,
     computerUseMaxImageDimension: Int = 1600,
@@ -32,6 +34,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   ) {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
+    self.codingAgentsShowIcons = codingAgentsShowIcons
     self.computerUseAlwaysFloatAgentCursor = computerUseAlwaysFloatAgentCursor
     self.computerUseCursorMotion = computerUseCursorMotion
     self.computerUseMaxImageDimension = computerUseMaxImageDimension
@@ -48,6 +51,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public static let `default` = Self(
     appearanceMode: .dark,
     analyticsEnabled: true,
+    codingAgentsShowIcons: true,
     computerUseAlwaysFloatAgentCursor: false,
     computerUseCursorMotion: .default,
     computerUseMaxImageDimension: 1600,
@@ -87,6 +91,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let defaults = Self.default
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let appearance = try container.decodeIfPresent(PersistedAppearance.self, forKey: .appearance)
+    let codingAgents = try container.decodeIfPresent(PersistedCodingAgents.self, forKey: .codingAgents)
     let computerUse = try container.decodeIfPresent(PersistedComputerUse.self, forKey: .computerUse)
     let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
     let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
@@ -96,6 +101,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
+      codingAgentsShowIcons: codingAgents?.showIcons ?? defaults.codingAgentsShowIcons,
       computerUseAlwaysFloatAgentCursor: computerUse?.alwaysFloatAgentCursor
         ?? defaults.computerUseAlwaysFloatAgentCursor,
       computerUseCursorMotion: computerUse?.cursorMotion ?? defaults.computerUseCursorMotion,
@@ -114,6 +120,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
+    try container.encode(PersistedCodingAgents(showIcons: codingAgentsShowIcons), forKey: .codingAgents)
     try container.encode(
       PersistedComputerUse(
         alwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
@@ -152,6 +159,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 extension SupatermSettings {
   enum CodingKeys: String, CodingKey {
     case appearance
+    case codingAgents = "coding_agents"
     case computerUse = "computer_use"
     case privacy
     case notifications
@@ -161,6 +169,14 @@ extension SupatermSettings {
 
   struct PersistedAppearance: Codable, Equatable, Sendable {
     let mode: AppearanceMode
+  }
+
+  struct PersistedCodingAgents: Codable, Equatable, Sendable {
+    let showIcons: Bool
+
+    enum CodingKeys: String, CodingKey {
+      case showIcons = "show_icons"
+    }
   }
 
   struct PersistedComputerUse: Codable, Equatable, Sendable {
@@ -291,6 +307,7 @@ extension SupatermSettings {
 struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
+  var codingAgentsShowIcons: Bool
   var computerUseAlwaysFloatAgentCursor: Bool
   var computerUseCursorMotion: SupatermComputerUseCursorMotion
   var computerUseMaxImageDimension: Int
@@ -310,6 +327,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       try container.decodeIfPresent(AppearanceMode.self, forKey: .appearanceMode) ?? defaults.appearanceMode
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
+    self.codingAgentsShowIcons = defaults.codingAgentsShowIcons
     self.computerUseAlwaysFloatAgentCursor = defaults.computerUseAlwaysFloatAgentCursor
     self.computerUseCursorMotion = defaults.computerUseCursorMotion
     self.computerUseMaxImageDimension = defaults.computerUseMaxImageDimension
@@ -335,6 +353,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     SupatermSettings(
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
+      codingAgentsShowIcons: codingAgentsShowIcons,
       computerUseAlwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
       computerUseCursorMotion: computerUseCursorMotion,
       computerUseMaxImageDimension: computerUseMaxImageDimension,

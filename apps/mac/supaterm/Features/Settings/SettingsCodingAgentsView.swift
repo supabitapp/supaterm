@@ -29,6 +29,17 @@ struct SettingsCodingAgentsView: View {
   var body: some View {
     Form {
       Section {
+        SettingsToggleRow(
+          title: "Show coding agents icons",
+          subtitle: "Display icons before tab titles.",
+          isOn: Binding(
+            get: { store.codingAgentsShowIcons },
+            set: { _ = store.send(.codingAgentsShowIconsChanged($0)) }
+          )
+        )
+      }
+
+      Section {
         ForEach(SupatermAgentKind.allCases, id: \.self) { agent in
           let integration = integration(for: agent)
           SettingsAgentListRow(
