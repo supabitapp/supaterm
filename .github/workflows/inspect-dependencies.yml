@@ -10,7 +10,7 @@ on:
 
 jobs:
   inspect-dependencies:
-    runs-on: blacksmith-6vcpu-macos-26
+    runs-on: macos-26
     permissions:
       contents: read
       id-token: write
