@@ -299,7 +299,8 @@ struct TerminalSidebarChromeView: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       badgeActivity: agentPresentation.badgeActivity,
-      showsAgentMarks: supatermSettings.codingAgentsShowIcons
+      showsAgentMarks: supatermSettings.codingAgentsShowIcons,
+      showsAgentSpinner: supatermSettings.codingAgentsShowSpinner
     )
 
     TerminalSidebarDragSourceView(
@@ -321,6 +322,7 @@ struct TerminalSidebarChromeView: View {
         terminalProgress: terminalProgress,
         palette: palette,
         showsAgentMarks: supatermSettings.codingAgentsShowIcons,
+        showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
         shortcutHint: tabShortcutHintsByID[tab.id],
         showsShortcutHint: commandHoldObserver.isPressed
       )
@@ -458,6 +460,7 @@ struct TerminalSidebarTabSummaryView: View {
   let badgeActivity: TerminalHostState.AgentActivity?
   let terminalProgress: TerminalSidebarTerminalProgress?
   let showsAgentMarks: Bool
+  let showsAgentSpinner: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
   let isRowHovering: Bool
@@ -466,7 +469,8 @@ struct TerminalSidebarTabSummaryView: View {
     isPinned: Bool,
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
-    terminalProgress: TerminalSidebarTerminalProgress?
+    terminalProgress: TerminalSidebarTerminalProgress?,
+    showsAgentSpinner: Bool = true
   ) -> StatusAccessory? {
     if let terminalProgress {
       return .terminalProgress(terminalProgress)
@@ -474,7 +478,10 @@ struct TerminalSidebarTabSummaryView: View {
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
     }
-    if let agentActivity, agentActivity.showsLeadingIndicator {
+    if let agentActivity,
+      agentActivity.showsLeadingIndicator,
+      agentActivity.phase != .running || showsAgentSpinner
+    {
       return .agentActivity(agentActivity)
     }
     if isPinned {
@@ -532,7 +539,8 @@ struct TerminalSidebarTabSummaryView: View {
         isPinned: tab.isPinned,
         unreadCount: unreadCount,
         agentActivity: badgeActivity,
-        terminalProgress: terminalProgress
+        terminalProgress: terminalProgress,
+        showsAgentSpinner: showsAgentSpinner
       )
     )
 
@@ -826,6 +834,7 @@ struct TerminalSidebarTabRow: View {
     let badgeActivity: TerminalHostState.AgentActivity?
     let paneWorkingDirectories: [String]
     let showsAgentMarks: Bool
+    let showsAgentSpinner: Bool
     let terminalProgress: TerminalSidebarTerminalProgress?
     let unreadCount: Int
   }
@@ -839,6 +848,7 @@ struct TerminalSidebarTabRow: View {
   let terminalProgress: TerminalSidebarTerminalProgress?
   let palette: TerminalPalette
   let showsAgentMarks: Bool
+  let showsAgentSpinner: Bool
   let shortcutHint: String?
   let showsShortcutHint: Bool
 
@@ -903,6 +913,7 @@ struct TerminalSidebarTabRow: View {
           badgeActivity: agentPresentation.badgeActivity,
           terminalProgress: terminalProgress,
           showsAgentMarks: showsAgentMarks,
+          showsAgentSpinner: showsAgentSpinner,
           shortcutHint: shortcutHint,
           showsShortcutHint: showsShortcutHint,
           isRowHovering: isHovering
@@ -1053,6 +1064,7 @@ struct TerminalSidebarTabRow: View {
       badgeActivity: agentPresentation.badgeActivity,
       paneWorkingDirectories: paneWorkingDirectories,
       showsAgentMarks: showsAgentMarks,
+      showsAgentSpinner: showsAgentSpinner,
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )

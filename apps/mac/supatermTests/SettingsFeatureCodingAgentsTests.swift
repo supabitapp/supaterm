@@ -27,6 +27,24 @@ struct SettingsFeatureCodingAgentsTests {
   }
 
   @Test
+  func showSpinnerSettingPersistsPrefs() async {
+    await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+      }
+
+      await store.send(.codingAgentsShowSpinnerChanged(false)) {
+        $0.codingAgentsShowSpinner = false
+      }
+
+      @Shared(.supatermSettings) var supatermSettings = .default
+      #expect(!supatermSettings.codingAgentsShowSpinner)
+    }
+  }
+
+  @Test
   func taskLoadsAgentIntegrationStatuses() async {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()

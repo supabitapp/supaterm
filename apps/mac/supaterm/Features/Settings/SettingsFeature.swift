@@ -97,6 +97,7 @@ public struct SettingsFeature {
       settingsPath: SupatermAgentKind.claude.settingsPathDescription
     )
     var codingAgentsShowIcons = SupatermSettings.default.codingAgentsShowIcons
+    var codingAgentsShowSpinner = SupatermSettings.default.codingAgentsShowSpinner
     var codexIntegration = SettingsAgentIntegrationState(
       settingsPath: SupatermAgentKind.codex.settingsPathDescription
     )
@@ -128,6 +129,7 @@ public struct SettingsFeature {
     case analyticsEnabledChanged(Bool)
     case checkForUpdatesButtonTapped
     case codingAgentsShowIconsChanged(Bool)
+    case codingAgentsShowSpinnerChanged(Bool)
     case computerUsePermissionGrantButtonTapped(ComputerUsePermissionKind)
     case computerUseAlwaysFloatAgentCursorChanged(Bool)
     case computerUsePermissionsRefreshRequested
@@ -265,6 +267,10 @@ public struct SettingsFeature {
         state.codingAgentsShowIcons = isEnabled
         return persist(state)
 
+      case .codingAgentsShowSpinnerChanged(let isEnabled):
+        state.codingAgentsShowSpinner = isEnabled
+        return persist(state)
+
       case .appearanceModeSelected,
         .analyticsEnabledChanged,
         .crashReportsEnabledChanged,
@@ -339,6 +345,7 @@ public struct SettingsFeature {
     state.appearanceMode = supatermSettings.appearanceMode
     state.analyticsEnabled = supatermSettings.analyticsEnabled
     state.codingAgentsShowIcons = supatermSettings.codingAgentsShowIcons
+    state.codingAgentsShowSpinner = supatermSettings.codingAgentsShowSpinner
     state.crashReportsEnabled = supatermSettings.crashReportsEnabled
     state.glowingPaneRingEnabled = supatermSettings.glowingPaneRingEnabled
     state.newTabPosition = supatermSettings.newTabPosition
@@ -363,6 +370,7 @@ public struct SettingsFeature {
       appearanceMode: state.appearanceMode,
       analyticsEnabled: state.analyticsEnabled,
       codingAgentsShowIcons: state.codingAgentsShowIcons,
+      codingAgentsShowSpinner: state.codingAgentsShowSpinner,
       computerUseAlwaysFloatAgentCursor: state.computerUse.alwaysFloatAgentCursor,
       computerUseCursorMotion: state.computerUse.cursorMotion,
       computerUseMaxImageDimension: state.computerUse.maxImageDimension,

@@ -224,7 +224,7 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
       contentsOf: try Self.unknownNestedKeys(
         in: container,
         section: "coding_agents",
-        allowedKeys: ["show_icons"]
+        allowedKeys: ["show_icons", "show_spinner"]
       )
     )
     warnings.append(

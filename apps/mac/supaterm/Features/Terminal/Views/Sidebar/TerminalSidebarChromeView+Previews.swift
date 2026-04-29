@@ -80,7 +80,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       isPinned: tab.isPinned,
       unreadCount: unreadCount,
       agentActivity: agentActivity,
-      terminalProgress: terminalProgress
+      terminalProgress: terminalProgress,
+      showsAgentSpinner: true
     )
   }
 
@@ -267,6 +268,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       badgeActivity: item.agentActivity,
       terminalProgress: item.terminalProgress,
       showsAgentMarks: true,
+      showsAgentSpinner: true,
       shortcutHint: nil,
       showsShortcutHint: false,
       isRowHovering: false

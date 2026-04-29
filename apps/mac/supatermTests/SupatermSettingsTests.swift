@@ -46,6 +46,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
+    #expect(prefs.codingAgentsShowSpinner)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)
@@ -75,6 +76,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .dark)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
+    #expect(prefs.codingAgentsShowSpinner)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)
@@ -117,6 +119,30 @@ struct SupatermSettingsTests {
   }
 
   @Test
+  func prefsEncodeOnlyChangedCodingAgentValues() throws {
+    let data = try SupatermSettingsCodec.encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: true,
+        codingAgentsShowIcons: false,
+        codingAgentsShowSpinner: false,
+        crashReportsEnabled: true,
+        updateChannel: .stable
+      )
+    )
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
+
+    #expect(
+      string
+        == """
+        [coding_agents]
+        show_icons = false
+        show_spinner = false
+        """
+    )
+  }
+
+  @Test
   func prefsEncodeOnlyChangedComputerUseValues() throws {
     let data = try SupatermSettingsCodec.encode(
       SupatermSettings(
@@ -145,6 +171,7 @@ struct SupatermSettingsTests {
         appearanceMode: .dark,
         analyticsEnabled: false,
         codingAgentsShowIcons: false,
+        codingAgentsShowSpinner: false,
         computerUseAlwaysFloatAgentCursor: true,
         computerUseCursorMotion: SupatermComputerUseCursorMotion(
           startHandle: 0.1,
@@ -174,6 +201,7 @@ struct SupatermSettingsTests {
           appearanceMode: .dark,
           analyticsEnabled: false,
           codingAgentsShowIcons: false,
+          codingAgentsShowSpinner: false,
           computerUseAlwaysFloatAgentCursor: true,
           computerUseCursorMotion: SupatermComputerUseCursorMotion(
             startHandle: 0.1,
@@ -211,6 +239,7 @@ struct SupatermSettingsTests {
     #expect(prefs.appearanceMode == .light)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
+    #expect(prefs.codingAgentsShowSpinner)
     #expect(!prefs.computerUseAlwaysFloatAgentCursor)
     #expect(prefs.computerUseCursorMotion == .default)
     #expect(prefs.computerUseMaxImageDimension == 1600)

@@ -45,6 +45,45 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func runningAgentActivityIsHiddenWhenAgentSpinnerIsHidden() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: .claude(.running),
+        terminalProgress: nil,
+        showsAgentSpinner: false
+      ) == nil
+    )
+  }
+
+  @Test
+  func hiddenAgentSpinnerFallsBackToPinnedStatus() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: true,
+        unreadCount: 0,
+        agentActivity: .claude(.running),
+        terminalProgress: nil,
+        showsAgentSpinner: false
+      ) == .pinned
+    )
+  }
+
+  @Test
+  func agentInputStatusIgnoresAgentSpinnerSetting() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: .claude(.needsInput),
+        terminalProgress: nil,
+        showsAgentSpinner: false
+      ) == .agentActivity(.claude(.needsInput))
+    )
+  }
+
+  @Test
   func terminalProgressTakesPrecedenceOverAgentActivity() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 

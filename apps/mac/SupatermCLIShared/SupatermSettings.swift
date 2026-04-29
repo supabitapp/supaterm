@@ -4,6 +4,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
   public var analyticsEnabled: Bool
   public var codingAgentsShowIcons: Bool
+  public var codingAgentsShowSpinner: Bool
   public var computerUseAlwaysFloatAgentCursor: Bool
   public var computerUseCursorMotion: SupatermComputerUseCursorMotion
   public var computerUseMaxImageDimension: Int
@@ -20,6 +21,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: AppearanceMode,
     analyticsEnabled: Bool,
     codingAgentsShowIcons: Bool = true,
+    codingAgentsShowSpinner: Bool = true,
     computerUseAlwaysFloatAgentCursor: Bool = false,
     computerUseCursorMotion: SupatermComputerUseCursorMotion = .default,
     computerUseMaxImageDimension: Int = 1600,
@@ -35,6 +37,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.appearanceMode = appearanceMode
     self.analyticsEnabled = analyticsEnabled
     self.codingAgentsShowIcons = codingAgentsShowIcons
+    self.codingAgentsShowSpinner = codingAgentsShowSpinner
     self.computerUseAlwaysFloatAgentCursor = computerUseAlwaysFloatAgentCursor
     self.computerUseCursorMotion = computerUseCursorMotion
     self.computerUseMaxImageDimension = computerUseMaxImageDimension
@@ -52,6 +55,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     appearanceMode: .dark,
     analyticsEnabled: true,
     codingAgentsShowIcons: true,
+    codingAgentsShowSpinner: true,
     computerUseAlwaysFloatAgentCursor: false,
     computerUseCursorMotion: .default,
     computerUseMaxImageDimension: 1600,
@@ -102,6 +106,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
       codingAgentsShowIcons: codingAgents?.showIcons ?? defaults.codingAgentsShowIcons,
+      codingAgentsShowSpinner: codingAgents?.showSpinner ?? defaults.codingAgentsShowSpinner,
       computerUseAlwaysFloatAgentCursor: computerUse?.alwaysFloatAgentCursor
         ?? defaults.computerUseAlwaysFloatAgentCursor,
       computerUseCursorMotion: computerUse?.cursorMotion ?? defaults.computerUseCursorMotion,
@@ -124,8 +129,16 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     if appearanceMode != defaults.appearanceMode {
       try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
     }
-    if codingAgentsShowIcons != defaults.codingAgentsShowIcons {
-      try container.encode(PersistedCodingAgents(showIcons: codingAgentsShowIcons), forKey: .codingAgents)
+    if codingAgentsShowIcons != defaults.codingAgentsShowIcons
+      || codingAgentsShowSpinner != defaults.codingAgentsShowSpinner
+    {
+      try container.encode(
+        PersistedCodingAgents(
+          showIcons: codingAgentsShowIcons,
+          showSpinner: codingAgentsShowSpinner
+        ),
+        forKey: .codingAgents
+      )
     }
     if computerUseAlwaysFloatAgentCursor != defaults.computerUseAlwaysFloatAgentCursor
       || computerUseCursorMotion != defaults.computerUseCursorMotion
@@ -219,25 +232,33 @@ extension SupatermSettings {
 
   struct PersistedCodingAgents: Codable, Equatable, Sendable {
     let showIcons: Bool
+    let showSpinner: Bool
 
-    init(showIcons: Bool) {
+    init(showIcons: Bool, showSpinner: Bool) {
       self.showIcons = showIcons
+      self.showSpinner = showSpinner
     }
 
     init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       showIcons = try container.decodeIfPresent(Bool.self, forKey: .showIcons)
         ?? SupatermSettings.default.codingAgentsShowIcons
+      showSpinner = try container.decodeIfPresent(Bool.self, forKey: .showSpinner)
+        ?? SupatermSettings.default.codingAgentsShowSpinner
     }
 
     enum CodingKeys: String, CodingKey {
       case showIcons = "show_icons"
+      case showSpinner = "show_spinner"
     }
 
     func encode(to encoder: any Encoder) throws {
       var container = encoder.container(keyedBy: CodingKeys.self)
       if showIcons != SupatermSettings.default.codingAgentsShowIcons {
         try container.encode(showIcons, forKey: .showIcons)
+      }
+      if showSpinner != SupatermSettings.default.codingAgentsShowSpinner {
+        try container.encode(showSpinner, forKey: .showSpinner)
       }
     }
   }
@@ -497,6 +518,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var appearanceMode: AppearanceMode
   var analyticsEnabled: Bool
   var codingAgentsShowIcons: Bool
+  var codingAgentsShowSpinner: Bool
   var computerUseAlwaysFloatAgentCursor: Bool
   var computerUseCursorMotion: SupatermComputerUseCursorMotion
   var computerUseMaxImageDimension: Int
@@ -517,6 +539,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
     self.analyticsEnabled =
       try container.decodeIfPresent(Bool.self, forKey: .analyticsEnabled) ?? defaults.analyticsEnabled
     self.codingAgentsShowIcons = defaults.codingAgentsShowIcons
+    self.codingAgentsShowSpinner = defaults.codingAgentsShowSpinner
     self.computerUseAlwaysFloatAgentCursor = defaults.computerUseAlwaysFloatAgentCursor
     self.computerUseCursorMotion = defaults.computerUseCursorMotion
     self.computerUseMaxImageDimension = defaults.computerUseMaxImageDimension
@@ -543,6 +566,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
       appearanceMode: appearanceMode,
       analyticsEnabled: analyticsEnabled,
       codingAgentsShowIcons: codingAgentsShowIcons,
+      codingAgentsShowSpinner: codingAgentsShowSpinner,
       computerUseAlwaysFloatAgentCursor: computerUseAlwaysFloatAgentCursor,
       computerUseCursorMotion: computerUseCursorMotion,
       computerUseMaxImageDimension: computerUseMaxImageDimension,
