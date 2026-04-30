@@ -7,6 +7,11 @@ hooks {
         glob = "**/*"
         check = "hk util check-added-large-files --maxkb 2048 {{ files }}"
       }
+      ["betterleaks"] {
+        glob = "**/*"
+        check = "betterleaks dir --redact --verbose --no-banner --validation=false {{ files }}"
+        depends = "check-added-large-files"
+      }
       ["web-staged"] {
         glob = "**"
         dir = "apps/supaterm.com"

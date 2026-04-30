@@ -1,6 +1,7 @@
 [tools]
 hk = "1.44.2"
 pkl = "0.31.1"
+"aqua:betterleaks/betterleaks" = "1.1.2"
 zig = "0.15.2"
 tuist = "4.180.0"
 swiftlint = "latest"
