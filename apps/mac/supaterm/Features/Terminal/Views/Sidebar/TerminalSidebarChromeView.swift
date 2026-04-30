@@ -300,6 +300,7 @@ struct TerminalSidebarChromeView: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       badgeActivity: agentPresentation.badgeActivity,
+      badgeActivityIsFocused: agentPresentation.badgeActivityIsFocused,
       terminalProgress: terminalProgress,
       hasTerminalBell: hasTerminalBell,
       showsAgentMarks: supatermSettings.codingAgentsShowIcons,
@@ -463,6 +464,7 @@ struct TerminalSidebarTabSummaryView: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
+  let badgeActivityIsFocused: Bool
   let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let showsAgentMarks: Bool
@@ -475,6 +477,7 @@ struct TerminalSidebarTabSummaryView: View {
     isPinned: Bool,
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
+    agentActivityIsFocused: Bool = false,
     terminalProgress: TerminalSidebarTerminalProgress?,
     hasTerminalBell: Bool = false,
     showsAgentSpinner: Bool = true
@@ -486,13 +489,16 @@ struct TerminalSidebarTabSummaryView: View {
       return .unreadCount(unreadCount)
     }
     if let agentActivity, agentActivity.phase == .needsInput {
-      return .agentActivity(agentActivity)
+      if !agentActivityIsFocused {
+        return .agentActivity(agentActivity)
+      }
     }
     if hasTerminalBell {
       return .terminalBell
     }
     if let agentActivity,
       agentActivity.showsLeadingIndicator,
+      agentActivity.phase != .needsInput,
       agentActivity.phase != .running || showsAgentSpinner
     {
       return .agentActivity(agentActivity)
@@ -552,6 +558,7 @@ struct TerminalSidebarTabSummaryView: View {
         isPinned: tab.isPinned,
         unreadCount: unreadCount,
         agentActivity: badgeActivity,
+        agentActivityIsFocused: badgeActivityIsFocused,
         terminalProgress: terminalProgress,
         hasTerminalBell: hasTerminalBell,
         showsAgentSpinner: showsAgentSpinner
@@ -933,6 +940,7 @@ struct TerminalSidebarTabRow: View {
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           badgeActivity: agentPresentation.badgeActivity,
+          badgeActivityIsFocused: agentPresentation.badgeActivityIsFocused,
           hasTerminalBell: hasTerminalBell,
           terminalProgress: terminalProgress,
           showsAgentMarks: showsAgentMarks,

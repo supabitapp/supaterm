@@ -196,6 +196,7 @@ final class TerminalHostState {
 
   struct TabAgentPresentation: Equatable, Sendable {
     let badgeActivity: AgentActivity?
+    let badgeActivityIsFocused: Bool
     let detailActivity: AgentActivity?
     let hoverMarkdown: String?
   }

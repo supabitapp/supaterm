@@ -281,6 +281,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       badgeActivity: item.agentActivity,
+      badgeActivityIsFocused: false,
       hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       showsAgentMarks: true,

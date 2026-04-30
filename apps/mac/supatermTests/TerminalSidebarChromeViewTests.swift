@@ -138,6 +138,33 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func focusedAgentInputStatusIsHidden() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: .codex(.needsInput),
+        agentActivityIsFocused: true,
+        terminalProgress: nil
+      ) == nil
+    )
+  }
+
+  @Test
+  func focusedAgentInputStatusFallsBackToTerminalBell() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: .codex(.needsInput),
+        agentActivityIsFocused: true,
+        terminalProgress: nil,
+        hasTerminalBell: true
+      ) == .terminalBell
+    )
+  }
+
+  @Test
   func terminalProgressTakesPrecedenceOverAgentActivity() {
     let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
 

@@ -185,7 +185,12 @@ extension TerminalHostState {
 
   func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
     guard let tree = trees[tabID] else {
-      return TabAgentPresentation(badgeActivity: nil, detailActivity: nil, hoverMarkdown: nil)
+      return TabAgentPresentation(
+        badgeActivity: nil,
+        badgeActivityIsFocused: false,
+        detailActivity: nil,
+        hoverMarkdown: nil
+      )
     }
 
     let focusedSurfaceID = focusedSurfaceIDByTab[tabID]
@@ -199,6 +204,7 @@ extension TerminalHostState {
     var badgeActivity: AgentActivity?
     var badgePriority = Int.min
     var badgeSurfaceIsFocused = false
+    var badgeSurfaceID: UUID?
     var badgeActivityRevision = Int.min
     var badgeLeafIndex = Int.max
 
@@ -225,13 +231,26 @@ extension TerminalHostState {
         badgeActivity = activity
         badgePriority = priority
         badgeSurfaceIsFocused = isFocused
+        badgeSurfaceID = surface.id
         badgeActivityRevision = activityRevision
         badgeLeafIndex = leafIndex
       }
     }
 
+    let badgeActivityIsFocused =
+      badgeSurfaceID.map { surfaceID in
+        Self.surfaceActivity(
+          isSelectedTab: tabID == spaceManager.selectedTabID,
+          windowIsVisible: windowActivity.isVisible,
+          windowIsKey: windowActivity.isKeyWindow,
+          focusedSurfaceID: focusedSurfaceID,
+          surfaceID: surfaceID
+        ).isFocused
+      } ?? false
+
     return TabAgentPresentation(
       badgeActivity: badgeActivity,
+      badgeActivityIsFocused: badgeActivityIsFocused,
       detailActivity: detailActivity,
       hoverMarkdown: hoverMarkdown
     )

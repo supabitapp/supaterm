@@ -475,6 +475,45 @@ struct TerminalHostStateNotificationTests {
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
     #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
+    #expect(!host.tabAgentPresentation(for: tabID).badgeActivityIsFocused)
+  }
+
+  @Test
+  func tabAgentPresentationMarksFocusedBadgeActivity() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+
+    #expect(host.setAgentActivity(.codex(.needsInput), for: surface.id))
+
+    let presentation = host.tabAgentPresentation(for: tabID)
+    #expect(presentation.badgeActivity == .codex(.needsInput))
+    #expect(presentation.badgeActivityIsFocused)
+  }
+
+  @Test
+  func tabAgentPresentationDoesNotMarkBackgroundTabBadgeActivityFocused() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+
+    let firstTabID = try #require(host.selectedTabID)
+    let firstSurface = try #require(host.selectedSurfaceView)
+
+    #expect(host.setAgentActivity(.codex(.needsInput), for: firstSurface.id))
+
+    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+
+    let presentation = host.tabAgentPresentation(for: firstTabID)
+    #expect(presentation.badgeActivity == .codex(.needsInput))
+    #expect(!presentation.badgeActivityIsFocused)
   }
 
   @Test
