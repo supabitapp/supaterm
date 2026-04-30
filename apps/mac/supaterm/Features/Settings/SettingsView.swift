@@ -57,8 +57,6 @@ private struct SettingsTabContentView: View {
     switch tab {
     case .codingAgents:
       SettingsCodingAgentsView(store: store)
-    case .computerUse:
-      SettingsComputerUseView(store: store)
     case .general:
       SettingsGeneralView(store: store)
     case .terminal:

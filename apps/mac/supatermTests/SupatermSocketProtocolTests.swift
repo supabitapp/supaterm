@@ -135,32 +135,6 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func computerUsePageRequestEncodesTypedPayload() throws {
-    let payload = SupatermComputerUsePageRequest(
-      pid: 123,
-      windowID: 456,
-      action: .queryDOM,
-      cssSelector: "a",
-      attributes: ["href"]
-    )
-    let request = try SupatermSocketRequest.computerUsePage(payload, id: "page")
-
-    #expect(request.method == SupatermSocketMethod.computerUsePage)
-    #expect(try request.decodeParams(SupatermComputerUsePageRequest.self) == payload)
-  }
-
-  @Test
-  func computerUsePageEnableRequestEncodesBrowser() throws {
-    let payload = SupatermComputerUsePageRequest(
-      action: .enableJavaScriptAppleEvents,
-      browser: .safari
-    )
-    let request = try SupatermSocketRequest.computerUsePage(payload, id: "page")
-
-    #expect(try request.decodeParams(SupatermComputerUsePageRequest.self) == payload)
-  }
-
-  @Test
   func explicitPathResolutionPrefersExplicitPathThenEnvironment() {
     let environmentPath = "/tmp/supaterm.environment.sock"
     let explicitPath = "/tmp/supaterm.explicit.sock"

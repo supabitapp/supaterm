@@ -43,16 +43,6 @@ struct SupatermSkillExamplesTests {
       root.appendingPathComponent("references/space.md"),
       root.appendingPathComponent("references/tab.md"),
       root.appendingPathComponent("references/targeting-and-selectors.md"),
-      root.deletingLastPathComponent()
-        .appendingPathComponent("supaterm-computer-use/SKILL.md"),
-      root.deletingLastPathComponent()
-        .appendingPathComponent("supaterm-computer-use/references/actions.md"),
-      root.deletingLastPathComponent()
-        .appendingPathComponent("supaterm-computer-use/references/apps-and-windows.md"),
-      root.deletingLastPathComponent()
-        .appendingPathComponent("supaterm-computer-use/references/permissions.md"),
-      root.deletingLastPathComponent()
-        .appendingPathComponent("supaterm-computer-use/references/snapshot-and-elements.md"),
     ]
   }
 

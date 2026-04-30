@@ -7,7 +7,6 @@
 ## Documentation
 
 - `./docs/development.md` - general development doc
-- `./docs/background-computer-use.md` - background computer-use architecture, dispatch, and focus behavior
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the sp cli and the macOS app talk through socket IPC
 - Keep `integrations/supaterm-skills` in sync when CLI behavior or coding-agent integrations change; we maintain the user-facing `supaterm` skill there

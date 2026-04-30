@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
-import SupatermComputerUseFeature
 import SupatermSupport
 import SupatermTerminalCore
 
@@ -71,7 +70,6 @@ public struct SocketControlFeature {
   }
 
   @Dependency(SocketControlClient.self) var socketControlClient
-  @Dependency(ComputerUseClient.self) var computerUseClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(SocketRequestExecutor.self) var socketRequestExecutor
 
@@ -81,10 +79,9 @@ public struct SocketControlFeature {
     Reduce { state, action in
       switch action {
       case .requestReceived(let request):
-        return .run { [computerUseClient, desktopNotificationClient, socketControlClient, socketRequestExecutor] _ in
+        return .run { [desktopNotificationClient, socketControlClient, socketRequestExecutor] _ in
           let response = await response(
             for: request.payload,
-            computerUseClient: computerUseClient,
             desktopNotificationClient: desktopNotificationClient,
             socketControlClient: socketControlClient,
             socketRequestExecutor: socketRequestExecutor
@@ -129,7 +126,6 @@ public struct SocketControlFeature {
 
   func response(
     for request: SupatermSocketRequest,
-    computerUseClient: ComputerUseClient,
     desktopNotificationClient: DesktopNotificationClient,
     socketControlClient: SocketControlClient,
     socketRequestExecutor: SocketRequestExecutor
@@ -137,7 +133,6 @@ public struct SocketControlFeature {
     do {
       return try await responseResult(
         for: request,
-        computerUseClient: computerUseClient,
         desktopNotificationClient: desktopNotificationClient,
         socketControlClient: socketControlClient,
         socketRequestExecutor: socketRequestExecutor
@@ -160,12 +155,6 @@ public struct SocketControlFeature {
         code: "invalid_request",
         message: error.localizedDescription
       )
-    } catch let error as ComputerUseError {
-      return .error(
-        id: request.id,
-        code: error.code,
-        message: error.localizedDescription
-      )
     } catch let error as TerminalCreateTabError {
       return createTabErrorResponse(error, requestID: request.id)
     } catch let error as TerminalCreatePaneError {
@@ -183,7 +172,6 @@ public struct SocketControlFeature {
 
   func responseResult(
     for request: SupatermSocketRequest,
-    computerUseClient: ComputerUseClient,
     desktopNotificationClient: DesktopNotificationClient,
     socketControlClient: SocketControlClient,
     socketRequestExecutor: SocketRequestExecutor
@@ -197,12 +185,6 @@ public struct SocketControlFeature {
     if let response = try await systemResponseResult(
       for: request,
       socketControlClient: socketControlClient
-    ) {
-      return response
-    }
-    if let response = try await computerUseResponseResult(
-      for: request,
-      computerUseClient: computerUseClient
     ) {
       return response
     }

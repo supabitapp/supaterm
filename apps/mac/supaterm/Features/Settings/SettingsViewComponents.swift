@@ -1,5 +1,4 @@
 import AppKit
-import SupatermCLIShared
 import SwiftUI
 
 struct SettingsToggleRow: View {
@@ -105,73 +104,6 @@ struct SettingsSurfaceCard<Content: View>: View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
           .strokeBorder(.quaternary, lineWidth: 1)
       }
-  }
-}
-
-struct SettingsSkillInstallRow: View {
-  let title: String
-  let subtitle: String
-  let command: String
-
-  @State private var didCopy = false
-
-  init(
-    title: String = "Supaterm Skill",
-    subtitle: String = "Install through npx in Terminal.",
-    command: String = SupatermSkillInstaller.manualInstallCommand
-  ) {
-    self.title = title
-    self.subtitle = subtitle
-    self.command = command
-  }
-
-  var body: some View {
-    HStack(alignment: .center, spacing: 12) {
-      Image(systemName: "terminal")
-        .frame(width: 18, height: 18)
-        .foregroundStyle(.secondary)
-        .accessibilityHidden(true)
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title)
-        Text(subtitle)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-
-      Spacer(minLength: 12)
-
-      HStack(spacing: 8) {
-        Text(command)
-          .font(.caption.monospaced())
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-
-        Button {
-          let pasteboard = NSPasteboard.general
-          pasteboard.clearContents()
-          pasteboard.setString(command, forType: .string)
-          didCopy = true
-        } label: {
-          Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-            .frame(width: 16, height: 16)
-            .accessibilityHidden(true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Copy command")
-        .help("Copy command")
-      }
-    }
-    .padding(.vertical, 2)
-    .onChange(of: didCopy) {
-      guard didCopy else { return }
-      Task {
-        try? await Task.sleep(for: .seconds(1.2))
-        await MainActor.run {
-          didCopy = false
-        }
-      }
-    }
   }
 }
 

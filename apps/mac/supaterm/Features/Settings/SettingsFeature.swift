@@ -59,21 +59,6 @@ struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
   }
 }
 
-struct SettingsComputerUseState: Equatable {
-  var accessibility = ComputerUsePermissionStatus.unknown
-  var alwaysFloatAgentCursor = SupatermSettings.default.computerUseAlwaysFloatAgentCursor
-  var cursorMotion = SupatermSettings.default.computerUseCursorMotion
-  var isRefreshing = false
-  var maxImageDimension = SupatermSettings.default.computerUseMaxImageDimension
-  var screenRecording = ComputerUsePermissionStatus.unknown
-  var showAgentCursor = SupatermSettings.default.computerUseShowAgentCursor
-  var snapshotMode = SupatermSettings.default.computerUseSnapshotMode
-
-  var hasRequiredPermissions: Bool {
-    accessibility == .granted && screenRecording == .granted
-  }
-}
-
 struct SettingsAboutState: Equatable {
   var updateChannel = SupatermSettings.default.updateChannel
   var updatesAutomaticallyCheckForUpdates = true
@@ -105,7 +90,6 @@ public struct SettingsFeature {
       settingsPath: SupatermAgentKind.pi.settingsPathDescription
     )
     var crashReportsEnabled = SupatermSettings.default.crashReportsEnabled
-    var computerUse = SettingsComputerUseState()
     var glowingPaneRingEnabled = SupatermSettings.default.glowingPaneRingEnabled
     var newTabPosition = SupatermSettings.default.newTabPosition
     var about = SettingsAboutState()
@@ -130,12 +114,6 @@ public struct SettingsFeature {
     case checkForUpdatesButtonTapped
     case codingAgentsShowIconsChanged(Bool)
     case codingAgentsShowSpinnerChanged(Bool)
-    case computerUsePermissionGrantButtonTapped(ComputerUsePermissionKind)
-    case computerUseAlwaysFloatAgentCursorChanged(Bool)
-    case computerUsePermissionsRefreshRequested
-    case computerUsePermissionsRefreshed(ComputerUsePermissionsSnapshot)
-    case computerUsePermissionSettingsButtonTapped(ComputerUsePermissionKind)
-    case computerUseShowAgentCursorChanged(Bool)
     case crashReportsEnabledChanged(Bool)
     case glowingPaneRingEnabledChanged(Bool)
     case newTabPositionSelected(NewTabPosition)
@@ -173,7 +151,6 @@ public struct SettingsFeature {
     case terminal
     case notifications
     case codingAgents
-    case computerUse
     case about
 
     public var id: String {
@@ -184,8 +161,6 @@ public struct SettingsFeature {
       switch self {
       case .codingAgents:
         "hammer"
-      case .computerUse:
-        "pointer.arrow.motionlines"
       case .general:
         "gearshape"
       case .terminal:
@@ -201,8 +176,6 @@ public struct SettingsFeature {
       switch self {
       case .codingAgents:
         "Coding Agents"
-      case .computerUse:
-        "Computer Use"
       case .general:
         "General"
       case .terminal:
@@ -219,7 +192,6 @@ public struct SettingsFeature {
   @Dependency(CodexSettingsClient.self) var codexSettingsClient
   @Dependency(PiSettingsClient.self) var piSettingsClient
   @Dependency(AnalyticsClient.self) var analyticsClient
-  @Dependency(ComputerUsePermissionsClient.self) var computerUsePermissionsClient
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(GhosttyTerminalSettingsClient.self) var ghosttyTerminalSettingsClient
   @Dependency(UpdateClient.self) var updateClient
@@ -258,10 +230,7 @@ public struct SettingsFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
-        guard tab == .computerUse else {
-          return .none
-        }
-        return reduceComputerUse(&state, action: .computerUsePermissionsRefreshRequested)
+        return .none
 
       case .codingAgentsShowIconsChanged(let isEnabled):
         state.codingAgentsShowIcons = isEnabled
@@ -283,14 +252,6 @@ public struct SettingsFeature {
         .systemNotificationsAuthorizationChecked,
         .systemNotificationsAuthorizationResult:
         return reduceNotifications(&state, action: action)
-
-      case .computerUsePermissionGrantButtonTapped,
-        .computerUseAlwaysFloatAgentCursorChanged,
-        .computerUsePermissionsRefreshRequested,
-        .computerUsePermissionsRefreshed,
-        .computerUsePermissionSettingsButtonTapped,
-        .computerUseShowAgentCursorChanged:
-        return reduceComputerUse(&state, action: action)
 
       case .agentIntegrationStatusRefreshRequested,
         .agentIntegrationStatusRefreshed,
@@ -352,11 +313,6 @@ public struct SettingsFeature {
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
-    state.computerUse.alwaysFloatAgentCursor = supatermSettings.computerUseAlwaysFloatAgentCursor
-    state.computerUse.cursorMotion = supatermSettings.computerUseCursorMotion
-    state.computerUse.maxImageDimension = supatermSettings.computerUseMaxImageDimension
-    state.computerUse.showAgentCursor = supatermSettings.computerUseShowAgentCursor
-    state.computerUse.snapshotMode = supatermSettings.computerUseSnapshotMode
   }
 
   func openSystemNotificationSettings() -> Effect<Action> {
@@ -371,11 +327,6 @@ public struct SettingsFeature {
       analyticsEnabled: state.analyticsEnabled,
       codingAgentsShowIcons: state.codingAgentsShowIcons,
       codingAgentsShowSpinner: state.codingAgentsShowSpinner,
-      computerUseAlwaysFloatAgentCursor: state.computerUse.alwaysFloatAgentCursor,
-      computerUseCursorMotion: state.computerUse.cursorMotion,
-      computerUseMaxImageDimension: state.computerUse.maxImageDimension,
-      computerUseShowAgentCursor: state.computerUse.showAgentCursor,
-      computerUseSnapshotMode: state.computerUse.snapshotMode,
       crashReportsEnabled: state.crashReportsEnabled,
       glowingPaneRingEnabled: state.glowingPaneRingEnabled,
       newTabPosition: state.newTabPosition,

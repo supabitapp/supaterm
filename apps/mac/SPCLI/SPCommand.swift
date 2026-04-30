@@ -18,7 +18,6 @@ public struct SP: ParsableCommand {
     Space.self,
     Tab.self,
     Pane.self,
-    ComputerUse.self,
     Agent.self,
     Tmux.self,
     Internal.self,

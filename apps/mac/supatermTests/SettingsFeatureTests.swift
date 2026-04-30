@@ -21,13 +21,8 @@ struct SettingsFeatureTests {
   func tabOrderEndsWithAbout() {
     #expect(
       SettingsFeature.Tab.allCases
-        == [.general, .terminal, .notifications, .codingAgents, .computerUse, .about]
+        == [.general, .terminal, .notifications, .codingAgents, .about]
     )
-  }
-
-  @Test
-  func computerUseTabUsesPointerIcon() {
-    #expect(SettingsFeature.Tab.computerUse.symbol == "pointer.arrow.motionlines")
   }
 
   @Test
@@ -42,8 +37,6 @@ struct SettingsFeatureTests {
           analyticsEnabled: false,
           codingAgentsShowIcons: false,
           codingAgentsShowSpinner: false,
-          computerUseAlwaysFloatAgentCursor: true,
-          computerUseShowAgentCursor: false,
           crashReportsEnabled: true,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -70,8 +63,6 @@ struct SettingsFeatureTests {
         $0.codingAgentsShowSpinner = false
         $0.crashReportsEnabled = true
         $0.glowingPaneRingEnabled = false
-        $0.computerUse.alwaysFloatAgentCursor = true
-        $0.computerUse.showAgentCursor = false
         $0.about.updateChannel = .tip
         $0.newTabPosition = .current
         $0.restoreTerminalLayoutEnabled = false
@@ -176,21 +167,6 @@ struct SettingsFeatureTests {
 
     await store.send(.tabSelected(.codingAgents)) {
       $0.selectedTab = .codingAgents
-    }
-
-    await store.send(.tabSelected(.computerUse)) {
-      $0.selectedTab = .computerUse
-      $0.computerUse.isRefreshing = true
-    }
-    await store.receive(
-      .computerUsePermissionsRefreshed(
-        ComputerUsePermissionsSnapshot(accessibility: .missing, screenRecording: .missing)
-      ),
-      timeout: 0
-    ) {
-      $0.computerUse.accessibility = .missing
-      $0.computerUse.screenRecording = .missing
-      $0.computerUse.isRefreshing = false
     }
 
     await store.send(.tabSelected(.notifications)) {

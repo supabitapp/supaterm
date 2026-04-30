@@ -53,8 +53,6 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
       SP.helpMessage(for: SP.Run.self, columns: 100),
       SP.helpMessage(for: SP.Tmux.self, columns: 100),
-      SP.helpMessage(for: SP.ComputerUse.self, columns: 100),
-      SP.helpMessage(for: SP.ComputerUsePage.self, columns: 100),
       SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100),
@@ -196,17 +194,4 @@ struct SPHelpTests {
     #expect(runHelp.contains("Example:"))
   }
 
-  @Test
-  func computerUseHelpShowsPageExamples() {
-    let computerUseHelp = SP.helpMessage(for: SP.ComputerUse.self, columns: 100)
-    let pageHelp = SP.helpMessage(for: SP.ComputerUsePage.self, columns: 100)
-
-    #expect(computerUseHelp.contains("page"))
-    #expect(computerUseHelp.contains("sp computer-use page get-text"))
-    #expect(pageHelp.contains("get-text"))
-    #expect(pageHelp.contains("query-dom"))
-    #expect(pageHelp.contains("execute-javascript"))
-    #expect(pageHelp.contains("enable-javascript-apple-events"))
-    #expect(pageHelp.contains("--browser chrome"))
-  }
 }

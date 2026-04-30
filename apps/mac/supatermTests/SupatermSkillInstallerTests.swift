@@ -56,14 +56,6 @@ struct SupatermSkillInstallerTests {
   }
 
   @Test
-  func manualComputerUseInstallCommandTargetsComputerUseSkill() {
-    #expect(
-      SupatermSkillInstaller.manualComputerUseInstallCommand
-        == "npx skills add supabitapp/supaterm-skills --skill supaterm-computer-use -g"
-    )
-  }
-
-  @Test
   func automatedInstallCommandArgumentsUseInteractiveLoginShell() {
     #expect(
       SupatermSkillInstaller.automatedInstallCommandArguments()

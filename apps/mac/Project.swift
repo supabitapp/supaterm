@@ -173,26 +173,6 @@ let project = Project(
       )
     ),
     .target(
-      name: "SupatermComputerUseFeature",
-      destinations: .macOS,
-      product: .staticFramework,
-      bundleId: "app.supabit.supaterm.computer-use-feature",
-      deploymentTargets: .macOS("26.0"),
-      infoPlist: .default,
-      buildableFolders: [
-        "supaterm/Features/ComputerUse",
-      ],
-      dependencies: [
-        .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermSupport"),
-        .external(name: "ComposableArchitecture"),
-        .external(name: "Sharing"),
-      ],
-      settings: .settings(
-        defaultSettings: .essential
-      )
-    ),
-    .target(
       name: "SupatermSocketFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -204,7 +184,6 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermComputerUseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .external(name: "ComposableArchitecture"),
@@ -396,7 +375,6 @@ let project = Project(
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
         .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermComputerUseFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermSocketFeature"),

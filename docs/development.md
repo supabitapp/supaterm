@@ -22,12 +22,6 @@ SUPATERM_STATE_HOME="$(mktemp -d)" make mac-run
 
 Panes inherit `SUPATERM_STATE_HOME`, so `sp` commands launched inside the app use the same root.
 
-## Manual App Checks
-
-For UI-facing changes, use the `cua-driver` skill to launch Supaterm and exercise the app before handing off.
-
-Snapshot the target window before and after each action, click around non-destructively, and save screenshots for the states touched.
-
 ## Warm Cache
 
 Warm the macOS Tuist cache from the repo root with:

@@ -82,8 +82,8 @@ struct SupatermSettingsValidationTests {
       mode = "dark"
       extra = "ignored"
 
-      [computer_use]
-      always_float_agent_cursor = true
+      [obsolete]
+      enabled = true
 
       [privacy]
       analytics_enabled = true
@@ -95,7 +95,12 @@ struct SupatermSettingsValidationTests {
     let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL, environment: [:]).validate()
 
     #expect(result.status == .valid)
-    #expect(result.warnings == ["Unknown config key `appearance.extra`."])
+    #expect(
+      result.warnings == [
+        "Unknown config key `appearance.extra`.",
+        "Unknown config key `obsolete`.",
+      ]
+    )
     #expect(result.errors.isEmpty)
   }
 

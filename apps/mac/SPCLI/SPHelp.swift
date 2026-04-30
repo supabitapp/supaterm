@@ -16,7 +16,6 @@ enum SPHelp {
       sp ls
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
-      sp computer-use permissions
       sp diagnostic
       sp instance ls
     """
@@ -457,38 +456,6 @@ enum SPHelp {
     Example:
       sp agent install-hook claude
       sp agent install-hook codex
-    """
-
-  static let computerUseDiscussion = """
-    Example:
-      sp computer-use permissions
-      sp computer-use launch --bundle-id com.apple.TextEdit
-      sp computer-use apps --json
-      sp computer-use windows --app TextEdit --on-screen-only
-      sp computer-use snapshot --pid 123 --window 456 --query save --image-out /tmp/window.png
-      sp computer-use zoom --pid 123 --window 456 --x 80 --y 120 --width 320 --height 180 --image-out /tmp/zoom.png
-      sp computer-use click --pid 123 --window 456 --element 3 --action press
-      sp computer-use click --pid 123 --window 456 --x 80 --y 120 --debug-image-out /tmp/click.png
-      sp computer-use type --pid 123 --window 456 --element 7 "hello"
-      sp computer-use type-chars --pid 123 "hello"
-      sp computer-use key --pid 123 --window 456 return
-      sp computer-use hotkey --pid 123 --window 456 command+shift+p
-      sp computer-use scroll --pid 123 --window 456 --direction down --unit page
-      sp computer-use cursor position --json
-      sp computer-use recording start --directory /tmp/cu-run --json
-      sp computer-use page get-text --pid 123 --window 456 --json
-      sp computer-use page query-dom --pid 123 --window 456 --selector a --attribute href --json
-    """
-
-  static let computerUsePageDiscussion = """
-    Example:
-      sp computer-use page get-text --pid 123 --window 456 --json
-      sp computer-use page query-dom --pid 123 --window 456 --selector a --attribute href --json
-      sp computer-use page execute-javascript --pid 123 --window 456 '(() => document.title)()' --json
-      sp computer-use page enable-javascript-apple-events --browser chrome --json
-      sp computer-use page enable-javascript-apple-events --browser brave --json
-      sp computer-use page enable-javascript-apple-events --browser edge --json
-      sp computer-use page enable-javascript-apple-events --browser safari --json
     """
 
   static let internalDiscussion = """

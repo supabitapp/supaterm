@@ -47,10 +47,6 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
     #expect(prefs.codingAgentsShowSpinner)
-    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
-    #expect(prefs.computerUseCursorMotion == .default)
-    #expect(prefs.computerUseMaxImageDimension == 1600)
-    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -77,10 +73,6 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
     #expect(prefs.codingAgentsShowSpinner)
-    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
-    #expect(prefs.computerUseCursorMotion == .default)
-    #expect(prefs.computerUseMaxImageDimension == 1600)
-    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
@@ -143,28 +135,6 @@ struct SupatermSettingsTests {
   }
 
   @Test
-  func prefsEncodeOnlyChangedComputerUseValues() throws {
-    let data = try SupatermSettingsCodec.encode(
-      SupatermSettings(
-        appearanceMode: .dark,
-        analyticsEnabled: true,
-        computerUseCursorMotion: SupatermComputerUseCursorMotion(glideDurationMilliseconds: 90),
-        crashReportsEnabled: true,
-        updateChannel: .stable
-      )
-    )
-    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
-
-    #expect(
-      string
-        == """
-        [computer_use]
-        cursor_glide_duration_ms = 90
-        """
-    )
-  }
-
-  @Test
   func prefsRoundTripThroughToml() throws {
     let data = try SupatermSettingsCodec.encode(
       SupatermSettings(
@@ -172,19 +142,6 @@ struct SupatermSettingsTests {
         analyticsEnabled: false,
         codingAgentsShowIcons: false,
         codingAgentsShowSpinner: false,
-        computerUseAlwaysFloatAgentCursor: true,
-        computerUseCursorMotion: SupatermComputerUseCursorMotion(
-          startHandle: 0.1,
-          endHandle: 0.9,
-          arcSize: 40,
-          arcFlow: 0.2,
-          spring: 0.05,
-          glideDurationMilliseconds: 90,
-          dwellAfterClickMilliseconds: 20,
-          idleHideMilliseconds: 300
-        ),
-        computerUseMaxImageDimension: 1200,
-        computerUseShowAgentCursor: false,
         crashReportsEnabled: false,
         glowingPaneRingEnabled: false,
         newTabPosition: .current,
@@ -202,19 +159,6 @@ struct SupatermSettingsTests {
           analyticsEnabled: false,
           codingAgentsShowIcons: false,
           codingAgentsShowSpinner: false,
-          computerUseAlwaysFloatAgentCursor: true,
-          computerUseCursorMotion: SupatermComputerUseCursorMotion(
-            startHandle: 0.1,
-            endHandle: 0.9,
-            arcSize: 40,
-            arcFlow: 0.2,
-            spring: 0.05,
-            glideDurationMilliseconds: 90,
-            dwellAfterClickMilliseconds: 20,
-            idleHideMilliseconds: 300
-          ),
-          computerUseMaxImageDimension: 1200,
-          computerUseShowAgentCursor: false,
           crashReportsEnabled: false,
           glowingPaneRingEnabled: false,
           newTabPosition: .current,
@@ -240,10 +184,6 @@ struct SupatermSettingsTests {
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowIcons)
     #expect(prefs.codingAgentsShowSpinner)
-    #expect(!prefs.computerUseAlwaysFloatAgentCursor)
-    #expect(prefs.computerUseCursorMotion == .default)
-    #expect(prefs.computerUseMaxImageDimension == 1600)
-    #expect(prefs.computerUseShowAgentCursor)
     #expect(prefs.crashReportsEnabled)
     #expect(prefs.glowingPaneRingEnabled)
     #expect(prefs.newTabPosition == .end)
