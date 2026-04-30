@@ -38,7 +38,7 @@ mise exec -- tuist auth whoami
 make mac-warm-cache
 ```
 
-This warms the cacheable Debug graph for tagged internal and external dependencies.
+This warms external dependencies for Debug.
 
 ## Testing
 

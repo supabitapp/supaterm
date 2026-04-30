@@ -13,12 +13,13 @@ PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
-TUIST_DEVELOPMENT_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development
+TUIST_BINARY_CACHE_PROFILE ?= only-external
+TUIST_CACHED_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CACHE_PROFILE)
 TUIST_SOURCE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none
-TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/development-release
+TUIST_CACHED_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/$(TUIST_BINARY_CACHE_PROFILE)-release
 TUIST_SOURCE_RELEASE_GENERATION_STAMP := $(TUIST_GENERATION_STAMP_DIR)/none-release
 TUIST_GENERATION_INPUTS := Project.swift Workspace.swift Tuist.swift Tuist/Package.swift Tuist/Package.resolved Configurations/Project.xcconfig ../../mise.toml
-TUIST_GENERATE_CACHE_PROFILE ?= development
+TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
@@ -41,13 +42,13 @@ generate-project-sources: $(TUIST_SOURCE_GENERATION_STAMP) # Resolve packages an
 
 tuist-install: $(TUIST_INSTALL_STAMP)
 
-tuist-generate: $(TUIST_DEVELOPMENT_GENERATION_STAMP)
+tuist-generate: $(TUIST_CACHED_GENERATION_STAMP)
 
 tuist-generate-sources: $(TUIST_SOURCE_GENERATION_STAMP)
 
 tuist-generate-release: $(TUIST_SOURCE_RELEASE_GENERATION_STAMP)
 
-tuist-generate-release-cached: $(TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP)
+tuist-generate-release-cached: $(TUIST_CACHED_RELEASE_GENERATION_STAMP)
 
 $(TUIST_INSTALL_STAMP): $(TUIST_GENERATION_INPUTS)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
@@ -66,10 +67,10 @@ $(TUIST_SOURCE_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INS
 	mise exec -- tuist generate --no-open --cache-profile none --configuration Release
 	touch "$@"
 
-$(TUIST_DEVELOPMENT_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
+$(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INSTALL_STAMP)
 	mkdir -p "$(TUIST_GENERATION_STAMP_DIR)"
 	rm -f "$(TUIST_GENERATION_STAMP_DIR)"/*
-	mise exec -- tuist generate --no-open --cache-profile development --configuration Release
+	mise exec -- tuist generate --no-open --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)" --configuration Release
 	touch "$@"
 
 build-ghostty:
@@ -128,7 +129,7 @@ lint: # Lint code with swiftlint
 inspect-dependencies: $(TUIST_INSTALL_STAMP) # Check for implicit and redundant Tuist dependencies
 	mise exec -- tuist inspect dependencies
 
-warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for the full cacheable graph
-	mise exec -- tuist cache warm --configuration $(TUIST_CACHE_CONFIGURATION)
+warm-cache: $(TUIST_INSTALL_STAMP) # Warm Tuist module cache for external dependencies
+	mise exec -- tuist cache warm --configuration "$(TUIST_CACHE_CONFIGURATION)" --cache-profile "$(TUIST_BINARY_CACHE_PROFILE)"
 
 check: format lint # Format and lint
