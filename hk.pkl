@@ -16,11 +16,10 @@ hooks {
         check = "vp staged"
         depends = "check-added-large-files"
       }
-      ["swiftlint"] = (Builtins.swiftlint) {
+      ["swiftlint"] {
         glob = List("**/*.swift", ".swiftlint.yml")
         dir = "apps/mac"
         check = "make lint"
-        fix = null
         depends = "check-added-large-files"
       }
     }
