@@ -12,7 +12,7 @@ hooks {
         check = "vp staged"
         depends = "check-large-files"
       }
-      ["mac-lint"] {
+      ["swiftlint"] {
         glob = List("apps/mac/**/*.swift", "apps/mac/.swiftlint.yml")
         check = "make mac-lint"
         depends = "check-large-files"
