@@ -374,6 +374,24 @@ def validate_pre_push(stdin: TextIO) -> None:
     raise ValueError("\n".join(errors))
 
 
+def branch_pre_push_checks_required(stdin: TextIO) -> bool:
+  for line in stdin:
+    if not line.strip():
+      continue
+    update = parse_push_update(line)
+    if not update.local_ref.startswith("refs/tags/") and not update.remote_ref.startswith("refs/tags/"):
+      return True
+  return False
+
+
+def run_pre_push_branch_checks(stdin: TextIO) -> None:
+  if not branch_pre_push_checks_required(stdin):
+    return
+  run_interactive(["make", "web-check"])
+  run_interactive(["make", "web-test"])
+  run_interactive(["make", "mac-test"])
+
+
 def validate_pre_commit() -> None:
   violations = oversized_staged_blobs()
   if violations:
@@ -443,6 +461,7 @@ def main() -> int:
   validate_release_tag_parser.add_argument("--ref")
   subparsers.add_parser("validate-pre-commit")
   subparsers.add_parser("validate-pre-push")
+  subparsers.add_parser("run-pre-push-branch-checks")
   args = parser.parse_args()
   try:
     if args.command == "validate-release-tag":
@@ -451,6 +470,8 @@ def main() -> int:
       validate_pre_commit()
     elif args.command == "validate-pre-push":
       validate_pre_push(sys.stdin)
+    elif args.command == "run-pre-push-branch-checks":
+      run_pre_push_branch_checks(sys.stdin)
     else:
       bump_and_release()
   except ValueError as error:

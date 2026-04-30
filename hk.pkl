@@ -1,0 +1,61 @@
+amends "package://github.com/jdx/hk/releases/download/v1.44.2/hk@1.44.2#/Config.pkl"
+
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["check-large-files"] {
+        check = "python3 .github/scripts/bump_and_release.py validate-pre-commit"
+      }
+      ["web-staged"] {
+        glob = "apps/supaterm.com/**"
+        dir = "apps/supaterm.com"
+        check = "vp staged"
+        depends = "check-large-files"
+      }
+      ["mac-lint"] {
+        glob = "apps/mac/**"
+        check = "make mac-lint"
+        depends = "check-large-files"
+      }
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["git-lfs"] {
+        check = "git lfs pre-push {{ hook_args }}"
+        stdin = "{{ hook_stdin }}"
+      }
+      ["validate-release-tags"] {
+        check = "python3 .github/scripts/bump_and_release.py validate-pre-push"
+        stdin = "{{ hook_stdin }}"
+        depends = "git-lfs"
+      }
+      ["branch-checks"] {
+        check = "python3 .github/scripts/bump_and_release.py run-pre-push-branch-checks"
+        stdin = "{{ hook_stdin }}"
+        depends = "validate-release-tags"
+      }
+    }
+  }
+  ["post-checkout"] {
+    steps {
+      ["git-lfs"] {
+        check = "git lfs post-checkout {{ hook_args }}"
+      }
+    }
+  }
+  ["post-merge"] {
+    steps {
+      ["git-lfs"] {
+        check = "git lfs post-merge {{ hook_args }}"
+      }
+    }
+  }
+  ["post-commit"] {
+    steps {
+      ["git-lfs"] {
+        check = "git lfs post-commit {{ hook_args }}"
+      }
+    }
+  }
+}

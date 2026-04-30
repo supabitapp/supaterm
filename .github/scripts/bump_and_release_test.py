@@ -2,7 +2,7 @@ from io import StringIO
 from pathlib import Path
 import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from bump_and_release import (
   MAX_NON_LFS_BLOB_BYTES,
@@ -14,6 +14,8 @@ from bump_and_release import (
   pending_release,
   parse_version_state,
   parse_push_update,
+  branch_pre_push_checks_required,
+  run_pre_push_branch_checks,
   release_state,
   recover_pending_release,
   staged_blob_paths,
@@ -188,48 +190,40 @@ class BumpAndReleaseTest(unittest.TestCase):
     self.assertIsNone(pending_release())
 
   @patch("bump_and_release.publish_release_tag")
-  @patch("bump_and_release.edit_release_notes")
-  @patch("bump_and_release.generate_release_notes")
+  @patch("bump_and_release.write_release_notes")
   @patch("bump_and_release.push_current_branch")
-  @patch("bump_and_release.current_commit")
   @patch("bump_and_release.bump_version")
   @patch("bump_and_release.pending_release")
   def test_bump_and_release_pushes_branch_before_generating_notes(
     self,
     pending_release_mock,
     bump_version_mock,
-    current_commit_mock,
     push_current_branch_mock,
-    generate_release_notes_mock,
-    edit_release_notes_mock,
+    write_release_notes_mock,
     publish_release_tag_mock,
   ) -> None:
     events: list[str] = []
     pending_release_mock.return_value = None
     bump_version_mock.return_value = ("1.4.0", 27)
-    current_commit_mock.return_value = "abc123"
     push_current_branch_mock.side_effect = lambda: events.append("push")
-    generate_release_notes_mock.side_effect = lambda *_: events.append("generate")
-    edit_release_notes_mock.side_effect = lambda *_: events.append("edit")
+    write_release_notes_mock.side_effect = lambda *_: events.append("write")
     publish_release_tag_mock.side_effect = lambda *_: events.append("publish")
 
     bump_and_release()
 
-    self.assertEqual(events, ["push", "generate", "edit", "publish"])
+    self.assertEqual(events, ["push", "write", "publish"])
 
   @patch("bump_and_release.sync_draft_release_notes")
   @patch("bump_and_release.push_release_tag")
   @patch("bump_and_release.create_annotated_tag")
-  @patch("bump_and_release.edit_release_notes")
-  @patch("bump_and_release.generate_release_notes")
+  @patch("bump_and_release.write_release_notes")
   @patch("bump_and_release.push_current_branch")
   @patch("bump_and_release.prompt_for_confirmation")
   def test_recover_pending_release_pushes_branch_before_generating_notes(
     self,
     prompt_for_confirmation_mock,
     push_current_branch_mock,
-    generate_release_notes_mock,
-    edit_release_notes_mock,
+    write_release_notes_mock,
     create_annotated_tag_mock,
     push_release_tag_mock,
     sync_draft_release_notes_mock,
@@ -237,15 +231,14 @@ class BumpAndReleaseTest(unittest.TestCase):
     events: list[str] = []
     prompt_for_confirmation_mock.return_value = True
     push_current_branch_mock.side_effect = lambda: events.append("push")
-    generate_release_notes_mock.side_effect = lambda *_: events.append("generate")
-    edit_release_notes_mock.side_effect = lambda *_: events.append("edit")
+    write_release_notes_mock.side_effect = lambda *_: events.append("write")
     create_annotated_tag_mock.side_effect = lambda *_args, **_kwargs: events.append("tag")
     push_release_tag_mock.side_effect = lambda *_args, **_kwargs: events.append("push-tag")
     sync_draft_release_notes_mock.side_effect = lambda *_: events.append("sync")
 
     recover_pending_release(PendingRelease(tag="v1.4.0", release_state="missing", commit="abc123"))
 
-    self.assertEqual(events, ["push", "generate", "edit", "tag", "push-tag"])
+    self.assertEqual(events, ["push", "write", "tag", "push-tag"])
 
   def test_parse_push_update_reads_all_fields(self) -> None:
     self.assertEqual(
@@ -308,6 +301,35 @@ class BumpAndReleaseTest(unittest.TestCase):
     validate_pre_push(StringIO("refs/heads/main abc refs/heads/main def\n"))
 
     validate_release_tag_mock.assert_not_called()
+
+  def test_branch_pre_push_checks_required_accepts_branch_pushes(self) -> None:
+    self.assertTrue(
+      branch_pre_push_checks_required(StringIO("refs/heads/main abc refs/heads/main def\n"))
+    )
+
+  def test_branch_pre_push_checks_required_ignores_tag_pushes(self) -> None:
+    self.assertFalse(
+      branch_pre_push_checks_required(StringIO("refs/tags/v1.4.0 abc refs/tags/v1.4.0 def\n"))
+    )
+
+  @patch("bump_and_release.run_interactive")
+  def test_run_pre_push_branch_checks_runs_full_checks_for_branch_push(self, run_interactive_mock) -> None:
+    run_pre_push_branch_checks(StringIO("refs/heads/main abc refs/heads/main def\n"))
+
+    self.assertEqual(
+      run_interactive_mock.call_args_list,
+      [
+        call(["make", "web-check"]),
+        call(["make", "web-test"]),
+        call(["make", "mac-test"]),
+      ],
+    )
+
+  @patch("bump_and_release.run_interactive")
+  def test_run_pre_push_branch_checks_skips_tag_pushes(self, run_interactive_mock) -> None:
+    run_pre_push_branch_checks(StringIO("refs/tags/v1.4.0 abc refs/tags/v1.4.0 def\n"))
+
+    run_interactive_mock.assert_not_called()
 
   @patch("bump_and_release.validate_release_tag")
   def test_validate_pre_push_ignores_tag_deletions(self, validate_release_tag_mock) -> None:

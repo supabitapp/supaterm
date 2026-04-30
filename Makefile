@@ -9,7 +9,6 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 WEB_INSTALL_PREREQS := $(WEB_APP_DIR)/package.json $(WEB_APP_DIR)/pnpm-lock.yaml
 WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
-GIT_HOOKS_DIR := .git-hooks
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 .DEFAULT_GOAL := help
@@ -21,7 +20,7 @@ help:  # Display this help.
 	@-+grep -Eh "^[a-z-]+:.*#" $(lastword $(MAKEFILE_LIST)) | sed -E 's/^(.*:)(.*#+)(.*)/  \1 @@@ \3 /' | column -t -s "@@@"
 
 install-git-hooks:  # Install repo-local Git hooks.
-	@chmod +x "$(GIT_HOOKS_DIR)"/* && git config --local core.hooksPath "$(GIT_HOOKS_DIR)"
+	@mise exec -- hk install --mise
 
 bump-and-release:  # Print the current version, ask for the next version, then push an annotated release tag for the stable build.
 	@python3 .github/scripts/bump_and_release.py

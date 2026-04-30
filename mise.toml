@@ -1,4 +1,6 @@
 [tools]
+hk = "1.44.2"
+pkl = "0.31.1"
 zig = "0.15.2"
 tuist = "4.180.0"
 swiftlint = "latest"
@@ -6,11 +8,8 @@ xcbeautify = "3.1.4"
 pnpm = "10.32.1"
 "npm:create-dmg" = { version = "latest", os = ["macos"] }
 
-[tasks.validate-pre-commit]
-run = "python3 .github/scripts/bump_and_release.py validate-pre-commit"
-
-[tasks.validate-pre-push]
-run = "python3 .github/scripts/bump_and_release.py validate-pre-push"
+[env]
+HK_MISE = "1"
 
 [hooks]
 postinstall = '''
