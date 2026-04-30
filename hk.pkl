@@ -13,8 +13,9 @@ hooks {
         depends = "check-large-files"
       }
       ["swiftlint"] {
-        glob = List("apps/mac/**/*.swift", "apps/mac/.swiftlint.yml")
-        check = "make mac-lint"
+        glob = List("**/*.swift", ".swiftlint.yml")
+        dir = "apps/mac"
+        check = "make lint"
         depends = "check-large-files"
       }
     }
