@@ -26,6 +26,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let agentActivity: TerminalHostState.AgentActivity?
+  let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
 
   var id: String {
@@ -62,6 +63,8 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       return "\(activity.kind.notificationTitle) \(phaseLabel(activity.phase))"
     case .pinned:
       return "Pinned"
+    case .terminalBell:
+      return "Terminal Bell"
     case .terminalProgress:
       return "Terminal Progress"
     case .unreadCount(let count):
@@ -81,6 +84,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
       unreadCount: unreadCount,
       agentActivity: agentActivity,
       terminalProgress: terminalProgress,
+      hasTerminalBell: hasTerminalBell,
       showsAgentSpinner: true
     )
   }
@@ -95,6 +99,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     paneWorkingDirectories: [String] = [],
     unreadCount: Int = 0,
     agentActivity: TerminalHostState.AgentActivity? = nil,
+    hasTerminalBell: Bool = false,
     terminalProgress: TerminalSidebarTerminalProgress? = nil
   ) {
     previewID = id
@@ -107,6 +112,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.paneWorkingDirectories = paneWorkingDirectories
     self.unreadCount = unreadCount
     self.agentActivity = agentActivity
+    self.hasTerminalBell = hasTerminalBell
     self.terminalProgress = terminalProgress
   }
 
@@ -218,6 +224,15 @@ private enum TerminalSidebarTabPreviewFixtures {
     ),
     TerminalSidebarTabPreviewItem(
       section: .attention,
+      scenario: "Raw terminal bell",
+      title: "Background job done",
+      id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A11",
+      icon: "bell",
+      paneWorkingDirectories: cwdList(cwd("apps", "mac")),
+      hasTerminalBell: true
+    ),
+    TerminalSidebarTabPreviewItem(
+      section: .attention,
       scenario: "Single unread pane",
       title: "Deploy smoke test",
       id: "A379CB4E-2B01-4A6F-9388-A06B4E9C1A08",
@@ -266,6 +281,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
       badgeActivity: item.agentActivity,
+      hasTerminalBell: item.hasTerminalBell,
       terminalProgress: item.terminalProgress,
       showsAgentMarks: true,
       showsAgentSpinner: true,

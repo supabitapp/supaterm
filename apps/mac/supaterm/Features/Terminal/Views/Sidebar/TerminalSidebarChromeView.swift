@@ -294,11 +294,14 @@ struct TerminalSidebarChromeView: View {
     let unreadCount = terminal.unreadNotificationCount(for: tab.id)
     let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
     let agentPresentation = terminal.tabAgentPresentation(for: tab.id)
+    let hasTerminalBell = terminal.tabHasBell(for: tab.id)
     let preview = TerminalSidebarDragPreviewItem(
       tab: tab,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       badgeActivity: agentPresentation.badgeActivity,
+      terminalProgress: terminalProgress,
+      hasTerminalBell: hasTerminalBell,
       showsAgentMarks: supatermSettings.codingAgentsShowIcons,
       showsAgentSpinner: supatermSettings.codingAgentsShowSpinner
     )
@@ -320,6 +323,7 @@ struct TerminalSidebarChromeView: View {
         paneWorkingDirectories: paneWorkingDirectories,
         unreadCount: unreadCount,
         terminalProgress: terminalProgress,
+        hasTerminalBell: hasTerminalBell,
         palette: palette,
         showsAgentMarks: supatermSettings.codingAgentsShowIcons,
         showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
@@ -448,6 +452,7 @@ struct TerminalSidebarTabSummaryView: View {
   enum StatusAccessory: Equatable {
     case agentActivity(TerminalHostState.AgentActivity)
     case pinned
+    case terminalBell
     case terminalProgress(TerminalSidebarTerminalProgress)
     case unreadCount(Int)
   }
@@ -458,6 +463,7 @@ struct TerminalSidebarTabSummaryView: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
+  let hasTerminalBell: Bool
   let terminalProgress: TerminalSidebarTerminalProgress?
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
@@ -470,6 +476,7 @@ struct TerminalSidebarTabSummaryView: View {
     unreadCount: Int,
     agentActivity: TerminalHostState.AgentActivity?,
     terminalProgress: TerminalSidebarTerminalProgress?,
+    hasTerminalBell: Bool = false,
     showsAgentSpinner: Bool = true
   ) -> StatusAccessory? {
     if let terminalProgress {
@@ -477,6 +484,12 @@ struct TerminalSidebarTabSummaryView: View {
     }
     if unreadCount > 0 {
       return .unreadCount(unreadCount)
+    }
+    if let agentActivity, agentActivity.phase == .needsInput {
+      return .agentActivity(agentActivity)
+    }
+    if hasTerminalBell {
+      return .terminalBell
     }
     if let agentActivity,
       agentActivity.showsLeadingIndicator,
@@ -540,6 +553,7 @@ struct TerminalSidebarTabSummaryView: View {
         unreadCount: unreadCount,
         agentActivity: badgeActivity,
         terminalProgress: terminalProgress,
+        hasTerminalBell: hasTerminalBell,
         showsAgentSpinner: showsAgentSpinner
       )
     )
@@ -616,6 +630,12 @@ struct TerminalSidebarTabSummaryView: View {
     case .agentActivity(let activity):
       TerminalSidebarAgentActivityView(
         activity: activity,
+        isSelected: isSelected,
+        palette: palette
+      )
+
+    case .terminalBell:
+      TerminalSidebarBellIndicatorView(
         isSelected: isSelected,
         palette: palette
       )
@@ -832,6 +852,7 @@ struct TerminalSidebarTabRow: View {
 
   private struct AnimatedPresentation: Equatable {
     let badgeActivity: TerminalHostState.AgentActivity?
+    let hasTerminalBell: Bool
     let paneWorkingDirectories: [String]
     let showsAgentMarks: Bool
     let showsAgentSpinner: Bool
@@ -846,6 +867,7 @@ struct TerminalSidebarTabRow: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
+  let hasTerminalBell: Bool
   let palette: TerminalPalette
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
@@ -911,6 +933,7 @@ struct TerminalSidebarTabRow: View {
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
           badgeActivity: agentPresentation.badgeActivity,
+          hasTerminalBell: hasTerminalBell,
           terminalProgress: terminalProgress,
           showsAgentMarks: showsAgentMarks,
           showsAgentSpinner: showsAgentSpinner,
@@ -1062,6 +1085,7 @@ struct TerminalSidebarTabRow: View {
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       badgeActivity: agentPresentation.badgeActivity,
+      hasTerminalBell: hasTerminalBell,
       paneWorkingDirectories: paneWorkingDirectories,
       showsAgentMarks: showsAgentMarks,
       showsAgentSpinner: showsAgentSpinner,
@@ -1199,6 +1223,23 @@ private struct TerminalSidebarAgentActivityView: View {
     case .muted:
       return palette.secondaryText
     }
+  }
+}
+
+private struct TerminalSidebarBellIndicatorView: View {
+  let isSelected: Bool
+  let palette: TerminalPalette
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 5, style: .continuous)
+      .fill(palette.attention.opacity(isSelected ? 0.72 : 0.9))
+      .frame(width: 16, height: 16)
+      .overlay {
+        Image(systemName: "bell.fill")
+          .font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(Color.white)
+          .accessibilityHidden(true)
+      }
   }
 }
 

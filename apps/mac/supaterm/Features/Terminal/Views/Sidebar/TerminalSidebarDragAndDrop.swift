@@ -22,6 +22,8 @@ struct TerminalSidebarDragPreviewItem {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
+  let terminalProgress: TerminalSidebarTerminalProgress?
+  let hasTerminalBell: Bool
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
 }
@@ -494,6 +496,8 @@ private struct TerminalSidebarDragPreviewContent: View {
           paneWorkingDirectories: preview.paneWorkingDirectories,
           unreadCount: preview.unreadCount,
           badgeActivity: preview.badgeActivity,
+          terminalProgress: preview.terminalProgress,
+          hasTerminalBell: preview.hasTerminalBell,
           showsAgentMarks: preview.showsAgentMarks,
           showsAgentSpinner: preview.showsAgentSpinner,
           rowWidth: manager.previewRowWidth,
@@ -515,6 +519,8 @@ private struct TerminalSidebarMorphingPreview: View {
   let paneWorkingDirectories: [String]
   let unreadCount: Int
   let badgeActivity: TerminalHostState.AgentActivity?
+  let terminalProgress: TerminalSidebarTerminalProgress?
+  let hasTerminalBell: Bool
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
   let rowWidth: CGFloat
@@ -528,7 +534,8 @@ private struct TerminalSidebarMorphingPreview: View {
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
       badgeActivity: badgeActivity,
-      terminalProgress: nil,
+      hasTerminalBell: hasTerminalBell,
+      terminalProgress: terminalProgress,
       showsAgentMarks: showsAgentMarks,
       showsAgentSpinner: showsAgentSpinner,
       shortcutHint: nil,

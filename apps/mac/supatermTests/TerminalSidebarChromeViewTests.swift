@@ -33,6 +33,60 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func terminalProgressTakesPrecedenceOverTerminalBell() {
+    let progress = TerminalSidebarTerminalProgress(fraction: 0.5, tone: .active)
+
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: nil,
+        terminalProgress: progress,
+        hasTerminalBell: true
+      ) == .terminalProgress(progress)
+    )
+  }
+
+  @Test
+  func unreadCountTakesPrecedenceOverTerminalBell() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 3,
+        agentActivity: nil,
+        terminalProgress: nil,
+        hasTerminalBell: true
+      ) == .unreadCount(3)
+    )
+  }
+
+  @Test
+  func agentInputTakesPrecedenceOverTerminalBell() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: false,
+        unreadCount: 0,
+        agentActivity: .codex(.needsInput),
+        terminalProgress: nil,
+        hasTerminalBell: true
+      ) == .agentActivity(.codex(.needsInput))
+    )
+  }
+
+  @Test
+  func terminalBellTakesPrecedenceOverRunningAgentAndPinnedStatus() {
+    #expect(
+      TerminalSidebarTabSummaryView.statusAccessory(
+        isPinned: true,
+        unreadCount: 0,
+        agentActivity: .codex(.running),
+        terminalProgress: nil,
+        hasTerminalBell: true
+      ) == .terminalBell
+    )
+  }
+
+  @Test
   func agentActivityAppearsWhenNoHigherPriorityStatusExists() {
     #expect(
       TerminalSidebarTabSummaryView.statusAccessory(

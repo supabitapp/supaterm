@@ -69,6 +69,12 @@ extension TerminalHostState {
     )
   }
 
+  func tabHasBell(for tabID: TerminalTabID) -> Bool {
+    trees[tabID]?.leaves().contains {
+      $0.bridge.state.bellCount > 0
+    } ?? false
+  }
+
   var selectedPaneIsZoomed: Bool {
     Self.isPaneZoomed(
       focusedSurfaceID: currentFocusedSurfaceID(),
