@@ -22,7 +22,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make mac-lint
+      - run: make swiftlint
       - run: make mac-tuist-install
       - run: make mac-tuist-generate
       - run: make mac-build-ghostty

@@ -1,22 +1,26 @@
 amends "package://github.com/jdx/hk/releases/download/v1.44.2/hk@1.44.2#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.44.2/hk@1.44.2#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
     steps {
-      ["check-added-large-files"] {
-        glob = "**/*"
+      ["check-added-large-files"] = (Builtins.check_added_large_files) {
         check = "hk util check-added-large-files --maxkb 2048 {{ files }}"
       }
+      ["check-case-conflict"] = Builtins.check_case_conflict
+      ["check-merge-conflict"] = Builtins.check_merge_conflict
+      ["detect-private-key"] = Builtins.detect_private_key
       ["web-staged"] {
         glob = "**"
         dir = "apps/supaterm.com"
         check = "vp staged"
         depends = "check-added-large-files"
       }
-      ["swiftlint"] {
+      ["swiftlint"] = (Builtins.swiftlint) {
         glob = List("**/*.swift", ".swiftlint.yml")
         dir = "apps/mac"
         check = "make lint"
+        fix = null
         depends = "check-added-large-files"
       }
     }

@@ -12,7 +12,7 @@ WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format mac-lint mac-check mac-test mac-test-xcodebuild mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build mac-run mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -92,7 +92,7 @@ mac-export-archive:  # Export the archived macOS app for distribution.
 mac-format:  # Format macOS app code.
 	@$(MAKE) -C "$(MAC_APP_DIR)" format
 
-mac-lint:  # Lint macOS app code.
+swiftlint:  # Lint macOS app Swift code.
 	@$(MAKE) -C "$(MAC_APP_DIR)" lint
 
 mac-check:  # Run local formatting and linting for the macOS app.
