@@ -7,7 +7,7 @@ hooks {
         check = "python3 .github/scripts/bump_and_release.py validate-pre-commit"
       }
       ["web-staged"] {
-        glob = "apps/supaterm.com/**"
+        glob = "**"
         dir = "apps/supaterm.com"
         check = "vp staged"
         depends = "check-large-files"
