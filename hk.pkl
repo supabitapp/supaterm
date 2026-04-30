@@ -3,20 +3,21 @@ amends "package://github.com/jdx/hk/releases/download/v1.44.2/hk@1.44.2#/Config.
 hooks {
   ["pre-commit"] {
     steps {
-      ["check-large-files"] {
-        check = "python3 .github/scripts/bump_and_release.py validate-pre-commit"
+      ["check-added-large-files"] {
+        glob = "**/*"
+        check = "hk util check-added-large-files --maxkb 2048 {{ files }}"
       }
       ["web-staged"] {
         glob = "**"
         dir = "apps/supaterm.com"
         check = "vp staged"
-        depends = "check-large-files"
+        depends = "check-added-large-files"
       }
       ["swiftlint"] {
         glob = List("**/*.swift", ".swiftlint.yml")
         dir = "apps/mac"
         check = "make lint"
-        depends = "check-large-files"
+        depends = "check-added-large-files"
       }
     }
   }

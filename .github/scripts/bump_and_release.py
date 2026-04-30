@@ -19,7 +19,6 @@ VERSION_STATE_PATH = XCCONFIG_PATH.relative_to(REPO_ROOT).as_posix()
 VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 RELEASE_TAG_PATTERN = re.compile(r"^v(\d+\.\d+\.\d+)$")
 ZERO_OID_PATTERN = re.compile(r"^0+$")
-MAX_NON_LFS_BLOB_BYTES = 2 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -120,18 +119,6 @@ def run(command: list[str], cwd: Path = REPO_ROOT) -> str:
     check=True,
     capture_output=True,
     text=True,
-  )
-  return result.stdout.strip()
-
-
-def run_input(command: list[str], stdin: str, cwd: Path = REPO_ROOT) -> str:
-  result = subprocess.run(
-    command,
-    cwd=cwd,
-    check=True,
-    capture_output=True,
-    text=True,
-    input=stdin,
   )
   return result.stdout.strip()
 
@@ -279,50 +266,6 @@ def read_object_type(reference: str) -> str:
     raise ValueError(f"{reference} could not be resolved locally") from error
 
 
-def read_object_metadata(object_names: list[str]) -> dict[str, tuple[str, int]]:
-  if not object_names:
-    return {}
-  output = run_input(
-    ["git", "cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"],
-    "\n".join(object_names),
-  )
-  metadata: dict[str, tuple[str, int]] = {}
-  for line in output.splitlines():
-    object_name, object_type, object_size = line.split(" ", 2)
-    metadata[object_name] = (object_type, int(object_size))
-  return metadata
-
-
-def staged_blob_paths() -> dict[str, str]:
-  output = run(["git", "diff", "--cached", "--raw", "-z", "--diff-filter=AM", "--no-abbrev"])
-  if not output:
-    return {}
-  entries = output.split("\0")
-  object_paths: dict[str, str] = {}
-  for index in range(0, len(entries) - 1, 2):
-    metadata, path = entries[index], entries[index + 1]
-    if not metadata or not path:
-      continue
-    fields = metadata.split()
-    if len(fields) < 5:
-      continue
-    if fields[1] == "160000":
-      continue
-    object_paths[fields[3]] = path
-  return object_paths
-
-
-def oversized_staged_blobs() -> list[str]:
-  object_paths = staged_blob_paths()
-  metadata = read_object_metadata(list(object_paths))
-  violations: list[str] = []
-  for object_name, path in sorted(object_paths.items(), key=lambda item: item[1]):
-    object_type, object_size = metadata[object_name]
-    if object_type == "blob" and object_size > MAX_NON_LFS_BLOB_BYTES:
-      violations.append(f"{path} ({object_size} bytes)")
-  return violations
-
-
 def validate_release_tag(tag: str, reference: str | None = None) -> None:
   expected_version = release_tag_version(tag)
   resolved_reference = reference or f"refs/tags/{tag}"
@@ -392,14 +335,6 @@ def run_pre_push_branch_checks(stdin: TextIO) -> None:
   run_interactive(["make", "mac-test"])
 
 
-def validate_pre_commit() -> None:
-  violations = oversized_staged_blobs()
-  if violations:
-    raise ValueError(
-      "files larger than 2097152 bytes must be stored in Git LFS:\n" + "\n".join(violations)
-    )
-
-
 def publish_release_tag(tag: str, notes_path: Path, force: bool = False) -> None:
   create_annotated_tag(tag, notes_path, force=force)
   push_release_tag(tag, force=force)
@@ -459,15 +394,12 @@ def main() -> int:
   validate_release_tag_parser = subparsers.add_parser("validate-release-tag")
   validate_release_tag_parser.add_argument("tag")
   validate_release_tag_parser.add_argument("--ref")
-  subparsers.add_parser("validate-pre-commit")
   subparsers.add_parser("validate-pre-push")
   subparsers.add_parser("run-pre-push-branch-checks")
   args = parser.parse_args()
   try:
     if args.command == "validate-release-tag":
       validate_release_tag(args.tag, args.ref)
-    elif args.command == "validate-pre-commit":
-      validate_pre_commit()
     elif args.command == "validate-pre-push":
       validate_pre_push(sys.stdin)
     elif args.command == "run-pre-push-branch-checks":
