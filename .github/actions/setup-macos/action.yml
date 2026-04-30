@@ -21,6 +21,17 @@ runs:
       run: |
         XCODE_VERSION="$(xcodebuild -version | tr '\n' '-' | sed 's/[^A-Za-z0-9._-]/_/g; s/-$//')"
         printf '%s\n' "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
+    - name: Tuist package cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          apps/mac/Tuist/.build/repositories
+          apps/mac/Tuist/.build/checkouts
+          apps/mac/Tuist/.build/artifacts
+          apps/mac/Tuist/.build/prebuilts
+          apps/mac/Tuist/.build/workspace-state.json
+          apps/mac/Tuist/.build/Derived
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-tuist-packages-v1-${{ hashFiles('mise.toml', 'apps/mac/Tuist/Package.swift', 'apps/mac/Tuist/Package.resolved') }}
     - name: Ghostty cache key
       shell: bash
       run: |
