@@ -113,7 +113,7 @@ struct ToolbarIconButton: View {
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(palette.detailBackground.opacity(0.9))
             }
-            .offset(x: 5, y: -4)
+            .offset(x: 3, y: -2)
             .accessibilityHidden(true)
         }
       }
