@@ -253,6 +253,7 @@ let project = Project(
       ]),
       resources: [
         "supaterm/Assets.xcassets",
+        "supaterm/supaterm.icon",
       ],
       buildableFolders: [
         "supaterm/App",
@@ -341,7 +342,7 @@ let project = Project(
       ],
       settings: .settings(
         base: [
-          "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+          "ASSETCATALOG_COMPILER_APPICON_NAME": "supaterm",
           "ENABLE_HARDENED_RUNTIME": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
         ],
