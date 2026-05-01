@@ -115,8 +115,8 @@ struct ToolbarIconButton: View {
                 Circle()
                   .stroke(palette.detailBackground.opacity(0.9), lineWidth: 1)
               }
-              .padding(.top, 5)
-              .padding(.trailing, 5)
+              .padding(.top, 2)
+              .padding(.trailing, 2)
               .accessibilityHidden(true)
           }
         }
