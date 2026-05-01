@@ -16,6 +16,35 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v1.2.0",
+    date: "2026-05-01",
+    title: "Genie",
+    description: "We got a new logo! Thanks to Genie",
+    sections: [
+      {
+        category: "new",
+        items: [
+          "Respect Ghostty global terminal visibility keybinds,example: keybind = global:super+shift+s=toggle_visibility",
+          "Show a amber dot on the toggle sidebar icon if you are in collapsed mode",
+        ],
+      },
+      {
+        category: "improvements",
+        items: [
+          "Split panes now dim inactive panes, hover resize dividers more cleanly, and restore focus after split zoom",
+          "settings.toml now stays sparse and only writes changed settings",
+          "Terminal UI motion now respects macOS Reduce Motion",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Coding-agent setup now shows install failure logs and handles more package sources",
+        ],
+      },
+    ],
+  },
+  {
     version: "v1.1.1",
     date: "2026-04-17",
     title: "Lightmode blindness",
