@@ -99,28 +99,29 @@ struct ToolbarIconButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 14, weight: .medium))
-        .foregroundStyle(isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText)
-        .frame(width: 30, height: 30)
-        .background(
-          isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6)
-        )
-        .overlay(alignment: .topTrailing) {
-          if showsAttentionIndicator {
-            Circle()
-              .fill(palette.amber)
-              .frame(width: 7, height: 7)
-              .overlay {
-                Circle()
-                  .stroke(palette.detailBackground.opacity(0.9), lineWidth: 1)
-              }
-              .padding(.top, 2)
-              .padding(.trailing, 2)
-              .accessibilityHidden(true)
-          }
+      ZStack(alignment: .topTrailing) {
+        Image(systemName: symbol)
+          .font(.system(size: 14, weight: .medium))
+          .foregroundStyle(isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText)
+
+        if showsAttentionIndicator {
+          Image(systemName: "circle.fill")
+            .font(.system(size: 7, weight: .bold))
+            .foregroundStyle(palette.amber)
+            .background {
+              Image(systemName: "circle.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(palette.detailBackground.opacity(0.9))
+            }
+            .offset(x: 5, y: -4)
+            .accessibilityHidden(true)
         }
-        .accessibilityHidden(true)
+      }
+      .frame(width: 30, height: 30)
+      .background(
+        isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6)
+      )
+      .accessibilityHidden(true)
     }
     .buttonStyle(.plain)
     .accessibilityLabel(accessibilityLabel ?? "Action")
