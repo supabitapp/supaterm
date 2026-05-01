@@ -672,6 +672,37 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
+  func hasUnreadSidebarNotificationsTracksVisibleTabAttention() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.windowActivity = WindowActivityState(isKeyWindow: true, isVisible: true)
+
+    #expect(!host.hasUnreadSidebarNotifications)
+
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+
+    let surface = try #require(host.selectedSurfaceView)
+
+    #expect(!host.hasUnreadSidebarNotifications)
+
+    _ = try host.notify(
+      TerminalNotifyRequest(
+        body: "Input requested",
+        subtitle: "",
+        target: .contextPane(surface.id),
+        title: "Task"
+      )
+    )
+
+    #expect(host.hasUnreadSidebarNotifications)
+
+    host.handleDirectInteraction(on: surface.id)
+
+    #expect(!host.hasUnreadSidebarNotifications)
+  }
+
+  @Test
   func selectingTabPrefersUnreadPaneFromBackgroundSplit() throws {
     initializeGhosttyForTests()
 

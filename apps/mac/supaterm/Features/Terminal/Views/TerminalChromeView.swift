@@ -78,6 +78,7 @@ struct ToolbarIconButton: View {
   let symbol: String
   let palette: TerminalPalette
   let accessibilityLabel: String?
+  let showsAttentionIndicator: Bool
   let action: () -> Void
 
   @State private var isHovering = false
@@ -86,11 +87,13 @@ struct ToolbarIconButton: View {
     symbol: String,
     palette: TerminalPalette,
     accessibilityLabel: String? = nil,
+    showsAttentionIndicator: Bool = false,
     action: @escaping () -> Void = {}
   ) {
     self.symbol = symbol
     self.palette = palette
     self.accessibilityLabel = accessibilityLabel
+    self.showsAttentionIndicator = showsAttentionIndicator
     self.action = action
   }
 
@@ -103,6 +106,20 @@ struct ToolbarIconButton: View {
         .background(
           isHovering ? palette.secondaryText.opacity(0.2) : .clear, in: .rect(cornerRadius: 6)
         )
+        .overlay(alignment: .topTrailing) {
+          if showsAttentionIndicator {
+            Circle()
+              .fill(palette.amber)
+              .frame(width: 7, height: 7)
+              .overlay {
+                Circle()
+                  .stroke(palette.detailBackground.opacity(0.9), lineWidth: 1)
+              }
+              .padding(.top, 5)
+              .padding(.trailing, 5)
+              .accessibilityHidden(true)
+          }
+        }
         .accessibilityHidden(true)
     }
     .buttonStyle(.plain)

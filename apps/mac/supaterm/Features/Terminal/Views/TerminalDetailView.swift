@@ -19,6 +19,8 @@ struct TerminalDetailView: View {
         canSplit: terminal.selectedSurfaceView != nil,
         isPaneZoomed: terminal.selectedPaneIsZoomed,
         isSidebarCollapsed: store.isSidebarCollapsed,
+        showsSidebarAttentionIndicator: store.isSidebarCollapsed
+          && terminal.hasUnreadSidebarNotifications,
         palette: palette,
         backgroundColor: terminal.terminalBackgroundColor,
         equalizePanes: {
@@ -65,6 +67,7 @@ private struct TerminalDetailTopBar: View {
   let canSplit: Bool
   let isPaneZoomed: Bool
   let isSidebarCollapsed: Bool
+  let showsSidebarAttentionIndicator: Bool
   let palette: TerminalPalette
   let backgroundColor: Color
   let equalizePanes: () -> Void
@@ -74,12 +77,20 @@ private struct TerminalDetailTopBar: View {
   let splitRight: () -> Void
   let togglePaneZoom: () -> Void
 
+  private var sidebarAccessibilityLabel: String {
+    if showsSidebarAttentionIndicator {
+      return "Show sidebar, unread notifications"
+    }
+    return isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"
+  }
+
   var body: some View {
     HStack(spacing: 0) {
       ToolbarIconButton(
         symbol: "sidebar.left",
         palette: palette,
-        accessibilityLabel: isSidebarCollapsed ? "Show sidebar" : "Hide sidebar",
+        accessibilityLabel: sidebarAccessibilityLabel,
+        showsAttentionIndicator: showsSidebarAttentionIndicator,
         action: toggleSidebar
       )
       .help(isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar")

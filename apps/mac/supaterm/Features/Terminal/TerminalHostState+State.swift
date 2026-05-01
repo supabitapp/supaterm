@@ -33,6 +33,10 @@ extension TerminalHostState {
     spaceManager.visibleTabs
   }
 
+  var hasUnreadSidebarNotifications: Bool {
+    visibleTabs.contains { unreadNotificationCount(for: $0.id) > 0 }
+  }
+
   var selectedTabID: TerminalTabID? {
     spaceManager.selectedTabID
   }
