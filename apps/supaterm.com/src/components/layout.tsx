@@ -105,7 +105,7 @@ function Layout() {
       <footer className="px-6 pb-10 md:px-10 md:pb-12">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-4 border-t border-white/8 pt-6 text-sm text-white/42 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <img src="/supaterm-app-icon.png" alt="Supaterm" className="size-5 rounded-[6px]" />
+            <img src="/logo.svg" alt="Supaterm" className="size-5" />
             <span>Supaterm</span>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
