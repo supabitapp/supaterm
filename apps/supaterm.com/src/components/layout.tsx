@@ -66,9 +66,10 @@ function Layout() {
         <div className="mx-auto flex h-[52px] w-full max-w-[1440px] items-center justify-between px-6 md:px-10">
           <Link
             to="/"
-            className="font-mono text-base font-bold tracking-[0.22em] text-white uppercase"
+            className="flex items-center gap-2 font-mono text-base font-bold tracking-[0.22em] text-white uppercase"
           >
-            Supaterm
+            <img src="/logo-mark.svg" alt="" className="h-5 w-auto" />
+            <span>Supaterm</span>
           </Link>
           <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
             <span className="flex items-center gap-1.5 text-sm text-white/50">
@@ -105,7 +106,7 @@ function Layout() {
       <footer className="px-6 pb-10 md:px-10 md:pb-12">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-4 border-t border-white/8 pt-6 text-sm text-white/42 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="Supaterm" className="size-5" />
+            <img src="/logo-mark.svg" alt="Supaterm" className="h-5 w-auto" />
             <span>Supaterm</span>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2">

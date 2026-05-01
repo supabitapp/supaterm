@@ -102,6 +102,16 @@ describe("router", () => {
     expect(capture).toHaveBeenCalledWith("nav_download_clicked");
   });
 
+  it("renders the transparent brand mark before the site title", async () => {
+    await renderRoute("/");
+
+    const brandLink = screen.getByRole("link", { name: "Supaterm" });
+    const brandMark = brandLink.querySelector("img");
+
+    expect(brandMark?.getAttribute("src")).toBe("/logo-mark.svg");
+    expect(brandMark?.getAttribute("alt")).toBe("");
+  });
+
   it("renders the changelog page for direct navigation", async () => {
     const { history, router } = await renderRoute("/changelog");
 
