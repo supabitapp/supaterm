@@ -339,7 +339,7 @@ extension TerminalHostState {
   }
 
   func selectTab(_ target: TerminalTabTarget) throws -> SupatermSelectTabResult {
-    let resolvedTarget = try resolveTabTarget(target)
+    let resolvedTarget = try resolveTabItemTarget(target)
     if selectedSpaceID != resolvedTarget.spaceID {
       selectSpace(resolvedTarget.spaceID, persistDefaultSelection: true)
     }
@@ -371,7 +371,7 @@ extension TerminalHostState {
   }
 
   func resolveClose(_ target: TerminalTabTarget) throws -> ResolvedTabClose {
-    let resolvedTarget = try resolveTabTarget(target)
+    let resolvedTarget = try resolveTabItemTarget(target)
     return ResolvedTabClose(
       result: try tabTarget(for: resolvedTarget.tabID),
       shouldCloseWindow: shouldCloseWindow(afterClosing: [resolvedTarget.tabID]),
@@ -487,7 +487,7 @@ extension TerminalHostState {
   }
 
   func renameTab(_ request: TerminalRenameTabRequest) throws -> SupatermRenameTabResult {
-    let resolvedTarget = try resolveTabTarget(request.target)
+    let resolvedTarget = try resolveTabItemTarget(request.target)
     let title = Self.trimmedNonEmpty(request.title)
     setLockedTabTitle(title, for: resolvedTarget.tabID)
     return SupatermRenameTabResult(
@@ -497,7 +497,7 @@ extension TerminalHostState {
   }
 
   func pinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
-    let resolvedTarget = try resolveTabTarget(target)
+    let resolvedTarget = try resolveTabItemTarget(target)
     if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned != true {
       togglePinned(resolvedTarget.tabID)
     }
@@ -505,7 +505,7 @@ extension TerminalHostState {
   }
 
   func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
-    let resolvedTarget = try resolveTabTarget(target)
+    let resolvedTarget = try resolveTabItemTarget(target)
     if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned == true {
       togglePinned(resolvedTarget.tabID)
     }
@@ -741,6 +741,37 @@ extension TerminalHostState {
           tabIndex: tabIndex
         )
       }
+    }
+  }
+
+  func resolveTabItemTarget(_ target: TerminalTabTarget) throws -> ResolvedTabItemTarget {
+    switch target {
+    case .contextPane(let contextPaneID):
+      guard
+        let tabID = tabID(containing: contextPaneID),
+        let space = spaceManager.space(for: tabID)
+      else {
+        throw TerminalControlError.contextPaneNotFound
+      }
+      return ResolvedTabItemTarget(spaceID: space.id, tabID: tabID)
+
+    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      guard windowIndex == 1 else {
+        throw TerminalControlError.windowNotFound(windowIndex)
+      }
+      guard let space = spaceManager.space(at: spaceIndex) else {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      }
+      let tabs = spaceManager.tabs(in: space.id)
+      let tabOffset = tabIndex - 1
+      guard tabs.indices.contains(tabOffset) else {
+        throw TerminalControlError.tabNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          tabIndex: tabIndex
+        )
+      }
+      return ResolvedTabItemTarget(spaceID: space.id, tabID: tabs[tabOffset].id)
     }
   }
 

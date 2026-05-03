@@ -161,6 +161,166 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
+  func closingPinnedTabSuspendsItAndSelectsPreviousLiveTab() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      let selectedSpaceID = try #require(host.selectedSpaceID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let regularTabID = try #require(host.selectedTabID)
+      host.handleCommand(.selectTab(pinnedTabID))
+
+      host.handleCommand(.closeTab(pinnedTabID))
+
+      @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      #expect(host.spaceManager.tab(for: pinnedTabID)?.isPinned == true)
+      #expect(host.trees[pinnedTabID] == nil)
+      #expect(host.selectedSpaceID == selectedSpaceID)
+      #expect(host.selectedTabID == regularTabID)
+      #expect(host.trees[regularTabID] != nil)
+      #expect(sharedCatalog.tabs(in: selectedSpaceID).map(\.id) == [pinnedTabID])
+    }
+  }
+
+  @Test
+  func closingLastPaneInPinnedTabSuspendsItAndSelectsPreviousLiveTab() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let regularTabID = try #require(host.selectedTabID)
+      host.handleCommand(.selectTab(pinnedTabID))
+      let surfaceID = try #require(host.currentFocusedSurfaceID())
+
+      host.handleCommand(.closeSurface(surfaceID))
+
+      #expect(host.spaceManager.tab(for: pinnedTabID)?.isPinned == true)
+      #expect(host.trees[pinnedTabID] == nil)
+      #expect(host.selectedTabID == regularTabID)
+      #expect(host.trees[regularTabID] != nil)
+    }
+  }
+
+  @Test
+  func selectingSuspendedPinnedTabCreatesFreshPane() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+      host.handleCommand(.closeTab(pinnedTabID))
+
+      #expect(host.trees[pinnedTabID] == nil)
+
+      host.handleCommand(.selectTab(pinnedTabID))
+
+      #expect(host.selectedTabID == pinnedTabID)
+      #expect(host.trees[pinnedTabID]?.leaves().count == 1)
+    }
+  }
+
+  @Test
+  func closeRequestForLastPaneInPinnedTabDoesNotRequestWindowClose() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      let stream = host.eventStream()
+      var iterator = stream.makeAsyncIterator()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+      let surfaceID = try #require(host.currentFocusedSurfaceID())
+
+      host.requestCloseSurface(surfaceID, needsConfirmation: false)
+
+      let event = try #require(await iterator.next())
+      #expect(
+        event
+          == .closeRequested(
+            TerminalCloseRequest(target: .surface(surfaceID), needsConfirmation: false)))
+    }
+  }
+
+  @Test
+  func catalogUpdatesDoNotRespawnSuspendedPinnedTab() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      let selectedSpaceID = try #require(host.selectedSpaceID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+      host.handleCommand(.closeTab(pinnedTabID))
+
+      @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      $sharedCatalog.withLock {
+        let tabs = $0.tabs(in: selectedSpaceID).map { tab in
+          var tab = tab
+          tab.session.lockedTitle = "Pinned Shell"
+          return tab
+        }
+        $0 = $0.updatingTabs(tabs, in: selectedSpaceID)
+      }
+      await flushPinnedTabCatalogObservation()
+
+      #expect(host.trees[pinnedTabID] == nil)
+      #expect(host.spaceManager.tab(for: pinnedTabID)?.title == "Pinned Shell")
+    }
+  }
+
+  @Test
+  func unpinningSuspendedPinnedTabRemovesPlaceholder() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      let selectedSpaceID = try #require(host.selectedSpaceID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+      host.handleCommand(.closeTab(pinnedTabID))
+
+      host.handleCommand(.togglePinned(pinnedTabID))
+
+      @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      #expect(host.spaceManager.tab(for: pinnedTabID) == nil)
+      #expect(sharedCatalog.tabs(in: selectedSpaceID).isEmpty)
+    }
+  }
+
+  @Test
   func unpinningPinnedTabConvertsExistingCopiesIntoRegularTabs() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

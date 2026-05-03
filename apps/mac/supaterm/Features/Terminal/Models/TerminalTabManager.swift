@@ -50,6 +50,10 @@ final class TerminalTabManager {
     selectedTabId = id
   }
 
+  func clearSelection() {
+    selectedTabId = nil
+  }
+
   func updateTitle(_ id: TerminalTabID, title: String) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     guard !tabs[index].isTitleLocked else { return }

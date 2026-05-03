@@ -626,7 +626,13 @@ final class TerminalHostState {
 
   func togglePinned(_ tabID: TerminalTabID) {
     guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
-    spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
+    if spaceManager.tab(for: tabID)?.isPinned == true, trees[tabID] == nil {
+      let wasSelectedSpace = selectedSpaceID == spaceID
+      spaceManager.tabManager(for: spaceID)?.closeTab(tabID)
+      updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
+    } else {
+      spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
+    }
     syncPinnedTabMembership(in: spaceID)
     sessionDidChange()
   }
@@ -991,14 +997,18 @@ final class TerminalHostState {
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == space.id
 
+    if wasPinned {
+      suspendPinnedTab(tabID)
+      updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
+      syncFocus(windowActivity)
+      sessionDidChange()
+      return
+    }
+
     removeTree(for: tabID)
     tabManager.closeTab(tabID)
-
     updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
     syncFocus(windowActivity)
-    if wasPinned {
-      syncPinnedTabMembership(in: space.id)
-    }
     sessionDidChange()
   }
 
@@ -1020,6 +1030,19 @@ final class TerminalHostState {
       ? tree.focusTargetAfterClosing(node)
       : nil
     let newTree = tree.removing(node)
+
+    if newTree.isEmpty, wasPinned {
+      suspendPinnedTab(tabID)
+      if let spaceID {
+        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
+      } else {
+        lastEmittedFocusSurfaceID = nil
+      }
+      syncFocus(windowActivity)
+      sessionDidChange()
+      return
+    }
+
     surface.closeSurface()
     surfaces.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
@@ -1039,9 +1062,6 @@ final class TerminalHostState {
         lastEmittedFocusSurfaceID = nil
       }
       syncFocus(windowActivity)
-      if wasPinned, let spaceID {
-        syncPinnedTabMembership(in: spaceID)
-      }
       sessionDidChange()
       return
     }
@@ -1087,6 +1107,18 @@ final class TerminalHostState {
     return view
   }
 
+  func suspendPinnedTab(_ tabID: TerminalTabID) {
+    guard
+      let space = spaceManager.space(for: tabID),
+      let tabManager = spaceManager.tabManager(for: space.id),
+      spaceManager.tab(for: tabID)?.isPinned == true
+    else {
+      return
+    }
+    removeTree(for: tabID)
+    tabManager.updateDirty(tabID, isDirty: false)
+  }
+
   func updateSelectionAfterClosingTab(
     in spaceID: TerminalSpaceID,
     wasSelectedSpace: Bool
@@ -1094,29 +1126,70 @@ final class TerminalHostState {
     guard wasSelectedSpace else { return }
 
     if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
-      if trees[selectedTabID] != nil {
-        focusSurface(in: selectedTabID)
-      } else {
-        lastEmittedFocusSurfaceID = nil
+      if isSelectableTab(selectedTabID) {
+        focusSurfaceIfNeeded(in: selectedTabID)
+        return
       }
+    }
+
+    if let tabID = replacementLiveTabID(in: spaceID) {
+      applySelectedTab(tabID, in: spaceID)
+      focusSurfaceIfNeeded(in: tabID)
       return
     }
 
-    guard
-      let fallbackSpaceID = spaces.first(where: { !spaceManager.tabs(in: $0.id).isEmpty })?.id,
-      let fallbackTabID = spaceManager.selectedTabID(in: fallbackSpaceID)
-        ?? spaceManager.tabs(in: fallbackSpaceID).first?.id
-    else {
-      lastEmittedFocusSurfaceID = nil
+    spaceManager.tabManager(for: spaceID)?.clearSelection()
+
+    if let previousSelectedSpaceID,
+      previousSelectedSpaceID != spaceID,
+      let tabID = replacementLiveTabID(in: previousSelectedSpaceID)
+    {
+      _ = applySelectedSpace(previousSelectedSpaceID)
+      applySelectedTab(tabID, in: previousSelectedSpaceID)
+      focusSurfaceIfNeeded(in: tabID)
       return
     }
 
-    _ = applySelectedSpace(fallbackSpaceID)
-    if trees[fallbackTabID] != nil {
-      focusSurface(in: fallbackTabID)
-    } else {
-      lastEmittedFocusSurfaceID = nil
+    if let fallback = firstLiveTabLocation() {
+      _ = applySelectedSpace(fallback.spaceID)
+      applySelectedTab(fallback.tabID, in: fallback.spaceID)
+      focusSurfaceIfNeeded(in: fallback.tabID)
+      return
     }
+
+    lastEmittedFocusSurfaceID = nil
+  }
+
+  func replacementLiveTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
+    let tabs = spaceManager.tabs(in: spaceID)
+    if let previousTabID = previousSelectedTabIDBySpace[spaceID],
+      tabs.contains(where: { $0.id == previousTabID }),
+      isSelectableTab(previousTabID)
+    {
+      return previousTabID
+    }
+    return tabs.reversed().first { isSelectableTab($0.id) }?.id
+  }
+
+  func firstLiveTabLocation() -> (spaceID: TerminalSpaceID, tabID: TerminalTabID)? {
+    for space in spaces {
+      if let tabID = spaceManager.tabs(in: space.id).first(where: { isSelectableTab($0.id) })?.id {
+        return (space.id, tabID)
+      }
+    }
+    return nil
+  }
+
+  func isSelectableTab(_ tabID: TerminalTabID) -> Bool {
+    !managesTerminalSurfaces || trees[tabID] != nil
+  }
+
+  func focusSurfaceIfNeeded(in tabID: TerminalTabID) {
+    guard managesTerminalSurfaces else {
+      lastEmittedFocusSurfaceID = nil
+      return
+    }
+    focusSurface(in: tabID)
   }
 
   func configureBridgeCallbacks(
@@ -1290,6 +1363,11 @@ final class TerminalHostState {
     let spaceID: TerminalSpaceID
     let tabID: TerminalTabID
     let tree: SplitTree<GhosttySurfaceView>
+  }
+
+  struct ResolvedTabItemTarget {
+    let spaceID: TerminalSpaceID
+    let tabID: TerminalTabID
   }
 
   struct ResolvedCreatePaneTab {
@@ -1717,8 +1795,18 @@ final class TerminalHostState {
   }
 
   func shouldCloseWindow<S: Sequence>(afterClosing tabIDs: S) -> Bool where S.Element == TerminalTabID {
-    let closingTabIDs = Set(tabIDs.filter { trees[$0] != nil })
-    return !closingTabIDs.isEmpty && closingTabIDs.count == trees.count
+    let requestedTabIDs = Set(tabIDs)
+    let closingRegularTabIDs = Set(
+      requestedTabIDs.filter { tabID in
+        trees[tabID] != nil && spaceManager.tab(for: tabID)?.isPinned != true
+      }
+    )
+    let survivingTabs = spaces.flatMap { space in
+      spaceManager.tabs(in: space.id).filter { tab in
+        tab.isPinned || !requestedTabIDs.contains(tab.id)
+      }
+    }
+    return !closingRegularTabIDs.isEmpty && survivingTabs.isEmpty
   }
 
   func shouldCloseWindow(afterClosingSurface surfaceID: UUID) -> Bool {
@@ -1778,16 +1866,17 @@ final class TerminalHostState {
       )
 
     case .tabs(let tabIDs):
-      let existingTabIDs = tabIDs.filter { trees[$0] != nil }
+      let existingTabIDs = tabIDs.filter { spaceManager.tab(for: $0) != nil }
       guard !existingTabIDs.isEmpty else { return nil }
       if shouldCloseWindow(afterClosing: existingTabIDs) {
         return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
       }
+      let tabIDsWithTrees = existingTabIDs.filter { trees[$0] != nil }
       return .request(
         TerminalCloseRequest(
           target: .tabs(existingTabIDs),
           needsConfirmation: needsConfirmationOverride
-            ?? existingTabIDs.contains(where: tabNeedsCloseConfirmation)
+            ?? tabIDsWithTrees.contains(where: tabNeedsCloseConfirmation)
         )
       )
     }

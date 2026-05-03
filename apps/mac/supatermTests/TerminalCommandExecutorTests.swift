@@ -70,6 +70,39 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
+  func closeTabSuspendsPinnedLastTabInsteadOfClosingWindow() throws {
+    initializeGhosttyForTests()
+
+    let registry = TerminalWindowRegistry()
+    let commandExecutor = makeCommandExecutor(registry: registry)
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+    let tabID = try #require(host.selectedTabID)
+    host.handleCommand(.togglePinned(tabID))
+    let store = Store(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+    let windowControllerID = UUID()
+    var closeWindowCount = 0
+
+    registry.register(
+      keyboardShortcutForAction: { _ in nil },
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: host,
+      requestConfirmedWindowClose: { closeWindowCount += 1 }
+    )
+    let window = makeWindow()
+    registry.updateWindow(window, for: windowControllerID)
+
+    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+
+    #expect(closeWindowCount == 0)
+    #expect(host.spaceManager.tab(for: tabID)?.isPinned == true)
+    #expect(host.trees[tabID] == nil)
+  }
+
+  @Test
   func closePaneClosesWindowWhenTargetIsTheLastPane() throws {
     initializeGhosttyForTests()
 

@@ -226,7 +226,6 @@ extension TerminalHostState {
     titlesToRefresh: inout [TerminalTabID]
   ) -> TerminalTabItem? {
     guard var preservedPinnedTab = currentTabsByID[desiredTab.id] else { return nil }
-    guard !managesTerminalSurfaces || trees[desiredTab.id] != nil else { return nil }
 
     preservedPinnedTab.isPinned = true
     if let lockedTitle = desiredTab.session.lockedTitle {
