@@ -907,7 +907,6 @@ struct TerminalSidebarTabRow: View {
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
-  @State private var isCloseHovering = false
 
   private var isSelected: Bool {
     terminal.selectedTabID == tab.id
@@ -956,24 +955,6 @@ struct TerminalSidebarTabRow: View {
           summary.help(helpText)
         } else {
           summary
-        }
-
-        if isHovering && !showsShortcutHint {
-          Button(action: close) {
-            Image(systemName: "xmark")
-              .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-              .frame(width: 24, height: 24)
-              .accessibilityHidden(true)
-              .background(
-                isCloseHovering
-                  ? (isSelected ? palette.clearFill : palette.rowFill)
-                  : .clear,
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-              )
-          }
-          .buttonStyle(.plain)
-          .onHover { isCloseHovering = $0 }
         }
       }
       .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
