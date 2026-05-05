@@ -104,9 +104,20 @@ extension TerminalHostState {
   }
 
   func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
-    Self.paneWorkingDirectories(
-      in: splitTree(for: tabID),
-      pwd: { $0.bridge.state.pwd }
+    if let tree = trees[tabID] {
+      return Self.paneWorkingDirectories(
+        paths: tree.leaves().map { $0.bridge.state.pwd }
+      )
+    }
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      spaceManager.tab(for: tabID)?.isPinned == true,
+      let session = pinnedTabCatalog.tabs(in: spaceID).first(where: { $0.id == tabID })?.session
+    else {
+      return []
+    }
+    return Self.paneWorkingDirectories(
+      paths: session.root.workingDirectoryPaths
     )
   }
 
@@ -369,9 +380,17 @@ extension TerminalHostState {
     in tree: SplitTree<Surface>?,
     pwd: (Surface) -> String?
   ) -> [String] where Surface.ID == UUID {
+    paneWorkingDirectories(
+      paths: (tree?.leaves() ?? []).map(pwd)
+    )
+  }
+
+  static func paneWorkingDirectories(
+    paths: [String?]
+  ) -> [String] {
     var seen = Set<String>()
-    return (tree?.leaves() ?? []).compactMap { surface in
-      guard let path = trimmedNonEmpty(pwd(surface)) else { return nil }
+    return paths.compactMap { path in
+      guard let path = trimmedNonEmpty(path) else { return nil }
       let normalized = GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
       guard seen.insert(normalized).inserted else { return nil }
       return (normalized as NSString).abbreviatingWithTildeInPath
@@ -835,6 +854,17 @@ extension TerminalHostState {
   ) -> String? {
     guard let trimmed = trimmedNonEmpty(value) else { return nil }
     return trimmed.split(whereSeparator: \.isWhitespace).first.map { String($0) }
+  }
+}
+
+extension TerminalPaneNodeSession {
+  fileprivate var workingDirectoryPaths: [String?] {
+    switch self {
+    case .leaf(let leaf):
+      return [leaf.workingDirectoryPath]
+    case .split(let split):
+      return split.left.workingDirectoryPaths + split.right.workingDirectoryPaths
+    }
   }
 }
 

@@ -263,6 +263,42 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
+  func dormantPinnedTabWorkingDirectoryQueryDoesNotCreatePane() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let restoredPath = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: restoredPath, withIntermediateDirectories: true)
+      let restoredPathString = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        restoredPath.path(percentEncoded: false)
+      )
+      let expectedDisplayPath = (restoredPathString as NSString).abbreviatingWithTildeInPath
+      defer {
+        try? FileManager.default.removeItem(at: restoredPath)
+      }
+
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+      host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
+      let surfaceID = try #require(host.currentFocusedSurfaceID())
+
+      host.handleCommand(.closeSurface(surfaceID))
+
+      #expect(host.trees[pinnedTabID] == nil)
+      #expect(host.paneWorkingDirectories(for: pinnedTabID) == [expectedDisplayPath])
+      #expect(host.trees[pinnedTabID] == nil)
+    }
+  }
+
+  @Test
   func selectingSuspendedPinnedTabCreatesFreshPane() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
