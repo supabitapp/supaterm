@@ -120,6 +120,35 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
     )
   }
 
+  func updatingWorkingDirectoryPaths(
+    _ workingDirectoryPaths: [String?],
+    focusedPaneIndex: Int
+  ) -> TerminalTabSession {
+    guard root.leafCount > 0 else { return self }
+    let resolvedFocusedPaneIndex = min(max(focusedPaneIndex, 0), root.leafCount - 1)
+    let focusedWorkingDirectoryPath =
+      workingDirectoryPaths.indices.contains(focusedPaneIndex)
+      ? workingDirectoryPaths[focusedPaneIndex]
+      : workingDirectoryPaths.first.flatMap { $0 }
+    let updatesAllLeafPaths = root.leafCount == workingDirectoryPaths.count
+    let root =
+      root.updatingLeaves { index, leaf in
+        var leaf = leaf
+        if updatesAllLeafPaths {
+          leaf.workingDirectoryPath = workingDirectoryPaths[index]
+        } else if index == resolvedFocusedPaneIndex {
+          leaf.workingDirectoryPath = focusedWorkingDirectoryPath
+        }
+        return leaf
+      }
+    return TerminalTabSession(
+      isPinned: isPinned,
+      lockedTitle: lockedTitle,
+      focusedPaneIndex: resolvedFocusedPaneIndex,
+      root: root
+    )
+  }
+
   private static func resolvedFocusedPaneIndex(
     _ focusedPaneIndex: Int,
     leafCount: Int
@@ -175,12 +204,49 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
+  fileprivate func updatingLeaves(
+    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession
+  ) -> TerminalPaneNodeSession {
+    var index = 0
+    return updatingLeaves(update, index: &index)
+  }
+
   func pruned() -> TerminalPaneNodeSession? {
     switch self {
     case .leaf(let leaf):
       return .leaf(leaf.pruned())
     case .split(let split):
       return split.pruned()
+    }
+  }
+
+  private func updatingLeaves(
+    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession,
+    index: inout Int
+  ) -> TerminalPaneNodeSession {
+    switch self {
+    case .leaf(let leaf):
+      let leaf = update(index, leaf)
+      index += 1
+      return .leaf(leaf)
+
+    case .split(let split):
+      let left = split.left.updatingLeaves(
+        update,
+        index: &index
+      )
+      let right = split.right.updatingLeaves(
+        update,
+        index: &index
+      )
+      return .split(
+        TerminalPaneSplitSession(
+          direction: split.direction,
+          ratio: split.ratio,
+          left: left,
+          right: right
+        )
+      )
     }
   }
 }

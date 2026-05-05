@@ -85,6 +85,35 @@ extension TerminalHostState {
     }
   }
 
+  func persistPinnedTabWorkingDirectoriesIfNeeded(for tabID: TerminalTabID) {
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      spaceManager.tab(for: tabID)?.isPinned == true,
+      let tree = trees[tabID]
+    else {
+      return
+    }
+
+    let leaves = tree.leaves()
+    let workingDirectoryPaths = leaves.map(workingDirectoryPath(for:))
+    let focusedPaneIndex =
+      focusedSurfaceIDByTab[tabID].flatMap { focusedSurfaceID in
+        leaves.firstIndex(where: { $0.id == focusedSurfaceID })
+      } ?? 0
+    let tabs = synchronizedPinnedTabs(in: spaceID).map { entry in
+      guard entry.id == tabID else { return entry }
+      var entry = entry
+      entry.session = entry.session.updatingWorkingDirectoryPaths(
+        workingDirectoryPaths,
+        focusedPaneIndex: focusedPaneIndex
+      )
+      return entry
+    }
+    updatePinnedTabCatalog { pinnedTabCatalog in
+      pinnedTabCatalog.updatingTabs(tabs, in: spaceID)
+    }
+  }
+
   func persistPinnedTabTitleIfNeeded(for tabID: TerminalTabID) {
     guard
       let spaceID = spaceManager.space(for: tabID)?.id,
@@ -244,5 +273,23 @@ extension TerminalHostState {
     var regularTab = tab
     regularTab.isPinned = false
     return regularTab
+  }
+
+  func restorePinnedTabSessionIfNeeded(for tabID: TerminalTabID) {
+    guard
+      managesTerminalSurfaces,
+      trees[tabID] == nil,
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      spaceManager.tab(for: tabID)?.isPinned == true,
+      let pinnedTab = pinnedTabCatalog.tabs(in: spaceID).first(where: { $0.id == tabID })
+    else {
+      return
+    }
+
+    restoreTabSession(
+      pinnedTab.session,
+      tabID: tabID,
+      in: spaceID
+    )
   }
 }

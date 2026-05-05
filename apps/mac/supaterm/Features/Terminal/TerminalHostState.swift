@@ -1115,6 +1115,7 @@ final class TerminalHostState {
     else {
       return
     }
+    persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
     removeTree(for: tabID)
     tabManager.updateDirty(tabID, isDirty: false)
   }
@@ -1204,6 +1205,7 @@ final class TerminalHostState {
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
+      self.persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
       self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in
@@ -1600,6 +1602,7 @@ final class TerminalHostState {
   }
 
   func focusSurface(in tabID: TerminalTabID) {
+    restorePinnedTabSessionIfNeeded(for: tabID)
     if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID),
       let surface = surfaces[unreadSurfaceID]
     {

@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Foundation
 import Sharing
 import Testing
 
@@ -212,6 +213,52 @@ struct TerminalHostStatePinnedTabSharingTests {
       #expect(host.trees[pinnedTabID] == nil)
       #expect(host.selectedTabID == regularTabID)
       #expect(host.trees[regularTabID] != nil)
+    }
+  }
+
+  @Test
+  func closingLastPaneInPinnedTabPreservesWorkingDirectory() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let restoredPath = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: restoredPath, withIntermediateDirectories: true)
+      let restoredPathString = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        restoredPath.path(percentEncoded: false)
+      )
+      defer {
+        try? FileManager.default.removeItem(at: restoredPath)
+      }
+
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      await flushPinnedTabCatalogObservation()
+
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+      host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
+      let surfaceID = try #require(host.currentFocusedSurfaceID())
+
+      host.handleCommand(.closeSurface(surfaceID))
+
+      @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      let selectedSpaceID = try #require(host.selectedSpaceID)
+      let pinnedTab = try #require(
+        sharedCatalog.tabs(in: selectedSpaceID).first(where: { $0.id == pinnedTabID })
+      )
+      #expect(
+        pinnedTab.session.root
+          == .leaf(TerminalPaneLeafSession(workingDirectoryPath: restoredPathString))
+      )
+      #expect(host.trees[pinnedTabID] == nil)
+
+      host.handleCommand(.selectTab(pinnedTabID))
+
+      #expect(host.selectedSurfaceState?.pwd == restoredPathString)
     }
   }
 
