@@ -8,6 +8,43 @@ import Testing
 @MainActor
 struct GhosttyRuntimeTests {
   @Test
+  func opinionatedStringContentsReturnsStringBeforeImageData() throws {
+    let pasteboard = makePasteboard()
+    pasteboard.declareTypes([.string, .supatermPNGImage], owner: nil)
+    pasteboard.setString("echo hello", forType: .string)
+    pasteboard.setData(try makeImageData(.png), forType: .supatermPNGImage)
+
+    #expect(pasteboard.getOpinionatedStringContents() == "echo hello")
+  }
+
+  @Test
+  func writeImageToTempFileWritesPNGData() throws {
+    let pasteboard = makePasteboard()
+    pasteboard.declareTypes([.supatermPNGImage], owner: nil)
+    pasteboard.setData(try makeImageData(.png), forType: .supatermPNGImage)
+
+    let path = try unescapedPath(pasteboard.writeImageToTempFile())
+    defer { try? FileManager.default.removeItem(atPath: path) }
+
+    #expect(path.contains("/supaterm-pasted-images/pasted-"))
+    #expect(path.hasSuffix(".png"))
+    #expect(FileManager.default.fileExists(atPath: path))
+  }
+
+  @Test
+  func writeImageToTempFileConvertsTIFFDataToPNG() throws {
+    let pasteboard = makePasteboard()
+    pasteboard.declareTypes([.supatermTIFFImage], owner: nil)
+    pasteboard.setData(try makeImageData(.tiff), forType: .supatermTIFFImage)
+
+    let path = try unescapedPath(pasteboard.writeImageToTempFile())
+    defer { try? FileManager.default.removeItem(atPath: path) }
+
+    let data = try Data(contentsOf: URL(fileURLWithPath: path))
+    #expect(Array(data.prefix(8)) == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+  }
+
+  @Test
   func notificationAttentionColorPrefersBrightestBlueCandidate() throws {
     let runtime = try makeGhosttyRuntime(
       """
@@ -268,5 +305,66 @@ struct GhosttyRuntimeTests {
     let green = Int(round(rgb.greenComponent * 255))
     let blue = Int(round(rgb.blueComponent * 255))
     return String(format: "#%02X%02X%02X", red, green, blue)
+  }
+
+  private func makePasteboard() -> NSPasteboard {
+    let name = NSPasteboard.Name("supaterm-test-\(UUID().uuidString)")
+    let pasteboard = NSPasteboard(name: name)
+    pasteboard.clearContents()
+    return pasteboard
+  }
+
+  private func makeImageData(_ fileType: NSBitmapImageRep.FileType) throws -> Data {
+    guard
+      let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: 1,
+        pixelsHigh: 1,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 4,
+        bitsPerPixel: 32
+      )
+    else {
+      throw PasteboardImageTestError.encodingFailed
+    }
+    guard let pixels = rep.bitmapData else {
+      throw PasteboardImageTestError.encodingFailed
+    }
+    pixels[0] = 255
+    pixels[1] = 0
+    pixels[2] = 0
+    pixels[3] = 255
+    guard let data = rep.representation(using: fileType, properties: [:]) else {
+      throw PasteboardImageTestError.encodingFailed
+    }
+    return data
+  }
+
+  private func unescapedPath(_ escapedPath: String?) throws -> String {
+    let escapedPath = try #require(escapedPath)
+    var path = ""
+    var isEscaped = false
+    for character in escapedPath {
+      if isEscaped {
+        path.append(character)
+        isEscaped = false
+      } else if character == "\\" {
+        isEscaped = true
+      } else {
+        path.append(character)
+      }
+    }
+    if isEscaped {
+      path.append("\\")
+    }
+    return path
+  }
+
+  private enum PasteboardImageTestError: Error {
+    case encodingFailed
   }
 }

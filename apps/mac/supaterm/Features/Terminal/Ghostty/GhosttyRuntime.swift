@@ -857,6 +857,9 @@ extension NSColor {
 }
 
 extension NSPasteboard.PasteboardType {
+  static let supatermPNGImage = NSPasteboard.PasteboardType("public.png")
+  static let supatermTIFFImage = NSPasteboard.PasteboardType("public.tiff")
+
   init?(mimeType: String) {
     switch mimeType {
     case "text/plain":
@@ -897,7 +900,38 @@ extension NSPasteboard {
         .map { $0.isFileURL ? Self.ghosttyEscape($0.path) : $0.absoluteString }
         .joined(separator: " ")
     }
-    return string(forType: .string)
+    if let string = string(forType: .string) {
+      return string
+    }
+    return writeImageToTempFile()
+  }
+
+  func writeImageToTempFile() -> String? {
+    let pngData: Data?
+    if let direct = data(forType: .supatermPNGImage) {
+      pngData = direct
+    } else if let tiff = data(forType: .supatermTIFFImage),
+      let rep = NSBitmapImageRep(data: tiff)
+    {
+      pngData = rep.representation(using: .png, properties: [:])
+    } else {
+      pngData = nil
+    }
+
+    guard let data = pngData else { return nil }
+
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+      "supaterm-pasted-images",
+      isDirectory: true
+    )
+    do {
+      try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+      let url = dir.appendingPathComponent("pasted-\(UUID().uuidString).png")
+      try data.write(to: url)
+      return Self.ghosttyEscape(url.path)
+    } catch {
+      return nil
+    }
   }
 
   static func ghostty(_ clipboard: ghostty_clipboard_e) -> NSPasteboard? {
