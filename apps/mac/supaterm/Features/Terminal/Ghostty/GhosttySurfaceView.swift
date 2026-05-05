@@ -847,10 +847,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func scrollWheel(with event: NSEvent) {
-    guard let surface else { return }
     if focused {
       onDirectInteraction?()
     }
+    guard let surface else { return }
     var scrollX = event.scrollingDeltaX
     var scrollY = event.scrollingDeltaY
     if event.hasPreciseScrollingDeltas {
