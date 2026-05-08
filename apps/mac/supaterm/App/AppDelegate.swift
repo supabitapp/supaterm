@@ -90,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     NSWindow.allowsAutomaticWindowTabbing = false
     menuController.install()
     socketStore.send(.task)
+    refreshInstalledAgentHooks()
     restoreWindowsAtLaunch()
     $lastAppLaunchedDate.withLock {
       $0 = Date()
@@ -236,6 +237,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     if let window = lastController?.window {
       NSApp.activate(ignoringOtherApps: true)
       window.makeKeyAndOrderFront(nil)
+    }
+  }
+
+  private func refreshInstalledAgentHooks() {
+    Task.detached {
+      StartupAgentHookRefresher.live.refreshInstalledHooks()
     }
   }
 

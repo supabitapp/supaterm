@@ -64,6 +64,7 @@ Claude is the current first-class coding agent integration.
 - On open, Settings reads `~/.claude/settings.json` to reflect whether Supaterm-managed hooks are currently present.
 - The CLI command preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm Claude hooks into the user settings file.
 - The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes.
+- On app launch, Supaterm silently refreshes installed Supaterm-managed Claude hooks to the current canonical hook definition.
 
 ### Hook Injection
 
@@ -110,9 +111,10 @@ Codex now uses the same app-side bridge and tab-state model.
 - Turning the toggle on installs hooks with `sp agent install-hook codex`.
 - Turning the toggle off removes hooks with `sp agent remove-hook codex`.
 - On open, Settings reads `~/.codex/hooks.json` to reflect whether Supaterm-managed hooks are currently present.
-- The install command enables the Codex hooks feature by running `codex features enable codex_hooks` through the user's login shell.
+- The install command enables the Codex hooks feature by running `codex features enable hooks` through the user's login shell.
 - The same install command preserves unrelated hooks, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm Codex hooks into the user-scoped global file.
 - The remove command only rewrites `~/.codex/hooks.json`; it does not disable the Codex hooks feature flag.
+- On app launch, Supaterm silently refreshes installed Supaterm-managed Codex hooks to the current canonical hook definition and trust state.
 
 ### Hook Injection
 - Supaterm's canonical Codex hook fragment is also available from `sp internal agent-settings codex`.
