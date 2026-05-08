@@ -385,6 +385,7 @@ let project = Project(
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
         .external(name: "Sharing"),
+        .external(name: "TOML"),
         .external(name: "Textual"),
       ],
       settings: .settings(
