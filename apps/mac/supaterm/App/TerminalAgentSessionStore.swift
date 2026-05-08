@@ -153,6 +153,15 @@ final class TerminalAgentSessionStore {
     sessions.removeValue(forKey: key)
   }
 
+  func clearSessions(for surfaceID: UUID) {
+    let keys = sessions.compactMap { entry in
+      entry.value.surfaceID == surfaceID ? entry.key : nil
+    }
+    for key in keys {
+      clearSession(agent: key.agent, sessionID: key.sessionID)
+    }
+  }
+
   func clearRecordedSessionIfSurfaceMatches(
     agent: SupatermAgentKind,
     sessionID: String,

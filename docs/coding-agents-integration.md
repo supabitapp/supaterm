@@ -36,6 +36,7 @@ The integration is split into three layers.
 - store any transient agent state the UI needs
 - update tab-level activity
 - emit in-app or desktop notifications when needed
+- clear pane-bound agent state when the shell reports the foreground command has finished
 
 Future agent integrations should keep that split. The wrapper or adapter should stay thin, and all UI state should stay inside the app.
 

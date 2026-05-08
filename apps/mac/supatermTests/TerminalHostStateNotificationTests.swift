@@ -580,7 +580,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func commandFinishedDoesNotClearAgentActivity() throws {
+  func commandFinishedClearsAgentActivityAndHoverMarkdown() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -590,10 +590,12 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
     #expect(host.setAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
+    #expect(host.recordCodexHoverMessages(["Thinking"], replacing: true, for: surface.id))
 
     surface.bridge.onCommandFinished?()
 
-    #expect(host.agentActivity(for: tabID) == .claude(.running, detail: "Thinking"))
+    #expect(host.agentActivity(for: tabID) == nil)
+    #expect(host.codexHoverMarkdown(for: tabID) == nil)
   }
 
   @Test

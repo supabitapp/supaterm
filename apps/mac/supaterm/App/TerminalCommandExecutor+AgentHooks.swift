@@ -9,6 +9,10 @@ extension TerminalCommandExecutor {
     let subtitle: String
   }
 
+  func handleCommandFinished(for surfaceID: UUID) {
+    agentSessionStore.clearSessions(for: surfaceID)
+  }
+
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     registerAgentHookSession(request)
     let routesToForegroundSession = routesAgentHookToForegroundSession(request)

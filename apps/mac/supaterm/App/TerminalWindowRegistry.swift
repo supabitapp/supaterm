@@ -73,6 +73,9 @@ final class TerminalWindowRegistry {
     requestConfirmedWindowClose: @escaping @MainActor () -> Void
   ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
+    terminal.onSurfaceCommandFinished = { [weak self] surfaceID in
+      self?.commandExecutor?.handleCommandFinished(for: surfaceID)
+    }
     let entry = Entry(
       keyboardShortcutForAction: keyboardShortcutForAction,
       requestConfirmedWindowClose: requestConfirmedWindowClose,

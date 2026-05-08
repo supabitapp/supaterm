@@ -228,6 +228,8 @@ final class TerminalHostState {
   var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
+  @ObservationIgnored
+  var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
   let spaceManager = TerminalSpaceManager()
 
   var pendingEvents: [TerminalClient.Event] = []
@@ -1250,6 +1252,10 @@ final class TerminalHostState {
       guard let self else { return }
       self.updateRunningState(for: tabID)
     }
+    view.bridge.onCommandFinished = { [weak self, weak view] in
+      guard let self, let view else { return }
+      self.handleCommandFinished(for: view.id)
+    }
     configureBridgeCloseCallbacks(for: view)
     view.bridge.onDesktopNotification = { [weak self, weak view] title, body in
       guard let self, let view else { return }
@@ -1258,6 +1264,16 @@ final class TerminalHostState {
         surfaceID: view.id,
         title: title
       )
+    }
+  }
+
+  func handleCommandFinished(for surfaceID: UUID) {
+    let hadAgentMetadata = paneAgentMetadataBySurfaceID[surfaceID]?.isEmpty == false
+    _ = clearAgentActivity(for: surfaceID)
+    _ = clearCodexHoverMessages(for: surfaceID)
+    onSurfaceCommandFinished(surfaceID)
+    if hadAgentMetadata {
+      sessionDidChange()
     }
   }
 
