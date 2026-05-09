@@ -1,10 +1,10 @@
 [tools]
-hk = "1.44.2"
+hk = "1.45.0"
 pkl = "0.31.1"
-zig = "0.15.2"
-tuist = "4.180.0"
+zig = "0.16.0"
+tuist = "4.192.3"
 swiftlint = "latest"
-xcbeautify = "3.1.4"
+xcbeautify = "3.2.1"
 pnpm = "10.32.1"
 "npm:create-dmg" = { version = "latest", os = ["macos"] }
 
