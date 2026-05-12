@@ -223,28 +223,9 @@ struct TerminalSidebarChromeViewTests {
       .codex(.running),
       .claude(.running),
     ]
-    let imageNames =
-      TerminalSidebarTabSummaryView
-      .agentBadgeActivities(for: activities)
-      .map(\.kind.markImageName)
 
     #expect(
-      imageNames == ["pi-mark", "codex-mark", "claude-code-mark"]
-    )
-  }
-
-  @Test
-  func agentBadgeActivitiesAreEmptyWithoutAgentActivity() {
-    #expect(TerminalSidebarTabSummaryView.agentBadgeActivities(for: []).isEmpty)
-  }
-
-  @Test
-  func agentBadgeActivitiesAreEmptyWhenAgentMarksAreHidden() {
-    #expect(
-      TerminalSidebarTabSummaryView.agentBadgeActivities(
-        for: [.claude(.running)],
-        showsAgentMarks: false
-      ).isEmpty
+      activities.map(\.kind.markImageName) == ["pi-mark", "codex-mark", "claude-code-mark"]
     )
   }
 

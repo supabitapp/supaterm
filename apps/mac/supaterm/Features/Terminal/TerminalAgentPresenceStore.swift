@@ -5,7 +5,6 @@ import SupatermCLIShared
 struct TerminalAgentPresenceStore {
   struct Instance: Equatable, Sendable {
     let activity: TerminalHostState.AgentActivity
-    let hasStatus: Bool
     let revision: Int
     let surfaceID: UUID
     let surfaceIndex: Int
@@ -34,16 +33,9 @@ struct TerminalAgentPresenceStore {
     processID: Int32?
   ) -> Bool {
     let key = Key(surfaceID: surfaceID, agent: agent)
-    let isNewRecord = records[key] == nil
-    var record = records[key] ?? Record(revision: nextRevision)
-    let original = record
-    insert(sessionID: sessionID, processID: processID, into: &record)
-    if record != original || isNewRecord {
-      record.revision = advanceRevision()
-      records[key] = record
-      return true
+    return updateRecord(for: key) { record in
+      Self.insert(sessionID: sessionID, processID: processID, into: &record)
     }
-    return false
   }
 
   @discardableResult
@@ -54,17 +46,10 @@ struct TerminalAgentPresenceStore {
     processID: Int32?
   ) -> Bool {
     let key = Key(surfaceID: surfaceID, agent: activity.kind)
-    let isNewRecord = records[key] == nil
-    var record = records[key] ?? Record(revision: nextRevision)
-    let original = record
-    insert(sessionID: sessionID, processID: processID, into: &record)
-    record.activity = activity
-    if record != original || isNewRecord {
-      record.revision = advanceRevision()
-      records[key] = record
-      return true
+    return updateRecord(for: key) { record in
+      Self.insert(sessionID: sessionID, processID: processID, into: &record)
+      record.activity = activity
     }
-    return false
   }
 
   @discardableResult
@@ -77,10 +62,10 @@ struct TerminalAgentPresenceStore {
     let key = Key(surfaceID: surfaceID, agent: agent)
     guard var record = records[key] else { return false }
     let original = record
-    if let sessionID = normalizedSessionID(sessionID) {
+    if let sessionID = Self.normalizedSessionID(sessionID) {
       record.sessionIDs.remove(sessionID)
     }
-    if let processID = normalizedProcessID(processID) {
+    if let processID = Self.normalizedProcessID(processID) {
       record.processIDs.remove(processID)
     }
     if record.sessionIDs.isEmpty && (record.processIDs.isEmpty || processID == nil) {
@@ -127,47 +112,43 @@ struct TerminalAgentPresenceStore {
   }
 
   func badgeInstances(across surfaceIDs: [UUID]) -> [Instance] {
-    instances(across: surfaceIDs, includeUnstatused: true).sorted {
-      let lhsPriority = Self.statusPriority($0.activity.phase)
-      let rhsPriority = Self.statusPriority($1.activity.phase)
-      if lhsPriority != rhsPriority {
-        return lhsPriority > rhsPriority
-      }
-      if $0.activity.kind.rawValue != $1.activity.kind.rawValue {
-        return $0.activity.kind.rawValue < $1.activity.kind.rawValue
-      }
-      if $0.surfaceIndex != $1.surfaceIndex {
-        return $0.surfaceIndex < $1.surfaceIndex
-      }
-      return $0.revision > $1.revision
+    let surfaceIndexes = surfaceIndexes(for: surfaceIDs)
+    return records.compactMap { key, record in
+      guard let surfaceIndex = surfaceIndexes[key.surfaceID] else { return nil }
+      return Instance(
+        activity: record.activity ?? TerminalHostState.AgentActivity(kind: key.agent, phase: .idle),
+        revision: record.revision,
+        surfaceID: key.surfaceID,
+        surfaceIndex: surfaceIndex
+      )
     }
+    .sorted(by: Self.sortBadgeInstances)
   }
 
   func statusInstances(for surfaceID: UUID, surfaceIndex: Int) -> [Instance] {
-    instances(across: [surfaceID], includeUnstatused: false)
-      .map {
-        Instance(
-          activity: $0.activity,
-          hasStatus: $0.hasStatus,
-          revision: $0.revision,
-          surfaceID: $0.surfaceID,
-          surfaceIndex: surfaceIndex
-        )
+    records.compactMap { key, record in
+      guard key.surfaceID == surfaceID, let activity = record.activity else { return nil }
+      return Instance(
+        activity: activity,
+        revision: record.revision,
+        surfaceID: surfaceID,
+        surfaceIndex: surfaceIndex
+      )
+    }
+    .sorted {
+      if $0.activity.kind.rawValue != $1.activity.kind.rawValue {
+        return $0.activity.kind.rawValue < $1.activity.kind.rawValue
       }
-      .sorted {
-        if $0.activity.kind.rawValue != $1.activity.kind.rawValue {
-          return $0.activity.kind.rawValue < $1.activity.kind.rawValue
-        }
-        return $0.revision > $1.revision
-      }
+      return $0.revision > $1.revision
+    }
   }
 
   func detailActivity(for surfaceID: UUID?) -> TerminalHostState.AgentActivity? {
     guard let surfaceID else { return nil }
     return statusInstances(for: surfaceID, surfaceIndex: 0)
       .max { lhs, rhs in
-        let lhsPriority = Self.statusPriority(lhs.activity.phase)
-        let rhsPriority = Self.statusPriority(rhs.activity.phase)
+        let lhsPriority = TerminalHostState.agentActivityPriority(lhs.activity.phase)
+        let rhsPriority = TerminalHostState.agentActivityPriority(rhs.activity.phase)
         if lhsPriority != rhsPriority {
           return lhsPriority < rhsPriority
         }
@@ -176,23 +157,29 @@ struct TerminalAgentPresenceStore {
       .activity
   }
 
-  private func instances(across surfaceIDs: [UUID], includeUnstatused: Bool) -> [Instance] {
+  private func surfaceIndexes(for surfaceIDs: [UUID]) -> [UUID: Int] {
     var surfaceIndexes: [UUID: Int] = [:]
     for (index, surfaceID) in surfaceIDs.enumerated() where surfaceIndexes[surfaceID] == nil {
       surfaceIndexes[surfaceID] = index
     }
+    return surfaceIndexes
+  }
 
-    return records.compactMap { key, record in
-      guard let surfaceIndex = surfaceIndexes[key.surfaceID] else { return nil }
-      if !includeUnstatused && record.activity == nil { return nil }
-      return Instance(
-        activity: record.activity ?? TerminalHostState.AgentActivity(kind: key.agent, phase: .idle),
-        hasStatus: record.activity != nil,
-        revision: record.revision,
-        surfaceID: key.surfaceID,
-        surfaceIndex: surfaceIndex
-      )
+  @discardableResult
+  private mutating func updateRecord(
+    for key: Key,
+    _ update: (inout Record) -> Void
+  ) -> Bool {
+    let isNewRecord = records[key] == nil
+    var record = records[key] ?? Record(revision: nextRevision)
+    let original = record
+    update(&record)
+    guard isNewRecord || record != original else {
+      return false
     }
+    record.revision = advanceRevision()
+    records[key] = record
+    return true
   }
 
   private mutating func advanceRevision() -> Int {
@@ -201,7 +188,7 @@ struct TerminalAgentPresenceStore {
     return revision
   }
 
-  private func insert(sessionID: String?, processID: Int32?, into record: inout Record) {
+  private static func insert(sessionID: String?, processID: Int32?, into record: inout Record) {
     if let sessionID = normalizedSessionID(sessionID) {
       record.sessionIDs.insert(sessionID)
     }
@@ -210,7 +197,7 @@ struct TerminalAgentPresenceStore {
     }
   }
 
-  private func normalizedSessionID(_ sessionID: String?) -> String? {
+  private static func normalizedSessionID(_ sessionID: String?) -> String? {
     guard let sessionID = sessionID?.trimmingCharacters(in: .whitespacesAndNewlines),
       !sessionID.isEmpty
     else {
@@ -219,13 +206,24 @@ struct TerminalAgentPresenceStore {
     return sessionID
   }
 
-  private func normalizedProcessID(_ processID: Int32?) -> Int32? {
+  private static func normalizedProcessID(_ processID: Int32?) -> Int32? {
     guard let processID, processID > 0 else { return nil }
     return processID
   }
 
-  private static func statusPriority(_ phase: TerminalHostState.AgentActivityPhase) -> Int {
-    TerminalHostState.agentActivityPriority(phase)
+  private static func sortBadgeInstances(_ lhs: Instance, _ rhs: Instance) -> Bool {
+    let lhsPriority = TerminalHostState.agentActivityPriority(lhs.activity.phase)
+    let rhsPriority = TerminalHostState.agentActivityPriority(rhs.activity.phase)
+    if lhsPriority != rhsPriority {
+      return lhsPriority > rhsPriority
+    }
+    if lhs.activity.kind.rawValue != rhs.activity.kind.rawValue {
+      return lhs.activity.kind.rawValue < rhs.activity.kind.rawValue
+    }
+    if lhs.surfaceIndex != rhs.surfaceIndex {
+      return lhs.surfaceIndex < rhs.surfaceIndex
+    }
+    return lhs.revision > rhs.revision
   }
 
   nonisolated static func isProcessAlive(_ processID: Int32) -> Bool {

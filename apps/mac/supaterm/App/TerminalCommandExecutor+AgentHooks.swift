@@ -81,7 +81,6 @@ extension TerminalCommandExecutor {
         phase: snapshot.status?.isFinal == true ? .idle : .running,
         detail: snapshot.status?.isFinal == true ? nil : snapshot.detail
       ),
-      agent: agent,
       sessionID: sessionID,
       context: context
     )
@@ -95,7 +94,6 @@ extension TerminalCommandExecutor {
   ) {
     _ = updateAgentPresenceActivity(
       TerminalHostState.AgentActivity(kind: agent, phase: .idle, detail: nil),
-      agent: agent,
       sessionID: sessionID,
       context: context
     )
@@ -112,7 +110,6 @@ extension TerminalCommandExecutor {
         kind: request.agent,
         phase: .running
       ),
-      agent: request.agent,
       sessionID: sessionID,
       context: request.context,
       processID: request.processID
@@ -134,7 +131,6 @@ extension TerminalCommandExecutor {
     } else {
       _ = setAgentPresenceActivity(
         TerminalHostState.AgentActivity(kind: request.agent, phase: .running),
-        agent: request.agent,
         sessionID: sessionID,
         context: request.context,
         processID: request.processID
@@ -199,7 +195,6 @@ extension TerminalCommandExecutor {
     if let sessionID = event.sessionID {
       _ = setAgentPresenceActivity(
         TerminalHostState.AgentActivity(kind: request.agent, phase: .idle),
-        agent: request.agent,
         sessionID: sessionID,
         context: request.context,
         processID: request.processID
@@ -266,7 +261,6 @@ extension TerminalCommandExecutor {
     if let sessionID = event.sessionID {
       _ = setAgentPresenceActivity(
         TerminalHostState.AgentActivity(kind: request.agent, phase: .needsInput),
-        agent: request.agent,
         sessionID: sessionID,
         context: request.context,
         processID: request.processID
@@ -413,7 +407,6 @@ extension TerminalCommandExecutor {
   @discardableResult
   func setAgentPresenceActivity(
     _ activity: TerminalHostState.AgentActivity,
-    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?,
     processID: Int32?
@@ -421,7 +414,6 @@ extension TerminalCommandExecutor {
     guard
       updateAgentPresenceActivity(
         activity,
-        agent: agent,
         sessionID: sessionID,
         context: context,
         processID: processID
@@ -429,6 +421,7 @@ extension TerminalCommandExecutor {
     else {
       return false
     }
+    let agent = activity.kind
     switch activity.phase {
     case .running where agent == .codex:
       agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
@@ -531,36 +524,25 @@ extension TerminalCommandExecutor {
 
   @discardableResult
   func updateAgentPresenceActivity(
-    _ activity: TerminalHostState.AgentActivity?,
-    agent: SupatermAgentKind,
+    _ activity: TerminalHostState.AgentActivity,
     sessionID: String,
     context: SupatermCLIContext?,
     processID: Int32? = nil
   ) -> Bool {
     let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
+      agent: activity.kind,
       sessionID: sessionID,
       context: context
     )
     for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries() {
-        if let activity {
-          if entry.terminal.setAgentPresenceActivity(
-            activity,
-            for: surfaceID,
-            sessionID: sessionID,
-            processID: processID
-          ) {
-            return true
-          }
-        } else if entry.terminal.clearAgentPresence(
-          agent: agent,
-          for: surfaceID,
-          sessionID: sessionID,
-          processID: processID
-        ) {
-          return true
-        }
+      for entry in registry.activeEntries()
+      where entry.terminal.setAgentPresenceActivity(
+        activity,
+        for: surfaceID,
+        sessionID: sessionID,
+        processID: processID
+      ) {
+        return true
       }
     }
     return false

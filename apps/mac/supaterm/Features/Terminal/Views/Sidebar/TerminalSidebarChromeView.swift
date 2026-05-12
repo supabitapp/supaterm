@@ -541,16 +541,6 @@ struct TerminalSidebarTabSummaryView: View {
     return notificationMarkdown
   }
 
-  static func agentBadgeActivities(
-    for agentActivities: [TerminalHostState.AgentActivity],
-    showsAgentMarks: Bool = true
-  ) -> [TerminalHostState.AgentActivity] {
-    guard showsAgentMarks else {
-      return []
-    }
-    return agentActivities
-  }
-
   var body: some View {
     let rowAccessories = Self.rowAccessories(
       shortcutHint: shortcutHint,
@@ -570,11 +560,7 @@ struct TerminalSidebarTabSummaryView: View {
     HStack(alignment: .center, spacing: 6) {
       VStack(alignment: .leading, spacing: 2) {
         HStack(spacing: 6) {
-          let badgeActivities = Self.agentBadgeActivities(
-            for: self.badgeActivities,
-            showsAgentMarks: showsAgentMarks
-          )
-          if !badgeActivities.isEmpty {
+          if showsAgentMarks && !badgeActivities.isEmpty {
             TerminalAgentBadgeGroupView(
               activities: badgeActivities,
               isSelected: isSelected,

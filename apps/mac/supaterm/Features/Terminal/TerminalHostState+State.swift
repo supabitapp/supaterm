@@ -221,53 +221,46 @@ extension TerminalHostState {
       agentPresenceStore
       .badgeInstances(across: leaves.map(\.id))
       .map(\.activity)
-
-    var badgeActivity: AgentActivity?
-    var badgePriority = Int.min
-    var badgeSurfaceIsFocused = false
-    var badgeSurfaceID: UUID?
-    var badgeActivityRevision = Int.min
-    var badgeLeafIndex = Int.max
-
-    for (leafIndex, surface) in leaves.enumerated() {
-      for instance in agentPresenceStore.statusInstances(for: surface.id, surfaceIndex: leafIndex) {
-        let activity = instance.activity
-        let priority = Self.agentActivityPriority(activity.phase)
-        let isFocused = surface.id == focusedSurfaceID
-        let activityRevision = instance.revision
-
-        if badgeActivity == nil
-          || priority > badgePriority
-          || (priority == badgePriority && isFocused && !badgeSurfaceIsFocused)
-          || (priority == badgePriority && isFocused == badgeSurfaceIsFocused
-            && activityRevision > badgeActivityRevision)
-          || (priority == badgePriority && isFocused == badgeSurfaceIsFocused
-            && activityRevision == badgeActivityRevision && leafIndex < badgeLeafIndex)
-        {
-          badgeActivity = activity
-          badgePriority = priority
-          badgeSurfaceIsFocused = isFocused
-          badgeSurfaceID = surface.id
-          badgeActivityRevision = activityRevision
-          badgeLeafIndex = leafIndex
-        }
+    let badgeInstance =
+      leaves
+      .enumerated()
+      .flatMap { leafIndex, surface in
+        agentPresenceStore.statusInstances(for: surface.id, surfaceIndex: leafIndex)
       }
-    }
+      .max { lhs, rhs in
+        let lhsPriority = Self.agentActivityPriority(lhs.activity.phase)
+        let rhsPriority = Self.agentActivityPriority(rhs.activity.phase)
+        if lhsPriority != rhsPriority {
+          return lhsPriority < rhsPriority
+        }
+
+        let lhsIsFocused = lhs.surfaceID == focusedSurfaceID
+        let rhsIsFocused = rhs.surfaceID == focusedSurfaceID
+        if lhsIsFocused != rhsIsFocused {
+          return !lhsIsFocused && rhsIsFocused
+        }
+
+        if lhs.revision != rhs.revision {
+          return lhs.revision < rhs.revision
+        }
+
+        return lhs.surfaceIndex > rhs.surfaceIndex
+      }
 
     let badgeActivityIsFocused =
-      badgeSurfaceID.map { surfaceID in
+      badgeInstance.map { instance in
         Self.surfaceActivity(
           isSelectedTab: tabID == spaceManager.selectedTabID,
           windowIsVisible: windowActivity.isVisible,
           windowIsKey: windowActivity.isKeyWindow,
           focusedSurfaceID: focusedSurfaceID,
-          surfaceID: surfaceID
+          surfaceID: instance.surfaceID
         ).isFocused
       } ?? false
 
     return TabAgentPresentation(
       badgeActivities: badgeActivities,
-      badgeActivity: badgeActivity,
+      badgeActivity: badgeInstance?.activity,
       badgeActivityIsFocused: badgeActivityIsFocused,
       detailActivity: detailActivity,
       hoverMarkdown: hoverMarkdown

@@ -21,7 +21,7 @@ struct TerminalAgentPresenceStoreTests {
 
     let badges = store.badgeInstances(across: [surfaceID])
     #expect(badges.map(\.activity.kind) == [.claude])
-    #expect(badges.map(\.hasStatus) == [false])
+    #expect(badges.map(\.activity.phase) == [.idle])
     #expect(store.statusInstances(for: surfaceID, surfaceIndex: 0).isEmpty)
   }
 
@@ -40,7 +40,6 @@ struct TerminalAgentPresenceStoreTests {
 
     let status = store.statusInstances(for: surfaceID, surfaceIndex: 0)
     #expect(status.map(\.activity) == [.claude(.running, detail: "Bash")])
-    #expect(status.map(\.hasStatus) == [true])
   }
 
   @Test
