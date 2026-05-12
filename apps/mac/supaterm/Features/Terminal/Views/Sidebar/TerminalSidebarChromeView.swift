@@ -536,11 +536,11 @@ struct TerminalSidebarTabSummaryView: View {
   ) -> [TerminalHostState.AgentActivity] {
     guard showsAgentMarks, !isRowHovering else { return [] }
     switch statusAccessory {
-    case nil, .pinned:
+    case nil, .pinned, .terminalProgress:
       return activities
     case .agentActivity(let activity):
       return activity.phase == .running ? activities : []
-    case .terminalBell, .terminalProgress, .unreadCount:
+    case .terminalBell, .unreadCount:
       return []
     }
   }

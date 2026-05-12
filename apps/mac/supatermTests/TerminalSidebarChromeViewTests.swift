@@ -267,6 +267,24 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func trailingAgentBadgesShowBeforeTerminalProgress() {
+    let activities: [TerminalHostState.AgentActivity] = [
+      .claude(.running),
+      .codex(.running),
+    ]
+    let progress = TerminalSidebarTerminalProgress(fraction: nil, tone: .active)
+
+    #expect(
+      TerminalSidebarTabSummaryView.trailingAgentBadgeActivities(
+        activities,
+        showsAgentMarks: true,
+        isRowHovering: false,
+        statusAccessory: .terminalProgress(progress)
+      ) == activities
+    )
+  }
+
+  @Test
   func trailingAgentBadgesYieldToStrongerStatusAndHover() {
     let activities: [TerminalHostState.AgentActivity] = [
       .claude(.running),
