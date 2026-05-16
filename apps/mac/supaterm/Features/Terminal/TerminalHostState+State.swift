@@ -306,7 +306,6 @@ extension TerminalHostState {
     }
     let pwd = surface.bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines)
     return TerminalAgentPanelRefreshContext(
-      surfaceID: surfaceID,
       workingDirectoryPath: pwd,
       processIDs: agentPresenceStore.processIDs(for: surfaceID)
     )
@@ -437,20 +436,6 @@ extension TerminalHostState {
     let original = metadata
     metadata.progressRows = progressRows
     metadata.sources = sources
-    storePaneAgentMetadata(metadata, for: surfaceID)
-    if metadata != original {
-      agentPanelController?.surfaceAgentStateChanged(surfaceID)
-    }
-    return true
-  }
-
-  @discardableResult
-  func clearCodexPanelSnapshot(for surfaceID: UUID) -> Bool {
-    guard tabID(containing: surfaceID) != nil else { return false }
-    guard var metadata = paneAgentMetadataBySurfaceID[surfaceID] else { return true }
-    let original = metadata
-    metadata.progressRows = []
-    metadata.sources = []
     storePaneAgentMetadata(metadata, for: surfaceID)
     if metadata != original {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)

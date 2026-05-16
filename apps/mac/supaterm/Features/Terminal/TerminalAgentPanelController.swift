@@ -3,7 +3,6 @@ import Dispatch
 import Foundation
 
 nonisolated struct TerminalAgentPanelRefreshContext: Equatable, Sendable {
-  let surfaceID: UUID
   let workingDirectoryPath: String?
   let processIDs: Set<Int32>
 }
@@ -11,7 +10,6 @@ nonisolated struct TerminalAgentPanelRefreshContext: Equatable, Sendable {
 nonisolated struct TerminalAgentPanelCommandResult: Equatable, Sendable {
   let status: Int32
   let stdout: String
-  let stderr: String
 }
 
 nonisolated enum TerminalAgentPanelCommandError: Error, Equatable, Sendable {
@@ -52,9 +50,8 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
       process.standardInput = FileHandle.nullDevice
 
       let stdoutPipe = Pipe()
-      let stderrPipe = Pipe()
       process.standardOutput = stdoutPipe
-      process.standardError = stderrPipe
+      process.standardError = FileHandle.nullDevice
 
       do {
         try process.run()
@@ -63,13 +60,11 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
       }
 
       let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-      let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
       process.waitUntilExit()
 
       return TerminalAgentPanelCommandResult(
         status: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+        stdout: String(data: stdoutData, encoding: .utf8) ?? ""
       )
     }.value
   }
@@ -78,7 +73,10 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {
     let shell = environment["SHELL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-    return URL(fileURLWithPath: shell?.isEmpty == false ? shell! : "/bin/zsh")
+    if let shell, !shell.isEmpty {
+      return URL(fileURLWithPath: shell)
+    }
+    return URL(fileURLWithPath: "/bin/zsh")
   }
 }
 
@@ -760,8 +758,9 @@ final class TerminalAgentPanelController {
       periodicTasks.removeValue(forKey: id)?.cancel()
     }
     touch(surfaceID)
-    updatePortTracking(surfaceID)
-    guard terminal?.agentPanelRefreshContext(for: surfaceID) != nil else {
+    let context = terminal?.agentPanelRefreshContext(for: surfaceID)
+    updatePortTracking(surfaceID, context: context)
+    guard context != nil else {
       cancelRefreshTracking(surfaceID)
       return
     }
@@ -776,8 +775,9 @@ final class TerminalAgentPanelController {
 
   func surfaceAgentStateChanged(_ surfaceID: UUID) {
     touch(surfaceID)
-    updatePortTracking(surfaceID)
-    guard terminal?.agentPanelRefreshContext(for: surfaceID) != nil else {
+    let context = terminal?.agentPanelRefreshContext(for: surfaceID)
+    updatePortTracking(surfaceID, context: context)
+    guard context != nil else {
       cancelRefreshTracking(surfaceID)
       stopHeadWatcher(surfaceID)
       _ = terminal?.clearAgentPanelMetadata(for: surfaceID)
@@ -866,8 +866,11 @@ final class TerminalAgentPanelController {
     }
   }
 
-  private func updatePortTracking(_ surfaceID: UUID) {
-    guard let context = terminal?.agentPanelRefreshContext(for: surfaceID) else {
+  private func updatePortTracking(
+    _ surfaceID: UUID,
+    context: TerminalAgentPanelRefreshContext?
+  ) {
+    guard let context else {
       portScanner.clear(surfaceID: surfaceID) { [weak self] surfaceID, artifacts in
         self?.storeArtifacts(artifacts, surfaceID: surfaceID)
       }

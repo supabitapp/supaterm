@@ -137,22 +137,8 @@ struct CodexSidebarSnapshot: Equatable {
   var status: CodexTranscriptTurnStatus?
   var detail: String?
   var hoverMessages: [String]
-  var progressRows: [PaneAgentProgressRow]
-  var sources: [PaneAgentSource]
-
-  init(
-    status: CodexTranscriptTurnStatus?,
-    detail: String?,
-    hoverMessages: [String],
-    progressRows: [PaneAgentProgressRow] = [],
-    sources: [PaneAgentSource] = []
-  ) {
-    self.status = status
-    self.detail = detail
-    self.hoverMessages = hoverMessages
-    self.progressRows = progressRows
-    self.sources = sources
-  }
+  var progressRows: [PaneAgentProgressRow] = []
+  var sources: [PaneAgentSource] = []
 }
 
 struct CodexConversationState: Equatable {
