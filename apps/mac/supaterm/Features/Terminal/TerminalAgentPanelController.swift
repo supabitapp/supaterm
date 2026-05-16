@@ -1281,14 +1281,14 @@ final class TerminalAgentPanelController {
       eventMask: [.write, .rename, .delete, .attrib],
       queue: DispatchQueue(label: "terminal-agent-panel-head.\(surfaceID.uuidString)")
     )
-    source.setEventHandler { [weak self, weak source] in
+    source.setEventHandler { @Sendable [weak self, weak source] in
       guard let source else { return }
       let event = source.data
       Task { @MainActor in
         self?.handleHeadEvent(surfaceID: surfaceID, event: event)
       }
     }
-    source.setCancelHandler {
+    source.setCancelHandler { @Sendable in
       close(descriptor)
     }
     source.resume()
