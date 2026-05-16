@@ -142,6 +142,7 @@ struct TerminalWindowFeature {
     case closeTabsBelowRequested(TerminalTabID)
     case collapseSidebarButtonTapped
     case floatingSidebarVisibilityChanged(Bool)
+    case agentPanelURLTapped(URL)
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
     case nextSpaceRequested
@@ -320,6 +321,11 @@ struct TerminalWindowFeature {
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
         return .none
+
+      case .agentPanelURLTapped(let url):
+        return .run { [externalNavigationClient] _ in
+          _ = await externalNavigationClient.open(url)
+        }
 
       case .navigateSearchMenuItemSelected(let direction):
         return sendCommand(.navigateSearch(direction))

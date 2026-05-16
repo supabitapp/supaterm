@@ -51,6 +51,7 @@ struct TerminalDetailView: View {
         dimmingOpacity: terminal.unfocusedSplitDimmingOpacity,
         focusedSurfaceID: terminal.currentFocusedSurfaceID(),
         notificationColor: terminal.notificationAttentionColor,
+        palette: palette,
         showsGlowingPaneRing: supatermSettings.glowingPaneRingEnabled,
         splitDividerColor: terminal.splitDividerColor,
         terminal: terminal,
@@ -211,6 +212,7 @@ private struct TerminalDetailSurface: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
+  let palette: TerminalPalette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let terminal: TerminalHostState
@@ -222,6 +224,7 @@ private struct TerminalDetailSurface: View {
       dimmingOpacity: dimmingOpacity,
       focusedSurfaceID: focusedSurfaceID,
       notificationColor: notificationColor,
+      palette: palette,
       showsGlowingPaneRing: showsGlowingPaneRing,
       splitDividerColor: splitDividerColor,
       store: store,
@@ -237,6 +240,7 @@ private struct TerminalSurfacePaneView: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
+  let palette: TerminalPalette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let store: StoreOf<TerminalWindowFeature>
@@ -245,16 +249,23 @@ private struct TerminalSurfacePaneView: View {
 
   var body: some View {
     TerminalSplitTreeAXContainer(
+      agentPanelPresentations: terminal.agentPanelPresentations(for: tabID),
       dimmingColor: dimmingColor,
       dimmingOpacity: dimmingOpacity,
       focusedSurfaceID: focusedSurfaceID,
       notificationColor: notificationColor,
+      palette: palette,
       showsGlowingPaneRing: showsGlowingPaneRing,
       splitDividerColor: splitDividerColor,
       tree: terminal.splitTree(for: tabID),
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
-      _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
+      switch operation {
+      case .agentPanelURLTapped(let url):
+        _ = store.send(.agentPanelURLTapped(url))
+      case .resize, .drop, .equalize:
+        _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
+      }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }

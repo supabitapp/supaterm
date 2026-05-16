@@ -83,6 +83,69 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func updatePlanFunctionCallUpdatesProgressRows() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [
+            ["step": "Read terminal state", "status": "completed"],
+            ["step": "Wire panel overlay", "status": "in_progress"],
+            ["step": "Run tests", "status": "pending"],
+          ]
+        ]
+      ),
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(
+      conversation.sidebarSnapshot.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Read terminal state",
+          title: "Read terminal state",
+          status: .completed
+        ),
+        PaneAgentProgressRow(
+          id: "1:Wire panel overlay",
+          title: "Wire panel overlay",
+          status: .running
+        ),
+        PaneAgentProgressRow(
+          id: "2:Run tests",
+          title: "Run tests",
+          status: .pending
+        ),
+      ]
+    )
+  }
+
+  @Test
+  func structuredSearchOperationsUpdateSources() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.webSearch(query: "linear agent panel"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.toolSearchCall(query: "linear agent panel"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(conversation.sidebarSnapshot.sources == [.webSearch])
+  }
+
+  @Test
   func advanceReconstructsSyntheticReasoningStream() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }

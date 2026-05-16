@@ -129,12 +129,30 @@ struct CodexConversationTurn: Equatable {
   var durationMs: Int?
   var lastAssistantDetail: String?
   var hoverMessages: [String] = []
+  var progressRows: [PaneAgentProgressRow] = []
+  var sources: [PaneAgentSource] = []
 }
 
 struct CodexSidebarSnapshot: Equatable {
   var status: CodexTranscriptTurnStatus?
   var detail: String?
   var hoverMessages: [String]
+  var progressRows: [PaneAgentProgressRow]
+  var sources: [PaneAgentSource]
+
+  init(
+    status: CodexTranscriptTurnStatus?,
+    detail: String?,
+    hoverMessages: [String],
+    progressRows: [PaneAgentProgressRow] = [],
+    sources: [PaneAgentSource] = []
+  ) {
+    self.status = status
+    self.detail = detail
+    self.hoverMessages = hoverMessages
+    self.progressRows = progressRows
+    self.sources = sources
+  }
 }
 
 struct CodexConversationState: Equatable {
@@ -186,11 +204,23 @@ struct CodexConversationState: Equatable {
     return sourceTurn?.hoverMessages ?? []
   }
 
+  var progressRows: [PaneAgentProgressRow] {
+    let sourceTurn = activeTurn ?? latestTurn
+    return sourceTurn?.progressRows ?? []
+  }
+
+  var sources: [PaneAgentSource] {
+    let sourceTurn = activeTurn ?? latestTurn
+    return sourceTurn?.sources ?? []
+  }
+
   var sidebarSnapshot: CodexSidebarSnapshot {
     CodexSidebarSnapshot(
       status: activityStatus,
       detail: detail,
-      hoverMessages: hoverMessages
+      hoverMessages: hoverMessages,
+      progressRows: progressRows,
+      sources: sources
     )
   }
 
@@ -378,7 +408,7 @@ struct CodexConversationState: Equatable {
     case "compaction":
       appendItem(.compaction(payload), preferredTurnID: preferredTurnID)
     default:
-      appendItem(.operation(type: type, payload: payload), preferredTurnID: preferredTurnID)
+      appendOperation(type: type, payload: payload, preferredTurnID: preferredTurnID)
     }
   }
 
@@ -429,6 +459,17 @@ struct CodexConversationState: Equatable {
   ) {
     let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
     turns[index].items.append(item)
+  }
+
+  private mutating func appendOperation(
+    type: String,
+    payload: CodexTranscriptJSONObject,
+    preferredTurnID: String?
+  ) {
+    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
+    let operation = CodexConversationItem.operation(type: type, payload: payload)
+    turns[index].items.append(operation)
+    updateStructuredPanelState(forAppended: operation, at: index)
   }
 
   private mutating func ensureTurnForItem(
@@ -494,6 +535,9 @@ struct CodexConversationState: Equatable {
     let state = Self.assistantMessageState(from: turns[index].items)
     turns[index].lastAssistantDetail = state.lastAssistantDetail
     turns[index].hoverMessages = state.hoverMessages
+    let panelState = Self.structuredPanelState(from: turns[index].items)
+    turns[index].progressRows = panelState.progressRows
+    turns[index].sources = panelState.sources
   }
 
   private mutating func updateDerivedMessageState(
@@ -516,6 +560,9 @@ struct CodexConversationState: Equatable {
     let state = assistantMessageState(from: turn.items)
     turn.lastAssistantDetail = state.lastAssistantDetail
     turn.hoverMessages = state.hoverMessages
+    let panelState = structuredPanelState(from: turn.items)
+    turn.progressRows = panelState.progressRows
+    turn.sources = panelState.sources
     return turn
   }
 
@@ -551,6 +598,98 @@ struct CodexConversationState: Equatable {
     state.hoverMessages.append(normalized)
   }
 
+  private mutating func updateStructuredPanelState(
+    forAppended item: CodexConversationItem,
+    at index: Int
+  ) {
+    var state = StructuredPanelState(
+      progressRows: turns[index].progressRows,
+      sources: turns[index].sources
+    )
+    Self.reduceStructuredPanelState(&state, with: item)
+    turns[index].progressRows = state.progressRows
+    turns[index].sources = state.sources
+  }
+
+  private static func structuredPanelState(
+    from items: [CodexConversationItem]
+  ) -> StructuredPanelState {
+    var state = StructuredPanelState()
+    for item in items {
+      reduceStructuredPanelState(&state, with: item)
+    }
+    return state
+  }
+
+  private static func reduceStructuredPanelState(
+    _ state: inout StructuredPanelState,
+    with item: CodexConversationItem
+  ) {
+    guard case .operation(let type, let payload) = item else { return }
+    if let rows = progressRows(operationType: type, payload: payload) {
+      state.progressRows = rows
+    }
+    for source in sources(operationType: type, payload: payload)
+    where !state.sources.contains(source) {
+      state.sources.append(source)
+    }
+  }
+
+  static func progressRows(
+    operationType: String,
+    payload: CodexTranscriptJSONObject
+  ) -> [PaneAgentProgressRow]? {
+    guard operationType == "function_call",
+      payload["name"]?.stringValue == "update_plan",
+      let arguments = payload["arguments"]?.stringValue,
+      let data = arguments.data(using: .utf8),
+      let rawObject = try? JSONSerialization.jsonObject(with: data),
+      let object = CodexTranscriptJSONValue(rawObject)?.objectValue,
+      let plan = object["plan"]?.arrayValue
+    else {
+      return nil
+    }
+    let rows: [PaneAgentProgressRow] = plan.enumerated().compactMap { index, value in
+      guard let item = value.objectValue,
+        let title = normalizedMessage(item["step"]?.stringValue)
+      else {
+        return nil
+      }
+      return PaneAgentProgressRow(
+        id: "\(index):\(title)",
+        title: title,
+        status: progressStatus(item["status"]?.stringValue)
+      )
+    }
+    return rows
+  }
+
+  static func sources(
+    operationType: String,
+    payload: CodexTranscriptJSONObject
+  ) -> [PaneAgentSource] {
+    switch operationType {
+    case "web_search_call", "tool_search_call":
+      return [.webSearch]
+    case "function_call":
+      let name = payload["name"]?.stringValue?.lowercased() ?? ""
+      return name == "web.run" || name.contains("search") ? [.webSearch] : []
+    default:
+      return []
+    }
+  }
+
+  private static func progressStatus(_ rawValue: String?) -> PaneAgentProgressRow.Status {
+    switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "completed", "complete", "done":
+      return .completed
+    case "in_progress", "in-progress", "running", "active":
+      return .running
+    default:
+      return .pending
+    }
+  }
+
   private mutating func makeImplicitTurnID() -> String {
     let id = "implicit-turn-\(nextImplicitTurnIndex)"
     nextImplicitTurnIndex += 1
@@ -561,6 +700,11 @@ struct CodexConversationState: Equatable {
 private struct AssistantMessageState: Equatable {
   var lastAssistantDetail: String?
   var hoverMessages: [String] = []
+}
+
+private struct StructuredPanelState: Equatable {
+  var progressRows: [PaneAgentProgressRow] = []
+  var sources: [PaneAgentSource] = []
 }
 
 extension CodexConversationTurn {

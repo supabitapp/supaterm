@@ -75,6 +75,13 @@ extension TerminalCommandExecutor {
       sessionID: sessionID,
       context: context
     )
+    _ = updateCodexPanelSnapshot(
+      progressRows: snapshot.progressRows,
+      sources: snapshot.sources,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
     _ = updateAgentPresenceActivity(
       TerminalHostState.AgentActivity(
         kind: agent,
@@ -241,6 +248,11 @@ extension TerminalCommandExecutor {
     )
     if request.agent == .codex {
       _ = clearCodexHoverMessages(
+        agent: request.agent,
+        context: request.context,
+        sessionID: sessionID
+      )
+      _ = clearCodexPanelSnapshot(
         agent: request.agent,
         context: request.context,
         sessionID: sessionID
@@ -486,6 +498,47 @@ extension TerminalCommandExecutor {
       where entry.terminal.recordCodexHoverMessages(
         messages,
         replacing: replacing,
+        for: surfaceID
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  @discardableResult
+  func clearCodexPanelSnapshot(
+    agent: SupatermAgentKind,
+    context: SupatermCLIContext?,
+    sessionID: String
+  ) -> Bool {
+    updateCodexPanelSnapshot(
+      progressRows: [],
+      sources: [],
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+  }
+
+  @discardableResult
+  func updateCodexPanelSnapshot(
+    progressRows: [PaneAgentProgressRow],
+    sources: [PaneAgentSource],
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) -> Bool {
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    for surfaceID in candidateSurfaceIDs {
+      for entry in registry.activeEntries()
+      where entry.terminal.recordCodexPanelSnapshot(
+        progressRows: progressRows,
+        sources: sources,
         for: surfaceID
       ) {
         return true

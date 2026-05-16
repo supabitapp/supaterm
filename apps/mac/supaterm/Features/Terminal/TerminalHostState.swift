@@ -186,9 +186,26 @@ final class TerminalHostState {
 
   struct PaneAgentMetadata: Equatable, Sendable {
     var codexHoverMessages: [String] = []
+    var progressRows: [PaneAgentProgressRow] = []
+    var branchDetails: PaneAgentBranchDetails?
+    var artifacts: [PaneAgentArtifact] = []
+    var sources: [PaneAgentSource] = []
 
     var isEmpty: Bool {
-      codexHoverMessages.isEmpty
+      codexHoverMessages.isEmpty && panelPresentation.isEmpty
+    }
+
+    var hasStructuredPanelContent: Bool {
+      !progressRows.isEmpty || !sources.isEmpty
+    }
+
+    var panelPresentation: PaneAgentPanelPresentation {
+      PaneAgentPanelPresentation(
+        progressRows: progressRows,
+        branchDetails: branchDetails,
+        artifacts: artifacts,
+        sources: sources
+      )
     }
   }
 
@@ -229,6 +246,8 @@ final class TerminalHostState {
   var onSessionChange: @MainActor () -> Void = {}
   @ObservationIgnored
   var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
+  @ObservationIgnored
+  var agentPanelController: TerminalAgentPanelController?
   let spaceManager = TerminalSpaceManager()
 
   var pendingEvents: [TerminalClient.Event] = []
@@ -274,11 +293,13 @@ final class TerminalHostState {
     observeRuntimeConfig()
     observeSpaceCatalog()
     observePinnedTabCatalog()
+    agentPanelController = TerminalAgentPanelController(terminal: self)
   }
 
   isolated deinit {
     spaceCatalogObservationTask?.cancel()
     pinnedTabCatalogObservationTask?.cancel()
+    agentPanelController?.stop()
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
     }
@@ -976,6 +997,9 @@ final class TerminalHostState {
     case .equalize:
       trees[tabID] = tree.equalized()
       sessionDidChange()
+
+    case .agentPanelURLTapped:
+      break
     }
   }
 
@@ -1044,6 +1068,7 @@ final class TerminalHostState {
     }
 
     surface.closeSurface()
+    agentPanelController?.surfaceRemoved(surfaceID)
     surfaces.removeValue(forKey: surfaceID)
     paneNotifications.removeValue(forKey: surfaceID)
     paneAgentMetadataBySurfaceID.removeValue(forKey: surfaceID)
@@ -1207,6 +1232,7 @@ final class TerminalHostState {
       guard let self else { return }
       self.updateTabTitle(for: tabID)
       self.persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
+      self.agentPanelController?.surfacePathChanged(view.id)
       self.sessionDidChange()
     }
     view.bridge.onTabTitleChange = { [weak self] title in
@@ -1269,7 +1295,8 @@ final class TerminalHostState {
   func handleCommandFinished(for surfaceID: UUID) {
     let removedAgentPresence = clearAgentPresence(for: surfaceID)
     let hadAgentMetadata = paneAgentMetadataBySurfaceID[surfaceID]?.isEmpty == false
-    _ = clearCodexHoverMessages(for: surfaceID)
+    _ = clearAgentPanelMetadata(for: surfaceID)
+    agentPanelController?.surfaceCommandFinished(surfaceID)
     onSurfaceCommandFinished(surfaceID)
     if hadAgentMetadata || removedAgentPresence {
       sessionDidChange()
@@ -1303,6 +1330,7 @@ final class TerminalHostState {
       self.updateRunningState(for: tabID)
       self.clearNotificationAttention(for: view.id)
       self.emitFocusChangedIfNeeded(view.id)
+      self.agentPanelController?.surfaceFocused(view.id)
       self.sessionDidChange()
     }
   }
@@ -1725,6 +1753,7 @@ final class TerminalHostState {
   func removeTree(for tabID: TerminalTabID) {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
     for surface in tree.leaves() {
+      agentPanelController?.surfaceRemoved(surface.id)
       paneNotifications.removeValue(forKey: surface.id)
       paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
       agentPresenceStore.removeSurface(surface.id)

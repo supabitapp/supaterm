@@ -157,6 +157,17 @@ struct TerminalAgentPresenceStore {
       .activity
   }
 
+  func processIDs(for surfaceID: UUID) -> Set<Int32> {
+    records.reduce(into: Set<Int32>()) { result, entry in
+      guard entry.key.surfaceID == surfaceID else { return }
+      result.formUnion(entry.value.processIDs)
+    }
+  }
+
+  func hasInstances(for surfaceID: UUID) -> Bool {
+    records.keys.contains { $0.surfaceID == surfaceID }
+  }
+
   private func surfaceIndexes(for surfaceIDs: [UUID]) -> [UUID: Int] {
     var surfaceIndexes: [UUID: Int] = [:]
     for (index, surfaceID) in surfaceIDs.enumerated() where surfaceIndexes[surfaceID] == nil {

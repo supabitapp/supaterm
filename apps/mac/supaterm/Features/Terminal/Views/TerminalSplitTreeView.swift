@@ -38,10 +38,12 @@ enum TerminalNotificationPulsePattern {
 }
 
 struct TerminalSplitTreeView: View {
+  let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
   let dimmingColor: Color
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
+  let palette: TerminalPalette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
@@ -162,11 +164,13 @@ struct TerminalSplitTreeView: View {
   var body: some View {
     if let node = tree.zoomed ?? tree.root {
       SubtreeView(
+        agentPanelPresentations: agentPanelPresentations,
         node: node,
         dimmingColor: dimmingColor,
         dimmingOpacity: dimmingOpacity,
         focusedSurfaceID: focusedSurfaceID,
         notificationColor: notificationColor,
+        palette: palette,
         showsGlowingPaneRing: showsGlowingPaneRing,
         splitDividerColor: splitDividerColor,
         unreadSurfaceIDs: unreadSurfaceIDs,
@@ -182,14 +186,17 @@ struct TerminalSplitTreeView: View {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
     case drop(payloadId: UUID, destinationId: UUID, zone: DropZone)
     case equalize
+    case agentPanelURLTapped(URL)
   }
 
   struct SubtreeView: View {
+    let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
     let node: SplitTree<GhosttySurfaceView>.Node
     let dimmingColor: Color
     let dimmingOpacity: Double
     let focusedSurfaceID: UUID?
     let notificationColor: Color
+    let palette: TerminalPalette
     let showsGlowingPaneRing: Bool
     let splitDividerColor: Color
     let unreadSurfaceIDs: Set<UUID>
@@ -201,10 +208,12 @@ struct TerminalSplitTreeView: View {
       switch node {
       case .leaf(let leafView):
         LeafView(
+          agentPanelPresentation: agentPanelPresentations[leafView.id],
           dimmingColor: dimmingColor,
           dimmingOpacity: dimmingOpacity,
           focusedSurfaceID: focusedSurfaceID,
           notificationColor: notificationColor,
+          palette: palette,
           showsGlowingPaneRing: showsGlowingPaneRing,
           surfaceView: leafView,
           isSplit: !isRoot,
@@ -231,11 +240,13 @@ struct TerminalSplitTreeView: View {
           resizeIncrements: CGSize(width: 1, height: 1),
           left: {
             SubtreeView(
+              agentPanelPresentations: agentPanelPresentations,
               node: split.left,
               dimmingColor: dimmingColor,
               dimmingOpacity: dimmingOpacity,
               focusedSurfaceID: focusedSurfaceID,
               notificationColor: notificationColor,
+              palette: palette,
               showsGlowingPaneRing: showsGlowingPaneRing,
               splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -245,11 +256,13 @@ struct TerminalSplitTreeView: View {
           },
           right: {
             SubtreeView(
+              agentPanelPresentations: agentPanelPresentations,
               node: split.right,
               dimmingColor: dimmingColor,
               dimmingOpacity: dimmingOpacity,
               focusedSurfaceID: focusedSurfaceID,
               notificationColor: notificationColor,
+              palette: palette,
               showsGlowingPaneRing: showsGlowingPaneRing,
               splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -266,10 +279,12 @@ struct TerminalSplitTreeView: View {
   }
 
   struct LeafView: View {
+    let agentPanelPresentation: PaneAgentPanelPresentation?
     let dimmingColor: Color
     let dimmingOpacity: Double
     let focusedSurfaceID: UUID?
     let notificationColor: Color
+    let palette: TerminalPalette
     let showsGlowingPaneRing: Bool
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
@@ -343,6 +358,9 @@ struct TerminalSplitTreeView: View {
         .overlay(alignment: .topTrailing) {
           searchOverlay
         }
+        .overlay(alignment: .topTrailing) {
+          agentPanelOverlay(size: geometry.size)
+        }
         .overlay {
           resizeOverlay(size: geometry.size)
         }
@@ -368,6 +386,26 @@ struct TerminalSplitTreeView: View {
     private var searchOverlay: some View {
       if surfaceView.bridge.state.searchNeedle != nil {
         GhosttySurfaceSearchOverlay(surfaceView: surfaceView)
+      }
+    }
+
+    @ViewBuilder
+    private func agentPanelOverlay(size: CGSize) -> some View {
+      if Self.shouldShowAgentPanel(
+        presentation: agentPanelPresentation,
+        focusedSurfaceID: focusedSurfaceID,
+        surfaceID: surfaceView.id,
+        searchNeedle: surfaceView.bridge.state.searchNeedle,
+        size: size
+      ), let agentPanelPresentation {
+        AgentPanelView(
+          presentation: agentPanelPresentation,
+          palette: palette,
+          openURL: { url in
+            action(.agentPanelURLTapped(url))
+          }
+        )
+        .padding(12)
       }
     }
 
@@ -495,6 +533,19 @@ struct TerminalSplitTreeView: View {
       dimmingOpacity: Double
     ) -> Bool {
       isSplit && focusedSurfaceID != surfaceID && dimmingOpacity > 0
+    }
+
+    static func shouldShowAgentPanel(
+      presentation: PaneAgentPanelPresentation?,
+      focusedSurfaceID: UUID?,
+      surfaceID: UUID,
+      searchNeedle: String?,
+      size: CGSize
+    ) -> Bool {
+      guard let presentation, !presentation.isEmpty else { return false }
+      guard focusedSurfaceID == surfaceID else { return false }
+      guard searchNeedle == nil else { return false }
+      return size.width >= 360 && size.height >= 220
     }
 
     static func shouldTriggerNotificationPulse(
@@ -933,10 +984,12 @@ enum TerminalSplitAccessibility {
 /// Wraps the SwiftUI split tree in an AppKit view so we can expose an ordered
 /// list of terminal panes to assistive technologies.
 struct TerminalSplitTreeAXContainer: NSViewRepresentable {
+  let agentPanelPresentations: [UUID: PaneAgentPanelPresentation]
   let dimmingColor: Color
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
+  let palette: TerminalPalette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
@@ -953,10 +1006,12 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
     nsView.update(
       rootView: AnyView(
         TerminalSplitTreeView(
+          agentPanelPresentations: agentPanelPresentations,
           dimmingColor: dimmingColor,
           dimmingOpacity: dimmingOpacity,
           focusedSurfaceID: focusedSurfaceID,
           notificationColor: notificationColor,
+          palette: palette,
           showsGlowingPaneRing: showsGlowingPaneRing,
           splitDividerColor: splitDividerColor,
           tree: tree,
