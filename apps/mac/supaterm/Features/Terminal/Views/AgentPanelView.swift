@@ -24,9 +24,9 @@ struct AgentPanelView: View {
               symbol: "arrow.triangle.branch",
               title: branchDetails.branchName
             )
-            valueRow(
-              symbol: "plus.forwardslash.minus",
-              title: "+\(branchDetails.addedLineCount) -\(branchDetails.removedLineCount)"
+            changesRow(
+              addedLineCount: branchDetails.addedLineCount,
+              removedLineCount: branchDetails.removedLineCount
             )
             valueRow(
               symbol: branchDetails.hasWorkingTreeChanges ? "circle.fill" : "checkmark.circle",
@@ -104,11 +104,15 @@ struct AgentPanelView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func valueRow(symbol: String, title: String) -> some View {
+  private func valueRow(
+    symbol: String,
+    title: String,
+    symbolColor: Color? = nil
+  ) -> some View {
     HStack(spacing: 7) {
       Image(systemName: symbol)
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
+        .foregroundStyle(symbolColor ?? palette.secondaryText)
         .frame(width: 14)
         .accessibilityHidden(true)
       Text(title)
@@ -120,23 +124,49 @@ struct AgentPanelView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
+  private func changesRow(addedLineCount: Int, removedLineCount: Int) -> some View {
+    HStack(spacing: 7) {
+      Image(systemName: "plus.forwardslash.minus")
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(palette.secondaryText)
+        .frame(width: 14)
+        .accessibilityHidden(true)
+      HStack(spacing: 4) {
+        Text("+\(addedLineCount, format: .number)")
+          .foregroundStyle(palette.mint)
+        Text("-\(removedLineCount, format: .number)")
+          .foregroundStyle(palette.coral)
+      }
+      .font(.system(size: 12, weight: .medium))
+      .lineLimit(1)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
   @ViewBuilder
   private func pullRequestRow(_ status: PaneAgentPullRequestStatus) -> some View {
+    let symbol = pullRequestSymbol(status.kind)
+    let color = pullRequestColor(status.kind)
     if let url = status.url {
-      linkRow(symbol: "arrow.up.right.square", title: status.title, url: url)
+      linkRow(symbol: symbol, title: status.title, url: url, symbolColor: color)
     } else {
-      valueRow(symbol: pullRequestSymbol(status.kind), title: status.title)
+      valueRow(symbol: symbol, title: status.title, symbolColor: color)
     }
   }
 
-  private func linkRow(symbol: String, title: String, url: URL) -> some View {
+  private func linkRow(
+    symbol: String,
+    title: String,
+    url: URL,
+    symbolColor: Color? = nil
+  ) -> some View {
     Button {
       openURL(url)
     } label: {
       HStack(spacing: 7) {
         Image(systemName: symbol)
           .font(.system(size: 11, weight: .medium))
-          .foregroundStyle(palette.secondaryText)
+          .foregroundStyle(symbolColor ?? palette.secondaryText)
           .frame(width: 14)
         Text(title)
           .font(.system(size: 12, weight: .medium))
@@ -157,11 +187,27 @@ struct AgentPanelView: View {
 
   private func pullRequestChecksRows(_ checks: PaneAgentPullRequestChecks) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      valueRow(symbol: checksSymbol(checks), title: checks.title)
+      statusCircleRow(color: checksColor(checks.status), title: checks.title)
       ForEach(checks.items) { item in
         checkRow(item)
       }
     }
+  }
+
+  private func statusCircleRow(color: Color, title: String) -> some View {
+    HStack(spacing: 7) {
+      Circle()
+        .fill(color)
+        .frame(width: 8, height: 8)
+        .frame(width: 14)
+        .accessibilityHidden(true)
+      Text(title)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(1)
+        .truncationMode(.middle)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func checkRow(_ item: PaneAgentPullRequestCheck) -> some View {
@@ -218,14 +264,32 @@ struct AgentPanelView: View {
     }
   }
 
-  private func checksSymbol(_ checks: PaneAgentPullRequestChecks) -> String {
-    if checks.status.isFailing {
-      return "xmark.circle"
+  private func pullRequestColor(_ kind: PaneAgentPullRequestStatus.Kind) -> Color {
+    switch kind {
+    case .unavailable:
+      return palette.amber
+    case .none:
+      return palette.secondaryText
+    case .open:
+      return palette.mint
+    case .draft:
+      return palette.secondaryText
+    case .merged:
+      return palette.violet
+    case .closed:
+      return palette.coral
     }
-    if checks.status.isPending {
-      return "circle.lefthalf.filled"
+  }
+
+  private func checksColor(_ status: PaneAgentPullRequestChecks.Status) -> Color {
+    switch status {
+    case .pending:
+      return palette.amber
+    case .passing:
+      return palette.mint
+    case .failing:
+      return palette.coral
     }
-    return "checkmark.circle.fill"
   }
 
   private func checkColor(_ status: PaneAgentPullRequestCheck.Status) -> Color {
