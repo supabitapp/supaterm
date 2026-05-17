@@ -746,7 +746,7 @@ final class PaneAgentPortScanner {
   private var processIDsBySurfaceID: [UUID: Set<Int>] = [:]
   private var artifactsBySurfaceID: [UUID: [PaneAgentArtifact]] = [:]
   private var scanTask: Task<Void, Never>?
-  private var deliver: Delivery?
+  private var delivery: Delivery?
 
   init(
     runner: TerminalAgentPanelCommandRunner = .live,
@@ -762,7 +762,7 @@ final class PaneAgentPortScanner {
     deliver: @escaping Delivery
   ) {
     let normalizedProcessIDs = Set(processIDs.map(Int.init).filter { $0 > 0 })
-    self.deliver = deliver
+    delivery = deliver
     guard !normalizedProcessIDs.isEmpty else {
       clear(surfaceID: surfaceID, deliver: deliver)
       return
@@ -779,7 +779,7 @@ final class PaneAgentPortScanner {
     let wasTracked = processIDsBySurfaceID.removeValue(forKey: surfaceID) != nil
     let hadArtifacts = artifactsBySurfaceID.removeValue(forKey: surfaceID) != nil
     if wasTracked || hadArtifacts {
-      (deliver ?? self.deliver)?(surfaceID, [])
+      (deliver ?? delivery)?(surfaceID, [])
     }
     stopLoopIfIdle()
   }
@@ -789,27 +789,32 @@ final class PaneAgentPortScanner {
     artifactsBySurfaceID.removeAll()
     scanTask?.cancel()
     scanTask = nil
-    deliver = nil
+    delivery = nil
   }
 
   @discardableResult
   func scanOnce() async -> Bool {
-    let rootsBySurfaceID = processIDsBySurfaceID
-    guard !rootsBySurfaceID.isEmpty else {
+    let rootProcessIDsBySurfaceID = processIDsBySurfaceID
+    guard !rootProcessIDsBySurfaceID.isEmpty else {
       stopLoopIfIdle()
       return false
     }
     let portsBySurfaceID = await Self.scanPorts(
-      rootProcessIDsBySurfaceID: rootsBySurfaceID,
+      rootProcessIDsBySurfaceID: rootProcessIDsBySurfaceID,
       runner: runner
     )
     var delivered = false
-    for surfaceID in rootsBySurfaceID.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
-      guard processIDsBySurfaceID[surfaceID] == rootsBySurfaceID[surfaceID] else { continue }
+    let surfaceIDs = rootProcessIDsBySurfaceID.keys.sorted { $0.uuidString < $1.uuidString }
+    for surfaceID in surfaceIDs {
+      guard
+        processIDsBySurfaceID[surfaceID] == rootProcessIDsBySurfaceID[surfaceID]
+      else {
+        continue
+      }
       let artifacts = Self.artifacts(for: portsBySurfaceID[surfaceID] ?? [])
       guard artifactsBySurfaceID[surfaceID, default: []] != artifacts else { continue }
       artifactsBySurfaceID[surfaceID] = artifacts
-      deliver?(surfaceID, artifacts)
+      delivery?(surfaceID, artifacts)
       delivered = true
     }
     return delivered
@@ -837,8 +842,8 @@ final class PaneAgentPortScanner {
     rootProcessIDsBySurfaceID: [UUID: Set<Int>],
     runner: TerminalAgentPanelCommandRunner
   ) async -> [UUID: [Int]] {
-    let rootProcessIDs = rootProcessIDsBySurfaceID.values.reduce(into: Set<Int>()) { result, processIDs in
-      result.formUnion(processIDs)
+    let rootProcessIDs = rootProcessIDsBySurfaceID.values.reduce(into: Set<Int>()) {
+      $0.formUnion($1)
     }
     guard !rootProcessIDs.isEmpty else {
       return [:]
@@ -853,11 +858,11 @@ final class PaneAgentPortScanner {
       return [:]
     }
     let parentByPID = parentMap(fromPSOutput: psResult.stdout)
-    let processIDsBySurfaceID = rootProcessIDsBySurfaceID.mapValues { rootProcessIDs in
+    let descendantProcessIDsBySurfaceID = rootProcessIDsBySurfaceID.mapValues { rootProcessIDs in
       expandProcessTree(rootProcessIDs: rootProcessIDs, parentByPID: parentByPID)
     }
-    let processIDs = processIDsBySurfaceID.values.reduce(into: Set<Int>()) { result, processIDs in
-      result.formUnion(processIDs)
+    let processIDs = descendantProcessIDsBySurfaceID.values.reduce(into: Set<Int>()) {
+      $0.formUnion($1)
     }
     guard !processIDs.isEmpty else {
       return [:]
@@ -873,7 +878,7 @@ final class PaneAgentPortScanner {
       return [:]
     }
     let portsByPID = ports(fromLsofOutput: lsofResult.stdout)
-    return processIDsBySurfaceID.mapValues { processIDs in
+    return descendantProcessIDsBySurfaceID.mapValues { processIDs in
       Array(Set(processIDs.flatMap { portsByPID[$0] ?? [] })).sorted()
     }
   }
