@@ -360,6 +360,102 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func githubPullRequestDecoderBuildsCheckDisplayText() throws {
+    let status = TerminalAgentGithubClient.decodePullRequestStatus(
+      """
+      {
+        "data": {
+          "repository": {
+            "pullRequests": {
+              "nodes": [
+                {
+                  "number": 40,
+                  "additions": 12,
+                  "deletions": 3,
+                  "state": "OPEN",
+                  "isDraft": false,
+                  "url": "https://github.com/supabitapp/supaterm/pull/40",
+                  "commits": {
+                    "nodes": [
+                      {
+                        "commit": {
+                          "statusCheckRollup": {
+                            "state": "PENDING",
+                            "contexts": {
+                              "totalCount": 3,
+                              "nodes": [
+                                {
+                                  "__typename": "CheckRun",
+                                  "name": "test",
+                                  "status": "IN_PROGRESS",
+                                  "conclusion": null,
+                                  "startedAt": "2026-05-17T14:10:22Z",
+                                  "completedAt": null,
+                                  "checkSuite": {
+                                    "workflowRun": {
+                                      "workflow": {
+                                        "name": "test"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "__typename": "CheckRun",
+                                  "name": "inspect-dependencies",
+                                  "status": "COMPLETED",
+                                  "conclusion": "SUCCESS",
+                                  "startedAt": "2026-05-17T14:10:23Z",
+                                  "completedAt": "2026-05-17T14:12:03Z",
+                                  "checkSuite": {
+                                    "workflowRun": {
+                                      "workflow": {
+                                        "name": "inspect-dependencies"
+                                      }
+                                    }
+                                  }
+                                },
+                                {
+                                  "__typename": "CheckRun",
+                                  "name": "preview",
+                                  "status": "WAITING",
+                                  "conclusion": null,
+                                  "startedAt": null,
+                                  "completedAt": null,
+                                  "checkSuite": {
+                                    "workflowRun": {
+                                      "workflow": {
+                                        "name": "deploy"
+                                      }
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+      """
+    )
+    let items = try #require(status.checks?.items)
+    let now = try isoDate("2026-05-17T14:13:22Z")
+
+    #expect(items[0].title == "test")
+    #expect(items[0].detailText(now: now) == "Started 3 minutes ago")
+    #expect(items[1].title == "inspect-dependencies")
+    #expect(items[1].detailText(now: now) == "Successful in 1m")
+    #expect(items[2].title == "deploy / preview")
+    #expect(items[2].detailText(now: now) == "Waiting for approval")
+  }
+
+  @Test
   func pullRequestChecksCountsKnownItemsByStatus() {
     let checks = PaneAgentPullRequestChecks(
       status: .pending,
@@ -432,6 +528,10 @@ struct TerminalAgentPanelTests {
 
     #expect(status.checks?.title == "Checks failing (25)")
   }
+}
+
+private func isoDate(_ value: String) throws -> Date {
+  try #require(ISO8601DateFormatter().date(from: value))
 }
 
 private actor AgentPanelRefreshRecorder {

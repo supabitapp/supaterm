@@ -230,7 +230,7 @@ struct AgentPanelView: View {
         .frame(width: 6, height: 6)
         .frame(width: 14)
         .accessibilityHidden(true)
-      Text(item.name)
+      Text("\(item.title) - \(item.detailText())")
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(palette.secondaryText)
         .lineLimit(1)

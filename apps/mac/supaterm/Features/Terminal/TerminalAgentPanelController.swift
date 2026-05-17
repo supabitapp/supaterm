@@ -498,11 +498,10 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
   }
 
   nonisolated static func decodePullRequestStatus(_ output: String) -> PaneAgentPullRequestStatus {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
     guard
-      let response = try? JSONDecoder().decode(
-        GithubPullRequestResponse.self,
-        from: Data(output.utf8)
-      )
+      let response = try? decoder.decode(GithubPullRequestResponse.self, from: Data(output.utf8))
     else {
       return .unavailable
     }
@@ -554,13 +553,16 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       guard let name = normalizedCheckName(node.name) else { return nil }
       return PaneAgentPullRequestCheck(
         name: name,
-        status: checkRunStatus(status: node.status, conclusion: node.conclusion)
+        state: checkRunState(status: node.status, conclusion: node.conclusion),
+        workflowName: node.checkSuite?.workflowRun?.workflow?.name,
+        startedAt: node.startedAt,
+        completedAt: node.completedAt
       )
     case "StatusContext":
       guard let name = normalizedCheckName(node.context) else { return nil }
       return PaneAgentPullRequestCheck(
         name: name,
-        status: statusContextStatus(node.state)
+        state: statusContextState(node.state)
       )
     default:
       return nil
@@ -574,35 +576,47 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     return normalized
   }
 
-  nonisolated private static func checkRunStatus(
+  nonisolated private static func checkRunState(
     status: String?,
     conclusion: String?
-  ) -> PaneAgentPullRequestCheck.Status {
-    guard status == "COMPLETED" else {
-      return .pending
+  ) -> PaneAgentPullRequestCheck.State {
+    if status == "COMPLETED" {
+      return conclusion.flatMap { checkRunConclusionStates[$0] } ?? .failure
     }
-    switch conclusion {
-    case "SUCCESS":
-      return .passing
-    case "NEUTRAL", "SKIPPED":
-      return .skipped
-    default:
-      return .failing
-    }
+    return status.flatMap { checkRunStatusStates[$0] } ?? .unavailable
   }
 
-  nonisolated private static func statusContextStatus(
+  nonisolated private static func statusContextState(
     _ state: String?
-  ) -> PaneAgentPullRequestCheck.Status {
-    switch state {
-    case "SUCCESS":
-      return .passing
-    case "FAILURE", "ERROR":
-      return .failing
-    default:
-      return .pending
-    }
+  ) -> PaneAgentPullRequestCheck.State {
+    state.flatMap { statusContextStates[$0] } ?? .pending
   }
+
+  private static let checkRunStatusStates: [String: PaneAgentPullRequestCheck.State] = [
+    "IN_PROGRESS": .inProgress,
+    "QUEUED": .queued,
+    "WAITING": .waiting,
+    "REQUESTED": .requested,
+    "PENDING": .pending,
+  ]
+
+  private static let checkRunConclusionStates: [String: PaneAgentPullRequestCheck.State] = [
+    "SUCCESS": .success,
+    "FAILURE": .failure,
+    "NEUTRAL": .neutral,
+    "SKIPPED": .skipped,
+    "CANCELLED": .cancelled,
+    "TIMED_OUT": .timedOut,
+    "ACTION_REQUIRED": .actionRequired,
+    "STALE": .stale,
+    "STARTUP_FAILURE": .startupFailure,
+  ]
+
+  private static let statusContextStates: [String: PaneAgentPullRequestCheck.State] = [
+    "SUCCESS": .success,
+    "FAILURE": .failure,
+    "ERROR": .error,
+  ]
 
   nonisolated private static func rollupStatus(
     _ state: String
@@ -653,6 +667,15 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
                           name
                           status
                           conclusion
+                          startedAt
+                          completedAt
+                          checkSuite {
+                            workflowRun {
+                              workflow {
+                                name
+                              }
+                            }
+                          }
                         }
                         ... on StatusContext {
                           context
@@ -735,6 +758,9 @@ nonisolated private struct GithubPRCheckNodeResponse: Decodable {
   let context: String?
   let status: String?
   let conclusion: String?
+  let startedAt: Date?
+  let completedAt: Date?
+  let checkSuite: GithubPRCheckSuiteResponse?
   let state: String?
 
   enum CodingKeys: String, CodingKey {
@@ -743,8 +769,23 @@ nonisolated private struct GithubPRCheckNodeResponse: Decodable {
     case context
     case status
     case conclusion
+    case startedAt
+    case completedAt
+    case checkSuite
     case state
   }
+}
+
+nonisolated private struct GithubPRCheckSuiteResponse: Decodable {
+  let workflowRun: GithubPRWorkflowRunResponse?
+}
+
+nonisolated private struct GithubPRWorkflowRunResponse: Decodable {
+  let workflow: GithubPRWorkflowResponse?
+}
+
+nonisolated private struct GithubPRWorkflowResponse: Decodable {
+  let name: String?
 }
 
 @MainActor

@@ -141,14 +141,200 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
     }
   }
 
+  enum State: Equatable, Sendable {
+    case pending
+    case queued
+    case waiting
+    case requested
+    case inProgress
+    case success
+    case failure
+    case error
+    case skipped
+    case neutral
+    case cancelled
+    case timedOut
+    case actionRequired
+    case stale
+    case startupFailure
+    case unavailable
+
+    init(status: Status) {
+      switch status {
+      case .pending:
+        self = .pending
+      case .passing:
+        self = .success
+      case .failing:
+        self = .failure
+      case .skipped:
+        self = .skipped
+      }
+    }
+
+    var status: Status {
+      switch self {
+      case .pending, .queued, .waiting, .requested, .inProgress:
+        .pending
+      case .success:
+        .passing
+      case .neutral, .skipped:
+        .skipped
+      case .failure, .error, .cancelled, .timedOut, .actionRequired, .stale, .startupFailure, .unavailable:
+        .failing
+      }
+    }
+
+    var activeFallback: String? {
+      switch self {
+      case .pending:
+        "Pending"
+      case .inProgress:
+        "In progress"
+      default:
+        nil
+      }
+    }
+
+    var completedDetail: (prefix: String, fallback: String)? {
+      switch self {
+      case .success:
+        ("Successful in", "Successful")
+      case .failure:
+        ("Failed after", "Failed")
+      case .error:
+        ("Errored after", "Errored")
+      case .neutral:
+        ("Neutral after", "Neutral")
+      case .cancelled:
+        ("Cancelled after", "Cancelled")
+      case .timedOut:
+        ("Timed out after", "Timed out")
+      default:
+        nil
+      }
+    }
+
+    var staticDetailText: String {
+      switch self {
+      case .queued:
+        "Queued"
+      case .waiting:
+        "Waiting for approval"
+      case .requested:
+        "Requested"
+      case .skipped:
+        "Skipped"
+      case .actionRequired:
+        "Action required"
+      case .stale:
+        "Stale"
+      case .startupFailure:
+        "Failed at startup"
+      case .unavailable:
+        "Status unavailable"
+      default:
+        "Status unavailable"
+      }
+    }
+  }
+
   let id: String
   let name: String
-  let status: Status
+  let workflowName: String?
+  let state: State
+  let startedAt: Date?
+  let completedAt: Date?
+
+  var status: Status {
+    state.status
+  }
+
+  var title: String {
+    guard let workflowName, workflowName != name else {
+      return name
+    }
+    return "\(workflowName) / \(name)"
+  }
 
   init(name: String, status: Status) {
-    self.id = name
+    self.init(name: name, state: State(status: status))
+  }
+
+  init(
+    name: String,
+    state: State,
+    workflowName: String? = nil,
+    startedAt: Date? = nil,
+    completedAt: Date? = nil
+  ) {
+    let workflowName = Self.normalized(workflowName)
+    self.id = [workflowName, name].compactMap(\.self).joined(separator: "/")
     self.name = name
-    self.status = status
+    self.workflowName = workflowName
+    self.state = state
+    self.startedAt = startedAt
+    self.completedAt = completedAt
+  }
+
+  func detailText(now: Date = Date()) -> String {
+    if let activeFallback = state.activeFallback {
+      if let startedAt {
+        return "Started \(Self.relativeText(from: startedAt, to: now)) ago"
+      }
+      return activeFallback
+    }
+    if let completedDetail = state.completedDetail {
+      return completedText(completedDetail.prefix, fallback: completedDetail.fallback)
+    }
+    return state.staticDetailText
+  }
+
+  private func completedText(_ prefix: String, fallback: String) -> String {
+    guard let startedAt, let completedAt else {
+      return fallback
+    }
+    return "\(prefix) \(Self.durationText(from: startedAt, to: completedAt))"
+  }
+
+  private static func normalized(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+
+  private static func relativeText(from start: Date, to end: Date) -> String {
+    let seconds = max(0, Int(end.timeIntervalSince(start).rounded(.down)))
+    if seconds < 60 {
+      return seconds == 1 ? "1 second" : "\(seconds) seconds"
+    }
+    let minutes = seconds / 60
+    if minutes < 60 {
+      return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+    let hours = minutes / 60
+    if hours < 24 {
+      return hours == 1 ? "1 hour" : "\(hours) hours"
+    }
+    let days = hours / 24
+    return days == 1 ? "1 day" : "\(days) days"
+  }
+
+  private static func durationText(from start: Date, to end: Date) -> String {
+    let seconds = max(0, Int(end.timeIntervalSince(start).rounded(.down)))
+    if seconds < 60 {
+      return "\(seconds)s"
+    }
+    let minutes = seconds / 60
+    if minutes < 60 {
+      return "\(minutes)m"
+    }
+    let hours = minutes / 60
+    let remainingMinutes = minutes % 60
+    if remainingMinutes == 0 {
+      return "\(hours)h"
+    }
+    return "\(hours)h \(remainingMinutes)m"
   }
 }
 
