@@ -240,7 +240,6 @@ struct AgentPanelView: View {
         .lineLimit(1)
         .truncationMode(.middle)
     }
-    .padding(.leading, 21)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
