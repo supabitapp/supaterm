@@ -634,6 +634,14 @@ struct TerminalSplitTreeView: View {
     }
   }
 
+  private struct AgentPanelSizePreferenceKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+      value = nextValue()
+    }
+  }
+
   private struct AgentPanelSurface: View {
     let isCollapsed: Bool
     let presentation: PaneAgentPanelPresentation
@@ -642,32 +650,38 @@ struct TerminalSplitTreeView: View {
     let toggle: () -> Void
     let openURL: (URL) -> Void
 
+    @State private var expandedHeight: CGFloat?
+
     var body: some View {
-      Group {
-        if isCollapsed {
-          toggleButton
-        } else {
-          AgentPanelView(
-            presentation: presentation,
-            palette: palette,
-            openURL: openURL
-          ) {
-            toggleButton
+      ZStack(alignment: .topTrailing) {
+        AgentPanelView(
+          presentation: presentation,
+          palette: palette,
+          openURL: openURL
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .opacity(isCollapsed ? 0 : 1)
+        .scaleEffect(isCollapsed ? 0.96 : 1, anchor: .topTrailing)
+        .allowsHitTesting(!isCollapsed)
+        .accessibilityHidden(isCollapsed)
+        .background {
+          GeometryReader { proxy in
+            Color.clear.preference(key: AgentPanelSizePreferenceKey.self, value: proxy.size)
           }
-          .terminalTransition(
-            .opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)),
-            reduceMotion: reduceMotion
-          )
         }
+
+        toggleButton
       }
       .frame(
-        width: TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isCollapsed),
+        width: surfaceWidth,
+        height: surfaceHeight,
         alignment: .topTrailing
       )
       .background(
         palette.detailBackground.opacity(0.96),
         in: .rect(cornerRadius: cornerRadius)
       )
+      .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
       .overlay {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
           .strokeBorder(palette.detailStroke, lineWidth: 1)
@@ -679,6 +693,10 @@ struct TerminalSplitTreeView: View {
         reduceMotion: reduceMotion
       )
       .accessibilityElement(children: .contain)
+      .onPreferenceChange(AgentPanelSizePreferenceKey.self) { size in
+        guard size.height > 0 else { return }
+        expandedHeight = max(size.height, AgentPanelMetrics.collapsedLength)
+      }
     }
 
     private var toggleButton: some View {
@@ -687,6 +705,14 @@ struct TerminalSplitTreeView: View {
         palette: palette,
         action: toggle
       )
+    }
+
+    private var surfaceWidth: CGFloat {
+      TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isCollapsed)
+    }
+
+    private var surfaceHeight: CGFloat? {
+      isCollapsed ? AgentPanelMetrics.collapsedLength : expandedHeight
     }
 
     private var cornerRadius: CGFloat {

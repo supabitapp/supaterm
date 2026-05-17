@@ -3,38 +3,25 @@ import SwiftUI
 enum AgentPanelMetrics {
   static let expandedWidth: CGFloat = 306
   static let collapsedLength: CGFloat = 30
+  static let contentPadding: CGFloat = 12
+  static let toggleSpacing: CGFloat = 8
   static let expandedCornerRadius: CGFloat = 8
   static let collapsedCornerRadius: CGFloat = 6
 }
 
-struct AgentPanelView<Accessory: View>: View {
+struct AgentPanelView: View {
   let presentation: PaneAgentPanelPresentation
   let palette: TerminalPalette
   let openURL: (URL) -> Void
-  let accessory: Accessory
 
   @State private var checksAreExpanded = false
 
-  init(
-    presentation: PaneAgentPanelPresentation,
-    palette: TerminalPalette,
-    openURL: @escaping (URL) -> Void,
-    @ViewBuilder accessory: () -> Accessory
-  ) {
-    self.presentation = presentation
-    self.palette = palette
-    self.openURL = openURL
-    self.accessory = accessory()
-  }
-
   var body: some View {
-    HStack(alignment: .top, spacing: 8) {
-      content
-      accessory
-    }
-    .padding(12)
-    .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
-    .accessibilityElement(children: .contain)
+    content
+      .padding(AgentPanelMetrics.contentPadding)
+      .padding(.trailing, AgentPanelMetrics.collapsedLength + AgentPanelMetrics.toggleSpacing)
+      .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
+      .accessibilityElement(children: .contain)
   }
 
   private var content: some View {
