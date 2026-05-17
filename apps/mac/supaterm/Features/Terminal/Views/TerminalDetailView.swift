@@ -209,7 +209,7 @@ private struct AgentPanelVisibilityButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "sidebar.right")
+      Image(systemName: "rectangle.badge.sparkles")
         .font(.system(size: 14, weight: .medium))
         .foregroundStyle(foregroundStyle)
         .frame(width: 30, height: 30)
