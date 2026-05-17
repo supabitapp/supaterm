@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct AgentPanelView: View {
+  static let width: CGFloat = 306
+
   let presentation: PaneAgentPanelPresentation
   let palette: TerminalPalette
   let openURL: (URL) -> Void
@@ -61,7 +63,7 @@ struct AgentPanelView: View {
       }
     }
     .padding(12)
-    .frame(width: 306, alignment: .leading)
+    .frame(width: Self.width, alignment: .leading)
     .background(
       palette.detailBackground.opacity(0.96),
       in: .rect(cornerRadius: 8)

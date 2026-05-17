@@ -408,42 +408,26 @@ struct TerminalSplitTreeView: View {
     @ViewBuilder
     private func agentPanelOverlay(size: CGSize) -> some View {
       let searchIsVisible = surfaceView.bridge.state.searchNeedle != nil
-      switch Self.agentPanelOverlayState(
+      let overlayState = Self.agentPanelOverlayState(
         presentation: agentPanelPresentation,
         focusedSurfaceID: focusedSurfaceID,
         surfaceID: surfaceView.id,
         size: size,
         isCollapsed: isAgentPanelCollapsed
-      ) {
-      case .hidden:
-        EmptyView()
-      case .collapsedIcon:
-        AgentPanelVisibilityButton(
-          isVisible: false,
+      )
+      if let agentPanelPresentation, overlayState != .hidden {
+        AgentPanelSurface(
+          isCollapsed: overlayState == .collapsedIcon,
+          presentation: agentPanelPresentation,
           palette: palette,
-          action: { action(.agentPanelVisibilityToggled(surfaceView.id)) }
+          reduceMotion: reduceMotion,
+          toggle: toggleAgentPanel,
+          openURL: { url in
+            action(.agentPanelURLTapped(url))
+          }
         )
         .padding(.top, Self.agentPanelTopPadding(searchIsVisible: searchIsVisible))
-        .padding(.trailing, Self.agentPanelEdgePadding)
-      case .expandedPanel:
-        if let agentPanelPresentation {
-          VStack(alignment: .trailing, spacing: 6) {
-            AgentPanelVisibilityButton(
-              isVisible: true,
-              palette: palette,
-              action: { action(.agentPanelVisibilityToggled(surfaceView.id)) }
-            )
-            AgentPanelView(
-              presentation: agentPanelPresentation,
-              palette: palette,
-              openURL: { url in
-                action(.agentPanelURLTapped(url))
-              }
-            )
-          }
-          .padding(.top, Self.agentPanelTopPadding(searchIsVisible: searchIsVisible))
-          .padding([.leading, .trailing, .bottom], Self.agentPanelEdgePadding)
-        }
+        .padding([.leading, .trailing, .bottom], Self.agentPanelEdgePadding)
       }
     }
 
@@ -594,6 +578,10 @@ struct TerminalSplitTreeView: View {
       searchIsVisible ? GhosttySurfaceSearchOverlay.topReservedHeight : agentPanelEdgePadding
     }
 
+    static func agentPanelOverlayWidth(isCollapsed: Bool) -> CGFloat {
+      isCollapsed ? AgentPanelVisibilityButton.length : AgentPanelView.width
+    }
+
     static func shouldTriggerNotificationPulse(
       from oldValue: Bool,
       to newValue: Bool,
@@ -638,9 +626,58 @@ struct TerminalSplitTreeView: View {
         }
       }
     }
+
+    private func toggleAgentPanel() {
+      TerminalMotion.animate(.spring(response: 0.24, dampingFraction: 0.92), reduceMotion: reduceMotion) {
+        action(.agentPanelVisibilityToggled(surfaceView.id))
+      }
+    }
+  }
+
+  private struct AgentPanelSurface: View {
+    let isCollapsed: Bool
+    let presentation: PaneAgentPanelPresentation
+    let palette: TerminalPalette
+    let reduceMotion: Bool
+    let toggle: () -> Void
+    let openURL: (URL) -> Void
+
+    var body: some View {
+      VStack(alignment: .trailing, spacing: isCollapsed ? 0 : 6) {
+        AgentPanelVisibilityButton(
+          isVisible: !isCollapsed,
+          palette: palette,
+          action: toggle
+        )
+
+        if !isCollapsed {
+          AgentPanelView(
+            presentation: presentation,
+            palette: palette,
+            openURL: openURL
+          )
+          .terminalTransition(
+            .opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)),
+            reduceMotion: reduceMotion
+          )
+        }
+      }
+      .frame(
+        width: TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isCollapsed),
+        alignment: .topTrailing
+      )
+      .terminalAnimation(
+        .spring(response: 0.24, dampingFraction: 0.92),
+        value: isCollapsed,
+        reduceMotion: reduceMotion
+      )
+      .accessibilityElement(children: .contain)
+    }
   }
 
   private struct AgentPanelVisibilityButton: View {
+    static let length: CGFloat = 30
+
     let isVisible: Bool
     let palette: TerminalPalette
     let action: () -> Void
@@ -660,7 +697,7 @@ struct TerminalSplitTreeView: View {
         Image(systemName: "info.circle")
           .font(.system(size: 14, weight: .medium))
           .foregroundStyle(foregroundStyle)
-          .frame(width: 30, height: 30)
+          .frame(width: Self.length, height: Self.length)
           .background(backgroundStyle, in: .rect(cornerRadius: 6))
           .overlay {
             if isVisible {
