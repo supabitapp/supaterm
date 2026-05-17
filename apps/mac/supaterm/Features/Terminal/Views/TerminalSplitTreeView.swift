@@ -750,9 +750,6 @@ struct TerminalSplitTreeView: View {
     }
 
     private var foregroundStyle: Color {
-      if isVisible {
-        return Color.accentColor
-      }
       return isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
     }
   }
