@@ -634,10 +634,10 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  private struct AgentPanelSizePreferenceKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
+  private struct AgentPanelHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
 
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
       value = nextValue()
     }
   }
@@ -666,7 +666,7 @@ struct TerminalSplitTreeView: View {
         .accessibilityHidden(isCollapsed)
         .background {
           GeometryReader { proxy in
-            Color.clear.preference(key: AgentPanelSizePreferenceKey.self, value: proxy.size)
+            Color.clear.preference(key: AgentPanelHeightPreferenceKey.self, value: proxy.size.height)
           }
         }
 
@@ -693,9 +693,9 @@ struct TerminalSplitTreeView: View {
         reduceMotion: reduceMotion
       )
       .accessibilityElement(children: .contain)
-      .onPreferenceChange(AgentPanelSizePreferenceKey.self) { size in
-        guard size.height > 0 else { return }
-        expandedHeight = max(size.height, AgentPanelMetrics.collapsedLength)
+      .onPreferenceChange(AgentPanelHeightPreferenceKey.self) { height in
+        guard height > 0 else { return }
+        expandedHeight = max(height, AgentPanelMetrics.collapsedLength)
       }
     }
 
@@ -750,7 +750,7 @@ struct TerminalSplitTreeView: View {
     }
 
     private var foregroundStyle: Color {
-      return isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
+      isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
     }
   }
 
