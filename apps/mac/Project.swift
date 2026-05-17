@@ -5,6 +5,21 @@ let ghosttyFingerprintPath: Path = ".build/ghostty/fingerprint"
 let ghosttyResourcesPath: Path = ".build/ghostty/share/ghostty"
 let ghosttyTerminfoPath: Path = ".build/ghostty/share/terminfo"
 let ghosttyBuildScriptPath: Path = "scripts/build-ghostty.sh"
+
+func tuistInspectScript(_ action: String) -> String {
+  """
+  if [ -x "$HOME/.local/bin/mise" ]; then
+    "$HOME/.local/bin/mise" x -C "$SRCROOT" -- tuist inspect \(action)
+  elif [ -x "/opt/homebrew/bin/mise" ]; then
+    /opt/homebrew/bin/mise x -C "$SRCROOT" -- tuist inspect \(action)
+  elif [ -x "/usr/local/bin/mise" ]; then
+    /usr/local/bin/mise x -C "$SRCROOT" -- tuist inspect \(action)
+  else
+    mise x -C "$SRCROOT" -- tuist inspect \(action)
+  fi
+  """
+}
+
 let ghosttyFingerprintInputScript = """
 "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
@@ -434,7 +449,7 @@ let project = Project(
         postActions: [
           .executionAction(
             title: "Push build insights",
-            scriptText: "$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build",
+            scriptText: tuistInspectScript("build"),
             target: .target("supaterm")
           ),
         ],
@@ -449,7 +464,7 @@ let project = Project(
         postActions: [
           .executionAction(
             title: "Push test insights",
-            scriptText: "$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test",
+            scriptText: tuistInspectScript("test"),
             target: .target("supatermTests")
           ),
         ]
