@@ -4,7 +4,6 @@ enum AgentPanelMetrics {
   static let expandedWidth: CGFloat = 306
   static let collapsedLength: CGFloat = 30
   static let contentPadding: CGFloat = 12
-  static let toggleSpacing: CGFloat = 8
   static let expandedCornerRadius: CGFloat = 8
   static let collapsedCornerRadius: CGFloat = 6
 }
@@ -19,7 +18,6 @@ struct AgentPanelView: View {
   var body: some View {
     content
       .padding(AgentPanelMetrics.contentPadding)
-      .padding(.trailing, AgentPanelMetrics.collapsedLength + AgentPanelMetrics.toggleSpacing)
       .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
       .accessibilityElement(children: .contain)
   }
