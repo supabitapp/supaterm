@@ -5,9 +5,12 @@ struct ClaudeProgressCursor {
 }
 
 enum ClaudeTaskProgressReader {
+  private static let recentCompletedInterval: TimeInterval = 30
+
   static func progressRows(
     sessionID: String,
-    homeDirectoryURL: URL
+    homeDirectoryURL: URL,
+    now: Date = Date()
   ) -> [PaneAgentProgressRow] {
     let taskDirectoryURL =
       homeDirectoryURL
@@ -19,18 +22,27 @@ enum ClaudeTaskProgressReader {
         at: taskDirectoryURL,
         includingPropertiesForKeys: nil
       )) ?? []
-    return
+    let rows =
       taskURLs
       .filter { $0.pathExtension == "json" }
-      .sorted { lhs, rhs in
-        let lhsName = lhs.deletingPathExtension().lastPathComponent
-        let rhsName = rhs.deletingPathExtension().lastPathComponent
-        if let lhsNumber = Int(lhsName), let rhsNumber = Int(rhsName) {
-          return lhsNumber < rhsNumber
-        }
-        return lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent) == .orderedAscending
+      .compactMap(progressTask)
+
+    let unresolvedIDs = Set(rows.filter { $0.row.status != .completed }.map(\.taskID))
+    return rows.sorted { lhs, rhs in
+      let lhsBucket = displayBucket(lhs, now: now)
+      let rhsBucket = displayBucket(rhs, now: now)
+      if lhsBucket != rhsBucket {
+        return lhsBucket < rhsBucket
       }
-      .compactMap(progressRow)
+      if lhsBucket == 2 {
+        let lhsBlocked = lhs.blockedBy.contains { unresolvedIDs.contains($0) }
+        let rhsBlocked = rhs.blockedBy.contains { unresolvedIDs.contains($0) }
+        if lhsBlocked != rhsBlocked {
+          return !lhsBlocked
+        }
+      }
+      return lhs.precedes(rhs)
+    }.map(\.row)
   }
 
   static func sanitizedTaskListID(_ value: String) -> String {
@@ -42,9 +54,28 @@ enum ClaudeTaskProgressReader {
     )
   }
 
-  private static func progressRow(
+  private static func displayBucket(
+    _ task: ProgressTask,
+    now: Date
+  ) -> Int {
+    switch task.row.status {
+    case .completed:
+      if let modificationDate = task.modificationDate,
+        now.timeIntervalSince(modificationDate) < recentCompletedInterval
+      {
+        return 0
+      }
+      return 3
+    case .running:
+      return 1
+    case .pending:
+      return 2
+    }
+  }
+
+  private static func progressTask(
     at url: URL
-  ) -> PaneAgentProgressRow? {
+  ) -> ProgressTask? {
     guard
       let data = try? Data(contentsOf: url),
       let rawObject = try? JSONSerialization.jsonObject(with: data),
@@ -55,11 +86,32 @@ enum ClaudeTaskProgressReader {
     else {
       return nil
     }
-    return PaneAgentProgressRow(
+    let row = PaneAgentProgressRow(
       id: "claude-task:\(id)",
       title: title,
       status: AgentProgressParsing.status(object["status"]?.stringValue)
     )
+    return ProgressTask(
+      taskID: id,
+      row: row,
+      blockedBy: object["blockedBy"]?.arrayValue?.compactMap(\.stringValue) ?? [],
+      modificationDate: (try? url.resourceValues(forKeys: [.contentModificationDateKey]))
+        .flatMap(\.contentModificationDate)
+    )
+  }
+
+  private struct ProgressTask {
+    let taskID: String
+    let row: PaneAgentProgressRow
+    let blockedBy: [String]
+    let modificationDate: Date?
+
+    func precedes(_ other: Self) -> Bool {
+      if let lhs = Int(taskID), let rhs = Int(other.taskID) {
+        return lhs < rhs
+      }
+      return taskID.localizedStandardCompare(other.taskID) == .orderedAscending
+    }
   }
 }
 

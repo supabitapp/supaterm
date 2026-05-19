@@ -53,6 +53,7 @@ enum ClaudeProgressFixtures {
     sessionID: String,
     homeDirectoryURL: URL,
     filename: String? = nil,
+    blockedBy: [String] = [],
     metadata: [String: Any]? = nil
   ) throws {
     let taskDirectoryURL =
@@ -65,6 +66,7 @@ enum ClaudeProgressFixtures {
       "id": id,
       "subject": subject,
       "status": status,
+      "blockedBy": blockedBy,
     ]
     if let metadata {
       object["metadata"] = metadata
