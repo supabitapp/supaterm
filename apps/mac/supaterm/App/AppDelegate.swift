@@ -103,8 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     menuController.install()
     socketStore.send(.task)
     refreshInstalledAgentHooks()
-    reapOrphanZmxSessions()
     restoreWindowsAtLaunch()
+    reapOrphanZmxSessions()
     $lastAppLaunchedDate.withLock {
       $0 = Date()
     }
@@ -279,14 +279,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   }
 
   private func reapOrphanZmxSessions() {
-    let knownSurfaceIDs =
-      supatermSettings.restoreTerminalLayoutEnabled
-      ? sessionCatalog.surfaceIDs.union(pinnedTabCatalog.surfaceIDs)
-      : []
-    let knownSessionIDs = Set(knownSurfaceIDs.map(ZmxSessionID.make(surfaceID:)))
     let zmxClient = ZmxClient.liveValue
     Task.detached(priority: .utility) {
-      let orphanSurfaceIDs = await zmxClient.listSessions()
+      let sessionIDs = await zmxClient.listSessions()
+      let knownSessionIDs = await MainActor.run { [weak self] in
+        guard let self else { return Set<String>() }
+        return Self.knownZmxSessionIDsForLaunchReaping(
+          restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
+          sessionCatalog: sessionCatalog,
+          pinnedTabCatalog: pinnedTabCatalog,
+          liveSurfaceIDs: terminalWindowRegistry.liveSurfaceIDs()
+        )
+      }
+      let orphanSurfaceIDs =
+        sessionIDs
         .filter { !knownSessionIDs.contains($0) }
         .compactMap(ZmxSessionID.surfaceID(from:))
       await withTaskGroup(of: Void.self) { group in
@@ -297,6 +303,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
         }
       }
     }
+  }
+
+  static func knownZmxSessionIDsForLaunchReaping(
+    restoreTerminalLayoutEnabled: Bool,
+    sessionCatalog: TerminalSessionCatalog,
+    pinnedTabCatalog: TerminalPinnedTabCatalog,
+    liveSurfaceIDs: Set<UUID>
+  ) -> Set<String> {
+    let persistedSurfaceIDs =
+      restoreTerminalLayoutEnabled
+      ? sessionCatalog.surfaceIDs.union(pinnedTabCatalog.surfaceIDs)
+      : []
+    return Set(persistedSurfaceIDs.union(liveSurfaceIDs).map(ZmxSessionID.make(surfaceID:)))
   }
 
   private func openServiceTabs(workingDirectoryPaths: [String]) {

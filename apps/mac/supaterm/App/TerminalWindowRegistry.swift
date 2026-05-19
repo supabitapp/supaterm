@@ -350,7 +350,13 @@ final class TerminalWindowRegistry {
   }
 
   var hasAnySurface: Bool {
-    activeEntries().contains { !$0.terminal.liveSurfaceIDs().isEmpty }
+    !liveSurfaceIDs().isEmpty
+  }
+
+  func liveSurfaceIDs() -> Set<UUID> {
+    activeEntries().reduce(into: Set<UUID>()) { result, entry in
+      result.formUnion(entry.terminal.liveSurfaceIDs())
+    }
   }
 
   func commandPaletteSnapshot(windowID: ObjectIdentifier?) -> TerminalCommandPaletteSnapshot {
