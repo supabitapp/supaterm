@@ -51,3 +51,13 @@ runs:
       with:
         path: apps/mac/.build/ghostty
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ghostty-v2-${{ env.GHOSTTY_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-ghostty.sh', 'mise.toml', '.gitmodules') }}
+    - name: Zmx cache key
+      shell: bash
+      run: |
+        ZMX_SHA="$(git -C apps/mac/ThirdParty/zmx rev-parse HEAD)"
+        printf '%s\n' "ZMX_SHA=$ZMX_SHA" >> "$GITHUB_ENV"
+    - name: Zmx cache
+      uses: actions/cache@v5
+      with:
+        path: apps/mac/.build/zmx
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v1-${{ env.ZMX_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-zmx.sh', 'mise.toml', '.gitmodules') }}

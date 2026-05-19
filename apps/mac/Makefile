@@ -23,7 +23,7 @@ TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-app run-app install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app run-app install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -76,7 +76,10 @@ $(TUIST_CACHED_RELEASE_GENERATION_STAMP): $(TUIST_GENERATION_INPUTS) $(TUIST_INS
 build-ghostty:
 	bash scripts/build-ghostty.sh
 
-build-app: tuist-generate build-ghostty # Build the macOS app (Debug)
+build-zmx:
+	bash scripts/build-zmx.sh
+
+build-app: tuist-generate build-ghostty build-zmx # Build the macOS app (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build 2>&1 | mise exec -- xcbeautify --disable-logging'
 
 run-app: build-app # Build then launch (Debug) with log streaming
@@ -102,7 +105,7 @@ install-tip: # Install tip build from github
 	ditto "$$mount_dir/supaterm.app" "/Applications/supaterm.app"; \
 	echo "Installed /Applications/supaterm.app"
 
-archive: tuist-generate-release build-ghostty archive-xcodebuild # Archive Release build for distribution
+archive: tuist-generate-release build-ghostty build-zmx archive-xcodebuild # Archive Release build for distribution
 
 archive-xcodebuild:
 	mkdir -p build
@@ -111,7 +114,7 @@ archive-xcodebuild:
 export-archive: # Export archive for distribution
 	bash -o pipefail -c 'xcodebuild -exportArchive -archivePath build/supaterm.xcarchive -exportPath build/export -exportOptionsPlist build/ExportOptions.plist 2>&1 | mise exec -- xcbeautify --quiet --disable-logging'
 
-test: tuist-generate build-ghostty test-xcodebuild # Run the full macOS test suite
+test: tuist-generate build-ghostty build-zmx test-xcodebuild # Run the full macOS test suite
 
 test-xcodebuild:
 	@if [ -t 1 ]; then \

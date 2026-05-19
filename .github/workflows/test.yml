@@ -26,4 +26,5 @@ jobs:
       - run: make mac-tuist-install
       - run: make mac-tuist-generate
       - run: make mac-build-ghostty
+      - run: make mac-build-zmx
       - run: make mac-test-xcodebuild

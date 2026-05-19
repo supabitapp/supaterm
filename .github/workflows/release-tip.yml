@@ -68,6 +68,7 @@ jobs:
       - run: make mac-tuist-install
       - run: make mac-tuist-generate-release-cached
       - run: make mac-build-ghostty
+      - run: make mac-build-zmx
       - run: make mac-archive-xcodebuild XCODEBUILD_FLAGS='CURRENT_PROJECT_VERSION=${{ env.BUILD_NUMBER }}'
       - name: Write export options
         run: |
