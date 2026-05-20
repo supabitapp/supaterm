@@ -619,6 +619,35 @@ struct TerminalHostStatePinnedTabSharingTests {
     }
   }
 
+  @Test
+  func restorationSnapshotRestoresSelectedPinnedTab() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+      initializeGhosttyForTests()
+    } operation: {
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+
+      let pinnedTabID = try #require(host.selectedTabID)
+      host.handleCommand(.togglePinned(pinnedTabID))
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.selectTab(pinnedTabID))
+
+      let selectedSpaceID = try #require(host.selectedSpaceID)
+      let snapshot = host.restorationSnapshot()
+      let snapshotSpace = try #require(snapshot.spaces.first { $0.id == selectedSpaceID })
+
+      #expect(snapshotSpace.selectedPinnedTabID == pinnedTabID)
+      #expect(snapshotSpace.selectedTabIndex == nil)
+
+      let restored = TerminalHostState()
+      #expect(restored.restore(from: snapshot))
+      #expect(restored.selectedTabID == pinnedTabID)
+      #expect(restored.spaceManager.tabs(in: selectedSpaceID).map(\.isPinned) == [true, false])
+      #expect(restored.spaceManager.tabs(in: selectedSpaceID).first?.id == pinnedTabID)
+    }
+  }
+
   private func flushPinnedTabCatalogObservation() async {
     for _ in 0..<5 {
       await Task.yield()

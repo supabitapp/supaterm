@@ -151,7 +151,10 @@ extension TerminalHostState {
     }
   }
 
-  func reconcilePinnedTabs(with pinnedTabCatalog: TerminalPinnedTabCatalog) {
+  func reconcilePinnedTabs(
+    with pinnedTabCatalog: TerminalPinnedTabCatalog,
+    selectedTabIDsBySpaceID: [TerminalSpaceID: TerminalTabID] = [:]
+  ) {
     var didChange = false
 
     for space in spaces {
@@ -202,7 +205,10 @@ extension TerminalHostState {
       let updatedTabs = desiredPinnedTabs + convertedRegularTabs + currentRegularTabs
       let currentSelectedTabID = spaceManager.selectedTabID(in: space.id)
       let updatedSelectedTabID =
-        currentSelectedTabID.flatMap { selectedTabID in
+        selectedTabIDsBySpaceID[space.id].flatMap { selectedTabID in
+          updatedTabs.contains(where: { $0.id == selectedTabID }) ? selectedTabID : nil
+        }
+        ?? currentSelectedTabID.flatMap { selectedTabID in
           updatedTabs.contains(where: { $0.id == selectedTabID }) ? selectedTabID : nil
         }
         ?? updatedTabs.first?.id

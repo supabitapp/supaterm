@@ -87,6 +87,7 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
 nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
   var id: TerminalSpaceID
   var selectedTabIndex: Int?
+  var selectedPinnedTabID: TerminalTabID?
   var tabs: [TerminalTabSession]
 
   func pruned() -> TerminalWindowSpaceSession {
@@ -98,6 +99,7 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
     return TerminalWindowSpaceSession(
       id: id,
       selectedTabIndex: resolvedSelectedTabIndex,
+      selectedPinnedTabID: selectedPinnedTabID,
       tabs: tabs
     )
   }

@@ -18,14 +18,21 @@ extension TerminalHostState {
         return (tab.id, session)
       }
       let tabs = tabSnapshots.map(\.1)
+      let selectedTabID = spaceManager.selectedTabID(in: space.id)
       let selectedTabIndex =
-        spaceManager.selectedTabID(in: space.id).flatMap { selectedTabID in
+        selectedTabID.flatMap { selectedTabID in
           tabSnapshots.firstIndex { $0.0 == selectedTabID }
         }
-        ?? (tabs.isEmpty ? nil : 0)
+      let selectedPinnedTabID =
+        selectedTabID.flatMap { selectedTabID -> TerminalTabID? in
+          guard selectedTabIndex == nil else { return nil }
+          guard spaceManager.tab(for: selectedTabID)?.isPinned == true else { return nil }
+          return selectedTabID
+        }
       return TerminalWindowSpaceSession(
         id: space.id,
-        selectedTabIndex: selectedTabIndex,
+        selectedTabIndex: selectedPinnedTabID == nil ? selectedTabIndex ?? (tabs.isEmpty ? nil : 0) : nil,
+        selectedPinnedTabID: selectedPinnedTabID,
         tabs: tabs
       )
     }
@@ -56,10 +63,12 @@ extension TerminalHostState {
         uniqueKeysWithValues: session.spaces.map { ($0.id, $0) }
       )
       var restoredTabsBySpaceID: [TerminalSpaceID: [(sourceIndex: Int, id: TerminalTabID)]] = [:]
+      var selectedPinnedTabIDsBySpaceID: [TerminalSpaceID: TerminalTabID] = [:]
 
       for space in spaces {
+        let spaceSession = sessionsBySpaceID[space.id]
         let restoredTabs: [(sourceIndex: Int, tab: TerminalTabItem)] =
-          sessionsBySpaceID[space.id]?.tabs.enumerated().compactMap { sourceIndex, session in
+          spaceSession?.tabs.enumerated().compactMap { sourceIndex, session in
             guard !session.isPinned else { return nil }
             return (
               sourceIndex,
@@ -71,10 +80,17 @@ extension TerminalHostState {
             )
           } ?? []
         restoredTabsBySpaceID[space.id] = restoredTabs.map { ($0.sourceIndex, $0.tab.id) }
-        let selectedTabID =
-          sessionsBySpaceID[space.id]?.selectedTabIndex.flatMap { index in
+        if let selectedPinnedTabID = spaceSession?.selectedPinnedTabID {
+          selectedPinnedTabIDsBySpaceID[space.id] = selectedPinnedTabID
+        }
+        let selectedTabID: TerminalTabID?
+        if spaceSession?.selectedPinnedTabID == nil {
+          selectedTabID = spaceSession?.selectedTabIndex.flatMap { index in
             restoredTabs.first(where: { $0.sourceIndex == index })?.tab.id
           }
+        } else {
+          selectedTabID = nil
+        }
         _ = spaceManager.restoreTabs(
           restoredTabs.map(\.tab),
           selectedTabID: selectedTabID,
@@ -82,7 +98,10 @@ extension TerminalHostState {
         )
       }
 
-      reconcilePinnedTabs(with: pinnedTabCatalog)
+      reconcilePinnedTabs(
+        with: pinnedTabCatalog,
+        selectedTabIDsBySpaceID: selectedPinnedTabIDsBySpaceID
+      )
 
       for spaceSession in session.spaces {
         let restoredTabs = Dictionary(
