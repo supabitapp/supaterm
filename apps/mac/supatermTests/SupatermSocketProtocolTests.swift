@@ -74,7 +74,30 @@ struct SupatermSocketProtocolTests {
       userID: 501
     ).path
 
-    #expect(path.utf8.count < MemoryLayout<sockaddr_un>.size)
+    #expect(path.utf8.count < darwinSocketPathByteLimit())
+  }
+
+  @Test
+  func managedSocketURLTruncatesAgainstSunPathLimit() {
+    let rootPrefix = "/private/tmp/"
+    let rootByteCount =
+      darwinSocketPathByteLimit()
+      - "/supaterm-501".utf8.count
+      - "instance-0123456789abcdef".utf8.count
+      - 8
+    let rootDirectory = URL(
+      fileURLWithPath: rootPrefix
+        + String(repeating: "x", count: rootByteCount - rootPrefix.utf8.count),
+      isDirectory: true
+    )
+    let path = SupatermSocketPath.managedSocketURL(
+      instanceName: String(repeating: "very-long-instance-name", count: 12),
+      rootDirectory: rootDirectory,
+      environment: [:],
+      userID: 501
+    ).path
+
+    #expect(path.utf8.count < darwinSocketPathByteLimit())
   }
 
   @Test
@@ -1034,6 +1057,11 @@ private func makeSocketProtocolTemporaryDirectory() throws -> URL {
   }
   let path = SupatermSocketPath.canonicalized(String(cString: pointer)) ?? String(cString: pointer)
   return URL(fileURLWithPath: path, isDirectory: true)
+}
+
+private func darwinSocketPathByteLimit() -> Int {
+  let address = sockaddr_un()
+  return MemoryLayout.size(ofValue: address.sun_path)
 }
 
 private func createSocketNode(at url: URL) throws {

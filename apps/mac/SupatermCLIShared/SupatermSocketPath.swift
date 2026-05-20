@@ -35,7 +35,10 @@ public enum SupatermInstanceIdentity {
 public enum SupatermSocketPath {
   public static let managedDirectoryPrefix = "supaterm-"
   public static let managedRuntimeDirectoryName = "supaterm"
-  private static let socketPathByteLimit = MemoryLayout<sockaddr_un>.size - 1
+  private static let socketPathByteLimit: Int = {
+    let address = sockaddr_un()
+    return MemoryLayout.size(ofValue: address.sun_path) - 1
+  }()
   private static let tmpPath = "/tmp"
   private static let xdgRuntimeDirectoryKey = "XDG_RUNTIME_DIR"
   private static let temporaryDirectoryKey = "TMPDIR"
