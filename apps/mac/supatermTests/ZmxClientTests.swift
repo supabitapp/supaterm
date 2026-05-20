@@ -62,4 +62,12 @@ struct ZmxClientTests {
     #expect(ZmxSocketBudget.probe(environment: ["ZMX_DIR": directory]) != nil)
     #expect(ZmxSocketBudget.probe(environment: ["ZMX_DIR": "/tmp/zmx"]) == nil)
   }
+
+  @Test
+  func socketBudgetFallsBackWhenTemporaryDirectoryWouldOverflow() {
+    let directory = "/var/folders/" + String(repeating: "a", count: 80)
+
+    #expect(ZmxSocketBudget.socketDir(environment: ["TMPDIR": directory]).hasPrefix("/tmp/zmx-"))
+    #expect(ZmxSocketBudget.probe(environment: ["TMPDIR": directory]) == nil)
+  }
 }

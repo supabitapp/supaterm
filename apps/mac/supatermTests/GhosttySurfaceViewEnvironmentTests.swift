@@ -35,6 +35,7 @@ struct GhosttySurfaceViewEnvironmentTests {
           key: SupatermCLIEnvironment.cliPathKey,
           value: "/Applications/Supaterm.app/Contents/Resources/bin/sp"
         ),
+        SupatermCLIEnvironmentVariable(key: "ZMX_DIR", value: "/tmp/zmx-\(getuid())"),
         SupatermCLIEnvironmentVariable(key: "PATH", value: path),
       ]
     )

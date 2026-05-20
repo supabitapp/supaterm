@@ -211,23 +211,36 @@ public nonisolated enum ZmxSocketBudget {
       return custom
     }
     let userID = getuid()
+    let fallback = "/tmp/zmx-\(userID)"
     if let xdg = environment["XDG_RUNTIME_DIR"], !xdg.isEmpty {
-      return "\(trimTrailingSlash(xdg))/zmx"
+      let directory = "\(trimTrailingSlash(xdg))/zmx"
+      return fits(directory: directory) ? directory : fallback
     }
     if let tmp = environment["TMPDIR"], !tmp.isEmpty {
-      return "\(trimTrailingSlash(tmp))/zmx-\(userID)"
+      let directory = "\(trimTrailingSlash(tmp))/zmx-\(userID)"
+      return fits(directory: directory) ? directory : fallback
     }
-    return "/tmp/zmx-\(userID)"
+    return fallback
   }
 
   public nonisolated static func probe(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
     let directory = socketDir(environment: environment)
-    let length = directory.utf8.count + 1 + sessionNameByteCount
-    let budget = sunPathLimit - safetyMargin
-    if length > budget {
-      return "socket path \(length)B exceeds budget \(budget)B"
+    if !fits(directory: directory) {
+      return "socket path \(socketPathByteCount(directory: directory))B exceeds budget \(socketPathByteBudget)B"
     }
     return nil
+  }
+
+  private nonisolated static var socketPathByteBudget: Int {
+    sunPathLimit - safetyMargin
+  }
+
+  private nonisolated static func fits(directory: String) -> Bool {
+    socketPathByteCount(directory: directory) <= socketPathByteBudget
+  }
+
+  private nonisolated static func socketPathByteCount(directory: String) -> Int {
+    directory.utf8.count + 1 + sessionNameByteCount
   }
 
   private nonisolated static func trimTrailingSlash(_ value: String) -> String {

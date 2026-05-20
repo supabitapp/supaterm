@@ -219,6 +219,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
         )
       )
     }
+    environmentVariables.append(
+      SupatermCLIEnvironmentVariable(
+        key: "ZMX_DIR",
+        value: ZmxSocketBudget.socketDir(environment: processEnvironment)
+      )
+    )
     let path = prependedPath(
       cliDirectory(cliPath) ?? "",
       currentPath: processEnvironment["PATH"]
