@@ -24,6 +24,7 @@ public enum GhosttySupport {
     font-size = 15
     theme = light:Zenbones Light,dark:Zenbones Dark
     cursor-style = block
+    confirm-close-surface = always
     """
 
   public static func resourceDirectories(

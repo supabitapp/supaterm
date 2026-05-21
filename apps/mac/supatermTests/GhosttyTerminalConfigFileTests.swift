@@ -32,7 +32,7 @@ struct GhosttyTerminalConfigFileTests {
     #expect(snapshot.availableFontFamilies == ["JetBrains Mono", "SF Mono"])
     #expect(snapshot.availableDarkThemes == ["Zenbones Dark"])
     #expect(snapshot.availableLightThemes == ["Zenbones Light"])
-    #expect(snapshot.confirmCloseSurface == .whenNotAtPrompt)
+    #expect(snapshot.confirmCloseSurface == .always)
     #expect(snapshot.configPath == configURL.path)
     #expect(snapshot.darkTheme == "Zenbones Dark")
     #expect(snapshot.fontFamily == nil)
