@@ -3,8 +3,8 @@ import SwiftUI
 
 @MainActor
 final class QuitConfirmationPresenter {
-  func confirmQuit(terminatesSessions: Bool) -> Bool {
-    guard let panelController = panelController(terminatesSessions: terminatesSessions) else { return false }
+  func confirmQuit(terminatesSessions: Bool) -> QuitConfirmationDecision {
+    guard let panelController = panelController(terminatesSessions: terminatesSessions) else { return .cancel }
     return panelController.runModal()
   }
 
@@ -27,9 +27,45 @@ final class QuitConfirmationPresenter {
   }
 }
 
+enum QuitConfirmationDecision: Equatable {
+  case cancel
+  case quitPreservingSessions
+  case quitTerminatingSessions
+}
+
+struct QuitConfirmationContent: Equatable {
+  let message: String
+  let preservingSessionsTitle: String?
+  let terminatingSessionsTitle: String
+
+  init(terminatesSessions: Bool) {
+    if terminatesSessions {
+      message = "All terminal sessions will be terminated."
+      preservingSessionsTitle = nil
+      terminatingSessionsTitle = "Quit and Terminate Sessions"
+    } else {
+      message =
+        "Terminal sessions will continue running in the background. "
+        + "Choose Quit and Terminate Sessions to also close every tab and stop their shells."
+      preservingSessionsTitle = "Quit"
+      terminatingSessionsTitle = "Quit and Terminate Sessions"
+    }
+  }
+
+  var buttonTitles: [String] {
+    var titles = ["Cancel"]
+    if let preservingSessionsTitle {
+      titles.append(preservingSessionsTitle)
+    }
+    titles.append(terminatingSessionsTitle)
+    return titles
+  }
+}
+
 @MainActor
 private final class QuitConfirmationPanelController: NSWindowController {
   private weak var parentWindow: NSWindow?
+  private var decision = QuitConfirmationDecision.cancel
 
   init(parentWindow: NSWindow, terminatesSessions: Bool) {
     self.parentWindow = parentWindow
@@ -45,11 +81,14 @@ private final class QuitConfirmationPanelController: NSWindowController {
 
     let palette = TerminalPalette(colorScheme: Self.colorScheme(for: parentWindow))
     window.contentViewController = NSHostingController(
-      rootView: QuitConfirmationView(
+      rootView: QuitConfirmationOverlay(
         palette: palette,
-        terminatesSessions: terminatesSessions,
-        onConfirm: { [weak self] in
-          self?.finish(.OK)
+        content: QuitConfirmationContent(terminatesSessions: terminatesSessions),
+        onPreserve: { [weak self] in
+          self?.finish(.quitPreservingSessions)
+        },
+        onTerminate: { [weak self] in
+          self?.finish(.quitTerminatingSessions)
         },
         onCancel: { [weak self] in
           self?.finish(.cancel)
@@ -63,23 +102,24 @@ private final class QuitConfirmationPanelController: NSWindowController {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func runModal() -> Bool {
-    guard let window, let parentWindow else { return false }
+  func runModal() -> QuitConfirmationDecision {
+    guard let window, let parentWindow else { return .cancel }
 
     window.setFrame(parentWindow.frame, display: false)
     parentWindow.addChildWindow(window, ordered: .above)
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
 
-    let response = NSApp.runModal(for: window)
+    NSApp.runModal(for: window)
     parentWindow.removeChildWindow(window)
     window.orderOut(nil)
-    return response == .OK
+    return decision
   }
 
-  private func finish(_ response: NSApplication.ModalResponse) {
+  private func finish(_ decision: QuitConfirmationDecision) {
     guard let window else { return }
-    NSApp.stopModal(withCode: response)
+    self.decision = decision
+    NSApp.stopModal(withCode: decision == .cancel ? .cancel : .OK)
     window.orderOut(nil)
   }
 
@@ -111,26 +151,5 @@ private final class QuitConfirmationPanel: NSPanel {
     isOpaque = false
     collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace, .ignoresCycle]
     level = .modalPanel
-  }
-}
-
-private struct QuitConfirmationView: View {
-  let palette: TerminalPalette
-  let terminatesSessions: Bool
-  let onConfirm: () -> Void
-  let onCancel: () -> Void
-
-  var body: some View {
-    ConfirmationOverlay(
-      palette: palette,
-      title: "Quit Supaterm?",
-      message: terminatesSessions
-        ? "All terminal sessions will be terminated." : "Terminal sessions will continue running.",
-      confirmTitle: "Quit Supaterm",
-      onConfirm: onConfirm,
-      onCancel: onCancel
-    )
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(.clear)
   }
 }

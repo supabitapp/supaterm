@@ -152,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     if isTerminatingAfterSessionTermination {
       return .terminateNow
     }
-    let reply = Self.terminateReply(
+    let terminationPlan = Self.terminationPlan(
       hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
       confirmQuitMode: supatermSettings.confirmQuitMode,
       hasActiveAgentWorkForQuit: terminalWindowRegistry.hasActiveAgentWorkForQuit,
@@ -162,12 +162,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     ) {
       quitConfirmationPresenter.confirmQuit(terminatesSessions: supatermSettings.terminateSessionsOnQuit)
     }
+    let reply = terminationPlan.reply
     terminatingSessionCatalog = Self.pendingTerminationSessionCatalog(
       for: reply,
       liveSessionCatalog: terminalWindowRegistry.restorationSnapshot(),
-      terminatesSessionsOnQuit: supatermSettings.terminateSessionsOnQuit
+      terminatesSessions: terminationPlan.terminatesSessions
     )
-    if reply == .terminateNow && supatermSettings.terminateSessionsOnQuit {
+    if reply == .terminateNow && terminationPlan.terminatesSessions {
       isTerminatingAfterSessionTermination = true
       Task { @MainActor in
         await terminalWindowRegistry.terminateLiveTerminalSessionsAndWait()
@@ -177,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
       return .terminateLater
     }
     if reply == .terminateNow {
-      terminalWindowRegistry.setTerminatesTerminalSessionsOnWindowClose(supatermSettings.terminateSessionsOnQuit)
+      terminalWindowRegistry.setTerminatesTerminalSessionsOnWindowClose(terminationPlan.terminatesSessions)
     }
     return reply
   }
@@ -435,17 +436,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     }
   }
 
-  static func terminateReply(
+  struct TerminationPlan {
+    let reply: NSApplication.TerminateReply
+    let terminatesSessions: Bool
+  }
+
+  static func terminationPlan(
     hasVisibleAppWindows: Bool,
     confirmQuitMode: ConfirmQuitMode = .auto,
     hasActiveAgentWorkForQuit: Bool = false,
     needsQuitConfirmation: Bool,
     bypassesQuitConfirmation: Bool,
     terminatesSessionsOnQuit: Bool = false,
-    confirmQuit: () -> Bool
-  ) -> NSApplication.TerminateReply {
-    guard hasVisibleAppWindows else { return .terminateNow }
-    guard !bypassesQuitConfirmation else { return .terminateNow }
+    confirmQuit: () -> QuitConfirmationDecision
+  ) -> TerminationPlan {
+    let defaultPlan = TerminationPlan(reply: .terminateNow, terminatesSessions: terminatesSessionsOnQuit)
+    guard hasVisibleAppWindows else { return defaultPlan }
+    guard !bypassesQuitConfirmation else { return defaultPlan }
     guard
       shouldConfirmQuit(
         mode: confirmQuitMode,
@@ -454,9 +461,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
         terminatesSessionsOnQuit: terminatesSessionsOnQuit
       )
     else {
-      return .terminateNow
+      return defaultPlan
     }
-    return confirmQuit() ? .terminateNow : .terminateCancel
+    switch confirmQuit() {
+    case .cancel:
+      return TerminationPlan(reply: .terminateCancel, terminatesSessions: false)
+    case .quitPreservingSessions:
+      return TerminationPlan(reply: .terminateNow, terminatesSessions: false)
+    case .quitTerminatingSessions:
+      return TerminationPlan(reply: .terminateNow, terminatesSessions: true)
+    }
   }
 
   static func shouldConfirmQuit(
@@ -478,10 +492,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   static func pendingTerminationSessionCatalog(
     for reply: NSApplication.TerminateReply,
     liveSessionCatalog: TerminalSessionCatalog,
-    terminatesSessionsOnQuit: Bool = false
+    terminatesSessions: Bool = false
   ) -> TerminalSessionCatalog? {
     guard reply == .terminateNow else { return nil }
-    return terminatesSessionsOnQuit ? .default : liveSessionCatalog
+    return terminatesSessions ? .default : liveSessionCatalog
   }
 
   static func persistedSessionCatalog(

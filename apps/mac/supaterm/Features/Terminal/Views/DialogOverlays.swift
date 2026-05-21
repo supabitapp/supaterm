@@ -79,6 +79,94 @@ struct ConfirmationOverlay: View {
   }
 }
 
+struct QuitConfirmationOverlay: View {
+  let palette: TerminalPalette
+  let content: QuitConfirmationContent
+  let onPreserve: () -> Void
+  let onTerminate: () -> Void
+  let onCancel: () -> Void
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private static let transition: AnyTransition = .asymmetric(
+    insertion: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity),
+    removal: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity)
+  )
+
+  var body: some View {
+    ZStack {
+      Button(action: onCancel) {
+        Color.black.opacity(0.4)
+          .ignoresSafeArea()
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Cancel quit confirmation")
+
+      VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+          ConfirmationIcon()
+            .padding(.bottom, 16)
+
+          Text("Quit Supaterm?")
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundStyle(palette.primaryText)
+
+          Text(content.message)
+            .font(.system(size: 13))
+            .foregroundStyle(palette.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 4)
+
+          HStack(spacing: 12) {
+            Spacer()
+
+            DialogActionButton(
+              palette: palette,
+              title: "Cancel",
+              style: .secondary,
+              shortcut: .text("esc"),
+              action: onCancel
+            )
+            .keyboardShortcut(.cancelAction)
+
+            if let preservingSessionsTitle = content.preservingSessionsTitle {
+              DialogActionButton(
+                palette: palette,
+                title: preservingSessionsTitle,
+                style: .secondary,
+                shortcut: nil,
+                action: onPreserve
+              )
+            }
+
+            DialogActionButton(
+              palette: palette,
+              title: content.terminatingSessionsTitle,
+              style: .destructive,
+              shortcut: nil,
+              action: onTerminate
+            )
+          }
+          .padding(.top, 28)
+        }
+        .frame(width: 460)
+        .padding(12)
+        .background(palette.dialogInnerBackground, in: .rect(cornerRadius: 11))
+        .overlay {
+          RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .stroke(palette.dialogBorder, lineWidth: 0.5)
+        }
+      }
+      .padding(3)
+      .background(palette.dialogOuterBackground, in: .rect(cornerRadius: 14))
+      .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
+      .terminalTransition(Self.transition, reduceMotion: reduceMotion)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(.clear)
+  }
+}
+
 private struct ConfirmationIcon: View {
   var body: some View {
     Image(nsImage: NSApp.applicationIconImage)
@@ -106,7 +194,7 @@ private struct DialogActionButton: View {
   let palette: TerminalPalette
   let title: String
   let style: Style
-  let shortcut: Shortcut
+  let shortcut: Shortcut?
   let action: () -> Void
 
   @State private var isHovering = false
@@ -117,22 +205,24 @@ private struct DialogActionButton: View {
         Text(title)
           .font(.system(size: 13, weight: .medium))
 
-        Spacer()
-          .frame(width: 3)
+        if let shortcut {
+          Spacer()
+            .frame(width: 3)
 
-        Group {
-          switch shortcut {
-          case .symbol(let name):
-            Image(systemName: name)
-              .accessibilityHidden(true)
-          case .text(let value):
-            Text(value.lowercased()).opacity(0.5)
+          Group {
+            switch shortcut {
+            case .symbol(let name):
+              Image(systemName: name)
+                .accessibilityHidden(true)
+            case .text(let value):
+              Text(value.lowercased()).opacity(0.5)
+            }
           }
+          .font(.system(size: 10, weight: .semibold))
+          .frame(minWidth: 18, minHeight: 18)
+          .padding(.horizontal, shortcutPadding(for: shortcut))
+          .background(foreground.opacity(shortcutOpacity), in: .rect(cornerRadius: 4))
         }
-        .font(.system(size: 10, weight: .semibold))
-        .frame(minWidth: 18, minHeight: 18)
-        .padding(.horizontal, shortcutPadding)
-        .background(foreground.opacity(shortcutOpacity), in: .rect(cornerRadius: 4))
       }
       .foregroundStyle(foreground)
       .padding(.horizontal, 14)
@@ -170,7 +260,7 @@ private struct DialogActionButton: View {
     }
   }
 
-  private var shortcutPadding: CGFloat {
+  private func shortcutPadding(for shortcut: Shortcut) -> CGFloat {
     switch shortcut {
     case .symbol:
       0

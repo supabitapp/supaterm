@@ -9,90 +9,110 @@ import Testing
 @MainActor
 struct AppDelegateTests {
   @Test
-  func terminateReplySkipsConfirmationWithoutVisibleAppWindows() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanSkipsConfirmationWithoutVisibleAppWindows() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: false,
       needsQuitConfirmation: true,
       bypassesQuitConfirmation: false
     ) {
       Issue.record("confirmation should not be shown")
-      return false
+      return .cancel
     }
 
-    #expect(reply == .terminateNow)
+    #expect(plan.reply == .terminateNow)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplySkipsConfirmationWhenNoTerminalNeedsIt() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanSkipsConfirmationWhenNoTerminalNeedsIt() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       needsQuitConfirmation: false,
       bypassesQuitConfirmation: false
     ) {
       Issue.record("confirmation should not be shown")
-      return false
+      return .cancel
     }
 
-    #expect(reply == .terminateNow)
+    #expect(plan.reply == .terminateNow)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplyCancelsWhenConfirmationIsDeclined() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanCancelsWhenConfirmationIsDeclined() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       needsQuitConfirmation: true,
       bypassesQuitConfirmation: false
     ) {
-      false
+      .cancel
     }
 
-    #expect(reply == .terminateCancel)
+    #expect(plan.reply == .terminateCancel)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplyTerminatesWhenConfirmationIsAccepted() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanPreservesSessionsWhenConfirmationRequestsIt() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       needsQuitConfirmation: true,
       bypassesQuitConfirmation: false
     ) {
-      true
+      .quitPreservingSessions
     }
 
-    #expect(reply == .terminateNow)
+    #expect(plan.reply == .terminateNow)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplySkipsConfirmationWhenUpdateBypassesQuitConfirmation() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanTerminatesSessionsWhenConfirmationRequestsIt() {
+    let plan = AppDelegate.terminationPlan(
+      hasVisibleAppWindows: true,
+      needsQuitConfirmation: true,
+      bypassesQuitConfirmation: false
+    ) {
+      .quitTerminatingSessions
+    }
+
+    #expect(plan.reply == .terminateNow)
+    #expect(plan.terminatesSessions)
+  }
+
+  @Test
+  func terminationPlanSkipsConfirmationWhenUpdateBypassesQuitConfirmation() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       needsQuitConfirmation: true,
       bypassesQuitConfirmation: true
     ) {
       Issue.record("confirmation should not be shown")
-      return false
+      return .cancel
     }
 
-    #expect(reply == .terminateNow)
+    #expect(plan.reply == .terminateNow)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplyPromptsWhenQuitModeAlways() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanPromptsWhenQuitModeAlways() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       confirmQuitMode: .always,
       needsQuitConfirmation: false,
       bypassesQuitConfirmation: false
     ) {
-      false
+      .cancel
     }
 
-    #expect(reply == .terminateCancel)
+    #expect(plan.reply == .terminateCancel)
+    #expect(!plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplySkipsPromptWhenQuitModeNever() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanSkipsPromptWhenQuitModeNever() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       confirmQuitMode: .never,
       hasActiveAgentWorkForQuit: true,
@@ -101,24 +121,40 @@ struct AppDelegateTests {
       terminatesSessionsOnQuit: true
     ) {
       Issue.record("confirmation should not be shown")
-      return false
+      return .cancel
     }
 
-    #expect(reply == .terminateNow)
+    #expect(plan.reply == .terminateNow)
+    #expect(plan.terminatesSessions)
   }
 
   @Test
-  func terminateReplyPromptsInAutoWhenQuitTerminatesSessions() {
-    let reply = AppDelegate.terminateReply(
+  func terminationPlanPromptsInAutoWhenQuitTerminatesSessions() {
+    let plan = AppDelegate.terminationPlan(
       hasVisibleAppWindows: true,
       needsQuitConfirmation: false,
       bypassesQuitConfirmation: false,
       terminatesSessionsOnQuit: true
     ) {
-      false
+      .cancel
     }
 
-    #expect(reply == .terminateCancel)
+    #expect(plan.reply == .terminateCancel)
+    #expect(!plan.terminatesSessions)
+  }
+
+  @Test
+  func quitConfirmationContentOffersTerminateOverrideWhenSessionsArePreservedByDefault() {
+    let content = QuitConfirmationContent(terminatesSessions: false)
+
+    #expect(content.buttonTitles == ["Cancel", "Quit", "Quit and Terminate Sessions"])
+  }
+
+  @Test
+  func quitConfirmationContentOmitsTerminateOverrideWhenSessionsTerminateByDefault() {
+    let content = QuitConfirmationContent(terminatesSessions: true)
+
+    #expect(content.buttonTitles == ["Cancel", "Quit and Terminate Sessions"])
   }
 
   @Test
@@ -243,7 +279,7 @@ struct AppDelegateTests {
       AppDelegate.pendingTerminationSessionCatalog(
         for: .terminateNow,
         liveSessionCatalog: liveSessionCatalog,
-        terminatesSessionsOnQuit: true
+        terminatesSessions: true
       ) == .default
     )
     #expect(
