@@ -45,6 +45,7 @@ struct TerminalSplitTreeView: View {
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
   let notificationColor: Color
   let palette: TerminalPalette
+  let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
@@ -173,6 +174,7 @@ struct TerminalSplitTreeView: View {
         hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
         notificationColor: notificationColor,
         palette: palette,
+        agentPanelShortcutHint: agentPanelShortcutHint,
         showsGlowingPaneRing: showsGlowingPaneRing,
         splitDividerColor: splitDividerColor,
         unreadSurfaceIDs: unreadSurfaceIDs,
@@ -207,6 +209,7 @@ struct TerminalSplitTreeView: View {
     let hiddenAgentPanelSurfaceIDs: Set<UUID>
     let notificationColor: Color
     let palette: TerminalPalette
+    let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
     let splitDividerColor: Color
     let unreadSurfaceIDs: Set<UUID>
@@ -225,6 +228,7 @@ struct TerminalSplitTreeView: View {
           isAgentPanelCollapsed: hiddenAgentPanelSurfaceIDs.contains(leafView.id),
           notificationColor: notificationColor,
           palette: palette,
+          agentPanelShortcutHint: agentPanelShortcutHint,
           showsGlowingPaneRing: showsGlowingPaneRing,
           surfaceView: leafView,
           isSplit: !isRoot,
@@ -259,6 +263,7 @@ struct TerminalSplitTreeView: View {
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
               notificationColor: notificationColor,
               palette: palette,
+              agentPanelShortcutHint: agentPanelShortcutHint,
               showsGlowingPaneRing: showsGlowingPaneRing,
               splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -276,6 +281,7 @@ struct TerminalSplitTreeView: View {
               hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
               notificationColor: notificationColor,
               palette: palette,
+              agentPanelShortcutHint: agentPanelShortcutHint,
               showsGlowingPaneRing: showsGlowingPaneRing,
               splitDividerColor: splitDividerColor,
               unreadSurfaceIDs: unreadSurfaceIDs,
@@ -299,6 +305,7 @@ struct TerminalSplitTreeView: View {
     let isAgentPanelCollapsed: Bool
     let notificationColor: Color
     let palette: TerminalPalette
+    let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
     let surfaceView: GhosttySurfaceView
     let isSplit: Bool
@@ -421,6 +428,7 @@ struct TerminalSplitTreeView: View {
           presentation: agentPanelPresentation,
           palette: palette,
           reduceMotion: reduceMotion,
+          shortcutHint: agentPanelShortcutHint,
           toggle: toggleAgentPanel,
           openURL: { url in
             action(.agentPanelURLTapped(url))
@@ -647,6 +655,7 @@ struct TerminalSplitTreeView: View {
     let presentation: PaneAgentPanelPresentation
     let palette: TerminalPalette
     let reduceMotion: Bool
+    let shortcutHint: String?
     let toggle: () -> Void
     let openURL: (URL) -> Void
 
@@ -703,6 +712,7 @@ struct TerminalSplitTreeView: View {
       AgentPanelVisibilityButton(
         isVisible: !isCollapsed,
         palette: palette,
+        shortcutHint: shortcutHint,
         action: toggle
       )
     }
@@ -723,6 +733,7 @@ struct TerminalSplitTreeView: View {
   private struct AgentPanelVisibilityButton: View {
     let isVisible: Bool
     let palette: TerminalPalette
+    let shortcutHint: String?
     let action: () -> Void
 
     @State private var isHovering = false
@@ -737,8 +748,7 @@ struct TerminalSplitTreeView: View {
 
     var body: some View {
       Button(action: action) {
-        Image(systemName: "info.circle")
-          .font(.system(size: 14, weight: .medium))
+        content
           .foregroundStyle(foregroundStyle)
           .frame(width: AgentPanelMetrics.collapsedLength, height: AgentPanelMetrics.collapsedLength)
           .accessibilityHidden(true)
@@ -751,6 +761,19 @@ struct TerminalSplitTreeView: View {
 
     private var foregroundStyle: Color {
       isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
+    }
+
+    @ViewBuilder
+    private var content: some View {
+      if let shortcutHint {
+        Text(shortcutHint)
+          .font(.system(size: 11, weight: .semibold, design: .rounded))
+          .monospacedDigit()
+      } else {
+        Image(systemName: "info.circle")
+          .font(.system(size: 14, weight: .medium))
+          .accessibilityHidden(true)
+      }
     }
   }
 
@@ -1151,6 +1174,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
   let notificationColor: Color
   let palette: TerminalPalette
+  let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let tree: SplitTree<GhosttySurfaceView>
@@ -1174,6 +1198,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
           hiddenAgentPanelSurfaceIDs: hiddenAgentPanelSurfaceIDs,
           notificationColor: notificationColor,
           palette: palette,
+          agentPanelShortcutHint: agentPanelShortcutHint,
           showsGlowingPaneRing: showsGlowingPaneRing,
           splitDividerColor: splitDividerColor,
           tree: tree,

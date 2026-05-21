@@ -236,6 +236,8 @@ private struct TerminalDetailSurface: View {
 }
 
 private struct TerminalSurfacePaneView: View {
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
+
   let dimmingColor: Color
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
@@ -256,6 +258,7 @@ private struct TerminalSurfacePaneView: View {
       hiddenAgentPanelSurfaceIDs: store.hiddenAgentPanelSurfaceIDs,
       notificationColor: notificationColor,
       palette: palette,
+      agentPanelShortcutHint: agentPanelShortcutHint,
       showsGlowingPaneRing: showsGlowingPaneRing,
       splitDividerColor: splitDividerColor,
       tree: terminal.splitTree(for: tabID),
@@ -275,5 +278,9 @@ private struct TerminalSurfacePaneView: View {
 
   private var agentPanelPresentations: [UUID: PaneAgentPanelPresentation] {
     terminal.agentPanelPresentations(for: tabID)
+  }
+
+  private var agentPanelShortcutHint: String? {
+    commandHoldObserver.isPressed ? AgentPanelShortcut.toggleVisibility.display : nil
   }
 }

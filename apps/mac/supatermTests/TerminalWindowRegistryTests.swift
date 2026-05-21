@@ -740,6 +740,80 @@ struct TerminalWindowRegistryTests {
       #expect(store.withState(\.terminal.commandPalette) != nil)
     }
   }
+
+  @Test
+  func requestToggleAgentPanelInKeyWindowTogglesSelectedPanel() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      host.recordAgentPanelSnapshot(
+        progressRows: [
+          PaneAgentProgressRow(id: "run-tests", title: "Run tests", status: .running)
+        ],
+        sources: [],
+        for: surfaceID
+      )
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      registry.requestToggleAgentPanelInKeyWindow()
+
+      #expect(store.withState(\.terminal.hiddenAgentPanelSurfaceIDs) == [surfaceID])
+
+      registry.requestToggleAgentPanelInKeyWindow()
+
+      #expect(store.withState(\.terminal.hiddenAgentPanelSurfaceIDs).isEmpty)
+    }
+  }
+
+  @Test
+  func requestToggleAgentPanelInKeyWindowIgnoresPanesWithoutPanel() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      let window = makeWindow()
+      registry.updateWindow(window, for: windowControllerID)
+
+      registry.requestToggleAgentPanelInKeyWindow()
+
+      #expect(!store.withState(\.terminal.hiddenAgentPanelSurfaceIDs).contains(surfaceID))
+    }
+  }
+
   @Test
   func requestNavigateSearchInKeyWindowDispatchesReducerCommand() async {
     await withDependencies {

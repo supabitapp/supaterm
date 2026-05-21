@@ -218,6 +218,11 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func agentPanelShortcutDisplaysCommandI() {
+    #expect(AgentPanelShortcut.toggleVisibility.display == "⌘I")
+  }
+
+  @Test
   func horizontalSplitDropsInnerLeadingAndTrailingEdges() {
     let outerEdges: TerminalSplitTreeView.OuterEdges = .all
 

@@ -52,6 +52,7 @@ final class SupatermMenuController: NSObject {
     static let hideFindBar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.hideFindBar")
     static let selectionForFind = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.selectionForFind")
     static let toggleSidebar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleSidebar")
+    static let toggleAgentPanel = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleAgentPanel")
     static let changeTabTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTabTitle")
     static let changeTerminalTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTerminalTitle")
     static let nextTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.next")
@@ -190,6 +191,7 @@ final class SupatermMenuController: NSObject {
   private lazy var viewMenu: NSMenu = {
     let menu = NSMenu(title: "View")
     menu.addItem(toggleSidebarItem)
+    menu.addItem(toggleAgentPanelItem)
     menu.addItem(.separator())
     menu.addItem(changeTabTitleItem)
     menu.addItem(changeTerminalTitleItem)
@@ -394,6 +396,15 @@ final class SupatermMenuController: NSObject {
       identifier: MenuItemIdentifier.toggleSidebar
     )
     SupatermMenuShortcut.apply(KeyboardShortcut("s", modifiers: .command), to: item)
+    return item
+  }()
+  private lazy var toggleAgentPanelItem: NSMenuItem = {
+    let item = makeItem(
+      title: "Toggle Agent Panel",
+      action: #selector(toggleAgentPanel(_:)),
+      identifier: MenuItemIdentifier.toggleAgentPanel
+    )
+    SupatermMenuShortcut.apply(AgentPanelShortcut.toggleVisibility, to: item)
     return item
   }()
   private lazy var changeTabTitleItem = makeItem(
@@ -786,6 +797,10 @@ final class SupatermMenuController: NSObject {
     registry.requestToggleSidebarInKeyWindow()
   }
 
+  @objc func toggleAgentPanel(_ sender: Any?) {
+    registry.requestToggleAgentPanelInKeyWindow()
+  }
+
   @objc func changeTabTitle(_ sender: Any?) {
     registry.requestBindingActionInKeyWindow(.promptTabTitle)
   }
@@ -1008,6 +1023,8 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.closeAllWindows,
       MenuItemIdentifier.toggleSidebar:
       return context.availability.hasWindow
+    case MenuItemIdentifier.toggleAgentPanel:
+      return context.availability.hasAgentPanel
     case MenuItemIdentifier.terminateAllTerminalSessions:
       return context.availability.hasAnySurface
     case MenuItemIdentifier.find,
@@ -1036,19 +1053,26 @@ extension SupatermMenuController: NSMenuItemValidation {
       MenuItemIdentifier.selectLastTab:
       return context.visibleTabCount > 0
     default:
-      guard let identifier = item.identifier?.rawValue else { return true }
-      if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectTabPrefix, with: "")),
-        identifier.hasPrefix(MenuItemIdentifier.selectTabPrefix)
-      {
-        return context.visibleTabCount >= slot
-      }
-      if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectSpacePrefix, with: "")),
-        identifier.hasPrefix(MenuItemIdentifier.selectSpacePrefix)
-      {
-        return context.spaceCount >= slot
-      }
-      return true
+      return validateIndexedMenuItem(item, context: context)
     }
+  }
+
+  private func validateIndexedMenuItem(
+    _ item: NSMenuItem,
+    context: TerminalWindowRegistry.MenuContext
+  ) -> Bool {
+    guard let identifier = item.identifier?.rawValue else { return true }
+    if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectTabPrefix, with: "")),
+      identifier.hasPrefix(MenuItemIdentifier.selectTabPrefix)
+    {
+      return context.visibleTabCount >= slot
+    }
+    if let slot = Int(identifier.replacingOccurrences(of: MenuItemIdentifier.selectSpacePrefix, with: "")),
+      identifier.hasPrefix(MenuItemIdentifier.selectSpacePrefix)
+    {
+      return context.spaceCount >= slot
+    }
+    return true
   }
 }
 

@@ -8,6 +8,10 @@ enum AgentPanelMetrics {
   static let collapsedCornerRadius: CGFloat = 6
 }
 
+enum AgentPanelShortcut {
+  static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
+}
+
 struct AgentPanelView: View {
   let presentation: PaneAgentPanelPresentation
   let palette: TerminalPalette

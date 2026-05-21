@@ -24,6 +24,7 @@ final class TerminalWindowRegistry {
     let hasTab: Bool
     let hasSurface: Bool
     var hasAnySurface = false
+    var hasAgentPanel = false
   }
 
   struct MenuContext: Equatable {
@@ -117,7 +118,8 @@ final class TerminalWindowRegistry {
       hasWindow: true,
       hasTab: entry.terminal.selectedTabID != nil,
       hasSurface: entry.terminal.selectedSurfaceView != nil,
-      hasAnySurface: hasAnySurface
+      hasAnySurface: hasAnySurface,
+      hasAgentPanel: selectedAgentPanelSurfaceID(in: entry) != nil
     )
   }
 
@@ -144,7 +146,8 @@ final class TerminalWindowRegistry {
         hasWindow: true,
         hasTab: entry.terminal.selectedTabID != nil,
         hasSurface: entry.terminal.selectedSurfaceView != nil,
-        hasAnySurface: hasAnySurface
+        hasAnySurface: hasAnySurface,
+        hasAgentPanel: selectedAgentPanelSurfaceID(in: entry) != nil
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
@@ -210,6 +213,14 @@ final class TerminalWindowRegistry {
 
   func requestToggleSidebarInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
+  }
+
+  func requestToggleAgentPanelInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let surfaceID = selectedAgentPanelSurfaceID(in: entry)
+    else { return }
+    entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
   }
 
   func requestToggleCommandPaletteInKeyWindow() {
@@ -424,6 +435,12 @@ final class TerminalWindowRegistry {
 
   func shortcutEntry() -> Entry? {
     preferredActiveEntry() ?? entries.first
+  }
+
+  private func selectedAgentPanelSurfaceID(in entry: Entry) -> UUID? {
+    guard let surfaceID = entry.terminal.selectedSurfaceView?.id else { return nil }
+    guard entry.terminal.agentPanelPresentation(for: surfaceID) != nil else { return nil }
+    return surfaceID
   }
 
   func globalKeybindRuntimes() -> [GhosttyRuntime] {
