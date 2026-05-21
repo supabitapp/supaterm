@@ -82,7 +82,7 @@ struct TerminalHostStatePinnedTabSharingTests {
   }
 
   @Test
-  func paneChangesDoNotRebuildExistingPinnedTabsInOtherHosts() async throws {
+  func paneChangesAutoSavePinnedTabsWithoutRebuildingExistingHosts() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
       initializeGhosttyForTests()
@@ -114,19 +114,12 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       let restored = TerminalHostState()
       await flushPinnedTabCatalogObservation()
-      #expect(restored.trees[tabID]?.leaves().count == 1)
-
-      writer.handleCommand(.savePinnedTabLayout(tabID))
-      await flushPinnedTabCatalogObservation()
-
-      let restoredAfterSave = TerminalHostState()
-      await flushPinnedTabCatalogObservation()
-      #expect(restoredAfterSave.trees[tabID]?.leaves().count == 2)
+      #expect(restored.trees[tabID]?.leaves().count == 2)
     }
   }
 
   @Test
-  func renamingPinnedTabDoesNotSaveUnsavedLayoutChanges() async throws {
+  func renamingPinnedTabPreservesAutoSavedLayoutChanges() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
       initializeGhosttyForTests()
@@ -155,7 +148,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let restored = TerminalHostState()
       await flushPinnedTabCatalogObservation()
 
-      #expect(restored.trees[tabID]?.leaves().count == 1)
+      #expect(restored.trees[tabID]?.leaves().count == 2)
       #expect(restored.spaceManager.tab(for: tabID)?.title == "Pinned Shell")
       #expect(restored.spaceManager.tab(for: tabID)?.isTitleLocked == true)
     }
@@ -340,7 +333,6 @@ struct TerminalHostStatePinnedTabSharingTests {
         )
       )
       host.surfaces[pane.paneID]?.bridge.state.pwd = secondPathString
-      host.handleCommand(.savePinnedTabLayout(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
       let initialLeaves = try #require(host.trees[pinnedTabID]?.leaves())

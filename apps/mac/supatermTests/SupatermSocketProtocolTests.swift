@@ -71,10 +71,12 @@ struct SupatermSocketProtocolTests {
   func managedSocketURLFitsDarwinSocketLimit() {
     let path = SupatermSocketPath.managedSocketURL(
       instanceName: String(repeating: "very-long-instance-name", count: 12),
+      processID: 99,
       userID: 501
     ).path
 
     #expect(path.utf8.count < darwinSocketPathByteLimit())
+    #expect(URL(fileURLWithPath: path).lastPathComponent.hasSuffix("-pid-99"))
   }
 
   @Test
@@ -83,7 +85,7 @@ struct SupatermSocketProtocolTests {
     let rootByteCount =
       darwinSocketPathByteLimit()
       - "/supaterm-501".utf8.count
-      - "instance-0123456789abcdef".utf8.count
+      - "instance-0123456789abcdef-pid-99".utf8.count
       - 8
     let rootDirectory = URL(
       fileURLWithPath: rootPrefix
@@ -92,12 +94,14 @@ struct SupatermSocketProtocolTests {
     )
     let path = SupatermSocketPath.managedSocketURL(
       instanceName: String(repeating: "very-long-instance-name", count: 12),
+      processID: 99,
       rootDirectory: rootDirectory,
       environment: [:],
       userID: 501
     ).path
 
     #expect(path.utf8.count < darwinSocketPathByteLimit())
+    #expect(URL(fileURLWithPath: path).lastPathComponent.hasSuffix("-pid-99"))
   }
 
   @Test
@@ -105,6 +109,7 @@ struct SupatermSocketProtocolTests {
     let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
     let socketURL = SupatermSocketPath.managedSocketURL(
       instanceName: "main",
+      processID: 99,
       rootDirectory: rootDirectory,
       environment: [
         "XDG_RUNTIME_DIR": "/run/user/501",
@@ -126,18 +131,21 @@ struct SupatermSocketProtocolTests {
     let rootDirectory = URL(fileURLWithPath: "/tmp/SupatermTests", isDirectory: true)
     let first = SupatermSocketPath.managedSocketURL(
       instanceName: "dev/main",
+      processID: 99,
       rootDirectory: rootDirectory,
       environment: [:],
       userID: 501
     )
     let second = SupatermSocketPath.managedSocketURL(
       instanceName: "dev/main",
+      processID: 99,
       rootDirectory: rootDirectory,
       environment: [:],
       userID: 501
     )
     let collidingStem = SupatermSocketPath.managedSocketURL(
       instanceName: "dev-main",
+      processID: 99,
       rootDirectory: rootDirectory,
       environment: [:],
       userID: 501
@@ -229,6 +237,7 @@ struct SupatermSocketProtocolTests {
           name: "dev",
           path: SupatermSocketPath.managedSocketURL(
             instanceName: "dev",
+            processID: 99,
             environment: environment,
             userID: 501
           ).path,
@@ -258,6 +267,7 @@ struct SupatermSocketProtocolTests {
       endpoint?.path
         == SupatermSocketPath.managedSocketURL(
           instanceName: "named",
+          processID: 7,
           environment: environment,
           userID: 501
         ).path
@@ -266,7 +276,7 @@ struct SupatermSocketProtocolTests {
   }
 
   @Test
-  func processSocketEndpointPathDependsOnInstanceNameNotProcessID() {
+  func processSocketEndpointPathDependsOnInstanceNameAndProcessID() {
     let environment = ["TMPDIR": "/tmp/SupatermTests", SupatermCLIEnvironment.instanceNameKey: "dev"]
     let first = SupatermProcessSocketEndpoint.make(
       environment: environment,
@@ -283,11 +293,21 @@ struct SupatermSocketProtocolTests {
       userID: 501
     )
 
-    #expect(first?.path == second?.path)
+    #expect(first?.path != second?.path)
     #expect(
       first?.path
         == SupatermSocketPath.managedSocketURL(
           instanceName: "dev",
+          processID: 42,
+          environment: environment,
+          userID: 501
+        ).path
+    )
+    #expect(
+      second?.path
+        == SupatermSocketPath.managedSocketURL(
+          instanceName: "dev",
+          processID: 43,
           environment: environment,
           userID: 501
         ).path

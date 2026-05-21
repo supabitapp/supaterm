@@ -87,7 +87,14 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
 	product="$$(echo "$$settings" | jq -r '.FULL_PRODUCT_NAME')"; \
 	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
-	SUPATERM_PRINT_SOCKET=1 "$$build_dir/$$product/Contents/MacOS/$$exec_name"
+	instance_name="$${SUPATERM_INSTANCE_NAME:-dev-$$(printf '%s' "$(CURRENT_MAKEFILE_DIR)" | shasum -a 256 | awk '{print substr($$1, 1, 12)}')}"; \
+	state_home="$${SUPATERM_STATE_HOME:-$(CURRENT_MAKEFILE_DIR)/.build/run-state}"; \
+	mkdir -p "$$state_home"; \
+	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH \
+		SUPATERM_PRINT_SOCKET=1 \
+		SUPATERM_INSTANCE_NAME="$$instance_name" \
+		SUPATERM_STATE_HOME="$$state_home" \
+		"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 install-tip: # Install tip build from github
 	@tmpdir="$$(mktemp -d)"; \

@@ -913,7 +913,6 @@ struct TerminalSidebarTabRow: View {
     case divider
     case togglePinned(Bool)
     case changeTabTitle
-    case savePinnedTabLayout
     case closeTabsBelow(Bool)
     case closeOtherTabs(Bool)
     case close
@@ -928,8 +927,6 @@ struct TerminalSidebarTabRow: View {
         isPinned ? "Unpin Tab" : "Pin Tab"
       case .changeTabTitle:
         "Change Tab Title..."
-      case .savePinnedTabLayout:
-        "Save Panes Layout to Pinned Tab"
       case .closeTabsBelow:
         "Close All Below"
       case .closeOtherTabs:
@@ -982,9 +979,6 @@ struct TerminalSidebarTabRow: View {
       .togglePinned(isPinned),
       .changeTabTitle,
     ]
-    if isPinned {
-      items.append(.savePinnedTabLayout)
-    }
     items.append(contentsOf: [
       .divider,
       .closeTabsBelow(hasTabsBelow),
@@ -1150,13 +1144,6 @@ struct TerminalSidebarTabRow: View {
             terminal.promptTabTitle(tab.id)
           } label: {
             Label("Change Tab Title...", systemImage: "pencil")
-          }
-
-        case .savePinnedTabLayout:
-          Button {
-            _ = store.send(.savePinnedTabLayoutRequested(tab.id))
-          } label: {
-            Label("Save Panes Layout to Pinned Tab", systemImage: "square.grid.3x3")
           }
 
         case .closeTabsBelow(let isEnabled):

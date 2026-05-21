@@ -291,8 +291,11 @@ extension TerminalHostState {
     }
   }
 
-  func sessionDidChange() {
+  func sessionDidChange(persistingPinnedTabLayouts: Bool = true) {
     guard suppressesSessionChanges == 0 else { return }
+    if persistingPinnedTabLayouts {
+      persistLivePinnedTabLayouts()
+    }
     onSessionChange()
   }
 

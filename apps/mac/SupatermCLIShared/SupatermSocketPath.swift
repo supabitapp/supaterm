@@ -64,6 +64,7 @@ public enum SupatermSocketPath {
 
   public static func managedSocketURL(
     instanceName: String,
+    processID: Int32,
     rootDirectory: URL? = nil,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     userID: uid_t = getuid()
@@ -76,6 +77,7 @@ public enum SupatermSocketPath {
     return directoryURL.appendingPathComponent(
       managedSocketFileName(
         forInstanceName: instanceName,
+        processID: processID,
         directoryPath: directoryURL.path
       ),
       isDirectory: false
@@ -219,25 +221,27 @@ public enum SupatermSocketPath {
 
   private static func managedSocketFileName(
     forInstanceName instanceName: String,
+    processID: Int32,
     directoryPath: String
   ) -> String {
     let normalizedInstanceName = SupatermInstanceIdentity.normalizedName(instanceName)
     let stem = SupatermInstanceIdentity.fileStem(for: normalizedInstanceName)
     let hash = SupatermInstanceIdentity.stableHash(for: normalizedInstanceName)
-    let fullName = "instance-\(stem)-\(hash)"
+    let processSuffix = "-pid-\(processID)"
+    let fullName = "instance-\(stem)-\(hash)\(processSuffix)"
     let maxFileNameByteCount = socketPathByteLimit - directoryPath.utf8.count - 1
     guard fullName.utf8.count > maxFileNameByteCount else {
       return fullName
     }
 
     let prefix = "instance-"
-    let minimumName = "\(prefix)\(hash)"
-    let reservedByteCount = prefix.utf8.count + hash.utf8.count + 1
+    let minimumName = "\(prefix)\(hash)\(processSuffix)"
+    let reservedByteCount = prefix.utf8.count + hash.utf8.count + processSuffix.utf8.count + 1
     let maxStemByteCount = maxFileNameByteCount - reservedByteCount
     guard maxStemByteCount > 0 else {
       return minimumName
     }
-    return "\(prefix)\(String(stem.prefix(maxStemByteCount)))-\(hash)"
+    return "\(prefix)\(String(stem.prefix(maxStemByteCount)))-\(hash)\(processSuffix)"
   }
 
   private static func canonicalizedExistingPrefix(of path: String) -> String {
@@ -325,6 +329,7 @@ public enum SupatermProcessSocketEndpoint {
       name: name,
       path: SupatermSocketPath.managedSocketURL(
         instanceName: name,
+        processID: processID,
         rootDirectory: rootDirectory,
         environment: environment,
         userID: userID

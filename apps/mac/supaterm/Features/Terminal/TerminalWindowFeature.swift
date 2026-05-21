@@ -153,7 +153,6 @@ struct TerminalWindowFeature {
     case previousSpaceRequested
     case previousTabMenuItemSelected
     case regularTabOrderChanged([TerminalTabID])
-    case savePinnedTabLayoutRequested(TerminalTabID)
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
     case selectSpaceButtonTapped(TerminalSpaceID)
@@ -361,9 +360,6 @@ struct TerminalWindowFeature {
 
       case .regularTabOrderChanged(let orderedIDs):
         return sendCommand(.setRegularTabOrder(orderedIDs))
-
-      case .savePinnedTabLayoutRequested(let tabID):
-        return sendCommand(.savePinnedTabLayout(tabID))
 
       case .selectLastTabMenuItemSelected:
         return sendCommand(.selectLastTab)

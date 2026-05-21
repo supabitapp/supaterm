@@ -470,7 +470,7 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func pinnedTabContextMenuIncludesSavePanesLayout() {
+  func pinnedTabContextMenuOmitsManualSaveLayout() {
     let titles = TerminalSidebarTabRow.contextMenuItems(
       isPinned: true,
       hasTabsBelow: true,
@@ -482,7 +482,6 @@ struct TerminalSidebarChromeViewTests {
         "New Tab",
         "Unpin Tab",
         "Change Tab Title...",
-        "Save Panes Layout to Pinned Tab",
         "Close All Below",
         "Close Others",
         "Close",

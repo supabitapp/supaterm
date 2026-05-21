@@ -359,7 +359,6 @@ final class TerminalHostState {
       .performBindingActionOnFocusedSurface,
       .performSplitOperation,
       .previousTab,
-      .savePinnedTabLayout,
       .renameSpace:
       handleInteractionCommand(command)
     case .nextSpace,
@@ -431,8 +430,6 @@ final class TerminalHostState {
       performSplitOperation(operation, in: tabID)
     case .previousTab:
       previousTab()
-    case .savePinnedTabLayout(let tabID):
-      savePinnedTabLayout(tabID)
     case .renameSpace(let spaceID, let name):
       renameSpace(spaceID, to: name)
     default:
@@ -665,10 +662,6 @@ final class TerminalHostState {
     }
     syncPinnedTabMembership(in: spaceID)
     sessionDidChange()
-  }
-
-  func savePinnedTabLayout(_ tabID: TerminalTabID) {
-    persistPinnedTabLayoutIfNeeded(for: tabID)
   }
 
   @discardableResult
@@ -1038,7 +1031,7 @@ final class TerminalHostState {
       suspendPinnedTab(tabID)
       updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
       syncFocus(windowActivity)
-      sessionDidChange()
+      sessionDidChange(persistingPinnedTabLayouts: false)
       return
     }
 
@@ -1076,7 +1069,7 @@ final class TerminalHostState {
         lastEmittedFocusSurfaceID = nil
       }
       syncFocus(windowActivity)
-      sessionDidChange()
+      sessionDidChange(persistingPinnedTabLayouts: false)
       return
     }
 
@@ -1118,7 +1111,7 @@ final class TerminalHostState {
       }
     }
     syncFocus(windowActivity)
-    sessionDidChange()
+    sessionDidChange(persistingPinnedTabLayouts: false)
   }
 
   func createSurface(

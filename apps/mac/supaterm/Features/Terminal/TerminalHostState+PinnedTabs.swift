@@ -66,23 +66,22 @@ extension TerminalHostState {
     }
   }
 
-  func persistPinnedTabLayoutIfNeeded(for tabID: TerminalTabID) {
-    guard
-      let spaceID = spaceManager.space(for: tabID)?.id,
-      let tab = spaceManager.tab(for: tabID),
-      tab.isPinned,
-      let session = restorationTabSession(for: tab)
-    else {
-      return
+  func persistLivePinnedTabLayouts() {
+    var updatedCatalog = pinnedTabCatalog
+    for space in spaces {
+      let livePinnedTabIDs = Set(
+        spaceManager.tabs(in: space.id).compactMap { tab in
+          tab.isPinned && trees[tab.id] != nil ? tab.id : nil
+        }
+      )
+      guard !livePinnedTabIDs.isEmpty else { continue }
+      updatedCatalog = updatedCatalog.updatingTabs(
+        synchronizedPinnedTabs(in: space.id, snapshotting: livePinnedTabIDs),
+        in: space.id
+      )
     }
-
-    let tabs = synchronizedPinnedTabs(in: spaceID, snapshotting: [tabID]).map { entry in
-      guard entry.id == tabID else { return entry }
-      return PersistedPinnedTerminalTab(id: tabID, session: session)
-    }
-    updatePinnedTabCatalog { pinnedTabCatalog in
-      pinnedTabCatalog.updatingTabs(tabs, in: spaceID)
-    }
+    guard updatedCatalog != pinnedTabCatalog else { return }
+    writePinnedTabCatalog(updatedCatalog)
   }
 
   func persistPinnedTabWorkingDirectoriesIfNeeded(for tabID: TerminalTabID) {
