@@ -12,6 +12,7 @@ protocol GhosttyAppActionPerforming: AnyObject {
   func performCloseAllWindows() -> Bool
   func performNewWindow() -> Bool
   func performQuit() -> Bool
+  func performQuitTerminatingSessions() -> Bool
   func performToggleVisibility() -> Bool
 }
 
@@ -56,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
   private var settingsWindowController: SettingsWindowController?
   private var terminatingSessionCatalog: TerminalSessionCatalog?
   private var isTerminatingAfterSessionTermination = false
+  private var terminatesSessionsForNextQuit = false
   private var toggleVisibilityState: ToggleVisibilityState?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
@@ -163,15 +165,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
     if isTerminatingAfterSessionTermination {
       return .terminateNow
     }
+    let terminatesSessionsForNextQuit = self.terminatesSessionsForNextQuit
+    self.terminatesSessionsForNextQuit = false
+    let terminatesSessionsOnQuit = terminatesSessionsForNextQuit || supatermSettings.terminatesSessionsOnQuit
     let terminationPlan = Self.terminationPlan(
       hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
       confirmQuitMode: supatermSettings.confirmQuitMode,
       hasActiveAgentWorkForQuit: terminalWindowRegistry.hasActiveAgentWorkForQuit,
       needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation,
-      bypassesQuitConfirmation: terminalWindowRegistry.bypassesQuitConfirmation,
-      terminatesSessionsOnQuit: supatermSettings.terminatesSessionsOnQuit
+      bypassesQuitConfirmation: terminatesSessionsForNextQuit || terminalWindowRegistry.bypassesQuitConfirmation,
+      terminatesSessionsOnQuit: terminatesSessionsOnQuit
     ) {
-      quitConfirmationPresenter.confirmQuit(terminatesSessions: supatermSettings.terminatesSessionsOnQuit)
+      quitConfirmationPresenter.confirmQuit(terminatesSessions: terminatesSessionsOnQuit)
     }
     let reply = terminationPlan.reply
     terminatingSessionCatalog = Self.pendingTerminationSessionCatalog(
@@ -215,6 +220,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, GhosttyAppActionPerfor
 
   @discardableResult
   func performQuit() -> Bool {
+    NSApp.terminate(nil)
+    return true
+  }
+
+  @discardableResult
+  func performQuitTerminatingSessions() -> Bool {
+    terminatesSessionsForNextQuit = true
     NSApp.terminate(nil)
     return true
   }

@@ -146,6 +146,23 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func performQuitTerminatingSessionsUsesAppDelegate() {
+    let app = NSApplication.shared
+    let previousDelegate = app.delegate
+    let delegate = GhosttyAppActionPerformerSpy()
+    app.delegate = delegate
+    let controller = SupatermMenuController(registry: TerminalWindowRegistry())
+    defer {
+      app.delegate = previousDelegate
+    }
+
+    #expect(controller.performQuitTerminatingSessions())
+
+    #expect(delegate.quitTerminatingSessionsCount == 1)
+    #expect(delegate.quitCount == 0)
+  }
+
+  @Test
   func aboutAndSettingsMenuItemsUseConfiguredSettingsAction() {
     let controller = SupatermMenuController(registry: TerminalWindowRegistry())
     var tabs: [SettingsFeature.Tab] = []
@@ -714,6 +731,11 @@ struct SupatermMenuControllerTests {
     #expect(appMenu.items[3].title == "Check for Updates...")
     #expect(appMenu.items[3].keyEquivalent == "u")
     #expect(appMenu.items[3].keyEquivalentModifierMask == [.command, .shift])
+    #expect(appMenu.items[11].title.hasPrefix("Quit ") == true)
+    #expect(appMenu.items[11].title.hasSuffix(" and Close All Sessions") == true)
+    #expect(appMenu.items[11].action == #selector(SupatermMenuController.quitTerminatingSessions(_:)))
+    #expect(appMenu.items[11].keyEquivalent.isEmpty)
+    #expect(appMenu.items[11].keyEquivalentModifierMask.isEmpty)
     #expect(appMenu.items.last?.title.hasPrefix("Quit ") == true)
     #expect(appMenu.items.last?.action == #selector(SupatermMenuController.quit(_:)))
     #expect(appMenu.items.last?.keyEquivalent == "q")

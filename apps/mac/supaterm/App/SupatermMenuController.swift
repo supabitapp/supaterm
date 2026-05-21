@@ -32,6 +32,8 @@ final class SupatermMenuController: NSObject {
     static let about = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.about")
     static let checkForUpdates = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.checkForUpdates")
     static let quit = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.quit")
+    static let quitTerminatingSessions = NSUserInterfaceItemIdentifier(
+      "app.supabit.supaterm.app.quitTerminatingSessions")
     static let settings = NSUserInterfaceItemIdentifier("app.supabit.supaterm.app.settings")
     static let newWindow = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newWindow")
     static let newTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.file.newTab")
@@ -136,6 +138,7 @@ final class SupatermMenuController: NSObject {
     menu.addItem(hideOthers)
     menu.addItem(systemItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:))))
     menu.addItem(.separator())
+    menu.addItem(quitTerminatingSessionsItem)
     menu.addItem(quitItem)
     return menu
   }()
@@ -279,6 +282,15 @@ final class SupatermMenuController: NSObject {
     action: #selector(quit(_:)),
     identifier: MenuItemIdentifier.quit
   )
+  private lazy var quitTerminatingSessionsItem: NSMenuItem = {
+    let item = makeItem(
+      title: "Quit \(appName) and Close All Sessions",
+      action: #selector(quitTerminatingSessions(_:)),
+      identifier: MenuItemIdentifier.quitTerminatingSessions
+    )
+    item.keyEquivalentModifierMask = []
+    return item
+  }()
   private lazy var settingsItem: NSMenuItem = {
     let item = makeItem(
       title: "Settings...",
@@ -700,6 +712,16 @@ final class SupatermMenuController: NSObject {
     return true
   }
 
+  @discardableResult
+  func performQuitTerminatingSessions() -> Bool {
+    if let performer = NSApp.delegate as? any GhosttyAppActionPerforming {
+      return performer.performQuitTerminatingSessions()
+    }
+    registry.terminateAllTerminalSessions()
+    NSApp.terminate(nil)
+    return true
+  }
+
   @objc func about(_ sender: Any?) {
     _ = performShowSettings(.about)
   }
@@ -710,6 +732,10 @@ final class SupatermMenuController: NSObject {
 
   @objc func quit(_ sender: Any?) {
     _ = performQuit()
+  }
+
+  @objc func quitTerminatingSessions(_ sender: Any?) {
+    _ = performQuitTerminatingSessions()
   }
 
   @objc func showSettings(_ sender: Any?) {
