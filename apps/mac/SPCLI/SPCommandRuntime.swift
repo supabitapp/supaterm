@@ -76,12 +76,12 @@ func emitCommandResult<T: Encodable>(
 func resolvedSocketTarget(
   explicitPath: String?,
   instance: String?,
-  alwaysDiscover: Bool = false
+  discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded
 ) throws -> SupatermResolvedSocketTarget {
   let diagnostics = SPSocketSelection.resolve(
     explicitPath: explicitPath,
     instance: instance,
-    alwaysDiscover: alwaysDiscover
+    discoveryPolicy: discoveryPolicy
   )
 
   guard let resolvedTarget = diagnostics.resolvedTarget else {
@@ -91,18 +91,40 @@ func resolvedSocketTarget(
   return resolvedTarget
 }
 
+struct SPSocketConnection {
+  let target: SupatermResolvedSocketTarget
+  let client: SPSocketClient
+}
+
+func resolvedSocketConnection(
+  explicitPath: String?,
+  instance: String?,
+  discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded,
+  responseTimeout: TimeInterval = 5
+) throws -> SPSocketConnection {
+  let target = try resolvedSocketTarget(
+    explicitPath: explicitPath,
+    instance: instance,
+    discoveryPolicy: discoveryPolicy
+  )
+  return try SPSocketConnection(
+    target: target,
+    client: SPSocketClient(path: target.path, responseTimeout: responseTimeout)
+  )
+}
+
 func socketClient(
   path: String?,
   instance: String?,
-  alwaysDiscover: Bool = false,
+  discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded,
   responseTimeout: TimeInterval = 5
 ) throws -> SPSocketClient {
-  let resolvedTarget = try resolvedSocketTarget(
+  try resolvedSocketConnection(
     explicitPath: path,
     instance: instance,
-    alwaysDiscover: alwaysDiscover
-  )
-  return try SPSocketClient(path: resolvedTarget.path, responseTimeout: responseTimeout)
+    discoveryPolicy: discoveryPolicy,
+    responseTimeout: responseTimeout
+  ).client
 }
 
 func treeSnapshot(_ client: SPSocketClient) throws -> SupatermTreeSnapshot {

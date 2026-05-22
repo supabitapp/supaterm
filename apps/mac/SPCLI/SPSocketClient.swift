@@ -270,6 +270,69 @@ struct SPSocketSelectionDiagnostics {
   let errorMessage: String?
 }
 
+enum SPSocketDiscoveryPolicy {
+  case whenNeeded
+  case always
+}
+
+struct SPSocketResolutionStrategy: Equatable {
+  let environmentPath: String?
+  let discoversManagedSockets: Bool
+
+  static func make(
+    explicitSocketPath: String?,
+    environmentSocketPath: String?,
+    environmentPathStatus: SupatermManagedSocketCandidateStatus?,
+    discoveryPolicy: SPSocketDiscoveryPolicy
+  ) -> Self {
+    .init(
+      environmentPath: resolvedEnvironmentPath(
+        explicitSocketPath: explicitSocketPath,
+        environmentSocketPath: environmentSocketPath,
+        environmentPathStatus: environmentPathStatus
+      ),
+      discoversManagedSockets: discoversManagedSockets(
+        explicitSocketPath: explicitSocketPath,
+        environmentPathStatus: environmentPathStatus,
+        discoveryPolicy: discoveryPolicy
+      )
+    )
+  }
+
+  private static func resolvedEnvironmentPath(
+    explicitSocketPath: String?,
+    environmentSocketPath: String?,
+    environmentPathStatus: SupatermManagedSocketCandidateStatus?
+  ) -> String? {
+    guard explicitSocketPath == nil else {
+      return nil
+    }
+    guard case .reachable = environmentPathStatus else {
+      return nil
+    }
+    return environmentSocketPath
+  }
+
+  private static func discoversManagedSockets(
+    explicitSocketPath: String?,
+    environmentPathStatus: SupatermManagedSocketCandidateStatus?,
+    discoveryPolicy: SPSocketDiscoveryPolicy
+  ) -> Bool {
+    switch discoveryPolicy {
+    case .always:
+      return true
+    case .whenNeeded:
+      guard explicitSocketPath == nil else {
+        return false
+      }
+      guard case .reachable = environmentPathStatus else {
+        return true
+      }
+      return false
+    }
+  }
+}
+
 enum SPSocketSelection {
   private static let discoveryConnectRetryInterval: TimeInterval = 0.05
   private static let discoveryConnectRetryTimeout: TimeInterval = 0.25
@@ -278,7 +341,7 @@ enum SPSocketSelection {
   static func resolve(
     explicitPath: String?,
     instance: String?,
-    alwaysDiscover: Bool = false,
+    discoveryPolicy: SPSocketDiscoveryPolicy = .whenNeeded,
     environment: [String: String] = ProcessInfo.processInfo.environment,
     rootDirectory: URL? = nil,
     fileManager: FileManager = .default
@@ -286,14 +349,15 @@ enum SPSocketSelection {
     let explicitSocketPath = SupatermSocketPath.normalized(explicitPath)
     let environmentSocketPath = SupatermSocketPath.normalized(environment[SupatermCLIEnvironment.socketPathKey])
     let environmentPathStatus = explicitSocketPath == nil ? environmentSocketPath.map(probeEndpoint) : nil
-    let shouldDiscover = shouldDiscoverManagedSockets(
+    let strategy = SPSocketResolutionStrategy.make(
       explicitSocketPath: explicitSocketPath,
+      environmentSocketPath: environmentSocketPath,
       environmentPathStatus: environmentPathStatus,
-      alwaysDiscover: alwaysDiscover
+      discoveryPolicy: discoveryPolicy
     )
 
     let discovery: SupatermManagedSocketDiscoveryResult
-    if shouldDiscover {
+    if strategy.discoversManagedSockets {
       let candidatePaths = SupatermSocketPath.discoverManagedSocketPaths(
         rootDirectory: rootDirectory,
         environment: environment,
@@ -309,16 +373,11 @@ enum SPSocketSelection {
     } else {
       discovery = .init(reachableEndpoints: [], removedStalePaths: [])
     }
-    let resolutionEnvironmentPath = environmentPathForResolution(
-      environmentSocketPath,
-      explicitSocketPath: explicitSocketPath,
-      environmentPathStatus: environmentPathStatus
-    )
 
     do {
       let resolvedTarget = try SupatermSocketTargetResolver.resolve(
         explicitPath: explicitSocketPath,
-        environmentPath: resolutionEnvironmentPath,
+        environmentPath: strategy.environmentPath,
         instance: instance,
         discoveredEndpoints: discovery.reachableEndpoints
       )
@@ -382,40 +441,6 @@ enum SPSocketSelection {
 
   private static func removeManagedSocketPath(_ path: String) {
     _ = path.withCString(unlink)
-  }
-
-  static func environmentPathForResolution(
-    _ environmentSocketPath: String?,
-    explicitSocketPath: String?,
-    environmentPathStatus: SupatermManagedSocketCandidateStatus?
-  ) -> String? {
-    guard let environmentSocketPath else {
-      return nil
-    }
-    guard explicitSocketPath == nil else {
-      return nil
-    }
-    guard case .reachable = environmentPathStatus else {
-      return nil
-    }
-    return environmentSocketPath
-  }
-
-  static func shouldDiscoverManagedSockets(
-    explicitSocketPath: String?,
-    environmentPathStatus: SupatermManagedSocketCandidateStatus?,
-    alwaysDiscover: Bool
-  ) -> Bool {
-    if alwaysDiscover {
-      return true
-    }
-    guard explicitSocketPath == nil else {
-      return false
-    }
-    guard case .reachable = environmentPathStatus else {
-      return true
-    }
-    return false
   }
 
   private static func formatResolutionError(

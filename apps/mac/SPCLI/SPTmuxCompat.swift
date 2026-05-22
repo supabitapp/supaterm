@@ -186,19 +186,18 @@ enum SPRunLauncher {
     instance: String? = nil,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) throws {
-    let resolvedTarget = try resolvedSocketTarget(
+    let connection = try resolvedSocketConnection(
       explicitPath: explicitSocketPath,
       instance: instance,
-      alwaysDiscover: true
+      discoveryPolicy: .always
     )
-    let client = try SPSocketClient(path: resolvedTarget.path)
     let focusedContext = try SPTmuxCommandRunner(
-      transport: client,
+      transport: connection.client,
       environment: environment
     ).focusedContext()
     let launcher = try configuredProcess(
       arguments: arguments,
-      socketPath: resolvedTarget.path,
+      socketPath: connection.target.path,
       focusedContext: focusedContext,
       environment: environment
     )

@@ -139,91 +139,182 @@ struct SPCommandTests {
   }
 
   @Test
-  func socketSelectionUsesOnlyReachableEnvironmentPathDuringDiscovery() {
-    let environmentPath = "/tmp/stale.sock"
-    let endpoint = SupatermSocketEndpoint(
-      id: UUID(uuidString: "3F6B51E0-F214-456C-93F4-D87AEACCC292")!,
-      name: "default",
-      path: "/tmp/live.sock",
-      pid: 1,
-      startedAt: Date(timeIntervalSince1970: 1)
-    )
+  func socketResolutionStrategyUsesDiscoveryOnlyWhenNeeded() {
+    let environmentPath = "/tmp/environment.sock"
+    let endpoint = spCommandTestSocketEndpoint(path: "/tmp/live.sock")
 
     #expect(
-      SPSocketSelection.environmentPathForResolution(
-        environmentPath,
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: nil,
-        environmentPathStatus: .stale
-      ) == nil
+        environmentSocketPath: environmentPath,
+        environmentPathStatus: .reachable(endpoint),
+        discoveryPolicy: .whenNeeded
+      )
+        == SPSocketResolutionStrategy(
+          environmentPath: environmentPath,
+          discoversManagedSockets: false
+        )
     )
     #expect(
-      SPSocketSelection.environmentPathForResolution(
-        environmentPath,
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: nil,
-        environmentPathStatus: .ignored
-      ) == nil
+        environmentSocketPath: environmentPath,
+        environmentPathStatus: .stale,
+        discoveryPolicy: .whenNeeded
+      ) == SPSocketResolutionStrategy(environmentPath: nil, discoversManagedSockets: true)
     )
     #expect(
-      SPSocketSelection.environmentPathForResolution(
-        environmentPath,
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: nil,
-        environmentPathStatus: .reachable(endpoint)
-      ) == environmentPath
+        environmentSocketPath: environmentPath,
+        environmentPathStatus: .ignored,
+        discoveryPolicy: .whenNeeded
+      ) == SPSocketResolutionStrategy(environmentPath: nil, discoversManagedSockets: true)
     )
     #expect(
-      SPSocketSelection.environmentPathForResolution(
-        environmentPath,
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: "/tmp/explicit.sock",
-        environmentPathStatus: .reachable(endpoint)
-      ) == nil
+        environmentSocketPath: environmentPath,
+        environmentPathStatus: nil,
+        discoveryPolicy: .whenNeeded
+      ) == SPSocketResolutionStrategy(environmentPath: nil, discoversManagedSockets: false)
     )
   }
 
   @Test
-  func socketSelectionDiscoversWhenEnvironmentPathIsUnavailable() {
-    let endpoint = SupatermSocketEndpoint(
-      id: UUID(uuidString: "3F6B51E0-F214-456C-93F4-D87AEACCC292")!,
-      name: "default",
-      path: "/tmp/live.sock",
-      pid: 1,
-      startedAt: Date(timeIntervalSince1970: 1)
-    )
+  func socketResolutionStrategyAlwaysDiscoversWithoutChangingPrecedence() {
+    let environmentPath = "/tmp/environment.sock"
+    let endpoint = spCommandTestSocketEndpoint(path: "/tmp/live.sock")
 
     #expect(
-      SPSocketSelection.shouldDiscoverManagedSockets(
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: nil,
-        environmentPathStatus: .stale,
-        alwaysDiscover: false
-      )
-    )
-    #expect(
-      SPSocketSelection.shouldDiscoverManagedSockets(
-        explicitSocketPath: nil,
-        environmentPathStatus: .ignored,
-        alwaysDiscover: false
-      )
-    )
-    #expect(
-      !SPSocketSelection.shouldDiscoverManagedSockets(
-        explicitSocketPath: nil,
+        environmentSocketPath: environmentPath,
         environmentPathStatus: .reachable(endpoint),
-        alwaysDiscover: false
+        discoveryPolicy: .always
       )
+        == SPSocketResolutionStrategy(
+          environmentPath: environmentPath,
+          discoversManagedSockets: true
+        )
     )
     #expect(
-      !SPSocketSelection.shouldDiscoverManagedSockets(
-        explicitSocketPath: "/tmp/explicit.sock",
+      SPSocketResolutionStrategy.make(
+        explicitSocketPath: nil,
+        environmentSocketPath: environmentPath,
         environmentPathStatus: .stale,
-        alwaysDiscover: false
-      )
+        discoveryPolicy: .always
+      ) == SPSocketResolutionStrategy(environmentPath: nil, discoversManagedSockets: true)
     )
     #expect(
-      SPSocketSelection.shouldDiscoverManagedSockets(
+      SPSocketResolutionStrategy.make(
         explicitSocketPath: "/tmp/explicit.sock",
-        environmentPathStatus: .reachable(endpoint),
-        alwaysDiscover: true
-      )
+        environmentSocketPath: environmentPath,
+        environmentPathStatus: nil,
+        discoveryPolicy: .always
+      ) == SPSocketResolutionStrategy(environmentPath: nil, discoversManagedSockets: true)
     )
+  }
+
+  @Test
+  func diagnosticSocketProbeReportsResolutionFailure() {
+    let result = SPDiagnosticSocketProbe.probe(
+      target: nil,
+      resolutionErrorMessage: "No reachable Supaterm instance was found.",
+      context: nil,
+      sendDebugRequest: { _, _ in
+        Issue.record("Expected diagnostic probe to skip socket request.")
+        return .error(code: "unexpected", message: "unexpected")
+      }
+    )
+
+    #expect(result.socket.path == nil)
+    #expect(!result.socket.isReachable)
+    #expect(!result.socket.requestSucceeded)
+    #expect(result.socket.error == "No reachable Supaterm instance was found.")
+    #expect(result.appSnapshot == nil)
+    #expect(result.problems == ["No reachable Supaterm instance was found."])
+  }
+
+  @Test
+  func diagnosticSocketProbeDecodesSuccessfulDebugResponse() throws {
+    let endpoint = spCommandTestSocketEndpoint(path: "/tmp/live.sock")
+    let target = SupatermResolvedSocketTarget(
+      endpoint: endpoint,
+      path: endpoint.path,
+      source: .discoveredSingleton
+    )
+    let snapshot = spCommandTestDebugSnapshot()
+
+    let result = SPDiagnosticSocketProbe.probe(
+      target: target,
+      resolutionErrorMessage: nil,
+      context: nil,
+      sendDebugRequest: { requestedTarget, context in
+        #expect(requestedTarget == target)
+        #expect(context == nil)
+        return try SupatermSocketResponse.ok(id: "debug-1", encodableResult: snapshot)
+      }
+    )
+
+    #expect(result.socket.path == endpoint.path)
+    #expect(result.socket.isReachable)
+    #expect(result.socket.requestSucceeded)
+    #expect(result.socket.error == nil)
+    #expect(result.appSnapshot == snapshot)
+    #expect(result.problems.isEmpty)
+  }
+
+  @Test
+  func diagnosticSocketProbeReportsSocketErrorResponse() {
+    let endpoint = spCommandTestSocketEndpoint(path: "/tmp/live.sock")
+    let target = SupatermResolvedSocketTarget(
+      endpoint: endpoint,
+      path: endpoint.path,
+      source: .discoveredSingleton
+    )
+
+    let result = SPDiagnosticSocketProbe.probe(
+      target: target,
+      resolutionErrorMessage: nil,
+      context: nil,
+      sendDebugRequest: { _, _ in
+        .error(id: "debug-1", code: "failed", message: "Debug failed.")
+      }
+    )
+
+    #expect(result.socket.path == endpoint.path)
+    #expect(result.socket.isReachable)
+    #expect(!result.socket.requestSucceeded)
+    #expect(result.socket.error == "Debug failed.")
+    #expect(result.appSnapshot == nil)
+    #expect(result.problems == ["Debug failed."])
+  }
+
+  @Test
+  func diagnosticSocketProbeReportsThrownSocketRequestError() {
+    let endpoint = spCommandTestSocketEndpoint(path: "/tmp/live.sock")
+    let target = SupatermResolvedSocketTarget(
+      endpoint: endpoint,
+      path: endpoint.path,
+      source: .discoveredSingleton
+    )
+
+    let result = SPDiagnosticSocketProbe.probe(
+      target: target,
+      resolutionErrorMessage: nil,
+      context: nil,
+      sendDebugRequest: { _, _ in
+        throw SPCommandTestDiagnosticError.failed
+      }
+    )
+
+    #expect(result.socket.path == endpoint.path)
+    #expect(!result.socket.isReachable)
+    #expect(!result.socket.requestSucceeded)
+    #expect(result.socket.error == "socket failed")
+    #expect(result.appSnapshot == nil)
+    #expect(result.problems == ["socket failed"])
   }
 
   @Test
@@ -491,4 +582,48 @@ struct SPCommandTests {
       )
     }
   }
+}
+
+private enum SPCommandTestDiagnosticError: LocalizedError {
+  case failed
+
+  var errorDescription: String? {
+    "socket failed"
+  }
+}
+
+private func spCommandTestSocketEndpoint(path: String) -> SupatermSocketEndpoint {
+  SupatermSocketEndpoint(
+    id: UUID(uuidString: "3F6B51E0-F214-456C-93F4-D87AEACCC292")!,
+    name: "default",
+    path: path,
+    pid: 1,
+    startedAt: Date(timeIntervalSince1970: 1)
+  )
+}
+
+private func spCommandTestDebugSnapshot() -> SupatermAppDebugSnapshot {
+  SupatermAppDebugSnapshot(
+    build: SupatermAppDebugSnapshot.Build(
+      version: "1.0.0",
+      buildNumber: "1",
+      isDevelopmentBuild: true,
+      usesStubUpdateChecks: false
+    ),
+    update: SupatermAppDebugSnapshot.Update(
+      canCheckForUpdates: true,
+      phase: "idle",
+      detail: ""
+    ),
+    summary: SupatermAppDebugSnapshot.Summary(
+      windowCount: 0,
+      spaceCount: 0,
+      tabCount: 0,
+      paneCount: 0,
+      keyWindowIndex: nil
+    ),
+    currentTarget: nil,
+    windows: [],
+    problems: []
+  )
 }

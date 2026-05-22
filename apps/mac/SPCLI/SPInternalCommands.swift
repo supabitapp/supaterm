@@ -355,7 +355,7 @@ private func requireDevelopmentBuild(connection: SPConnectionOptions) throws {
   let client = try socketClient(
     path: connection.explicitSocketPath,
     instance: connection.instance,
-    alwaysDiscover: true
+    discoveryPolicy: .always
   )
   let response = try client.send(
     .debug(

@@ -2,6 +2,77 @@ import ArgumentParser
 import Foundation
 import SupatermCLIShared
 
+struct SPDiagnosticSocketProbeResult {
+  let socket: SPDebugReport.Socket
+  let appSnapshot: SupatermAppDebugSnapshot?
+  let problems: [String]
+}
+
+enum SPDiagnosticSocketProbe {
+  typealias SendDebugRequest =
+    (SupatermResolvedSocketTarget, SupatermCLIContext?) throws -> SupatermSocketResponse
+
+  static func probe(
+    target: SupatermResolvedSocketTarget?,
+    resolutionErrorMessage: String?,
+    context: SupatermCLIContext?,
+    sendDebugRequest: SendDebugRequest = defaultSendDebugRequest
+  ) -> SPDiagnosticSocketProbeResult {
+    var socket = SPDebugReport.Socket(
+      path: target?.path,
+      isReachable: false,
+      requestSucceeded: false,
+      error: nil
+    )
+
+    guard let target else {
+      return failed(
+        socket: socket,
+        message: resolutionErrorMessage ?? "Unable to resolve a Supaterm socket path."
+      )
+    }
+
+    do {
+      let response = try sendDebugRequest(target, context)
+      socket.isReachable = true
+
+      guard response.ok else {
+        return failed(
+          socket: socket,
+          message: response.error?.message ?? "Supaterm socket request failed."
+        )
+      }
+
+      do {
+        let snapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
+        socket.requestSucceeded = true
+        return .init(socket: socket, appSnapshot: snapshot, problems: [])
+      } catch {
+        return failed(socket: socket, message: error.localizedDescription)
+      }
+    } catch {
+      return failed(socket: socket, message: error.localizedDescription)
+    }
+  }
+
+  private static func defaultSendDebugRequest(
+    target: SupatermResolvedSocketTarget,
+    context: SupatermCLIContext?
+  ) throws -> SupatermSocketResponse {
+    let client = try SPSocketClient(path: target.path)
+    return try client.send(.debug(.init(context: context)))
+  }
+
+  private static func failed(
+    socket: SPDebugReport.Socket,
+    message: String
+  ) -> SPDiagnosticSocketProbeResult {
+    var socket = socket
+    socket.error = message
+    return .init(socket: socket, appSnapshot: nil, problems: [message])
+  }
+}
+
 extension SP {
   struct Instance: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -109,49 +180,13 @@ extension SP {
       let diagnostics = SPSocketSelection.resolve(
         explicitPath: options.connection.explicitSocketPath,
         instance: options.connection.instance,
-        alwaysDiscover: true
+        discoveryPolicy: .always
       )
-      var problems: [String] = []
-      var socketStatus = SPDebugReport.Socket(
-        path: diagnostics.resolvedTarget?.path,
-        isReachable: false,
-        requestSucceeded: false,
-        error: nil
+      let probe = SPDiagnosticSocketProbe.probe(
+        target: diagnostics.resolvedTarget,
+        resolutionErrorMessage: diagnostics.errorMessage,
+        context: context
       )
-      var appSnapshot: SupatermAppDebugSnapshot?
-
-      if let resolvedTarget = diagnostics.resolvedTarget {
-        do {
-          let client = try SPSocketClient(path: resolvedTarget.path)
-          let response = try client.send(
-            .debug(.init(context: context))
-          )
-          socketStatus.isReachable = true
-
-          if response.ok {
-            do {
-              appSnapshot = try response.decodeResult(SupatermAppDebugSnapshot.self)
-              socketStatus.requestSucceeded = true
-            } catch {
-              let message = error.localizedDescription
-              socketStatus.error = message
-              problems.append(message)
-            }
-          } else {
-            let message = response.error?.message ?? "Supaterm socket request failed."
-            socketStatus.error = message
-            problems.append(message)
-          }
-        } catch {
-          let message = error.localizedDescription
-          socketStatus.error = message
-          problems.append(message)
-        }
-      } else {
-        let message = diagnostics.errorMessage ?? "Unable to resolve a Supaterm socket path."
-        socketStatus.error = message
-        problems.append(message)
-      }
 
       let report = SPDebugReport(
         invocation: .init(
@@ -169,9 +204,9 @@ extension SP {
           reachableInstances: diagnostics.discoveredEndpoints,
           removedStalePaths: diagnostics.removedStalePaths
         ),
-        socket: socketStatus,
-        app: appSnapshot,
-        problems: problems
+        socket: probe.socket,
+        app: probe.appSnapshot,
+        problems: probe.problems
       )
 
       switch options.output.mode {
@@ -181,7 +216,7 @@ extension SP {
         print(SPDebugRenderer.render(report))
       }
 
-      if !socketStatus.requestSucceeded {
+      if !probe.socket.requestSucceeded {
         throw ExitCode.failure
       }
     }
@@ -202,7 +237,7 @@ extension SP {
       let diagnostics = SPSocketSelection.resolve(
         explicitPath: options.connection.explicitSocketPath,
         instance: options.connection.instance,
-        alwaysDiscover: true
+        discoveryPolicy: .always
       )
       let endpoints = diagnostics.discoveredEndpoints
       switch options.output.mode {
