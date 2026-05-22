@@ -18,7 +18,14 @@ enum AgentProgressParsing {
   }
 
   static func status(_ rawValue: String?) -> PaneAgentProgressRow.Status {
-    switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+    switch value {
+    case "inProgress":
+      return .running
+    default:
+      break
+    }
+    switch value?.lowercased() {
     case "completed", "complete", "done":
       return .completed
     case "in_progress", "in-progress", "running", "active":

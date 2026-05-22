@@ -17,6 +17,7 @@ struct AgentPanelView: View {
   let palette: TerminalPalette
   let openURL: (URL) -> Void
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var checksAreExpanded = false
 
   var body: some View {
@@ -98,11 +99,12 @@ struct AgentPanelView: View {
 
   private func progressRow(_ row: PaneAgentProgressRow) -> some View {
     HStack(spacing: 7) {
-      Image(systemName: progressSymbol(row.status))
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(progressColor(row.status))
-        .frame(width: 14)
-        .accessibilityHidden(true)
+      AgentPanelProgressIcon(
+        symbol: progressSymbol(row.status),
+        color: progressColor(row.status),
+        isRunning: row.status == .running,
+        reduceMotion: reduceMotion
+      )
       Text(row.title)
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(palette.primaryText)
@@ -370,6 +372,37 @@ struct AgentPanelView: View {
 private enum AgentPanelIcon {
   case asset(String)
   case system(String)
+}
+
+private struct AgentPanelProgressIcon: View {
+  let symbol: String
+  let color: Color
+  let isRunning: Bool
+  let reduceMotion: Bool
+
+  var body: some View {
+    if isRunning && !reduceMotion {
+      TimelineView(.animation) { context in
+        image
+          .rotationEffect(.degrees(rotationDegrees(at: context.date)))
+      }
+    } else {
+      image
+    }
+  }
+
+  private var image: some View {
+    Image(systemName: symbol)
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(color)
+      .frame(width: 14)
+      .accessibilityHidden(true)
+  }
+
+  private func rotationDegrees(at date: Date) -> Double {
+    let interval = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2)
+    return interval / 1.2 * 360
+  }
 }
 
 private struct PullRequestChecksRingView: View {

@@ -5,6 +5,13 @@ import Testing
 
 struct CodexTranscriptMonitorTests {
   @Test
+  func agentProgressParsingSupportsUpstreamInProgressStatuses() {
+    #expect(AgentProgressParsing.status("in_progress") == .running)
+    #expect(AgentProgressParsing.status("inProgress") == .running)
+    #expect(AgentProgressParsing.status("inprogress") == .pending)
+  }
+
+  @Test
   func startBuildsConversationFromSyntheticRolloutItems() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
@@ -94,7 +101,7 @@ struct CodexTranscriptMonitorTests {
         arguments: [
           "plan": [
             ["step": "Read terminal state", "status": "completed"],
-            ["step": "Wire panel overlay", "status": "in_progress"],
+            ["step": "Wire panel overlay", "status": "inProgress"],
             ["step": "Run tests", "status": "pending"],
           ]
         ]
