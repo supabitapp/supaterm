@@ -5,6 +5,40 @@ import Testing
 
 struct TerminalSidebarUpdatePresentationTests {
   @Test
+  func updateDetailMentionsPreservedSessionsWhenEnabled() {
+    let detail = TerminalSidebarUpdatePresentation.detailText(
+      for: .installing(UpdatePhase.Installing(isAutoUpdate: true)),
+      preservesSessionsOnRestart: true
+    )
+    let expected = [
+      "The update is ready. Restart Supaterm to complete installation.",
+      "Your terminal sessions will keep running after restart.",
+    ].joined(separator: " ")
+
+    #expect(detail == expected)
+  }
+
+  @Test
+  func updateDetailOmitsPreservedSessionsWhenDisabled() {
+    let detail = TerminalSidebarUpdatePresentation.detailText(
+      for: .installing(UpdatePhase.Installing(isAutoUpdate: true)),
+      preservesSessionsOnRestart: false
+    )
+
+    #expect(detail == "The update is ready. Restart Supaterm to complete installation.")
+  }
+
+  @Test
+  func inactiveUpdateDetailDoesNotMentionPreservedSessions() {
+    let detail = TerminalSidebarUpdatePresentation.detailText(
+      for: .notFound,
+      preservesSessionsOnRestart: true
+    )
+
+    #expect(detail == "You're already running the latest version.")
+  }
+
+  @Test
   func allPhasesUseRegularRowStyle() {
     let phases: [UpdatePhase] = [
       .permissionRequest,

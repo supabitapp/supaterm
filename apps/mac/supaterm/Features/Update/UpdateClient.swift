@@ -19,23 +19,12 @@ public enum UpdateUserAction: Equatable, Sendable {
   case skipVersion
 }
 
-public enum UpdateFoundDecision: Equatable, Sendable {
-  case dismissSilently
-  case present
-}
-
 public enum UpdatePresentationMode: Equatable, Sendable {
   case sidebar
   case standard
 }
 
 public enum UpdatePresentation {
-  public static func foundDecision(
-    userInitiated: Bool
-  ) -> UpdateFoundDecision {
-    userInitiated ? .present : .dismissSilently
-  }
-
   public static func mode(
     hasUnobtrusiveTarget: Bool
   ) -> UpdatePresentationMode {
@@ -110,7 +99,7 @@ public enum UpdatePhase: Equatable, Sendable {
     ) {
       self.buildVersion = buildVersion
       self.isAutoUpdate = isAutoUpdate
-      self.showsPrompt = showsPrompt ?? !isAutoUpdate
+      self.showsPrompt = showsPrompt ?? true
       self.version = version
     }
 
@@ -244,7 +233,7 @@ public enum UpdatePhase: Equatable, Sendable {
     case .idle:
       return false
     case .installing(let installing):
-      return installing.showsPrompt || !installing.isAutoUpdate
+      return installing.showsPrompt
     default:
       return true
     }
@@ -449,7 +438,6 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
   }
 
   private enum SessionOrigin {
-    case background
     case idle
     case interactive
   }
@@ -683,13 +671,6 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     retry: @escaping () -> Void,
     fallback: (() -> Void)?
   ) {
-    guard sessionOrigin != .background else {
-      sessionOrigin = .idle
-      interaction = .none
-      phase = .idle
-      publish()
-      return
-    }
     interaction = .error(retry: retry)
     phase = .error(UpdatePhase.Failure(message: message))
     publish()
@@ -724,7 +705,7 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
     version: String = "",
     fallback: (() -> Void)?
   ) {
-    sessionOrigin = isAutoUpdate ? .background : .interactive
+    sessionOrigin = .interactive
     interaction = .installing(restart)
     phase = .installing(
       UpdatePhase.Installing(
@@ -763,27 +744,14 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
 
   fileprivate func showUpdateAvailable(
     _ available: UpdatePhase.Available,
-    userInitiated: Bool,
     reply: @escaping (SPUUserUpdateChoice) -> Void,
     fallback: (() -> Void)?
   ) {
-    switch UpdatePresentation.foundDecision(
-      userInitiated: userInitiated
-    ) {
-    case .present:
-      sessionOrigin = .interactive
-      interaction = .updateAvailable(reply)
-      phase = .updateAvailable(available)
-      publish()
-      fallback?()
-
-    case .dismissSilently:
-      sessionOrigin = .background
-      interaction = .none
-      phase = .idle
-      publish()
-      reply(.dismiss)
-    }
+    sessionOrigin = .interactive
+    interaction = .updateAvailable(reply)
+    phase = .updateAvailable(available)
+    publish()
+    fallback?()
   }
 
   fileprivate func finishInstalledUpdate(
@@ -832,10 +800,6 @@ final class UpdateRuntime: NSObject, @unchecked Sendable {
       let suffix = String(identifier.dropFirst(prefix.count))
       return UUID(uuidString: suffix) != nil
     }
-  }
-
-  fileprivate var suppressesUpdateInterface: Bool {
-    sessionOrigin == .background
   }
 
   @objc private func handleWindowWillClose() {
@@ -1143,10 +1107,6 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
     case .standard:
       standard.showReady(toInstallAndRelaunch: reply)
     case .sidebar:
-      if runtime?.suppressesUpdateInterface == true {
-        reply(.dismiss)
-        return
-      }
       guard runtime?.hasUnobtrusiveTarget == true else {
         standard.showReady(toInstallAndRelaunch: reply)
         return
@@ -1173,7 +1133,6 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
           releaseDate: appcastItem.date,
           version: appcastItem.displayVersionString
         ),
-        userInitiated: state.userInitiated,
         reply: reply,
         fallback: nil
       )
@@ -1214,17 +1173,6 @@ private final class UpdateDriver: NSObject, SPUUserDriver, SPUUpdaterDelegate {
   func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
 
   func showUpdaterError(_ error: any Error, acknowledgement: @escaping () -> Void) {
-    if runtime?.suppressesUpdateInterface == true {
-      runtime?.showError(
-        error.localizedDescription,
-        retry: { [weak runtime] in
-          runtime?.perform(.checkForUpdates)
-        },
-        fallback: nil
-      )
-      acknowledgement()
-      return
-    }
     switch presentationMode {
     case .sidebar:
       runtime?.showError(

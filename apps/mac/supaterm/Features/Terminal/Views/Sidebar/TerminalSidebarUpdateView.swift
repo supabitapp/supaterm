@@ -1,14 +1,48 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import Sharing
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
 enum TerminalSidebarUpdatePresentation {
+  static func detailText(
+    for phase: UpdatePhase,
+    preservesSessionsOnRestart: Bool
+  ) -> String {
+    let detail = baseDetailText(for: phase)
+    guard preservesSessionsOnRestart, preservesSessionCopyApplies(to: phase) else {
+      return detail
+    }
+    return "\(detail) Your terminal sessions will keep running after restart."
+  }
+
   static func usesSelectedRowStyle(
     for _: UpdatePhase
   ) -> Bool {
     false
+  }
+
+  private static func baseDetailText(for phase: UpdatePhase) -> String {
+    switch phase {
+    case .installing(let installing):
+      if installing.isAutoUpdate {
+        return phase.detailMessage
+      }
+      return "The update is ready. Restart Supaterm to complete installation."
+    default:
+      return phase.detailMessage
+    }
+  }
+
+  private static func preservesSessionCopyApplies(to phase: UpdatePhase) -> Bool {
+    switch phase {
+    case .updateAvailable, .downloading, .extracting, .installing:
+      return true
+    default:
+      return false
+    }
   }
 }
 
@@ -16,6 +50,7 @@ struct TerminalSidebarUpdateSection: View {
   let store: StoreOf<UpdateFeature>
   let palette: TerminalPalette
 
+  @Shared(.supatermSettings) private var supatermSettings = .default
   @State private var isHovering = false
   @State private var resetTask: Task<Void, Never>?
 
@@ -181,15 +216,10 @@ struct TerminalSidebarUpdateSection: View {
   }
 
   private var summaryDetailText: String {
-    switch phase {
-    case .installing(let installing):
-      if installing.isAutoUpdate {
-        return phase.detailMessage
-      }
-      return "The update is ready. Restart Supaterm to complete installation."
-    default:
-      return phase.detailMessage
-    }
+    TerminalSidebarUpdatePresentation.detailText(
+      for: phase,
+      preservesSessionsOnRestart: supatermSettings.zmxSessionsEnabled
+    )
   }
 
   private func actionButton(

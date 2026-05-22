@@ -6,23 +6,7 @@ import Testing
 
 struct UpdatePhaseTests {
   @Test
-  func backgroundUpdateFoundIsDismissedSilently() {
-    #expect(
-      UpdatePresentation.foundDecision(userInitiated: false)
-        == .dismissSilently
-    )
-  }
-
-  @Test
-  func userInitiatedUpdateFoundIsPresented() {
-    #expect(
-      UpdatePresentation.foundDecision(userInitiated: true)
-        == .present
-    )
-  }
-
-  @Test
-  func userInitiatedUpdateUsesSidebarWhenWindowIsAvailable() {
+  func updateUsesSidebarWhenWindowIsAvailable() {
     #expect(
       UpdatePresentation.mode(
         hasUnobtrusiveTarget: true
@@ -88,10 +72,22 @@ struct UpdatePhaseTests {
   }
 
   @Test
-  func autoUpdateInstallingKeepsRestartMenuActionWhileHidingSidebarSection() {
+  func autoUpdateInstallingShowsRestartPrompt() {
     let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true))
 
+    #expect(phase.showsSidebarSection)
+    #expect(phase.actionPresentations.map(\.title) == ["Restart Later", "Restart Now"])
+    #expect(phase.menuItemAction == .restartNow)
+    #expect(phase.menuItemTitle == "Restart to Update...")
+    #expect(phase.bypassesQuitConfirmation)
+  }
+
+  @Test
+  func deferredAutoUpdateInstallingKeepsRestartMenuActionWhileHidingSidebarSection() {
+    let phase = UpdatePhase.installing(UpdatePhase.Installing(isAutoUpdate: true, showsPrompt: false))
+
     #expect(!phase.showsSidebarSection)
+    #expect(phase.actionPresentations.isEmpty)
     #expect(phase.menuItemAction == .restartNow)
     #expect(phase.menuItemTitle == "Restart to Update...")
     #expect(phase.bypassesQuitConfirmation)

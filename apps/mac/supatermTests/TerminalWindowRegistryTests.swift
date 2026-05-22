@@ -379,7 +379,7 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenInstallIsPending() async throws {
+  func commandPaletteSnapshotBuildsRestartActionsWhenAutoInstallIsPending() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -406,8 +406,8 @@ struct TerminalWindowRegistryTests {
 
       let snapshot = registry.commandPaletteSnapshot(windowID: ObjectIdentifier(window))
 
-      #expect(snapshot.updateEntries.map(\.title) == ["Restart to Update..."])
-      #expect(snapshot.updateEntries.first?.action == .restartNow)
+      #expect(snapshot.updateEntries.map(\.title) == ["Restart Later", "Restart Now"])
+      #expect(snapshot.updateEntries.map(\.action) == [.restartLater, .restartNow])
       #expect(!snapshot.ghosttyCommands.contains(where: { $0.actionKey == "check_for_updates" }))
     }
   }
