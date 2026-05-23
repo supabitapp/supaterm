@@ -8,11 +8,35 @@ extension SP {
       commandName: "agent",
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
-      subcommands: [InstallAgentHook.self, RemoveAgentHook.self, ReceiveAgentHook.self]
+      subcommands: [InstallAgentHooks.self, InstallAgentHook.self, RemoveAgentHook.self, ReceiveAgentHook.self]
     )
 
     mutating func run() throws {
       print(Self.helpMessage())
+    }
+  }
+
+  struct InstallAgentHooks: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "install-hooks",
+      abstract: "Install Supaterm's hook bridge for every supported coding agent.",
+      discussion: SPHelp.installAgentHooksDiscussion
+    )
+
+    mutating func run() throws {
+      var failures: [String] = []
+      for agent in supportedHookAgents {
+        do {
+          try installSupatermHooks(for: agent)
+        } catch {
+          failures.append("\(agent.rawValue): \(error.localizedDescription)")
+        }
+      }
+
+      guard failures.isEmpty else {
+        FileHandle.standardError.write(Data((failures.joined(separator: "\n") + "\n").utf8))
+        throw ExitCode.failure
+      }
     }
   }
 
@@ -94,7 +118,7 @@ extension SP.InstallAgentHook {
 
     mutating func run() throws {
       do {
-        try ClaudeSettingsInstaller().installSupatermHooks()
+        try installSupatermHooks(for: .claude)
       } catch {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         throw ExitCode.failure
@@ -111,7 +135,7 @@ extension SP.InstallAgentHook {
 
     mutating func run() throws {
       do {
-        try CodexSettingsInstaller().installSupatermHooks()
+        try installSupatermHooks(for: .codex)
       } catch {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         throw ExitCode.failure
@@ -202,6 +226,19 @@ private func agentHookEvent(from data: Data) throws -> SupatermAgentHookEvent {
     return try JSONDecoder().decode(SupatermAgentHookEvent.self, from: data)
   } catch {
     throw ValidationError("Agent hook input must be valid hook JSON.")
+  }
+}
+
+private let supportedHookAgents: [SupatermAgentKind] = [.claude, .codex]
+
+private func installSupatermHooks(for agent: SupatermAgentKind) throws {
+  switch agent {
+  case .claude:
+    try ClaudeSettingsInstaller().installSupatermHooks()
+  case .codex:
+    try CodexSettingsInstaller().installSupatermHooks()
+  case .pi:
+    throw ValidationError("Pi does not use Supaterm hook settings.")
   }
 }
 

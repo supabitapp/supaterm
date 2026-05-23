@@ -52,6 +52,12 @@ npx skills add supabitapp/supaterm-skills --skill supaterm -g
 
 Settings > Coding Agents shows the exact command for installing only the public Supaterm skill.
 
+Install every supported hook bridge with:
+
+```bash
+sp agent install-hooks
+```
+
 ## Claude
 
 Claude is the current first-class coding agent integration.
