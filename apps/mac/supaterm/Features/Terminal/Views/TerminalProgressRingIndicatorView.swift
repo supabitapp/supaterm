@@ -3,12 +3,14 @@ import SwiftUI
 struct TerminalAgentRunningSpinnerView: View {
   let isSelected: Bool
   let palette: TerminalPalette
+  var diameter: CGFloat = 14
 
   var body: some View {
     TerminalProgressRingIndicatorView(
       fraction: nil,
       color: color,
-      trackColor: trackColor
+      trackColor: trackColor,
+      diameter: diameter
     )
   }
 
@@ -31,6 +33,7 @@ struct TerminalProgressRingIndicatorView: View {
   let fraction: Double?
   let color: Color
   let trackColor: Color
+  var diameter: CGFloat = 14
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var rotation = Angle.zero
@@ -67,7 +70,7 @@ struct TerminalProgressRingIndicatorView: View {
           .rotationEffect(rotation)
       }
     }
-    .frame(width: 14, height: 14)
+    .frame(width: diameter, height: diameter)
     .frame(width: 16, height: 16)
     .onAppear {
       startRotation(reduceMotion: reduceMotion)
