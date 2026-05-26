@@ -81,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let quitConfirmationPresenter = QuitConfirmationPresenter()
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
+        .logActions()
     } withDependencies: {
       $0.socketRequestExecutor = .live(commandExecutor: terminalCommandExecutor)
     }

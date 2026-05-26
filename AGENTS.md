@@ -50,6 +50,35 @@ make web-build          # production build
 - Tabs belong to spaces and can be pinned
 - Panes belong to tabs, and a tab can have multiple panes
 
+## Logging
+
+- Supaterm app logs use subsystem `app.supabit.supaterm`
+- Stream live logs:
+
+```bash
+log stream --style compact --level debug --predicate 'subsystem == "app.supabit.supaterm"'
+```
+
+- Query recent logs:
+
+```bash
+log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm"'
+```
+
+- Query action logs:
+
+```bash
+log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "actions" || category == "terminal" || category == "settings" || category == "socket" || category == "update")'
+```
+
+- Query socket/update logs:
+
+```bash
+log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "socket" || category == "update")'
+```
+
+- Sentry breadcrumbs are allowlisted release diagnostics only; local OSLog is the source of truth for action tracing
+
 ## Tools
 
 - Issues are tracked on: https://linear.app/supaterm
