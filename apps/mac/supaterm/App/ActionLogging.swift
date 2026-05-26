@@ -24,11 +24,11 @@ nonisolated struct AppLogClient: Sendable {
 extension AppLogClient: DependencyKey {
   static let liveValue = Self(
     action: { event in
-      Logger(
+      let logger = Logger(
         subsystem: "app.supabit.supaterm",
         category: event.category.rawValue
       )
-      .debug("\(event.label, privacy: .public)")
+      logger.debug("\(event.label, privacy: .public)")
 
       guard event.addsBreadcrumb else { return }
       let breadcrumb = Breadcrumb(level: .debug, category: event.category.rawValue)
@@ -37,9 +37,7 @@ extension AppLogClient: DependencyKey {
     }
   )
 
-  static let testValue = Self(
-    action: { _ in }
-  )
+  static let testValue = Self(action: { _ in })
 }
 
 extension DependencyValues {

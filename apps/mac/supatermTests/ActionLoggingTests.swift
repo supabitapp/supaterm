@@ -1,8 +1,8 @@
 import ComposableArchitecture
 import CoreGraphics
 import Foundation
-import SupatermSocketFeature
 import SupatermSettingsFeature
+import SupatermSocketFeature
 import SupatermUpdateFeature
 import Testing
 
@@ -45,59 +45,45 @@ struct ActionLoggingTests {
 
   @Test
   func categorizesActionLabels() {
+    #expect(terminalEvent(for: .newTabButtonTapped(inheritingFromSurfaceID: nil)).category == .terminal)
     #expect(
-      ActionLogPolicy.event(
-        for: debugCaseOutput(AppFeature.Action.terminal(.newTabButtonTapped(inheritingFromSurfaceID: nil)))
-      )
-      .category == .terminal
+      appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)).category == .settings
     )
     #expect(
-      ActionLogPolicy.event(
-        for: debugCaseOutput(SettingsFeature.Action.zmxSessionsEnabledChanged(true))
-      )
-      .category == .settings
+      appLogEvent(for: SocketControlFeature.Action.startFailed("boom")).category == .socket
     )
     #expect(
-      ActionLogPolicy.event(
-        for: debugCaseOutput(SocketControlFeature.Action.startFailed("boom"))
-      )
-      .category == .socket
-    )
-    #expect(
-      ActionLogPolicy.event(
-        for: debugCaseOutput(UpdateFeature.Action.perform(.checkForUpdates))
-      )
-      .category == .update
+      appLogEvent(for: UpdateFeature.Action.perform(.checkForUpdates)).category == .update
     )
   }
 
   @Test
   func allowlistedActionLabelsCreateBreadcrumbs() {
-    let labels = [
-      debugCaseOutput(AppFeature.Action.terminal(.newTabButtonTapped(inheritingFromSurfaceID: nil))),
-      debugCaseOutput(AppFeature.Action.terminal(.closeTabRequested(TerminalTabID()))),
-      debugCaseOutput(SettingsFeature.Action.zmxSessionsEnabledChanged(true)),
-      debugCaseOutput(SocketControlFeature.Action.startFailed("boom")),
-      debugCaseOutput(UpdateFeature.Action.perform(.checkForUpdates)),
+    let events = [
+      terminalEvent(for: .newTabButtonTapped(inheritingFromSurfaceID: nil)),
+      terminalEvent(for: .closeTabRequested(TerminalTabID())),
+      appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)),
+      appLogEvent(for: SocketControlFeature.Action.startFailed("boom")),
+      appLogEvent(for: UpdateFeature.Action.perform(.checkForUpdates)),
     ]
 
-    for label in labels {
-      #expect(ActionLogPolicy.event(for: label).addsBreadcrumb)
+    for event in events {
+      #expect(event.addsBreadcrumb)
     }
   }
 
   @Test
   func noisyActionLabelsStayLocalOnly() {
-    let labels = [
-      debugCaseOutput(AppFeature.Action.terminal(.commandPaletteQueryChanged("secret"))),
-      debugCaseOutput(AppFeature.Action.terminal(.sidebarFractionChanged(0.42))),
-      debugCaseOutput(AppFeature.Action.terminal(.spaceEditorTextChanged("secret"))),
-      debugCaseOutput(AppFeature.Action.terminal(.windowActivityChanged(.inactive))),
+    let events = [
+      terminalEvent(for: .commandPaletteQueryChanged("secret")),
+      terminalEvent(for: .sidebarFractionChanged(0.42)),
+      terminalEvent(for: .spaceEditorTextChanged("secret")),
+      terminalEvent(for: .windowActivityChanged(.inactive)),
     ]
 
-    for label in labels {
-      #expect(!ActionLogPolicy.event(for: label).addsBreadcrumb)
-      #expect(!label.contains("secret"))
+    for event in events {
+      #expect(!event.addsBreadcrumb)
+      #expect(!event.label.contains("secret"))
     }
   }
 
@@ -130,5 +116,13 @@ struct ActionLoggingTests {
     }
 
     #expect(events.value == ["base:0", "log:ActionLoggingTests.TestAction.increment:false"])
+  }
+
+  private func appLogEvent(for action: Any) -> AppLogEvent {
+    ActionLogPolicy.event(for: debugCaseOutput(action))
+  }
+
+  private func terminalEvent(for action: TerminalWindowFeature.Action) -> AppLogEvent {
+    appLogEvent(for: AppFeature.Action.terminal(action))
   }
 }

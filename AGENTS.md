@@ -57,25 +57,25 @@ make web-build          # production build
 - Stream live logs:
 
 ```bash
-log stream --style compact --level debug --predicate 'subsystem == "app.supabit.supaterm"'
+/usr/bin/log stream --style compact --level debug --predicate 'subsystem == "app.supabit.supaterm"'
 ```
 
 - Query recent logs:
 
 ```bash
-log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm"'
+/usr/bin/log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm"'
 ```
 
 - Query action logs:
 
 ```bash
-log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "actions" || category == "terminal" || category == "settings" || category == "socket" || category == "update")'
+/usr/bin/log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "actions" || category == "terminal" || category == "settings" || category == "socket" || category == "update")'
 ```
 
 - Query socket/update logs:
 
 ```bash
-log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "socket" || category == "update")'
+/usr/bin/log show --last 30m --style compact --predicate 'subsystem == "app.supabit.supaterm" && (category == "socket" || category == "update")'
 ```
 
 - Sentry breadcrumbs are allowlisted release diagnostics only; local OSLog is the source of truth for action tracing
