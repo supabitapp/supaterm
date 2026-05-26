@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import OSLog
 import Sentry
+import SupatermSupport
 
 nonisolated enum AppLogCategory: String, Equatable, Sendable {
   case actions
@@ -26,10 +27,10 @@ extension AppLogClient: DependencyKey {
   static let liveValue = Self(
     action: { event in
       let logger = Logger(
-        subsystem: "app.supabit.supaterm",
+        subsystem: SupatermLog.subsystem,
         category: event.category.rawValue
       )
-      logger.debug("\(event.label, privacy: .public)")
+      SupatermLog.debug(logger, event.label)
 
       guard event.addsBreadcrumb else { return }
       let breadcrumb = Breadcrumb(level: .debug, category: event.category.rawValue)
@@ -114,6 +115,7 @@ nonisolated enum ActionLogPolicy {
     "analyticsEnabledChanged",
     "crashReportsEnabledChanged",
     "restoreTerminalLayoutEnabledChanged",
+    "verboseLoggingEnabledChanged",
     "zmxSessionsEnabledChanged",
   ]
 

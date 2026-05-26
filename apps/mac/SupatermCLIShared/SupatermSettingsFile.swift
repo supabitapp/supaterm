@@ -221,6 +221,7 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
         allowedKeys: [
           "appearance",
           "coding_agents",
+          "logging",
           "notifications",
           "privacy",
           "terminal",
@@ -236,6 +237,13 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
         in: container,
         section: "coding_agents",
         allowedKeys: ["show_icons", "show_panel", "show_spinner"]
+      )
+    )
+    warnings.append(
+      contentsOf: try Self.unknownNestedKeys(
+        in: container,
+        section: "logging",
+        allowedKeys: ["verbose_enabled"]
       )
     )
     warnings.append(

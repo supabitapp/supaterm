@@ -13,6 +13,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
   public var restoreTerminalLayoutEnabled: Bool
   public var systemNotificationsEnabled: Bool
   public var updateChannel: UpdateChannel
+  public var verboseLoggingEnabled: Bool
   public var zmxSessionsEnabled: Bool
 
   public init(
@@ -28,6 +29,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     restoreTerminalLayoutEnabled: Bool = true,
     systemNotificationsEnabled: Bool = false,
     updateChannel: UpdateChannel,
+    verboseLoggingEnabled: Bool = false,
     zmxSessionsEnabled: Bool = true
   ) {
     self.appearanceMode = appearanceMode
@@ -42,6 +44,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.restoreTerminalLayoutEnabled = restoreTerminalLayoutEnabled
     self.systemNotificationsEnabled = systemNotificationsEnabled
     self.updateChannel = updateChannel
+    self.verboseLoggingEnabled = verboseLoggingEnabled
     self.zmxSessionsEnabled = zmxSessionsEnabled
   }
 
@@ -58,6 +61,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     restoreTerminalLayoutEnabled: true,
     systemNotificationsEnabled: false,
     updateChannel: .stable,
+    verboseLoggingEnabled: false,
     zmxSessionsEnabled: true
   )
 
@@ -89,6 +93,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let appearance = try container.decodeIfPresent(PersistedAppearance.self, forKey: .appearance)
     let codingAgents = try container.decodeIfPresent(PersistedCodingAgents.self, forKey: .codingAgents)
     let privacy = try container.decodeIfPresent(PersistedPrivacy.self, forKey: .privacy)
+    let logging = try container.decodeIfPresent(PersistedLogging.self, forKey: .logging)
     let notifications = try container.decodeIfPresent(PersistedNotifications.self, forKey: .notifications)
     let terminal = try container.decodeIfPresent(PersistedTerminal.self, forKey: .terminal)
     let updates = try container.decodeIfPresent(PersistedUpdates.self, forKey: .updates)
@@ -106,6 +111,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
       restoreTerminalLayoutEnabled: terminal?.restoreLayout ?? defaults.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: notifications?.systemNotifications ?? defaults.systemNotificationsEnabled,
       updateChannel: updates?.channel ?? defaults.updateChannel,
+      verboseLoggingEnabled: logging?.verboseEnabled ?? defaults.verboseLoggingEnabled,
       zmxSessionsEnabled: terminal?.zmxSessionsEnabled ?? defaults.zmxSessionsEnabled
     )
   }
@@ -137,6 +143,12 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
           crashReportsEnabled: crashReportsEnabled
         ),
         forKey: .privacy
+      )
+    }
+    if verboseLoggingEnabled != defaults.verboseLoggingEnabled {
+      try container.encode(
+        PersistedLogging(verboseEnabled: verboseLoggingEnabled),
+        forKey: .logging
       )
     }
     if glowingPaneRingEnabled != defaults.glowingPaneRingEnabled
@@ -175,6 +187,7 @@ extension SupatermSettings {
   enum CodingKeys: String, CodingKey {
     case appearance
     case codingAgents = "coding_agents"
+    case logging
     case privacy
     case notifications
     case terminal
@@ -285,6 +298,32 @@ extension SupatermSettings {
       }
       if crashReportsEnabled != defaults.crashReportsEnabled {
         try container.encode(crashReportsEnabled, forKey: .crashReportsEnabled)
+      }
+    }
+  }
+
+  struct PersistedLogging: Codable, Equatable, Sendable {
+    let verboseEnabled: Bool
+
+    init(verboseEnabled: Bool) {
+      self.verboseEnabled = verboseEnabled
+    }
+
+    init(from decoder: any Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      verboseEnabled =
+        try container.decodeIfPresent(Bool.self, forKey: .verboseEnabled)
+        ?? SupatermSettings.default.verboseLoggingEnabled
+    }
+
+    enum CodingKeys: String, CodingKey {
+      case verboseEnabled = "verbose_enabled"
+    }
+
+    func encode(to encoder: any Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      if verboseEnabled != SupatermSettings.default.verboseLoggingEnabled {
+        try container.encode(verboseEnabled, forKey: .verboseEnabled)
       }
     }
   }

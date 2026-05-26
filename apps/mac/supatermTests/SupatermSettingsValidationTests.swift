@@ -128,6 +128,29 @@ struct SupatermSettingsValidationTests {
   }
 
   @Test
+  func validTomlAcceptsLoggingKeys() throws {
+    let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
+    let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])
+    try FileManager.default.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data(
+      #"""
+      [logging]
+      verbose_enabled = true
+      """#.utf8
+    )
+    .write(to: settingsURL)
+
+    let result = SupatermSettingsValidator(homeDirectoryURL: homeDirectoryURL, environment: [:]).validate()
+
+    #expect(result.status == .valid)
+    #expect(result.warnings.isEmpty)
+    #expect(result.errors.isEmpty)
+  }
+
+  @Test
   func invalidTomlReturnsFailure() throws {
     let homeDirectoryURL = try temporarySettingsValidationHomeDirectory()
     let settingsURL = SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryURL.path, environment: [:])

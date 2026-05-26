@@ -100,6 +100,7 @@ public struct SettingsFeature {
     public var selectedTab = Tab.general
     var systemNotificationsEnabled = SupatermSettings.default.systemNotificationsEnabled
     var terminal = SettingsTerminalState()
+    var verboseLoggingEnabled = SupatermSettings.default.verboseLoggingEnabled
     var zmxSessionsEnabled = SupatermSettings.default.zmxSessionsEnabled
 
     public init() {}
@@ -144,6 +145,7 @@ public struct SettingsFeature {
     case updateClientSnapshotReceived(UpdateClient.Snapshot)
     case updatesAutomaticallyCheckForUpdatesChanged(Bool)
     case updatesAutomaticallyDownloadUpdatesChanged(Bool)
+    case verboseLoggingEnabledChanged(Bool)
     case zmxSessionsEnabledChanged(Bool)
   }
 
@@ -257,6 +259,7 @@ public struct SettingsFeature {
         .glowingPaneRingEnabledChanged,
         .newTabPositionSelected,
         .restoreTerminalLayoutEnabledChanged,
+        .verboseLoggingEnabledChanged,
         .zmxSessionsEnabledChanged:
         return reduceGeneral(&state, action: action)
 
@@ -327,6 +330,8 @@ public struct SettingsFeature {
     state.restoreTerminalLayoutEnabled = supatermSettings.restoreTerminalLayoutEnabled
     state.systemNotificationsEnabled = supatermSettings.systemNotificationsEnabled
     state.about.updateChannel = supatermSettings.updateChannel
+    state.verboseLoggingEnabled = supatermSettings.verboseLoggingEnabled
+    SupatermLog.setVerboseLoggingEnabled(supatermSettings.verboseLoggingEnabled)
     state.zmxSessionsEnabled = supatermSettings.zmxSessionsEnabled
   }
 
@@ -350,6 +355,7 @@ public struct SettingsFeature {
       restoreTerminalLayoutEnabled: state.restoreTerminalLayoutEnabled,
       systemNotificationsEnabled: state.systemNotificationsEnabled,
       updateChannel: state.about.updateChannel,
+      verboseLoggingEnabled: state.verboseLoggingEnabled,
       zmxSessionsEnabled: state.zmxSessionsEnabled
     )
     @Shared(.supatermSettings) var sharedSupatermSettings = .default

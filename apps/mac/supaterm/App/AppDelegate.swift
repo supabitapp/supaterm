@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     AppTelemetry.setup()
     GhosttyBootstrap.initialize()
     @Shared(.supatermSettings) var launchSupatermSettings = .default
+    SupatermLog.setVerboseLoggingEnabled(launchSupatermSettings.verboseLoggingEnabled)
     let zmxSessionsEnabledAtLaunch = launchSupatermSettings.zmxSessionsEnabled
     let zmxClient = zmxSessionsEnabledAtLaunch ? ZmxClient.liveValue : .noop
     let terminalWindowRegistry = TerminalWindowRegistry(zmxClient: zmxClient)

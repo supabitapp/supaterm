@@ -55,6 +55,7 @@ struct SupatermSettingsTests {
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
+    #expect(!prefs.verboseLoggingEnabled)
     #expect(prefs.zmxSessionsEnabled)
     #expect(!prefs.terminatesSessionsOnQuit)
   }
@@ -84,6 +85,7 @@ struct SupatermSettingsTests {
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
+    #expect(!prefs.verboseLoggingEnabled)
   }
 
   @Test
@@ -164,6 +166,28 @@ struct SupatermSettingsTests {
   }
 
   @Test
+  func prefsEncodeEnabledVerboseLogging() throws {
+    let data = try SupatermSettingsCodec.encode(
+      SupatermSettings(
+        appearanceMode: .dark,
+        analyticsEnabled: true,
+        crashReportsEnabled: true,
+        updateChannel: .stable,
+        verboseLoggingEnabled: true
+      )
+    )
+    let string = try #require(String(data: data, encoding: .utf8)).trimmingCharacters(in: .newlines)
+
+    #expect(
+      string
+        == """
+        [logging]
+        verbose_enabled = true
+        """
+    )
+  }
+
+  @Test
   func prefsDecodeMigratesTerminateSessionsOnQuitToZmxSessionsEnabled() throws {
     let data = Data(
       #"""
@@ -219,6 +243,7 @@ struct SupatermSettingsTests {
         restoreTerminalLayoutEnabled: false,
         systemNotificationsEnabled: true,
         updateChannel: .tip,
+        verboseLoggingEnabled: true,
         zmxSessionsEnabled: false
       )
     )
@@ -239,6 +264,7 @@ struct SupatermSettingsTests {
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip,
+          verboseLoggingEnabled: true,
           zmxSessionsEnabled: false
         )
     )
@@ -267,6 +293,7 @@ struct SupatermSettingsTests {
     #expect(prefs.restoreTerminalLayoutEnabled)
     #expect(!prefs.systemNotificationsEnabled)
     #expect(prefs.updateChannel == .stable)
+    #expect(!prefs.verboseLoggingEnabled)
     #expect(prefs.zmxSessionsEnabled)
   }
 

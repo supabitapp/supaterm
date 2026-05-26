@@ -14,6 +14,7 @@ struct SettingsFeatureGeneralTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      defer { SupatermLog.setVerboseLoggingEnabled(false) }
       let store = TestStore(initialState: SettingsFeature.State()) {
         SettingsFeature()
       }
@@ -44,9 +45,14 @@ struct SettingsFeatureGeneralTests {
         $0.crashReportsEnabled = false
       }
 
+      await store.send(.verboseLoggingEnabledChanged(true)) {
+        $0.verboseLoggingEnabled = true
+      }
+
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(!supatermSettings.analyticsEnabled)
       #expect(!supatermSettings.crashReportsEnabled)
+      #expect(supatermSettings.verboseLoggingEnabled)
     }
   }
 

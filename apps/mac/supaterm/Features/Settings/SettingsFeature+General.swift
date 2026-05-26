@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupatermSupport
 
 extension SettingsFeature {
   func reduceGeneral(_ state: inout State, action: Action) -> Effect<Action> {
@@ -30,6 +31,11 @@ extension SettingsFeature {
 
     case .restoreTerminalLayoutEnabledChanged(let isEnabled):
       state.restoreTerminalLayoutEnabled = isEnabled
+      return persist(state)
+
+    case .verboseLoggingEnabledChanged(let isEnabled):
+      state.verboseLoggingEnabled = isEnabled
+      SupatermLog.setVerboseLoggingEnabled(isEnabled)
       return persist(state)
 
     case .zmxSessionsEnabledChanged(let isEnabled):

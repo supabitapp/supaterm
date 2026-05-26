@@ -30,6 +30,7 @@ struct SettingsFeatureTests {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
+      defer { SupatermLog.setVerboseLoggingEnabled(false) }
       @Shared(.supatermSettings) var supatermSettings = .default
       $supatermSettings.withLock {
         $0 = SupatermSettings(
@@ -44,6 +45,7 @@ struct SettingsFeatureTests {
           restoreTerminalLayoutEnabled: false,
           systemNotificationsEnabled: true,
           updateChannel: .tip,
+          verboseLoggingEnabled: true,
           zmxSessionsEnabled: false
         )
       }
@@ -70,6 +72,7 @@ struct SettingsFeatureTests {
         $0.newTabPosition = .current
         $0.restoreTerminalLayoutEnabled = false
         $0.systemNotificationsEnabled = true
+        $0.verboseLoggingEnabled = true
         $0.zmxSessionsEnabled = false
       }
       await store.receive(.terminalSettingsLoadRequested, timeout: 0) {

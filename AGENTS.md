@@ -53,7 +53,8 @@ make web-build          # production build
 ## Logging
 
 - Supaterm app logs use subsystem `app.supabit.supaterm`
-- Debug and release action logs both use OSLog
+- Debug and release action logs both use OSLog when verbose logging is enabled
+- Enable Settings > General > Enable Verbose Logging before reproducing debug/session issues
 - Stream live logs:
 
 ```bash
