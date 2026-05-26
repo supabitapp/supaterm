@@ -470,7 +470,7 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       }
     return PaneAgentPullRequestStatus(
       kind: kind,
-      title: "PR #\(node.number)",
+      title: "#\(node.number)",
       url: URL(string: node.url),
       addedLineCount: node.additions,
       removedLineCount: node.deletions,

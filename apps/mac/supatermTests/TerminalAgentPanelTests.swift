@@ -38,7 +38,7 @@ struct TerminalAgentPanelTests {
     )
     let openStatus = PaneAgentPullRequestStatus(
       kind: .open,
-      title: "PR #1",
+      title: "#1",
       url: nil,
       addedLineCount: nil,
       removedLineCount: nil,
@@ -169,7 +169,7 @@ struct TerminalAgentPanelTests {
         await recorder.recordPullRequest(branchName)
         return PaneAgentPullRequestStatus(
           kind: .open,
-          title: "PR #1",
+          title: "#1",
           url: nil,
           addedLineCount: 34,
           removedLineCount: 5,
@@ -506,7 +506,7 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(status.kind == .open)
-    #expect(status.title == "PR #39")
+    #expect(status.title == "#39")
     #expect(status.addedLineCount == 3040)
     #expect(status.removedLineCount == 29)
     #expect(
