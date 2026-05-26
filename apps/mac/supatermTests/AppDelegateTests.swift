@@ -174,6 +174,37 @@ struct AppDelegateTests {
   }
 
   @Test
+  func quitConfirmationReturnKeyPreservesSessionsWhenQuitIsVisible() {
+    let content = QuitConfirmationContent(terminatesSessions: false)
+
+    #expect(content.returnKeyDecision(modifierFlags: []) == .quitPreservingSessions)
+  }
+
+  @Test
+  func quitConfirmationShiftReturnTerminatesSessions() {
+    let content = QuitConfirmationContent(terminatesSessions: false)
+
+    #expect(content.returnKeyDecision(modifierFlags: [.shift]) == .quitTerminatingSessions)
+  }
+
+  @Test
+  func quitConfirmationReturnKeyTerminatesSessionsWhenQuitIsHidden() {
+    let content = QuitConfirmationContent(terminatesSessions: true)
+
+    #expect(content.returnKeyDecision(modifierFlags: []) == .quitTerminatingSessions)
+  }
+
+  @Test
+  func quitConfirmationReturnKeyIgnoresCommandControlAndOption() {
+    let content = QuitConfirmationContent(terminatesSessions: false)
+
+    #expect(content.returnKeyDecision(modifierFlags: [.command]) == nil)
+    #expect(content.returnKeyDecision(modifierFlags: [.control]) == nil)
+    #expect(content.returnKeyDecision(modifierFlags: [.option]) == nil)
+    #expect(content.returnKeyDecision(modifierFlags: [.shift, .command]) == nil)
+  }
+
+  @Test
   func initialWindowSessionsFallsBackToSingleBlankWindow() {
     let sessions = AppDelegate.initialWindowSessions(
       from: TerminalSessionCatalog(windows: []),

@@ -134,7 +134,7 @@ struct QuitConfirmationOverlay: View {
                 palette: palette,
                 title: preservingSessionsTitle,
                 style: .secondary,
-                shortcut: nil,
+                shortcut: .symbol("return"),
                 action: onPreserve
               )
             }
@@ -143,7 +143,7 @@ struct QuitConfirmationOverlay: View {
               palette: palette,
               title: content.terminatingSessionsTitle,
               style: .destructive,
-              shortcut: nil,
+              shortcut: content.preservingSessionsTitle == nil ? .symbol("return") : .text("⇧↩"),
               action: onTerminate
             )
           }

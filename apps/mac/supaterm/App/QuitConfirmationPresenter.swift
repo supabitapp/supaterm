@@ -4,13 +4,18 @@ import SwiftUI
 @MainActor
 final class QuitConfirmationPresenter {
   func confirmQuit(terminatesSessions: Bool) -> QuitConfirmationDecision {
-    guard let panelController = panelController(terminatesSessions: terminatesSessions) else { return .cancel }
+    guard let panelController = panelController(terminatesSessions: terminatesSessions) else {
+      return .cancel
+    }
     return panelController.runModal()
   }
 
   private func panelController(terminatesSessions: Bool) -> QuitConfirmationPanelController? {
     guard let parentWindow = preferredParentWindow() else { return nil }
-    return QuitConfirmationPanelController(parentWindow: parentWindow, terminatesSessions: terminatesSessions)
+    return QuitConfirmationPanelController(
+      parentWindow: parentWindow,
+      terminatesSessions: terminatesSessions
+    )
   }
 
   private func preferredParentWindow() -> NSWindow? {
@@ -60,6 +65,15 @@ struct QuitConfirmationContent: Equatable {
     titles.append(terminatingSessionsTitle)
     return titles
   }
+
+  func returnKeyDecision(modifierFlags: NSEvent.ModifierFlags) -> QuitConfirmationDecision? {
+    let modifiers = modifierFlags.intersection([.shift, .control, .option, .command])
+    guard modifiers.isSubset(of: [.shift]) else { return nil }
+    if modifiers.contains(.shift) {
+      return .quitTerminatingSessions
+    }
+    return preservingSessionsTitle == nil ? .quitTerminatingSessions : .quitPreservingSessions
+  }
 }
 
 @MainActor
@@ -79,11 +93,20 @@ private final class QuitConfirmationPanelController: NSWindowController {
 
     super.init(window: window)
 
+    let content = QuitConfirmationContent(terminatesSessions: terminatesSessions)
+    window.onReturnKey = { [weak self] modifierFlags in
+      guard let decision = content.returnKeyDecision(modifierFlags: modifierFlags) else {
+        return false
+      }
+      self?.finish(decision)
+      return true
+    }
+
     let palette = TerminalPalette(colorScheme: Self.colorScheme(for: parentWindow))
     window.contentViewController = NSHostingController(
       rootView: QuitConfirmationOverlay(
         palette: palette,
-        content: QuitConfirmationContent(terminatesSessions: terminatesSessions),
+        content: content,
         onPreserve: { [weak self] in
           self?.finish(.quitPreservingSessions)
         },
@@ -130,6 +153,8 @@ private final class QuitConfirmationPanelController: NSWindowController {
 }
 
 private final class QuitConfirmationPanel: NSPanel {
+  var onReturnKey: ((NSEvent.ModifierFlags) -> Bool)?
+
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
 
@@ -151,5 +176,16 @@ private final class QuitConfirmationPanel: NSPanel {
     isOpaque = false
     collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace, .ignoresCycle]
     level = .modalPanel
+  }
+
+  override func keyDown(with event: NSEvent) {
+    guard event.charactersIgnoringModifiers == "\r" else {
+      super.keyDown(with: event)
+      return
+    }
+    guard onReturnKey?(event.modifierFlags) == true else {
+      super.keyDown(with: event)
+      return
+    }
   }
 }
