@@ -336,7 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private func reapOrphanZmxSessions() {
     let zmxClient = launchZmxClient
     Task.detached(priority: .utility) {
-      SupatermLog.debug(SupatermLog.zmx, "zmx.reap.start")
+      SupatermLog.notice(SupatermLog.zmx, "zmx.reap.start")
       let sessionIDs = await zmxClient.listSessions()
       let knownSessionIDs = await MainActor.run { [weak self] in
         guard let self else { return Set<String>() }
@@ -353,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       let orphanSurfaceIDs =
         orphanSessionIDs
         .compactMap { ZmxSessionID.surfaceID(from: $0) }
-      SupatermLog.debug(
+      SupatermLog.notice(
         SupatermLog.zmx,
         "zmx.reap.plan",
         fields: [
@@ -370,7 +370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
           }
         }
       }
-      SupatermLog.debug(
+      SupatermLog.notice(
         SupatermLog.zmx,
         "zmx.reap.finished",
         fields: ["killed=\(orphanSurfaceIDs.count)"]

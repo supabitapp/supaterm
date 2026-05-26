@@ -16,6 +16,36 @@ func normalizedTerminalAgentDetail(_ detail: String?) -> String? {
   return detail
 }
 
+nonisolated enum TerminalSurfaceCloseSource: String, Sendable {
+  case commandCloseSurface = "command.closeSurface"
+  case commandRequestCloseSurface = "command.requestCloseSurface"
+  case controlClosePane = "control.closePane"
+  case ghosttyChildExit = "ghostty.childExit"
+  case ghosttyCloseSurfaceCallback = "ghostty.closeSurfaceCallback"
+}
+
+nonisolated enum TerminalTreeRemovalSource: String, Sendable {
+  case closeTab = "closeTab"
+  case controlCleanup = "control.cleanup"
+  case pinnedReconcile = "pinned.reconcile"
+  case pinnedSuspend = "pinned.suspend"
+  case sessionClear = "session.clear"
+  case spaceCatalogObserved = "spaceCatalog.observed"
+  case spaceCatalogWrite = "spaceCatalog.write"
+}
+
+nonisolated struct TerminalClosePerformLogContext: Sendable {
+  let source: TerminalSurfaceCloseSource
+  let surfaceID: UUID
+  let tabID: TerminalTabID
+  let spaceID: TerminalSpaceID?
+  let wasPinned: Bool
+  let leafCount: Int
+  let newTreeEmpty: Bool
+  let focusedSurfaceID: UUID?
+  let nextSurfaceID: UUID?
+}
+
 @MainActor
 @Observable
 final class TerminalHostState {
@@ -763,7 +793,7 @@ final class TerminalHostState {
   }
 
   func closeSurface(_ surfaceID: UUID) {
-    performCloseSurface(surfaceID)
+    performCloseSurface(surfaceID, source: .commandCloseSurface)
   }
 
   func closeTab(_ tabID: TerminalTabID) {
@@ -774,15 +804,34 @@ final class TerminalHostState {
     performCloseTabs(tabIDs)
   }
 
-  func requestCloseSurface(_ surfaceID: UUID, needsConfirmation: Bool? = nil) {
+  func requestCloseSurface(
+    _ surfaceID: UUID,
+    needsConfirmation: Bool? = nil,
+    source: TerminalSurfaceCloseSource = .commandRequestCloseSurface
+  ) {
     guard
       let resolvedCloseRequest = resolvedCloseRequest(
         for: .surface(surfaceID),
         needsConfirmationOverride: needsConfirmation
       )
     else {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.close.request.dropped",
+        fields: [
+          "source=\(source.rawValue)",
+          "surfaceID=\(SupatermLog.uuid(surfaceID))",
+          "reason=unresolved",
+        ]
+      )
       return
     }
+    logCloseRequest(
+      surfaceID: surfaceID,
+      needsConfirmationOverride: needsConfirmation,
+      resolvedCloseRequest: resolvedCloseRequest,
+      source: source
+    )
     emit(resolvedCloseRequest)
   }
 
@@ -1062,7 +1111,7 @@ final class TerminalHostState {
       return
     }
 
-    removeTree(for: tabID)
+    removeTree(for: tabID, source: .closeTab)
     tabManager.closeTab(tabID)
     updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
     syncFocus(windowActivity)
@@ -1075,9 +1124,23 @@ final class TerminalHostState {
     }
   }
 
-  func performCloseSurface(_ surfaceID: UUID) {
-    guard let tabID = tabID(containing: surfaceID), let tree = trees[tabID] else { return }
-    guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else { return }
+  func performCloseSurface(
+    _ surfaceID: UUID,
+    source: TerminalSurfaceCloseSource = .commandCloseSurface
+  ) {
+    guard let tabID = tabID(containing: surfaceID), let tree = trees[tabID] else {
+      logClosePerformDropped(surfaceID: surfaceID, source: source, reason: "missingTree")
+      return
+    }
+    guard let node = tree.find(id: surfaceID), let surface = surfaces[surfaceID] else {
+      logClosePerformDropped(
+        surfaceID: surfaceID,
+        tabID: tabID,
+        source: source,
+        reason: "missingSurface"
+      )
+      return
+    }
     let spaceID = spaceManager.space(for: tabID)?.id
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == spaceID
@@ -1087,6 +1150,19 @@ final class TerminalHostState {
       ? tree.focusTargetAfterClosing(node)
       : nil
     let newTree = tree.removing(node)
+    logClosePerform(
+      TerminalClosePerformLogContext(
+        source: source,
+        surfaceID: surfaceID,
+        tabID: tabID,
+        spaceID: spaceID,
+        wasPinned: wasPinned,
+        leafCount: tree.leaves().count,
+        newTreeEmpty: newTree.isEmpty,
+        focusedSurfaceID: focusedSurfaceIDByTab[tabID],
+        nextSurfaceID: nextSurface?.id
+      )
+    )
 
     if newTree.isEmpty, wasPinned {
       suspendPinnedTab(tabID)
@@ -1100,6 +1176,7 @@ final class TerminalHostState {
       return
     }
 
+    logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
     killZmxSession(for: surfaceID)
     surface.closeSurface()
     agentPanelController?.surfaceRemoved(surfaceID)
@@ -1157,7 +1234,7 @@ final class TerminalHostState {
       startupCommand: startupCommand,
       surfaceID: surfaceID
     )
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.terminal,
       "terminal.surface.create",
       fields: [
@@ -1216,7 +1293,7 @@ final class TerminalHostState {
       )
       return command
     }
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.zmx,
       "zmx.attach.resolved",
       fields: [
@@ -1249,8 +1326,18 @@ final class TerminalHostState {
     else {
       return
     }
+    let surfaceIDs = trees[tabID]?.leaves().map(\.id) ?? []
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.pinned.suspend",
+      fields: [
+        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+        "spaceID=\(SupatermLog.uuid(space.id.rawValue))",
+        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+      ]
+    )
     persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
-    removeTree(for: tabID, terminateSessions: false)
+    removeTree(for: tabID, terminateSessions: false, source: .pinnedSuspend)
     tabManager.updateDirty(tabID, isDirty: false)
   }
 
@@ -1414,13 +1501,191 @@ final class TerminalHostState {
   func configureBridgeCloseCallbacks(for view: GhosttySurfaceView) {
     view.bridge.onChildExited = { [weak self, weak view] in
       guard let self, let view else { return false }
-      self.requestCloseSurface(view.id, needsConfirmation: false)
+      self.requestCloseSurfaceAfterProcessExit(
+        view.id,
+        source: .ghosttyChildExit
+      )
       return true
     }
     view.bridge.onCloseRequest = { [weak self, weak view] processAlive in
       guard let self, let view else { return }
-      self.requestCloseSurface(view.id, needsConfirmation: processAlive)
+      guard !processAlive else {
+        self.requestCloseSurface(
+          view.id,
+          needsConfirmation: true,
+          source: .ghosttyCloseSurfaceCallback
+        )
+        return
+      }
+      self.requestCloseSurfaceAfterProcessExit(
+        view.id,
+        source: .ghosttyCloseSurfaceCallback
+      )
     }
+  }
+
+  func requestCloseSurfaceAfterProcessExit(
+    _ surfaceID: UUID,
+    source: TerminalSurfaceCloseSource
+  ) {
+    guard zmxSessionsEnabled, zmxClient.isBundled() else {
+      requestCloseSurface(
+        surfaceID,
+        needsConfirmation: false,
+        source: source
+      )
+      return
+    }
+
+    let sessionID = ZmxSessionID.make(surfaceID: surfaceID)
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.zmxProbe.start",
+      fields: [
+        "source=\(source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "sessionID=\(sessionID)",
+      ]
+    )
+    let zmxClient = zmxClient
+    Task { @MainActor [weak self, zmxClient] in
+      let sessionExists = await zmxClient.listSessions().contains(sessionID)
+      guard let self else { return }
+      self.finishCloseSurfaceAfterProcessExit(
+        surfaceID,
+        sessionExists: sessionExists,
+        sessionID: sessionID,
+        source: source
+      )
+    }
+  }
+
+  func finishCloseSurfaceAfterProcessExit(
+    _ surfaceID: UUID,
+    sessionExists: Bool,
+    sessionID: String,
+    source: TerminalSurfaceCloseSource
+  ) {
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.zmxProbe.finished",
+      fields: [
+        "source=\(source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "sessionID=\(sessionID)",
+        "sessionExists=\(sessionExists)",
+      ]
+    )
+    guard sessionExists, reattachZmxSurface(surfaceID, source: source) else {
+      requestCloseSurface(
+        surfaceID,
+        needsConfirmation: false,
+        source: source
+      )
+      return
+    }
+  }
+
+  @discardableResult
+  func reattachZmxSurface(
+    _ surfaceID: UUID,
+    source: TerminalSurfaceCloseSource
+  ) -> Bool {
+    guard let tabID = tabID(containing: surfaceID), var tree = trees[tabID] else {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.close.zmxReattach.dropped",
+        fields: [
+          "source=\(source.rawValue)",
+          "surfaceID=\(SupatermLog.uuid(surfaceID))",
+          "reason=missingTree",
+        ]
+      )
+      return false
+    }
+    guard let node = tree.find(id: surfaceID), let previousSurface = surfaces[surfaceID] else {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.close.zmxReattach.dropped",
+        fields: [
+          "source=\(source.rawValue)",
+          "surfaceID=\(SupatermLog.uuid(surfaceID))",
+          "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+          "reason=missingSurface",
+        ]
+      )
+      return false
+    }
+
+    let context = reattachSurfaceContext(for: tabID, tree: tree)
+    let workingDirectory = existingWorkingDirectoryURL(for: workingDirectoryPath(for: previousSurface))
+    let titleOverride = previousSurface.bridge.state.titleOverride
+    previousSurface.bridge.onChildExited = nil
+    previousSurface.bridge.onCloseRequest = nil
+
+    let replacementSurface = createSurface(
+      tabID: tabID,
+      startupCommand: nil,
+      inheritingFromSurfaceID: nil,
+      workingDirectory: workingDirectory,
+      context: context,
+      surfaceID: surfaceID
+    )
+    replacementSurface.bridge.state.titleOverride = titleOverride
+
+    do {
+      tree = try tree.replacing(node: node, with: .leaf(view: replacementSurface))
+    } catch {
+      surfaces.removeValue(forKey: surfaceID)
+      replacementSurface.closeSurface()
+      configureBridgeCloseCallbacks(for: previousSurface)
+      surfaces[surfaceID] = previousSurface
+      SupatermLog.error(
+        SupatermLog.terminal,
+        "terminal.close.zmxReattach.failed",
+        fields: [
+          "source=\(source.rawValue)",
+          "surfaceID=\(SupatermLog.uuid(surfaceID))",
+          "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+          "error=\(String(describing: error))",
+        ]
+      )
+      return false
+    }
+
+    previousSurface.closeSurface()
+    trees[tabID] = tree
+    updateRunningState(for: tabID)
+    updateTabTitle(for: tabID)
+    if focusedSurfaceIDByTab[tabID] == surfaceID {
+      focusSurface(replacementSurface, in: tabID)
+    }
+    syncFocus(windowActivity)
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.zmxReattach.finished",
+      fields: [
+        "source=\(source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+        "context=\(Self.surfaceContextLabel(context))",
+      ]
+    )
+    return true
+  }
+
+  func reattachSurfaceContext(
+    for tabID: TerminalTabID,
+    tree: SplitTree<GhosttySurfaceView>
+  ) -> ghostty_surface_context_e {
+    guard !tree.isSplit else { return GHOSTTY_SURFACE_CONTEXT_SPLIT }
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      spaceManager.tabs(in: spaceID).first?.id == tabID
+    else {
+      return GHOSTTY_SURFACE_CONTEXT_TAB
+    }
+    return GHOSTTY_SURFACE_CONTEXT_WINDOW
   }
 
   func configureSurfaceCallbacks(
@@ -1860,11 +2125,24 @@ final class TerminalHostState {
 
   func removeTree(
     for tabID: TerminalTabID,
-    terminateSessions: Bool = true
+    terminateSessions: Bool = true,
+    source: TerminalTreeRemovalSource
   ) {
     guard let tree = trees.removeValue(forKey: tabID) else { return }
+    let surfaceIDs = tree.leaves().map(\.id)
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.tree.remove",
+      fields: [
+        "source=\(source.rawValue)",
+        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+        "isPinned=\(spaceManager.tab(for: tabID)?.isPinned == true)",
+        "terminateSessions=\(terminateSessions)",
+        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+      ]
+    )
     if terminateSessions {
-      killZmxSessions(for: tree.leaves().map(\.id))
+      killZmxSessions(for: surfaceIDs)
     }
     for surface in tree.leaves() {
       agentPanelController?.surfaceRemoved(surface.id)
@@ -2051,6 +2329,99 @@ final class TerminalHostState {
     return nil
   }
 
+  nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
+    surfaceIDs.map { SupatermLog.uuid($0) }.sorted().joined(separator: ",")
+  }
+
+  func logClosePerformDropped(
+    surfaceID: UUID,
+    tabID: TerminalTabID? = nil,
+    source: TerminalSurfaceCloseSource,
+    reason: String
+  ) {
+    var fields = [
+      "source=\(source.rawValue)",
+      "surfaceID=\(SupatermLog.uuid(surfaceID))",
+    ]
+    if let tabID {
+      fields.append("tabID=\(SupatermLog.uuid(tabID.rawValue))")
+    }
+    fields.append("reason=\(reason)")
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.perform.dropped",
+      fields: fields
+    )
+  }
+
+  func logClosePerform(_ context: TerminalClosePerformLogContext) {
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.perform",
+      fields: [
+        "source=\(context.source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(context.surfaceID))",
+        "tabID=\(SupatermLog.uuid(context.tabID.rawValue))",
+        "spaceID=\(SupatermLog.uuid(context.spaceID?.rawValue))",
+        "wasPinned=\(context.wasPinned)",
+        "leafCount=\(context.leafCount)",
+        "newTreeEmpty=\(context.newTreeEmpty)",
+        "focusedSurfaceID=\(SupatermLog.uuid(context.focusedSurfaceID))",
+        "nextSurfaceID=\(SupatermLog.uuid(context.nextSurfaceID))",
+      ]
+    )
+  }
+
+  func logCloseKillSurface(
+    surfaceID: UUID,
+    tabID: TerminalTabID,
+    source: TerminalSurfaceCloseSource
+  ) {
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.killSurface",
+      fields: [
+        "source=\(source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+      ]
+    )
+  }
+
+  func logCloseRequest(
+    surfaceID: UUID,
+    needsConfirmationOverride: Bool?,
+    resolvedCloseRequest: ResolvedCloseRequest,
+    source: TerminalSurfaceCloseSource
+  ) {
+    let tabID = tabID(containing: surfaceID)
+    let resolvedTarget: String
+    let resolvedNeedsConfirmation: Bool
+    switch resolvedCloseRequest {
+    case .request(let request):
+      resolvedTarget = "\(request.target)"
+      resolvedNeedsConfirmation = request.needsConfirmation
+    case .window(let needsConfirmation):
+      resolvedTarget = "window"
+      resolvedNeedsConfirmation = needsConfirmation
+    }
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.request",
+      fields: [
+        "source=\(source.rawValue)",
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "tabID=\(SupatermLog.uuid(tabID?.rawValue))",
+        "selectedTabID=\(SupatermLog.uuid(selectedTabID?.rawValue))",
+        "focusedSurfaceID=\(SupatermLog.uuid(tabID.flatMap { focusedSurfaceIDByTab[$0] }))",
+        "isPinned=\(tabID.map { spaceManager.tab(for: $0)?.isPinned == true } ?? false)",
+        "needsConfirmationOverride=\(needsConfirmationOverride.map { "\($0)" } ?? "nil")",
+        "resolvedTarget=\(resolvedTarget)",
+        "resolvedNeedsConfirmation=\(resolvedNeedsConfirmation)",
+      ]
+    )
+  }
+
   func emitFocusChangedIfNeeded(_ surfaceID: UUID) {
     guard surfaceID != lastEmittedFocusSurfaceID else { return }
     lastEmittedFocusSurfaceID = surfaceID
@@ -2214,7 +2585,7 @@ final class TerminalHostState {
     let previousSelectedSpaceID = selectedSpaceID
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
-    removeTrees(for: diff.removedTabIDs)
+    removeTrees(for: diff.removedTabIDs, source: .spaceCatalogObserved)
     synchronizePinnedTabCatalogWithSpaces()
 
     if previousSelectedSpaceID != selectedSpaceID {
@@ -2235,7 +2606,7 @@ final class TerminalHostState {
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
 
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
-    removeTrees(for: diff.removedTabIDs)
+    removeTrees(for: diff.removedTabIDs, source: .spaceCatalogWrite)
     synchronizePinnedTabCatalogWithSpaces()
     return diff
   }
@@ -2290,10 +2661,11 @@ final class TerminalHostState {
 
   func removeTrees(
     for tabIDs: [TerminalTabID],
-    terminateSessions: Bool = true
+    terminateSessions: Bool = true,
+    source: TerminalTreeRemovalSource
   ) {
     for tabID in tabIDs {
-      removeTree(for: tabID, terminateSessions: terminateSessions)
+      removeTree(for: tabID, terminateSessions: terminateSessions, source: source)
     }
   }
 
@@ -2319,10 +2691,13 @@ final class TerminalHostState {
       SupatermLog.debug(SupatermLog.zmx, "zmx.kill.skipped", fields: ["reason=unbundled"])
       return
     }
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.zmx,
       "zmx.kill.enqueue",
-      fields: ["count=\(surfaceIDs.count)"]
+      fields: [
+        "count=\(surfaceIDs.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+      ]
     )
     let zmxClient = zmxClient
     Task.detached(priority: .utility) {
@@ -2350,10 +2725,13 @@ final class TerminalHostState {
       SupatermLog.debug(SupatermLog.zmx, "zmx.killAndWait.skipped", fields: ["reason=unbundled"])
       return
     }
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.zmx,
       "zmx.killAndWait.start",
-      fields: ["count=\(surfaceIDs.count)"]
+      fields: [
+        "count=\(surfaceIDs.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+      ]
     )
     let zmxClient = zmxClient
     await withTaskGroup(of: Void.self) { group in
@@ -2363,10 +2741,13 @@ final class TerminalHostState {
         }
       }
     }
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.zmx,
       "zmx.killAndWait.finished",
-      fields: ["count=\(surfaceIDs.count)"]
+      fields: [
+        "count=\(surfaceIDs.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
+      ]
     )
   }
 

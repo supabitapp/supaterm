@@ -198,7 +198,7 @@ extension TerminalHostState {
         )
       }
       for restoredTab in tabsToRestore where currentTabsByID[restoredTab.id] != nil {
-        removeTree(for: restoredTab.id, terminateSessions: false)
+        removeTree(for: restoredTab.id, terminateSessions: false, source: .pinnedReconcile)
       }
 
       let updatedTabs = desiredPinnedTabs + convertedRegularTabs + currentRegularTabs
@@ -291,6 +291,15 @@ extension TerminalHostState {
       return
     }
 
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.pinned.restore",
+      fields: [
+        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
+        "spaceID=\(SupatermLog.uuid(spaceID.rawValue))",
+        "surfaceIDs=\(Self.logSurfaceIDs(pinnedTab.session.surfaceIDs))",
+      ]
+    )
     restoreTabSession(
       pinnedTab.session,
       tabID: tabID,

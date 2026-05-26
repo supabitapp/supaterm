@@ -295,13 +295,14 @@ extension TerminalHostState {
     tabID: TerminalTabID,
     in spaceID: TerminalSpaceID
   ) {
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.terminal,
       "terminal.session.restoreTab",
       fields: [
         "spaceID=\(SupatermLog.uuid(spaceID.rawValue))",
         "tabID=\(SupatermLog.uuid(tabID.rawValue))",
         "surfaces=\(session.surfaceIDs.count)",
+        "surfaceIDs=\(Self.logSurfaceIDs(session.surfaceIDs))",
       ]
     )
     let context: ghostty_surface_context_e =
@@ -367,7 +368,7 @@ extension TerminalHostState {
         "surfaces=\(surfaces.count)",
       ]
     )
-    removeTrees(for: existingTabIDs, terminateSessions: false)
+    removeTrees(for: existingTabIDs, terminateSessions: false, source: .sessionClear)
     for space in spaces {
       _ = spaceManager.restoreTabs([], selectedTabID: nil, in: space.id)
     }

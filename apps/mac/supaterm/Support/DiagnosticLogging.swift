@@ -33,6 +33,19 @@ public nonisolated enum SupatermLog {
     }
   }
 
+  public static func notice(
+    _ logger: Logger,
+    _ event: String,
+    fields: [String] = []
+  ) {
+    let fields = fields.joined(separator: " ")
+    if fields.isEmpty {
+      logger.notice("\(event, privacy: .public)")
+    } else {
+      logger.notice("\(event, privacy: .public) \(fields, privacy: .public)")
+    }
+  }
+
   public static func error(
     _ logger: Logger,
     _ event: String,

@@ -10,6 +10,13 @@ nonisolated private func zmxLogDebug(
   SupatermLog.debug(SupatermLog.zmx, event, fields: fields)
 }
 
+nonisolated private func zmxLogNotice(
+  _ event: String,
+  fields: [String] = []
+) {
+  SupatermLog.notice(SupatermLog.zmx, event, fields: fields)
+}
+
 nonisolated private func zmxLogError(
   _ event: String,
   fields: [String] = []
@@ -231,7 +238,7 @@ extension ZmxClient {
         )
       },
       killSession: { surfaceID in
-        zmxLogDebug(
+        zmxLogNotice(
           "zmx.kill.requested",
           fields: [
             "surfaceID=\(surfaceID.uuidString.lowercased())",

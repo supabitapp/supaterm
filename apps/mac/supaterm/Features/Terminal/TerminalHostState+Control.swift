@@ -270,13 +270,13 @@ extension TerminalHostState {
       )
     } catch let error as TerminalCreateTabError {
       if let createdTabID {
-        removeTree(for: createdTabID)
+        removeTree(for: createdTabID, source: .controlCleanup)
         spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw error
     } catch {
       if let createdTabID {
-        removeTree(for: createdTabID)
+        removeTree(for: createdTabID, source: .controlCleanup)
         spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw TerminalCreateTabError.creationFailed
@@ -336,7 +336,7 @@ extension TerminalHostState {
 
   func closePane(_ target: TerminalPaneTarget) throws -> SupatermClosePaneResult {
     let resolvedClose = try resolveClose(target)
-    performCloseSurface(resolvedClose.surfaceID)
+    performCloseSurface(resolvedClose.surfaceID, source: .controlClosePane)
     return resolvedClose.result
   }
 

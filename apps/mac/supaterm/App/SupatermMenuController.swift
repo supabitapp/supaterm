@@ -1016,9 +1016,19 @@ final class SupatermMenuController: NSObject {
   @discardableResult
   func performCloseSurface(for keyWindow: NSWindow?, sender: Any?) -> Bool {
     if registry.closesWindowDirectly(keyWindow) {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.close.menuRequest",
+        fields: ["target=nonTerminalWindow"]
+      )
       keyWindow?.performClose(sender)
       return true
     }
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.menuRequest",
+      fields: ["target=terminalSurface"]
+    )
     registry.requestCloseSurfaceInKeyWindow()
     return true
   }

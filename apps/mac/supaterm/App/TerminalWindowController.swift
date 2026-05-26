@@ -199,6 +199,14 @@ final class TerminalWindowController: NSWindowController {
 
   private func performConfirmedWindowClose() {
     guard let window else { return }
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.window.closeConfirmed",
+      fields: [
+        "terminatesSessions=\(terminatesTerminalSessionsOnClose)",
+        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.liveSurfaceIDs()))",
+      ]
+    )
     if terminatesTerminalSessionsOnClose {
       terminal.terminateLiveTerminalSessions()
     }
@@ -223,6 +231,14 @@ extension TerminalWindowController: NSWindowDelegate {
       return true
     }
     guard terminal.windowNeedsCloseConfirmation() else {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.window.close",
+        fields: [
+          "terminatesSessions=\(terminatesTerminalSessionsOnClose)",
+          "surfaceIDs=\(TerminalHostState.logSurfaceIDs(terminal.liveSurfaceIDs()))",
+        ]
+      )
       if terminatesTerminalSessionsOnClose {
         terminal.terminateLiveTerminalSessions()
       }

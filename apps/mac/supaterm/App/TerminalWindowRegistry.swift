@@ -255,8 +255,21 @@ final class TerminalWindowRegistry {
       let entry = preferredActiveEntry(),
       let surfaceID = entry.terminal.selectedSurfaceView?.id
     else {
+      SupatermLog.notice(
+        SupatermLog.terminal,
+        "terminal.close.registryRequest.dropped",
+        fields: ["reason=missingSurface"]
+      )
       return
     }
+    SupatermLog.notice(
+      SupatermLog.terminal,
+      "terminal.close.registryRequest",
+      fields: [
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "tabID=\(SupatermLog.uuid(entry.terminal.selectedTabID?.rawValue))",
+      ]
+    )
     entry.store.send(.terminal(.closeSurfaceRequested(surfaceID)))
   }
 
@@ -350,7 +363,7 @@ final class TerminalWindowRegistry {
   }
 
   func terminateAllZmxSessions() {
-    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.enqueue")
+    SupatermLog.notice(SupatermLog.zmx, "zmx.terminateAll.enqueue")
     let zmxClient = zmxClient
     Task.detached(priority: .utility) {
       await Self.terminateAllZmxSessions(using: zmxClient)
@@ -358,9 +371,9 @@ final class TerminalWindowRegistry {
   }
 
   func terminateAllZmxSessionsAndWait() async {
-    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.start")
+    SupatermLog.notice(SupatermLog.zmx, "zmx.terminateAll.start")
     await Self.terminateAllZmxSessions(using: zmxClient)
-    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.finished")
+    SupatermLog.notice(SupatermLog.zmx, "zmx.terminateAll.finished")
   }
 
   func restorationSnapshot() -> TerminalSessionCatalog {
@@ -558,10 +571,13 @@ final class TerminalWindowRegistry {
 
   nonisolated private static func terminateAllZmxSessions(using zmxClient: ZmxClient) async {
     let surfaceIDs = await zmxClient.listSessions().compactMap { ZmxSessionID.surfaceID(from: $0) }
-    SupatermLog.debug(
+    SupatermLog.notice(
       SupatermLog.zmx,
       "zmx.terminateAll.plan",
-      fields: ["count=\(surfaceIDs.count)"]
+      fields: [
+        "count=\(surfaceIDs.count)",
+        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(surfaceIDs))",
+      ]
     )
     await withTaskGroup(of: Void.self) { group in
       for surfaceID in surfaceIDs {
