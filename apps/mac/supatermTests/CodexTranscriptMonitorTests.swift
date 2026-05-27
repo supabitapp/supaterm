@@ -136,7 +136,7 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
-  func completedTurnDisplaysUnfinishedProgressRowsAsCompleted() throws {
+  func completedTurnHidesProgressRows() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -162,25 +162,7 @@ struct CodexTranscriptMonitorTests {
     conversation.absorb(batch.records)
 
     #expect(conversation.sidebarSnapshot.status == .completed("turn-1"))
-    #expect(
-      conversation.sidebarSnapshot.progressRows == [
-        PaneAgentProgressRow(
-          id: "0:Inspect state",
-          title: "Inspect state",
-          status: .completed
-        ),
-        PaneAgentProgressRow(
-          id: "1:Commit and push scoped changes",
-          title: "Commit and push scoped changes",
-          status: .completed
-        ),
-        PaneAgentProgressRow(
-          id: "2:Report final status",
-          title: "Report final status",
-          status: .completed
-        ),
-      ]
-    )
+    #expect(conversation.sidebarSnapshot.progressRows.isEmpty)
   }
 
   @Test

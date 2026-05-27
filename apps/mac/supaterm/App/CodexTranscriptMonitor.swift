@@ -686,9 +686,7 @@ extension CodexConversationTurn {
   fileprivate var displayedProgressRows: [PaneAgentProgressRow] {
     switch status {
     case .completed:
-      return progressRows.map { row in
-        PaneAgentProgressRow(id: row.id, title: row.title, status: .completed)
-      }
+      return []
     case .inProgress, .aborted, .failed:
       return progressRows
     }

@@ -1171,7 +1171,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
   @Test
-  func codexTranscriptCompletionFinishesPanelProgressRows() async throws {
+  func codexTranscriptCompletionHidesPanelProgressRows() async throws {
     let clock = TestClock()
     let harness = try makeClaudeHookHarness(
       agentRunningTimeout: .milliseconds(10),
@@ -1223,18 +1223,8 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
     #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
-        PaneAgentProgressRow(
-          id: "0:Inspect state",
-          title: "Inspect state",
-          status: .completed
-        ),
-        PaneAgentProgressRow(
-          id: "1:Commit and push scoped changes",
-          title: "Commit and push scoped changes",
-          status: .completed
-        ),
-      ]
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows.isEmpty
+        == true
     )
   }
   @Test
