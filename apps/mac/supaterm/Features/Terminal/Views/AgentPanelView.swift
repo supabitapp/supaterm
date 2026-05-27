@@ -123,28 +123,29 @@ struct AgentPanelView: View {
   }
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {
-    VStack(spacing: 4) {
-      AgentPanelActionRow(
-        title: Self.forkTitle(forksDown: forksDown),
-        palette: palette,
-        shortcutHint: shortcutHint(AgentPanelShortcut.forkSession),
-        helpText: Self.forkHelpText(forksDown: forksDown),
-        action: {
-          forkSession(Self.forkDirection(forksDown: forksDown), session.forkStartupCommand)
-        }
-      )
-      AgentPanelActionRow(
-        title: "Copy session ID",
-        palette: palette,
-        shortcutHint: shortcutHint(AgentPanelShortcut.copySessionID),
-        helpText: "Copy session ID",
-        action: {
-          copySessionID(session.sessionID)
-        }
-      )
+    section("Session actions") {
+      VStack(spacing: 4) {
+        AgentPanelActionRow(
+          title: Self.forkTitle(forksDown: forksDown),
+          palette: palette,
+          shortcutHint: shortcutHint(AgentPanelShortcut.forkSession),
+          helpText: Self.forkHelpText(forksDown: forksDown),
+          action: {
+            forkSession(Self.forkDirection(forksDown: forksDown), session.forkStartupCommand)
+          }
+        )
+        AgentPanelActionRow(
+          title: "Copy session ID",
+          palette: palette,
+          shortcutHint: shortcutHint(AgentPanelShortcut.copySessionID),
+          helpText: "Copy session ID",
+          action: {
+            copySessionID(session.sessionID)
+          }
+        )
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(.top, 2)
-    .frame(maxWidth: .infinity, alignment: .trailing)
   }
 
   static func forkDirection(forksDown: Bool) -> SupatermPaneDirection {
