@@ -45,4 +45,18 @@ struct AppCrashReportingTests {
     )
     #expect(!AppCrashReporting.isEnabled(supatermSettings: .default, isDebugBuild: true))
   }
+
+  @Test
+  func withStartedSDKOnlyRunsWhenSDKIsEnabled() {
+    var runs = 0
+
+    AppCrashReporting.withStartedSDK(isSDKEnabled: false) {
+      runs += 1
+    }
+    AppCrashReporting.withStartedSDK(isSDKEnabled: true) {
+      runs += 1
+    }
+
+    #expect(runs == 1)
+  }
 }

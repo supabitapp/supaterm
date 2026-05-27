@@ -54,4 +54,12 @@ enum AppCrashReporting {
   ) -> Bool {
     supatermSettings.crashReportsEnabled && !isDebugBuild
   }
+
+  nonisolated static func withStartedSDK(
+    isSDKEnabled: Bool = SentrySDK.isEnabled,
+    _ operation: () -> Void
+  ) {
+    guard isSDKEnabled else { return }
+    operation()
+  }
 }

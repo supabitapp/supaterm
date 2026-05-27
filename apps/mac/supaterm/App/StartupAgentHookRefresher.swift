@@ -35,20 +35,22 @@ nonisolated struct StartupAgentHookRefresher {
     ],
     logFailure: { agent, error in
       let message = "Failed to refresh \(agent.notificationTitle) hooks at launch."
-      SentrySDK.logger.warn(
-        message,
-        attributes: [
+      AppCrashReporting.withStartedSDK {
+        SentrySDK.logger.warn(
+          message,
+          attributes: [
+            "agent": agent.rawValue,
+            "error": error.localizedDescription,
+          ]
+        )
+        let breadcrumb = Breadcrumb(level: .warning, category: "agent-hooks")
+        breadcrumb.message = message
+        breadcrumb.data = [
           "agent": agent.rawValue,
           "error": error.localizedDescription,
         ]
-      )
-      let breadcrumb = Breadcrumb(level: .warning, category: "agent-hooks")
-      breadcrumb.message = message
-      breadcrumb.data = [
-        "agent": agent.rawValue,
-        "error": error.localizedDescription,
-      ]
-      SentrySDK.addBreadcrumb(breadcrumb)
+        SentrySDK.addBreadcrumb(breadcrumb)
+      }
     }
   )
 

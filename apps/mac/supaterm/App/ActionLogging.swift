@@ -33,9 +33,11 @@ extension AppLogClient: DependencyKey {
       SupatermLog.debug(logger, event.label)
 
       guard event.addsBreadcrumb else { return }
-      let breadcrumb = Breadcrumb(level: .debug, category: event.category.rawValue)
-      breadcrumb.message = event.label
-      SentrySDK.addBreadcrumb(breadcrumb)
+      AppCrashReporting.withStartedSDK {
+        let breadcrumb = Breadcrumb(level: .debug, category: event.category.rawValue)
+        breadcrumb.message = event.label
+        SentrySDK.addBreadcrumb(breadcrumb)
+      }
     }
   )
 
