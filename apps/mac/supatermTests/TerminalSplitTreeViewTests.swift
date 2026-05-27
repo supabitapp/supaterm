@@ -1,5 +1,5 @@
-import SwiftUI
 import SupatermCLIShared
+import SwiftUI
 import Testing
 
 @testable import supaterm
@@ -237,14 +237,22 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func agentPanelShortcutDisplaysCommandI() {
+  func agentPanelShortcutsDisplayCommandHints() {
     #expect(AgentPanelShortcut.toggleVisibility.display == "⌘I")
+    #expect(AgentPanelShortcut.forkSession.display == "⌘⇧F")
+    #expect(AgentPanelShortcut.copySessionID.display == "⌘⇧C")
   }
 
   @Test
   func agentPanelForkDirectionFollowsOptionState() {
     #expect(AgentPanelView.forkDirection(forksDown: false) == .right)
     #expect(AgentPanelView.forkDirection(forksDown: true) == .down)
+  }
+
+  @Test
+  func agentPanelForkTitleFollowsOptionState() {
+    #expect(AgentPanelView.forkTitle(forksDown: false) == "Fork session right")
+    #expect(AgentPanelView.forkTitle(forksDown: true) == "Fork session below")
   }
 
   @Test

@@ -697,6 +697,7 @@ struct TerminalSplitTreeView: View {
           presentation: presentation,
           palette: palette,
           forksDown: forksDown,
+          showsShortcutHints: shortcutHint != nil,
           copySessionID: copySessionID,
           forkSession: forkSession,
           openURL: openURL

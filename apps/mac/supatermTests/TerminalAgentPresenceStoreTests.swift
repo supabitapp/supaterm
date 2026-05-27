@@ -66,7 +66,7 @@ struct TerminalAgentPresenceStoreTests {
   }
 
   @Test
-  func panelSessionExposesSingleSessionForSurface() {
+  func panelSessionHidesRegisteredSessionUntilActionable() {
     var store = TerminalAgentPresenceStore()
     let surfaceID = UUID()
 
@@ -77,6 +77,22 @@ struct TerminalAgentPresenceStoreTests {
       processID: nil
     )
     #expect(didRegister)
+
+    #expect(store.panelSession(for: surfaceID) == nil)
+  }
+
+  @Test
+  func panelSessionExposesSingleActionableSessionForSurface() {
+    var store = TerminalAgentPresenceStore()
+    let surfaceID = UUID()
+
+    let didMarkActionable = store.markActionable(
+      agent: .pi,
+      surfaceID: surfaceID,
+      sessionID: "session-1",
+      processID: nil
+    )
+    #expect(didMarkActionable)
 
     #expect(
       store.panelSession(for: surfaceID)
@@ -89,20 +105,20 @@ struct TerminalAgentPresenceStoreTests {
     var store = TerminalAgentPresenceStore()
     let surfaceID = UUID()
 
-    let didRegisterFirst = store.register(
+    let didMarkFirst = store.markActionable(
       agent: .codex,
       surfaceID: surfaceID,
       sessionID: "session-1",
       processID: nil
     )
-    let didRegisterSecond = store.register(
+    let didMarkSecond = store.markActionable(
       agent: .codex,
       surfaceID: surfaceID,
       sessionID: "session-2",
       processID: nil
     )
-    #expect(didRegisterFirst)
-    #expect(didRegisterSecond)
+    #expect(didMarkFirst)
+    #expect(didMarkSecond)
 
     #expect(store.panelSession(for: surfaceID) == nil)
   }

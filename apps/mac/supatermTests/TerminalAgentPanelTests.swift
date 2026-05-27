@@ -86,7 +86,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func registeredPresenceExposesSessionPanelWithoutSnapshot() throws {
+  func registeredPresenceHidesSessionPanelWithoutActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -100,6 +100,32 @@ struct TerminalAgentPanelTests {
 
     #expect(
       host.registerAgentPresence(
+        agent: .pi,
+        for: surfaceID,
+        sessionID: "session-1",
+        processID: nil
+      )
+    )
+
+    #expect(host.agentPanelPresentation(for: surfaceID) == nil)
+  }
+
+  @Test
+  @MainActor
+  func actionablePresenceExposesSessionPanelWithoutSnapshot() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+
+    #expect(
+      host.markAgentSessionActionable(
         agent: .pi,
         for: surfaceID,
         sessionID: "session-1",

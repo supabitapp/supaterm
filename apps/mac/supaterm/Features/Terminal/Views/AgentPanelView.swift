@@ -11,12 +11,15 @@ enum AgentPanelMetrics {
 
 enum AgentPanelShortcut {
   static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
+  static let forkSession = KeyboardShortcut("f", modifiers: [.command, .shift])
+  static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .shift])
 }
 
 struct AgentPanelView: View {
   let presentation: PaneAgentPanelPresentation
   let palette: TerminalPalette
   let forksDown: Bool
+  let showsShortcutHints: Bool
   let copySessionID: (String) -> Void
   let forkSession: (SupatermPaneDirection, String) -> Void
   let openURL: (URL) -> Void
@@ -120,22 +123,21 @@ struct AgentPanelView: View {
   }
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {
-    HStack(spacing: 6) {
-      Spacer(minLength: 0)
-      AgentPanelActionButton(
-        icon: .asset("git-fork"),
+    VStack(spacing: 4) {
+      AgentPanelActionRow(
+        title: Self.forkTitle(forksDown: forksDown),
         palette: palette,
+        shortcutHint: shortcutHint(AgentPanelShortcut.forkSession),
         helpText: Self.forkHelpText(forksDown: forksDown),
-        accessibilityLabel: "Fork session",
         action: {
           forkSession(Self.forkDirection(forksDown: forksDown), session.forkStartupCommand)
         }
       )
-      AgentPanelActionButton(
-        icon: .asset("copy"),
+      AgentPanelActionRow(
+        title: "Copy session ID",
         palette: palette,
+        shortcutHint: shortcutHint(AgentPanelShortcut.copySessionID),
         helpText: "Copy session ID",
-        accessibilityLabel: "Copy session ID",
         action: {
           copySessionID(session.sessionID)
         }
@@ -149,10 +151,18 @@ struct AgentPanelView: View {
     forksDown ? .down : .right
   }
 
+  static func forkTitle(forksDown: Bool) -> String {
+    forksDown ? "Fork session below" : "Fork session right"
+  }
+
   static func forkHelpText(forksDown: Bool) -> String {
     forksDown
       ? "Fork session below. Release Option to fork right."
       : "Fork session right. Hold Option to fork below."
+  }
+
+  private func shortcutHint(_ shortcut: KeyboardShortcut) -> String? {
+    showsShortcutHints ? shortcut.display : nil
   }
 
   private func valueRow(
@@ -393,47 +403,45 @@ private enum AgentPanelIcon {
   case system(String)
 }
 
-private struct AgentPanelActionButton: View {
-  let icon: AgentPanelIcon
+private struct AgentPanelActionRow: View {
+  let title: String
   let palette: TerminalPalette
+  let shortcutHint: String?
   let helpText: String
-  let accessibilityLabel: String
   let action: () -> Void
 
   @State private var isHovering = false
 
   var body: some View {
     Button(action: action) {
-      iconView
-        .foregroundStyle(isHovering ? palette.primaryText : palette.secondaryText)
-        .frame(width: 22, height: 22)
-        .contentShape(.rect)
-        .background(
-          palette.detailStroke.opacity(isHovering ? 0.6 : 0),
-          in: .rect(cornerRadius: 5)
-        )
+      HStack(spacing: 8) {
+        Text(title)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.primaryText)
+          .lineLimit(1)
+        Spacer(minLength: 8)
+        if let shortcutHint {
+          Text(shortcutHint)
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(palette.secondaryText)
+            .monospacedDigit()
+            .lineLimit(1)
+        }
+      }
+      .padding(.horizontal, 8)
+      .frame(height: 26)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(rowBackground, in: .rect(cornerRadius: 5))
+      .contentShape(.rect)
     }
     .buttonStyle(.plain)
     .help(helpText)
-    .accessibilityLabel(accessibilityLabel)
+    .accessibilityLabel(title)
     .onHover { isHovering = $0 }
   }
 
-  @ViewBuilder
-  private var iconView: some View {
-    switch icon {
-    case .asset(let name):
-      Image(name)
-        .renderingMode(.template)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .frame(width: 13, height: 13)
-        .accessibilityHidden(true)
-    case .system(let name):
-      Image(systemName: name)
-        .font(.system(size: 12, weight: .medium))
-        .accessibilityHidden(true)
-    }
+  private var rowBackground: Color {
+    isHovering ? palette.secondaryText.opacity(0.12) : .clear
   }
 }
 

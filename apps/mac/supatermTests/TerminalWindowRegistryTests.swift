@@ -856,6 +856,116 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
+  func requestCopyAgentPanelSessionIDInKeyWindowCopiesSelectedSession() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      #expect(
+        host.markAgentSessionActionable(
+          agent: .pi,
+          for: surfaceID,
+          sessionID: "session-1",
+          processID: nil
+        )
+      )
+      var copiedSessionIDs: [String] = []
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      } withDependencies: {
+        $0.clipboardClient.copyString = { sessionID in
+          copiedSessionIDs.append(sessionID)
+        }
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      registry.requestCopyAgentPanelSessionIDInKeyWindow()
+      await flushEffects()
+
+      #expect(copiedSessionIDs == ["session-1"])
+    }
+  }
+
+  @Test
+  func requestForkAgentPanelSessionInKeyWindowForksSelectedSession() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      #expect(
+        host.markAgentSessionActionable(
+          agent: .pi,
+          for: surfaceID,
+          sessionID: "session-1",
+          processID: nil
+        )
+      )
+      var requests: [TerminalCreatePaneRequest] = []
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      } withDependencies: {
+        $0.terminalClient.createPane = { request in
+          requests.append(request)
+          return SupatermNewPaneResult(
+            direction: request.direction,
+            isFocused: true,
+            isSelectedTab: true,
+            windowIndex: 1,
+            spaceIndex: 1,
+            spaceID: UUID(),
+            tabIndex: 1,
+            tabID: UUID(),
+            paneIndex: 2,
+            paneID: UUID()
+          )
+        }
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      registry.requestForkAgentPanelSessionInKeyWindow(direction: .right)
+      await flushEffects()
+
+      #expect(
+        requests == [
+          TerminalCreatePaneRequest(
+            startupCommand: "pi --fork session-1",
+            cwd: nil,
+            direction: .right,
+            focus: true,
+            equalize: false,
+            target: .contextPane(surfaceID)
+          )
+        ])
+    }
+  }
+
+  @Test
   func requestNavigateSearchInKeyWindowDispatchesReducerCommand() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory

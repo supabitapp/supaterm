@@ -158,14 +158,12 @@ extension TerminalCommandExecutor {
       sessionID: sessionID,
       context: request.context
     )
-    if request.agent == .codex {
-      _ = registerAgentPresence(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context,
-        processID: request.processID
-      )
-    }
+    _ = markAgentSessionActionable(
+      agent: request.agent,
+      sessionID: sessionID,
+      context: request.context,
+      processID: request.processID
+    )
     if request.agent != .codex {
       _ = setAgentPresenceActivity(
         TerminalHostState.AgentActivity(kind: request.agent, phase: .running),
@@ -468,6 +466,32 @@ extension TerminalCommandExecutor {
     for surfaceID in candidateSurfaceIDs {
       for entry in registry.activeEntries()
       where entry.terminal.registerAgentPresence(
+        agent: agent,
+        for: surfaceID,
+        sessionID: sessionID,
+        processID: processID
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  @discardableResult
+  func markAgentSessionActionable(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?,
+    processID: Int32?
+  ) -> Bool {
+    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    for surfaceID in candidateSurfaceIDs {
+      for entry in registry.activeEntries()
+      where entry.terminal.markAgentSessionActionable(
         agent: agent,
         for: surfaceID,
         sessionID: sessionID,

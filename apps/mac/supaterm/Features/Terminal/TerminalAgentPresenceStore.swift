@@ -19,6 +19,7 @@ struct TerminalAgentPresenceStore {
     var sessionIDs: Set<String> = []
     var processIDs: Set<Int32> = []
     var activity: TerminalHostState.AgentActivity?
+    var isActionable = false
     var revision: Int
   }
 
@@ -49,6 +50,21 @@ struct TerminalAgentPresenceStore {
     return updateRecord(for: key) { record in
       Self.insert(sessionID: sessionID, processID: processID, into: &record)
       record.activity = activity
+      record.isActionable = true
+    }
+  }
+
+  @discardableResult
+  mutating func markActionable(
+    agent: SupatermAgentKind,
+    surfaceID: UUID,
+    sessionID: String?,
+    processID: Int32?
+  ) -> Bool {
+    let key = Key(surfaceID: surfaceID, agent: agent)
+    return updateRecord(for: key) { record in
+      Self.insert(sessionID: sessionID, processID: processID, into: &record)
+      record.isActionable = true
     }
   }
 
@@ -166,7 +182,7 @@ struct TerminalAgentPresenceStore {
 
   func panelSession(for surfaceID: UUID) -> PaneAgentPanelSession? {
     let sessions = records.reduce(into: [PaneAgentPanelSession]()) { result, entry in
-      guard entry.key.surfaceID == surfaceID else { return }
+      guard entry.key.surfaceID == surfaceID, entry.value.isActionable else { return }
       for sessionID in entry.value.sessionIDs {
         result.append(PaneAgentPanelSession(agent: entry.key.agent, sessionID: sessionID))
       }
@@ -228,6 +244,9 @@ struct TerminalAgentPresenceStore {
           record.sessionIDs.formUnion(pruned.sessionIDs)
           record.processIDs.formUnion(processIDs)
           record.activity = activity
+          if activity != nil {
+            record.isActionable = true
+          }
         } || changed
     }
     return changed

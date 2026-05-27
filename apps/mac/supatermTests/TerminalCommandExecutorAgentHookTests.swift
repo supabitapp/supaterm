@@ -36,6 +36,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    #expect(harness.host.agentPanelPresentation(for: harness.context.surfaceID) == nil)
   }
   @Test
   func claudeSessionStartStoresTaskProgressRows() throws {
@@ -621,6 +622,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
+        == PaneAgentPanelSession(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+    )
   }
   @Test
   func codexTranscriptIgnoresToolCallsAfterAssistantMessage() async throws {

@@ -25,6 +25,7 @@ final class TerminalWindowRegistry {
     let hasSurface: Bool
     var hasAnySurface = false
     var hasAgentPanel = false
+    var hasAgentPanelSession = false
   }
 
   struct MenuContext: Equatable {
@@ -49,6 +50,11 @@ final class TerminalWindowRegistry {
     let store: StoreOf<AppFeature>
     let terminal: TerminalHostState
     let windowReference: WindowReference
+  }
+
+  private struct SelectedAgentPanel {
+    let surfaceID: UUID
+    let session: PaneAgentPanelSession?
   }
 
   var commandExecutor: TerminalCommandExecutor?
@@ -119,12 +125,14 @@ final class TerminalWindowRegistry {
       return CommandAvailability(hasWindow: false, hasTab: false, hasSurface: false, hasAnySurface: hasAnySurface)
     }
 
+    let selectedAgentPanel = selectedAgentPanel(in: entry)
     return CommandAvailability(
       hasWindow: true,
       hasTab: entry.terminal.selectedTabID != nil,
       hasSurface: entry.terminal.selectedSurfaceView != nil,
       hasAnySurface: hasAnySurface,
-      hasAgentPanel: selectedAgentPanelSurfaceID(in: entry) != nil
+      hasAgentPanel: selectedAgentPanel != nil,
+      hasAgentPanelSession: selectedAgentPanel?.session != nil
     )
   }
 
@@ -146,13 +154,15 @@ final class TerminalWindowRegistry {
     let updateState = entry.store.withState(\.update)
     let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
 
+    let selectedAgentPanel = selectedAgentPanel(in: entry)
     return MenuContext(
       availability: CommandAvailability(
         hasWindow: true,
         hasTab: entry.terminal.selectedTabID != nil,
         hasSurface: entry.terminal.selectedSurfaceView != nil,
         hasAnySurface: hasAnySurface,
-        hasAgentPanel: selectedAgentPanelSurfaceID(in: entry) != nil
+        hasAgentPanel: selectedAgentPanel != nil,
+        hasAgentPanelSession: selectedAgentPanel?.session != nil
       ),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
@@ -223,9 +233,34 @@ final class TerminalWindowRegistry {
   func requestToggleAgentPanelInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
-      let surfaceID = selectedAgentPanelSurfaceID(in: entry)
+      let surfaceID = selectedAgentPanel(in: entry)?.surfaceID
     else { return }
     entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
+  }
+
+  func requestForkAgentPanelSessionInKeyWindow(direction: SupatermPaneDirection) {
+    guard
+      let entry = preferredActiveEntry(),
+      let selectedAgentPanel = selectedAgentPanel(in: entry),
+      let session = selectedAgentPanel.session
+    else { return }
+    entry.store.send(
+      .terminal(
+        .agentPanelForkSessionRequested(
+          surfaceID: selectedAgentPanel.surfaceID,
+          direction: direction,
+          startupCommand: session.forkStartupCommand
+        )
+      )
+    )
+  }
+
+  func requestCopyAgentPanelSessionIDInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let session = selectedAgentPanel(in: entry)?.session
+    else { return }
+    entry.store.send(.terminal(.agentPanelCopySessionID(session.sessionID)))
   }
 
   func requestToggleCommandPaletteInKeyWindow() {
@@ -485,10 +520,10 @@ final class TerminalWindowRegistry {
     preferredActiveEntry() ?? entries.first
   }
 
-  private func selectedAgentPanelSurfaceID(in entry: Entry) -> UUID? {
+  private func selectedAgentPanel(in entry: Entry) -> SelectedAgentPanel? {
     guard let surfaceID = entry.terminal.selectedSurfaceView?.id else { return nil }
-    guard entry.terminal.agentPanelPresentation(for: surfaceID) != nil else { return nil }
-    return surfaceID
+    guard let presentation = entry.terminal.agentPanelPresentation(for: surfaceID) else { return nil }
+    return SelectedAgentPanel(surfaceID: surfaceID, session: presentation.session)
   }
 
   func globalKeybindRuntimes() -> [GhosttyRuntime] {

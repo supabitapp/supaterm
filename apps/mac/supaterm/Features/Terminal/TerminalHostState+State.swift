@@ -389,6 +389,28 @@ extension TerminalHostState {
   }
 
   @discardableResult
+  func markAgentSessionActionable(
+    agent: SupatermAgentKind,
+    for surfaceID: UUID,
+    sessionID: String?,
+    processID: Int32?
+  ) -> Bool {
+    guard tabID(containing: surfaceID) != nil else {
+      return false
+    }
+    let changed = agentPresenceStore.markActionable(
+      agent: agent,
+      surfaceID: surfaceID,
+      sessionID: sessionID,
+      processID: processID
+    )
+    if changed {
+      agentPanelController?.surfaceAgentStateChanged(surfaceID)
+    }
+    return changed
+  }
+
+  @discardableResult
   func clearAgentPresence(
     agent: SupatermAgentKind,
     for surfaceID: UUID,

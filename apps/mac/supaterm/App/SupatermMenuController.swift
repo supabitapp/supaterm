@@ -55,6 +55,8 @@ final class SupatermMenuController: NSObject {
     static let selectionForFind = NSUserInterfaceItemIdentifier("app.supabit.supaterm.edit.selectionForFind")
     static let toggleSidebar = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleSidebar")
     static let toggleAgentPanel = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.toggleAgentPanel")
+    static let forkAgentSession = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.forkAgentSession")
+    static let copyAgentSessionID = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.copyAgentSessionID")
     static let changeTabTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTabTitle")
     static let changeTerminalTitle = NSUserInterfaceItemIdentifier("app.supabit.supaterm.view.changeTerminalTitle")
     static let nextTab = NSUserInterfaceItemIdentifier("app.supabit.supaterm.tabs.next")
@@ -86,6 +88,7 @@ final class SupatermMenuController: NSObject {
   private var requestSubmitGitHubIssue: @MainActor () -> Bool = {
     ExternalNavigationClient.liveValue.open(SupatermExternalURL.submitGitHubIssue)
   }
+  private var agentSessionShortcutItems: [GhosttyBindingMenuItem] = []
   private var ghosttyBindingItems: [GhosttyBindingMenuItem] = []
 
   private var appName: String {
@@ -195,6 +198,8 @@ final class SupatermMenuController: NSObject {
     let menu = NSMenu(title: "View")
     menu.addItem(toggleSidebarItem)
     menu.addItem(toggleAgentPanelItem)
+    menu.addItem(forkAgentSessionItem)
+    menu.addItem(copyAgentSessionIDItem)
     menu.addItem(.separator())
     menu.addItem(changeTabTitleItem)
     menu.addItem(changeTerminalTitleItem)
@@ -419,6 +424,24 @@ final class SupatermMenuController: NSObject {
     SupatermMenuShortcut.apply(AgentPanelShortcut.toggleVisibility, to: item)
     return item
   }()
+  private lazy var forkAgentSessionItem: NSMenuItem = {
+    let item = makeItem(
+      title: "Fork Agent Session",
+      action: #selector(forkAgentSession(_:)),
+      identifier: MenuItemIdentifier.forkAgentSession
+    )
+    SupatermMenuShortcut.apply(AgentPanelShortcut.forkSession, to: item)
+    return item
+  }()
+  private lazy var copyAgentSessionIDItem: NSMenuItem = {
+    let item = makeItem(
+      title: "Copy Agent Session ID",
+      action: #selector(copyAgentSessionID(_:)),
+      identifier: MenuItemIdentifier.copyAgentSessionID
+    )
+    SupatermMenuShortcut.apply(AgentPanelShortcut.copySessionID, to: item)
+    return item
+  }()
   private lazy var changeTabTitleItem = makeItem(
     title: "Change Tab Title...",
     action: #selector(changeTabTitle(_:)),
@@ -588,6 +611,16 @@ final class SupatermMenuController: NSObject {
     }
 
     ghosttyBindingItems = []
+    agentSessionShortcutItems = [
+      GhosttyBindingMenuItem(
+        shortcut: MenuShortcutKey(shortcut: AgentPanelShortcut.forkSession),
+        item: forkAgentSessionItem
+      ),
+      GhosttyBindingMenuItem(
+        shortcut: MenuShortcutKey(shortcut: AgentPanelShortcut.copySessionID),
+        item: copyAgentSessionIDItem
+      ),
+    ]
     syncShortcut(
       action: "open_config",
       item: settingsItem,
@@ -653,9 +686,9 @@ final class SupatermMenuController: NSObject {
   @discardableResult
   func performGhosttyBindingMenuKeyEquivalent(with event: NSEvent) -> Bool {
     let item =
-      (ghosttyBindingItems
+      (agentSessionShortcutItems + ghosttyBindingItems)
       .lazy
-      .first { $0.shortcut.matches(event) })?.item
+      .first { $0.shortcut.matches(event) }?.item
     guard let item else { return false }
     if item.identifier == MenuItemIdentifier.settings,
       registry.keyboardShortcut(forAction: "open_config") != nil
@@ -825,6 +858,14 @@ final class SupatermMenuController: NSObject {
 
   @objc func toggleAgentPanel(_ sender: Any?) {
     registry.requestToggleAgentPanelInKeyWindow()
+  }
+
+  @objc func forkAgentSession(_ sender: Any?) {
+    registry.requestForkAgentPanelSessionInKeyWindow(direction: .right)
+  }
+
+  @objc func copyAgentSessionID(_ sender: Any?) {
+    registry.requestCopyAgentPanelSessionIDInKeyWindow()
   }
 
   @objc func changeTabTitle(_ sender: Any?) {
@@ -1061,6 +1102,9 @@ extension SupatermMenuController: NSMenuItemValidation {
       return context.availability.hasWindow
     case MenuItemIdentifier.toggleAgentPanel:
       return context.availability.hasAgentPanel
+    case MenuItemIdentifier.forkAgentSession,
+      MenuItemIdentifier.copyAgentSessionID:
+      return context.availability.hasAgentPanelSession
     case MenuItemIdentifier.terminateAllTerminalSessions:
       return context.availability.hasAnySurface
     case MenuItemIdentifier.find,
