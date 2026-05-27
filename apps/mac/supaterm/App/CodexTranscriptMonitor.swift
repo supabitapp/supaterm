@@ -191,8 +191,8 @@ struct CodexConversationState: Equatable {
   }
 
   var progressRows: [PaneAgentProgressRow] {
-    let sourceTurn = activeTurn ?? latestTurn
-    return sourceTurn?.progressRows ?? []
+    guard let sourceTurn = activeTurn ?? latestTurn else { return [] }
+    return sourceTurn.displayedProgressRows
   }
 
   var sources: [PaneAgentSource] {
@@ -683,6 +683,17 @@ private struct StructuredPanelState: Equatable {
 }
 
 extension CodexConversationTurn {
+  fileprivate var displayedProgressRows: [PaneAgentProgressRow] {
+    switch status {
+    case .completed:
+      return progressRows.map { row in
+        PaneAgentProgressRow(id: row.id, title: row.title, status: .completed)
+      }
+    case .inProgress, .aborted, .failed:
+      return progressRows
+    }
+  }
+
   fileprivate var transcriptStatus: CodexTranscriptTurnStatus {
     switch status {
     case .inProgress:

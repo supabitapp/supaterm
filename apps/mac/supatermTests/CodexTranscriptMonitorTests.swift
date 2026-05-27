@@ -136,6 +136,54 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func completedTurnDisplaysUnfinishedProgressRowsAsCompleted() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [
+            ["step": "Inspect state", "status": "completed"],
+            ["step": "Commit and push scoped changes", "status": "in_progress"],
+            ["step": "Report final status", "status": "pending"],
+          ]
+        ]
+      ),
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(conversation.sidebarSnapshot.status == .completed("turn-1"))
+    #expect(
+      conversation.sidebarSnapshot.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Inspect state",
+          title: "Inspect state",
+          status: .completed
+        ),
+        PaneAgentProgressRow(
+          id: "1:Commit and push scoped changes",
+          title: "Commit and push scoped changes",
+          status: .completed
+        ),
+        PaneAgentProgressRow(
+          id: "2:Report final status",
+          title: "Report final status",
+          status: .completed
+        ),
+      ]
+    )
+  }
+
+  @Test
   func structuredSearchOperationsUpdateSources() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }

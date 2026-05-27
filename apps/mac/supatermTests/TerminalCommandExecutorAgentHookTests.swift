@@ -1171,6 +1171,73 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
   @Test
+  func codexTranscriptCompletionFinishesPanelProgressRows() async throws {
+    let clock = TestClock()
+    let harness = try makeClaudeHookHarness(
+      agentRunningTimeout: .milliseconds(10),
+      clock: clock
+    )
+    let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptPath.deletingLastPathComponent()) }
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [
+            ["step": "Inspect state", "status": "completed"],
+            ["step": "Commit and push scoped changes", "status": "in_progress"],
+          ]
+        ]
+      ),
+      to: transcriptPath
+    )
+    await advanceClock(clock)
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Inspect state",
+          title: "Inspect state",
+          status: .completed
+        ),
+        PaneAgentProgressRow(
+          id: "1:Commit and push scoped changes",
+          title: "Commit and push scoped changes",
+          status: .running
+        ),
+      ]
+    )
+
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptPath)
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Inspect state",
+          title: "Inspect state",
+          status: .completed
+        ),
+        PaneAgentProgressRow(
+          id: "1:Commit and push scoped changes",
+          title: "Commit and push scoped changes",
+          status: .completed
+        ),
+      ]
+    )
+  }
+  @Test
   func codexUserPromptSubmitStartsTrackingWhenTranscriptPathArrivesLater() throws {
     let harness = try makeClaudeHookHarness()
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
