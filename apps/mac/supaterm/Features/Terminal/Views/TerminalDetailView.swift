@@ -268,12 +268,12 @@ private struct TerminalSurfacePaneView: View {
       switch operation {
       case .agentPanelCopySessionID(let sessionID):
         _ = store.send(.agentPanelCopySessionID(sessionID))
-      case .agentPanelForkSessionRequested(let surfaceID, let direction, let startupCommand):
+      case .agentPanelForkSessionRequested(let surfaceID, let direction, let session):
         _ = store.send(
           .agentPanelForkSessionRequested(
             surfaceID: surfaceID,
             direction: direction,
-            startupCommand: startupCommand
+            session: session
           ))
       case .agentPanelVisibilityToggled(let surfaceID):
         _ = store.send(.agentPanelVisibilityToggled(surfaceID))

@@ -111,6 +111,73 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
+  func runningPresenceWithoutSessionShowsStartingPanel() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+
+    #expect(
+      host.setAgentPresenceActivity(
+        TerminalHostState.AgentActivity(kind: .codex, phase: .running),
+        for: surfaceID,
+        sessionID: nil,
+        processID: nil
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(
+      presentation.progressRows == [
+        PaneAgentProgressRow(id: "agent-session-running", title: "Starting session", status: .running)
+      ])
+    #expect(presentation.session == nil)
+  }
+
+  @Test
+  @MainActor
+  func forkedPresenceAdoptsHookSessionID() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+
+    #expect(
+      host.setAgentPresenceActivity(
+        TerminalHostState.AgentActivity(kind: .codex, phase: .running),
+        for: surfaceID,
+        sessionID: nil,
+        processID: nil
+      )
+    )
+    #expect(
+      host.registerAgentPresence(
+        agent: .codex,
+        for: surfaceID,
+        sessionID: "session-1",
+        processID: nil
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
+    #expect(presentation.progressRows.isEmpty)
+  }
+
+  @Test
+  @MainActor
   func actionablePresenceExposesSessionPanelWithoutSnapshot() throws {
     initializeGhosttyForTests()
 

@@ -249,7 +249,7 @@ final class TerminalWindowRegistry {
         .agentPanelForkSessionRequested(
           surfaceID: selectedAgentPanel.surfaceID,
           direction: direction,
-          startupCommand: session.forkStartupCommand
+          session: session
         )
       )
     )

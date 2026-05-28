@@ -197,7 +197,7 @@ struct TerminalSplitTreeView: View {
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
-      startupCommand: String
+      session: PaneAgentPanelSession
     )
     case agentPanelVisibilityToggled(UUID)
     case agentPanelURLTapped(URL)
@@ -447,12 +447,12 @@ struct TerminalSplitTreeView: View {
           copySessionID: { sessionID in
             action(.agentPanelCopySessionID(sessionID))
           },
-          forkSession: { direction, startupCommand in
+          forkSession: { direction, session in
             action(
               .agentPanelForkSessionRequested(
                 surfaceID: surfaceView.id,
                 direction: direction,
-                startupCommand: startupCommand
+                session: session
               )
             )
           },
@@ -685,7 +685,7 @@ struct TerminalSplitTreeView: View {
     let reduceMotion: Bool
     let shortcutHint: String?
     let copySessionID: (String) -> Void
-    let forkSession: (SupatermPaneDirection, String) -> Void
+    let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
     let toggle: () -> Void
     let openURL: (URL) -> Void
 

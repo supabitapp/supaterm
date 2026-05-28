@@ -21,7 +21,7 @@ struct AgentPanelView: View {
   let forksDown: Bool
   let showsShortcutHints: Bool
   let copySessionID: (String) -> Void
-  let forkSession: (SupatermPaneDirection, String) -> Void
+  let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
   let openURL: (URL) -> Void
 
   @State private var checksAreExpanded = false
@@ -131,7 +131,7 @@ struct AgentPanelView: View {
           shortcutHint: shortcutHint(AgentPanelShortcut.forkSession),
           helpText: Self.forkHelpText(forksDown: forksDown),
           action: {
-            forkSession(Self.forkDirection(forksDown: forksDown), session.forkStartupCommand)
+            forkSession(Self.forkDirection(forksDown: forksDown), session)
           }
         )
         AgentPanelActionRow(

@@ -1043,12 +1043,13 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func agentPanelForkSessionRequestedCreatesFocusedPaneInContextSurface() async {
+  func agentPanelForkSessionRequestedCreatesFocusedPaneInContextSurface() async throws {
     let surfaceID = UUID()
     let spaceID = UUID()
     let tabID = UUID()
     let paneID = UUID()
     var requests: [TerminalCreatePaneRequest] = []
+    var registeredPanes: [(SupatermAgentKind, UUID)] = []
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
@@ -1068,20 +1069,23 @@ struct TerminalWindowFeatureTests {
           paneID: paneID
         )
       }
+      $0.terminalClient.registerForkedAgentPane = { agent, paneID in
+        registeredPanes.append((agent, paneID))
+      }
     }
 
     await store.send(
       .agentPanelForkSessionRequested(
         surfaceID: surfaceID,
         direction: .down,
-        startupCommand: "pi --fork session-1"
+        session: try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
       )
     )
 
     #expect(
       requests == [
         TerminalCreatePaneRequest(
-          startupCommand: "pi --fork session-1",
+          startupCommand: "codex fork session-1",
           cwd: nil,
           direction: .down,
           focus: true,
@@ -1090,6 +1094,9 @@ struct TerminalWindowFeatureTests {
         )
       ]
     )
+    #expect(registeredPanes.count == 1)
+    #expect(registeredPanes.first?.0 == .codex)
+    #expect(registeredPanes.first?.1 == paneID)
   }
 
   @Test

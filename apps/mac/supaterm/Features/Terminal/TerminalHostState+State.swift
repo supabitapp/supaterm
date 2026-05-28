@@ -300,11 +300,38 @@ extension TerminalHostState {
       return nil
     }
     let metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
-    let presentation = metadata.panelPresentation(session: agentPresenceStore.panelSession(for: surfaceID))
-    guard !presentation.isEmpty else {
+    let session = agentPresenceStore.panelSession(for: surfaceID)
+    let presentation = metadata.panelPresentation(session: session)
+    if !presentation.isEmpty {
+      return presentation
+    }
+    guard let activity = agentPresenceStore.detailActivity(for: surfaceID) else {
       return nil
     }
-    return presentation
+    switch activity.phase {
+    case .running:
+      return PaneAgentPanelPresentation(
+        progressRows: [
+          PaneAgentProgressRow(
+            id: "agent-session-running",
+            title: activity.detail ?? "Starting session",
+            status: .running
+          )
+        ]
+      )
+    case .needsInput:
+      return PaneAgentPanelPresentation(
+        progressRows: [
+          PaneAgentProgressRow(
+            id: "agent-session-needs-input",
+            title: activity.detail ?? "Needs input",
+            status: .pending
+          )
+        ]
+      )
+    case .idle:
+      return nil
+    }
   }
 
   func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext? {

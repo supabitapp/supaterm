@@ -26,6 +26,7 @@ struct TerminalCloseRequest: Equatable, Sendable {
 struct TerminalClient: Sendable {
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
+  var registerForkedAgentPane: @MainActor @Sendable (SupatermAgentKind, UUID) -> Void
   var send: @MainActor @Sendable (Command) -> Void
   var treeSnapshot: @MainActor @Sendable () async -> SupatermTreeSnapshot
 
@@ -80,6 +81,14 @@ struct TerminalClient: Sendable {
       events: {
         host.eventStream()
       },
+      registerForkedAgentPane: { agent, surfaceID in
+        _ = host.setAgentPresenceActivity(
+          TerminalHostState.AgentActivity(kind: agent, phase: .running),
+          for: surfaceID,
+          sessionID: nil,
+          processID: nil
+        )
+      },
       send: { command in
         host.handleCommand(command)
       },
@@ -103,6 +112,7 @@ extension TerminalClient: DependencyKey {
       throw TerminalCreatePaneError.creationFailed
     },
     events: { AsyncStream { $0.finish() } },
+    registerForkedAgentPane: { _, _ in },
     send: { _ in },
     treeSnapshot: { SupatermTreeSnapshot(windows: []) }
   )
@@ -112,6 +122,7 @@ extension TerminalClient: DependencyKey {
       throw TerminalCreatePaneError.creationFailed
     },
     events: { AsyncStream { $0.finish() } },
+    registerForkedAgentPane: { _, _ in },
     send: { _ in },
     treeSnapshot: { SupatermTreeSnapshot(windows: []) }
   )
