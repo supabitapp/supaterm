@@ -82,7 +82,27 @@ struct TerminalAgentPresenceStoreTests {
   }
 
   @Test
-  func panelSessionExposesSingleActionableSessionForSurface() {
+  func panelSessionExposesSingleActionableSessionForSurface() throws {
+    var store = TerminalAgentPresenceStore()
+    let surfaceID = UUID()
+
+    let didMarkActionable = store.markActionable(
+      agent: .codex,
+      surfaceID: surfaceID,
+      sessionID: "session-1",
+      processID: nil
+    )
+    #expect(didMarkActionable)
+
+    let session = try #require(store.panelSession(for: surfaceID))
+    let expectedSession = try #require(
+      PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
+    )
+    #expect(session == expectedSession)
+  }
+
+  @Test
+  func panelSessionHidesUnsupportedActionableSession() {
     var store = TerminalAgentPresenceStore()
     let surfaceID = UUID()
 
@@ -94,10 +114,7 @@ struct TerminalAgentPresenceStoreTests {
     )
     #expect(didMarkActionable)
 
-    #expect(
-      store.panelSession(for: surfaceID)
-        == PaneAgentPanelSession(agent: .pi, sessionID: "session-1")
-    )
+    #expect(store.panelSession(for: surfaceID) == nil)
   }
 
   @Test

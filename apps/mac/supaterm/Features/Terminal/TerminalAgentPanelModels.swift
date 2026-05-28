@@ -18,20 +18,66 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
 }
 
 nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
-  let agent: SupatermAgentKind
+  private let supportedAgent: SupportedAgent
   let sessionID: String
 
+  var agent: SupatermAgentKind {
+    supportedAgent.kind
+  }
+
+  private init(supportedAgent: SupportedAgent, sessionID: String) {
+    self.supportedAgent = supportedAgent
+    self.sessionID = sessionID
+  }
+
+  static func supported(agent: SupatermAgentKind, sessionID: String) -> Self? {
+    guard let supportedAgent = SupportedAgent(kind: agent) else {
+      return nil
+    }
+    let sessionID = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !sessionID.isEmpty else {
+      return nil
+    }
+    return Self(supportedAgent: supportedAgent, sessionID: sessionID)
+  }
+
   var forkStartupCommand: String {
-    let arguments: [String] =
-      switch agent {
+    let arguments = supportedAgent.forkArguments(sessionID: sessionID)
+    return arguments.map(SupatermShellCommand.escapedToken).joined(separator: " ")
+  }
+
+  private enum SupportedAgent: Equatable, Sendable {
+    case claude
+    case codex
+
+    init?(kind: SupatermAgentKind) {
+      switch kind {
+      case .claude:
+        self = .claude
       case .codex:
-        ["codex", "fork", sessionID]
+        self = .codex
+      case .pi:
+        return nil
+      }
+    }
+
+    var kind: SupatermAgentKind {
+      switch self {
+      case .claude:
+        .claude
+      case .codex:
+        .codex
+      }
+    }
+
+    func forkArguments(sessionID: String) -> [String] {
+      switch self {
       case .claude:
         ["claude", "--fork-session", "--resume", sessionID]
-      case .pi:
-        ["pi", "--fork", sessionID]
+      case .codex:
+        ["codex", "fork", sessionID]
       }
-    return arguments.map(SupatermShellCommand.escapedToken).joined(separator: " ")
+    }
   }
 }
 

@@ -184,7 +184,9 @@ struct TerminalAgentPresenceStore {
     let sessions = records.reduce(into: [PaneAgentPanelSession]()) { result, entry in
       guard entry.key.surfaceID == surfaceID, entry.value.isActionable else { return }
       for sessionID in entry.value.sessionIDs {
-        result.append(PaneAgentPanelSession(agent: entry.key.agent, sessionID: sessionID))
+        if let session = PaneAgentPanelSession.supported(agent: entry.key.agent, sessionID: sessionID) {
+          result.append(session)
+        }
       }
     }
     guard sessions.count == 1 else { return nil }

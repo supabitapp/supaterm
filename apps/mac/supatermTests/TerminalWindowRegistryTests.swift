@@ -863,11 +863,11 @@ struct TerminalWindowRegistryTests {
       initializeGhosttyForTests()
 
       let registry = TerminalWindowRegistry()
-      let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
+      let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
         host.markAgentSessionActionable(
-          agent: .pi,
+          agent: .codex,
           for: surfaceID,
           sessionID: "session-1",
           processID: nil
@@ -907,11 +907,11 @@ struct TerminalWindowRegistryTests {
       initializeGhosttyForTests()
 
       let registry = TerminalWindowRegistry()
-      let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
+      let host = try makeCommandPaletteHost(title: "codex", workingDirectory: nil)
       let surfaceID = try #require(host.selectedSurfaceView?.id)
       #expect(
         host.markAgentSessionActionable(
-          agent: .pi,
+          agent: .codex,
           for: surfaceID,
           sessionID: "session-1",
           processID: nil
@@ -954,7 +954,7 @@ struct TerminalWindowRegistryTests {
       #expect(
         requests == [
           TerminalCreatePaneRequest(
-            startupCommand: "pi --fork session-1",
+            startupCommand: "codex fork session-1",
             cwd: nil,
             direction: .right,
             focus: true,
@@ -962,6 +962,53 @@ struct TerminalWindowRegistryTests {
             target: .contextPane(surfaceID)
           )
         ])
+    }
+  }
+
+  @Test
+  func commandAvailabilityDisablesUnsupportedAgentSessionActions() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let host = try makeCommandPaletteHost(title: "pi", workingDirectory: nil)
+      let surfaceID = try #require(host.selectedSurfaceView?.id)
+      #expect(
+        host.markAgentSessionActionable(
+          agent: .pi,
+          for: surfaceID,
+          sessionID: "session-1",
+          processID: nil
+        )
+      )
+      #expect(
+        host.recordAgentPanelSnapshot(
+          progressRows: [
+            PaneAgentProgressRow(id: "run-tests", title: "Run tests", status: .running)
+          ],
+          sources: [],
+          for: surfaceID
+        )
+      )
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      let availability = registry.commandAvailability()
+      #expect(availability.hasAgentPanel)
+      #expect(!availability.hasAgentPanelSession)
     }
   }
 

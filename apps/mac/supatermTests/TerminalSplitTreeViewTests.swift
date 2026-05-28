@@ -207,7 +207,7 @@ struct TerminalSplitTreeViewTests {
   func agentPanelShowsForSessionActionsOnly() {
     let surfaceID = UUID()
     let presentation = PaneAgentPanelPresentation(
-      session: PaneAgentPanelSession(agent: .pi, sessionID: "session-1")
+      session: PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
     )
 
     #expect(

@@ -69,19 +69,18 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
-  func panelSessionBuildsForkStartupCommands() {
+  func panelSessionBuildsForkStartupCommands() throws {
+    let codex = try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session 1"))
+    let claude = try #require(PaneAgentPanelSession.supported(agent: .claude, sessionID: "session-1"))
+
     #expect(
-      PaneAgentPanelSession(agent: .codex, sessionID: "session 1").forkStartupCommand
-        == "codex fork 'session 1'"
+      codex.forkStartupCommand == "codex fork 'session 1'"
     )
     #expect(
-      PaneAgentPanelSession(agent: .claude, sessionID: "session-1").forkStartupCommand
-        == "claude --fork-session --resume session-1"
+      claude.forkStartupCommand == "claude --fork-session --resume session-1"
     )
-    #expect(
-      PaneAgentPanelSession(agent: .pi, sessionID: "session-1").forkStartupCommand
-        == "pi --fork session-1"
-    )
+    #expect(PaneAgentPanelSession.supported(agent: .pi, sessionID: "session-1") == nil)
+    #expect(PaneAgentPanelSession.supported(agent: .codex, sessionID: " ") == nil)
   }
 
   @Test
@@ -126,7 +125,7 @@ struct TerminalAgentPanelTests {
 
     #expect(
       host.markAgentSessionActionable(
-        agent: .pi,
+        agent: .codex,
         for: surfaceID,
         sessionID: "session-1",
         processID: nil
@@ -134,8 +133,45 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.session == PaneAgentPanelSession(agent: .pi, sessionID: "session-1"))
+    #expect(presentation.session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
     #expect(presentation.progressRows.isEmpty)
+  }
+
+  @Test
+  @MainActor
+  func unsupportedActionablePresenceDoesNotExposeSessionActions() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+
+    #expect(
+      host.markAgentSessionActionable(
+        agent: .pi,
+        for: surfaceID,
+        sessionID: "session-1",
+        processID: nil
+      )
+    )
+    #expect(
+      host.recordAgentPanelSnapshot(
+        progressRows: [
+          PaneAgentProgressRow(id: "run-tests", title: "Run tests", status: .running)
+        ],
+        sources: [],
+        for: surfaceID
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.session == nil)
+    #expect(presentation.progressRows.map(\.title) == ["Run tests"])
   }
 
   @Test

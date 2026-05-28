@@ -622,10 +622,11 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(
-      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session
-        == PaneAgentPanelSession(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+    let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
+    let expectedSession = try #require(
+      PaneAgentPanelSession.supported(agent: .codex, sessionID: CodexHookFixtures.sessionID)
     )
+    #expect(session == expectedSession)
   }
   @Test
   func codexTranscriptIgnoresToolCallsAfterAssistantMessage() async throws {
