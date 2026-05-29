@@ -16,12 +16,41 @@ struct TerminalHostStateSessionRestoreTests {
       zmxSessionsEnabled: false
     )
 
-    #expect(
-      host.resolvedSurfaceCommand(
-        startupCommand: "echo hello",
-        surfaceID: UUID()
-      ) == "/bin/zsh -lc 'echo hello'"
+    let command = host.resolvedSurfaceCommand(
+      startupCommand: "echo hello",
+      surfaceID: UUID()
     )
+
+    #expect(command.command == "/bin/zsh -lc 'echo hello'")
+    #expect(!command.usesZmx)
+  }
+
+  @Test
+  func enabledZmxSessionsPassDefaultShellCommandToWrapper() {
+    let capturedDefaultShellCommand = LockIsolated<String?>(nil)
+    let host = TerminalHostState(
+      managesTerminalSurfaces: false,
+      zmxClient: ZmxClient(
+        executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
+        isBundled: { true },
+        wrapCommand: { _, userCommand, defaultShellCommand in
+          capturedDefaultShellCommand.withValue { $0 = defaultShellCommand }
+          return userCommand == nil ? "wrapped" : nil
+        },
+        killSession: { _ in },
+        listSessions: { [] }
+      )
+    )
+
+    let command = host.resolvedSurfaceCommand(
+      startupCommand: nil,
+      surfaceID: UUID(),
+      defaultShellCommand: "bash --posix"
+    )
+
+    #expect(command.command == "wrapped")
+    #expect(command.usesZmx)
+    #expect(capturedDefaultShellCommand.value == "bash --posix")
   }
 
   @Test
@@ -162,7 +191,7 @@ struct TerminalHostStateSessionRestoreTests {
     ZmxClient(
       executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
       isBundled: { true },
-      wrapCommand: { _, _ in "wrapped" },
+      wrapCommand: { _, _, _ in "wrapped" },
       killSession: killSession,
       listSessions: { [] }
     )

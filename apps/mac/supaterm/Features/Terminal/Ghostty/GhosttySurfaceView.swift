@@ -58,6 +58,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
   private let managesWindowAppearance: Bool
+  private let disableShellIntegration: Bool
   private var trackingArea: NSTrackingArea?
   private var lastBackingSize: CGSize = .zero
   private var lastPerformKeyEvent: TimeInterval?
@@ -191,7 +192,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
     socketPath: String?,
     cliPath: String?,
     processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-    zmxSessionsEnabled: Bool = true
+    zmxSessionsEnabled: Bool = true,
+    zmxShellIntegrationEnvironmentVariables: [SupatermCLIEnvironmentVariable] = []
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
       surfaceID: surfaceID,
@@ -228,6 +230,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
           value: ZmxSocketBudget.socketDir()
         )
       )
+      environmentVariables.append(contentsOf: zmxShellIntegrationEnvironmentVariables)
     }
     let path = prependedPath(
       cliDirectory(cliPath) ?? "",
@@ -255,7 +258,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false,
-    zmxSessionsEnabled: Bool = true
+    zmxSessionsEnabled: Bool = true,
+    zmxShellIntegrationEnvironmentVariables: [SupatermCLIEnvironmentVariable] = [],
+    disableShellIntegration: Bool = false
   ) {
     self.runtime = runtime
     self.id = id
@@ -265,11 +270,13 @@ final class GhosttySurfaceView: NSView, Identifiable {
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,
       cliPath: GhosttySupport.bundledCLIPath(resourcesURL: Bundle.main.resourceURL),
-      zmxSessionsEnabled: zmxSessionsEnabled
+      zmxSessionsEnabled: zmxSessionsEnabled,
+      zmxShellIntegrationEnvironmentVariables: zmxShellIntegrationEnvironmentVariables
     )
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
+    self.disableShellIntegration = disableShellIntegration
     let initialWorkingDirectoryPath: String?
     if let workingDirectory {
       let path = Self.normalizedWorkingDirectoryPath(
@@ -1017,6 +1024,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     config.working_directory = workingDirectoryCString.map { UnsafePointer($0) }
     config.command = commandCString.map { UnsafePointer($0) }
     config.context = context
+    config.disable_shell_integration = disableShellIntegration
     Self.withEnvironmentVariables(environmentVariables) { envVars, count in
       config.env_vars = envVars
       config.env_var_count = count

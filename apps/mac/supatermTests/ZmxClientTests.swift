@@ -42,6 +42,37 @@ struct ZmxClientTests {
   }
 
   @Test
+  func attachCommandUsesDefaultShellCommandWhenUserCommandIsMissing() {
+    #expect(
+      ZmxAttach.buildCommand(
+        executablePath: "/tmp/zmx",
+        sessionID: "spt-session",
+        userCommand: nil,
+        defaultShellCommand: "bash --posix"
+      ) == "'/tmp/zmx' attach spt-session --default-shell-command 'bash --posix'"
+    )
+  }
+
+  @Test
+  func attachCommandUserCommandOverridesDefaultShellCommand() {
+    #expect(
+      ZmxAttach.buildCommand(
+        executablePath: "/tmp/zmx",
+        sessionID: "spt-session",
+        userCommand: "echo hello",
+        defaultShellCommand: "bash --posix"
+      ) == "'/tmp/zmx' attach spt-session /bin/sh -c 'echo hello'"
+    )
+  }
+
+  @Test
+  func defaultShellCommandUsesShellEnvironment() {
+    #expect(ZmxAttach.defaultShellCommand(environment: ["SHELL": "/bin/zsh"]) == "/bin/zsh")
+    #expect(ZmxAttach.defaultShellCommand(environment: ["SHELL": " "]) == "/bin/sh")
+    #expect(ZmxAttach.defaultShellCommand(environment: [:]) == "/bin/sh")
+  }
+
+  @Test
   func socketBudgetUsesShortTemporaryDirectory() {
     #expect(ZmxSocketBudget.socketDir() == "/tmp/zmx-\(getuid())")
   }

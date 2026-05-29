@@ -1,7 +1,15 @@
 import AppKit
 import GhosttyKit
+import SupatermCLIShared
 import SwiftUI
 import UniformTypeIdentifiers
+
+struct GhosttyShellIntegrationPlan: Equatable {
+  var environmentVariables: [SupatermCLIEnvironmentVariable]
+  var plannedCommand: String?
+
+  static let empty = Self(environmentVariables: [], plannedCommand: nil)
+}
 
 final class GhosttyRuntime {
   final class CallbackState {
@@ -606,6 +614,35 @@ final class GhosttyRuntime {
     guard value.len > 0, let commands = value.commands else { return [] }
     let buffer = UnsafeBufferPointer(start: commands, count: Int(value.len))
     return buffer.map(GhosttyCommand.init(cValue:))
+  }
+
+  func shellIntegrationPlan(for shellCommand: String) -> GhosttyShellIntegrationPlan {
+    guard let config else { return .empty }
+    let rawPlan = ghostty_shell_integration_plan(config, shellCommand)
+    defer {
+      ghostty_shell_integration_plan_free(rawPlan)
+    }
+    guard rawPlan.applied else { return .empty }
+    let plannedCommand: String?
+    if rawPlan.command_changed, let command = rawPlan.command {
+      plannedCommand = String(cString: command)
+    } else {
+      plannedCommand = nil
+    }
+    guard let envVars = rawPlan.env_vars, rawPlan.env_var_count > 0 else {
+      return GhosttyShellIntegrationPlan(environmentVariables: [], plannedCommand: plannedCommand)
+    }
+    let buffer = UnsafeBufferPointer(start: envVars, count: Int(rawPlan.env_var_count))
+    return GhosttyShellIntegrationPlan(
+      environmentVariables: buffer.compactMap { envVar in
+        guard let key = envVar.key, let value = envVar.value else { return nil }
+        return SupatermCLIEnvironmentVariable(
+          key: String(cString: key),
+          value: String(cString: value)
+        )
+      },
+      plannedCommand: plannedCommand
+    )
   }
 
   func focusFollowsMouse() -> Bool {

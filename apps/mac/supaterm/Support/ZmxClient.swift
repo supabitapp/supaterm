@@ -56,16 +56,22 @@ nonisolated private func zmxLogRunFinished(_ argumentLabel: String, stdoutLineCo
 }
 
 public nonisolated struct ZmxClient: Sendable {
+  public typealias WrapCommand = @Sendable (
+    _ surfaceID: UUID,
+    _ userCommand: String?,
+    _ defaultShellCommand: String?
+  ) -> String?
+
   public var executableURL: @Sendable () -> URL?
   public var isBundled: @Sendable () -> Bool
-  public var wrapCommand: @Sendable (_ surfaceID: UUID, _ userCommand: String?) -> String?
+  public var wrapCommand: WrapCommand
   public var killSession: @Sendable (_ surfaceID: UUID) async -> Void
   public var listSessions: @Sendable () async -> [String]?
 
   public nonisolated init(
     executableURL: @escaping @Sendable () -> URL?,
     isBundled: @escaping @Sendable () -> Bool,
-    wrapCommand: @escaping @Sendable (_ surfaceID: UUID, _ userCommand: String?) -> String?,
+    wrapCommand: @escaping WrapCommand,
     killSession: @escaping @Sendable (_ surfaceID: UUID) async -> Void,
     listSessions: @escaping @Sendable () async -> [String]?
   ) {
@@ -204,7 +210,7 @@ extension ZmxClient {
     return ZmxClient(
       executableURL: resolveExecutable,
       isBundled: { cachedBundledURL != nil },
-      wrapCommand: { surfaceID, userCommand in
+      wrapCommand: { surfaceID, userCommand, defaultShellCommand in
         let sessionID = ZmxSessionID.make(surfaceID: surfaceID)
         guard let executable = resolveExecutable() else {
           zmxLogError(
@@ -216,18 +222,22 @@ extension ZmxClient {
           )
           return nil
         }
+        let hasDefaultShellCommand =
+          defaultShellCommand?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         zmxLogDebug(
           "zmx.attach.wrap",
           fields: [
             "surfaceID=\(surfaceID.uuidString.lowercased())",
             "sessionID=\(sessionID)",
             "hasUserCommand=\(userCommand?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)",
+            "hasDefaultShellCommand=\(hasDefaultShellCommand)",
           ]
         )
         return ZmxAttach.buildCommand(
           executablePath: executable.path(percentEncoded: false),
           sessionID: sessionID,
-          userCommand: userCommand
+          userCommand: userCommand,
+          defaultShellCommand: defaultShellCommand
         )
       },
       killSession: { surfaceID in
@@ -262,7 +272,7 @@ extension ZmxClient {
   public nonisolated static let noop = ZmxClient(
     executableURL: { nil },
     isBundled: { false },
-    wrapCommand: { _, _ in nil },
+    wrapCommand: { _, _, _ in nil },
     killSession: { _ in },
     listSessions: { nil }
   )
@@ -349,16 +359,31 @@ public nonisolated enum ZmxSocketBudget {
 }
 
 public nonisolated enum ZmxAttach {
+  public static let defaultShellCommandFlag = "--default-shell-command"
+
   public nonisolated static func buildCommand(
     executablePath: String,
     sessionID: String,
-    userCommand: String?
+    userCommand: String?,
+    defaultShellCommand: String? = nil
   ) -> String {
     let attach = "\(shellQuote(executablePath)) attach \(sessionID)"
     guard let command = userCommand?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else {
-      return attach
+      guard let defaultShellCommand = defaultShellCommand?.trimmingCharacters(in: .whitespacesAndNewlines),
+        !defaultShellCommand.isEmpty
+      else { return attach }
+      return "\(attach) \(defaultShellCommandFlag) \(shellQuote(defaultShellCommand))"
     }
     return "\(attach) /bin/sh -c \(shellQuote(command))"
+  }
+
+  public nonisolated static func defaultShellCommand(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> String {
+    if let shell = environment["SHELL"]?.trimmingCharacters(in: .whitespacesAndNewlines), !shell.isEmpty {
+      return shell
+    }
+    return "/bin/sh"
   }
 
   public nonisolated static func shellQuote(_ value: String) -> String {

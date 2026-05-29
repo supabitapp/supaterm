@@ -59,6 +59,35 @@ struct GhosttyRuntimeTests {
   }
 
   @Test
+  func shellIntegrationPlanUsesGhosttyZshIntegration() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      shell-integration = detect
+      """
+    )
+
+    let plan = runtime.shellIntegrationPlan(for: "/bin/zsh")
+
+    #expect(plan.plannedCommand == nil)
+    #expect(
+      plan.environmentVariables.contains {
+        $0.key == "ZDOTDIR" && $0.value.hasSuffix("/shell-integration/zsh")
+      }
+    )
+  }
+
+  @Test
+  func shellIntegrationPlanRespectsDisabledShellIntegration() throws {
+    let runtime = try makeGhosttyRuntime(
+      """
+      shell-integration = none
+      """
+    )
+
+    #expect(runtime.shellIntegrationPlan(for: "/bin/zsh") == .empty)
+  }
+
+  @Test
   func notificationAttentionColorUsesBrightBlueWhenBlueFails() throws {
     let runtime = try makeGhosttyRuntime(
       """

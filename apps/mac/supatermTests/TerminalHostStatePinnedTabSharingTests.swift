@@ -382,7 +382,7 @@ struct TerminalHostStatePinnedTabSharingTests {
         zmxClient: ZmxClient(
           executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
           isBundled: { true },
-          wrapCommand: { _, _ in nil },
+          wrapCommand: { _, _, _ in nil },
           killSession: { surfaceID in
             killedSurfaceIDs.withValue { $0.append(surfaceID) }
           },
@@ -442,7 +442,7 @@ struct TerminalHostStatePinnedTabSharingTests {
         zmxClient: ZmxClient(
           executableURL: { URL(fileURLWithPath: "/tmp/zmx") },
           isBundled: { true },
-          wrapCommand: { _, _ in nil },
+          wrapCommand: { _, _, _ in nil },
           killSession: { surfaceID in
             killedSurfaceIDs.withValue { $0.append(surfaceID) }
           },
