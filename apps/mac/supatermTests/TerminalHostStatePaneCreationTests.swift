@@ -63,6 +63,28 @@ struct TerminalHostStatePaneCreationTests {
     }
   }
 
+  @Test
+  func keyboardSplitInheritsFocusedPaneWorkingDirectory() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let host = restoredHost(rootRatio: 0.5)
+      let focusedSurface = try #require(host.selectedSurfaceView)
+      let focusedPath = "/tmp/focused-pane"
+      focusedSurface.bridge.state.pwd = focusedPath
+
+      #expect(host.performSplitAction(.newSplit(direction: .right), for: focusedSurface.id))
+
+      let snapshot = host.restorationSnapshot()
+      let root = try #require(snapshot.spaces.first?.tabs.first?.root)
+      let paths = root.workingDirectoryPaths.compactMap { $0 }
+      #expect(paths.contains(focusedPath))
+      #expect(paths.filter { $0 == focusedPath }.count == 2)
+    }
+  }
+
   private func restoredHost(rootRatio: Double) -> TerminalHostState {
     let host = TerminalHostState()
     let spaceID = host.spaces[0].id

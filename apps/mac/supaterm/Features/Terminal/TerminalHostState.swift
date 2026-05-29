@@ -968,10 +968,14 @@ final class TerminalHostState {
 
     switch action {
     case .newSplit(let direction):
+      let inheritedWorkingDirectory = existingWorkingDirectoryURL(
+        for: workingDirectoryPath(for: targetSurface)
+      )
       let newSurface = createSurface(
         tabID: tabID,
         startupCommand: nil,
         inheritingFromSurfaceID: surfaceID,
+        workingDirectory: inheritedWorkingDirectory,
         context: GHOSTTY_SURFACE_CONTEXT_SPLIT
       )
       do {
