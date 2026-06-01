@@ -239,8 +239,8 @@ struct TerminalSplitTreeViewTests {
   @Test
   func agentPanelShortcutsDisplayCommandHints() {
     #expect(AgentPanelShortcut.toggleVisibility.display == "⌘I")
-    #expect(AgentPanelShortcut.forkSession.display == "⌘⇧F")
-    #expect(AgentPanelShortcut.copySessionID.display == "⌘⇧C")
+    #expect(AgentPanelShortcut.forkSession.display == "⌘⌥F")
+    #expect(AgentPanelShortcut.copySessionID.display == "⌘⌥C")
   }
 
   @Test

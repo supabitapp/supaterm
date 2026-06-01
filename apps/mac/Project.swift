@@ -355,6 +355,7 @@ let project = Project(
             fi
 
             mkdir -p "${destination_dir}"
+            rm -f "${destination_path}"
             /bin/cp -f "${source_path}" "${destination_path}"
             """,
           name: "Embed zmx",

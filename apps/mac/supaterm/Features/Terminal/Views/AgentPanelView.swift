@@ -11,8 +11,8 @@ enum AgentPanelMetrics {
 
 enum AgentPanelShortcut {
   static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
-  static let forkSession = KeyboardShortcut("f", modifiers: [.command, .shift])
-  static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .shift])
+  static let forkSession = KeyboardShortcut("f", modifiers: [.command, .option])
+  static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .option])
 }
 
 struct AgentPanelView: View {
@@ -123,8 +123,8 @@ struct AgentPanelView: View {
   }
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {
-    section("Session actions") {
-      VStack(spacing: 4) {
+    section("Agent actions") {
+      VStack(alignment: .leading, spacing: 6) {
         AgentPanelActionRow(
           icon: .asset("git-fork"),
           title: Self.forkTitle(forksDown: forksDown),
@@ -419,7 +419,7 @@ private struct AgentPanelActionRow: View {
 
   var body: some View {
     Button(action: action) {
-      HStack(spacing: 8) {
+      HStack(spacing: 7) {
         AgentPanelIconView(icon: icon, color: palette.secondaryText)
         Text(title)
           .font(.system(size: 12, weight: .medium))
@@ -434,7 +434,6 @@ private struct AgentPanelActionRow: View {
             .lineLimit(1)
         }
       }
-      .padding(.horizontal, 8)
       .frame(height: 26)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(rowBackground, in: .rect(cornerRadius: 5))

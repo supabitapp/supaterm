@@ -13,6 +13,22 @@ zmx_global_cache_dir="${zmx_build_root}/.zig-global-cache"
 zmx_fingerprint_path="${zmx_build_root}/fingerprint"
 zmx_binary_path="${zmx_build_root}/bin/zmx"
 
+validate_zmx_binary() {
+  local binary_path="$1"
+  local smoke_dir
+
+  smoke_dir="$(mktemp -d /tmp/zmx-smoke.XXXXXX)"
+  if ! "${binary_path}" version >/dev/null 2>&1; then
+    rm -rf "${smoke_dir}"
+    return 1
+  fi
+  if ! ZMX_DIR="${smoke_dir}" "${binary_path}" ls --short >/dev/null 2>&1; then
+    rm -rf "${smoke_dir}"
+    return 1
+  fi
+  rm -rf "${smoke_dir}"
+}
+
 print_fingerprint() {
   (
     cd "${zmx_dir}"
@@ -54,8 +70,11 @@ mkdir -p "${zmx_build_root}"
 if [ -f "${zmx_fingerprint_path}" ] &&
   [ -x "${zmx_binary_path}" ] &&
   [ "$(cat "${zmx_fingerprint_path}")" = "${fingerprint}" ]; then
-  printf '%s\n' "Using cached zmx build"
-  exit 0
+  if validate_zmx_binary "${zmx_binary_path}"; then
+    printf '%s\n' "Using cached zmx build"
+    exit 0
+  fi
+  printf '%s\n' "Cached zmx build failed smoke test; rebuilding" >&2
 fi
 
 cd "${zmx_dir}"
@@ -63,6 +82,11 @@ mise exec -- zig build -Doptimize=ReleaseSafe --prefix "${zmx_build_root}" --cac
 
 if [ ! -x "${zmx_binary_path}" ]; then
   echo "error: zmx build produced no binary at ${zmx_binary_path}" >&2
+  exit 1
+fi
+
+if ! validate_zmx_binary "${zmx_binary_path}"; then
+  echo "error: zmx build produced an unusable binary at ${zmx_binary_path}" >&2
   exit 1
 fi
 

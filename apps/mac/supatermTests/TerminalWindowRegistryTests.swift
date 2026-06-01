@@ -949,7 +949,11 @@ struct TerminalWindowRegistryTests {
       registry.updateWindow(makeWindow(), for: windowControllerID)
 
       registry.requestForkAgentPanelSessionInKeyWindow(direction: .right)
-      await flushEffects()
+      let clock = ContinuousClock()
+      let deadline = clock.now.advanced(by: .seconds(1))
+      while requests.isEmpty && clock.now < deadline {
+        await Task.yield()
+      }
 
       #expect(
         requests == [
