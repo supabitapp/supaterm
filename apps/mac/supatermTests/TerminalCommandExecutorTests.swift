@@ -70,7 +70,7 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func closeTabSuspendsPinnedLastTabInsteadOfClosingWindow() throws {
+  func closeTabClosesPinnedLastTabWithoutClosingWindow() throws {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry()
@@ -98,7 +98,7 @@ struct TerminalCommandExecutorTests {
     _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
 
     #expect(closeWindowCount == 0)
-    #expect(host.spaceManager.tab(for: tabID)?.isPinned == true)
+    #expect(host.spaceManager.tab(for: tabID) == nil)
     #expect(host.trees[tabID] == nil)
   }
 

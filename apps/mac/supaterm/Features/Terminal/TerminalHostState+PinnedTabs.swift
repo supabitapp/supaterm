@@ -66,6 +66,15 @@ extension TerminalHostState {
     }
   }
 
+  func removePinnedTabFromCatalog(_ tabID: TerminalTabID, in spaceID: TerminalSpaceID) {
+    updatePinnedTabCatalog { pinnedTabCatalog in
+      pinnedTabCatalog.updatingTabs(
+        pinnedTabCatalog.tabs(in: spaceID).filter { $0.id != tabID },
+        in: spaceID
+      )
+    }
+  }
+
   func persistLivePinnedTabLayouts() {
     var updatedCatalog = pinnedTabCatalog
     for space in spaces {

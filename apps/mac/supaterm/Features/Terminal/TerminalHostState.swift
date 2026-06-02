@@ -1115,16 +1115,19 @@ final class TerminalHostState {
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == space.id
+    let dormantPinnedSurfaceIDs =
+      wasPinned && trees[tabID] == nil
+      ? Array(pinnedTabCatalog.tabs(in: space.id).first(where: { $0.id == tabID })?.session.surfaceIDs ?? [])
+      : []
 
     if wasPinned {
-      suspendPinnedTab(tabID)
-      updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
-      syncFocus(windowActivity)
-      sessionDidChange(persistingPinnedTabLayouts: false)
-      return
+      removePinnedTabFromCatalog(tabID, in: space.id)
     }
 
     removeTree(for: tabID, source: .closeTab)
+    if !dormantPinnedSurfaceIDs.isEmpty {
+      killZmxSessions(for: dormantPinnedSurfaceIDs)
+    }
     tabManager.closeTab(tabID)
     updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
     syncFocus(windowActivity)
@@ -1178,14 +1181,7 @@ final class TerminalHostState {
     )
 
     if newTree.isEmpty, wasPinned {
-      suspendPinnedTab(tabID)
-      if let spaceID {
-        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
-      } else {
-        lastEmittedFocusSurfaceID = nil
-      }
-      syncFocus(windowActivity)
-      sessionDidChange(persistingPinnedTabLayouts: false)
+      performCloseTab(tabID)
       return
     }
 
