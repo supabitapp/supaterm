@@ -369,6 +369,13 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func pathLikeTabTitlesTruncateInTheMiddle() {
+    #expect(TerminalSidebarTabSummaryView.titleTruncationMode("~/code/github.com/supabitapp/supaterm") == .middle)
+    #expect(TerminalSidebarTabSummaryView.titleTruncationMode("/Users/Developer/code/github.com") == .middle)
+    #expect(TerminalSidebarTabSummaryView.titleTruncationMode("ping 1.1.1.1") == .tail)
+  }
+
+  @Test
   func helpTextIncludesPaneDirectoriesOnly() {
     #expect(
       TerminalSidebarTabSummaryView.helpText(

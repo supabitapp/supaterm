@@ -540,6 +540,10 @@ struct TerminalSidebarTabSummaryView: View {
     )
   }
 
+  static func titleTruncationMode(_ title: String) -> Text.TruncationMode {
+    title.contains("/") ? .middle : .tail
+  }
+
   static func trailingAgentBadgeActivities(
     _ activities: [TerminalHostState.AgentActivity],
     showsAgentMarks: Bool
@@ -586,7 +590,7 @@ struct TerminalSidebarTabSummaryView: View {
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
           .lineLimit(1)
-          .truncationMode(.tail)
+          .truncationMode(Self.titleTruncationMode(tab.title))
           .frame(maxWidth: .infinity, alignment: .leading)
 
         if let notificationPreviewMarkdown {
