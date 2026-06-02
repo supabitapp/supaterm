@@ -205,6 +205,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.closeSurface(surfaceID))
 
       @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
+      // Crucial invariant: closing the final pane in a pinned tab must keep the pinned tab dormant.
       #expect(host.spaceManager.tab(for: pinnedTabID)?.isPinned == true)
       #expect(host.trees[pinnedTabID] == nil)
       #expect(host.selectedTabID == regularTabID)
