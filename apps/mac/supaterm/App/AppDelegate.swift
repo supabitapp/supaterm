@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
@@ -65,7 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var windowControllers: [UUID: TerminalWindowController] = [:]
   private var suppressesSessionSave = false
 
-  private static let onboardingStartupCommand = #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#
+  private static var onboardingStartupCommand: String {
+    SupatermShellCommand.interactiveStartupCommand(for: "sp onboard")
+  }
 
   override init() {
     AppCrashReporting.setup()

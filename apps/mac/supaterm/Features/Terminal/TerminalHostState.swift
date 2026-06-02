@@ -1309,9 +1309,7 @@ final class TerminalHostState {
       )
       return SurfaceLaunchCommand(command: command, commandWrapper: [], usesZmx: false)
     }
-    let zmxCommand = startupCommand.map {
-      SupatermShellCommand.ghosttyStartupCommand(for: $0, preservesShellIntegrationEnvironment: true)
-    }
+    let zmxCommand = startupCommand.map { SupatermShellCommand.ghosttyStartupCommand(for: $0) }
     let launch = ZmxAttach.resolveLaunch(
       executablePath: executable.path(percentEncoded: false),
       sessionID: sessionID,

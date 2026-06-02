@@ -17,7 +17,7 @@ enum LoginShellCommandAvailability {
   }
 
   static func interactiveCommandArguments(for command: String) -> [String] {
-    ["-l", "-i", "-c", command]
+    SupatermShellCommand.loginShellCommandArguments(for: command)
   }
 }
 
@@ -141,11 +141,12 @@ public struct CodexSettingsInstaller {
     environment: [String: String] = ProcessInfo.processInfo.environment,
     currentUserShellPath: String? = currentUserShellPath()
   ) -> URL {
-    let shellPath =
-      normalizedShellPath(currentUserShellPath)
-      ?? normalizedShellPath(environment["SHELL"])
-      ?? "/bin/zsh"
-    return URL(fileURLWithPath: shellPath)
+    URL(
+      fileURLWithPath: SupatermShellCommand.loginShellPath(
+        environment: environment,
+        currentUserShellPath: currentUserShellPath
+      )
+    )
   }
 
   static func enableHooksCommandArguments() -> [String] {
@@ -163,13 +164,6 @@ public struct CodexSettingsInstaller {
       return nil
     }
     return String(cString: shell)
-  }
-
-  private static func normalizedShellPath(_ path: String?) -> String? {
-    guard let path = path?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
-      return nil
-    }
-    return path
   }
 
   private var fileInstaller: AgentHookSettingsFileInstaller {

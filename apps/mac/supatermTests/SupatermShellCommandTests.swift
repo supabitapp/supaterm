@@ -1,5 +1,6 @@
-import SupatermCLIShared
 import Testing
+
+@testable import SupatermCLIShared
 
 struct SupatermShellCommandTests {
   @Test
@@ -14,34 +15,66 @@ struct SupatermShellCommandTests {
   }
 
   @Test
-  func ghosttyStartupCommandRunsScriptThroughZsh() {
-    #expect(SupatermShellCommand.ghosttyStartupCommand(for: "echo hello") == "/bin/zsh -lc 'echo hello'")
+  func ghosttyStartupCommandRunsScriptThroughLoginShell() {
     #expect(
-      SupatermShellCommand.ghosttyStartupCommand(for: "echo 1\necho 2")
-        == "/bin/zsh -lc 'echo 1\necho 2'"
+      SupatermShellCommand.ghosttyStartupCommand(for: "echo hello", shellPath: "/bin/zsh")
+        == "/bin/zsh -l -i -c 'echo hello'"
+    )
+    #expect(
+      SupatermShellCommand.ghosttyStartupCommand(for: "echo hello", shellPath: "/opt/homebrew/bin/fish")
+        == "/opt/homebrew/bin/fish -l -i -c 'echo hello'"
+    )
+    #expect(
+      SupatermShellCommand.ghosttyStartupCommand(for: "echo 1\necho 2", shellPath: "/bin/zsh")
+        == "/bin/zsh -l -i -c 'echo 1\necho 2'"
     )
   }
 
   @Test
-  func ghosttyStartupCommandCanPreserveShellIntegrationEnvironment() {
+  func ghosttyStartupCommandQuotesComplexScripts() {
     #expect(
       SupatermShellCommand.ghosttyStartupCommand(
         for: #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#,
-        preservesShellIntegrationEnvironment: true
+        shellPath: "/bin/zsh"
       )
-        == #"/bin/zsh -flc 'sp onboard; exec "${SHELL:-/bin/zsh}" -l'"#
+        == #"/bin/zsh -l -i -c 'sp onboard; exec "${SHELL:-/bin/zsh}" -l'"#
     )
   }
 
   @Test
-  func interactiveStartupCommandLeavesShellBehind() {
+  func interactiveStartupCommandLeavesZshBehind() {
     let expected =
       #"echo hello; shell="${SHELL:-/bin/zsh}"; [ -x "$shell" ] || shell="/bin/zsh"; "#
       + #"if "$shell" -l -c 'exit 0' >/dev/null 2>&1; then exec "$shell" -l; fi; exec "$shell""#
 
     #expect(
-      SupatermShellCommand.interactiveStartupCommand(for: "echo hello")
+      SupatermShellCommand.interactiveStartupCommand(for: "echo hello", shellPath: "/bin/zsh")
         == expected
+    )
+  }
+
+  @Test
+  func interactiveStartupCommandLeavesFishBehind() {
+    let expected =
+      #"echo hello; set -l shell "$SHELL"; if test -z "$shell"; set shell /opt/homebrew/bin/fish; end; "#
+      + #"if not test -x "$shell"; set shell /opt/homebrew/bin/fish; end; exec "$shell" -l"#
+
+    #expect(
+      SupatermShellCommand.interactiveStartupCommand(
+        for: "echo hello",
+        shellPath: "/opt/homebrew/bin/fish"
+      )
+        == expected
+    )
+  }
+
+  @Test
+  func loginShellPathPrefersCurrentUserShell() {
+    #expect(
+      SupatermShellCommand.loginShellPath(
+        environment: ["SHELL": "/bin/zsh"],
+        currentUserShellPath: "/opt/homebrew/bin/fish"
+      ) == "/opt/homebrew/bin/fish"
     )
   }
 }

@@ -259,7 +259,7 @@ struct AppDelegateTests {
       requests == [
         AppDelegate.LaunchWindowRequest(
           session: nil,
-          startupCommand: #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#,
+          startupCommand: SupatermShellCommand.interactiveStartupCommand(for: "sp onboard"),
         )
       ]
     )

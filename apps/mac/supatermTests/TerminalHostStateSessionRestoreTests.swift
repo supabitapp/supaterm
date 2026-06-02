@@ -21,7 +21,7 @@ struct TerminalHostStateSessionRestoreTests {
       surfaceID: UUID()
     )
 
-    #expect(command.command == "/bin/zsh -lc 'echo hello'")
+    #expect(command.command == SupatermShellCommand.ghosttyStartupCommand(for: "echo hello"))
     #expect(command.commandWrapper.isEmpty)
     #expect(!command.usesZmx)
   }
@@ -50,7 +50,7 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func enabledZmxSessionsWrapStartupCommandAndPreserveShellIntegrationEnvironment() {
+  func enabledZmxSessionsWrapStartupCommandThroughLoginShell() {
     let surfaceID = UUID()
     let host = TerminalHostState(
       managesTerminalSurfaces: false,
@@ -67,7 +67,12 @@ struct TerminalHostStateSessionRestoreTests {
       surfaceID: surfaceID
     )
 
-    #expect(command.command == #"/bin/zsh -flc 'sp onboard; exec "${SHELL:-/bin/zsh}" -l'"#)
+    #expect(
+      command.command
+        == SupatermShellCommand.ghosttyStartupCommand(
+          for: #"sp onboard; exec "${SHELL:-/bin/zsh}" -l"#
+        )
+    )
     #expect(command.commandWrapper == ["/tmp/zmx", "attach", ZmxSessionID.make(surfaceID: surfaceID)])
     #expect(command.usesZmx)
   }
@@ -89,7 +94,7 @@ struct TerminalHostStateSessionRestoreTests {
       surfaceID: UUID()
     )
 
-    #expect(command.command == "/bin/zsh -lc 'echo hello'")
+    #expect(command.command == SupatermShellCommand.ghosttyStartupCommand(for: "echo hello"))
     #expect(command.commandWrapper.isEmpty)
     #expect(!command.usesZmx)
   }

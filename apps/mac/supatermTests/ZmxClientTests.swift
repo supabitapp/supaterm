@@ -46,10 +46,10 @@ struct ZmxClientTests {
     let launch = ZmxAttach.resolveLaunch(
       executablePath: "/tmp/zmx",
       sessionID: "spt-session",
-      command: "/bin/zsh -flc 'echo hello'"
+      command: "/opt/homebrew/bin/fish -l -i -c 'echo hello'"
     )
 
-    #expect(launch.command == "/bin/zsh -flc 'echo hello'")
+    #expect(launch.command == "/opt/homebrew/bin/fish -l -i -c 'echo hello'")
     #expect(launch.commandWrapper == ["/tmp/zmx", "attach", "spt-session"])
   }
 
