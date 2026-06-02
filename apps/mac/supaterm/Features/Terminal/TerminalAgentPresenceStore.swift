@@ -245,12 +245,8 @@ struct TerminalAgentPresenceStore {
       }
       changed =
         updateRecord(for: key) { record in
-          record.sessionIDs.formUnion(pruned.sessionIDs)
           record.processIDs.formUnion(processIDs)
           record.activity = activity
-          if activity != nil {
-            record.isActionable = true
-          }
         } || changed
     }
     return changed

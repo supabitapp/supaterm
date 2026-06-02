@@ -201,9 +201,39 @@ struct TerminalAgentPresenceStoreTests {
     var restored = TerminalAgentPresenceStore()
     #expect(restored.restore(snapshot, surfaceID: surfaceID) { $0 == 100 })
     #expect(restored.statusInstances(for: surfaceID, surfaceIndex: 0).map(\.activity) == [.codex(.running)])
+    #expect(restored.panelSession(for: surfaceID) == nil)
 
     var dropped = TerminalAgentPresenceStore()
     #expect(!dropped.restore(snapshot, surfaceID: surfaceID) { _ in false })
     #expect(dropped.badgeInstances(across: [surfaceID]).isEmpty)
+  }
+
+  @Test
+  func restoredSessionIDsDoNotBecomePanelActionSources() throws {
+    var store = TerminalAgentPresenceStore()
+    let surfaceID = UUID()
+    let restoredRecord = TerminalPaneAgentRecord(
+      agent: .codex,
+      sessionIDs: ["old-session"],
+      processIDs: [100],
+      activityPhase: .running
+    )
+
+    #expect(store.restore([restoredRecord], surfaceID: surfaceID) { $0 == 100 })
+    #expect(store.panelSession(for: surfaceID) == nil)
+
+    let didMarkActionable = store.markActionable(
+      agent: .codex,
+      surfaceID: surfaceID,
+      sessionID: "current-session",
+      processID: 200
+    )
+    #expect(didMarkActionable)
+
+    let session = try #require(store.panelSession(for: surfaceID))
+    let expectedSession = try #require(
+      PaneAgentPanelSession.supported(agent: .codex, sessionID: "current-session")
+    )
+    #expect(session == expectedSession)
   }
 }
