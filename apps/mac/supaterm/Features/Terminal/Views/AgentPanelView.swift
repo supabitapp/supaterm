@@ -124,7 +124,7 @@ struct AgentPanelView: View {
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {
     section("Agent actions") {
-      VStack(alignment: .leading, spacing: 6) {
+      VStack(alignment: .leading, spacing: 2) {
         AgentPanelActionRow(
           icon: .asset("git-fork"),
           title: Self.forkTitle(forksDown: forksDown),
