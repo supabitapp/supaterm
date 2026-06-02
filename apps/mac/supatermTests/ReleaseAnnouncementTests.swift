@@ -14,17 +14,17 @@ struct ReleaseAnnouncementTests {
   @Test
   func equalVersionDoesNotShowAnnouncement() throws {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.3",
-        acknowledgedVersion: "1.3.3"
+        lastInstalledVersion: "1.3.4",
+        acknowledgedVersion: "1.3.4"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
-    #expect(result.storageState.acknowledgedVersion == "1.3.3")
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
+    #expect(result.storageState.acknowledgedVersion == "1.3.4")
   }
 
   @Test
@@ -46,33 +46,33 @@ struct ReleaseAnnouncementTests {
   @Test
   func freshInstallSeedsCurrentVersionAndShowsNoHistoricalAnnouncement() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: nil,
       hasExistingSupatermState: false
     )
 
     #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
-    #expect(result.storageState.acknowledgedVersion == "1.3.3")
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
+    #expect(result.storageState.acknowledgedVersion == "1.3.4")
   }
 
   @Test
   func existingInstallWithoutAnnouncementStateShowsCurrentCard() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: nil,
       hasExistingSupatermState: true
     )
 
-    #expect(result.announcement == .terminalPersistence)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
+    #expect(result.announcement == .agentForking)
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
   @Test
   func upgradeFromOlderAcknowledgedVersionShowsEligibleCard() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
         lastInstalledVersion: "1.3.2",
         acknowledgedVersion: "1.3.2"
@@ -80,15 +80,15 @@ struct ReleaseAnnouncementTests {
       hasExistingSupatermState: true
     )
 
-    #expect(result.announcement == .terminalPersistence)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
+    #expect(result.announcement == .agentForking)
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
   @Test
   func storedLastInstalledVersionDrivesAnnouncementWithoutAcknowledgedVersion() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
         lastInstalledVersion: "1.3.2",
         acknowledgedVersion: nil
@@ -96,40 +96,38 @@ struct ReleaseAnnouncementTests {
       hasExistingSupatermState: true
     )
 
-    #expect(result.announcement == .terminalPersistence)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
+    #expect(result.announcement == .agentForking)
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == nil)
   }
 
   @Test
   func currentLastInstalledVersionHidesAnnouncementEvenWhenAcknowledgedVersionIsOlder() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.3",
+      currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.3",
+        lastInstalledVersion: "1.3.4",
         acknowledgedVersion: "1.3.2"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.3")
+    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
   @Test
-  func terminalPersistenceCopyMatchesReleaseCard() {
-    let expectedMessage = "Quit Supaterm anytime. Your agents, scripts, and shells keep running, "
-      + "and reopen exactly where you left off."
+  func agentForkingCopyMatchesReleaseCard() {
+    let expectedMessage = "Forking session is now easier than ever using the agent panel. "
+      + "Enable coding agents integration to try it."
 
-    #expect(ReleaseAnnouncement.terminalPersistence.title == "Sessions persist across quits")
+    #expect(ReleaseAnnouncement.agentForking.title == "Fork sessions from the agent panel")
     #expect(
-      ReleaseAnnouncement.terminalPersistence.message
+      ReleaseAnnouncement.agentForking.message
         == expectedMessage
     )
-    #expect(
-      ReleaseAnnouncement.terminalPersistence.footer
-        == "Manage in Settings → General"
-    )
+    #expect(ReleaseAnnouncement.agentForking.footer == "Settings → Coding Agents")
+    #expect(ReleaseAnnouncement.agentForking.imageName == "git-fork")
   }
 }

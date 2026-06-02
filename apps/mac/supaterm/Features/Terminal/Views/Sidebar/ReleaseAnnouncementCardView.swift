@@ -8,9 +8,11 @@ struct ReleaseAnnouncementCardView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .top, spacing: 8) {
-        Image(systemName: announcement.systemImage)
-          .font(.system(size: 22, weight: .semibold))
-          .foregroundStyle(.purple)
+        Image(announcement.imageName)
+          .renderingMode(.template)
+          .resizable()
+          .scaledToFit()
+          .foregroundStyle(palette.primaryText)
           .frame(width: 24, height: 24, alignment: .leading)
           .accessibilityHidden(true)
 

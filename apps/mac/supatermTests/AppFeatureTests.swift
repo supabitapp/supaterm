@@ -39,12 +39,12 @@ struct AppFeatureTests {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     } withDependencies: {
-      $0.releaseAnnouncementClient.synchronize = { .terminalPersistence }
+      $0.releaseAnnouncementClient.synchronize = { .agentForking }
     }
 
     await store.send(.task)
     await store.receive(\.releaseAnnouncementLoaded) {
-      $0.releaseAnnouncement = .terminalPersistence
+      $0.releaseAnnouncement = .agentForking
     }
   }
 
@@ -52,7 +52,7 @@ struct AppFeatureTests {
   func taskDoesNotReloadVisibleReleaseAnnouncement() async {
     let synchronizeCount = LockIsolated(0)
     var state = AppFeature.State()
-    state.releaseAnnouncement = .terminalPersistence
+    state.releaseAnnouncement = .agentForking
 
     let store = TestStore(initialState: state) {
       AppFeature()
@@ -73,7 +73,7 @@ struct AppFeatureTests {
   func dismissingReleaseAnnouncementAcknowledgesVersion() async {
     let acknowledgedVersion = LockIsolated<String?>(nil)
     var state = AppFeature.State()
-    state.releaseAnnouncement = .terminalPersistence
+    state.releaseAnnouncement = .agentForking
 
     let store = TestStore(initialState: state) {
       AppFeature()
@@ -88,6 +88,6 @@ struct AppFeatureTests {
     }
     await store.finish()
 
-    #expect(acknowledgedVersion.value == "1.3.3")
+    #expect(acknowledgedVersion.value == "1.3.4")
   }
 }

@@ -33,20 +33,20 @@ nonisolated struct ReleaseAnnouncement: Equatable, Identifiable, Sendable {
   let title: String
   let message: String
   let footer: String
-  let systemImage: String
+  let imageName: String
 
   enum AnnouncementID: String, Sendable {
-    case terminalPersistence
+    case agentForking
   }
 
-  static let terminalPersistence = Self(
-    id: .terminalPersistence,
-    version: ReleaseAnnouncementVersion("1.3.3")!,
-    title: "Sessions persist across quits",
-    message: "Quit Supaterm anytime. Your agents, scripts, and shells keep running, "
-      + "and reopen exactly where you left off.",
-    footer: "Manage in Settings → General",
-    systemImage: "infinity"
+  static let agentForking = Self(
+    id: .agentForking,
+    version: ReleaseAnnouncementVersion("1.3.4")!,
+    title: "Fork sessions from the agent panel",
+    message: "Forking session is now easier than ever using the agent panel. "
+      + "Enable coding agents integration to try it.",
+    footer: "Settings → Coding Agents",
+    imageName: "git-fork"
   )
 }
 
@@ -63,7 +63,7 @@ nonisolated struct ReleaseAnnouncementSyncResult: Equatable, Sendable {
 nonisolated enum ReleaseAnnouncementCatalog {
   static let firstAnnouncementBaseline = ReleaseAnnouncementVersion("1.3.2")!
   static let announcements: [ReleaseAnnouncement] = [
-    .terminalPersistence,
+    .agentForking,
   ]
 
   static func synchronize(
