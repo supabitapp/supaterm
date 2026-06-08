@@ -3,46 +3,43 @@
   import SupatermCLIShared
 
   extension TerminalHostState {
-    @discardableResult
     func demoInjectRunningAgent(
       kind: SupatermAgentKind,
       surfaceID: UUID,
       detail: String,
       sessionID: String?
-    ) -> Bool {
-      setAgentPresenceActivity(
-        AgentActivity(kind: kind, phase: .running, detail: detail),
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: nil
+    ) {
+      demoInjectAgent(
+        kind: kind,
+        phase: .running,
+        surfaceID: surfaceID,
+        detail: detail,
+        sessionID: sessionID
       )
     }
 
-    @discardableResult
     func demoInjectNeedsInputAgent(
       kind: SupatermAgentKind,
       surfaceID: UUID,
       detail: String,
       sessionID: String?
-    ) -> Bool {
-      setAgentPresenceActivity(
-        AgentActivity(kind: kind, phase: .needsInput, detail: detail),
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: nil
+    ) {
+      demoInjectAgent(
+        kind: kind,
+        phase: .needsInput,
+        surfaceID: surfaceID,
+        detail: detail,
+        sessionID: sessionID
       )
     }
 
-    @discardableResult
-    func demoInjectPanelMetadata(surfaceID: UUID) -> Bool {
-      guard tabID(containing: surfaceID) != nil else { return false }
+    func demoInjectPanelMetadata(surfaceID: UUID) {
+      guard tabID(containing: surfaceID) != nil else { return }
       storePaneAgentMetadata(.demoRichPanel, for: surfaceID)
-      return true
     }
 
-    @discardableResult
-    func demoInjectNotification(surfaceID: UUID) -> Bool {
-      guard tabID(containing: surfaceID) != nil else { return false }
+    func demoInjectNotification(surfaceID: UUID) {
+      guard tabID(containing: surfaceID) != nil else { return }
       paneNotifications[surfaceID, default: []].append(
         PaneNotification(
           attentionState: .unread,
@@ -53,7 +50,21 @@
           origin: .structuredAgent(.attention)
         )
       )
-      return true
+    }
+
+    private func demoInjectAgent(
+      kind: SupatermAgentKind,
+      phase: AgentActivityPhase,
+      surfaceID: UUID,
+      detail: String,
+      sessionID: String?
+    ) {
+      setAgentPresenceActivity(
+        AgentActivity(kind: kind, phase: phase, detail: detail),
+        for: surfaceID,
+        sessionID: sessionID,
+        processID: nil
+      )
     }
   }
 
