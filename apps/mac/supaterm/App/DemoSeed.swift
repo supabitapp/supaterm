@@ -12,6 +12,7 @@
       @Shared(.terminalPinnedTabCatalog) var pinnedTabCatalog = TerminalPinnedTabCatalog.default
       @Shared(.supatermSettings) var settings = SupatermSettings.default
 
+      prepareWorkspaceDirectories()
       $spaceCatalog.withLock {
         $0 = TerminalSpaceCatalog(
           defaultSelectedSpaceID: IDs.space,
@@ -105,14 +106,14 @@
           left: .leaf(
             TerminalPaneLeafSession(
               id: IDs.webAgentSurface,
-              workingDirectoryPath: workingDirectoryPath("code/supaterm/web"),
+              workingDirectoryPath: workingDirectoryPath("web"),
               titleOverride: "supaterm/web"
             )
           ),
           right: .leaf(
             TerminalPaneLeafSession(
               id: IDs.webShellSurface,
-              workingDirectoryPath: workingDirectoryPath("code/supaterm/web"),
+              workingDirectoryPath: workingDirectoryPath("web"),
               titleOverride: "shell"
             )
           )
@@ -127,7 +128,7 @@
       root: .leaf(
         TerminalPaneLeafSession(
           id: IDs.apiSurface,
-          workingDirectoryPath: workingDirectoryPath("code/supaterm/api"),
+          workingDirectoryPath: workingDirectoryPath("api"),
           titleOverride: "supaterm/api"
         )
       )
@@ -140,7 +141,7 @@
       root: .leaf(
         TerminalPaneLeafSession(
           id: IDs.deploySurface,
-          workingDirectoryPath: workingDirectoryPath("code/supaterm/deploy"),
+          workingDirectoryPath: workingDirectoryPath("deploy"),
           titleOverride: "supaterm/deploy"
         )
       )
@@ -153,23 +154,36 @@
       root: .leaf(
         TerminalPaneLeafSession(
           id: IDs.scratchSurface,
-          workingDirectoryPath: workingDirectoryPath("code/supaterm/scratch"),
+          workingDirectoryPath: workingDirectoryPath("scratch"),
           titleOverride: "scratch"
         )
       )
     )
 
-    private static func workingDirectoryPath(_ relativePath: String) -> String {
-      let home = FileManager.default.homeDirectoryForCurrentUser.path
-      let path = NSString(string: home).appendingPathComponent(relativePath)
-      var isDirectory: ObjCBool = false
-      guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-        isDirectory.boolValue
-      else {
-        return home
+    private static func prepareWorkspaceDirectories() {
+      for directory in workspaceDirectoryNames {
+        try? FileManager.default.createDirectory(
+          at: workspaceRoot.appendingPathComponent(directory, isDirectory: true),
+          withIntermediateDirectories: true
+        )
       }
-      return path
     }
+
+    private static func workingDirectoryPath(_ name: String) -> String {
+      workspaceRoot.appendingPathComponent(name, isDirectory: true).path
+    }
+
+    private static let workspaceDirectoryNames = [
+      "web",
+      "api",
+      "deploy",
+      "scratch",
+    ]
+
+    private static let workspaceRoot =
+      FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent("dev", isDirectory: true)
+      .appendingPathComponent("supaterm", isDirectory: true)
 
     private enum IDs {
       static let space = TerminalSpaceID(rawValue: UUID(uuidString: "4F9DA8C0-7B80-42C4-A828-B7A7E4E1D3A1")!)
