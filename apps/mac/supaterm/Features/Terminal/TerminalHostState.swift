@@ -1523,7 +1523,7 @@ final class TerminalHostState {
 
   func handleCommandFinished(for surfaceID: UUID) {
     #if SUPATERM_DEMO
-      guard !DemoSeed.preservesFakeAgentState(surfaceID) else { return }
+      guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
     #endif
     let removedAgentPresence = clearAgentPresence(for: surfaceID)
     let hadAgentMetadata = paneAgentMetadataBySurfaceID[surfaceID]?.isEmpty == false

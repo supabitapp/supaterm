@@ -58,26 +58,26 @@
         $0.restoreTerminalLayoutEnabled = true
         $0.codingAgentsShowPanel = true
       }
+      ReleaseAnnouncementStorage.save(
+        ReleaseAnnouncementStorageState(
+          lastInstalledVersion: AppBuild.version,
+          acknowledgedVersion: AppBuild.version
+        )
+      )
     }
 
     static func decorate(_ terminals: [TerminalHostState]) {
       for terminal in terminals {
         terminal.demoInjectRunningAgent(
-          kind: .codex,
+          kind: .claude,
           surfaceID: IDs.webAgentSurface,
-          detail: "Refining sidebar states",
+          detail: "Reviewing tab restore",
           sessionID: "019b1fd8-49f5-7b72-a4e4-62f59f9c7d21"
         )
         terminal.demoInjectRunningAgent(
           kind: .claude,
-          surfaceID: IDs.webAgentSurface,
-          detail: "Reviewing tab restore",
-          sessionID: nil
-        )
-        terminal.demoInjectRunningAgent(
-          kind: .pi,
-          surfaceID: IDs.webAgentSurface,
-          detail: "Checking release copy",
+          surfaceID: IDs.webShellSurface,
+          detail: "Refining sidebar states",
           sessionID: nil
         )
         terminal.demoInjectPanelMetadata(surfaceID: IDs.webAgentSurface)
@@ -88,7 +88,7 @@
           sessionID: nil
         )
         terminal.demoInjectNeedsInputAgent(
-          kind: .codex,
+          kind: .pi,
           surfaceID: IDs.deploySurface,
           detail: "Waiting for approval",
           sessionID: nil
@@ -97,12 +97,13 @@
       }
     }
 
-    static func preservesFakeAgentState(_ surfaceID: UUID) -> Bool {
-      fakeAgentSurfaceIDs.contains(surfaceID)
+    static func preservesSeededAgentState(_ surfaceID: UUID) -> Bool {
+      seededAgentSurfaceIDs.contains(surfaceID)
     }
 
-    private static let fakeAgentSurfaceIDs: Set<UUID> = [
+    private static let seededAgentSurfaceIDs: Set<UUID> = [
       IDs.webAgentSurface,
+      IDs.webShellSurface,
       IDs.apiSurface,
       IDs.deploySurface,
     ]
