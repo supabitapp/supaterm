@@ -59,12 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   )
   private var settingsWindowController: SettingsWindowController?
-  private var terminatingSessionCatalog: TerminalSessionCatalog?
-  private var isTerminatingAfterSessionTermination = false
+  private var sessionPersistenceState = SessionPersistenceState.active
   private var terminatesSessionsForNextQuit = false
   private var toggleVisibilityState: ToggleVisibilityState?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
-  private var suppressesSessionSave = false
 
   private static var onboardingStartupCommand: String {
     SupatermShellCommand.interactiveStartupCommand(for: "sp onboard")
@@ -158,9 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   func applicationWillTerminate(_ notification: Notification) {
     persistSession(
-      Self.persistedSessionCatalog(
-        liveSessionCatalog: terminalWindowRegistry.restorationSnapshot(),
-        pendingTerminationSessionCatalog: terminatingSessionCatalog
+      sessionPersistenceState.catalogToPersist(
+        liveCatalog: terminalWindowRegistry.restorationSnapshot()
       )
     )
     globalKeybindManager.disable()
@@ -202,7 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    if isTerminatingAfterSessionTermination {
+    if sessionPersistenceState.shortCircuitsTerminateReply {
       return .terminateNow
     }
     let terminatesSessionsForNextQuit = self.terminatesSessionsForNextQuit
@@ -219,13 +216,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       quitConfirmationPresenter.confirmQuit(terminatesSessions: terminatesSessionsOnQuit)
     }
     let reply = terminationPlan.reply
-    terminatingSessionCatalog = Self.pendingTerminationSessionCatalog(
-      for: reply,
-      liveSessionCatalog: terminalWindowRegistry.restorationSnapshot(),
-      terminatesSessions: terminationPlan.terminatesSessions
+    sessionPersistenceState = .afterTerminationDecision(
+      reply: reply,
+      terminatesSessions: terminationPlan.terminatesSessions,
+      liveCatalog: terminalWindowRegistry.restorationSnapshot()
     )
     if reply == .terminateNow && terminationPlan.terminatesSessions {
-      isTerminatingAfterSessionTermination = true
       Task { @MainActor in
         await terminalWindowRegistry.terminateLiveTerminalSessionsAndWait()
         await terminalWindowRegistry.terminateAllZmxSessionsAndWait()
@@ -315,7 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private func restoreWindowsAtLaunch() {
-    suppressesSessionSave = true
+    sessionPersistenceState = .restoring
     let requests = Self.initialWindowRequests(
       from: sessionCatalog,
       restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
@@ -328,7 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         startupCommand: request.startupCommand
       )
     }
-    suppressesSessionSave = false
+    sessionPersistenceState = .active
     saveSession()
     if let window = lastController?.window {
       NSApp.activate(ignoringOtherApps: true)
@@ -470,12 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   }
 
   private func saveSession() {
-    guard
-      Self.shouldSaveLiveSession(
-        suppressesSessionSave: suppressesSessionSave,
-        pendingTerminationSessionCatalog: terminatingSessionCatalog
-      )
-    else { return }
+    guard sessionPersistenceState.allowsLiveSave else { return }
     persistSession(terminalWindowRegistry.restorationSnapshot())
   }
 
@@ -573,29 +564,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     case .auto:
       return hasActiveAgentWorkForQuit || needsQuitConfirmation || terminatesSessionsOnQuit
     }
-  }
-
-  static func pendingTerminationSessionCatalog(
-    for reply: NSApplication.TerminateReply,
-    liveSessionCatalog: TerminalSessionCatalog,
-    terminatesSessions: Bool = false
-  ) -> TerminalSessionCatalog? {
-    guard reply == .terminateNow else { return nil }
-    return terminatesSessions ? .default : liveSessionCatalog
-  }
-
-  static func persistedSessionCatalog(
-    liveSessionCatalog: TerminalSessionCatalog,
-    pendingTerminationSessionCatalog: TerminalSessionCatalog?
-  ) -> TerminalSessionCatalog {
-    pendingTerminationSessionCatalog ?? liveSessionCatalog
-  }
-
-  static func shouldSaveLiveSession(
-    suppressesSessionSave: Bool,
-    pendingTerminationSessionCatalog: TerminalSessionCatalog?
-  ) -> Bool {
-    !suppressesSessionSave && pendingTerminationSessionCatalog == nil
   }
 
   struct ToggleVisibilityState {

@@ -307,62 +307,6 @@ struct AppDelegateTests {
   }
 
   @Test
-  func pendingTerminationSessionCatalogCapturesLiveSnapshotOnlyWhenTerminating() {
-    let liveWindowSession = TerminalWindowSession(
-      selectedSpaceID: TerminalSpaceID(),
-      spaces: []
-    )
-    let liveSessionCatalog = TerminalSessionCatalog(
-      windows: [liveWindowSession]
-    )
-
-    #expect(
-      AppDelegate.pendingTerminationSessionCatalog(
-        for: .terminateNow,
-        liveSessionCatalog: liveSessionCatalog
-      ) == liveSessionCatalog
-    )
-    #expect(
-      AppDelegate.pendingTerminationSessionCatalog(
-        for: .terminateNow,
-        liveSessionCatalog: liveSessionCatalog,
-        terminatesSessions: true
-      ) == .default
-    )
-    #expect(
-      AppDelegate.pendingTerminationSessionCatalog(
-        for: .terminateCancel,
-        liveSessionCatalog: liveSessionCatalog
-      ) == nil
-    )
-  }
-
-  @Test
-  func persistedSessionCatalogPrefersPreTerminationSnapshotOverClosingWindowsSnapshot() {
-    let preservedWindowSession = TerminalWindowSession(
-      selectedSpaceID: TerminalSpaceID(),
-      spaces: []
-    )
-    let preservedSessionCatalog = TerminalSessionCatalog(
-      windows: [preservedWindowSession]
-    )
-    let closingWindowsSessionCatalog = TerminalSessionCatalog(windows: [])
-
-    #expect(
-      !AppDelegate.shouldSaveLiveSession(
-        suppressesSessionSave: false,
-        pendingTerminationSessionCatalog: preservedSessionCatalog
-      )
-    )
-    #expect(
-      AppDelegate.persistedSessionCatalog(
-        liveSessionCatalog: closingWindowsSessionCatalog,
-        pendingTerminationSessionCatalog: preservedSessionCatalog
-      ) == preservedSessionCatalog
-    )
-  }
-
-  @Test
   func launchReaperKnownSessionsIncludesLiveSurfaces() {
     let persistedSurfaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
     let pinnedSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
