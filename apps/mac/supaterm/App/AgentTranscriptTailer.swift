@@ -1,54 +1,5 @@
 import Foundation
-
-enum AgentTranscriptJSONValue: Equatable {
-  case null
-  case bool(Bool)
-  case number(Double)
-  case string(String)
-  case array([Self])
-  case object([String: Self])
-
-  init?(_ value: Any) {
-    switch value {
-    case is NSNull:
-      self = .null
-    case let value as Bool:
-      self = .bool(value)
-    case let value as NSNumber:
-      self = .number(value.doubleValue)
-    case let value as String:
-      self = .string(value)
-    case let value as [Any]:
-      self = .array(value.compactMap(Self.init))
-    case let value as [String: Any]:
-      self = .object(value.compactMapValues(Self.init))
-    default:
-      return nil
-    }
-  }
-
-  var objectValue: [String: Self]? {
-    guard case .object(let value) = self else { return nil }
-    return value
-  }
-
-  var arrayValue: [Self]? {
-    guard case .array(let value) = self else { return nil }
-    return value
-  }
-
-  var stringValue: String? {
-    guard case .string(let value) = self else { return nil }
-    return value
-  }
-
-  var intValue: Int? {
-    guard case .number(let value) = self else { return nil }
-    return Int(exactly: value)
-  }
-}
-
-typealias AgentTranscriptJSONObject = [String: AgentTranscriptJSONValue]
+import SupatermCLIShared
 
 struct AgentTranscriptTailCursor: Equatable {
   var offset: UInt64
@@ -57,7 +8,7 @@ struct AgentTranscriptTailCursor: Equatable {
 enum AgentTranscriptTailer {
   struct Tick {
     let cursor: AgentTranscriptTailCursor
-    let objects: [AgentTranscriptJSONObject]
+    let objects: [JSONObject]
     let didReset: Bool
   }
 
@@ -104,15 +55,14 @@ enum AgentTranscriptTailer {
     }
   }
 
-  private static func parse(_ data: Data) -> (Int, [AgentTranscriptJSONObject]) {
+  private static func parse(_ data: Data) -> (Int, [JSONObject]) {
     guard let newlineIndex = data.lastIndex(of: 0x0A) else {
       return (0, [])
     }
     let completeData = data.prefix(through: newlineIndex)
+    let decoder = JSONDecoder()
     let objects = completeData.split(separator: 0x0A).compactMap { line in
-      (try? JSONSerialization.jsonObject(with: Data(line)))
-        .flatMap(AgentTranscriptJSONValue.init)?
-        .objectValue
+      (try? decoder.decode(JSONValue.self, from: Data(line)))?.objectValue
     }
     return (completeData.count, objects)
   }

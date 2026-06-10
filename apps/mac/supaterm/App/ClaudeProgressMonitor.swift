@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 struct ClaudeProgressCursor {
   var transcriptOffset: UInt64
@@ -23,7 +24,7 @@ private struct ClaudeProgressTask: Equatable {
   var status: PaneAgentProgressRow.Status
   var blockedBy: [String]
   var modificationDate: Date?
-  var metadata: AgentTranscriptJSONObject
+  var metadata: JSONObject
 
   var isInternal: Bool {
     metadata["_internal"] == .bool(true)
@@ -129,8 +130,7 @@ enum ClaudeTaskProgressReader {
   ) -> ClaudeProgressTask? {
     guard
       let data = try? Data(contentsOf: url),
-      let rawObject = try? JSONSerialization.jsonObject(with: data),
-      let object = AgentTranscriptJSONValue(rawObject)?.objectValue,
+      let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue,
       object["metadata"]?.objectValue?["_internal"] != .bool(true),
       let id = object["id"]?.stringValue,
       let title = AgentProgressParsing.normalizedTitle(object["subject"]?.stringValue)
@@ -152,14 +152,14 @@ enum ClaudeTaskProgressReader {
 private struct ClaudePendingTask: Equatable {
   var title: String
   var blockedBy: [String]
-  var metadata: AgentTranscriptJSONObject
+  var metadata: JSONObject
 }
 
 private struct ClaudeTranscriptTaskState: Equatable {
   var tasks: [String: ClaudeProgressTask] = [:]
   var pendingCreates: [String: ClaudePendingTask] = [:]
 
-  mutating func apply(_ object: AgentTranscriptJSONObject) -> [PaneAgentProgressRow]? {
+  mutating func apply(_ object: JSONObject) -> [PaneAgentProgressRow]? {
     let timestamp = Self.timestamp(in: object) ?? Date()
     if let rows = applyTaskReminder(object, timestamp: timestamp) {
       return rows
@@ -175,7 +175,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private mutating func applyTaskReminder(
-    _ object: AgentTranscriptJSONObject,
+    _ object: JSONObject,
     timestamp: Date
   ) -> [PaneAgentProgressRow]? {
     guard
@@ -199,7 +199,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private mutating func applyAssistantLine(
-    _ object: AgentTranscriptJSONObject,
+    _ object: JSONObject,
     timestamp: Date
   ) -> [PaneAgentProgressRow]? {
     guard let content = object["message"]?.objectValue?["content"]?.arrayValue else { return nil }
@@ -232,7 +232,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private mutating func applyUserLine(
-    _ object: AgentTranscriptJSONObject,
+    _ object: JSONObject,
     timestamp: Date
   ) -> [PaneAgentProgressRow]? {
     guard
@@ -271,7 +271,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private mutating func applyTaskCreate(
-    _ toolUse: AgentTranscriptJSONObject,
+    _ toolUse: JSONObject,
     timestamp: Date
   ) -> Bool {
     guard
@@ -303,7 +303,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private mutating func applyTaskUpdate(
-    _ toolUse: AgentTranscriptJSONObject,
+    _ toolUse: JSONObject,
     timestamp: Date
   ) -> Bool {
     guard
@@ -359,7 +359,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private static func task(
-    from object: AgentTranscriptJSONObject?,
+    from object: JSONObject?,
     timestamp: Date
   ) -> ClaudeProgressTask? {
     guard
@@ -380,7 +380,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 
   private static func todoWriteRows(
-    in object: AgentTranscriptJSONObject
+    in object: JSONObject
   ) -> [PaneAgentProgressRow]? {
     guard
       let todos = object["input"]?.objectValue?["todos"]?.arrayValue
@@ -403,7 +403,7 @@ private struct ClaudeTranscriptTaskState: Equatable {
     return rows
   }
 
-  private static func timestamp(in object: AgentTranscriptJSONObject) -> Date? {
+  private static func timestamp(in object: JSONObject) -> Date? {
     guard let value = object["timestamp"]?.stringValue else { return nil }
     return fractionalTimestampFormatter.date(from: value)
       ?? timestampFormatter.date(from: value)
@@ -508,7 +508,7 @@ enum ClaudeTranscriptProgressMonitor {
   }
 
   private static func apply(
-    _ objects: [AgentTranscriptJSONObject],
+    _ objects: [JSONObject],
     to state: inout ClaudeTranscriptTaskState
   ) -> [PaneAgentProgressRow]? {
     var latestRows: [PaneAgentProgressRow]?

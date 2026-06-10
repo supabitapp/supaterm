@@ -79,7 +79,7 @@ struct CodexTranscriptMonitorTests {
     )
 
     let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
-    let batch = try #require(result.1)
+    let batch = try #require(result.batch)
     conversation.absorb(batch.records)
     let snapshot = conversation.sidebarSnapshot
 
@@ -198,7 +198,7 @@ struct CodexTranscriptMonitorTests {
     try CodexTranscriptFixtures.append(.agentMessage("Applying the change"), to: transcriptURL)
 
     let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
-    let batch = try #require(result.1)
+    let batch = try #require(result.batch)
     conversation.absorb(batch.records)
 
     #expect(conversation.turns.count == 1)
@@ -249,8 +249,8 @@ struct CodexTranscriptMonitorTests {
 
     let result = try #require(CodexTranscriptMonitor.advance(start.0, at: transcriptURL.path))
 
-    #expect(result.1 == nil)
-    #expect(result.0.offset == start.0.offset)
+    #expect(result.batch == nil)
+    #expect(result.cursor.offset == start.0.offset)
   }
 
   @Test

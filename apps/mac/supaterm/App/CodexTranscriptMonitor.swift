@@ -1,4 +1,5 @@
 import Foundation
+import SupatermCLIShared
 
 enum AgentTurnStatus: Equatable {
   case started(String?)
@@ -26,12 +27,12 @@ enum AgentTurnStatus: Equatable {
 }
 
 enum CodexRolloutRecord: Equatable {
-  case sessionMeta(AgentTranscriptJSONObject)
-  case turnContext(AgentTranscriptJSONObject)
-  case eventMessage(type: String, payload: AgentTranscriptJSONObject)
-  case responseItem(type: String, payload: AgentTranscriptJSONObject)
-  case compacted(AgentTranscriptJSONObject)
-  case unknown(type: String, payload: AgentTranscriptJSONValue)
+  case sessionMeta(JSONObject)
+  case turnContext(JSONObject)
+  case eventMessage(type: String, payload: JSONObject)
+  case responseItem(type: String, payload: JSONObject)
+  case compacted(JSONObject)
+  case unknown(type: String, payload: JSONValue)
 }
 
 enum CodexConversationTurnState: Equatable {
@@ -64,9 +65,9 @@ struct CodexConversationReasoning: Equatable {
 enum CodexConversationItem: Equatable {
   case message(CodexConversationMessage)
   case reasoning(CodexConversationReasoning)
-  case operation(type: String, payload: AgentTranscriptJSONObject)
-  case event(type: String, payload: AgentTranscriptJSONObject)
-  case compaction(AgentTranscriptJSONObject)
+  case operation(type: String, payload: JSONObject)
+  case event(type: String, payload: JSONObject)
+  case compaction(JSONObject)
 }
 
 struct CodexConversationTurn: Equatable {
@@ -182,7 +183,7 @@ struct CodexConversationState: Equatable {
 
   private mutating func applyEvent(
     type: String,
-    payload: AgentTranscriptJSONObject
+    payload: JSONObject
   ) {
     let preferredTurnID = payload["turn_id"]?.stringValue
     switch type {
@@ -200,7 +201,7 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func applyTurnStarted(
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     let turnID = preferredTurnID ?? makeImplicitTurnID()
@@ -213,7 +214,7 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func applyTurnCompleted(
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
@@ -234,7 +235,7 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func applyTurnAborted(
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
@@ -247,7 +248,7 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func applyErrorEvent(
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     if let index = turnIndex(preferredTurnID: preferredTurnID) {
@@ -262,7 +263,7 @@ struct CodexConversationState: Equatable {
 
   private mutating func applyContentEvent(
     type: String,
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     switch type {
@@ -305,7 +306,7 @@ struct CodexConversationState: Equatable {
 
   private mutating func applyResponseItem(
     type: String,
-    payload: AgentTranscriptJSONObject
+    payload: JSONObject
   ) {
     let preferredTurnID = payload["turn_id"]?.stringValue
     switch type {
@@ -390,7 +391,7 @@ struct CodexConversationState: Equatable {
 
   private mutating func appendOperation(
     type: String,
-    payload: AgentTranscriptJSONObject,
+    payload: JSONObject,
     preferredTurnID: String?
   ) {
     let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
@@ -564,14 +565,13 @@ struct CodexConversationState: Equatable {
 
   static func progressRows(
     operationType: String,
-    payload: AgentTranscriptJSONObject
+    payload: JSONObject
   ) -> [PaneAgentProgressRow]? {
     guard operationType == "function_call",
       payload["name"]?.stringValue == "update_plan",
       let arguments = payload["arguments"]?.stringValue,
-      let data = arguments.data(using: .utf8),
-      let rawObject = try? JSONSerialization.jsonObject(with: data),
-      let object = AgentTranscriptJSONValue(rawObject)?.objectValue,
+      let object = (try? JSONDecoder().decode(JSONValue.self, from: Data(arguments.utf8)))?
+        .objectValue,
       let plan = object["plan"]?.arrayValue
     else {
       return nil
@@ -593,7 +593,7 @@ struct CodexConversationState: Equatable {
 
   static func sources(
     operationType: String,
-    payload: AgentTranscriptJSONObject
+    payload: JSONObject
   ) -> [PaneAgentSource] {
     switch operationType {
     case "web_search_call", "tool_search_call":
@@ -658,7 +658,7 @@ struct CodexTranscriptBatch {
 @MainActor
 final class CodexPanelMonitor: AgentPanelMonitor {
   private let transcriptPath: String
-  private var cursor: CodexTranscriptCursor
+  private var cursor: AgentTranscriptTailCursor
   private var conversation = CodexConversationState()
 
   init?(transcriptPath: String) {
@@ -679,15 +679,12 @@ final class CodexPanelMonitor: AgentPanelMonitor {
   }
 
   func poll() -> AgentPanelMonitorTick? {
-    guard
-      let (updatedCursor, batch) = CodexTranscriptMonitor.advance(cursor, at: transcriptPath)
-    else {
+    guard let result = CodexTranscriptMonitor.advance(cursor, at: transcriptPath) else {
       return nil
     }
-    let didReset = updatedCursor.offset < cursor.offset
-    cursor = updatedCursor
-    guard let batch, !batch.isEmpty else { return nil }
-    if didReset {
+    cursor = result.cursor
+    guard let batch = result.batch, !batch.isEmpty else { return nil }
+    if result.didReset {
       conversation = CodexConversationState()
     }
     conversation.absorb(batch.records)
@@ -697,39 +694,34 @@ final class CodexPanelMonitor: AgentPanelMonitor {
   }
 }
 
-struct CodexTranscriptCursor {
-  var offset: UInt64
-}
-
 enum CodexTranscriptMonitor {
+  struct Advance {
+    let cursor: AgentTranscriptTailCursor
+    let batch: CodexTranscriptBatch?
+    let didReset: Bool
+  }
+
   static func start(
     at path: String
-  ) -> (CodexTranscriptCursor, CodexTranscriptBatch?)? {
+  ) -> (AgentTranscriptTailCursor, CodexTranscriptBatch?)? {
     guard let tick = AgentTranscriptTailer.start(at: path) else { return nil }
-    return (CodexTranscriptCursor(offset: tick.cursor.offset), batch(from: tick.objects))
+    return (tick.cursor, batch(from: tick.objects))
   }
 
   static func advance(
-    _ cursor: CodexTranscriptCursor,
+    _ cursor: AgentTranscriptTailCursor,
     at path: String
-  ) -> (CodexTranscriptCursor, CodexTranscriptBatch?)? {
-    guard
-      let tick = AgentTranscriptTailer.advance(
-        AgentTranscriptTailCursor(offset: cursor.offset),
-        at: path
-      )
-    else {
-      return nil
-    }
-    return (CodexTranscriptCursor(offset: tick.cursor.offset), batch(from: tick.objects))
+  ) -> Advance? {
+    guard let tick = AgentTranscriptTailer.advance(cursor, at: path) else { return nil }
+    return Advance(cursor: tick.cursor, batch: batch(from: tick.objects), didReset: tick.didReset)
   }
 
-  private static func batch(from objects: [AgentTranscriptJSONObject]) -> CodexTranscriptBatch? {
+  private static func batch(from objects: [JSONObject]) -> CodexTranscriptBatch? {
     let records = objects.compactMap(record(from:))
     return records.isEmpty ? nil : CodexTranscriptBatch(records: records)
   }
 
-  private static func record(from object: AgentTranscriptJSONObject) -> CodexRolloutRecord? {
+  private static func record(from object: JSONObject) -> CodexRolloutRecord? {
     guard let lineType = object["type"]?.stringValue else {
       return nil
     }
@@ -768,7 +760,7 @@ enum CodexTranscriptMonitor {
 }
 
 private func messageText(
-  from content: [AgentTranscriptJSONValue]?
+  from content: [JSONValue]?
 ) -> String? {
   guard let content else { return nil }
   return normalizedMessage(
@@ -781,7 +773,7 @@ private func messageText(
 }
 
 private func textArray(
-  in values: [AgentTranscriptJSONValue]?
+  in values: [JSONValue]?
 ) -> [String] {
   guard let values else { return [] }
   return values.compactMap { value in
@@ -801,12 +793,5 @@ private func normalizedDetail(_ text: String?) -> String? {
 }
 
 private func normalizedMessage(_ text: String?) -> String? {
-  guard let text else { return nil }
-  let normalized =
-    text
-    .components(separatedBy: .whitespacesAndNewlines)
-    .filter { !$0.isEmpty }
-    .joined(separator: " ")
-  guard !normalized.isEmpty else { return nil }
-  return normalized
+  AgentProgressParsing.normalizedTitle(text)
 }
