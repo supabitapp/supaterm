@@ -198,9 +198,6 @@ final class TerminalAgentSessionStore {
     let key = SessionKey(agent: agent, sessionID: sessionID)
     guard let monitor = makeMonitor(agent: agent, key: key) else { return false }
     agentPanelMonitorTasks[key]?.cancel()
-    if agent.drivesActivityFromTranscript {
-      cancelRunningTimeout(agent: agent, sessionID: sessionID)
-    }
     if let tick = monitor.start() {
       handleMonitorTick(tick, key: key, sessionID: sessionID, context: context)
     }

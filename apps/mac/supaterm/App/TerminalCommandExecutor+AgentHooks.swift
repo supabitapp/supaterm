@@ -74,39 +74,30 @@ extension TerminalCommandExecutor {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    if let status = snapshot.status {
-      _ = updateAgentHoverMessages(
-        snapshot.hoverMessages,
-        replacing: true,
-        agent: agent,
-        sessionID: sessionID,
-        context: context
-      )
-      _ = updateAgentPanelSnapshot(
-        progressRows: snapshot.progressRows,
-        sources: snapshot.sources,
-        agent: agent,
-        sessionID: sessionID,
-        context: context
-      )
-      _ = updateAgentPresenceActivity(
-        TerminalHostState.AgentActivity(
-          kind: agent,
-          phase: status.isFinal ? .idle : .running,
-          detail: status.isFinal ? nil : snapshot.detail
-        ),
-        sessionID: sessionID,
-        context: context
-      )
-    } else {
-      _ = updateAgentPanelSnapshot(
-        progressRows: snapshot.progressRows,
-        sources: snapshot.sources,
-        agent: agent,
-        sessionID: sessionID,
-        context: context
-      )
-    }
+    _ = updateAgentPanelSnapshot(
+      progressRows: snapshot.progressRows,
+      sources: snapshot.sources,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    guard let status = snapshot.status else { return }
+    _ = updateAgentHoverMessages(
+      snapshot.hoverMessages,
+      replacing: true,
+      agent: agent,
+      sessionID: sessionID,
+      context: context
+    )
+    _ = updateAgentPresenceActivity(
+      TerminalHostState.AgentActivity(
+        kind: agent,
+        phase: status.isFinal ? .idle : .running,
+        detail: status.isFinal ? nil : snapshot.detail
+      ),
+      sessionID: sessionID,
+      context: context
+    )
   }
 
   func handleRunningTimeoutExpired(
@@ -282,13 +273,11 @@ extension TerminalCommandExecutor {
         sessionID: sessionID
       )
     }
-    if request.agent.hasPanelMonitor {
-      _ = clearAgentPanelSnapshot(
-        agent: request.agent,
-        context: request.context,
-        sessionID: sessionID
-      )
-    }
+    _ = clearAgentPanelSnapshot(
+      agent: request.agent,
+      context: request.context,
+      sessionID: sessionID
+    )
     agentSessionStore.clearSession(agent: request.agent, sessionID: sessionID)
     return TerminalAgentHookResult(desktopNotification: nil)
   }

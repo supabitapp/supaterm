@@ -9,10 +9,6 @@ extension SupatermAgentKind {
     self == .claude
   }
 
-  var hasPanelMonitor: Bool {
-    self == .codex || self == .claude
-  }
-
   var recoversSessionsFromToolHooks: Bool {
     self == .codex
   }
