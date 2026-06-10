@@ -667,7 +667,7 @@ extension TerminalHostState {
 
   @discardableResult
   func clearRecentStructuredNotification(for surfaceID: UUID) -> Bool {
-    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID) != nil
+    notificationStore.clearRecentStructured(for: surfaceID)
   }
 
   func resolveSpaceTarget(_ target: TerminalSpaceTarget) throws -> ResolvedCreateTabTarget {
@@ -1124,7 +1124,7 @@ extension TerminalHostState {
       surfaceID: resolvedTarget.anchorSurface.id,
       title: resolvedTitle
     )
-    paneNotifications[resolvedTarget.anchorSurface.id, default: []].append(
+    notificationStore.append(
       PaneNotification(
         attentionState: attentionState,
         body: request.body,
@@ -1132,7 +1132,9 @@ extension TerminalHostState {
         subtitle: request.subtitle,
         title: resolvedTitle,
         origin: origin
-      ))
+      ),
+      for: resolvedTarget.anchorSurface.id
+    )
     updateRecentStructuredNotificationIfNeeded(
       body: request.body,
       createdAt: createdAt,

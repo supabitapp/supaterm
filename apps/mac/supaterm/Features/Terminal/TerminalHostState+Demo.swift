@@ -40,7 +40,7 @@
 
     func demoInjectNotification(surfaceID: UUID) {
       guard tabID(containing: surfaceID) != nil else { return }
-      paneNotifications[surfaceID, default: []].append(
+      notificationStore.append(
         PaneNotification(
           attentionState: .unread,
           body: "Deploy preview is ready for approval.",
@@ -48,7 +48,8 @@
           subtitle: "supaterm/deploy",
           title: "Approval needed",
           origin: .structuredAgent(.attention)
-        )
+        ),
+        for: surfaceID
       )
     }
 

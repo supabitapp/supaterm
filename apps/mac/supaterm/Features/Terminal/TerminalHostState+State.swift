@@ -787,13 +787,16 @@ extension TerminalHostState {
         Self.notificationText(body: body, title: title)
       )
     else {
-      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
+      notificationStore.clearRecentStructured(for: surfaceID)
       return
     }
-    recentStructuredNotificationsBySurfaceID[surfaceID] = RecentStructuredNotification(
-      recordedAt: createdAt,
-      semantic: semantic,
-      text: text
+    notificationStore.setRecentStructured(
+      RecentStructuredNotification(
+        recordedAt: createdAt,
+        semantic: semantic,
+        text: text
+      ),
+      for: surfaceID
     )
   }
 
@@ -808,7 +811,7 @@ extension TerminalHostState {
       let structuredText = Self.normalizedNotificationText(
         Self.notificationText(body: body, title: title)
       ),
-      var notifications = paneNotifications[surfaceID]
+      var notifications = notificationStore.notifications(for: surfaceID)
     else {
       return
     }
@@ -818,7 +821,7 @@ extension TerminalHostState {
         let notification = notifications[index]
         guard
           notification.origin == .terminalDesktop,
-          now.timeIntervalSince(notification.createdAt) <= Self.notificationCoalescingWindow,
+          now.timeIntervalSince(notification.createdAt) <= TerminalNotificationStore.coalescingWindow,
           let terminalText = Self.normalizedNotificationText(Self.notificationText(notification))
         else {
           return false
@@ -833,11 +836,7 @@ extension TerminalHostState {
       return
     }
     notifications.remove(at: index)
-    if notifications.isEmpty {
-      paneNotifications.removeValue(forKey: surfaceID)
-    } else {
-      paneNotifications[surfaceID] = notifications
-    }
+    notificationStore.replaceNotifications(notifications, for: surfaceID)
   }
 
   func shouldSuppressDesktopNotification(
@@ -861,15 +860,7 @@ extension TerminalHostState {
   }
 
   func recentStructuredNotification(for surfaceID: UUID) -> RecentStructuredNotification? {
-    guard let notification = recentStructuredNotificationsBySurfaceID[surfaceID] else {
-      return nil
-    }
-    guard Date().timeIntervalSince(notification.recordedAt) <= Self.notificationCoalescingWindow
-    else {
-      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
-      return nil
-    }
-    return notification
+    notificationStore.recentStructured(for: surfaceID)
   }
 
   static func latestNotification(in notifications: [PaneNotification]) -> PaneNotification? {
@@ -1006,8 +997,6 @@ extension TerminalHostState {
     "task complete",
     "turn complete",
   ]
-
-  static let notificationCoalescingWindow: TimeInterval = 2
 
   static func shouldCoalesceTerminalNotification(
     terminalText: String,

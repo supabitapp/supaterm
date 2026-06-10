@@ -316,7 +316,7 @@ final class TerminalHostState {
   var trees: [TerminalTabID: SplitTree<GhosttySurfaceView>] = [:]
   var surfaces: [UUID: GhosttySurfaceView] = [:]
   var focusHistoryByTab: [TerminalTabID: FocusHistory] = [:]
-  var paneNotifications: [UUID: [PaneNotification]] = [:]
+  var notificationStore = TerminalNotificationStore()
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentPresenceStore = TerminalAgentPresenceStore()
   var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
@@ -324,8 +324,6 @@ final class TerminalHostState {
   var lastEmittedFocusSurfaceID: UUID?
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
-  @ObservationIgnored
-  var recentStructuredNotificationsBySurfaceID: [UUID: RecentStructuredNotification] = [:]
 
   var windowActivity = WindowActivityState.inactive
 
@@ -2184,10 +2182,9 @@ final class TerminalHostState {
 
   private func cleanupSurface(_ surface: GhosttySurfaceView) {
     agentPanelController?.surfaceRemoved(surface.id)
-    paneNotifications.removeValue(forKey: surface.id)
+    notificationStore.removeSurface(surface.id)
     paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
     agentPresenceStore.removeSurface(surface.id)
-    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
     surface.closeSurface()
     surfaces.removeValue(forKey: surface.id)
   }
@@ -2224,7 +2221,7 @@ final class TerminalHostState {
     guard let tree = trees[tabID] else { return [:] }
     return Dictionary(
       uniqueKeysWithValues: tree.leaves().compactMap { surface in
-        paneNotifications[surface.id].map { (surface.id, $0) }
+        notificationStore.notifications(for: surface.id).map { (surface.id, $0) }
       }
     )
   }
@@ -2270,7 +2267,7 @@ final class TerminalHostState {
       focusedSurfaceID: focusHistoryByTab[tabID]?.current,
       surfaceID: surfaceID
     )
-    guard let notifications = paneNotifications[surfaceID] else {
+    guard let notifications = notificationStore.notifications(for: surfaceID) else {
       return
     }
     let updatedNotifications = Self.notificationsAfterDirectInteraction(
@@ -2278,7 +2275,7 @@ final class TerminalHostState {
       activity: activity
     )
     guard updatedNotifications != notifications else { return }
-    paneNotifications[surfaceID] = updatedNotifications
+    notificationStore.replaceNotifications(updatedNotifications, for: surfaceID)
   }
 
   func updateRunningState(for tabID: TerminalTabID) {
