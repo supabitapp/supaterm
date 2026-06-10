@@ -398,8 +398,8 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
 
-    #expect(host.recordCodexHoverMessages(["First message"], replacing: false, for: surface.id))
-    #expect(host.recordCodexHoverMessages(["Second message"], replacing: false, for: surface.id))
+    #expect(host.recordAgentHoverMessages(["First message"], replacing: false, for: surface.id))
+    #expect(host.recordAgentHoverMessages(["Second message"], replacing: false, for: surface.id))
 
     #expect(
       host.codexHoverMarkdown(for: tabID) == """
@@ -421,8 +421,8 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
 
-    #expect(host.recordCodexHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
-    #expect(host.recordCodexHoverMessages(["Final answer"], replacing: true, for: surface.id))
+    #expect(host.recordAgentHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
+    #expect(host.recordAgentHoverMessages(["Final answer"], replacing: true, for: surface.id))
 
     #expect(host.codexHoverMarkdown(for: tabID) == "Final answer")
   }
@@ -490,9 +490,9 @@ struct TerminalHostStateNotificationTests {
         for: firstSurface.id
       )
     )
-    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
-    #expect(host.recordCodexHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
+    #expect(host.recordAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
 
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
@@ -587,9 +587,9 @@ struct TerminalHostStateNotificationTests {
     )
 
     #expect(host.setTestAgentActivity(.codex(.idle), for: firstSurface.id))
-    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
-    #expect(host.recordCodexHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
+    #expect(host.recordAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
     #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
 
     _ = try host.focusPane(.contextPane(secondPane.paneID))
@@ -618,7 +618,7 @@ struct TerminalHostStateNotificationTests {
     )
 
     #expect(host.setTestAgentActivity(.codex(.running, detail: "Focused detail"), for: firstSurface.id))
-    #expect(host.recordCodexHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
 
@@ -640,7 +640,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
     #expect(host.setTestAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
-    #expect(host.recordCodexHoverMessages(["Thinking"], replacing: true, for: surface.id))
+    #expect(host.recordAgentHoverMessages(["Thinking"], replacing: true, for: surface.id))
 
     surface.bridge.onCommandFinished?()
 
@@ -887,7 +887,7 @@ struct TerminalHostStateNotificationTests {
       for: surface.id
     )
     host.paneAgentMetadataBySurfaceID[surface.id] = TerminalHostState.PaneAgentMetadata(
-      codexHoverMessages: ["Working"]
+      agentHoverMessages: ["Working"]
     )
     host.notificationStore.setRecentStructured(
       TerminalHostState.RecentStructuredNotification(

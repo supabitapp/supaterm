@@ -221,14 +221,14 @@ final class TerminalHostState {
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {
-    var codexHoverMessages: [String] = []
+    var agentHoverMessages: [String] = []
     var progressRows: [PaneAgentProgressRow] = []
     var branchDetails: PaneAgentBranchDetails?
     var artifacts: [PaneAgentArtifact] = []
     var sources: [PaneAgentSource] = []
 
     var isEmpty: Bool {
-      codexHoverMessages.isEmpty && panelPresentation().isEmpty
+      agentHoverMessages.isEmpty && panelPresentation().isEmpty
     }
 
     var hasStructuredPanelContent: Bool {

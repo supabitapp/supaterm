@@ -75,7 +75,7 @@ extension TerminalCommandExecutor {
     context: SupatermCLIContext?
   ) {
     if let status = snapshot.status {
-      _ = updateCodexHoverMessages(
+      _ = updateAgentHoverMessages(
         snapshot.hoverMessages,
         replacing: true,
         agent: agent,
@@ -236,7 +236,7 @@ extension TerminalCommandExecutor {
         processID: request.processID
       )
       if request.agent.drivesActivityFromTranscript {
-        _ = updateCodexHoverMessages(
+        _ = updateAgentHoverMessages(
           event.lastAssistantMessage.map { [$0] } ?? [],
           replacing: true,
           agent: request.agent,
@@ -276,7 +276,7 @@ extension TerminalCommandExecutor {
       processID: request.processID
     )
     if request.agent.drivesActivityFromTranscript {
-      _ = clearCodexHoverMessages(
+      _ = clearAgentHoverMessages(
         agent: request.agent,
         context: request.context,
         sessionID: sessionID
@@ -549,12 +549,12 @@ extension TerminalCommandExecutor {
   }
 
   @discardableResult
-  func clearCodexHoverMessages(
+  func clearAgentHoverMessages(
     agent: SupatermAgentKind,
     context: SupatermCLIContext?,
     sessionID: String
   ) -> Bool {
-    updateCodexHoverMessages(
+    updateAgentHoverMessages(
       [],
       replacing: true,
       agent: agent,
@@ -564,7 +564,7 @@ extension TerminalCommandExecutor {
   }
 
   @discardableResult
-  func updateCodexHoverMessages(
+  func updateAgentHoverMessages(
     _ messages: [String],
     replacing: Bool,
     agent: SupatermAgentKind,
@@ -578,7 +578,7 @@ extension TerminalCommandExecutor {
     )
     for surfaceID in candidateSurfaceIDs {
       for entry in registry.activeEntries()
-      where entry.terminal.recordCodexHoverMessages(
+      where entry.terminal.recordAgentHoverMessages(
         messages,
         replacing: replacing,
         for: surfaceID

@@ -213,7 +213,7 @@ extension TerminalHostState {
     let detailActivity = agentPresenceStore.detailActivity(for: focusedSurfaceID)
     let hoverMarkdown = focusedSurfaceID.flatMap {
       Self.codexHoverMarkdown(
-        paneAgentMetadataBySurfaceID[$0]?.codexHoverMessages ?? []
+        paneAgentMetadataBySurfaceID[$0]?.agentHoverMessages ?? []
       )
     }
     let leaves = tree.leaves()
@@ -490,27 +490,27 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func clearCodexHoverMessages(for surfaceID: UUID) -> Bool {
+  func clearAgentHoverMessages(for surfaceID: UUID) -> Bool {
     guard tabID(containing: surfaceID) != nil else { return false }
     guard var metadata = paneAgentMetadataBySurfaceID[surfaceID] else { return true }
-    metadata.codexHoverMessages = []
+    metadata.agentHoverMessages = []
     storePaneAgentMetadata(metadata, for: surfaceID)
     return true
   }
 
   @discardableResult
-  func recordCodexHoverMessages(
+  func recordAgentHoverMessages(
     _ messages: [String],
     replacing: Bool,
     for surfaceID: UUID
   ) -> Bool {
     guard tabID(containing: surfaceID) != nil else { return false }
     var metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
-    var nextMessages = replacing ? [] : metadata.codexHoverMessages
+    var nextMessages = replacing ? [] : metadata.agentHoverMessages
     for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
       nextMessages.append(message)
     }
-    metadata.codexHoverMessages = nextMessages
+    metadata.agentHoverMessages = nextMessages
     storePaneAgentMetadata(metadata, for: surfaceID)
     return true
   }
