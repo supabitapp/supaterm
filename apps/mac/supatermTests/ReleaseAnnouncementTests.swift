@@ -119,7 +119,8 @@ struct ReleaseAnnouncementTests {
 
   @Test
   func agentForkingCopyMatchesReleaseCard() {
-    let expectedMessage = "Forking session is now easier than ever using the agent panel. "
+    let expectedMessage =
+      "Forking session is now easier than ever using the agent panel. "
       + "Enable coding agents integration to try it."
 
     #expect(ReleaseAnnouncement.agentForking.title == "Fork sessions from the agent panel")

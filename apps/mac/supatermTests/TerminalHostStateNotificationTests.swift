@@ -190,7 +190,7 @@ struct TerminalHostStateNotificationTests {
         == TerminalHostState.SidebarNotificationPresentation(
           markdown: "[Ship notes](https://example.com)",
           previewMarkdown: "Ship notes"
-      )
+        )
     )
   }
 

@@ -63,7 +63,7 @@ nonisolated struct ReleaseAnnouncementSyncResult: Equatable, Sendable {
 nonisolated enum ReleaseAnnouncementCatalog {
   static let firstAnnouncementBaseline = ReleaseAnnouncementVersion("1.3.2")!
   static let announcements: [ReleaseAnnouncement] = [
-    .agentForking,
+    .agentForking
   ]
 
   static func synchronize(
@@ -90,12 +90,14 @@ nonisolated enum ReleaseAnnouncementCatalog {
       ?? state.acknowledgedVersion.flatMap(ReleaseAnnouncementVersion.init)
       ?? currentVersion
     let acknowledgedVersion = state.acknowledgedVersion.flatMap(ReleaseAnnouncementVersion.init)
-    let eligibilityFloor = acknowledgedVersion.map {
-      max(previousInstalledVersion, $0)
-    } ?? previousInstalledVersion
+    let eligibilityFloor =
+      acknowledgedVersion.map {
+        max(previousInstalledVersion, $0)
+      } ?? previousInstalledVersion
     state.lastInstalledVersion = currentVersion.rawValue
 
-    let announcement = announcements
+    let announcement =
+      announcements
       .filter { announcement in
         announcement.version > eligibilityFloor && announcement.version <= currentVersion
       }
@@ -114,7 +116,8 @@ nonisolated enum ReleaseAnnouncementCatalog {
     currentVersion: ReleaseAnnouncementVersion,
     hasExistingSupatermState: Bool
   ) -> ReleaseAnnouncementStorageState {
-    let storedVersion = hasExistingSupatermState
+    let storedVersion =
+      hasExistingSupatermState
       ? firstAnnouncementBaseline.rawValue
       : currentVersion.rawValue
     return ReleaseAnnouncementStorageState(
