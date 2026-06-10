@@ -1198,13 +1198,7 @@ final class TerminalHostState {
 
     logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
     killZmxSession(for: surfaceID)
-    surface.closeSurface()
-    agentPanelController?.surfaceRemoved(surfaceID)
-    surfaces.removeValue(forKey: surfaceID)
-    paneNotifications.removeValue(forKey: surfaceID)
-    paneAgentMetadataBySurfaceID.removeValue(forKey: surfaceID)
-    agentPresenceStore.removeSurface(surfaceID)
-    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surfaceID)
+    cleanupSurface(surface)
 
     if newTree.isEmpty {
       trees.removeValue(forKey: tabID)
@@ -2167,6 +2161,16 @@ final class TerminalHostState {
     )
   }
 
+  private func cleanupSurface(_ surface: GhosttySurfaceView) {
+    agentPanelController?.surfaceRemoved(surface.id)
+    paneNotifications.removeValue(forKey: surface.id)
+    paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
+    agentPresenceStore.removeSurface(surface.id)
+    recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
+    surface.closeSurface()
+    surfaces.removeValue(forKey: surface.id)
+  }
+
   func removeTree(
     for tabID: TerminalTabID,
     terminateSessions: Bool = true,
@@ -2189,13 +2193,7 @@ final class TerminalHostState {
       killZmxSessions(for: surfaceIDs)
     }
     for surface in tree.leaves() {
-      agentPanelController?.surfaceRemoved(surface.id)
-      paneNotifications.removeValue(forKey: surface.id)
-      paneAgentMetadataBySurfaceID.removeValue(forKey: surface.id)
-      agentPresenceStore.removeSurface(surface.id)
-      recentStructuredNotificationsBySurfaceID.removeValue(forKey: surface.id)
-      surface.closeSurface()
-      surfaces.removeValue(forKey: surface.id)
+      cleanupSurface(surface)
     }
     focusedSurfaceIDByTab.removeValue(forKey: tabID)
     previousFocusedSurfaceIDByTab.removeValue(forKey: tabID)

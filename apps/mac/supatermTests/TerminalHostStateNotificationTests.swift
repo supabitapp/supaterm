@@ -874,6 +874,37 @@ struct TerminalHostStateNotificationTests {
     #expect(host.unreadNotifiedSurfaceIDs(in: tabID).isEmpty)
   }
 
+  @Test
+  func closingPaneClearsAllPerSurfaceState() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+
+    let surface = try #require(host.selectedSurfaceView)
+    host.paneNotifications[surface.id] = [
+      makeNotification(attentionState: .unread, createdAt: 1, title: "Build")
+    ]
+    host.paneAgentMetadataBySurfaceID[surface.id] = TerminalHostState.PaneAgentMetadata(
+      codexHoverMessages: ["Working"]
+    )
+    host.recentStructuredNotificationsBySurfaceID[surface.id] =
+      TerminalHostState.RecentStructuredNotification(
+        recordedAt: Date(),
+        semantic: .completion,
+        text: "Done"
+      )
+    host.setTestAgentActivity(.claude(.running), for: surface.id)
+
+    host.performCloseSurface(surface.id)
+
+    #expect(host.paneNotifications[surface.id] == nil)
+    #expect(host.paneAgentMetadataBySurfaceID[surface.id] == nil)
+    #expect(host.recentStructuredNotificationsBySurfaceID[surface.id] == nil)
+    #expect(host.agentPresenceStore.detailActivity(for: surface.id) == nil)
+    #expect(host.surfaces[surface.id] == nil)
+  }
+
   private func makeNotification(
     attentionState: SupatermNotificationAttentionState?,
     body: String = "",
