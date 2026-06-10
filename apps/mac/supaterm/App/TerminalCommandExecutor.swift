@@ -8,7 +8,7 @@ import SupatermTerminalCore
 import SupatermUpdateFeature
 
 @MainActor
-final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
+final class TerminalCommandExecutor {
   let agentSessionStore: TerminalAgentSessionStore
   unowned let registry: TerminalWindowRegistry
 
@@ -29,7 +29,15 @@ final class TerminalCommandExecutor: TerminalAgentSessionStoreDelegate {
       claudeTasksHomeDirectoryURL: claudeTasksHomeDirectoryURL,
       sleep: sleep
     )
-    agentSessionStore.delegate = self
+    agentSessionStore.onSidebarSnapshot = { [weak self] snapshot, agent, sessionID, context in
+      self?.handleSidebarSnapshot(snapshot, agent: agent, sessionID: sessionID, context: context)
+    }
+    agentSessionStore.onPanelSnapshot = { [weak self] snapshot, agent, sessionID, context in
+      self?.handlePanelSnapshot(snapshot, agent: agent, sessionID: sessionID, context: context)
+    }
+    agentSessionStore.onRunningTimeoutExpired = { [weak self] agent, sessionID, context in
+      self?.handleRunningTimeoutExpired(agent: agent, sessionID: sessionID, context: context)
+    }
   }
 
   func execute(_ request: SocketRequestExecutor.AppRequest) throws -> SocketRequestExecutor.AppResult {

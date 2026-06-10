@@ -30,7 +30,7 @@ struct TerminalAgentSessionStoreTests {
   @Test
   func runningTimeoutNotifiesDelegate() async {
     let clock = TestClock()
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
@@ -38,7 +38,7 @@ struct TerminalAgentSessionStoreTests {
         try await clock.sleep(for: duration)
       }
     )
-    store.delegate = delegate
+    events.bind(to: store)
 
     store.armRunningTimeout(agent: .codex, sessionID: "session-1", context: nil)
 
@@ -46,15 +46,15 @@ struct TerminalAgentSessionStoreTests {
     await clock.advance(by: .seconds(5))
     await flushEffects()
 
-    #expect(delegate.expirations.count == 1)
-    #expect(delegate.expirations.first?.0 == .codex)
-    #expect(delegate.expirations.first?.1 == "session-1")
+    #expect(events.expirations.count == 1)
+    #expect(events.expirations.first?.0 == .codex)
+    #expect(events.expirations.first?.1 == "session-1")
   }
 
   @Test
   func clearSessionCancelsPendingTimeout() async {
     let clock = TestClock()
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
@@ -62,7 +62,7 @@ struct TerminalAgentSessionStoreTests {
         try await clock.sleep(for: duration)
       }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let surfaceID = UUID()
 
     store.beginSession(
@@ -78,18 +78,18 @@ struct TerminalAgentSessionStoreTests {
     await clock.advance(by: .seconds(5))
     await flushEffects()
 
-    #expect(delegate.expirations.isEmpty)
+    #expect(events.expirations.isEmpty)
   }
 
   @Test
   func beginCodexTrackingPublishesActiveTranscriptSnapshot() throws {
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
       sleep: { _ in }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -103,15 +103,15 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
-    #expect(delegate.transcriptSnapshots.count == 1)
-    #expect(delegate.transcriptSnapshots.first?.status == .started("turn-1"))
-    #expect(delegate.transcriptSnapshots.first?.detail == nil)
+    #expect(events.transcriptSnapshots.count == 1)
+    #expect(events.transcriptSnapshots.first?.status == .started("turn-1"))
+    #expect(events.transcriptSnapshots.first?.detail == nil)
   }
 
   @Test
   func beginCodexTrackingIgnoresStaleFinalSnapshotAndPublishesLaterTurn() async throws {
     let clock = TestClock()
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
@@ -119,7 +119,7 @@ struct TerminalAgentSessionStoreTests {
         try await clock.sleep(for: duration)
       }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
@@ -133,7 +133,7 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginCodexTracking(sessionID: "session-1", context: context))
-    #expect(delegate.transcriptSnapshots.isEmpty)
+    #expect(events.transcriptSnapshots.isEmpty)
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
 
@@ -141,23 +141,23 @@ struct TerminalAgentSessionStoreTests {
     await clock.advance(by: .seconds(1))
     await flushEffects()
 
-    #expect(delegate.transcriptSnapshots.count == 1)
-    #expect(delegate.transcriptSnapshots.first?.status == .started("turn-1"))
-    #expect(delegate.transcriptSnapshots.first?.detail == nil)
+    #expect(events.transcriptSnapshots.count == 1)
+    #expect(events.transcriptSnapshots.first?.status == .started("turn-1"))
+    #expect(events.transcriptSnapshots.first?.detail == nil)
   }
 
   @Test
   func beginClaudePanelTrackingPublishesTaskSnapshot() throws {
     let homeDirectoryURL = try ClaudeProgressFixtures.makeHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
       claudeTasksHomeDirectoryURL: homeDirectoryURL,
       sleep: { _ in }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     try ClaudeProgressFixtures.writeTask(
       id: "task-1",
@@ -175,7 +175,7 @@ struct TerminalAgentSessionStoreTests {
 
     #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
     #expect(
-      delegate.panelSnapshots == [
+      events.panelSnapshots == [
         AgentPanelSnapshot(
           progressRows: [
             PaneAgentProgressRow(
@@ -194,7 +194,7 @@ struct TerminalAgentSessionStoreTests {
     let clock = TestClock()
     let homeDirectoryURL = try ClaudeProgressFixtures.makeHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
@@ -203,7 +203,7 @@ struct TerminalAgentSessionStoreTests {
         try await clock.sleep(for: duration)
       }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     store.beginSession(
       agent: .claude,
@@ -213,7 +213,7 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
-    #expect(delegate.panelSnapshots == [AgentPanelSnapshot()])
+    #expect(events.panelSnapshots == [AgentPanelSnapshot()])
 
     try ClaudeProgressFixtures.writeTask(
       id: "task-1",
@@ -228,7 +228,7 @@ struct TerminalAgentSessionStoreTests {
     await flushEffects()
 
     #expect(
-      delegate.panelSnapshots.last
+      events.panelSnapshots.last
         == AgentPanelSnapshot(
           progressRows: [
             PaneAgentProgressRow(
@@ -247,14 +247,14 @@ struct TerminalAgentSessionStoreTests {
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
       claudeTasksHomeDirectoryURL: homeDirectoryURL,
       sleep: { _ in }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     try ClaudeProgressFixtures.appendTodoWrite(
       [
@@ -278,7 +278,7 @@ struct TerminalAgentSessionStoreTests {
 
     #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
     #expect(
-      delegate.panelSnapshots == [
+      events.panelSnapshots == [
         AgentPanelSnapshot(
           progressRows: [
             PaneAgentProgressRow(
@@ -298,14 +298,14 @@ struct TerminalAgentSessionStoreTests {
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
       claudeTasksHomeDirectoryURL: homeDirectoryURL,
       sleep: { _ in }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     try ClaudeProgressFixtures.appendTaskReminder(
       [
@@ -327,7 +327,7 @@ struct TerminalAgentSessionStoreTests {
 
     #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
     #expect(
-      delegate.panelSnapshots == [
+      events.panelSnapshots == [
         AgentPanelSnapshot(
           progressRows: [
             PaneAgentProgressRow(
@@ -348,7 +348,7 @@ struct TerminalAgentSessionStoreTests {
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
-    let delegate = SessionStoreDelegateSpy()
+    let events = SessionStoreEventsSpy()
     let store = TerminalAgentSessionStore(
       agentRunningTimeout: .seconds(5),
       transcriptPollInterval: .seconds(1),
@@ -357,7 +357,7 @@ struct TerminalAgentSessionStoreTests {
         try await clock.sleep(for: duration)
       }
     )
-    store.delegate = delegate
+    events.bind(to: store)
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     store.beginSession(
       agent: .claude,
@@ -367,7 +367,7 @@ struct TerminalAgentSessionStoreTests {
     )
 
     #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
-    #expect(delegate.panelSnapshots == [AgentPanelSnapshot()])
+    #expect(events.panelSnapshots == [AgentPanelSnapshot()])
 
     try ClaudeProgressFixtures.appendTaskCreate(
       toolUseID: "toolu_create_1",
@@ -386,7 +386,7 @@ struct TerminalAgentSessionStoreTests {
     await flushEffects()
 
     #expect(
-      delegate.panelSnapshots.last
+      events.panelSnapshots.last
         == AgentPanelSnapshot(
           progressRows: [
             PaneAgentProgressRow(
@@ -407,37 +407,20 @@ struct TerminalAgentSessionStoreTests {
 }
 
 @MainActor
-private final class SessionStoreDelegateSpy: TerminalAgentSessionStoreDelegate {
+private final class SessionStoreEventsSpy {
   var expirations: [(SupatermAgentKind, String)] = []
   var panelSnapshots: [AgentPanelSnapshot] = []
   var transcriptSnapshots: [CodexSidebarSnapshot] = []
 
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  ) {
-    transcriptSnapshots.append(snapshot)
-  }
-
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveAgentPanelSnapshot snapshot: AgentPanelSnapshot,
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  ) {
-    panelSnapshots.append(snapshot)
-  }
-
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didExpireRunningTimeoutFor agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  ) {
-    expirations.append((agent, sessionID))
+  func bind(to store: TerminalAgentSessionStore) {
+    store.onSidebarSnapshot = { [weak self] snapshot, _, _, _ in
+      self?.transcriptSnapshots.append(snapshot)
+    }
+    store.onPanelSnapshot = { [weak self] snapshot, _, _, _ in
+      self?.panelSnapshots.append(snapshot)
+    }
+    store.onRunningTimeoutExpired = { [weak self] agent, sessionID, _ in
+      self?.expirations.append((agent, sessionID))
+    }
   }
 }

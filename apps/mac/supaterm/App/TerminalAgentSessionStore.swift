@@ -2,32 +2,6 @@ import Foundation
 import SupatermCLIShared
 
 @MainActor
-protocol TerminalAgentSessionStoreDelegate: AnyObject {
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  )
-
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveAgentPanelSnapshot snapshot: AgentPanelSnapshot,
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  )
-
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didExpireRunningTimeoutFor agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  )
-}
-
-@MainActor
 final class TerminalAgentSessionStore {
   private struct SessionKey: Hashable {
     let agent: SupatermAgentKind
@@ -51,7 +25,11 @@ final class TerminalAgentSessionStore {
     var codexConversation = CodexConversationState()
   }
 
-  weak var delegate: TerminalAgentSessionStoreDelegate?
+  var onSidebarSnapshot: @MainActor (CodexSidebarSnapshot, SupatermAgentKind, String, SupatermCLIContext?) -> Void =
+    { _, _, _, _ in }
+  var onPanelSnapshot: @MainActor (AgentPanelSnapshot, SupatermAgentKind, String, SupatermCLIContext?) -> Void =
+    { _, _, _, _ in }
+  var onRunningTimeoutExpired: @MainActor (SupatermAgentKind, String, SupatermCLIContext?) -> Void = { _, _, _ in }
 
   private let agentRunningTimeout: Duration
   private let claudeTasksHomeDirectoryURL: URL
@@ -396,13 +374,7 @@ final class TerminalAgentSessionStore {
       agentPanelMonitorTasks.removeValue(forKey: key)
       cancelRunningTimeout(agent: key.agent, sessionID: sessionID)
     }
-    delegate?.terminalAgentSessionStore(
-      self,
-      didReceiveCodexSidebarSnapshot: snapshot,
-      agent: key.agent,
-      sessionID: sessionID,
-      context: context
-    )
+    onSidebarSnapshot(snapshot, key.agent, sessionID, context)
   }
 
   private func handleAgentPanelSnapshot(
@@ -411,13 +383,7 @@ final class TerminalAgentSessionStore {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    delegate?.terminalAgentSessionStore(
-      self,
-      didReceiveAgentPanelSnapshot: snapshot,
-      agent: key.agent,
-      sessionID: sessionID,
-      context: context
-    )
+    onPanelSnapshot(snapshot, key.agent, sessionID, context)
   }
 
   private func handleRunningTimeoutExpiry(
@@ -427,12 +393,7 @@ final class TerminalAgentSessionStore {
     context: SupatermCLIContext?
   ) {
     runningTimeoutTasks.removeValue(forKey: key)
-    delegate?.terminalAgentSessionStore(
-      self,
-      didExpireRunningTimeoutFor: agent,
-      sessionID: sessionID,
-      context: context
-    )
+    onRunningTimeoutExpired(agent, sessionID, context)
   }
 
   private func removeForegroundSessionIfNeeded(

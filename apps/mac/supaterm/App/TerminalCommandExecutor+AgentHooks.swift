@@ -68,9 +68,8 @@ extension TerminalCommandExecutor {
     }
   }
 
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveCodexSidebarSnapshot snapshot: CodexSidebarSnapshot,
+  func handleSidebarSnapshot(
+    _ snapshot: CodexSidebarSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -100,9 +99,8 @@ extension TerminalCommandExecutor {
     )
   }
 
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didReceiveAgentPanelSnapshot snapshot: AgentPanelSnapshot,
+  func handlePanelSnapshot(
+    _ snapshot: AgentPanelSnapshot,
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -116,9 +114,8 @@ extension TerminalCommandExecutor {
     )
   }
 
-  func terminalAgentSessionStore(
-    _ store: TerminalAgentSessionStore,
-    didExpireRunningTimeoutFor agent: SupatermAgentKind,
+  func handleRunningTimeoutExpired(
+    agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
   ) {
