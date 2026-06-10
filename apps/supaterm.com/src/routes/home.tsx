@@ -185,11 +185,11 @@ function HomePage() {
           </div>
           <p className="mt-3 text-xs text-white/32">Requires macOS Tahoe.</p>
 
-          <div className="group relative mt-14 w-full max-w-[1160px] overflow-hidden rounded-[12px] border border-white/8 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] md:mt-18">
+          <div className="group relative mt-14 w-full max-w-[613px] overflow-hidden rounded-[12px] border border-white/8 shadow-[0_40px_140px_-44px_rgba(0,0,0,0.9),0_8px_30px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.06)] md:mt-18">
             <div className="pointer-events-none absolute inset-px z-10 border border-white/[0.03]" />
             <img
               src={heroUrl}
-              alt="Supaterm running coding agents across tabs and panes"
+              alt="Coding agent session in Supaterm"
               className="block h-auto w-full"
             />
           </div>
