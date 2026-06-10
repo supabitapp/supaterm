@@ -1155,8 +1155,11 @@ final class TerminalHostState {
   }
 
   func performCloseTabs(_ tabIDs: [TerminalTabID]) {
-    for tabID in tabIDs {
-      performCloseTab(tabID)
+    guard !tabIDs.isEmpty else { return }
+    withBatchedSessionChange {
+      for tabID in tabIDs {
+        performCloseTab(tabID)
+      }
     }
   }
 

@@ -418,6 +418,14 @@ extension TerminalHostState {
     return body()
   }
 
+  func withBatchedSessionChange<Result>(
+    _ body: () -> Result
+  ) -> Result {
+    let result = withSessionChangesSuppressed(body)
+    sessionDidChange()
+    return result
+  }
+
   func workingDirectoryPath(for surface: GhosttySurfaceView) -> String? {
     guard let path = Self.trimmedNonEmpty(surface.bridge.state.pwd) else { return nil }
     return GhosttySurfaceView.normalizedWorkingDirectoryPath(path)
