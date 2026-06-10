@@ -360,6 +360,10 @@ extension TerminalHostState {
 
   func resolveClose(_ target: TerminalPaneTarget) throws -> ResolvedPaneClose {
     let resolvedTarget = try resolvePaneTarget(target)
+    let closeRequest = resolvedCloseRequest(
+      for: .surface(resolvedTarget.anchorSurface.id),
+      needsConfirmationOverride: false
+    )
     return ResolvedPaneClose(
       result: try paneTarget(
         spaceID: resolvedTarget.spaceID,
@@ -367,16 +371,20 @@ extension TerminalHostState {
         surfaceID: resolvedTarget.anchorSurface.id,
         tree: resolvedTarget.tree
       ),
-      shouldCloseWindow: shouldCloseWindow(afterClosingSurface: resolvedTarget.anchorSurface.id),
+      shouldCloseWindow: closeRequest?.closesWindow == true,
       surfaceID: resolvedTarget.anchorSurface.id
     )
   }
 
   func resolveClose(_ target: TerminalTabTarget) throws -> ResolvedTabClose {
     let resolvedTarget = try resolveTabItemTarget(target)
+    let closeRequest = resolvedCloseRequest(
+      for: .tab(resolvedTarget.tabID),
+      needsConfirmationOverride: false
+    )
     return ResolvedTabClose(
       result: try tabTarget(for: resolvedTarget.tabID),
-      shouldCloseWindow: shouldCloseWindow(afterClosing: [resolvedTarget.tabID]),
+      shouldCloseWindow: closeRequest?.closesWindow == true,
       tabID: resolvedTarget.tabID
     )
   }

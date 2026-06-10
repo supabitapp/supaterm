@@ -131,6 +131,26 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
+  func resolveCloseOfDormantPinnedTabDoesNotCloseWindow() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+    let tabID = try #require(host.selectedTabID)
+    let surface = try #require(host.selectedSurfaceView)
+    host.handleCommand(.togglePinned(tabID))
+    host.performCloseSurface(surface.id)
+    #expect(host.trees[tabID] == nil)
+    #expect(host.spaceManager.tab(for: tabID) != nil)
+
+    let resolved = try host.resolveClose(
+      TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+    )
+
+    #expect(!resolved.shouldCloseWindow)
+  }
+
+  @Test
   func lastPaneRefocusesPreviouslyFocusedPane() throws {
     initializeGhosttyForTests()
 

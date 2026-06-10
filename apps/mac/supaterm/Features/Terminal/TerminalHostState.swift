@@ -86,6 +86,11 @@ final class TerminalHostState {
   enum ResolvedCloseRequest: Equatable {
     case request(TerminalCloseRequest)
     case window(needsConfirmation: Bool)
+
+    var closesWindow: Bool {
+      if case .window = self { return true }
+      return false
+    }
   }
 
   struct SidebarNotificationPresentation: Equatable, Sendable {
