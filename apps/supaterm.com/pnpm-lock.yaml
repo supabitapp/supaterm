@@ -5,8 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  vite: npm:@voidzero-dev/vite-plus-core@latest
-  vitest: npm:@voidzero-dev/vite-plus-test@latest
+  vite: npm:@voidzero-dev/vite-plus-core@0.1.13
+  vitest: npm:@voidzero-dev/vite-plus-test@0.1.13
   brace-expansion: ^5.0.5
   picomatch: ^4.0.4
 
@@ -100,10 +100,10 @@ importers:
         specifier: ^8.57.0
         version: 8.57.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@latest
+        specifier: npm:@voidzero-dev/vite-plus-core@0.1.13
         version: '@voidzero-dev/vite-plus-core@0.1.13(@types/node@24.12.0)(esbuild@0.27.3)(jiti@2.6.1)(typescript@5.9.3)'
       vite-plus:
-        specifier: latest
+        specifier: 0.1.13
         version: 0.1.13(@opentelemetry/api@1.9.1)(@types/node@24.12.0)(@voidzero-dev/vite-plus-core@0.1.13(@types/node@24.12.0)(esbuild@0.27.3)(jiti@2.6.1)(typescript@5.9.3))(esbuild@0.27.3)(jiti@2.6.1)(jsdom@29.0.2(@noble/hashes@1.8.0))(typescript@5.9.3)
       wrangler:
         specifier: ^4.76.0
