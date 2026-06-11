@@ -49,7 +49,10 @@ actor SocketControlRuntime {
     endpointProvider: SupatermProcessSocketEndpoint.current
   )
 
+  private let clientReadTimeout: TimeInterval
   private let endpointProvider: @Sendable () -> SupatermSocketEndpoint?
+  private let replyTimeout: Duration
+  private let sleep: @Sendable (Duration) async throws -> Void
   private var bufferedRequests: [SocketControlClient.Request] = []
   private var endpoint: SupatermSocketEndpoint?
   private var listenerTask: Task<Void, Never>?
@@ -58,9 +61,15 @@ actor SocketControlRuntime {
   private var serverSocket: Int32 = -1
 
   init(
-    endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint?
+    endpointProvider: @escaping @Sendable () -> SupatermSocketEndpoint?,
+    clientReadTimeout: TimeInterval = 10,
+    replyTimeout: Duration = .seconds(30),
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
   ) {
+    self.clientReadTimeout = clientReadTimeout
     self.endpointProvider = endpointProvider
+    self.replyTimeout = replyTimeout
+    self.sleep = sleep
   }
 
   func currentEndpoint() -> SupatermSocketEndpoint? {
@@ -140,8 +149,13 @@ actor SocketControlRuntime {
       }
 
       let runtime = self
+      let clientReadTimeout = self.clientReadTimeout
       listenerTask = Task.detached(priority: .utility) {
-        Self.acceptLoop(serverSocket: serverSocket, runtime: runtime)
+        Self.acceptLoop(
+          serverSocket: serverSocket,
+          runtime: runtime,
+          clientReadTimeout: clientReadTimeout
+        )
       }
 
       return endpoint
@@ -212,6 +226,13 @@ actor SocketControlRuntime {
     let handle = UUID()
     pendingReplies[handle] = PendingReply(clientSocket: clientSocket)
     emit(SocketControlClient.Request(handle: handle, payload: request))
+
+    let sleep = self.sleep
+    let replyTimeout = self.replyTimeout
+    Task { [weak self] in
+      try? await sleep(replyTimeout)
+      await self?.expireReply(handle)
+    }
   }
 
   private func emit(_ request: SocketControlClient.Request) {
@@ -222,9 +243,15 @@ actor SocketControlRuntime {
     requestsContinuation.yield(request)
   }
 
+  private func expireReply(_ handle: UUID) {
+    guard let pendingReply = pendingReplies.removeValue(forKey: handle) else { return }
+    Darwin.close(pendingReply.clientSocket)
+  }
+
   private nonisolated static func acceptLoop(
     serverSocket: Int32,
-    runtime: SocketControlRuntime
+    runtime: SocketControlRuntime,
+    clientReadTimeout: TimeInterval
   ) {
     while !Task.isCancelled {
       let clientSocket = Darwin.accept(serverSocket, nil, nil)
@@ -236,10 +263,26 @@ actor SocketControlRuntime {
       }
 
       Task.detached(priority: .utility) {
+        var receiveTimeout = Self.socketTimeout(clientReadTimeout)
+        _ = setsockopt(
+          clientSocket,
+          SOL_SOCKET,
+          SO_RCVTIMEO,
+          &receiveTimeout,
+          socklen_t(MemoryLayout<timeval>.size)
+        )
+
         let requestLine = Self.readLine(from: clientSocket)
         await runtime.handleRequestLine(requestLine, clientSocket: clientSocket)
       }
     }
+  }
+
+  private nonisolated static func socketTimeout(_ interval: TimeInterval) -> timeval {
+    let clampedInterval = max(0, interval)
+    let seconds = __darwin_time_t(clampedInterval.rounded(.down))
+    let microseconds = __darwin_suseconds_t(((clampedInterval - Double(seconds)) * 1_000_000).rounded())
+    return timeval(tv_sec: seconds, tv_usec: microseconds)
   }
 
   private nonisolated static func socketAddress(path: String) throws -> sockaddr_un {
