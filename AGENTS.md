@@ -14,10 +14,18 @@
 
 ### Commands
 
+Canonical macOS gates:
+
+```bash
+make mac-check          # format + lint
+make mac-test           # full test suite
+```
+
+Useful macOS development commands:
+
 ```bash
 make mac-build          # Debug build
 make mac-run            # Debug run with isolated ephemeral state
-make mac-test           # full test suite
 ```
 
 Run a single test class or method:
@@ -29,12 +37,19 @@ xcodebuild test -workspace apps/mac/supaterm.xcworkspace -scheme supaterm -desti
 
 ### Website (`apps/supaterm.com`)
 
+Canonical website gates:
+
 ```bash
-make web-install        # install dependencies (vp install)
 make web-check          # format + lint + type check
-make web-dev            # dev server
 make web-test           # test suite
 make web-build          # production build
+```
+
+Useful website development commands:
+
+```bash
+make web-install        # install dependencies (vp install)
+make web-dev            # dev server
 ```
 
 

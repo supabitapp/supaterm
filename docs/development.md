@@ -1,5 +1,32 @@
 # Development
 
+## Bootstrap
+
+Initialize submodules from the repo root:
+
+```bash
+git submodule update --init --recursive
+```
+
+Install pinned tools:
+
+```bash
+mise install
+```
+
+Authenticate Tuist before using cache-backed generation:
+
+```bash
+mise exec -- tuist auth login
+mise exec -- tuist auth whoami
+```
+
+Warm the macOS Tuist cache:
+
+```bash
+make mac-warm-cache
+```
+
 Use `$SUPATERM_CLI_PATH` in development shells to call the Debug CLI instead of the installed app CLI:
 
 ```bash
@@ -21,18 +48,6 @@ SUPATERM_RUN_INSTANCE_NAME=supaterm-dev SUPATERM_RUN_STATE_HOME=/tmp/supaterm-de
 ```
 
 Panes inherit `SUPATERM_STATE_HOME`, so `sp` commands launched inside the app use the same root.
-
-## Warm Cache
-
-Warm the macOS Tuist cache from the repo root with:
-
-```bash
-mise exec -- tuist auth login
-mise exec -- tuist auth whoami
-make mac-warm-cache
-```
-
-This warms external dependencies for Debug.
 
 ## Testing
 

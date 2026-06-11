@@ -5,7 +5,9 @@ A terminal for ur coding agents.
 
 ## Development
 
-Read [./docs](./docs)
+- [Development](./docs/development.md)
+- [Coding agents integration](./docs/coding-agents-integration.md)
+- [Socket control](./docs/how-socket-works.md)
 
 ## Thank you
 
