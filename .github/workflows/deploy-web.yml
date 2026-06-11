@@ -50,6 +50,8 @@ jobs:
         run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
       - run: make web-install
       - run: make web-check
+      - name: Audit production dependencies
+        run: cd apps/supaterm.com && pnpm audit --prod --audit-level high
       - run: make web-build
       - name: Deploy Worker
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
