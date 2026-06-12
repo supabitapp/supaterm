@@ -11,6 +11,7 @@ git submodule update --init --recursive
 Install pinned tools:
 
 ```bash
+mise trust mise.toml
 mise install
 ```
 
