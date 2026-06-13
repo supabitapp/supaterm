@@ -40,15 +40,15 @@
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
-    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-    "vite-plus": "latest",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.13",
+    "vite-plus": "0.1.13",
     "wrangler": "^4.76.0"
   },
   "packageManager": "pnpm@10.32.1",
   "pnpm": {
     "overrides": {
-      "vite": "npm:@voidzero-dev/vite-plus-core@latest",
-      "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
+      "vite": "npm:@voidzero-dev/vite-plus-core@0.1.13",
+      "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.13",
       "brace-expansion": "^5.0.5",
       "picomatch": "^4.0.4",
       "protobufjs": "^7.5.6"

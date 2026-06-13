@@ -3,10 +3,10 @@ hk = "1.45.0"
 pkl = "0.31.1"
 zig = "0.15.2"
 tuist = "4.192.3"
-swiftlint = "latest"
+swiftlint = "0.63.2"
 xcbeautify = "3.2.1"
 pnpm = "10.32.1"
-"npm:create-dmg" = { version = "latest", os = ["macos"] }
+"npm:create-dmg" = { version = "8.1.0", os = ["macos"] }
 
 [env]
 HK_MISE = "1"
