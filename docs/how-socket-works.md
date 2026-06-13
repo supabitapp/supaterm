@@ -39,9 +39,9 @@ This document captures the stable rules of Supaterm's socket IPC. The source rem
 
 ## Code Index
 
-- `apps/mac/supaterm/Features/Socket/` is the app-side socket boundary.
-- `apps/mac/supaterm/Features/Socket/SocketControlFeature.swift` owns request semantics.
-- `apps/mac/supaterm/Features/Socket/SocketControlRuntime.swift` owns socket lifecycle and transport.
+- `apps/mac/supaterm/SocketFeature/` is the app-side socket boundary.
+- `apps/mac/supaterm/SocketFeature/SocketControlFeature.swift` owns request semantics.
+- `apps/mac/supaterm/SocketFeature/SocketControlRuntime.swift` owns socket lifecycle and transport.
 - `apps/mac/SupatermCLIShared/` holds the shared IPC contract.
 - `apps/mac/SupatermCLIShared/SupatermSocketProtocol.swift` defines request and response types.
 - `apps/mac/SupatermCLIShared/SupatermSocketPath.swift` defines endpoint resolution and discovery.
