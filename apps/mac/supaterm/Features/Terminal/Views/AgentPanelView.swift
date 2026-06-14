@@ -5,6 +5,11 @@ enum AgentPanelMetrics {
   static let expandedWidth: CGFloat = 306
   static let collapsedLength: CGFloat = 30
   static let contentPadding: CGFloat = 12
+  static let sectionSpacing: CGFloat = 10
+  static let sectionContentSpacing: CGFloat = 6
+  static let rowContentSpacing: CGFloat = 7
+  static let rowTrailingSpacing: CGFloat = 4
+  static let rowIconWidth: CGFloat = 14
   static let expandedCornerRadius: CGFloat = 8
   static let collapsedCornerRadius: CGFloat = 6
 }
@@ -34,10 +39,10 @@ struct AgentPanelView: View {
   }
 
   private var content: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionSpacing) {
       if !presentation.progressRows.isEmpty {
         section("Progress") {
-          VStack(alignment: .leading, spacing: 6) {
+          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
             ForEach(presentation.progressRows) { row in
               progressRow(row)
             }
@@ -47,7 +52,7 @@ struct AgentPanelView: View {
 
       if let branchDetails = presentation.branchDetails {
         section("Branch details") {
-          VStack(alignment: .leading, spacing: 6) {
+          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
             valueRow(
               icon: .asset("git-branch"),
               title: branchDetails.branchName
@@ -68,7 +73,7 @@ struct AgentPanelView: View {
 
       if !presentation.artifacts.isEmpty {
         section("Artifacts") {
-          VStack(alignment: .leading, spacing: 6) {
+          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
             ForEach(presentation.artifacts) { artifact in
               linkRow(icon: .system("network"), title: artifact.title, url: artifact.url)
             }
@@ -87,7 +92,7 @@ struct AgentPanelView: View {
     _ title: String,
     @ViewBuilder content: () -> Content
   ) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
       Text(title)
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(palette.secondaryText)
@@ -98,7 +103,7 @@ struct AgentPanelView: View {
   }
 
   private func progressRow(_ row: PaneAgentProgressRow) -> some View {
-    HStack(spacing: 7) {
+    HStack(spacing: AgentPanelMetrics.rowContentSpacing) {
       AgentPanelProgressIcon(
         status: row.status,
         palette: palette
@@ -114,7 +119,7 @@ struct AgentPanelView: View {
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {
     section("Agent actions") {
-      VStack(alignment: .leading, spacing: 6) {
+      VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
         AgentPanelActionRow(
           icon: .asset("git-fork"),
           title: Self.forkTitle(forksDown: forksDown),
@@ -163,23 +168,20 @@ struct AgentPanelView: View {
     title: String,
     iconColor: Color? = nil
   ) -> some View {
-    HStack(spacing: 7) {
-      AgentPanelIconView(icon: icon, color: iconColor ?? palette.secondaryText)
-      Text(title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    AgentPanelRowContent(
+      icon: icon,
+      title: title,
+      palette: palette,
+      iconColor: iconColor ?? palette.secondaryText
+    )
   }
 
   private func changesRow(addedLineCount: Int, removedLineCount: Int) -> some View {
-    HStack(spacing: 7) {
+    HStack(spacing: AgentPanelMetrics.rowContentSpacing) {
       Image(systemName: "plus.forwardslash.minus")
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(palette.secondaryText)
-        .frame(width: 14)
+        .frame(width: AgentPanelMetrics.rowIconWidth)
         .accessibilityHidden(true)
       HStack(spacing: 4) {
         Text("+\(addedLineCount, format: .number)")
@@ -213,27 +215,23 @@ struct AgentPanelView: View {
     Button {
       openURL(url)
     } label: {
-      HStack(spacing: 7) {
-        AgentPanelIconView(icon: icon, color: iconColor ?? palette.secondaryText)
-        Text(title)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-          .truncationMode(.middle)
-        Spacer(minLength: 4)
+      AgentPanelRowContent(
+        icon: icon,
+        title: title,
+        palette: palette,
+        iconColor: iconColor ?? palette.secondaryText
+      ) {
         Image(systemName: "arrow.up.right")
           .font(.system(size: 9, weight: .bold))
           .foregroundStyle(palette.secondaryText)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(.rect)
     }
     .buttonStyle(.plain)
     .accessibilityLabel(title)
   }
 
   private func pullRequestChecksRows(_ checks: PaneAgentPullRequestChecks) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
       Button {
         checksAreExpanded.toggle()
       } label: {
@@ -252,24 +250,22 @@ struct AgentPanelView: View {
   }
 
   private func pullRequestChecksSummaryRow(_ checks: PaneAgentPullRequestChecks) -> some View {
-    HStack(spacing: 7) {
-      PullRequestChecksRingView(checks: checks, palette: palette)
-        .frame(width: 14)
-        .accessibilityHidden(true)
-      Text(checks.title)
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.primaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-      Spacer(minLength: 4)
-      Image(systemName: checksAreExpanded ? "chevron.down" : "chevron.right")
-        .font(.system(size: 8, weight: .bold))
-        .foregroundStyle(palette.secondaryText)
-        .frame(width: 10)
-        .accessibilityHidden(true)
-    }
-    .contentShape(.rect)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    AgentPanelRowContent(
+      leading: {
+        PullRequestChecksRingView(checks: checks, palette: palette)
+          .frame(width: AgentPanelMetrics.rowIconWidth)
+          .accessibilityHidden(true)
+      },
+      title: checks.title,
+      palette: palette,
+      trailing: {
+        Image(systemName: checksAreExpanded ? "chevron.down" : "chevron.right")
+          .font(.system(size: 8, weight: .bold))
+          .foregroundStyle(palette.secondaryText)
+          .frame(width: 10)
+          .accessibilityHidden(true)
+      }
+    )
   }
 
   @ViewBuilder
@@ -287,31 +283,44 @@ struct AgentPanelView: View {
     }
   }
 
+  @ViewBuilder
   private func checkRowContent(
     _ item: PaneAgentPullRequestCheck,
     showsLink: Bool
   ) -> some View {
-    HStack(spacing: 7) {
-      Circle()
-        .fill(checkColor(item.status))
-        .frame(width: 6, height: 6)
-        .frame(width: 14)
-        .accessibilityHidden(true)
-      Text("\(item.title) - \(item.detailText())")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(palette.secondaryText)
-        .lineLimit(1)
-        .truncationMode(.middle)
-      if showsLink {
-        Spacer(minLength: 4)
-        Image(systemName: "arrow.up.right")
-          .font(.system(size: 9, weight: .bold))
-          .foregroundStyle(palette.secondaryText)
-          .accessibilityHidden(true)
-      }
+    if showsLink {
+      AgentPanelRowContent(
+        leading: {
+          checkStatusView(item)
+        },
+        title: "\(item.title) - \(item.detailText())",
+        palette: palette,
+        titleColor: palette.secondaryText,
+        trailing: {
+          Image(systemName: "arrow.up.right")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(palette.secondaryText)
+            .accessibilityHidden(true)
+        }
+      )
+    } else {
+      AgentPanelRowContent(
+        leading: {
+          checkStatusView(item)
+        },
+        title: "\(item.title) - \(item.detailText())",
+        palette: palette,
+        titleColor: palette.secondaryText
+      )
     }
-    .contentShape(.rect)
-    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func checkStatusView(_ item: PaneAgentPullRequestCheck) -> some View {
+    Circle()
+      .fill(checkColor(item.status))
+      .frame(width: 6, height: 6)
+      .frame(width: AgentPanelMetrics.rowIconWidth)
+      .accessibilityHidden(true)
   }
 
   private func pullRequestIcon(_ status: PaneAgentPullRequestStatus) -> AgentPanelIcon {
@@ -377,7 +386,7 @@ private struct AgentPanelIconView: View {
         .resizable()
         .aspectRatio(contentMode: .fit)
         .frame(width: 13, height: 13)
-        .frame(width: 14)
+        .frame(width: AgentPanelMetrics.rowIconWidth)
         .foregroundStyle(color)
         .accessibilityHidden(true)
 
@@ -385,9 +394,105 @@ private struct AgentPanelIconView: View {
       Image(systemName: name)
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(color)
-        .frame(width: 14)
+        .frame(width: AgentPanelMetrics.rowIconWidth)
         .accessibilityHidden(true)
     }
+  }
+}
+
+private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
+  let leading: Leading
+  let title: String
+  let titleColor: Color
+  let trailingSpacing: CGFloat?
+  let trailing: Trailing
+
+  init(
+    @ViewBuilder leading: () -> Leading,
+    title: String,
+    palette: TerminalPalette,
+    titleColor: Color? = nil,
+    trailingSpacing: CGFloat? = AgentPanelMetrics.rowTrailingSpacing,
+    @ViewBuilder trailing: () -> Trailing
+  ) {
+    self.leading = leading()
+    self.title = title
+    self.titleColor = titleColor ?? palette.primaryText
+    self.trailingSpacing = trailingSpacing
+    self.trailing = trailing()
+  }
+
+  init(
+    icon: AgentPanelIcon,
+    title: String,
+    palette: TerminalPalette,
+    iconColor: Color,
+    @ViewBuilder trailing: () -> Trailing
+  ) where Leading == AgentPanelIconView {
+    self.init(
+      leading: {
+        AgentPanelIconView(icon: icon, color: iconColor)
+      },
+      title: title,
+      palette: palette,
+      trailing: trailing
+    )
+  }
+
+  var body: some View {
+    HStack(spacing: AgentPanelMetrics.rowContentSpacing) {
+      leading
+      Text(title)
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(titleColor)
+        .lineLimit(1)
+        .truncationMode(.middle)
+      if let trailingSpacing {
+        Spacer(minLength: trailingSpacing)
+      }
+      trailing
+    }
+    .contentShape(.rect)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+extension AgentPanelRowContent where Trailing == EmptyView {
+  init(
+    @ViewBuilder leading: () -> Leading,
+    title: String,
+    palette: TerminalPalette,
+    titleColor: Color? = nil
+  ) {
+    self.init(
+      leading: leading,
+      title: title,
+      palette: palette,
+      titleColor: titleColor,
+      trailingSpacing: nil,
+      trailing: {
+        EmptyView()
+      }
+    )
+  }
+
+  init(
+    icon: AgentPanelIcon,
+    title: String,
+    palette: TerminalPalette,
+    iconColor: Color
+  ) where Leading == AgentPanelIconView {
+    self.init(
+      leading: {
+        AgentPanelIconView(icon: icon, color: iconColor)
+      },
+      title: title,
+      palette: palette,
+      trailingSpacing: nil,
+      trailing: {
+        EmptyView()
+      }
+    )
   }
 }
 
@@ -403,29 +508,13 @@ private struct AgentPanelActionRow: View {
 
   var body: some View {
     Button(action: action) {
-      HStack(spacing: 7) {
-        AgentPanelIconView(icon: icon, color: palette.secondaryText)
-        Text(title)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-        Spacer(minLength: 8)
-        if let shortcutHint {
-          Text(shortcutHint)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(palette.secondaryText)
-            .monospacedDigit()
-            .lineLimit(1)
+      rowContent
+        .background {
+          RoundedRectangle(cornerRadius: 5)
+            .fill(rowBackground)
+            .padding(.vertical, -4)
+            .padding(.horizontal, -5)
         }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background {
-        RoundedRectangle(cornerRadius: 5)
-          .fill(rowBackground)
-          .padding(.vertical, -4)
-          .padding(.horizontal, -5)
-      }
-      .contentShape(.rect)
     }
     .buttonStyle(.plain)
     .help(helpText)
@@ -435,6 +524,31 @@ private struct AgentPanelActionRow: View {
 
   private var rowBackground: Color {
     isHovering ? palette.secondaryText.opacity(0.12) : .clear
+  }
+
+  @ViewBuilder
+  private var rowContent: some View {
+    if let shortcutHint {
+      AgentPanelRowContent(
+        icon: icon,
+        title: title,
+        palette: palette,
+        iconColor: palette.secondaryText
+      ) {
+        Text(shortcutHint)
+          .font(.system(size: 11, weight: .semibold, design: .rounded))
+          .foregroundStyle(palette.secondaryText)
+          .monospacedDigit()
+          .lineLimit(1)
+      }
+    } else {
+      AgentPanelRowContent(
+        icon: icon,
+        title: title,
+        palette: palette,
+        iconColor: palette.secondaryText
+      )
+    }
   }
 }
 
