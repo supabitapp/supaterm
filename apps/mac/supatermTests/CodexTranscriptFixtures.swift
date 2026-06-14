@@ -17,6 +17,7 @@ enum CodexTranscriptFixtures {
     case turnAborted(turnID: String)
     case turnContext(turnID: String)
     case threadGoalUpdated(turnID: String, objective: String, status: String)
+    case goalContext(objective: String)
     case localShellCall(command: [String])
     case functionCall(name: String, arguments: [String: Any]? = nil)
     case reasoning(String)
@@ -101,6 +102,28 @@ enum CodexTranscriptFixtures {
               "timeUsedSeconds": 90,
               "createdAt": 1,
               "updatedAt": 2,
+            ],
+          ]
+        )
+
+      case .goalContext(let objective):
+        object = responseItem(
+          payload: [
+            "type": "message",
+            "role": "user",
+            "content": [
+              [
+                "type": "input_text",
+                "text": """
+                <codex_internal_context source="goal">
+                Continue working toward the active thread goal.
+
+                <objective>
+                \(objective)
+                </objective>
+                </codex_internal_context>
+                """,
+              ]
             ],
           ]
         )

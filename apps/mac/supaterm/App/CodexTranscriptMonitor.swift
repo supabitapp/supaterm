@@ -331,10 +331,10 @@ struct CodexConversationState: Equatable {
           replacingLastFinalMessage: false
         )
       } else {
-        let item = CodexConversationItem.message(
-          CodexConversationMessage(role: role, text: text, phase: payload["phase"]?.stringValue)
+        appendItem(
+          .message(CodexConversationMessage(role: role, text: text, phase: payload["phase"]?.stringValue)),
+          preferredTurnID: preferredTurnID
         )
-        appendItem(item, preferredTurnID: preferredTurnID)
       }
     case "reasoning":
       appendReasoning(
@@ -396,6 +396,7 @@ struct CodexConversationState: Equatable {
   ) {
     let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
     turns[index].items.append(item)
+    updateGoalState(forAppended: item, at: index)
   }
 
   private mutating func appendOperation(
@@ -545,6 +546,14 @@ struct CodexConversationState: Equatable {
     turns[index].progressRows = rows
   }
 
+  private mutating func updateGoalState(
+    forAppended item: CodexConversationItem,
+    at index: Int
+  ) {
+    guard let row = Self.goalProgressRow(from: item) else { return }
+    turns[index].goalRow = row
+  }
+
   private static func structuredProgressRows(
     from items: [CodexConversationItem]
   ) -> [PaneAgentProgressRow] {
@@ -565,13 +574,9 @@ struct CodexConversationState: Equatable {
   ) -> PaneAgentProgressRow? {
     var row: PaneAgentProgressRow?
     for item in items {
-      guard case .event(let type, let payload) = item,
-        type == "thread_goal_updated",
-        let nextRow = goalProgressRow(from: payload["goal"]?.objectValue)
-      else {
-        continue
+      if let nextRow = goalProgressRow(from: item) {
+        row = nextRow
       }
-      row = nextRow
     }
     return row
   }
@@ -620,6 +625,39 @@ struct CodexConversationState: Equatable {
       title: title,
       status: status
     )
+  }
+
+  private static func goalProgressRow(from item: CodexConversationItem) -> PaneAgentProgressRow? {
+    switch item {
+    case .event(let type, let payload) where type == "thread_goal_updated":
+      return goalProgressRow(from: payload["goal"]?.objectValue)
+    case .message(let message) where message.role == "user":
+      return goalProgressRow(fromGoalContext: message.text)
+    default:
+      return nil
+    }
+  }
+
+  private static func goalProgressRow(fromGoalContext text: String) -> PaneAgentProgressRow? {
+    guard text.contains(#"<codex_internal_context source="goal">"#),
+      let objective = goalObjective(from: text)
+    else {
+      return nil
+    }
+    return PaneAgentProgressRow(
+      id: "goal:\(objective)",
+      title: "Goal: \(objective)",
+      status: .running
+    )
+  }
+
+  private static func goalObjective(from text: String) -> String? {
+    guard let start = text.range(of: "<objective>"),
+      let end = text.range(of: "</objective>", range: start.upperBound..<text.endIndex)
+    else {
+      return nil
+    }
+    return AgentProgressParsing.normalizedTitle(String(text[start.upperBound..<end.lowerBound]))
   }
 
   private static func goalStatus(_ rawValue: String?) -> PaneAgentProgressRow.Status {

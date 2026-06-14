@@ -189,6 +189,55 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func internalGoalContextAddsGoalProgressRow() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .goalContext(objective: "figure out what in this folder"),
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [
+            ["step": "Inspect top-level contents and metadata", "status": "in_progress"],
+            ["step": "Summarize what matters in the folder", "status": "pending"],
+          ]
+        ]
+      ),
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(
+      conversation.sidebarSnapshot.progressRows == [
+        PaneAgentProgressRow(
+          id: "goal:figure out what in this folder",
+          title: "Goal: figure out what in this folder",
+          status: .running
+        ),
+        PaneAgentProgressRow(
+          id: "0:Inspect top-level contents and metadata",
+          title: "Inspect top-level contents and metadata",
+          status: .running
+        ),
+        PaneAgentProgressRow(
+          id: "1:Summarize what matters in the folder",
+          title: "Summarize what matters in the folder",
+          status: .pending
+        ),
+      ]
+    )
+  }
+
+  @Test
   func completedTurnHidesGoalProgressRow() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
