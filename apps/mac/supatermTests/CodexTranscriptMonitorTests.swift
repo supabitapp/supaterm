@@ -238,6 +238,68 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func activeGoalCarriesIntoManualTurnWithoutGoalContext() {
+    var conversation = CodexConversationState()
+    conversation.absorb(
+      [
+        .eventMessage(type: "task_started", payload: ["turn_id": .string("turn-1")]),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("user"),
+            "content": .array([
+              .object([
+                "text": .string(
+                  """
+                  <codex_internal_context source="goal">
+                  <objective>
+                  continue to finish firmware mapping
+                  </objective>
+                  </codex_internal_context>
+                  """
+                )
+              ])
+            ]),
+          ]
+        ),
+        .eventMessage(type: "turn_aborted", payload: ["turn_id": .string("turn-1")]),
+        .eventMessage(type: "task_started", payload: ["turn_id": .string("turn-2")]),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("user"),
+            "content": .array([.object(["text": .string("try commit again first")])]),
+          ]
+        ),
+        .responseItem(
+          type: "function_call",
+          payload: [
+            "name": .string("update_plan"),
+            "arguments": .string(
+              #"{"plan":[{"step":"Commit and push operand evidence work","status":"in_progress"}]}"#
+            ),
+          ]
+        ),
+      ]
+    )
+
+    #expect(
+      conversation.sidebarSnapshot.progressRows == [
+        PaneAgentProgressRow(
+          id: "goal:continue to finish firmware mapping",
+          title: "Goal: continue to finish firmware mapping",
+          status: .running
+        ),
+        PaneAgentProgressRow(
+          id: "0:Commit and push operand evidence work",
+          title: "Commit and push operand evidence work",
+          status: .running
+        ),
+      ]
+    )
+  }
+
+  @Test
   func completedTurnHidesGoalProgressRow() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }

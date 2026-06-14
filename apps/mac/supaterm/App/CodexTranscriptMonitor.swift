@@ -134,7 +134,12 @@ struct CodexConversationState: Equatable {
   }
 
   var progressRows: [PaneAgentProgressRow] {
-    (activeTurn ?? latestTurn)?.displayedProgressRows ?? []
+    (activeTurn ?? latestTurn)?.displayedProgressRows(fallbackGoalRow: activeGoalRow) ?? []
+  }
+
+  private var activeGoalRow: PaneAgentProgressRow? {
+    guard let row = turns.reversed().compactMap(\.goalRow).first else { return nil }
+    return row.status == .completed ? nil : row
   }
 
   var sidebarSnapshot: AgentMonitorSnapshot {
@@ -702,13 +707,15 @@ private struct AssistantMessageState: Equatable {
 }
 
 extension CodexConversationTurn {
-  fileprivate var displayedProgressRows: [PaneAgentProgressRow] {
+  fileprivate func displayedProgressRows(
+    fallbackGoalRow: PaneAgentProgressRow?
+  ) -> [PaneAgentProgressRow] {
     switch status {
     case .completed:
       return []
     case .inProgress, .aborted, .failed:
-      if let goalRow {
-        return [goalRow] + progressRows
+      if let row = goalRow ?? fallbackGoalRow {
+        return [row] + progressRows
       }
       return progressRows
     }
