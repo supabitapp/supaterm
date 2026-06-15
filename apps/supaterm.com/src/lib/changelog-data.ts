@@ -17,6 +17,31 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v1.3.7",
+    date: "2026-06-15",
+    title: "🛠️ Session reliability fixes",
+    sections: [
+      {
+        category: "improvements",
+        items: [
+          "Agent progress now tracks active goals from live sessions",
+          "Bundled Supaterm skills now refresh automatically on app launch",
+          "The website hero and share image now use the latest app screenshot",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Pinned terminal panes no longer disappear after OSC 8 hyperlink output",
+          "Forked agent panes now keep the correct session routing and progress state",
+          "sp socket requests now expire cleanly instead of leaving the daemon busy",
+          "Terminal windows now restore their saved frame on relaunch",
+          "Path-like sidebar tab titles now truncate from the middle",
+        ],
+      },
+    ],
+  },
+  {
     version: "v1.3.6",
     date: "2026-06-02",
     title: "🛠️ Pinned tab hotfixes",
