@@ -31,12 +31,13 @@ struct TerminalAgentBadgeGroupView: View {
     let overflowCount = Self.overflowCount(for: activities)
 
     HStack(spacing: -5.5) {
-      ForEach(Array(visibleActivities.enumerated()), id: \.offset) { _, activity in
+      ForEach(Array(visibleActivities.enumerated()), id: \.offset) { index, activity in
         TerminalAgentBadgeView(
           activity: activity,
           isSelected: isSelected,
           palette: palette
         )
+        .zIndex(Double(visibleActivities.count - index))
       }
 
       if overflowCount > 0 {
