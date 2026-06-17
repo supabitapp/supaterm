@@ -415,29 +415,13 @@ nonisolated struct TerminalAgentGithubRemote: Equatable, Hashable, Sendable {
   }
 }
 
-actor TerminalAgentGithubStatusCache {
+actor TerminalAgentGithubStatusCoalescer {
   private struct Key: Hashable, Sendable {
     let remote: TerminalAgentGithubRemote
     let branchName: String
   }
 
-  private struct Entry: Sendable {
-    let status: PaneAgentPullRequestStatus
-    let createdAt: Date
-  }
-
-  private let ttl: TimeInterval
-  private let now: @Sendable () -> Date
-  private var entries: [Key: Entry] = [:]
   private var tasks: [Key: Task<PaneAgentPullRequestStatus, Never>] = [:]
-
-  init(
-    ttl: TimeInterval = 120,
-    now: @escaping @Sendable () -> Date = { Date() }
-  ) {
-    self.ttl = ttl
-    self.now = now
-  }
 
   func status(
     remote: TerminalAgentGithubRemote,
@@ -445,10 +429,6 @@ actor TerminalAgentGithubStatusCache {
     load: @escaping @Sendable () async -> PaneAgentPullRequestStatus
   ) async -> PaneAgentPullRequestStatus {
     let key = Key(remote: remote, branchName: branchName)
-    let currentDate = now()
-    if let entry = entries[key], currentDate.timeIntervalSince(entry.createdAt) < ttl {
-      return entry.status
-    }
     if let task = tasks[key] {
       return await task.value
     }
@@ -458,7 +438,6 @@ actor TerminalAgentGithubStatusCache {
     tasks[key] = task
     let status = await task.value
     tasks[key] = nil
-    entries[key] = Entry(status: status, createdAt: now())
     return status
   }
 }
@@ -523,17 +502,17 @@ actor TerminalAgentGithubExecutableResolver {
 nonisolated struct TerminalAgentGithubClient: Sendable {
   let runner: TerminalAgentPanelCommandRunner
   let resolver: TerminalAgentGithubExecutableResolver
-  let statusCache: TerminalAgentGithubStatusCache
+  let statusCoalescer: TerminalAgentGithubStatusCoalescer
   private let pullRequestStatusProvider: (@Sendable (URL, String) async -> PaneAgentPullRequestStatus)?
 
   init(
     runner: TerminalAgentPanelCommandRunner = .live,
     resolver: TerminalAgentGithubExecutableResolver = TerminalAgentGithubExecutableResolver(),
-    statusCache: TerminalAgentGithubStatusCache = TerminalAgentGithubStatusCache()
+    statusCoalescer: TerminalAgentGithubStatusCoalescer = TerminalAgentGithubStatusCoalescer()
   ) {
     self.runner = runner
     self.resolver = resolver
-    self.statusCache = statusCache
+    self.statusCoalescer = statusCoalescer
     pullRequestStatusProvider = nil
   }
 
@@ -542,7 +521,7 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
   ) {
     runner = .live
     resolver = TerminalAgentGithubExecutableResolver()
-    statusCache = TerminalAgentGithubStatusCache()
+    statusCoalescer = TerminalAgentGithubStatusCoalescer()
     pullRequestStatusProvider = pullRequestStatus
   }
 
@@ -557,7 +536,7 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     guard let remote = remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:)) else {
       return .unavailable
     }
-    return await statusCache.status(remote: remote, branchName: branchName) {
+    return await statusCoalescer.status(remote: remote, branchName: branchName) {
       await fetchPullRequestStatus(remote: remote, branchName: branchName)
     }
   }

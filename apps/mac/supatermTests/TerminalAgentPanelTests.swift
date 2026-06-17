@@ -642,7 +642,7 @@ struct TerminalAgentPanelTests {
     let client = TerminalAgentGithubClient(
       runner: await recorder.runner(),
       resolver: TerminalAgentGithubExecutableResolver(),
-      statusCache: TerminalAgentGithubStatusCache(ttl: 120)
+      statusCoalescer: TerminalAgentGithubStatusCoalescer()
     )
     let repoRoot = URL(fileURLWithPath: "/tmp/repo", isDirectory: true)
 
@@ -661,14 +661,14 @@ struct TerminalAgentPanelTests {
     #expect(await second.kind == .open)
     #expect(await recorder.graphqlCallCount() == 1)
 
-    let cached = await client.pullRequestStatus(
+    let fresh = await client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "khoi/agent-panel",
       remoteURL: "https://github.com/supabitapp/supaterm.git"
     )
 
-    #expect(cached.kind == .open)
-    #expect(await recorder.graphqlCallCount() == 1)
+    #expect(fresh.kind == .open)
+    #expect(await recorder.graphqlCallCount() == 2)
   }
 
   @Test
