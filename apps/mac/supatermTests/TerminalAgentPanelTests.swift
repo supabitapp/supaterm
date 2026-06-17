@@ -700,7 +700,7 @@ struct TerminalAgentPanelTests {
     let status = await client.pullRequestStatus(
       repoRoot: URL(fileURLWithPath: "/tmp/repo", isDirectory: true),
       branchName: "khoi/agent-panel",
-      remoteURL: "git@github.com:supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "git@github.com:supabitapp/supaterm.git")
     )
 
     #expect(status.kind == .none)
@@ -724,12 +724,12 @@ struct TerminalAgentPanelTests {
     async let first = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "khoi/agent-panel",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let second = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "khoi/agent-panel",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     #expect(await first.kind == .open)
@@ -739,7 +739,7 @@ struct TerminalAgentPanelTests {
     let fresh = await client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "khoi/agent-panel",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     #expect(fresh.kind == .open)
@@ -765,17 +765,17 @@ struct TerminalAgentPanelTests {
     async let first = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "feature/a",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let second = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "feature/b",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let third = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "feature/c",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     #expect(await first.title == "#101")
@@ -805,32 +805,32 @@ struct TerminalAgentPanelTests {
     async let first = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[0],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let second = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[1],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let third = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[2],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let fourth = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[3],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let fifth = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[4],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let sixth = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: branches[5],
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     _ = await (first, second, third, fourth, fifth, sixth)
@@ -857,12 +857,12 @@ struct TerminalAgentPanelTests {
     async let first = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "feature/a",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
     async let second = client.pullRequestStatus(
       repoRoot: repoRoot,
       branchName: "feature/b",
-      remoteURL: "https://github.example.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.example.com/supabitapp/supaterm.git")
     )
 
     #expect(await first.title == "#101")
@@ -883,7 +883,7 @@ struct TerminalAgentPanelTests {
     let status = await client.pullRequestStatus(
       repoRoot: URL(fileURLWithPath: "/tmp/repo", isDirectory: true),
       branchName: "feature/missing",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     #expect(status.kind == .none)
@@ -909,7 +909,7 @@ struct TerminalAgentPanelTests {
     let status = await client.pullRequestStatus(
       repoRoot: URL(fileURLWithPath: "/tmp/repo", isDirectory: true),
       branchName: "feature/retry",
-      remoteURL: "https://github.com/supabitapp/supaterm.git"
+      remote: TerminalAgentGithubRemote(remoteURL: "https://github.com/supabitapp/supaterm.git")
     )
 
     #expect(status.title == "#104")

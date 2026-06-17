@@ -437,7 +437,6 @@ actor TerminalAgentGithubStatusBatcher {
     PaneAgentPullRequestStatus]
 
   private struct PendingBatch {
-    var branchNames: Set<String> = []
     var continuations: [String: [CheckedContinuation<PaneAgentPullRequestStatus, Never>]] = [:]
     var task: Task<Void, Never>?
   }
@@ -456,7 +455,6 @@ actor TerminalAgentGithubStatusBatcher {
   ) async -> PaneAgentPullRequestStatus {
     await withCheckedContinuation { continuation in
       var batch = pendingBatches[remote] ?? PendingBatch()
-      batch.branchNames.insert(branchName)
       batch.continuations[branchName, default: []].append(continuation)
       if batch.task == nil {
         batch.task = Task { [batchWindow] in
@@ -475,7 +473,7 @@ actor TerminalAgentGithubStatusBatcher {
     load: @escaping Loader
   ) async {
     guard let batch = pendingBatches.removeValue(forKey: remote) else { return }
-    let branchNames = batch.branchNames.sorted()
+    let branchNames = batch.continuations.keys.sorted()
     let statuses = await load(remote, branchNames)
     for (branchName, continuations) in batch.continuations {
       let status = statuses[branchName] ?? .unavailable
@@ -572,12 +570,12 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
   nonisolated func pullRequestStatus(
     repoRoot: URL,
     branchName: String,
-    remoteURL: String?
+    remote: TerminalAgentGithubRemote?
   ) async -> PaneAgentPullRequestStatus {
     if let pullRequestStatusProvider {
       return await pullRequestStatusProvider(repoRoot, branchName)
     }
-    guard let remote = remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:)) else {
+    guard let remote else {
       return .unavailable
     }
     return await statusBatcher.status(remote: remote, branchName: branchName) { remote, branchNames in
@@ -1426,15 +1424,16 @@ final class TerminalAgentPanelController {
     let gitSnapshot = await gitClient.snapshot(workingDirectoryPath: workingDirectoryPath)
     let branchDetails: PaneAgentBranchDetails?
     if let gitSnapshot {
+      let remote = gitSnapshot.remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:))
       let pullRequestStatus = await githubClient.pullRequestStatus(
         repoRoot: gitSnapshot.repoRoot,
         branchName: gitSnapshot.branchName,
-        remoteURL: gitSnapshot.remoteURL
+        remote: remote
       )
       let displayedPullRequestStatus = pullRequestStatusForRefresh(
         pullRequestStatus,
         branchName: gitSnapshot.branchName,
-        remoteURL: gitSnapshot.remoteURL,
+        remote: remote,
         workspaceKey: workspaceKey
       )
       branchDetails = PaneAgentBranchDetails(
@@ -1446,13 +1445,11 @@ final class TerminalAgentPanelController {
     } else {
       branchDetails = nil
     }
-    await MainActor.run {
-      guard self.workspaceRevisions[workspaceKey] == revision else {
-        return
-      }
-      self.storeBranchDetails(branchDetails, workspaceKey: workspaceKey, revision: revision)
-      self.configureHeadWatcher(workspaceKey: workspaceKey, headURL: gitSnapshot?.headURL)
+    guard workspaceRevisions[workspaceKey] == revision else {
+      return
     }
+    storeBranchDetails(branchDetails, workspaceKey: workspaceKey, revision: revision)
+    configureHeadWatcher(workspaceKey: workspaceKey, headURL: gitSnapshot?.headURL)
   }
 
   private func updatePortTracking(
@@ -1476,12 +1473,12 @@ final class TerminalAgentPanelController {
   private func pullRequestStatusForRefresh(
     _ pullRequestStatus: PaneAgentPullRequestStatus,
     branchName: String,
-    remoteURL: String?,
+    remote: TerminalAgentGithubRemote?,
     workspaceKey: TerminalAgentPanelWorkspaceKey
   ) -> PaneAgentPullRequestStatus {
     guard
       pullRequestStatus.kind == .unavailable,
-      remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:)) != nil,
+      remote != nil,
       let previous = branchDetailsByWorkspaceKey[workspaceKey],
       previous.branchName == branchName,
       previous.displayedPullRequestStatus != nil
