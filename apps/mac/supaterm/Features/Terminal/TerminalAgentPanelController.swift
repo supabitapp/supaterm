@@ -1457,11 +1457,17 @@ final class TerminalAgentPanelController {
         branchName: gitSnapshot.branchName,
         remoteURL: gitSnapshot.remoteURL
       )
+      let displayedPullRequestStatus = pullRequestStatusForRefresh(
+        pullRequestStatus,
+        branchName: gitSnapshot.branchName,
+        remoteURL: gitSnapshot.remoteURL,
+        workspaceKey: workspaceKey
+      )
       branchDetails = PaneAgentBranchDetails(
         branchName: gitSnapshot.branchName,
         addedLineCount: pullRequestStatus.addedLineCount ?? gitSnapshot.addedLineCount,
         removedLineCount: pullRequestStatus.removedLineCount ?? gitSnapshot.removedLineCount,
-        pullRequestStatus: pullRequestStatus
+        pullRequestStatus: displayedPullRequestStatus
       )
     } else {
       branchDetails = nil
@@ -1491,6 +1497,24 @@ final class TerminalAgentPanelController {
     ) { [weak self] surfaceID, artifacts in
       self?.storeArtifacts(artifacts, surfaceID: surfaceID)
     }
+  }
+
+  private func pullRequestStatusForRefresh(
+    _ pullRequestStatus: PaneAgentPullRequestStatus,
+    branchName: String,
+    remoteURL: String?,
+    workspaceKey: TerminalAgentPanelWorkspaceKey
+  ) -> PaneAgentPullRequestStatus {
+    guard
+      pullRequestStatus.kind == .unavailable,
+      remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:)) != nil,
+      let previous = branchDetailsByWorkspaceKey[workspaceKey],
+      previous.branchName == branchName,
+      previous.displayedPullRequestStatus != nil
+    else {
+      return pullRequestStatus
+    }
+    return previous.pullRequestStatus
   }
 
   private func storeBranchDetails(

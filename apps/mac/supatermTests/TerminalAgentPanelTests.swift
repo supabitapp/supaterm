@@ -388,6 +388,92 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  @MainActor
+  func refreshKeepsPullRequestStatusWhenGithubBecomesUnavailable() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let repoRoot = FileManager.default.temporaryDirectory.appending(
+        path: UUID().uuidString,
+        directoryHint: .isDirectory
+      )
+      try FileManager.default.createDirectory(at: repoRoot, withIntermediateDirectories: true)
+      defer { try? FileManager.default.removeItem(at: repoRoot) }
+
+      let recorder = AgentPanelRefreshRecorder()
+      let statuses = AgentPanelPullRequestStatusSequence([
+        PaneAgentPullRequestStatus(
+          kind: .open,
+          title: "#9",
+          url: URL(string: "https://github.com/supabitapp/supaterm/pull/9"),
+          addedLineCount: 34,
+          removedLineCount: 5,
+          checks: nil
+        ),
+        .unavailable,
+      ])
+      let gitClient = TerminalAgentGitClient { workingDirectoryPath in
+        await recorder.recordGit(workingDirectoryPath)
+        return TerminalAgentGitSnapshot(
+          repoRoot: repoRoot,
+          headURL: nil,
+          branchName: "feature/flicker",
+          addedLineCount: 12,
+          removedLineCount: 3,
+          remoteURL: "https://github.com/supabitapp/supaterm.git"
+        )
+      }
+      let githubClient = TerminalAgentGithubClient { _, branchName in
+        await recorder.recordPullRequest(branchName)
+        return await statuses.next()
+      }
+      let host = TerminalHostState()
+      let surfaceID = try #require(
+        restoreSplitHost(
+          host,
+          workingDirectoryPath: repoRoot.path(percentEncoded: false)
+        )
+        .first
+      )
+      _ = host.registerAgentPresence(
+        agent: .codex,
+        for: surfaceID,
+        sessionID: "session-0",
+        processID: nil
+      )
+      let controller = TerminalAgentPanelController(
+        terminal: host,
+        gitClient: gitClient,
+        githubClient: githubClient
+      )
+      host.agentPanelController = controller
+      defer { controller.stop() }
+
+      controller.surfaceFocused(surfaceID)
+
+      #expect(await waitForBranchDetails(host: host, surfaceIDs: [surfaceID], branchName: "feature/flicker"))
+      #expect(host.agentPanelPresentation(for: surfaceID)?.branchDetails?.displayedPullRequestStatus?.title == "#9")
+
+      #expect(
+        host.recordAgentPanelSnapshot(
+          progressRows: [
+            PaneAgentProgressRow(id: "tool-call", title: "Tool call", status: .running)
+          ],
+          for: surfaceID
+        )
+      )
+      #expect(await waitForPullRequestRefreshes(recorder: recorder, count: 2))
+
+      let branchDetails = try #require(host.agentPanelPresentation(for: surfaceID)?.branchDetails)
+      #expect(branchDetails.displayedPullRequestStatus?.title == "#9")
+      #expect(branchDetails.addedLineCount == 12)
+      #expect(branchDetails.removedLineCount == 3)
+    }
+  }
+
+  @Test
   func shortstatParserHandlesInsertionsAndDeletions() {
     #expect(
       TerminalAgentGitClient.parseShortstat(
@@ -1370,6 +1456,21 @@ private actor AgentPanelRefreshRecorder {
   }
 }
 
+private actor AgentPanelPullRequestStatusSequence {
+  private var statuses: [PaneAgentPullRequestStatus]
+
+  init(_ statuses: [PaneAgentPullRequestStatus]) {
+    self.statuses = statuses
+  }
+
+  func next() -> PaneAgentPullRequestStatus {
+    if statuses.isEmpty {
+      return .unavailable
+    }
+    return statuses.removeFirst()
+  }
+}
+
 @MainActor
 private func restoreSplitHost(
   _ host: TerminalHostState,
@@ -1419,6 +1520,21 @@ private func waitForBranchDetails(
     if surfaceIDs.allSatisfy({
       host.agentPanelPresentation(for: $0)?.branchDetails?.branchName == branchName
     }) {
+      return true
+    }
+    try? await Task.sleep(for: .milliseconds(10))
+  }
+  return false
+}
+
+private func waitForPullRequestRefreshes(
+  recorder: AgentPanelRefreshRecorder,
+  count: Int
+) async -> Bool {
+  let clock = ContinuousClock()
+  let deadline = clock.now.advanced(by: .seconds(1))
+  while clock.now < deadline {
+    if await recorder.pullRequestBranches().count >= count {
       return true
     }
     try? await Task.sleep(for: .milliseconds(10))
