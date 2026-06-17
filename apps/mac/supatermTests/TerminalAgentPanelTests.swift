@@ -607,7 +607,7 @@ struct TerminalAgentPanelTests {
           return TerminalAgentPanelCommandResult(
             status: 0,
             stdout: """
-              {"data":{"repository":{"pullRequests":{"nodes":[]}}}}
+              {"data":{"repository":{"branch0":{"nodes":[]}}}}
               """
           )
         }
@@ -642,7 +642,7 @@ struct TerminalAgentPanelTests {
     let client = TerminalAgentGithubClient(
       runner: await recorder.runner(),
       resolver: TerminalAgentGithubExecutableResolver(),
-      statusCoalescer: TerminalAgentGithubStatusCoalescer()
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
     )
     let repoRoot = URL(fileURLWithPath: "/tmp/repo", isDirectory: true)
 
@@ -668,6 +668,176 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(fresh.kind == .open)
+    #expect(await recorder.graphqlCallCount() == 2)
+  }
+
+  @Test
+  func githubPullRequestStatusBatchesBranchesByRemote() async {
+    let recorder = GithubPullRequestCommandRecorder(
+      pullRequestNumbersByBranch: [
+        "feature/a": 101,
+        "feature/b": 102,
+        "feature/c": 103,
+      ]
+    )
+    let client = TerminalAgentGithubClient(
+      runner: await recorder.runner(),
+      resolver: TerminalAgentGithubExecutableResolver(),
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
+    )
+    let repoRoot = URL(fileURLWithPath: "/tmp/repo", isDirectory: true)
+
+    async let first = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: "feature/a",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let second = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: "feature/b",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let third = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: "feature/c",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+
+    #expect(await first.title == "#101")
+    #expect(await second.title == "#102")
+    #expect(await third.title == "#103")
+    #expect(await recorder.graphqlCallCount() == 1)
+    #expect(await recorder.graphqlBranchNamesByCall() == [["feature/a", "feature/b", "feature/c"]])
+  }
+
+  @Test
+  func githubPullRequestStatusChunksBatchedBranches() async {
+    let branches = (1...6).map { "feature/\($0)" }
+    let recorder = GithubPullRequestCommandRecorder(
+      pullRequestNumbersByBranch: Dictionary(
+        uniqueKeysWithValues: branches.enumerated().map { index, branch in
+          (branch, index + 1)
+        }
+      )
+    )
+    let client = TerminalAgentGithubClient(
+      runner: await recorder.runner(),
+      resolver: TerminalAgentGithubExecutableResolver(),
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
+    )
+    let repoRoot = URL(fileURLWithPath: "/tmp/repo", isDirectory: true)
+
+    async let first = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[0],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let second = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[1],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let third = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[2],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let fourth = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[3],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let fifth = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[4],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let sixth = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: branches[5],
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+
+    _ = await (first, second, third, fourth, fifth, sixth)
+
+    #expect(await recorder.graphqlCallCount() == 2)
+    #expect(await recorder.graphqlBranchNamesByCall().map(\.count).sorted() == [1, 5])
+  }
+
+  @Test
+  func githubPullRequestStatusDoesNotBatchDifferentRemotes() async {
+    let recorder = GithubPullRequestCommandRecorder(
+      pullRequestNumbersByBranch: [
+        "feature/a": 101,
+        "feature/b": 102,
+      ]
+    )
+    let client = TerminalAgentGithubClient(
+      runner: await recorder.runner(),
+      resolver: TerminalAgentGithubExecutableResolver(),
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
+    )
+    let repoRoot = URL(fileURLWithPath: "/tmp/repo", isDirectory: true)
+
+    async let first = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: "feature/a",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+    async let second = client.pullRequestStatus(
+      repoRoot: repoRoot,
+      branchName: "feature/b",
+      remoteURL: "https://github.example.com/supabitapp/supaterm.git"
+    )
+
+    #expect(await first.title == "#101")
+    #expect(await second.title == "#102")
+    #expect(await recorder.graphqlCallCount() == 2)
+    #expect(await recorder.graphqlHosts().sorted() == ["github.com", "github.example.com"])
+  }
+
+  @Test
+  func githubPullRequestStatusBuildsCreateURLWhenBatchedBranchIsMissing() async {
+    let recorder = GithubPullRequestCommandRecorder(pullRequestNumbersByBranch: [:])
+    let client = TerminalAgentGithubClient(
+      runner: await recorder.runner(),
+      resolver: TerminalAgentGithubExecutableResolver(),
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
+    )
+
+    let status = await client.pullRequestStatus(
+      repoRoot: URL(fileURLWithPath: "/tmp/repo", isDirectory: true),
+      branchName: "feature/missing",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+
+    #expect(status.kind == .none)
+    #expect(status.title == "Create pull request")
+    #expect(
+      status.url?.absoluteString
+        == "https://github.com/supabitapp/supaterm/compare/feature/missing?expand=1"
+    )
+  }
+
+  @Test
+  func githubPullRequestStatusRetriesGatewayTimeoutOnce() async {
+    let recorder = GithubPullRequestCommandRecorder(
+      pullRequestNumbersByBranch: ["feature/retry": 104],
+      gatewayTimeoutsRemaining: 1
+    )
+    let client = TerminalAgentGithubClient(
+      runner: await recorder.runner(),
+      resolver: TerminalAgentGithubExecutableResolver(),
+      statusBatcher: TerminalAgentGithubStatusBatcher(batchWindow: .milliseconds(10))
+    )
+
+    let status = await client.pullRequestStatus(
+      repoRoot: URL(fileURLWithPath: "/tmp/repo", isDirectory: true),
+      branchName: "feature/retry",
+      remoteURL: "https://github.com/supabitapp/supaterm.git"
+    )
+
+    #expect(status.title == "#104")
     #expect(await recorder.graphqlCallCount() == 2)
   }
 
@@ -989,7 +1159,18 @@ private func isoDate(_ value: String) throws -> Date {
 }
 
 private actor GithubPullRequestCommandRecorder {
+  private let pullRequestNumbersByBranch: [String: Int]
+  private var gatewayTimeoutsRemaining: Int
   private var graphqlCalls = 0
+  private var graphqlArguments: [[String]] = []
+
+  init(
+    pullRequestNumbersByBranch: [String: Int] = ["khoi/agent-panel": 39],
+    gatewayTimeoutsRemaining: Int = 0
+  ) {
+    self.pullRequestNumbersByBranch = pullRequestNumbersByBranch
+    self.gatewayTimeoutsRemaining = gatewayTimeoutsRemaining
+  }
 
   func runner() -> TerminalAgentPanelCommandRunner {
     TerminalAgentPanelCommandRunner(
@@ -1006,6 +1187,21 @@ private actor GithubPullRequestCommandRecorder {
     graphqlCalls
   }
 
+  func graphqlBranchNamesByCall() -> [[String]] {
+    graphqlArguments.map { Self.branchNames(from: Self.query(from: $0)) }
+  }
+
+  func graphqlHosts() -> [String] {
+    graphqlArguments.compactMap { arguments in
+      guard let index = arguments.firstIndex(of: "--hostname"),
+        arguments.indices.contains(arguments.index(after: index))
+      else {
+        return nil
+      }
+      return arguments[arguments.index(after: index)]
+    }
+  }
+
   private func run(
     executableURL: URL,
     arguments: [String]
@@ -1015,46 +1211,89 @@ private actor GithubPullRequestCommandRecorder {
     }
     if arguments.starts(with: ["api", "graphql"]) {
       graphqlCalls += 1
+      graphqlArguments.append(arguments)
+      if gatewayTimeoutsRemaining > 0 {
+        gatewayTimeoutsRemaining -= 1
+        return TerminalAgentPanelCommandResult(
+          status: 1,
+          stdout: "",
+          stderr: "HTTP 504 Gateway Timeout"
+        )
+      }
+      let branches = Self.branchNames(from: Self.query(from: arguments))
       return TerminalAgentPanelCommandResult(
         status: 0,
-        stdout: """
+        stdout: Self.response(
+          branches: branches,
+          pullRequestNumbersByBranch: pullRequestNumbersByBranch
+        )
+      )
+    }
+    return TerminalAgentPanelCommandResult(status: 1, stdout: "")
+  }
+
+  private static func query(from arguments: [String]) -> String {
+    arguments
+      .first { $0.hasPrefix("query=") }?
+      .dropFirst("query=".count)
+      .description ?? ""
+  }
+
+  private static func branchNames(from query: String) -> [String] {
+    let marker = "headRefName: \""
+    var branchNames: [String] = []
+    var searchRange = query.startIndex..<query.endIndex
+    while let markerRange = query.range(of: marker, range: searchRange) {
+      let start = markerRange.upperBound
+      guard let end = query[start...].firstIndex(of: "\"") else { break }
+      branchNames.append(String(query[start..<end]))
+      searchRange = query.index(after: end)..<query.endIndex
+    }
+    return branchNames
+  }
+
+  private static func response(
+    branches: [String],
+    pullRequestNumbersByBranch: [String: Int]
+  ) -> String {
+    let selections = branches.enumerated().map { index, branch in
+      let nodes: String
+      if let number = pullRequestNumbersByBranch[branch] {
+        nodes = "[\(node(number: number))]"
+      } else {
+        nodes = "[]"
+      }
+      return #""branch\#(index)":{"nodes":\#(nodes)}"#
+    }
+    return #"{"data":{"repository":{\#(selections.joined(separator: ","))}}}"#
+  }
+
+  private static func node(number: Int) -> String {
+    """
+    {
+      "number": \(number),
+      "additions": 12,
+      "deletions": 3,
+      "state": "OPEN",
+      "isDraft": false,
+      "url": "https://github.com/supabitapp/supaterm/pull/\(number)",
+      "commits": {
+        "nodes": [
           {
-            "data": {
-              "repository": {
-                "pullRequests": {
-                  "nodes": [
-                    {
-                      "number": 39,
-                      "additions": 12,
-                      "deletions": 3,
-                      "state": "OPEN",
-                      "isDraft": false,
-                      "url": "https://github.com/supabitapp/supaterm/pull/39",
-                      "commits": {
-                        "nodes": [
-                          {
-                            "commit": {
-                              "statusCheckRollup": {
-                                "state": "SUCCESS",
-                                "contexts": {
-                                  "totalCount": 0,
-                                  "nodes": []
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
+            "commit": {
+              "statusCheckRollup": {
+                "state": "SUCCESS",
+                "contexts": {
+                  "totalCount": 0,
+                  "nodes": []
                 }
               }
             }
           }
-          """
-      )
+        ]
+      }
     }
-    return TerminalAgentPanelCommandResult(status: 1, stdout: "")
+    """
   }
 }
 

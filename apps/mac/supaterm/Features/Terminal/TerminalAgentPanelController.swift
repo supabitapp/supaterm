@@ -29,6 +29,13 @@ nonisolated struct TerminalAgentPanelWorkspaceKey: Equatable, Hashable, Sendable
 nonisolated struct TerminalAgentPanelCommandResult: Equatable, Sendable {
   let status: Int32
   let stdout: String
+  let stderr: String
+
+  init(status: Int32, stdout: String, stderr: String = "") {
+    self.status = status
+    self.stdout = stdout
+    self.stderr = stderr
+  }
 }
 
 nonisolated enum TerminalAgentPanelCommandError: Error, Equatable, Sendable {
@@ -69,8 +76,9 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
       process.standardInput = FileHandle.nullDevice
 
       let stdoutPipe = Pipe()
+      let stderrPipe = Pipe()
       process.standardOutput = stdoutPipe
-      process.standardError = FileHandle.nullDevice
+      process.standardError = stderrPipe
 
       do {
         try process.run()
@@ -78,12 +86,20 @@ nonisolated struct TerminalAgentPanelCommandRunner: Sendable {
         throw TerminalAgentPanelCommandError.launchFailed(error.localizedDescription)
       }
 
-      let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+      let stdoutTask = Task.detached(priority: .utility) {
+        stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+      }
+      let stderrTask = Task.detached(priority: .utility) {
+        stderrPipe.fileHandleForReading.readDataToEndOfFile()
+      }
       process.waitUntilExit()
+      let stdoutData = await stdoutTask.value
+      let stderrData = await stderrTask.value
 
       return TerminalAgentPanelCommandResult(
         status: process.terminationStatus,
-        stdout: String(data: stdoutData, encoding: .utf8) ?? ""
+        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+        stderr: String(data: stderrData, encoding: .utf8) ?? ""
       )
     }.value
   }
@@ -415,30 +431,58 @@ nonisolated struct TerminalAgentGithubRemote: Equatable, Hashable, Sendable {
   }
 }
 
-actor TerminalAgentGithubStatusCoalescer {
-  private struct Key: Hashable, Sendable {
-    let remote: TerminalAgentGithubRemote
-    let branchName: String
+actor TerminalAgentGithubStatusBatcher {
+  typealias Loader =
+    @Sendable (TerminalAgentGithubRemote, [String]) async -> [String:
+    PaneAgentPullRequestStatus]
+
+  private struct PendingBatch {
+    var branchNames: Set<String> = []
+    var continuations: [String: [CheckedContinuation<PaneAgentPullRequestStatus, Never>]] = [:]
+    var task: Task<Void, Never>?
   }
 
-  private var tasks: [Key: Task<PaneAgentPullRequestStatus, Never>] = [:]
+  private let batchWindow: Duration
+  private var pendingBatches: [TerminalAgentGithubRemote: PendingBatch] = [:]
+
+  init(batchWindow: Duration = .milliseconds(50)) {
+    self.batchWindow = batchWindow
+  }
 
   func status(
     remote: TerminalAgentGithubRemote,
     branchName: String,
-    load: @escaping @Sendable () async -> PaneAgentPullRequestStatus
+    load: @escaping Loader
   ) async -> PaneAgentPullRequestStatus {
-    let key = Key(remote: remote, branchName: branchName)
-    if let task = tasks[key] {
-      return await task.value
+    await withCheckedContinuation { continuation in
+      var batch = pendingBatches[remote] ?? PendingBatch()
+      batch.branchNames.insert(branchName)
+      batch.continuations[branchName, default: []].append(continuation)
+      if batch.task == nil {
+        batch.task = Task { [batchWindow] in
+          if batchWindow != .zero {
+            try? await Task.sleep(for: batchWindow)
+          }
+          await self.flush(remote: remote, load: load)
+        }
+      }
+      pendingBatches[remote] = batch
     }
-    let task = Task {
-      await load()
+  }
+
+  private func flush(
+    remote: TerminalAgentGithubRemote,
+    load: @escaping Loader
+  ) async {
+    guard let batch = pendingBatches.removeValue(forKey: remote) else { return }
+    let branchNames = batch.branchNames.sorted()
+    let statuses = await load(remote, branchNames)
+    for (branchName, continuations) in batch.continuations {
+      let status = statuses[branchName] ?? .unavailable
+      for continuation in continuations {
+        continuation.resume(returning: status)
+      }
     }
-    tasks[key] = task
-    let status = await task.value
-    tasks[key] = nil
-    return status
   }
 }
 
@@ -502,17 +546,17 @@ actor TerminalAgentGithubExecutableResolver {
 nonisolated struct TerminalAgentGithubClient: Sendable {
   let runner: TerminalAgentPanelCommandRunner
   let resolver: TerminalAgentGithubExecutableResolver
-  let statusCoalescer: TerminalAgentGithubStatusCoalescer
+  let statusBatcher: TerminalAgentGithubStatusBatcher
   private let pullRequestStatusProvider: (@Sendable (URL, String) async -> PaneAgentPullRequestStatus)?
 
   init(
     runner: TerminalAgentPanelCommandRunner = .live,
     resolver: TerminalAgentGithubExecutableResolver = TerminalAgentGithubExecutableResolver(),
-    statusCoalescer: TerminalAgentGithubStatusCoalescer = TerminalAgentGithubStatusCoalescer()
+    statusBatcher: TerminalAgentGithubStatusBatcher = TerminalAgentGithubStatusBatcher()
   ) {
     self.runner = runner
     self.resolver = resolver
-    self.statusCoalescer = statusCoalescer
+    self.statusBatcher = statusBatcher
     pullRequestStatusProvider = nil
   }
 
@@ -521,7 +565,7 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
   ) {
     runner = .live
     resolver = TerminalAgentGithubExecutableResolver()
-    statusCoalescer = TerminalAgentGithubStatusCoalescer()
+    statusBatcher = TerminalAgentGithubStatusBatcher()
     pullRequestStatusProvider = pullRequestStatus
   }
 
@@ -536,58 +580,234 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     guard let remote = remoteURL.flatMap(TerminalAgentGithubRemote.init(remoteURL:)) else {
       return .unavailable
     }
-    return await statusCoalescer.status(remote: remote, branchName: branchName) {
-      await fetchPullRequestStatus(remote: remote, branchName: branchName)
+    return await statusBatcher.status(remote: remote, branchName: branchName) { remote, branchNames in
+      await fetchPullRequestStatuses(remote: remote, branchNames: branchNames)
     }
   }
 
-  nonisolated private func fetchPullRequestStatus(
+  nonisolated private func fetchPullRequestStatuses(
+    remote: TerminalAgentGithubRemote,
+    branchNames: [String]
+  ) async -> [String: PaneAgentPullRequestStatus] {
+    let chunks = Self.chunks(branchNames, size: Self.pullRequestBatchChunkSize)
+    return await withTaskGroup(of: [String: PaneAgentPullRequestStatus].self) { group in
+      var nextIndex = 0
+      let initialCount = min(Self.pullRequestBatchMaxConcurrentRequests, chunks.count)
+      while nextIndex < initialCount {
+        let chunk = chunks[nextIndex]
+        group.addTask {
+          await fetchPullRequestStatusChunk(remote: remote, branchNames: chunk)
+        }
+        nextIndex += 1
+      }
+
+      var statuses: [String: PaneAgentPullRequestStatus] = [:]
+      while let chunkStatuses = await group.next() {
+        statuses.merge(chunkStatuses) { _, new in new }
+        guard nextIndex < chunks.count else { continue }
+        let chunk = chunks[nextIndex]
+        group.addTask {
+          await fetchPullRequestStatusChunk(remote: remote, branchNames: chunk)
+        }
+        nextIndex += 1
+      }
+      return statuses
+    }
+  }
+
+  nonisolated private func fetchPullRequestStatusChunk(
+    remote: TerminalAgentGithubRemote,
+    branchNames: [String]
+  ) async -> [String: PaneAgentPullRequestStatus] {
+    let (query, aliasMap) = Self.makeBatchPullRequestQuery(branchNames: branchNames)
+    guard
+      let output = await runPullRequestQuery(remote: remote, query: query)
+    else {
+      return Self.unavailableStatuses(for: branchNames)
+    }
+    return Self.decodePullRequestStatuses(
+      output,
+      aliasMap: aliasMap,
+      remote: remote
+    )
+  }
+
+  nonisolated private func runPullRequestQuery(
+    remote: TerminalAgentGithubRemote,
+    query: String
+  ) async -> String? {
+    let arguments = [
+      "api",
+      "graphql",
+      "--hostname",
+      remote.host,
+      "-f",
+      "query=\(query)",
+      "-f",
+      "owner=\(remote.owner)",
+      "-f",
+      "repo=\(remote.repo)",
+    ]
+    guard let result = try? await runGh(arguments: arguments, repoRoot: nil) else {
+      return nil
+    }
+    if result.status == 0 {
+      return result.stdout
+    }
+    guard Self.isGatewayTimeout(result) else {
+      return nil
+    }
+    try? await Task.sleep(for: Self.pullRequestGatewayRetryBackoff)
+    guard
+      let retryResult = try? await runGh(arguments: arguments, repoRoot: nil),
+      retryResult.status == 0
+    else {
+      return nil
+    }
+    return retryResult.stdout
+  }
+
+  nonisolated private static func unavailableStatuses(
+    for branchNames: [String]
+  ) -> [String: PaneAgentPullRequestStatus] {
+    Dictionary(uniqueKeysWithValues: branchNames.map { ($0, PaneAgentPullRequestStatus.unavailable) })
+  }
+
+  nonisolated private static func resolvedMissingStatus(
     remote: TerminalAgentGithubRemote,
     branchName: String
-  ) async -> PaneAgentPullRequestStatus {
-    guard
-      let output = try? await runGh(
-        arguments: [
-          "api",
-          "graphql",
-          "--hostname",
-          remote.host,
-          "-f",
-          "query=\(Self.pullRequestQuery)",
-          "-f",
-          "owner=\(remote.owner)",
-          "-f",
-          "repo=\(remote.repo)",
-          "-f",
-          "branch=\(branchName)",
-        ],
-        repoRoot: nil
-      ), output.status == 0
-    else {
-      return .unavailable
-    }
-    let status = Self.decodePullRequestStatus(output.stdout)
-    let resolvedStatus =
-      if status.kind == .none {
-        PaneAgentPullRequestStatus.createPullRequest(
-          url: remote.createPullRequestURL(branchName: branchName)
-        )
-      } else {
-        status
-      }
-    return resolvedStatus
+  ) -> PaneAgentPullRequestStatus {
+    PaneAgentPullRequestStatus.createPullRequest(
+      url: remote.createPullRequestURL(branchName: branchName)
+    )
   }
 
-  nonisolated private func runGh(
-    arguments: [String],
-    repoRoot: URL?
-  ) async throws -> TerminalAgentPanelCommandResult {
-    let executableURL = try await resolver.executableURL(runner: runner)
-    let result = try await runner.run(executableURL, arguments, repoRoot)
-    if result.status == 127 {
-      await resolver.invalidate()
+  nonisolated private static func isGatewayTimeout(_ result: TerminalAgentPanelCommandResult) -> Bool {
+    let output = "\(result.stdout)\n\(result.stderr)".lowercased()
+    return output.contains("504") || output.contains("gateway timeout")
+  }
+
+  nonisolated private static func chunks(
+    _ values: [String],
+    size: Int
+  ) -> [[String]] {
+    guard size > 0 else { return [values] }
+    var result: [[String]] = []
+    var index = values.startIndex
+    while index < values.endIndex {
+      let endIndex = values.index(index, offsetBy: size, limitedBy: values.endIndex) ?? values.endIndex
+      result.append(Array(values[index..<endIndex]))
+      index = endIndex
     }
     return result
+  }
+
+  nonisolated private static func makeBatchPullRequestQuery(
+    branchNames: [String]
+  ) -> (query: String, aliasMap: [String: String]) {
+    var aliasMap: [String: String] = [:]
+    var selections: [String] = []
+    for (index, branchName) in branchNames.enumerated() {
+      let alias = "branch\(index)"
+      aliasMap[alias] = branchName
+      let escapedBranchName = escapeGraphQLString(branchName)
+      selections.append(
+        """
+        \(alias): pullRequests(
+          first: 1
+          states: [OPEN, MERGED, CLOSED]
+          headRefName: "\(escapedBranchName)"
+          orderBy: {field: UPDATED_AT, direction: DESC}
+        ) {
+          nodes {
+            number
+            additions
+            deletions
+            state
+            isDraft
+            url
+            commits(last: 1) {
+              nodes {
+                commit {
+                  statusCheckRollup {
+                    state
+                    contexts(first: 100) {
+                      totalCount
+                      nodes {
+                        __typename
+                        ... on CheckRun {
+                          name
+                          status
+                          conclusion
+                          startedAt
+                          completedAt
+                          detailsUrl
+                          url
+                          checkSuite {
+                            workflowRun {
+                              workflow {
+                                name
+                              }
+                            }
+                          }
+                        }
+                        ... on StatusContext {
+                          context
+                          state
+                          targetUrl
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+      )
+    }
+    let selectionBlock = selections.joined(separator: "\n")
+    let query = """
+      query($owner: String!, $repo: String!) {
+        repository(owner: $owner, name: $repo) {
+      \(selectionBlock)
+        }
+      }
+      """
+    return (query, aliasMap)
+  }
+
+  nonisolated private static func escapeGraphQLString(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\"", with: "\\\"")
+      .replacingOccurrences(of: "\n", with: "\\n")
+      .replacingOccurrences(of: "\r", with: "\\r")
+      .replacingOccurrences(of: "\t", with: "\\t")
+  }
+
+  nonisolated static func decodePullRequestStatuses(
+    _ output: String,
+    aliasMap: [String: String],
+    remote: TerminalAgentGithubRemote
+  ) -> [String: PaneAgentPullRequestStatus] {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    guard
+      let response = try? decoder.decode(GithubPullRequestBatchResponse.self, from: Data(output.utf8))
+    else {
+      return unavailableStatuses(for: Array(aliasMap.values))
+    }
+    var statuses: [String: PaneAgentPullRequestStatus] = [:]
+    for (alias, branchName) in aliasMap {
+      guard let node = response.data.repository[alias]?.nodes.first else {
+        statuses[branchName] = resolvedMissingStatus(remote: remote, branchName: branchName)
+        continue
+      }
+      statuses[branchName] = status(from: node)
+    }
+    return statuses
   }
 
   nonisolated static func decodePullRequestStatus(_ output: String) -> PaneAgentPullRequestStatus {
@@ -601,6 +821,12 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     guard let node = response.data.repository.pullRequests.nodes.first else {
       return .none
     }
+    return status(from: node)
+  }
+
+  nonisolated private static func status(
+    from node: GithubPullRequestNodeResponse
+  ) -> PaneAgentPullRequestStatus {
     let kind: PaneAgentPullRequestStatus.Kind =
       if node.isDraft {
         .draft
@@ -620,6 +846,22 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       removedLineCount: node.deletions,
       checks: Self.checks(from: node)
     )
+  }
+
+  private static let pullRequestBatchChunkSize = 5
+  private static let pullRequestBatchMaxConcurrentRequests = 3
+  private static let pullRequestGatewayRetryBackoff: Duration = .seconds(1)
+
+  nonisolated private func runGh(
+    arguments: [String],
+    repoRoot: URL?
+  ) async throws -> TerminalAgentPanelCommandResult {
+    let executableURL = try await resolver.executableURL(runner: runner)
+    let result = try await runner.run(executableURL, arguments, repoRoot)
+    if result.status == 127 {
+      await resolver.invalidate()
+    }
+    return result
   }
 
   nonisolated private static func checks(
@@ -730,64 +972,14 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       return .pending
     }
   }
+}
 
-  private static let pullRequestQuery = """
-    query($owner: String!, $repo: String!, $branch: String!) {
-      repository(owner: $owner, name: $repo) {
-        pullRequests(
-          first: 1
-          states: [OPEN, MERGED, CLOSED]
-          headRefName: $branch
-          orderBy: {field: UPDATED_AT, direction: DESC}
-        ) {
-          nodes {
-            number
-            additions
-            deletions
-            state
-            isDraft
-            url
-            commits(last: 1) {
-              nodes {
-                commit {
-                  statusCheckRollup {
-                    state
-                    contexts(first: 100) {
-                      totalCount
-                      nodes {
-                        __typename
-                        ... on CheckRun {
-                          name
-                          status
-                          conclusion
-                          startedAt
-                          completedAt
-                          detailsUrl
-                          url
-                          checkSuite {
-                            workflowRun {
-                              workflow {
-                                name
-                              }
-                            }
-                          }
-                        }
-                        ... on StatusContext {
-                          context
-                          state
-                          targetUrl
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    """
+nonisolated private struct GithubPullRequestBatchResponse: Decodable {
+  let data: GithubPullRequestBatchDataResponse
+}
+
+nonisolated private struct GithubPullRequestBatchDataResponse: Decodable {
+  let repository: [String: GithubPullRequestConnectionResponse]
 }
 
 nonisolated private struct GithubPullRequestResponse: Decodable {
