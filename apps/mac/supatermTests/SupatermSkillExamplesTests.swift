@@ -67,12 +67,16 @@ struct SupatermSkillExamplesTests {
     )
     let launcher = try #require(object["launcher"] as? String)
     let launcherPath = try #require(object["launcherPath"] as? String)
+    let tabCommand = try #require(object["tabCommand"] as? [String])
+    let sendText = try #require(object["sendText"] as? String)
     let outputCwd = try #require(object["cwd"] as? String)
     let outputLaunchCwd = try #require(object["launchCwd"] as? String)
     defer { try? FileManager.default.removeItem(atPath: launcherPath) }
 
     #expect(process.terminationStatus == 0)
     #expect(launcher.contains("echo one\necho two\n"))
+    #expect(sendText == launcherPath)
+    #expect(!tabCommand.contains("--"))
     #expect(outputCwd == outputLaunchCwd)
     #expect(outputCwd.hasSuffix("/\(cwd.lastPathComponent)"))
   }
