@@ -139,7 +139,7 @@ struct TerminalSidebarTabSummaryView: View {
             .foregroundStyle(notificationTextColor)
             .textual.inlineStyle(notificationInlineStyle)
             .allowsHitTesting(false)
-            .lineLimit(1)
+            .lineLimit(2)
             .truncationMode(.tail)
             .multilineTextAlignment(.leading)
         }
