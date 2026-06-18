@@ -17,6 +17,41 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v26.0.0",
+    date: "2026-06-18",
+    title: "🚀 Agent workflow polish",
+    description:
+      "Supaterm now uses yearly release numbers, with faster agent panels and more dependable tab-launch automation.",
+    sections: [
+      {
+        category: "new",
+        items: [
+          "Added pane health and wait-ready commands so tab launchers can wait until a pane can receive input",
+          "Bundled the Supaterm tab launcher for coding-agent workflows",
+        ],
+      },
+      {
+        category: "improvements",
+        items: [
+          "Pull request status in the agent panel now refreshes in batches, avoids stale cache results, and preserves the last known status during temporary refresh misses",
+          "New tabs now always open at the end of the tab strip",
+          "Branch names can now be copied directly from the agent panel",
+          "Coding-agent setup now installs the shared Supaterm skill before enabling agents",
+          "Agent notification previews in the sidebar now stay to two lines",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Stopped agent sessions now clear panel progress instead of leaving stale rows visible",
+          "Agent running detection now waits longer before deciding a session is idle",
+          "Quit confirmation buttons now keep their labels on one line",
+          "Coding-agent badges now stack with the active badge in front",
+        ],
+      },
+    ],
+  },
+  {
     version: "v1.3.7",
     date: "2026-06-15",
     title: "🛠️ Session reliability fixes",
