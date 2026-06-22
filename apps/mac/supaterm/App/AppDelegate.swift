@@ -4,6 +4,7 @@ import Sharing
 import SupatermAppFeature
 import SupatermCLIShared
 import SupatermGhosttyFeature
+import SupatermMenuFeature
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport

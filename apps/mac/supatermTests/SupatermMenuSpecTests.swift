@@ -2,6 +2,7 @@ import AppKit
 import Testing
 
 @testable import SupatermAppFeature
+@testable import SupatermMenuFeature
 @testable import supaterm
 
 @MainActor

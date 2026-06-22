@@ -25,23 +25,23 @@ public final class TerminalWindowRegistry {
     case confirm([ObjectIdentifier])
   }
 
-  struct CommandAvailability: Equatable {
-    let hasWindow: Bool
-    let hasTab: Bool
-    let hasSurface: Bool
-    var hasAnySurface = false
-    var hasAgentPanel = false
-    var hasAgentPanelSession = false
+  public struct CommandAvailability: Equatable {
+    public let hasWindow: Bool
+    public let hasTab: Bool
+    public let hasSurface: Bool
+    public var hasAnySurface = false
+    public var hasAgentPanel = false
+    public var hasAgentPanelSession = false
   }
 
-  struct MenuContext: Equatable {
-    let availability: CommandAvailability
-    let closesKeyWindowDirectly: Bool
-    let hasSearch: Bool
-    let updateMenuItemText: String
-    let visibleTabCount: Int
-    let spaceCount: Int
-    let isUpdateMenuItemEnabled: Bool
+  public struct MenuContext: Equatable {
+    public let availability: CommandAvailability
+    public let closesKeyWindowDirectly: Bool
+    public let hasSearch: Bool
+    public let updateMenuItemText: String
+    public let visibleTabCount: Int
+    public let spaceCount: Int
+    public let isUpdateMenuItemEnabled: Bool
   }
 
   final class WindowReference {
@@ -73,7 +73,7 @@ public final class TerminalWindowRegistry {
     self.zmxClient = zmxClient
   }
 
-  var hasShortcutSource: Bool {
+  public var hasShortcutSource: Bool {
     !entries.isEmpty
   }
 
@@ -134,7 +134,7 @@ public final class TerminalWindowRegistry {
     return commandAvailability(for: entry)
   }
 
-  func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
+  public func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
     let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
     guard let entry = preferredActiveEntry() else {
       return MenuContext(
@@ -163,11 +163,11 @@ public final class TerminalWindowRegistry {
     )
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+  public func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
     shortcutEntry()?.keyboardShortcutForAction(action)
   }
 
-  func requestNewTabInKeyWindow() {
+  public func requestNewTabInKeyWindow() {
     guard let entry = preferredActiveEntry() else { return }
     entry.store.send(
       .terminal(
@@ -192,31 +192,31 @@ public final class TerminalWindowRegistry {
     ) != nil
   }
 
-  func requestNextTabInKeyWindow() {
+  public func requestNextTabInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.nextTabMenuItemSelected))
   }
 
-  func requestPreviousTabInKeyWindow() {
+  public func requestPreviousTabInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.previousTabMenuItemSelected))
   }
 
-  func requestSelectTabInKeyWindow(_ slot: Int) {
+  public func requestSelectTabInKeyWindow(_ slot: Int) {
     preferredActiveEntry()?.store.send(.terminal(.selectTabMenuItemSelected(slot)))
   }
 
-  func requestSelectLastTabInKeyWindow() {
+  public func requestSelectLastTabInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.selectLastTabMenuItemSelected))
   }
 
-  func requestSelectSpaceInKeyWindow(_ slot: Int) {
+  public func requestSelectSpaceInKeyWindow(_ slot: Int) {
     preferredActiveEntry()?.store.send(.terminal(.selectSpaceMenuItemSelected(slot)))
   }
 
-  func requestToggleSidebarInKeyWindow() {
+  public func requestToggleSidebarInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
   }
 
-  func requestToggleAgentPanelInKeyWindow() {
+  public func requestToggleAgentPanelInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
       let surfaceID = selectedAgentPanel(in: entry)?.surfaceID
@@ -224,7 +224,7 @@ public final class TerminalWindowRegistry {
     entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
   }
 
-  func requestForkAgentPanelSessionInKeyWindow(direction: SupatermPaneDirection) {
+  public func requestForkAgentPanelSessionInKeyWindow(direction: SupatermPaneDirection) {
     guard
       let entry = preferredActiveEntry(),
       let selectedAgentPanel = selectedAgentPanel(in: entry),
@@ -241,7 +241,7 @@ public final class TerminalWindowRegistry {
     )
   }
 
-  func requestCopyAgentPanelSessionIDInKeyWindow() {
+  public func requestCopyAgentPanelSessionIDInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
       let session = selectedAgentPanel(in: entry)?.session
@@ -249,20 +249,20 @@ public final class TerminalWindowRegistry {
     entry.store.send(.terminal(.agentPanelCopySessionID(session.sessionID)))
   }
 
-  func requestToggleCommandPaletteInKeyWindow() {
+  public func requestToggleCommandPaletteInKeyWindow() {
     preferredActiveEntry()?.store.send(.terminal(.commandPaletteToggleRequested))
   }
 
-  func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
+  public func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
     preferredActiveEntry()?.store.send(.terminal(.bindingMenuItemSelected(command)))
   }
 
-  func requestNavigateSearchInKeyWindow(_ direction: GhosttySearchDirection) {
+  public func requestNavigateSearchInKeyWindow(_ direction: GhosttySearchDirection) {
     preferredActiveEntry()?.store.send(.terminal(.navigateSearchMenuItemSelected(direction)))
   }
 
   @discardableResult
-  func requestUpdateMenuActionInKeyWindow() -> Bool {
+  public func requestUpdateMenuActionInKeyWindow() -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
     guard let action = Self.updateMenuItemAction(for: entry.store.withState(\.update)) else {
       return false
@@ -271,7 +271,7 @@ public final class TerminalWindowRegistry {
     return true
   }
 
-  func requestCloseSurfaceInKeyWindow() {
+  public func requestCloseSurfaceInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
       let surfaceID = entry.terminal.selectedSurfaceID
@@ -298,13 +298,13 @@ public final class TerminalWindowRegistry {
     entry(for: window) != nil
   }
 
-  func closesWindowDirectly(_ window: NSWindow?) -> Bool {
+  public func closesWindowDirectly(_ window: NSWindow?) -> Bool {
     guard let window else { return false }
     guard !ownsWindow(window) else { return false }
     return window.styleMask.contains(.closable)
   }
 
-  func requestCloseTabInKeyWindow() {
+  public func requestCloseTabInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
       let tabID = entry.terminal.selectedTabID
@@ -366,7 +366,7 @@ public final class TerminalWindowRegistry {
     }
   }
 
-  func terminateAllTerminalSessions() {
+  public func terminateAllTerminalSessions() {
     let windowIDs = activeEntries().compactMap { entry in
       entry.windowReference.value.map(ObjectIdentifier.init)
     }
