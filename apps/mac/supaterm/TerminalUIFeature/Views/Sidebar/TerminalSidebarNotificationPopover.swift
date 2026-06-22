@@ -1,4 +1,5 @@
 import AppKit
+import SupatermTerminalPresentationFeature
 import SwiftUI
 import Textual
 

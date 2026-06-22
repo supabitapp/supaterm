@@ -2,6 +2,8 @@ import AppKit
 import ComposableArchitecture
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalSurfaceFeature
 import SupatermUpdateFeature
 import SwiftUI
 

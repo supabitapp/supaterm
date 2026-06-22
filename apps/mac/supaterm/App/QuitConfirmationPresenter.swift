@@ -1,5 +1,6 @@
 import AppKit
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SupatermTerminalUIFeature
 import SwiftUI
 

@@ -1,5 +1,6 @@
 import AppKit
 import SupatermGhosttyFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct GhosttySurfaceSearchOverlay: View {

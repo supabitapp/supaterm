@@ -1,5 +1,6 @@
 import GhosttyKit
 import SupatermGhosttyFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct GhosttySurfaceProgressOverlay: View {

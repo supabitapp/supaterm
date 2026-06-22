@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 
 enum TerminalSidebarDropZoneID: Hashable {
   case pinned

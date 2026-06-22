@@ -8,7 +8,7 @@ import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
 import SwiftUI
 
-struct TerminalDetailView: View {
+public struct TerminalDetailView: View {
   @Shared(.supatermSettings) private var supatermSettings = .default
   let store: StoreOf<TerminalWindowFeature>
   let palette: TerminalPalette
@@ -17,7 +17,19 @@ struct TerminalDetailView: View {
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  var body: some View {
+  public init(
+    store: StoreOf<TerminalWindowFeature>,
+    palette: TerminalPalette,
+    terminal: TerminalHostState,
+    selectedTabID: TerminalTabID
+  ) {
+    self.store = store
+    self.palette = palette
+    self.terminal = terminal
+    self.selectedTabID = selectedTabID
+  }
+
+  public var body: some View {
     VStack(spacing: 0) {
       TerminalDetailTopBar(
         canEqualize: terminal.selectedTree?.isSplit ?? false,

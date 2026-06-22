@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct TerminalSidebarSpaceBar: View {

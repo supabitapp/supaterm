@@ -1,11 +1,17 @@
 import SwiftUI
 
-struct TerminalAgentRunningSpinnerView: View {
+public struct TerminalAgentRunningSpinnerView: View {
   let isSelected: Bool
   let palette: TerminalPalette
   var diameter: CGFloat = 14
 
-  var body: some View {
+  public init(isSelected: Bool, palette: TerminalPalette, diameter: CGFloat = 14) {
+    self.isSelected = isSelected
+    self.palette = palette
+    self.diameter = diameter
+  }
+
+  public var body: some View {
     TerminalProgressRingIndicatorView(
       fraction: nil,
       color: color,
@@ -29,7 +35,7 @@ struct TerminalAgentRunningSpinnerView: View {
   }
 }
 
-struct TerminalProgressRingIndicatorView: View {
+public struct TerminalProgressRingIndicatorView: View {
   let fraction: Double?
   let color: Color
   let trackColor: Color
@@ -38,7 +44,19 @@ struct TerminalProgressRingIndicatorView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var rotation = Angle.zero
 
-  var body: some View {
+  public init(
+    fraction: Double?,
+    color: Color,
+    trackColor: Color,
+    diameter: CGFloat = 14
+  ) {
+    self.fraction = fraction
+    self.color = color
+    self.trackColor = trackColor
+    self.diameter = diameter
+  }
+
+  public var body: some View {
     ZStack {
       if let fraction {
         Circle()

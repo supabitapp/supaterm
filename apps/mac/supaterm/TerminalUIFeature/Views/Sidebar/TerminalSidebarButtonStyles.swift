@@ -1,3 +1,4 @@
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct TerminalSidebarButtonStyle: ButtonStyle {

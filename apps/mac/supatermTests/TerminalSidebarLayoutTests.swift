@@ -2,6 +2,7 @@ import CoreGraphics
 import Testing
 
 @testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import SupatermTerminalUIFeature
 @testable import supaterm
 

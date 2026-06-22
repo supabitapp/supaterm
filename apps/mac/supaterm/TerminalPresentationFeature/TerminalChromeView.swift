@@ -1,20 +1,19 @@
 import AppKit
-import SupatermTerminalPresentationFeature
 import SwiftUI
 
-enum TerminalSplitMetrics {
-  nonisolated static let resizeHandleWidth: CGFloat = 24
-  nonisolated static let minimumPaneSize: CGFloat = 10
-  nonisolated static let dividerVisibleSize: CGFloat = 1
-  nonisolated static let dividerInvisibleSize: CGFloat = 6
-  nonisolated static let dividerHitboxSize: CGFloat = dividerVisibleSize + dividerInvisibleSize
+public enum TerminalSplitMetrics {
+  public nonisolated static let resizeHandleWidth: CGFloat = 24
+  public nonisolated static let minimumPaneSize: CGFloat = 10
+  public nonisolated static let dividerVisibleSize: CGFloat = 1
+  public nonisolated static let dividerInvisibleSize: CGFloat = 6
+  public nonisolated static let dividerHitboxSize: CGFloat = dividerVisibleSize + dividerInvisibleSize
 
-  static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
+  public static func rawFraction(for locationX: CGFloat, totalWidth: CGFloat) -> CGFloat {
     guard totalWidth > 0 else { return 0 }
     return Swift.max(0, Swift.min(locationX / totalWidth, 1))
   }
 
-  static func clampedFraction(
+  public static func clampedFraction(
     _ fraction: CGFloat,
     minFraction: CGFloat,
     maxFraction: CGFloat
@@ -22,7 +21,7 @@ enum TerminalSplitMetrics {
     Swift.min(Swift.max(fraction, minFraction), maxFraction)
   }
 
-  static func handleFraction(
+  public static func handleFraction(
     dragFraction: CGFloat?,
     committedFraction: CGFloat,
     maxFraction: CGFloat
@@ -31,26 +30,26 @@ enum TerminalSplitMetrics {
     return Swift.max(0, Swift.min(dragFraction, maxFraction))
   }
 
-  static func isCollapsePreviewActive(dragFraction: CGFloat?, minFraction: CGFloat) -> Bool {
+  public static func isCollapsePreviewActive(dragFraction: CGFloat?, minFraction: CGFloat) -> Bool {
     guard let dragFraction else { return false }
     return dragFraction < minFraction
   }
 
-  static func sidebarWidth(for totalWidth: CGFloat, fraction: CGFloat) -> CGFloat {
+  public static func sidebarWidth(for totalWidth: CGFloat, fraction: CGFloat) -> CGFloat {
     let boundedWidth = Swift.max(totalWidth, 0)
     return Swift.max(0, Swift.min(boundedWidth * fraction, boundedWidth))
   }
 
-  static func resizeHandleOffset(for sidebarWidth: CGFloat) -> CGFloat {
+  public static func resizeHandleOffset(for sidebarWidth: CGFloat) -> CGFloat {
     Swift.max(0, sidebarWidth - (resizeHandleWidth / 2))
   }
 }
 
-enum TerminalChromeMetrics {
-  static let paneInset: CGFloat = 6
-  static let paneCornerRadius: CGFloat = 16
+public enum TerminalChromeMetrics {
+  public static let paneInset: CGFloat = 6
+  public static let paneCornerRadius: CGFloat = 16
 
-  static func nestedCornerRadius(
+  public static func nestedCornerRadius(
     inside outerCornerRadius: CGFloat,
     inset: CGFloat = paneInset
   ) -> CGFloat {
@@ -58,13 +57,13 @@ enum TerminalChromeMetrics {
   }
 }
 
-enum TerminalCoordinateSpace {
-  static let split = "TerminalSplit"
-  static let floatingSidebar = "TerminalFloatingSidebar"
+public enum TerminalCoordinateSpace {
+  public static let split = "TerminalSplit"
+  public static let floatingSidebar = "TerminalFloatingSidebar"
 }
 
 extension View {
-  func terminalPaneChrome(palette: TerminalPalette) -> some View {
+  public func terminalPaneChrome(palette: TerminalPalette) -> some View {
     self
       .clipShape(.rect(cornerRadius: TerminalChromeMetrics.paneCornerRadius))
       .overlay {
@@ -75,7 +74,7 @@ extension View {
   }
 }
 
-struct ToolbarIconButton: View {
+public struct ToolbarIconButton: View {
   let symbol: String
   let palette: TerminalPalette
   let accessibilityLabel: String?
@@ -84,7 +83,7 @@ struct ToolbarIconButton: View {
 
   @State private var isHovering = false
 
-  init(
+  public init(
     symbol: String,
     palette: TerminalPalette,
     accessibilityLabel: String? = nil,
@@ -98,7 +97,7 @@ struct ToolbarIconButton: View {
     self.action = action
   }
 
-  var body: some View {
+  public var body: some View {
     Button(action: action) {
       ZStack(alignment: .topTrailing) {
         Image(systemName: symbol)
@@ -130,8 +129,8 @@ struct ToolbarIconButton: View {
   }
 }
 
-enum WindowTrafficLightMetrics {
-  static var buttonSize: CGFloat {
+public enum WindowTrafficLightMetrics {
+  public static var buttonSize: CGFloat {
     if #available(macOS 26.0, *) {
       14
     } else {
@@ -139,17 +138,19 @@ enum WindowTrafficLightMetrics {
     }
   }
 
-  static let buttonSpacing: CGFloat = 9
-  static let leadingPadding: CGFloat = 8
-  static let topPadding: CGFloat = 2
-  static let symbolSize: CGFloat = 8
+  public static let buttonSpacing: CGFloat = 9
+  public static let leadingPadding: CGFloat = 8
+  public static let topPadding: CGFloat = 2
+  public static let symbolSize: CGFloat = 8
 }
 
-struct WindowTrafficLights: View {
+public struct WindowTrafficLights: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
 
-  var body: some View {
+  public init() {}
+
+  public var body: some View {
     HStack(spacing: WindowTrafficLightMetrics.buttonSpacing) {
       ForEach(TrafficLight.allCases, id: \.self) { light in
         Button(
@@ -237,12 +238,14 @@ private enum TrafficLight: CaseIterable {
   }
 }
 
-struct WindowChromeConfigurator: NSViewRepresentable {
-  func makeNSView(context: Context) -> WindowChromeConfiguratorView {
+public struct WindowChromeConfigurator: NSViewRepresentable {
+  public init() {}
+
+  public func makeNSView(context: Context) -> WindowChromeConfiguratorView {
     WindowChromeConfiguratorView()
   }
 
-  func updateNSView(_ nsView: WindowChromeConfiguratorView, context: Context) {
+  public func updateNSView(_ nsView: WindowChromeConfiguratorView, context: Context) {
     nsView.applyWindowChrome()
   }
 }
@@ -281,12 +284,12 @@ enum WindowChromeConfiguration {
   }
 }
 
-final class WindowChromeConfiguratorView: NSView {
+public final class WindowChromeConfiguratorView: NSView {
   private let maxDeferredApplyCount = 2
   private var configuredWindowID: ObjectIdentifier?
   private var remainingDeferredApplies = 0
 
-  override func viewDidMoveToWindow() {
+  public override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     guard let window else {
       configuredWindowID = nil
@@ -320,38 +323,38 @@ final class WindowChromeConfiguratorView: NSView {
 }
 
 public struct TerminalPalette {
-  let windowBackgroundTint: Color
-  let detailBackground: Color
-  let detailStroke: Color
-  let dialogOuterBackground: Color
-  let dialogInnerBackground: Color
-  let dialogBorder: Color
-  let dialogSecondaryFill: Color
-  let dialogSecondaryHoverFill: Color
-  let dialogDestructiveFill: Color
-  let dialogDestructiveHoverFill: Color
-  let dialogPrimaryText: Color
-  let pillFill: Color
-  let rowFill: Color
-  let clearFill: Color
-  let selectedFill: Color
-  let selectionStroke: Color
-  let primaryText: Color
-  let secondaryText: Color
-  let selectedText: Color
-  let selectedIcon: Color
-  let attention: Color
-  let shadow: Color
-  let amber: Color
-  let mint: Color
-  let sky: Color
-  let coral: Color
-  let violet: Color
-  let slate: Color
+  public let windowBackgroundTint: Color
+  public let detailBackground: Color
+  public let detailStroke: Color
+  public let dialogOuterBackground: Color
+  public let dialogInnerBackground: Color
+  public let dialogBorder: Color
+  public let dialogSecondaryFill: Color
+  public let dialogSecondaryHoverFill: Color
+  public let dialogDestructiveFill: Color
+  public let dialogDestructiveHoverFill: Color
+  public let dialogPrimaryText: Color
+  public let pillFill: Color
+  public let rowFill: Color
+  public let clearFill: Color
+  public let selectedFill: Color
+  public let selectionStroke: Color
+  public let primaryText: Color
+  public let secondaryText: Color
+  public let selectedText: Color
+  public let selectedIcon: Color
+  public let attention: Color
+  public let shadow: Color
+  public let amber: Color
+  public let mint: Color
+  public let sky: Color
+  public let coral: Color
+  public let violet: Color
+  public let slate: Color
 
-  var selectedSecondaryText: Color { selectedText.opacity(0.72) }
-  var selectedPillFill: Color { selectedText.opacity(0.12) }
-  var selectedPillStroke: Color { selectedText.opacity(0.14) }
+  public var selectedSecondaryText: Color { selectedText.opacity(0.72) }
+  public var selectedPillFill: Color { selectedText.opacity(0.12) }
+  public var selectedPillStroke: Color { selectedText.opacity(0.14) }
 
   public init(colorScheme: ColorScheme) {
     if colorScheme == .dark {
@@ -409,7 +412,7 @@ public struct TerminalPalette {
     slate = Color(red: 0.38, green: 0.44, blue: 0.56)
   }
 
-  func fill(for tone: TerminalTone) -> Color {
+  public func fill(for tone: TerminalTone) -> Color {
     color(for: tone).opacity(0.85)
   }
 

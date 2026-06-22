@@ -1,19 +1,19 @@
 import SwiftUI
 
-enum TerminalMotion {
-  static func allowsMotion(reduceMotion: Bool) -> Bool {
+public enum TerminalMotion {
+  public static func allowsMotion(reduceMotion: Bool) -> Bool {
     !reduceMotion
   }
 
-  static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
+  public static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
     allowsMotion(reduceMotion: reduceMotion) ? animation : nil
   }
 
-  static func transition(_ transition: AnyTransition, reduceMotion: Bool) -> AnyTransition {
+  public static func transition(_ transition: AnyTransition, reduceMotion: Bool) -> AnyTransition {
     allowsMotion(reduceMotion: reduceMotion) ? transition : .identity
   }
 
-  static func animate(
+  public static func animate(
     _ animation: Animation,
     reduceMotion: Bool,
     _ body: () -> Void
@@ -33,7 +33,7 @@ enum TerminalMotion {
 }
 
 extension View {
-  func terminalAnimation<Value: Equatable>(
+  public func terminalAnimation<Value: Equatable>(
     _ animation: Animation,
     value: Value,
     reduceMotion: Bool
@@ -44,7 +44,7 @@ extension View {
     )
   }
 
-  func terminalTransition(
+  public func terminalTransition(
     _ transition: AnyTransition,
     reduceMotion: Bool
   ) -> some View {

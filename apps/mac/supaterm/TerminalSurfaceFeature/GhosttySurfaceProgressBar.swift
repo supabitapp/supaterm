@@ -1,4 +1,5 @@
 import GhosttyKit
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct GhosttySurfaceProgressBar: View {

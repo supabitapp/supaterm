@@ -1,4 +1,5 @@
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct ReleaseAnnouncementCardView: View {

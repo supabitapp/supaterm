@@ -6,7 +6,7 @@ import Testing
 @testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalPresentationFeature
-@testable import SupatermTerminalUIFeature
+@testable import SupatermTerminalSurfaceFeature
 @testable import supaterm
 
 struct GhosttySurfaceViewTests {

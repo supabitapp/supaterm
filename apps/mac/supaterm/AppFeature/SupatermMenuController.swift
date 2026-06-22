@@ -4,7 +4,7 @@ import SupatermGhosttyFeature
 import SupatermSettingsFeature
 import SupatermSupport
 import SupatermTerminalModels
-import SupatermTerminalUIFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 @MainActor
