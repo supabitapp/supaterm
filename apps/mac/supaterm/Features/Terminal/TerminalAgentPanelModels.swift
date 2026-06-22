@@ -82,7 +82,7 @@ nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
       nil
     case .none where branchName == "main":
       nil
-    case .none, .open, .draft, .merged, .closed:
+    case .none, .open, .draft, .merged:
       pullRequestStatus
     }
   }
@@ -95,7 +95,6 @@ nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
     case open
     case draft
     case merged
-    case closed
   }
 
   let kind: Kind

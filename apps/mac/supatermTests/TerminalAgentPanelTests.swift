@@ -932,6 +932,11 @@ struct TerminalAgentPanelTests {
                   "state": "OPEN",
                   "isDraft": false,
                   "url": "https://github.com/supabitapp/supaterm/pull/39",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
                   "commits": {"nodes": []}
                 }
               ]
@@ -960,6 +965,47 @@ struct TerminalAgentPanelTests {
   }
 
   @Test
+  func githubPullRequestDecoderIgnoresForkPullRequestTargetingCurrentBranch() {
+    let statuses = TerminalAgentGithubClient.decodePullRequestStatuses(
+      """
+      {
+        "data": {
+          "repository": {
+            "branch0": {
+              "nodes": [
+                {
+                  "number": 538,
+                  "additions": 1,
+                  "deletions": 0,
+                  "state": "MERGED",
+                  "isDraft": false,
+                  "url": "https://github.com/NoopApp/noop/pull/538",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "noop",
+                    "owner": { "login": "ahmedelfayoume" }
+                  },
+                  "commits": {"nodes": []}
+                }
+              ]
+            }
+          }
+        }
+      }
+      """,
+      aliasMap: ["branch0": "main"],
+      remote: TerminalAgentGithubRemote(
+        host: "github.com",
+        owner: "NoopApp",
+        repo: "noop"
+      )
+    )
+
+    #expect(statuses["main"]?.kind == PaneAgentPullRequestStatus.Kind.none)
+    #expect(statuses["main"]?.title == "Create pull request")
+  }
+
+  @Test
   func githubPullRequestDecoderUsesNumberChangesAndChecks() throws {
     let status = Self.decodeSinglePullRequestStatus(
       """
@@ -975,6 +1021,11 @@ struct TerminalAgentPanelTests {
                   "state": "OPEN",
                   "isDraft": false,
                   "url": "https://github.com/supabitapp/supaterm/pull/39",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
                   "commits": {
                     "nodes": [
                       {
@@ -1045,6 +1096,11 @@ struct TerminalAgentPanelTests {
                   "state": "OPEN",
                   "isDraft": false,
                   "url": "https://github.com/supabitapp/supaterm/pull/40",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
                   "commits": {
                     "nodes": [
                       {
@@ -1141,6 +1197,11 @@ struct TerminalAgentPanelTests {
                   "state": "OPEN",
                   "isDraft": false,
                   "url": "https://github.com/supabitapp/supaterm/pull/41",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
                   "commits": {
                     "nodes": [
                       {
@@ -1237,6 +1298,11 @@ struct TerminalAgentPanelTests {
                   "state": "OPEN",
                   "isDraft": false,
                   "url": "https://github.com/supabitapp/supaterm/pull/39",
+                  "baseRefName": "main",
+                  "headRepository": {
+                    "name": "supaterm",
+                    "owner": { "login": "supabitapp" }
+                  },
                   "commits": {
                     "nodes": [
                       {
@@ -1403,6 +1469,11 @@ private actor GithubPullRequestCommandRecorder {
       "state": "OPEN",
       "isDraft": false,
       "url": "https://github.com/supabitapp/supaterm/pull/\(number)",
+      "baseRefName": "main",
+      "headRepository": {
+        "name": "supaterm",
+        "owner": { "login": "supabitapp" }
+      },
       "commits": {
         "nodes": [
           {

@@ -342,7 +342,7 @@ struct AgentPanelView: View {
         return .asset("github-logo")
       }
       return .system("plus.circle")
-    case .open, .draft, .merged, .closed:
+    case .open, .draft, .merged:
       return .asset("git-pull-request-arrow")
     }
   }
@@ -359,8 +359,6 @@ struct AgentPanelView: View {
       return palette.secondaryText
     case .merged:
       return palette.violet
-    case .closed:
-      return palette.coral
     }
   }
 

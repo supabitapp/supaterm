@@ -712,8 +712,8 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       selections.append(
         """
         \(alias): pullRequests(
-          first: 1
-          states: [OPEN, MERGED, CLOSED]
+          first: 5
+          states: [OPEN, MERGED]
           headRefName: "\(escapedBranchName)"
           orderBy: {field: UPDATED_AT, direction: DESC}
         ) {
@@ -724,6 +724,12 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
             state
             isDraft
             url
+            updatedAt
+            baseRefName
+            headRepository {
+              name
+              owner { login }
+            }
             commits(last: 1) {
               nodes {
                 commit {
@@ -799,7 +805,10 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
     }
     var statuses: [String: PaneAgentPullRequestStatus] = [:]
     for (alias, branchName) in aliasMap {
-      guard let node = response.data.repository[alias].flatMap({ $0 })?.nodes.first else {
+      guard
+        let nodes = response.data.repository[alias].flatMap({ $0 })?.nodes,
+        let node = bestPullRequestNode(nodes, branchName: branchName, remote: remote)
+      else {
         statuses[branchName] = resolvedMissingStatus(remote: remote, branchName: branchName)
         continue
       }
@@ -818,7 +827,6 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
         switch node.state {
         case "OPEN": .open
         case "MERGED": .merged
-        case "CLOSED": .closed
         default: .unavailable
         }
       }
@@ -830,6 +838,39 @@ nonisolated struct TerminalAgentGithubClient: Sendable {
       removedLineCount: node.deletions,
       checks: Self.checks(from: node)
     )
+  }
+
+  nonisolated private static func bestPullRequestNode(
+    _ nodes: [GithubPullRequestNodeResponse],
+    branchName: String,
+    remote: TerminalAgentGithubRemote
+  ) -> GithubPullRequestNodeResponse? {
+    let upstreamCandidates = nodes.filter { $0.headRepositoryMatches(remote: remote) }
+    let forkCandidates = nodes.filter {
+      $0.headRepository != nil && $0.baseRefNameDiffers(from: branchName)
+    }
+    let deletedForkCandidates = nodes.filter {
+      $0.headRepository == nil && $0.baseRefNameDiffers(from: branchName)
+    }
+    let candidates =
+      if !upstreamCandidates.isEmpty {
+        upstreamCandidates
+      } else if !forkCandidates.isEmpty {
+        forkCandidates
+      } else {
+        deletedForkCandidates
+      }
+    return candidates.max { lhs, rhs in
+      if lhs.stateRank != rhs.stateRank {
+        return lhs.stateRank < rhs.stateRank
+      }
+      let lhsUpdatedAt = lhs.updatedAt ?? .distantPast
+      let rhsUpdatedAt = rhs.updatedAt ?? .distantPast
+      if lhsUpdatedAt != rhsUpdatedAt {
+        return lhsUpdatedAt < rhsUpdatedAt
+      }
+      return lhs.number < rhs.number
+    }
   }
 
   private static let pullRequestBatchChunkSize = 5
@@ -977,7 +1018,41 @@ nonisolated private struct GithubPullRequestNodeResponse: Decodable {
   let state: String
   let isDraft: Bool
   let url: String
+  let updatedAt: Date?
+  let baseRefName: String?
+  let headRepository: GithubPRHeadRepositoryResponse?
   let commits: GithubPRCommitConnectionResponse
+
+  var stateRank: Int {
+    switch state {
+    case "OPEN":
+      return 2
+    case "MERGED":
+      return 1
+    default:
+      return 0
+    }
+  }
+
+  func headRepositoryMatches(remote: TerminalAgentGithubRemote) -> Bool {
+    guard let headRepository else { return false }
+    return headRepository.name.lowercased() == remote.repo.lowercased()
+      && headRepository.owner.login.lowercased() == remote.owner.lowercased()
+  }
+
+  func baseRefNameDiffers(from branchName: String) -> Bool {
+    guard let baseRefName else { return false }
+    return baseRefName.lowercased() != branchName.lowercased()
+  }
+}
+
+nonisolated private struct GithubPRHeadRepositoryResponse: Decodable {
+  let name: String
+  let owner: GithubPRHeadRepositoryOwnerResponse
+}
+
+nonisolated private struct GithubPRHeadRepositoryOwnerResponse: Decodable {
+  let login: String
 }
 
 nonisolated private struct GithubPRCommitConnectionResponse: Decodable {
