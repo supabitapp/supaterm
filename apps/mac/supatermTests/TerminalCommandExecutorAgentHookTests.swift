@@ -6,6 +6,7 @@ import SupatermTerminalCore
 import Testing
 
 @testable import SupatermAgentFeature
+@testable import SupatermAppFeature
 @testable import SupatermCLIShared
 @testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature

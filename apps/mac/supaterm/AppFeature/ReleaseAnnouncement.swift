@@ -8,6 +8,14 @@ import SupatermTerminalModels
 nonisolated struct ReleaseAnnouncementStorageState: Codable, Equatable, Sendable {
   var lastInstalledVersion: String?
   var acknowledgedVersion: String?
+
+  init(
+    lastInstalledVersion: String? = nil,
+    acknowledgedVersion: String? = nil
+  ) {
+    self.lastInstalledVersion = lastInstalledVersion
+    self.acknowledgedVersion = acknowledgedVersion
+  }
 }
 
 nonisolated struct ReleaseAnnouncementSyncResult: Equatable, Sendable {

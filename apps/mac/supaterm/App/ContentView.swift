@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermAppFeature
 import SupatermGhosttyFeature
 import SupatermTerminalFeature
 import SupatermTerminalModels

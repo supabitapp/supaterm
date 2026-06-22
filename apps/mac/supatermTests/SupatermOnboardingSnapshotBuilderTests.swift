@@ -1,6 +1,7 @@
 import SwiftUI
 import Testing
 
+@testable import SupatermAppFeature
 @testable import SupatermCLIShared
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels

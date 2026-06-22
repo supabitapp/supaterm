@@ -1,6 +1,7 @@
 import Foundation
 import SupatermAgentFeature
 import SupatermCLIShared
+import SupatermSupport
 import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermTerminalModels
@@ -30,7 +31,7 @@ extension TerminalCommandExecutor {
     }
   }
 
-  func restoreAgentSessions(from recordsBySurfaceID: [UUID: [TerminalPaneAgentRecord]]) {
+  public func restoreAgentSessions(from recordsBySurfaceID: [UUID: [TerminalPaneAgentRecord]]) {
     for (surfaceID, records) in recordsBySurfaceID {
       agentSessionStore.restoreSessions(from: records, surfaceID: surfaceID)
     }

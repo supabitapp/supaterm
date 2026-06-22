@@ -1,7 +1,7 @@
 import SupatermTerminalFeature
 
 extension TerminalCommandPaletteClient {
-  static func live(registry: TerminalWindowRegistry) -> Self {
+  public static func live(registry: TerminalWindowRegistry) -> Self {
     Self(
       snapshot: { registry.commandPaletteSnapshot(windowID: $0) },
       focusPane: { registry.focusCommandPalettePane($0) },

@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupatermAppFeature
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSettingsFeature

@@ -4,15 +4,25 @@ import SupatermTerminalModels
 import SupatermUpdateFeature
 
 @Reducer
-struct AppFeature {
+public struct AppFeature {
   @ObservableState
-  struct State: Equatable {
-    var terminal = TerminalWindowFeature.State()
-    var update = UpdateFeature.State()
-    var releaseAnnouncement: ReleaseAnnouncement?
+  public struct State: Equatable {
+    public var terminal = TerminalWindowFeature.State()
+    public var update = UpdateFeature.State()
+    public var releaseAnnouncement: ReleaseAnnouncement?
+
+    public init(
+      terminal: TerminalWindowFeature.State = TerminalWindowFeature.State(),
+      update: UpdateFeature.State = UpdateFeature.State(),
+      releaseAnnouncement: ReleaseAnnouncement? = nil
+    ) {
+      self.terminal = terminal
+      self.update = update
+      self.releaseAnnouncement = releaseAnnouncement
+    }
   }
 
-  enum Action {
+  public enum Action {
     case task
     case terminal(TerminalWindowFeature.Action)
     case update(UpdateFeature.Action)
@@ -22,7 +32,9 @@ struct AppFeature {
 
   @Dependency(ReleaseAnnouncementClient.self) private var releaseAnnouncementClient
 
-  var body: some Reducer<State, Action> {
+  public init() {}
+
+  public var body: some Reducer<State, Action> {
     Scope(state: \.terminal, action: \.terminal) {
       TerminalWindowFeature()
     }

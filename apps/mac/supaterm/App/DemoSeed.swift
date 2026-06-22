@@ -59,12 +59,6 @@
         $0.restoreTerminalLayoutEnabled = true
         $0.codingAgentsShowPanel = true
       }
-      ReleaseAnnouncementStorage.save(
-        ReleaseAnnouncementStorageState(
-          lastInstalledVersion: AppBuild.version,
-          acknowledgedVersion: AppBuild.version
-        )
-      )
     }
 
     static func decorate(_ terminals: [TerminalHostState]) {

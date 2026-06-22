@@ -8,11 +8,11 @@ import SupatermSupport
 import SupatermTerminalCore
 
 @MainActor
-final class TerminalCommandExecutor {
+public final class TerminalCommandExecutor {
   let agentSessionStore: TerminalAgentSessionStore
   unowned let registry: TerminalWindowRegistry
 
-  init<C: Clock<Duration>>(
+  public init<C: Clock<Duration>>(
     registry: TerminalWindowRegistry,
     agentRunningTimeout: Duration = .seconds(30),
     transcriptPollInterval: Duration = .seconds(1),

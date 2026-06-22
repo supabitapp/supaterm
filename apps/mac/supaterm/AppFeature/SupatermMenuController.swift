@@ -1,4 +1,5 @@
 import AppKit
+import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSettingsFeature
 import SupatermSupport
@@ -8,7 +9,7 @@ import SupatermTerminalUIFeature
 import SwiftUI
 
 @MainActor
-final class SupatermMenuController: NSObject {
+public final class SupatermMenuController: NSObject {
   private struct MenuShortcutKey: Equatable {
     let keyEquivalent: String
     let modifierMask: NSEvent.ModifierFlags
@@ -796,15 +797,15 @@ final class SupatermMenuController: NSObject {
     ]
   }
 
-  init(registry: TerminalWindowRegistry) {
+  public init(registry: TerminalWindowRegistry) {
     self.registry = registry
   }
 
-  func setNewWindowAction(_ action: @escaping @MainActor () -> Bool) {
+  public func setNewWindowAction(_ action: @escaping @MainActor () -> Bool) {
     requestNewWindow = action
   }
 
-  func setShowSettingsAction(_ action: @escaping @MainActor (SettingsFeature.Tab) -> Bool) {
+  public func setShowSettingsAction(_ action: @escaping @MainActor (SettingsFeature.Tab) -> Bool) {
     requestShowSettings = action
   }
 
@@ -812,7 +813,7 @@ final class SupatermMenuController: NSObject {
     requestSubmitGitHubIssue = action
   }
 
-  func install() {
+  public func install() {
     installObservers()
     NSApp.mainMenu = mainMenu
     NSApp.servicesMenu = servicesMenu
@@ -821,7 +822,7 @@ final class SupatermMenuController: NSObject {
     refresh()
   }
 
-  func refresh() {
+  public func refresh() {
     if NSApp.mainMenu !== mainMenu {
       NSApp.mainMenu = mainMenu
       NSApp.servicesMenu = servicesMenu
@@ -849,7 +850,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
-  func performGhosttyBindingMenuKeyEquivalent(with event: NSEvent) -> Bool {
+  public func performGhosttyBindingMenuKeyEquivalent(with event: NSEvent) -> Bool {
     let item =
       ghosttyBindingItems
       .lazy
@@ -882,7 +883,7 @@ final class SupatermMenuController: NSObject {
   }
 
   @discardableResult
-  func performCheckForUpdates() -> Bool {
+  public func performCheckForUpdates() -> Bool {
     performUpdateMenuAction()
   }
 
@@ -1244,7 +1245,7 @@ final class SupatermMenuController: NSObject {
 }
 
 extension SupatermMenuController: NSMenuItemValidation {
-  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+  public func validateMenuItem(_ item: NSMenuItem) -> Bool {
     let context = registry.menuContext()
 
     switch item.identifier {

@@ -1,6 +1,8 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermSupport
+import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermUpdateFeature
 

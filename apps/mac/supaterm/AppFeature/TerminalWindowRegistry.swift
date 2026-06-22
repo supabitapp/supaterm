@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermGhosttyFeature
+import SupatermSupport
 import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermTerminalModels
@@ -10,7 +11,7 @@ import SupatermUpdateFeature
 import SwiftUI
 
 @MainActor
-final class TerminalWindowRegistry {
+public final class TerminalWindowRegistry {
   struct CloseAllWindowsCandidate {
     let windowID: ObjectIdentifier
     let needsConfirmation: Bool
@@ -60,13 +61,13 @@ final class TerminalWindowRegistry {
     let session: PaneAgentPanelSession?
   }
 
-  var commandExecutor: TerminalCommandExecutor?
+  public var commandExecutor: TerminalCommandExecutor?
 
   private var entries: [Entry] = []
   private let zmxClient: ZmxClient
-  var onChange: @MainActor () -> Void = {}
+  public var onChange: @MainActor () -> Void = {}
 
-  init(zmxClient: ZmxClient = .live) {
+  public init(zmxClient: ZmxClient = .live) {
     self.zmxClient = zmxClient
   }
 
@@ -74,19 +75,19 @@ final class TerminalWindowRegistry {
     !entries.isEmpty
   }
 
-  var needsQuitConfirmation: Bool {
+  public var needsQuitConfirmation: Bool {
     activeEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
   }
 
-  var hasActiveAgentWorkForQuit: Bool {
+  public var hasActiveAgentWorkForQuit: Bool {
     activeEntries().contains { $0.terminal.hasActiveAgentWorkForQuit }
   }
 
-  var bypassesQuitConfirmation: Bool {
+  public var bypassesQuitConfirmation: Bool {
     activeEntries().contains { $0.store.withState(\.update.phase.bypassesQuitConfirmation) }
   }
 
-  func register(
+  public func register(
     keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
     windowControllerID: UUID,
     store: StoreOf<AppFeature>,
@@ -111,12 +112,12 @@ final class TerminalWindowRegistry {
     onChange()
   }
 
-  func unregister(windowControllerID: UUID) {
+  public func unregister(windowControllerID: UUID) {
     entries.removeAll { $0.windowControllerID == windowControllerID }
     onChange()
   }
 
-  func updateWindow(_ window: NSWindow?, for windowControllerID: UUID) {
+  public func updateWindow(_ window: NSWindow?, for windowControllerID: UUID) {
     guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
     else { return }
     entries[index].windowReference.value = window
@@ -174,7 +175,7 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func createTabInPreferredWindow(workingDirectoryPath: String) -> Bool {
+  public func createTabInPreferredWindow(workingDirectoryPath: String) -> Bool {
     guard let entry = preferredActiveEntry() else { return false }
     if let window = entry.windowReference.value {
       if window.isMiniaturized {
@@ -312,7 +313,7 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func requestCloseAllWindows() -> Bool {
+  public func requestCloseAllWindows() -> Bool {
     let activeEntries = activeEntries()
     switch Self.closeAllWindowsPlan(for: closeAllWindowsCandidates(from: activeEntries)) {
     case .noWindows:
@@ -351,13 +352,13 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func terminateLiveTerminalSessionsAndWait() async {
+  public func terminateLiveTerminalSessionsAndWait() async {
     for entry in activeEntries() {
       await entry.terminal.terminateLiveTerminalSessionsAndWait()
     }
   }
 
-  func setTerminatesTerminalSessionsOnWindowClose(_ terminates: Bool) {
+  public func setTerminatesTerminalSessionsOnWindowClose(_ terminates: Bool) {
     for entry in activeEntries() {
       entry.setTerminatesTerminalSessionsOnClose(terminates)
     }
@@ -374,13 +375,13 @@ final class TerminalWindowRegistry {
     }
   }
 
-  func terminateAllZmxSessionsAndWait() async {
+  public func terminateAllZmxSessionsAndWait() async {
     SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.start")
     await Self.terminateAllZmxSessions(using: zmxClient)
     SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.finished")
   }
 
-  func restorationSnapshot() -> TerminalSessionCatalog {
+  public func restorationSnapshot() -> TerminalSessionCatalog {
     TerminalSessionCatalog(
       windows: activeEntries().map { entry in
         var snapshot = entry.terminal.restorationSnapshot()
@@ -394,7 +395,7 @@ final class TerminalWindowRegistry {
     !liveSurfaceIDs().isEmpty
   }
 
-  func liveSurfaceIDs() -> Set<UUID> {
+  public func liveSurfaceIDs() -> Set<UUID> {
     activeEntries().reduce(into: Set<UUID>()) { result, entry in
       result.formUnion(entry.terminal.liveSurfaceIDs())
     }
@@ -435,7 +436,7 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func focusNotificationSurface(_ surfaceID: UUID) -> Bool {
+  public func focusNotificationSurface(_ surfaceID: UUID) -> Bool {
     for entry in activeEntries() {
       guard entry.terminal.tabID(containing: surfaceID) != nil else { continue }
       do {
@@ -514,7 +515,7 @@ final class TerminalWindowRegistry {
     )
   }
 
-  func globalKeybindRuntimes() -> [GhosttyRuntime] {
+  public func globalKeybindRuntimes() -> [GhosttyRuntime] {
     let entries = activeEntries()
     guard let preferred = preferredActiveEntry() else {
       return entries.compactMap(\.terminal.runtime)

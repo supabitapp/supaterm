@@ -1,6 +1,7 @@
 import AppKit
 import Testing
 
+@testable import SupatermAppFeature
 @testable import SupatermTerminalFeature
 @testable import supaterm
 
