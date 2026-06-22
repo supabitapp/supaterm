@@ -235,6 +235,31 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/Terminal",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .target(name: "GhosttyKit"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+        .external(name: "Textual"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "supaterm",
       destinations: .macOS,
       product: .app,
@@ -303,8 +328,6 @@ let project = Project(
       ],
       buildableFolders: [
         "supaterm/App",
-        "supaterm/Features/Chrome",
-        "supaterm/Features/Terminal",
       ],
       scripts: [
         .pre(
@@ -433,6 +456,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
@@ -481,6 +505,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),

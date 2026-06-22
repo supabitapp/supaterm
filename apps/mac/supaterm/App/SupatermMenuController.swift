@@ -1,6 +1,7 @@
 import AppKit
 import SupatermSettingsFeature
 import SupatermSupport
+import SupatermTerminalFeature
 import SwiftUI
 
 @MainActor
@@ -531,28 +532,28 @@ final class SupatermMenuController: NSObject {
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.copy,
         title: "Copy",
-        action: #selector(GhosttySurfaceView.copy(_:)),
+        action: NSSelectorFromString("copy:"),
         shortcut: .command(.copyToClipboard),
         targetsController: false
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.paste,
         title: "Paste",
-        action: #selector(GhosttySurfaceView.paste(_:)),
+        action: NSSelectorFromString("paste:"),
         shortcut: .command(.pasteFromClipboard),
         targetsController: false
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.pasteSelection,
         title: "Paste Selection",
-        action: #selector(GhosttySurfaceView.pasteSelection(_:)),
+        action: NSSelectorFromString("pasteSelection:"),
         shortcut: .command(.pasteFromSelection),
         targetsController: false
       ),
       SupatermMenuItemSpec(
         id: MenuItemIdentifier.selectAll,
         title: "Select All",
-        action: #selector(GhosttySurfaceView.selectAll(_:)),
+        action: NSSelectorFromString("selectAll:"),
         shortcut: .command(.selectAll),
         targetsController: false
       ),

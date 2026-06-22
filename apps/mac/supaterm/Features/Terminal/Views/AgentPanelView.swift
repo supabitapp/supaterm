@@ -14,10 +14,10 @@ enum AgentPanelMetrics {
   static let collapsedCornerRadius: CGFloat = 6
 }
 
-enum AgentPanelShortcut {
-  static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
-  static let forkSession = KeyboardShortcut("f", modifiers: [.command, .option])
-  static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .option])
+public enum AgentPanelShortcut {
+  public static let toggleVisibility = KeyboardShortcut("i", modifiers: .command)
+  public static let forkSession = KeyboardShortcut("f", modifiers: [.command, .option])
+  public static let copySessionID = KeyboardShortcut("c", modifiers: [.command, .option])
 }
 
 struct AgentPanelView: View {

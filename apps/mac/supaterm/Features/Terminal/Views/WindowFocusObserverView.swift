@@ -1,11 +1,16 @@
 import AppKit
 import SwiftUI
 
-struct WindowActivityState: Equatable, Sendable {
-  let isKeyWindow: Bool
-  let isVisible: Bool
+public struct WindowActivityState: Equatable, Sendable {
+  public let isKeyWindow: Bool
+  public let isVisible: Bool
 
-  static let inactive = Self(isKeyWindow: false, isVisible: false)
+  public static let inactive = Self(isKeyWindow: false, isVisible: false)
+
+  public init(isKeyWindow: Bool, isVisible: Bool) {
+    self.isKeyWindow = isKeyWindow
+    self.isVisible = isVisible
+  }
 }
 
 struct WindowFocusObserverView: NSViewRepresentable {

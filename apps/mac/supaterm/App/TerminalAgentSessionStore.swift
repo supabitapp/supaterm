@@ -1,5 +1,6 @@
 import Foundation
 import SupatermCLIShared
+import SupatermTerminalFeature
 
 @MainActor
 final class TerminalAgentSessionStore {
@@ -170,7 +171,7 @@ final class TerminalAgentSessionStore {
     surfaceID: UUID
   ) {
     for record in records {
-      guard record.processIDs.contains(where: TerminalAgentPresenceStore.isProcessAlive) else {
+      guard record.processIDs.contains(where: terminalAgentProcessIsAlive) else {
         continue
       }
       let surfaceKey = SurfaceKey(agent: record.agent, surfaceID: surfaceID)

@@ -1,7 +1,7 @@
 import SwiftUI
 
-enum SupatermCommand: Hashable, Sendable {
-  enum SplitFocusDirection: Hashable, Sendable {
+public enum SupatermCommand: Hashable, Sendable {
+  public enum SplitFocusDirection: Hashable, Sendable {
     case down
     case left
     case next
@@ -10,19 +10,19 @@ enum SupatermCommand: Hashable, Sendable {
     case up
   }
 
-  enum SplitResizeDirection: Hashable, Sendable {
+  public enum SplitResizeDirection: Hashable, Sendable {
     case down
     case left
     case right
     case up
   }
 
-  enum SearchDirection: Hashable, Sendable {
+  public enum SearchDirection: Hashable, Sendable {
     case next
     case previous
   }
 
-  enum SplitDirection: Hashable, Sendable {
+  public enum SplitDirection: Hashable, Sendable {
     case down
     case left
     case right
@@ -55,7 +55,7 @@ enum SupatermCommand: Hashable, Sendable {
   case startSearch
   case toggleSplitZoom
 
-  var ghosttyBindingAction: String {
+  public var ghosttyBindingAction: String {
     switch self {
     case .copyToClipboard:
       "copy_to_clipboard"
@@ -134,7 +134,7 @@ enum SupatermCommand: Hashable, Sendable {
     }
   }
 
-  var defaultKeyboardShortcut: KeyboardShortcut? {
+  public var defaultKeyboardShortcut: KeyboardShortcut? {
     switch self {
     case .copyToClipboard:
       KeyboardShortcut("c", modifiers: .command)

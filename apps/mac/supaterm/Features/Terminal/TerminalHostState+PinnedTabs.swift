@@ -1,5 +1,6 @@
 import Foundation
 import Sharing
+import SupatermSupport
 
 extension TerminalHostState {
   func observePinnedTabCatalog() {

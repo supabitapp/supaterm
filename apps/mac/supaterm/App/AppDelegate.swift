@@ -5,17 +5,8 @@ import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
+import SupatermTerminalFeature
 import UserNotifications
-
-@MainActor
-protocol GhosttyAppActionPerforming: AnyObject {
-  func performCheckForUpdates() -> Bool
-  func performCloseAllWindows() -> Bool
-  func performNewWindow() -> Bool
-  func performQuit() -> Bool
-  func performQuitTerminatingSessions() -> Bool
-  func performToggleVisibility() -> Bool
-}
 
 private final class WeakToggleVisibilityWindow {
   weak var value: NSWindow?
@@ -27,7 +18,7 @@ private final class WeakToggleVisibilityWindow {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate,
-  GhosttyAppActionPerforming
+  GhosttyAppActionPerforming, GhosttyBindingMenuKeyPerforming
 {
   struct LaunchWindowRequest: Equatable {
     let session: TerminalWindowSession?

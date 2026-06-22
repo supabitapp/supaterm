@@ -1,6 +1,7 @@
 import Foundation
 import GhosttyKit
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 private let ghosttyInitializedForTests: Void = {

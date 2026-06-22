@@ -1,14 +1,14 @@
 import Foundation
 
-struct TerminalTabItem: Identifiable, Equatable, Sendable {
-  let id: TerminalTabID
-  let defaultTitle: String
-  var title: String
-  var isDirty: Bool
-  var isPinned: Bool
-  var isTitleLocked: Bool
+public struct TerminalTabItem: Identifiable, Equatable, Sendable {
+  public let id: TerminalTabID
+  public let defaultTitle: String
+  public var title: String
+  public var isDirty: Bool
+  public var isPinned: Bool
+  public var isTitleLocked: Bool
 
-  init(
+  public init(
     id: TerminalTabID = TerminalTabID(),
     title: String,
     isDirty: Bool = false,

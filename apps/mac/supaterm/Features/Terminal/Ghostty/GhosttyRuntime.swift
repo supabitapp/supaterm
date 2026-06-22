@@ -1,6 +1,7 @@
 import AppKit
 import GhosttyKit
 import SupatermCLIShared
+import SupatermSupport
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -11,7 +12,7 @@ struct GhosttyShellIntegrationPlan: Equatable {
   static let empty = Self(environmentVariables: [], plannedCommand: nil)
 }
 
-final class GhosttyRuntime {
+public final class GhosttyRuntime {
   final class CallbackState {
     weak var runtime: GhosttyRuntime?
   }
@@ -37,20 +38,20 @@ final class GhosttyRuntime {
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
-  var onConfigChange: (() -> Void)?
+  public var onConfigChange: (() -> Void)?
 
   private static let notificationAttentionPaletteIndexes = [4, 12]
   private static let minNotificationContrastRatio = 2.2
   private static let minNotificationSaturation = 0.12
 
-  convenience init() {
+  public convenience init() {
     guard let config = Self.loadConfig(includeCLIArgs: true) else {
       preconditionFailure("ghostty_config_new failed")
     }
     self.init(loadedConfig: config, configPath: nil, includeCLIArgs: true)
   }
 
-  convenience init(configPath: String) {
+  public convenience init(configPath: String) {
     guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
       preconditionFailure("ghostty_config_new failed")
     }
@@ -157,24 +158,24 @@ final class GhosttyRuntime {
     }
   }
 
-  func setAppFocus(_ focused: Bool) {
+  public func setAppFocus(_ focused: Bool) {
     if let app {
       ghostty_app_set_focus(app, focused)
     }
   }
 
-  func tick() {
+  public func tick() {
     if let app {
       ghostty_app_tick(app)
     }
   }
 
-  func needsConfirmQuit() -> Bool {
+  public func needsConfirmQuit() -> Bool {
     guard let app else { return false }
     return ghostty_app_needs_confirm_quit(app)
   }
 
-  func setColorScheme(_ scheme: ColorScheme) {
+  public func setColorScheme(_ scheme: ColorScheme) {
     guard let app else { return }
     let ghosttyScheme: ghostty_color_scheme_e =
       scheme == .dark
@@ -213,7 +214,7 @@ final class GhosttyRuntime {
     ghostty_config_free(config)
   }
 
-  func reloadAppConfig() {
+  public func reloadAppConfig() {
     reloadConfig(
       soft: false,
       target: ghostty_target_s(tag: GHOSTTY_TARGET_APP, target: ghostty_target_u())
@@ -555,18 +556,18 @@ final class GhosttyRuntime {
     return config
   }
 
-  func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+  public func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
     guard let config else { return nil }
     let trigger = ghostty_config_trigger(config, action, UInt(action.lengthOfBytes(using: .utf8)))
     return Self.keyboardShortcut(for: trigger)
   }
 
-  func hasGlobalKeybinds() -> Bool {
+  public func hasGlobalKeybinds() -> Bool {
     guard let app else { return false }
     return ghostty_app_has_global_keybinds(app)
   }
 
-  func handleGlobalKeyEvent(_ event: GhosttyGlobalKeyEvent) -> Bool {
+  public func handleGlobalKeyEvent(_ event: GhosttyGlobalKeyEvent) -> Bool {
     guard let app else { return false }
     let key = GhosttyKeyEvent.make(
       event,
@@ -810,7 +811,7 @@ final class GhosttyRuntime {
 }
 
 extension Notification.Name {
-  static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
+  public static let ghosttyRuntimeConfigDidChange = Notification.Name("ghosttyRuntimeConfigDidChange")
 }
 
 extension NSColor {

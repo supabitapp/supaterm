@@ -1178,7 +1178,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
     if let bindingFlags = bindingFlags(for: event, surface: surface) {
       if shouldAttemptMenu(for: bindingFlags),
-        (NSApp.delegate as? AppDelegate)?.performGhosttyBindingMenuKeyEquivalent(with: event) == true
+        (NSApp.delegate as? any GhosttyBindingMenuKeyPerforming)?
+          .performGhosttyBindingMenuKeyEquivalent(with: event) == true
       {
         onDirectInteraction?()
         return true

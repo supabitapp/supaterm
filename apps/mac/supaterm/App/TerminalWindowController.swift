@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import SupatermSupport
+import SupatermTerminalFeature
 import SwiftUI
 
 @MainActor

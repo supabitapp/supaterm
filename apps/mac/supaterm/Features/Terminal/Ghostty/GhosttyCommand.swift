@@ -1,12 +1,12 @@
 import GhosttyKit
 
-struct GhosttyCommand: Equatable, Sendable {
-  let title: String
-  let description: String
-  let action: String
-  let actionKey: String
+public struct GhosttyCommand: Equatable, Sendable {
+  public let title: String
+  public let description: String
+  public let action: String
+  public let actionKey: String
 
-  var isSupported: Bool {
+  public var isSupported: Bool {
     !Self.unsupportedActionKeys.contains(actionKey)
   }
 
@@ -23,7 +23,7 @@ struct GhosttyCommand: Equatable, Sendable {
     "show_gtk_inspector",
   ]
 
-  init(
+  public init(
     title: String,
     description: String,
     action: String,

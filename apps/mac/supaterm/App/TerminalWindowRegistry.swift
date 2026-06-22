@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermTerminalCore
+import SupatermTerminalFeature
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -149,7 +150,7 @@ final class TerminalWindowRegistry {
     return MenuContext(
       availability: commandAvailability(for: entry),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
-      hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
+      hasSearch: entry.terminal.selectedSurfaceHasSearch,
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
@@ -165,7 +166,7 @@ final class TerminalWindowRegistry {
     guard let entry = preferredActiveEntry() else { return }
     entry.store.send(
       .terminal(
-        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
+        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceID)
       )
     )
   }
@@ -182,7 +183,7 @@ final class TerminalWindowRegistry {
     return entry.terminal.createTab(
       focusing: true,
       workingDirectoryPath: workingDirectoryPath,
-      inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
+      inheritingFromSurfaceID: entry.terminal.selectedSurfaceID
     ) != nil
   }
 
@@ -268,7 +269,7 @@ final class TerminalWindowRegistry {
   func requestCloseSurfaceInKeyWindow() {
     guard
       let entry = preferredActiveEntry(),
-      let surfaceID = entry.terminal.selectedSurfaceView?.id
+      let surfaceID = entry.terminal.selectedSurfaceID
     else {
       SupatermLog.debug(
         SupatermLog.terminal,
@@ -413,7 +414,7 @@ final class TerminalWindowRegistry {
     return TerminalCommandPaletteSnapshot(
       ghosttyCommands: terminal.commandPaletteGhosttyCommands(),
       ghosttyShortcutDisplayByAction: terminal.commandPaletteGhosttyShortcutDisplayByAction(),
-      hasFocusedSurface: terminal.selectedSurfaceView != nil,
+      hasFocusedSurface: terminal.hasSelectedSurface,
       updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
       focusTargets: focusTargets,
       selectedSpaceID: terminal.selectedSpaceID,
@@ -491,9 +492,12 @@ final class TerminalWindowRegistry {
   }
 
   private func selectedAgentPanel(in entry: Entry) -> SelectedAgentPanel? {
-    guard let surfaceID = entry.terminal.selectedSurfaceView?.id else { return nil }
-    guard let presentation = entry.terminal.agentPanelPresentation(for: surfaceID) else { return nil }
-    return SelectedAgentPanel(surfaceID: surfaceID, session: presentation.session)
+    guard let surfaceID = entry.terminal.selectedSurfaceID else { return nil }
+    guard entry.terminal.hasAgentPanelPresentation(for: surfaceID) else { return nil }
+    return SelectedAgentPanel(
+      surfaceID: surfaceID,
+      session: entry.terminal.agentPanelSession(for: surfaceID)
+    )
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {
@@ -501,7 +505,7 @@ final class TerminalWindowRegistry {
     return CommandAvailability(
       hasWindow: true,
       hasTab: entry.terminal.selectedTabID != nil,
-      hasSurface: entry.terminal.selectedSurfaceView != nil,
+      hasSurface: entry.terminal.hasSelectedSurface,
       hasAnySurface: hasAnySurface,
       hasAgentPanel: selectedAgentPanel != nil,
       hasAgentPanelSession: selectedAgentPanel?.session != nil

@@ -5,6 +5,7 @@ import Sharing
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

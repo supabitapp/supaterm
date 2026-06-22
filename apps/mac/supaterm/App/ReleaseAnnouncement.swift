@@ -2,53 +2,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermSupport
-
-nonisolated struct ReleaseAnnouncementVersion: Comparable, Equatable, Hashable, Sendable {
-  let rawValue: String
-  private let components: [Int]
-
-  init?(_ rawValue: String) {
-    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
-    let components = parts.compactMap { Int($0) }
-    guard !trimmed.isEmpty, components.count == parts.count else { return nil }
-    self.rawValue = trimmed
-    self.components = components
-  }
-
-  static func < (lhs: Self, rhs: Self) -> Bool {
-    let count = max(lhs.components.count, rhs.components.count)
-    for index in 0..<count {
-      let left = index < lhs.components.count ? lhs.components[index] : 0
-      let right = index < rhs.components.count ? rhs.components[index] : 0
-      if left != right { return left < right }
-    }
-    return false
-  }
-}
-
-nonisolated struct ReleaseAnnouncement: Equatable, Identifiable, Sendable {
-  let id: AnnouncementID
-  let version: ReleaseAnnouncementVersion
-  let title: String
-  let message: String
-  let footer: String
-  let imageName: String
-
-  enum AnnouncementID: String, Sendable {
-    case agentForking
-  }
-
-  static let agentForking = Self(
-    id: .agentForking,
-    version: ReleaseAnnouncementVersion("1.3.4")!,
-    title: "Fork sessions from the agent panel",
-    message: "Forking session is now easier than ever using the agent panel. "
-      + "Enable coding agents integration to try it.",
-    footer: "Settings → Coding Agents",
-    imageName: "git-fork"
-  )
-}
+import SupatermTerminalFeature
 
 nonisolated struct ReleaseAnnouncementStorageState: Codable, Equatable, Sendable {
   var lastInstalledVersion: String?

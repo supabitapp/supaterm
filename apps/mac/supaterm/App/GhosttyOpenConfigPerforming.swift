@@ -1,10 +1,5 @@
-import AppKit
 import SupatermSettingsFeature
-
-@MainActor
-protocol GhosttyOpenConfigPerforming: AnyObject {
-  func performOpenConfig() -> Bool
-}
+import SupatermTerminalFeature
 
 extension AppDelegate: GhosttyOpenConfigPerforming {
   @discardableResult

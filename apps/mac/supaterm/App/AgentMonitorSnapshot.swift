@@ -1,4 +1,5 @@
 import Foundation
+import SupatermTerminalFeature
 
 struct AgentMonitorSnapshot: Equatable {
   var status: AgentTurnStatus?

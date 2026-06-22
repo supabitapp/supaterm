@@ -3,6 +3,7 @@ import Foundation
 import OSLog
 import Sentry
 import SupatermSupport
+import SupatermTerminalFeature
 
 nonisolated enum AppLogCategory: String, Equatable, Sendable {
   case actions

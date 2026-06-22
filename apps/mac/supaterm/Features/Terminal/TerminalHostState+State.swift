@@ -8,27 +8,27 @@ import SupatermSupport
 import SwiftUI
 
 extension TerminalHostState {
-  var spaces: [TerminalSpaceItem] {
+  public var spaces: [TerminalSpaceItem] {
     spaceManager.spaces
   }
 
-  var selectedSpaceID: TerminalSpaceID? {
+  public var selectedSpaceID: TerminalSpaceID? {
     spaceManager.selectedSpaceID
   }
 
-  var tabs: [TerminalTabItem] {
+  public var tabs: [TerminalTabItem] {
     spaceManager.tabs
   }
 
-  var pinnedTabs: [TerminalTabItem] {
+  public var pinnedTabs: [TerminalTabItem] {
     spaceManager.pinnedTabs
   }
 
-  var regularTabs: [TerminalTabItem] {
+  public var regularTabs: [TerminalTabItem] {
     spaceManager.regularTabs
   }
 
-  var visibleTabs: [TerminalTabItem] {
+  public var visibleTabs: [TerminalTabItem] {
     spaceManager.visibleTabs
   }
 
@@ -36,7 +36,7 @@ extension TerminalHostState {
     visibleTabs.contains { unreadNotificationCount(for: $0.id) > 0 }
   }
 
-  var selectedTabID: TerminalTabID? {
+  public var selectedTabID: TerminalTabID? {
     spaceManager.selectedTabID
   }
 
@@ -57,6 +57,18 @@ extension TerminalHostState {
 
   var selectedSurfaceState: GhosttySurfaceState? {
     selectedSurfaceView?.bridge.state
+  }
+
+  public var selectedSurfaceID: UUID? {
+    selectedSurfaceView?.id
+  }
+
+  public var selectedSurfaceHasSearch: Bool {
+    selectedSurfaceState?.searchNeedle != nil
+  }
+
+  public var hasSelectedSurface: Bool {
+    selectedSurfaceView != nil
   }
 
   func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
@@ -328,6 +340,14 @@ extension TerminalHostState {
     }
   }
 
+  public func agentPanelSession(for surfaceID: UUID) -> PaneAgentPanelSession? {
+    agentPanelPresentation(for: surfaceID)?.session
+  }
+
+  public func hasAgentPanelPresentation(for surfaceID: UUID) -> Bool {
+    agentPanelPresentation(for: surfaceID) != nil
+  }
+
   func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext? {
     guard agentPanelIsEnabled else {
       return nil
@@ -366,7 +386,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func registerAgentPresence(
+  public func registerAgentPresence(
     agent: SupatermAgentKind,
     for surfaceID: UUID,
     sessionID: String?,
@@ -388,7 +408,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func setAgentPresenceActivity(
+  public func setAgentPresenceActivity(
     _ activity: AgentActivity,
     for surfaceID: UUID,
     sessionID: String?,
@@ -410,7 +430,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func markAgentSessionActionable(
+  public func markAgentSessionActionable(
     agent: SupatermAgentKind,
     for surfaceID: UUID,
     sessionID: String?,
@@ -432,7 +452,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func clearAgentPresence(
+  public func clearAgentPresence(
     agent: SupatermAgentKind,
     for surfaceID: UUID,
     sessionID: String?,
@@ -451,7 +471,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func clearAgentPresence(for surfaceID: UUID) -> Bool {
+  public func clearAgentPresence(for surfaceID: UUID) -> Bool {
     let changed = agentPresenceStore.removeSurface(surfaceID)
     if changed {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
@@ -460,9 +480,12 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func pruneDeadAgentProcesses(
-    isProcessAlive: (Int32) -> Bool = TerminalAgentPresenceStore.isProcessAlive
-  ) -> Bool {
+  public func pruneDeadAgentProcesses() -> Bool {
+    pruneDeadAgentProcesses(isProcessAlive: TerminalAgentPresenceStore.isProcessAlive)
+  }
+
+  @discardableResult
+  func pruneDeadAgentProcesses(isProcessAlive: (Int32) -> Bool) -> Bool {
     let changedSurfaceIDs = agentPresenceStore.pruneDeadProcesses(isProcessAlive: isProcessAlive)
     for surfaceID in changedSurfaceIDs {
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
@@ -470,7 +493,7 @@ extension TerminalHostState {
     return !changedSurfaceIDs.isEmpty
   }
 
-  func agentPresenceSnapshotsBySurfaceID() -> [UUID: [TerminalPaneAgentRecord]] {
+  public func agentPresenceSnapshotsBySurfaceID() -> [UUID: [TerminalPaneAgentRecord]] {
     Dictionary(
       uniqueKeysWithValues: liveSurfaceIDs().map { surfaceID in
         (surfaceID, agentPresenceStore.snapshot(for: surfaceID))
@@ -479,12 +502,12 @@ extension TerminalHostState {
     .filter { !$0.value.isEmpty }
   }
 
-  var hasActiveAgentWorkForQuit: Bool {
+  public var hasActiveAgentWorkForQuit: Bool {
     agentPresenceStore.hasActiveWorkForQuit
   }
 
   @discardableResult
-  func recordAgentHoverMessages(
+  public func recordAgentHoverMessages(
     _ messages: [String],
     replacing: Bool,
     for surfaceID: UUID
@@ -501,7 +524,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func recordAgentPanelSnapshot(
+  public func recordAgentPanelSnapshot(
     progressRows: [PaneAgentProgressRow],
     for surfaceID: UUID
   ) -> Bool {

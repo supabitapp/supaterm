@@ -8,23 +8,23 @@ private nonisolated func ghosttyUnshiftedCodepoint(for event: NSEvent) -> UInt32
   return scalar.value
 }
 
-struct GhosttyGlobalKeyEvent: Sendable {
+public struct GhosttyGlobalKeyEvent: Sendable {
   let keyCode: UInt16
   let modifierFlagsRawValue: UInt
   let unshiftedCodepoint: UInt32
 
-  nonisolated init(_ event: NSEvent) {
+  public nonisolated init(_ event: NSEvent) {
     keyCode = event.keyCode
     modifierFlagsRawValue = event.modifierFlags.rawValue
     unshiftedCodepoint = ghosttyUnshiftedCodepoint(for: event)
   }
 
-  nonisolated init?(cgEvent: CGEvent) {
+  public nonisolated init?(cgEvent: CGEvent) {
     guard let event = NSEvent(cgEvent: cgEvent) else { return nil }
     self.init(event)
   }
 
-  var modifierFlags: NSEvent.ModifierFlags {
+  public var modifierFlags: NSEvent.ModifierFlags {
     NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
   }
 }

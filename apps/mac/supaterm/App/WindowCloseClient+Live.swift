@@ -1,3 +1,5 @@
+import SupatermTerminalFeature
+
 extension WindowCloseClient {
   static func live(registry: TerminalWindowRegistry) -> Self {
     Self(

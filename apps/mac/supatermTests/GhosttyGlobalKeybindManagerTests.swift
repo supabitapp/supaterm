@@ -2,6 +2,7 @@ import AppKit
 import Carbon
 import Testing
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

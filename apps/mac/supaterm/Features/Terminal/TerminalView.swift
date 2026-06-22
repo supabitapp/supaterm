@@ -1,11 +1,13 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupatermCLIShared
 import SupatermSettingsFeature
+import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
 
-struct TerminalView: View {
+public struct TerminalView: View {
   let commandPaletteClient: TerminalCommandPaletteClient
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
@@ -16,6 +18,22 @@ struct TerminalView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var window: NSWindow?
+
+  public init(
+    commandPaletteClient: TerminalCommandPaletteClient,
+    store: StoreOf<TerminalWindowFeature>,
+    updateStore: StoreOf<UpdateFeature>,
+    releaseAnnouncement: ReleaseAnnouncement?,
+    terminal: TerminalHostState,
+    dismissReleaseAnnouncement: @escaping () -> Void
+  ) {
+    self.commandPaletteClient = commandPaletteClient
+    self.store = store
+    self.updateStore = updateStore
+    self.releaseAnnouncement = releaseAnnouncement
+    self._terminal = Bindable(terminal)
+    self.dismissReleaseAnnouncement = dismissReleaseAnnouncement
+  }
 
   private let minSidebarFraction: CGFloat = 0.10
   private let maxSidebarFraction: CGFloat = 0.30
@@ -83,7 +101,7 @@ struct TerminalView: View {
     )
   }
 
-  var body: some View {
+  public var body: some View {
     GeometryReader(content: terminalLayout)
       .frame(minWidth: 1_080, minHeight: 720)
       .background(palette.windowBackgroundTint)

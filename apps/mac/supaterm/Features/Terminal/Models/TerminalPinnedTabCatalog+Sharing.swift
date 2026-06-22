@@ -2,7 +2,7 @@ import Foundation
 import Sharing
 
 extension SharedKey where Self == FileStorageKey<TerminalPinnedTabCatalog>.Default {
-  static var terminalPinnedTabCatalog: Self {
+  public static var terminalPinnedTabCatalog: Self {
     Self[
       .fileStorage(
         TerminalPinnedTabCatalog.defaultURL(),

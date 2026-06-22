@@ -3,6 +3,7 @@ import Foundation
 import GhosttyKit
 import Testing
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

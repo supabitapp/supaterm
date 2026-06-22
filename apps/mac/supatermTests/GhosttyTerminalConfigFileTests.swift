@@ -3,6 +3,7 @@ import SupatermSupport
 import Testing
 
 @testable import SupatermSettingsFeature
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

@@ -1043,6 +1043,40 @@ struct TerminalSplitTreeView: View {
 
 extension TerminalSplitTreeView.Operation: @unchecked Sendable {}
 
+extension TerminalSplitTreeView.Operation {
+  var windowOperation: TerminalWindowSplitOperation? {
+    switch self {
+    case .resize(let node, let ratio):
+      return .resize(leafIDs: node.leaves().map(\.id), ratio: ratio)
+    case .drop(let payloadID, let destinationID, let zone):
+      return .drop(payloadID: payloadID, destinationID: destinationID, zone: zone.windowDropZone)
+    case .equalize:
+      return .equalize
+    case .agentPanelCopyBranchName,
+      .agentPanelCopySessionID,
+      .agentPanelForkSessionRequested,
+      .agentPanelVisibilityToggled,
+      .agentPanelURLTapped:
+      return nil
+    }
+  }
+}
+
+extension TerminalSplitTreeView.DropZone {
+  var windowDropZone: TerminalSplitDropZone {
+    switch self {
+    case .up:
+      return .up
+    case .bottom:
+      return .bottom
+    case .left:
+      return .left
+    case .right:
+      return .right
+    }
+  }
+}
+
 enum TerminalSplitAXPathComponent: Hashable {
   case left
   case right

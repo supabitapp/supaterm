@@ -9,6 +9,13 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     let ratio: Double
     let left: Node
     let right: Node
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+      lhs.direction == rhs.direction
+        && lhs.ratio == rhs.ratio
+        && lhs.left == rhs.left
+        && lhs.right == rhs.right
+    }
   }
 
   indirect enum Node: Equatable {

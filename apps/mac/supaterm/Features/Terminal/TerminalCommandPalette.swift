@@ -2,30 +2,62 @@ import Foundation
 import SupatermUpdateFeature
 import SwiftUI
 
-struct TerminalCommandPaletteState: Equatable {
-  var query = ""
-  var selectedRowID: TerminalCommandPaletteRow.ID?
+public struct TerminalCommandPaletteState: Equatable {
+  public var query = ""
+  public var selectedRowID: TerminalCommandPaletteRow.ID?
+
+  public init(query: String = "", selectedRowID: TerminalCommandPaletteRow.ID? = nil) {
+    self.query = query
+    self.selectedRowID = selectedRowID
+  }
 }
 
-struct TerminalCommandPaletteFocusTarget: Equatable, Sendable {
-  let windowControllerID: UUID
-  let surfaceID: UUID
-  let title: String
-  let subtitle: String?
+public struct TerminalCommandPaletteFocusTarget: Equatable, Sendable {
+  public let windowControllerID: UUID
+  public let surfaceID: UUID
+  public let title: String
+  public let subtitle: String?
+
+  public init(windowControllerID: UUID, surfaceID: UUID, title: String, subtitle: String?) {
+    self.windowControllerID = windowControllerID
+    self.surfaceID = surfaceID
+    self.title = title
+    self.subtitle = subtitle
+  }
 }
 
-struct TerminalCommandPaletteUpdateEntry: Equatable, Sendable {
-  let id: String
-  let title: String
-  let subtitle: String?
-  let description: String?
-  let leadingIcon: String?
-  let badge: String?
-  let emphasis: Bool
-  let action: UpdateUserAction
+public struct TerminalCommandPaletteUpdateEntry: Equatable, Sendable {
+  public let id: String
+  public let title: String
+  public let subtitle: String?
+  public let description: String?
+  public let leadingIcon: String?
+  public let badge: String?
+  public let emphasis: Bool
+  public let action: UpdateUserAction
+
+  public init(
+    id: String,
+    title: String,
+    subtitle: String?,
+    description: String?,
+    leadingIcon: String?,
+    badge: String?,
+    emphasis: Bool,
+    action: UpdateUserAction
+  ) {
+    self.id = id
+    self.title = title
+    self.subtitle = subtitle
+    self.description = description
+    self.leadingIcon = leadingIcon
+    self.badge = badge
+    self.emphasis = emphasis
+    self.action = action
+  }
 }
 
-enum TerminalCommandPaletteCommand: Equatable, Sendable {
+public enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case ghosttyBindingAction(String)
   case focusPane(TerminalCommandPaletteFocusTarget)
   case update(UpdateUserAction)
@@ -38,18 +70,40 @@ enum TerminalCommandPaletteCommand: Equatable, Sendable {
   case selectTab(TerminalTabID)
 }
 
-struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
-  let id: String
-  let title: String
-  let subtitle: String?
-  let description: String?
-  let leadingIcon: String?
-  let badge: String?
-  let emphasis: Bool
-  let shortcut: String?
-  let command: TerminalCommandPaletteCommand
+public struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
+  public let id: String
+  public let title: String
+  public let subtitle: String?
+  public let description: String?
+  public let leadingIcon: String?
+  public let badge: String?
+  public let emphasis: Bool
+  public let shortcut: String?
+  public let command: TerminalCommandPaletteCommand
 
-  var searchableText: String {
+  public init(
+    id: String,
+    title: String,
+    subtitle: String?,
+    description: String?,
+    leadingIcon: String?,
+    badge: String?,
+    emphasis: Bool,
+    shortcut: String?,
+    command: TerminalCommandPaletteCommand
+  ) {
+    self.id = id
+    self.title = title
+    self.subtitle = subtitle
+    self.description = description
+    self.leadingIcon = leadingIcon
+    self.badge = badge
+    self.emphasis = emphasis
+    self.shortcut = shortcut
+    self.command = command
+  }
+
+  public var searchableText: String {
     [title, subtitle]
       .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
       .filter { !$0.isEmpty }
@@ -57,28 +111,50 @@ struct TerminalCommandPaletteRow: Equatable, Identifiable, Sendable {
   }
 }
 
-struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
-  let ghosttyCommands: [GhosttyCommand]
-  let ghosttyShortcutDisplayByAction: [String: String]
-  let hasFocusedSurface: Bool
-  let updateEntries: [TerminalCommandPaletteUpdateEntry]
-  let focusTargets: [TerminalCommandPaletteFocusTarget]
-  let selectedSpaceID: TerminalSpaceID?
-  let spaces: [TerminalSpaceItem]
-  let selectedTabID: TerminalTabID?
-  let visibleTabs: [TerminalTabItem]
+public struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
+  public let ghosttyCommands: [GhosttyCommand]
+  public let ghosttyShortcutDisplayByAction: [String: String]
+  public let hasFocusedSurface: Bool
+  public let updateEntries: [TerminalCommandPaletteUpdateEntry]
+  public let focusTargets: [TerminalCommandPaletteFocusTarget]
+  public let selectedSpaceID: TerminalSpaceID?
+  public let spaces: [TerminalSpaceItem]
+  public let selectedTabID: TerminalTabID?
+  public let visibleTabs: [TerminalTabItem]
 
-  var selectedSpace: TerminalSpaceItem? {
+  public init(
+    ghosttyCommands: [GhosttyCommand],
+    ghosttyShortcutDisplayByAction: [String: String],
+    hasFocusedSurface: Bool,
+    updateEntries: [TerminalCommandPaletteUpdateEntry],
+    focusTargets: [TerminalCommandPaletteFocusTarget],
+    selectedSpaceID: TerminalSpaceID?,
+    spaces: [TerminalSpaceItem],
+    selectedTabID: TerminalTabID?,
+    visibleTabs: [TerminalTabItem]
+  ) {
+    self.ghosttyCommands = ghosttyCommands
+    self.ghosttyShortcutDisplayByAction = ghosttyShortcutDisplayByAction
+    self.hasFocusedSurface = hasFocusedSurface
+    self.updateEntries = updateEntries
+    self.focusTargets = focusTargets
+    self.selectedSpaceID = selectedSpaceID
+    self.spaces = spaces
+    self.selectedTabID = selectedTabID
+    self.visibleTabs = visibleTabs
+  }
+
+  public var selectedSpace: TerminalSpaceItem? {
     guard let selectedSpaceID else { return nil }
     return spaces.first { $0.id == selectedSpaceID }
   }
 
-  var selectedTab: TerminalTabItem? {
+  public var selectedTab: TerminalTabItem? {
     guard let selectedTabID else { return nil }
     return visibleTabs.first { $0.id == selectedTabID }
   }
 
-  static let empty = Self(
+  public static let empty = Self(
     ghosttyCommands: [],
     ghosttyShortcutDisplayByAction: [:],
     hasFocusedSurface: false,

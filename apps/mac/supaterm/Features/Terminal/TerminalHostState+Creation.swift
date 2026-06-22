@@ -9,7 +9,7 @@ import SupatermTerminalCore
 import SwiftUI
 
 extension TerminalHostState {
-  func ensureInitialTab(
+  public func ensureInitialTab(
     focusing: Bool,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil
@@ -23,7 +23,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func createTab(
+  public func createTab(
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil,
@@ -45,7 +45,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func createTab(
+  public func createTab(
     in spaceID: TerminalSpaceID,
     focusing: Bool = true,
     startupCommand: String? = nil,

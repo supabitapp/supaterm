@@ -1,25 +1,25 @@
 import Foundation
 import SupatermCLIShared
 
-nonisolated struct TerminalSpaceID: Hashable, Identifiable, Codable, Sendable {
-  let rawValue: UUID
+public nonisolated struct TerminalSpaceID: Hashable, Identifiable, Codable, Sendable {
+  public let rawValue: UUID
 
-  init() {
+  public init() {
     rawValue = UUID()
   }
 
-  init(rawValue: UUID) {
+  public init(rawValue: UUID) {
     self.rawValue = rawValue
   }
 
-  var id: UUID { rawValue }
+  public var id: UUID { rawValue }
 }
 
-nonisolated struct TerminalSpaceItem: Identifiable, Equatable, Codable, Sendable {
-  let id: TerminalSpaceID
-  var name: String
+public nonisolated struct TerminalSpaceItem: Identifiable, Equatable, Codable, Sendable {
+  public let id: TerminalSpaceID
+  public var name: String
 
-  init(
+  public init(
     id: TerminalSpaceID = TerminalSpaceID(),
     name: String
   ) {
@@ -28,11 +28,11 @@ nonisolated struct TerminalSpaceItem: Identifiable, Equatable, Codable, Sendable
   }
 }
 
-nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
-  let id: TerminalSpaceID
-  var name: String
+public nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
+  public let id: TerminalSpaceID
+  public var name: String
 
-  init(
+  public init(
     id: TerminalSpaceID = TerminalSpaceID(),
     name: String
   ) {
@@ -41,13 +41,21 @@ nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
-  var defaultSelectedSpaceID: TerminalSpaceID
-  var spaces: [PersistedTerminalSpace]
+public nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
+  public var defaultSelectedSpaceID: TerminalSpaceID
+  public var spaces: [PersistedTerminalSpace]
 
-  static let `default` = Self.makeDefault()
+  public static let `default` = Self.makeDefault()
 
-  static func defaultURL(
+  public init(
+    defaultSelectedSpaceID: TerminalSpaceID,
+    spaces: [PersistedTerminalSpace]
+  ) {
+    self.defaultSelectedSpaceID = defaultSelectedSpaceID
+    self.spaces = spaces
+  }
+
+  public static func defaultURL(
     homeDirectoryPath: String = NSHomeDirectory(),
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {

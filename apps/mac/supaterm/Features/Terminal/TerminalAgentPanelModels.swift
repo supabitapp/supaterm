@@ -15,16 +15,16 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   }
 }
 
-nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
-  let agent: SupatermAgentKind
-  let sessionID: String
+public nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
+  public let agent: SupatermAgentKind
+  public let sessionID: String
 
   private init(agent: SupatermAgentKind, sessionID: String) {
     self.agent = agent
     self.sessionID = sessionID
   }
 
-  static func supported(agent: SupatermAgentKind, sessionID: String) -> Self? {
+  public static func supported(agent: SupatermAgentKind, sessionID: String) -> Self? {
     switch agent {
     case .claude, .codex:
       break
@@ -38,7 +38,7 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     return Self(agent: agent, sessionID: sessionID)
   }
 
-  var forkStartupCommand: String {
+  public var forkStartupCommand: String {
     SupatermShellCommand.interactiveStartupCommand(for: forkCommand)
   }
 
@@ -58,16 +58,22 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   }
 }
 
-nonisolated struct PaneAgentProgressRow: Equatable, Identifiable, Sendable {
-  enum Status: Equatable, Sendable {
+public nonisolated struct PaneAgentProgressRow: Equatable, Identifiable, Sendable {
+  public enum Status: Equatable, Sendable {
     case pending
     case running
     case completed
   }
 
-  let id: String
-  let title: String
-  let status: Status
+  public let id: String
+  public let title: String
+  public let status: Status
+
+  public init(id: String, title: String, status: Status) {
+    self.id = id
+    self.title = title
+    self.status = status
+  }
 }
 
 nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {

@@ -3,30 +3,40 @@ import Foundation
 import SupatermCLIShared
 import SupatermTerminalCore
 
-struct TerminalNotificationEvent: Equatable, Sendable {
-  let attentionState: SupatermNotificationAttentionState
-  let body: String
-  let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
-  let resolvedTitle: String
-  let sourceSurfaceID: UUID
-  let subtitle: String
+public struct TerminalNotificationEvent: Equatable, Sendable {
+  public let attentionState: SupatermNotificationAttentionState
+  public let body: String
+  public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
+  public let resolvedTitle: String
+  public let sourceSurfaceID: UUID
+  public let subtitle: String
 }
 
-enum TerminalCloseTarget: Equatable, Sendable {
+public enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)
   case tabs([TerminalTabID])
 }
 
-struct TerminalCloseRequest: Equatable, Sendable {
-  let target: TerminalCloseTarget
-  let needsConfirmation: Bool
+public struct TerminalCloseRequest: Equatable, Sendable {
+  public let target: TerminalCloseTarget
+  public let needsConfirmation: Bool
 }
 
-struct TerminalClient: Sendable {
+public struct TerminalClient: Sendable {
   var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
   var events: @MainActor @Sendable () -> AsyncStream<Event>
   var send: @MainActor @Sendable (Command) -> Void
+
+  init(
+    createPane: @escaping @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult,
+    events: @escaping @MainActor @Sendable () -> AsyncStream<Event>,
+    send: @escaping @MainActor @Sendable (Command) -> Void
+  ) {
+    self.createPane = createPane
+    self.events = events
+    self.send = send
+  }
 
   enum Command: Equatable, @unchecked Sendable {
     case closeSurface(UUID)
@@ -43,7 +53,7 @@ struct TerminalClient: Sendable {
     case nextTab
     case performGhosttyBindingActionOnFocusedSurface(String)
     case performBindingActionOnFocusedSurface(SupatermCommand)
-    case performSplitOperation(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
+    case performSplitOperation(tabID: TerminalTabID, operation: TerminalWindowSplitOperation)
     case previousSpace
     case previousTab
     case requestCloseSurface(UUID)
@@ -62,7 +72,7 @@ struct TerminalClient: Sendable {
     case updateWindowActivity(WindowActivityState)
   }
 
-  enum Event: Equatable, Sendable {
+  public enum Event: Equatable, Sendable {
     case commandPaletteToggleRequested
     case closeRequested(TerminalCloseRequest)
     case gotoTabRequested(TerminalGotoTabTarget)
@@ -71,7 +81,7 @@ struct TerminalClient: Sendable {
     case windowCloseRequested(needsConfirmation: Bool)
   }
 
-  static func live(host: TerminalHostState) -> Self {
+  public static func live(host: TerminalHostState) -> Self {
     Self(
       createPane: { request in
         try host.createPane(request)
@@ -86,7 +96,7 @@ struct TerminalClient: Sendable {
   }
 }
 
-enum TerminalGotoTabTarget: Equatable, Sendable {
+public enum TerminalGotoTabTarget: Equatable, Sendable {
   case index(Int)
   case last
   case next
@@ -94,7 +104,7 @@ enum TerminalGotoTabTarget: Equatable, Sendable {
 }
 
 extension TerminalClient: DependencyKey {
-  static let liveValue = Self(
+  public static let liveValue = Self(
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -102,7 +112,7 @@ extension TerminalClient: DependencyKey {
     send: { _ in }
   )
 
-  static let testValue = Self(
+  public static let testValue = Self(
     createPane: { _ in
       throw TerminalCreatePaneError.creationFailed
     },
@@ -112,7 +122,7 @@ extension TerminalClient: DependencyKey {
 }
 
 extension DependencyValues {
-  var terminalClient: TerminalClient {
+  public var terminalClient: TerminalClient {
     get { self[TerminalClient.self] }
     set { self[TerminalClient.self] = newValue }
   }

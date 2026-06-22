@@ -1,4 +1,4 @@
-enum GhosttySearchDirection: Equatable, Sendable {
+public enum GhosttySearchDirection: Equatable, Sendable {
   case next
   case previous
 

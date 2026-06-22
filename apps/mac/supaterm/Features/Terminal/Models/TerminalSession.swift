@@ -3,14 +3,14 @@ import CryptoKit
 import Foundation
 import SupatermCLIShared
 
-nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 4
-  static let `default` = Self(windows: [])
+public nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
+  public static let currentVersion = 4
+  public static let `default` = Self(windows: [])
 
-  let version: Int
-  var windows: [TerminalWindowSession]
+  public let version: Int
+  public var windows: [TerminalWindowSession]
 
-  init(
+  public init(
     version: Int = Self.currentVersion,
     windows: [TerminalWindowSession]
   ) {
@@ -18,7 +18,7 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
     self.windows = windows
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let version = try container.decode(Int.self, forKey: .version)
     guard version == Self.currentVersion || version == 3 else {
@@ -32,7 +32,7 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
     self.windows = try container.decode([TerminalWindowSession].self, forKey: .windows)
   }
 
-  static func defaultURL(
+  public static func defaultURL(
     homeDirectoryPath: String = NSHomeDirectory(),
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {
@@ -49,19 +49,19 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
     return encoder
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     windows.reduce(into: Set<UUID>()) { result, window in
       result.formUnion(window.surfaceIDs)
     }
   }
 }
 
-nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
-  var selectedSpaceID: TerminalSpaceID
-  var spaces: [TerminalWindowSpaceSession]
-  var frame: TerminalWindowFrame?
+public nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
+  public var selectedSpaceID: TerminalSpaceID
+  public var spaces: [TerminalWindowSpaceSession]
+  public var frame: TerminalWindowFrame?
 
-  init(
+  public init(
     selectedSpaceID: TerminalSpaceID,
     spaces: [TerminalWindowSpaceSession],
     frame: TerminalWindowFrame? = nil
@@ -90,20 +90,20 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
     )
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     spaces.reduce(into: Set<UUID>()) { result, space in
       result.formUnion(space.surfaceIDs)
     }
   }
 }
 
-nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
-  var x: Double
-  var y: Double
-  var width: Double
-  var height: Double
+public nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
+  public var x: Double
+  public var y: Double
+  public var width: Double
+  public var height: Double
 
-  init(
+  public init(
     x: Double,
     y: Double,
     width: Double,
@@ -115,7 +115,7 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
     self.height = height
   }
 
-  init(_ rect: CGRect) {
+  public init(_ rect: CGRect) {
     self.init(
       x: Double(rect.origin.x),
       y: Double(rect.origin.y),
@@ -124,16 +124,28 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
     )
   }
 
-  var rect: CGRect {
+  public var rect: CGRect {
     CGRect(x: x, y: y, width: width, height: height)
   }
 }
 
-nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
-  var id: TerminalSpaceID
-  var selectedTabIndex: Int?
-  var selectedPinnedTabID: TerminalTabID?
-  var tabs: [TerminalTabSession]
+public nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
+  public var id: TerminalSpaceID
+  public var selectedTabIndex: Int?
+  public var selectedPinnedTabID: TerminalTabID?
+  public var tabs: [TerminalTabSession]
+
+  public init(
+    id: TerminalSpaceID,
+    selectedTabIndex: Int?,
+    selectedPinnedTabID: TerminalTabID? = nil,
+    tabs: [TerminalTabSession]
+  ) {
+    self.id = id
+    self.selectedTabIndex = selectedTabIndex
+    self.selectedPinnedTabID = selectedPinnedTabID
+    self.tabs = tabs
+  }
 
   func pruned() -> TerminalWindowSpaceSession {
     let tabs = tabs.compactMap { $0.pruned() }
@@ -160,18 +172,30 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
     return selectedTabIndex
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     tabs.reduce(into: Set<UUID>()) { result, tab in
       result.formUnion(tab.surfaceIDs)
     }
   }
 }
 
-nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
-  var isPinned: Bool
-  var lockedTitle: String?
-  var focusedPaneIndex: Int
-  var root: TerminalPaneNodeSession
+public nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
+  public var isPinned: Bool
+  public var lockedTitle: String?
+  public var focusedPaneIndex: Int
+  public var root: TerminalPaneNodeSession
+
+  public init(
+    isPinned: Bool,
+    lockedTitle: String?,
+    focusedPaneIndex: Int,
+    root: TerminalPaneNodeSession
+  ) {
+    self.isPinned = isPinned
+    self.lockedTitle = lockedTitle
+    self.focusedPaneIndex = focusedPaneIndex
+    self.root = root
+  }
 
   func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
@@ -224,12 +248,12 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
     return focusedPaneIndex
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     root.surfaceIDs
   }
 }
 
-nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable {
+public nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable {
   case leaf(TerminalPaneLeafSession)
   case split(TerminalPaneSplitSession)
 
@@ -244,7 +268,7 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     case split
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     switch try container.decode(Kind.self, forKey: .kind) {
     case .leaf:
@@ -254,7 +278,7 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
     case .leaf(let leaf):
@@ -266,7 +290,7 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  var leafCount: Int {
+  public var leafCount: Int {
     switch self {
     case .leaf:
       return 1
@@ -275,7 +299,7 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     switch self {
     case .leaf(let leaf):
       return [leaf.id]
@@ -331,11 +355,11 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
   }
 }
 
-nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
-  var id: UUID
-  var workingDirectoryPath: String?
-  var titleOverride: String?
-  var agents: [TerminalPaneAgentRecord]
+public nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
+  public var id: UUID
+  public var workingDirectoryPath: String?
+  public var titleOverride: String?
+  public var agents: [TerminalPaneAgentRecord]
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -344,7 +368,7 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
     case agents
   }
 
-  init(
+  public init(
     id: UUID = UUID(),
     workingDirectoryPath: String?,
     titleOverride: String? = nil,
@@ -356,7 +380,7 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
     self.agents = agents
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? Self.legacyID(codingPath: decoder.codingPath)
     self.workingDirectoryPath = try container.decodeIfPresent(String.self, forKey: .workingDirectoryPath)
@@ -405,19 +429,19 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated enum TerminalPaneAgentActivityPhase: String, Codable, Equatable, Sendable {
+public nonisolated enum TerminalPaneAgentActivityPhase: String, Codable, Equatable, Sendable {
   case idle
   case needsInput = "needs_input"
   case running
 }
 
-nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
-  var agent: SupatermAgentKind
-  var sessionIDs: [String]
-  var processIDs: [Int32]
-  var activityPhase: TerminalPaneAgentActivityPhase?
+public nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
+  public var agent: SupatermAgentKind
+  public var sessionIDs: [String]
+  public var processIDs: [Int32]
+  public var activityPhase: TerminalPaneAgentActivityPhase?
 
-  init(
+  public init(
     agent: SupatermAgentKind,
     sessionIDs: [String] = [],
     processIDs: [Int32] = [],
@@ -458,11 +482,23 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated struct TerminalPaneSplitSession: Equatable, Codable, Sendable {
-  var direction: TerminalPaneSplitDirection
-  var ratio: Double
-  var left: TerminalPaneNodeSession
-  var right: TerminalPaneNodeSession
+public nonisolated struct TerminalPaneSplitSession: Equatable, Codable, Sendable {
+  public var direction: TerminalPaneSplitDirection
+  public var ratio: Double
+  public var left: TerminalPaneNodeSession
+  public var right: TerminalPaneNodeSession
+
+  public init(
+    direction: TerminalPaneSplitDirection,
+    ratio: Double,
+    left: TerminalPaneNodeSession,
+    right: TerminalPaneNodeSession
+  ) {
+    self.direction = direction
+    self.ratio = ratio
+    self.left = left
+    self.right = right
+  }
 
   func pruned() -> TerminalPaneNodeSession? {
     let left = left.pruned()
@@ -492,7 +528,7 @@ nonisolated struct TerminalPaneSplitSession: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated enum TerminalPaneSplitDirection: String, Equatable, Codable, Sendable {
+public nonisolated enum TerminalPaneSplitDirection: String, Equatable, Codable, Sendable {
   case horizontal
   case vertical
 }

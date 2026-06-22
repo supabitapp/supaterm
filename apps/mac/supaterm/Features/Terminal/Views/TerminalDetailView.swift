@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Sharing
+import SupatermCLIShared
 import SupatermSupport
 import SwiftUI
 
@@ -282,6 +283,7 @@ private struct TerminalSurfacePaneView: View {
       case .agentPanelURLTapped(let url):
         _ = store.send(.agentPanelURLTapped(url))
       case .resize, .drop, .equalize:
+        guard let operation = operation.windowOperation else { return }
         _ = store.send(.splitOperationRequested(tabID: tabID, operation: operation))
       }
     }

@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 import Textual
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 struct TerminalSidebarChromeViewTests {

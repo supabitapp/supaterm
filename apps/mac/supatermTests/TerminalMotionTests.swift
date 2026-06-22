@@ -1,6 +1,7 @@
 import SwiftUI
 import Testing
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 struct TerminalMotionTests {

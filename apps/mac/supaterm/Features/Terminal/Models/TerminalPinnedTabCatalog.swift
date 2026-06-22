@@ -1,22 +1,36 @@
 import Foundation
 import SupatermCLIShared
 
-nonisolated struct PersistedPinnedTerminalTab: Equatable, Codable, Sendable {
-  let id: TerminalTabID
-  var session: TerminalTabSession
+public nonisolated struct PersistedPinnedTerminalTab: Equatable, Codable, Sendable {
+  public let id: TerminalTabID
+  public var session: TerminalTabSession
+
+  public init(id: TerminalTabID, session: TerminalTabSession) {
+    self.id = id
+    self.session = session
+  }
 }
 
-nonisolated struct PersistedPinnedTerminalTabsForSpace: Equatable, Codable, Sendable {
-  let id: TerminalSpaceID
-  var tabs: [PersistedPinnedTerminalTab]
+public nonisolated struct PersistedPinnedTerminalTabsForSpace: Equatable, Codable, Sendable {
+  public let id: TerminalSpaceID
+  public var tabs: [PersistedPinnedTerminalTab]
+
+  public init(id: TerminalSpaceID, tabs: [PersistedPinnedTerminalTab]) {
+    self.id = id
+    self.tabs = tabs
+  }
 }
 
-nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
-  var spaces: [PersistedPinnedTerminalTabsForSpace]
+public nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
+  public var spaces: [PersistedPinnedTerminalTabsForSpace]
 
-  static let `default` = Self(spaces: [])
+  public static let `default` = Self(spaces: [])
 
-  static func defaultURL(
+  public init(spaces: [PersistedPinnedTerminalTabsForSpace]) {
+    self.spaces = spaces
+  }
+
+  public static func defaultURL(
     homeDirectoryPath: String = NSHomeDirectory(),
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> URL {
@@ -71,7 +85,7 @@ nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
     spaces.first(where: { $0.id == spaceID })?.tabs ?? []
   }
 
-  var surfaceIDs: Set<UUID> {
+  public var surfaceIDs: Set<UUID> {
     spaces.reduce(into: Set<UUID>()) { result, space in
       for tab in space.tabs {
         result.formUnion(tab.session.surfaceIDs)

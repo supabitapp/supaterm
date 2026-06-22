@@ -2,6 +2,10 @@ import Darwin
 import Foundation
 import SupatermCLIShared
 
+public nonisolated func terminalAgentProcessIsAlive(_ processID: Int32) -> Bool {
+  TerminalAgentPresenceStore.isProcessAlive(processID)
+}
+
 struct TerminalAgentPresenceStore {
   struct Instance: Equatable, Sendable {
     let activity: TerminalHostState.AgentActivity

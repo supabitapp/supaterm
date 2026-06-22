@@ -2,6 +2,7 @@ import Foundation
 import SupatermCLIShared
 import Testing
 
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 struct TerminalSessionCatalogTests {

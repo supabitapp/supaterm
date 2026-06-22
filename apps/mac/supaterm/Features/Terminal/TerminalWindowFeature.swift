@@ -10,22 +10,35 @@ private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
 }
 
-struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
-  let space: TerminalSpaceItem
-
-  var id: TerminalSpaceID { space.id }
+public enum TerminalSplitDropZone: String, Equatable, Sendable {
+  case up
+  case bottom
+  case left
+  case right
 }
 
-enum TerminalSpaceEditorMode: Equatable {
+public enum TerminalWindowSplitOperation: Equatable, Sendable {
+  case resize(leafIDs: [UUID], ratio: Double)
+  case drop(payloadID: UUID, destinationID: UUID, zone: TerminalSplitDropZone)
+  case equalize
+}
+
+public struct TerminalSpaceDeleteRequest: Equatable, Identifiable {
+  public let space: TerminalSpaceItem
+
+  public var id: TerminalSpaceID { space.id }
+}
+
+public enum TerminalSpaceEditorMode: Equatable {
   case create
   case rename(TerminalSpaceItem)
 }
 
-struct TerminalSpaceEditorState: Equatable, Identifiable {
-  let mode: TerminalSpaceEditorMode
-  var draftName: String
+public struct TerminalSpaceEditorState: Equatable, Identifiable {
+  public let mode: TerminalSpaceEditorMode
+  public var draftName: String
 
-  var id: String {
+  public var id: String {
     switch mode {
     case .create:
       return "create"
@@ -34,7 +47,7 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
     }
   }
 
-  var excludedSpaceID: TerminalSpaceID? {
+  public var excludedSpaceID: TerminalSpaceID? {
     switch mode {
     case .create:
       return nil
@@ -43,7 +56,7 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
     }
   }
 
-  var title: String {
+  public var title: String {
     switch mode {
     case .create:
       return "Create Space"
@@ -52,7 +65,7 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
     }
   }
 
-  var confirmTitle: String {
+  public var confirmTitle: String {
     switch mode {
     case .create:
       return "Create"
@@ -63,40 +76,66 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
 }
 
 @Reducer
-struct TerminalWindowFeature {
+public struct TerminalWindowFeature {
   @ObservableState
-  struct State: Equatable {
-    var commandPalette: TerminalCommandPaletteState?
-    var confirmationRequest: ConfirmationRequest?
-    var startupCommand: String?
-    var isFloatingSidebarVisible = false
-    var isSidebarCollapsed = false
-    var hiddenAgentPanelSurfaceIDs: Set<UUID> = []
-    var pendingCloseRequest: PendingCloseRequest?
-    var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
-    var sidebarFraction: CGFloat = 0.2
-    var spaceEditor: TerminalSpaceEditorState?
-    var windowID: ObjectIdentifier?
+  public struct State: Equatable {
+    public var commandPalette: TerminalCommandPaletteState?
+    public var confirmationRequest: ConfirmationRequest?
+    public var startupCommand: String?
+    public var isFloatingSidebarVisible = false
+    public var isSidebarCollapsed = false
+    public var hiddenAgentPanelSurfaceIDs: Set<UUID> = []
+    public var pendingCloseRequest: PendingCloseRequest?
+    public var pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest?
+    public var sidebarFraction: CGFloat = 0.2
+    public var spaceEditor: TerminalSpaceEditorState?
+    public var windowID: ObjectIdentifier?
+
+    public init(
+      commandPalette: TerminalCommandPaletteState? = nil,
+      confirmationRequest: ConfirmationRequest? = nil,
+      startupCommand: String? = nil,
+      isFloatingSidebarVisible: Bool = false,
+      isSidebarCollapsed: Bool = false,
+      hiddenAgentPanelSurfaceIDs: Set<UUID> = [],
+      pendingCloseRequest: PendingCloseRequest? = nil,
+      pendingSpaceDeleteRequest: TerminalSpaceDeleteRequest? = nil,
+      sidebarFraction: CGFloat = 0.2,
+      spaceEditor: TerminalSpaceEditorState? = nil,
+      windowID: ObjectIdentifier? = nil
+    ) {
+      self.commandPalette = commandPalette
+      self.confirmationRequest = confirmationRequest
+      self.startupCommand = startupCommand
+      self.isFloatingSidebarVisible = isFloatingSidebarVisible
+      self.isSidebarCollapsed = isSidebarCollapsed
+      self.hiddenAgentPanelSurfaceIDs = hiddenAgentPanelSurfaceIDs
+      self.pendingCloseRequest = pendingCloseRequest
+      self.pendingSpaceDeleteRequest = pendingSpaceDeleteRequest
+      self.sidebarFraction = sidebarFraction
+      self.spaceEditor = spaceEditor
+      self.windowID = windowID
+    }
   }
 
-  struct ConfirmationRequest: Equatable {
-    let target: ConfirmationTarget
-    let title: String
-    let message: String
-    let confirmTitle: String
+  public struct ConfirmationRequest: Equatable {
+    public let target: ConfirmationTarget
+    public let title: String
+    public let message: String
+    public let confirmTitle: String
   }
 
-  enum ConfirmationTarget: Equatable {
+  public enum ConfirmationTarget: Equatable {
     case closeAllWindows([ObjectIdentifier])
     case closeWindow(ObjectIdentifier)
   }
 
-  struct PendingCloseRequest: Equatable, Identifiable {
-    let target: PendingCloseTarget
-    let title: String
-    let message: String
+  public struct PendingCloseRequest: Equatable, Identifiable {
+    public let target: PendingCloseTarget
+    public let title: String
+    public let message: String
 
-    var id: String {
+    public var id: String {
       switch target {
       case .surface(let surfaceID):
         return "pane:\(surfaceID.uuidString)"
@@ -108,7 +147,7 @@ struct TerminalWindowFeature {
     }
   }
 
-  enum PendingCloseTarget: Equatable {
+  public enum PendingCloseTarget: Equatable {
     case surface(UUID)
     case tab(TerminalTabID)
     case tabs([TerminalTabID])
@@ -124,7 +163,7 @@ struct TerminalWindowFeature {
     }
   }
 
-  enum Action {
+  public enum Action {
     case bindingMenuItemSelected(SupatermCommand)
     case clientEvent(TerminalClient.Event)
     case commandPaletteActivateSelection
@@ -171,7 +210,7 @@ struct TerminalWindowFeature {
       regularOrder: [TerminalTabID]
     )
     case sidebarFractionChanged(CGFloat)
-    case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
+    case splitOperationRequested(tabID: TerminalTabID, operation: TerminalWindowSplitOperation)
     case tabSelected(TerminalTabID)
     case task
     case spaceCreateButtonTapped
@@ -199,7 +238,9 @@ struct TerminalWindowFeature {
   @Dependency(TerminalClient.self) var terminalClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
 
-  var body: some Reducer<State, Action> {
+  public init() {}
+
+  public var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
       case .clientEvent(let event):

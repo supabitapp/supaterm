@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermTerminalFeature
 import SupatermUpdateFeature
 import SwiftUI
 

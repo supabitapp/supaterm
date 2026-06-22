@@ -1,4 +1,5 @@
 import AppKit
+import SupatermUpdateFeature
 import SwiftUI
 
 struct TerminalCommandPaletteOverlay: View {

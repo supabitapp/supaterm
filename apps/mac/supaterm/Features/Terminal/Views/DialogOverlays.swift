@@ -79,7 +79,7 @@ struct ConfirmationOverlay: View {
   }
 }
 
-struct QuitConfirmationOverlay: View {
+public struct QuitConfirmationOverlay: View {
   let palette: TerminalPalette
   let content: QuitConfirmationContent
   let onPreserve: () -> Void
@@ -97,7 +97,21 @@ struct QuitConfirmationOverlay: View {
     removal: .offset(y: -16).combined(with: .scale(scale: 0.96)).combined(with: .opacity)
   )
 
-  var body: some View {
+  public init(
+    palette: TerminalPalette,
+    content: QuitConfirmationContent,
+    onPreserve: @escaping () -> Void,
+    onTerminate: @escaping () -> Void,
+    onCancel: @escaping () -> Void
+  ) {
+    self.palette = palette
+    self.content = content
+    self.onPreserve = onPreserve
+    self.onTerminate = onTerminate
+    self.onCancel = onCancel
+  }
+
+  public var body: some View {
     ZStack {
       Button(action: onCancel) {
         Color.black.opacity(0.4)

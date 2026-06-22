@@ -49,7 +49,7 @@ nonisolated struct TerminalClosePerformLogContext: Sendable {
 
 @MainActor
 @Observable
-final class TerminalHostState {
+public final class TerminalHostState {
   struct NewTabSelectionInput: Equatable {
     let selectedSpaceID: TerminalSpaceID?
     let targetSpaceID: TerminalSpaceID
@@ -128,7 +128,7 @@ final class TerminalHostState {
     }
   }
 
-  enum NotificationSemantic: Equatable, Sendable {
+  public enum NotificationSemantic: Equatable, Sendable {
     case completion
     case attention
   }
@@ -151,18 +151,18 @@ final class TerminalHostState {
     case muted
   }
 
-  enum AgentActivityPhase: Equatable, Sendable {
+  public enum AgentActivityPhase: Equatable, Sendable {
     case needsInput
     case running
     case idle
   }
 
-  struct AgentActivity: Equatable, Sendable {
-    let kind: SupatermAgentKind
-    let phase: AgentActivityPhase
-    let detail: String?
+  public struct AgentActivity: Equatable, Sendable {
+    public let kind: SupatermAgentKind
+    public let phase: AgentActivityPhase
+    public let detail: String?
 
-    init(
+    public init(
       kind: SupatermAgentKind,
       phase: AgentActivityPhase,
       detail: String? = nil
@@ -261,7 +261,7 @@ final class TerminalHostState {
   }
 
   @ObservationIgnored
-  let runtime: GhosttyRuntime?
+  public let runtime: GhosttyRuntime?
   @ObservationIgnored
   let managesTerminalSurfaces: Bool
   @ObservationIgnored
@@ -290,9 +290,9 @@ final class TerminalHostState {
   @ObservationIgnored
   var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
   @ObservationIgnored
-  var onSessionChange: @MainActor () -> Void = {}
+  public var onSessionChange: @MainActor () -> Void = {}
   @ObservationIgnored
-  var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
+  public var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
   var agentPanelController: TerminalAgentPanelController?
   let spaceManager = TerminalSpaceManager()
@@ -310,9 +310,9 @@ final class TerminalHostState {
   var runtimeConfigGeneration = 0
   var suppressesSessionChanges = 0
 
-  var windowActivity = WindowActivityState.inactive
+  public var windowActivity = WindowActivityState.inactive
 
-  init(
+  public init(
     runtime: GhosttyRuntime? = nil,
     managesTerminalSurfaces: Bool = true,
     zmxClient: ZmxClient = .live,
@@ -573,7 +573,7 @@ final class TerminalHostState {
     return true
   }
 
-  func updateWindowActivity(_ activity: WindowActivityState) {
+  public func updateWindowActivity(_ activity: WindowActivityState) {
     let selectedTabID = selectedTabID
     let focusedSurfaceID = selectedTabID.flatMap { focusHistoryByTab[$0]?.current }
     SupatermLog.debug(
@@ -749,12 +749,13 @@ final class TerminalHostState {
   }
 
   func performSplitOperation(
-    _ operation: TerminalSplitTreeView.Operation, in tabID: TerminalTabID
+    _ operation: TerminalWindowSplitOperation, in tabID: TerminalTabID
   ) {
     guard var tree = trees[tabID] else { return }
 
     switch operation {
-    case .resize(let node, let ratio):
+    case .resize(let leafIDs, let ratio):
+      guard let node = splitNode(in: tree.root, matchingLeafIDs: leafIDs) else { return }
       let resizedNode = node.resizing(to: ratio)
       do {
         tree = try tree.replacing(node: node, with: resizedNode)
@@ -787,13 +788,23 @@ final class TerminalHostState {
     case .equalize:
       trees[tabID] = tree.equalized()
       sessionDidChange()
+    }
+  }
 
-    case .agentPanelCopyBranchName,
-      .agentPanelCopySessionID,
-      .agentPanelForkSessionRequested,
-      .agentPanelVisibilityToggled,
-      .agentPanelURLTapped:
-      break
+  private func splitNode(
+    in node: SplitTree<GhosttySurfaceView>.Node?,
+    matchingLeafIDs leafIDs: [UUID]
+  ) -> SplitTree<GhosttySurfaceView>.Node? {
+    guard let node else { return nil }
+    switch node {
+    case .leaf:
+      return nil
+    case .split(let split):
+      if node.leaves().map(\.id) == leafIDs {
+        return node
+      }
+      return splitNode(in: split.left, matchingLeafIDs: leafIDs)
+        ?? splitNode(in: split.right, matchingLeafIDs: leafIDs)
     }
   }
 
@@ -1280,7 +1291,7 @@ final class TerminalHostState {
       .updateDirty(tabID, isDirty: isRunning)
   }
 
-  nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
+  public nonisolated static func logSurfaceIDs(_ surfaceIDs: some Sequence<UUID>) -> String {
     surfaceIDs.map { SupatermLog.uuid($0) }.sorted().joined(separator: ",")
   }
 

@@ -1,12 +1,12 @@
 import Foundation
 
 extension TerminalHostState {
-  func commandPaletteGhosttyCommands() -> [GhosttyCommand] {
+  public func commandPaletteGhosttyCommands() -> [GhosttyCommand] {
     _ = runtimeConfigGeneration
     return runtime?.commandPaletteEntries().filter(\.isSupported) ?? []
   }
 
-  func commandPaletteGhosttyShortcutDisplayByAction() -> [String: String] {
+  public func commandPaletteGhosttyShortcutDisplayByAction() -> [String: String] {
     _ = runtimeConfigGeneration
 
     var displays: [String: String] = [:]
@@ -18,7 +18,7 @@ extension TerminalHostState {
     return displays
   }
 
-  func commandPaletteFocusTargets(windowControllerID: UUID) -> [TerminalCommandPaletteFocusTarget] {
+  public func commandPaletteFocusTargets(windowControllerID: UUID) -> [TerminalCommandPaletteFocusTarget] {
     var targets: [TerminalCommandPaletteFocusTarget] = []
 
     for space in spaces {

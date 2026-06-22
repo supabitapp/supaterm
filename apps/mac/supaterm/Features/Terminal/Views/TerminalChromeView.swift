@@ -318,7 +318,7 @@ final class WindowChromeConfiguratorView: NSView {
   }
 }
 
-struct TerminalPalette {
+public struct TerminalPalette {
   let windowBackgroundTint: Color
   let detailBackground: Color
   let detailStroke: Color
@@ -352,7 +352,7 @@ struct TerminalPalette {
   var selectedPillFill: Color { selectedText.opacity(0.12) }
   var selectedPillStroke: Color { selectedText.opacity(0.14) }
 
-  init(colorScheme: ColorScheme) {
+  public init(colorScheme: ColorScheme) {
     if colorScheme == .dark {
       windowBackgroundTint = Color(red: 0.078, green: 0.078, blue: 0.078, opacity: 0.3)
       detailBackground = Color(red: 0.15, green: 0.14, blue: 0.14)

@@ -1,3 +1,4 @@
+import SupatermTerminalFeature
 import SwiftUI
 
 struct GhosttyColorSchemeSyncView<Content: View>: View {

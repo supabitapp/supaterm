@@ -322,7 +322,7 @@ extension TerminalHostState {
     return shouldCloseWindow(afterClosing: [tabID])
   }
 
-  func windowNeedsCloseConfirmation() -> Bool {
+  public func windowNeedsCloseConfirmation() -> Bool {
     if let runtime {
       return runtime.needsConfirmQuit()
     }
@@ -383,7 +383,7 @@ extension TerminalHostState {
     }
   }
 
-  func tabID(containing surfaceID: UUID) -> TerminalTabID? {
+  public func tabID(containing surfaceID: UUID) -> TerminalTabID? {
     for (tabID, tree) in trees where tree.find(id: surfaceID) != nil {
       return tabID
     }

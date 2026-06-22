@@ -1,15 +1,15 @@
 import Foundation
 
-nonisolated struct TerminalTabID: Hashable, Identifiable, Codable, Sendable {
-  let rawValue: UUID
+public nonisolated struct TerminalTabID: Hashable, Identifiable, Codable, Sendable {
+  public let rawValue: UUID
 
-  init() {
+  public init() {
     rawValue = UUID()
   }
 
-  init(rawValue: UUID) {
+  public init(rawValue: UUID) {
     self.rawValue = rawValue
   }
 
-  var id: UUID { rawValue }
+  public var id: UUID { rawValue }
 }

@@ -1,22 +1,30 @@
 import ComposableArchitecture
 import Foundation
 
-struct WindowCloseClient: Sendable {
-  var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
-  var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
+public struct WindowCloseClient: Sendable {
+  public var closeWindow: @MainActor @Sendable (ObjectIdentifier) async -> Void
+  public var closeWindows: @MainActor @Sendable ([ObjectIdentifier]) async -> Void
+
+  public init(
+    closeWindow: @escaping @MainActor @Sendable (ObjectIdentifier) async -> Void,
+    closeWindows: @escaping @MainActor @Sendable ([ObjectIdentifier]) async -> Void
+  ) {
+    self.closeWindow = closeWindow
+    self.closeWindows = closeWindows
+  }
 }
 
 extension WindowCloseClient: DependencyKey {
-  static let liveValue = Self(
+  public static let liveValue = Self(
     closeWindow: { _ in },
     closeWindows: { _ in }
   )
 
-  static let testValue = liveValue
+  public static let testValue = liveValue
 }
 
 extension DependencyValues {
-  var windowCloseClient: WindowCloseClient {
+  public var windowCloseClient: WindowCloseClient {
     get { self[WindowCloseClient.self] }
     set { self[WindowCloseClient.self] = newValue }
   }
