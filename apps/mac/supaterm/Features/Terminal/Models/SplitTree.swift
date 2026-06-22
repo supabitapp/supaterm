@@ -1,16 +1,16 @@
 import AppKit
 
-struct SplitTree<ViewType: NSView & Identifiable> {
-  let root: Node?
-  let zoomed: Node?
+public struct SplitTree<ViewType: NSView & Identifiable> {
+  public let root: Node?
+  public let zoomed: Node?
 
-  struct Split: Equatable {
-    let direction: Direction
-    let ratio: Double
-    let left: Node
-    let right: Node
+  public struct Split: Equatable {
+    public let direction: Direction
+    public let ratio: Double
+    public let left: Node
+    public let right: Node
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.direction == rhs.direction
         && lhs.ratio == rhs.ratio
         && lhs.left == rhs.left
@@ -18,87 +18,90 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     }
   }
 
-  indirect enum Node: Equatable {
+  public indirect enum Node: Equatable {
     case leaf(view: ViewType)
     case split(Split)
   }
 
-  enum Direction: Equatable {
+  public enum Direction: Equatable {
     case horizontal
     case vertical
   }
 
-  enum PathComponent: Equatable {
+  public enum PathComponent: Equatable {
     case left
     case right
   }
 
-  struct Path: Equatable {
-    let path: [PathComponent]
+  public struct Path: Equatable {
+    public let path: [PathComponent]
 
-    var isEmpty: Bool { path.isEmpty }
+    public var isEmpty: Bool { path.isEmpty }
 
+    public init(path: [PathComponent]) {
+      self.path = path
+    }
   }
 
-  struct SpatialSlot {
-    let node: Node
-    let bounds: CGRect
+  public struct SpatialSlot {
+    public let node: Node
+    public let bounds: CGRect
   }
 
-  enum SpatialDirection {
+  public enum SpatialDirection {
     case left
     case right
     case up
     case down
   }
 
-  struct Spatial {
-    let slots: [SpatialSlot]
+  public struct Spatial {
+    public let slots: [SpatialSlot]
   }
 
-  enum SplitError: Error {
+  public enum SplitError: Error {
     case viewNotFound
   }
 
-  enum NewDirection {
+  public enum NewDirection {
     case left
     case right
     case down
     case up
   }
 
-  enum FocusDirection {
+  public enum FocusDirection {
     case previous
     case next
     case spatial(SpatialDirection)
   }
 
-  enum SizeUnit {
+  public enum SizeUnit {
     case cells
     case percent
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     root == nil
   }
 
-  var isSplit: Bool {
+  public var isSplit: Bool {
     if case .split = root { true } else { false }
   }
 
-  init() {
+  public init() {
     self.init(root: nil, zoomed: nil)
   }
 
-  init(view: ViewType) {
+  public init(view: ViewType) {
     self.init(root: .leaf(view: view), zoomed: nil)
   }
 
-  func find(id: ViewType.ID) -> Node? {
+  public func find(id: ViewType.ID) -> Node? {
     root?.find(id: id)
   }
 
-  func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
+  public func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
     guard let root else { throw SplitError.viewNotFound }
     return Self(
       root: try root.inserting(view: view, at: anchor, direction: direction),
@@ -106,7 +109,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     )
   }
 
-  func removing(_ target: Node) -> Self {
+  public func removing(_ target: Node) -> Self {
     guard let root else { return self }
     if root == target {
       return Self(root: nil, zoomed: nil)
@@ -116,7 +119,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: newRoot, zoomed: newZoomed)
   }
 
-  func replacing(node: Node, with newNode: Node) throws -> Self {
+  public func replacing(node: Node, with newNode: Node) throws -> Self {
     guard let root else { throw SplitError.viewNotFound }
     guard let path = root.path(to: node) else { throw SplitError.viewNotFound }
     let newRoot = try root.replacingNode(at: path, with: newNode)
@@ -124,7 +127,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: newRoot, zoomed: newZoomed)
   }
 
-  func focusTarget(for direction: FocusDirection, from currentNode: Node) -> ViewType? {
+  public func focusTarget(for direction: FocusDirection, from currentNode: Node) -> ViewType? {
     guard let root else { return nil }
 
     switch direction {
@@ -168,7 +171,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     }
   }
 
-  func focusTargetAfterClosing(_ node: Node) -> ViewType? {
+  public func focusTargetAfterClosing(_ node: Node) -> ViewType? {
     guard let root else { return nil }
 
     // Match Ghostty's macOS controller: closing the leftmost leaf moves to the next
@@ -179,13 +182,13 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return focusTarget(for: .previous, from: node)
   }
 
-  func equalized() -> Self {
+  public func equalized() -> Self {
     guard let root else { return self }
     let newRoot = root.equalize()
     return Self(root: newRoot, zoomed: zoomed)
   }
 
-  func tiled() -> Self {
+  public func tiled() -> Self {
     guard let root else { return self }
     let leaves = root.leaves()
     guard !leaves.isEmpty else { return self }
@@ -203,7 +206,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: Node.arranged(rowNodes, direction: .vertical), zoomed: nil)
   }
 
-  func mainVertical() -> Self {
+  public func mainVertical() -> Self {
     guard let root else { return self }
     let leaves = root.leaves()
     guard leaves.count > 1 else { return self }
@@ -222,11 +225,11 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     )
   }
 
-  func settingZoomed(_ node: Node?) -> Self {
+  public func settingZoomed(_ node: Node?) -> Self {
     Self(root: root, zoomed: node)
   }
 
-  func resizing(
+  public func resizing(
     node: Node,
     by pixels: UInt16,
     in direction: SpatialDirection,
@@ -278,7 +281,7 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: newRoot, zoomed: nil)
   }
 
-  func sizing(
+  public func sizing(
     node: Node,
     to amount: Double,
     along axis: Direction,
@@ -337,11 +340,11 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     return Self(root: newRoot, zoomed: nil)
   }
 
-  func viewBounds() -> CGSize {
+  public func viewBounds() -> CGSize {
     root?.viewBounds() ?? .zero
   }
 
-  func leaves() -> [ViewType] {
+  public func leaves() -> [ViewType] {
     root?.leaves() ?? []
   }
 
@@ -383,21 +386,21 @@ struct SplitTree<ViewType: NSView & Identifiable> {
     throw SplitError.viewNotFound
   }
 
-  init(root: Node?, zoomed: Node?) {
+  public init(root: Node?, zoomed: Node?) {
     self.root = root
     self.zoomed = zoomed
   }
 }
 
 extension SplitTree.Node {
-  typealias Node = SplitTree.Node
-  typealias NewDirection = SplitTree.NewDirection
-  typealias SplitError = SplitTree.SplitError
-  typealias Path = SplitTree.Path
-  typealias PathComponent = SplitTree.PathComponent
-  typealias Split = SplitTree.Split
+  public typealias Node = SplitTree.Node
+  public typealias NewDirection = SplitTree.NewDirection
+  public typealias SplitError = SplitTree.SplitError
+  public typealias Path = SplitTree.Path
+  public typealias PathComponent = SplitTree.PathComponent
+  public typealias Split = SplitTree.Split
 
-  static func == (lhs: Self, rhs: Self) -> Bool {
+  public static func == (lhs: Self, rhs: Self) -> Bool {
     switch (lhs, rhs) {
     case (.leaf(let leftView), .leaf(let rightView)):
       return leftView === rightView
@@ -410,7 +413,7 @@ extension SplitTree.Node {
     }
   }
 
-  func find(id: ViewType.ID) -> Node? {
+  public func find(id: ViewType.ID) -> Node? {
     switch self {
     case .leaf(let view):
       return view.id == id ? self : nil
@@ -420,7 +423,7 @@ extension SplitTree.Node {
     }
   }
 
-  func node(view: ViewType) -> Node? {
+  public func node(view: ViewType) -> Node? {
     switch self {
     case .leaf(let leafView):
       return leafView === view ? self : nil
@@ -431,7 +434,7 @@ extension SplitTree.Node {
     }
   }
 
-  func path(to node: Self) -> Path? {
+  public func path(to node: Self) -> Path? {
     var components: [PathComponent] = []
     func search(_ current: Self) -> Bool {
       if current == node { return true }
@@ -451,7 +454,7 @@ extension SplitTree.Node {
     return search(self) ? Path(path: components) : nil
   }
 
-  func node(at path: Path) -> Node? {
+  public func node(at path: Path) -> Node? {
     if path.isEmpty { return self }
     guard case .split(let split) = self else { return nil }
     let component = path.path[0]
@@ -464,7 +467,7 @@ extension SplitTree.Node {
     }
   }
 
-  func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
+  public func inserting(view: ViewType, at anchor: ViewType, direction: NewDirection) throws -> Self {
     guard let path = path(to: .leaf(view: anchor)) else {
       throw SplitError.viewNotFound
     }
@@ -499,7 +502,7 @@ extension SplitTree.Node {
     return try replacingNode(at: path, with: newSplit)
   }
 
-  func replacingNode(at path: Path, with newNode: Self) throws -> Self {
+  public func replacingNode(at path: Path, with newNode: Self) throws -> Self {
     if path.isEmpty { return newNode }
 
     func replaceInner(current: Node, pathOffset: Int) throws -> Node {
@@ -531,7 +534,7 @@ extension SplitTree.Node {
     return try replaceInner(current: self, pathOffset: 0)
   }
 
-  func remove(_ target: Node) -> Node? {
+  public func remove(_ target: Node) -> Node? {
     if self == target { return nil }
     switch self {
     case .leaf:
@@ -558,7 +561,7 @@ extension SplitTree.Node {
     }
   }
 
-  func resizing(to ratio: Double) -> Self {
+  public func resizing(to ratio: Double) -> Self {
     switch self {
     case .leaf:
       return self
@@ -573,7 +576,7 @@ extension SplitTree.Node {
     }
   }
 
-  func leftmostLeaf() -> ViewType {
+  public func leftmostLeaf() -> ViewType {
     switch self {
     case .leaf(let view):
       return view
@@ -582,7 +585,7 @@ extension SplitTree.Node {
     }
   }
 
-  func rightmostLeaf() -> ViewType {
+  public func rightmostLeaf() -> ViewType {
     switch self {
     case .leaf(let view):
       return view
@@ -591,7 +594,7 @@ extension SplitTree.Node {
     }
   }
 
-  func leaves() -> [ViewType] {
+  public func leaves() -> [ViewType] {
     switch self {
     case .leaf(let view):
       return [view]
@@ -600,12 +603,12 @@ extension SplitTree.Node {
     }
   }
 
-  func equalize() -> Node {
+  public func equalize() -> Node {
     let (equalizedNode, _) = equalizeWithWeight()
     return equalizedNode
   }
 
-  static func arranged(
+  public static func arranged(
     _ nodes: [Node],
     direction: SplitTree.Direction
   ) -> Node {
@@ -675,7 +678,7 @@ extension SplitTree.Node {
     }
   }
 
-  func viewBounds() -> CGSize {
+  public func viewBounds() -> CGSize {
     switch self {
     case .leaf(let view):
       return view.bounds.size
@@ -697,7 +700,7 @@ extension SplitTree.Node {
     }
   }
 
-  func spatial(within bounds: CGSize? = nil) -> SplitTree.Spatial {
+  public func spatial(within bounds: CGSize? = nil) -> SplitTree.Spatial {
     let width: Double
     let height: Double
     if let bounds {
@@ -779,22 +782,22 @@ extension SplitTree.Node {
     }
   }
 
-  var structuralIdentity: StructuralIdentity {
+  public var structuralIdentity: StructuralIdentity {
     StructuralIdentity(self)
   }
 
-  struct StructuralIdentity: Hashable {
+  public struct StructuralIdentity: Hashable {
     private let node: SplitTree.Node
 
     init(_ node: SplitTree.Node) {
       self.node = node
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.node.isStructurallyEqual(to: rhs.node)
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
       node.hashStructure(into: &hasher)
     }
   }
@@ -827,7 +830,7 @@ extension SplitTree.Node {
 }
 
 extension SplitTree.Spatial {
-  func slots(
+  public func slots(
     in direction: SplitTree.SpatialDirection,
     from referenceNode: SplitTree.Node
   ) -> [SplitTree.SpatialSlot] {

@@ -34,7 +34,7 @@ extension TerminalHostState {
     spaceManager.visibleTabs
   }
 
-  var hasUnreadSidebarNotifications: Bool {
+  public var hasUnreadSidebarNotifications: Bool {
     visibleTabs.contains { unreadNotificationCount(for: $0.id) > 0 }
   }
 
@@ -42,12 +42,12 @@ extension TerminalHostState {
     spaceManager.selectedTabID
   }
 
-  var selectedTree: SplitTree<GhosttySurfaceView>? {
+  public var selectedTree: SplitTree<GhosttySurfaceView>? {
     guard let selectedTabID else { return nil }
     return splitTree(for: selectedTabID)
   }
 
-  var selectedSurfaceView: GhosttySurfaceView? {
+  public var selectedSurfaceView: GhosttySurfaceView? {
     guard
       let selectedTabID,
       let focusedSurfaceID = focusHistoryByTab[selectedTabID]?.current
@@ -73,7 +73,7 @@ extension TerminalHostState {
     selectedSurfaceView != nil
   }
 
-  func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
+  public func sidebarTerminalProgress(for tabID: TerminalTabID) -> TerminalSidebarTerminalProgress? {
     Self.sidebarTerminalProgress(
       state: focusHistoryByTab[tabID].map(\.current).flatMap { surfaceID in
         surfaces[surfaceID]?.bridge.state
@@ -81,20 +81,20 @@ extension TerminalHostState {
     )
   }
 
-  func tabHasBell(for tabID: TerminalTabID) -> Bool {
+  public func tabHasBell(for tabID: TerminalTabID) -> Bool {
     trees[tabID]?.leaves().contains {
       $0.bridge.state.bellCount > 0
     } ?? false
   }
 
-  var selectedPaneIsZoomed: Bool {
+  public var selectedPaneIsZoomed: Bool {
     Self.isPaneZoomed(
       focusedSurfaceID: currentFocusedSurfaceID(),
       in: selectedTree
     )
   }
 
-  var selectedPaneDisplayTitle: String {
+  public var selectedPaneDisplayTitle: String {
     Self.selectedPaneDisplayTitle(
       focusedSurfaceID: currentFocusedSurfaceID(),
       in: selectedTree,
@@ -104,14 +104,14 @@ extension TerminalHostState {
     )
   }
 
-  func contextSurfaceID(for tabID: TerminalTabID) -> UUID? {
+  public func contextSurfaceID(for tabID: TerminalTabID) -> UUID? {
     if let focusedSurfaceID = focusHistoryByTab[tabID]?.current, surfaces[focusedSurfaceID] != nil {
       return focusedSurfaceID
     }
     return trees[tabID]?.root?.leftmostLeaf().id
   }
 
-  func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
+  public func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
     if let tree = trees[tabID] {
       return Self.paneWorkingDirectories(
         paths: tree.leaves().map { $0.bridge.state.pwd }
@@ -129,12 +129,12 @@ extension TerminalHostState {
     )
   }
 
-  var terminalBackgroundColor: Color {
+  public var terminalBackgroundColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.backgroundColor() ?? .windowBackgroundColor)
   }
 
-  var terminalChromeColorScheme: ColorScheme {
+  public var terminalChromeColorScheme: ColorScheme {
     _ = runtimeConfigGeneration
     if let runtime {
       return runtime.chromeColorScheme()
@@ -143,22 +143,22 @@ extension TerminalHostState {
     return appearance == .darkAqua ? .dark : .light
   }
 
-  var notificationAttentionColor: Color {
+  public var notificationAttentionColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.notificationAttentionColor() ?? .controlAccentColor)
   }
 
-  var splitDividerColor: Color {
+  public var splitDividerColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.splitDividerColor() ?? .separatorColor)
   }
 
-  var unfocusedSplitDimmingColor: Color {
+  public var unfocusedSplitDimmingColor: Color {
     _ = runtimeConfigGeneration
     return Color(nsColor: runtime?.unfocusedSplitDimmingColor() ?? .windowBackgroundColor)
   }
 
-  var unfocusedSplitDimmingOpacity: Double {
+  public var unfocusedSplitDimmingOpacity: Double {
     _ = runtimeConfigGeneration
     return runtime?.unfocusedSplitDimmingOpacity() ?? 0
   }
@@ -174,7 +174,7 @@ extension TerminalHostState {
     )
   }
 
-  func latestSidebarNotificationPresentation(
+  public func latestSidebarNotificationPresentation(
     for tabID: TerminalTabID
   ) -> SidebarNotificationPresentation? {
     Self.sidebarNotificationPresentation(
@@ -193,11 +193,11 @@ extension TerminalHostState {
       .reduce(into: 0) { $0 += $1.count }
   }
 
-  func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
+  public func unreadNotificationCount(for tabID: TerminalTabID) -> Int {
     unreadNotifiedSurfaceIDs(in: tabID).count
   }
 
-  func unreadNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
+  public func unreadNotifiedSurfaceIDs(in tabID: TerminalTabID) -> Set<UUID> {
     Set(
       notifications(for: tabID)
         .compactMap { surfaceID, notifications in
@@ -206,7 +206,7 @@ extension TerminalHostState {
     )
   }
 
-  func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
+  public func tabAgentPresentation(for tabID: TerminalTabID) -> TabAgentPresentation {
     guard let tree = trees[tabID] else {
       return TabAgentPresentation(
         badgeActivities: [],
@@ -275,7 +275,7 @@ extension TerminalHostState {
     )
   }
 
-  func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
+  public func agentActivity(for tabID: TerminalTabID) -> AgentActivity? {
     tabAgentPresentation(for: tabID).badgeActivity
   }
 
@@ -283,7 +283,7 @@ extension TerminalHostState {
     tabAgentPresentation(for: tabID).hoverMarkdown
   }
 
-  func agentPanelPresentations(for tabID: TerminalTabID) -> [UUID: PaneAgentPanelPresentation] {
+  public func agentPanelPresentations(for tabID: TerminalTabID) -> [UUID: PaneAgentPanelPresentation] {
     guard agentPanelIsEnabled else {
       return [:]
     }
@@ -300,7 +300,7 @@ extension TerminalHostState {
     )
   }
 
-  func agentPanelPresentation(for surfaceID: UUID) -> PaneAgentPanelPresentation? {
+  public func agentPanelPresentation(for surfaceID: UUID) -> PaneAgentPanelPresentation? {
     guard agentPanelIsEnabled else {
       return nil
     }

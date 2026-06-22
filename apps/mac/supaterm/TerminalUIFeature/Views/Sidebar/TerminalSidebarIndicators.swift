@@ -1,4 +1,5 @@
 import SupatermSupport
+import SupatermTerminalFeature
 import SwiftUI
 
 struct TerminalAgentBadgeGroupView: View {
@@ -95,31 +96,6 @@ private struct TerminalAgentBadgeView: View {
 
   private var badgeStroke: Color {
     isSelected ? palette.selectedPillStroke : palette.detailStroke
-  }
-}
-
-struct TerminalSidebarTerminalProgress: Equatable {
-  enum Tone: Equatable {
-    case active
-    case paused
-    case error
-  }
-
-  enum IndicatorStyle: Equatable {
-    case ring
-    case pauseIcon
-  }
-
-  let fraction: Double?
-  let tone: Tone
-
-  var indicatorStyle: IndicatorStyle {
-    switch tone {
-    case .paused:
-      return .pauseIcon
-    case .active, .error:
-      return .ring
-    }
   }
 }
 

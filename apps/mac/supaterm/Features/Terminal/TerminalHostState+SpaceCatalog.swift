@@ -62,7 +62,7 @@ extension TerminalHostState {
     sessionDidChange()
   }
 
-  func isSpaceNameAvailable(
+  public func isSpaceNameAvailable(
     _ proposedName: String,
     excluding excludedSpaceID: TerminalSpaceID? = nil
   ) -> Bool {

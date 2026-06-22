@@ -208,7 +208,7 @@ extension TerminalHostState {
     )
   }
 
-  func currentFocusedSurfaceID() -> UUID? {
+  public func currentFocusedSurfaceID() -> UUID? {
     guard let selectedTabID = spaceManager.selectedTabID else { return nil }
     return focusHistoryByTab[selectedTabID]?.current
   }

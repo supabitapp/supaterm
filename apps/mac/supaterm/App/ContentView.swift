@@ -2,6 +2,7 @@ import ComposableArchitecture
 import SupatermGhosttyFeature
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalUIFeature
 import SupatermUpdateFeature
 import SwiftUI
 

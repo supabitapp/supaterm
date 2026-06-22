@@ -1,13 +1,13 @@
 import Foundation
 import SupatermCLIShared
 
-nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
-  var progressRows: [PaneAgentProgressRow] = []
-  var branchDetails: PaneAgentBranchDetails?
-  var artifacts: [PaneAgentArtifact] = []
-  var session: PaneAgentPanelSession?
+public nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
+  public var progressRows: [PaneAgentProgressRow] = []
+  public var branchDetails: PaneAgentBranchDetails?
+  public var artifacts: [PaneAgentArtifact] = []
+  public var session: PaneAgentPanelSession?
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     progressRows.isEmpty
       && branchDetails == nil
       && artifacts.isEmpty
@@ -76,13 +76,13 @@ public nonisolated struct PaneAgentProgressRow: Equatable, Identifiable, Sendabl
   }
 }
 
-nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
-  let branchName: String
-  let addedLineCount: Int
-  let removedLineCount: Int
-  let pullRequestStatus: PaneAgentPullRequestStatus
+public nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
+  public let branchName: String
+  public let addedLineCount: Int
+  public let removedLineCount: Int
+  public let pullRequestStatus: PaneAgentPullRequestStatus
 
-  var displayedPullRequestStatus: PaneAgentPullRequestStatus? {
+  public var displayedPullRequestStatus: PaneAgentPullRequestStatus? {
     switch pullRequestStatus.kind {
     case .unavailable:
       nil
@@ -94,8 +94,8 @@ nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
   }
 }
 
-nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
-  enum Kind: Equatable, Sendable {
+public nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
+  public enum Kind: Equatable, Sendable {
     case unavailable
     case none
     case open
@@ -103,12 +103,12 @@ nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
     case merged
   }
 
-  let kind: Kind
-  let title: String
-  let url: URL?
-  let addedLineCount: Int?
-  let removedLineCount: Int?
-  let checks: PaneAgentPullRequestChecks?
+  public let kind: Kind
+  public let title: String
+  public let url: URL?
+  public let addedLineCount: Int?
+  public let removedLineCount: Int?
+  public let checks: PaneAgentPullRequestChecks?
 
   static let unavailable = Self(
     kind: .unavailable,
@@ -131,17 +131,17 @@ nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
   }
 }
 
-nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
-  enum Status: Equatable, Sendable {
+public nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
+  public enum Status: Equatable, Sendable {
     case pending
     case passing
     case failing
 
   }
 
-  let status: Status
-  let totalCount: Int
-  let items: [PaneAgentPullRequestCheck]
+  public let status: Status
+  public let totalCount: Int
+  public let items: [PaneAgentPullRequestCheck]
 
   init(status: Status, totalCount: Int, items: [PaneAgentPullRequestCheck]) {
     self.status = status
@@ -149,11 +149,11 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     self.items = items
   }
 
-  var isEmpty: Bool {
+  public var isEmpty: Bool {
     totalCount == 0
   }
 
-  var title: String {
+  public var title: String {
     if totalCount == 0 {
       return "Checks (0)"
     }
@@ -166,22 +166,22 @@ nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
     return "Checks passed (\(totalCount))"
   }
 
-  var itemCounts: [PaneAgentPullRequestCheck.Status: Int] {
+  public var itemCounts: [PaneAgentPullRequestCheck.Status: Int] {
     items.reduce(into: [:]) { counts, item in
       counts[item.status, default: 0] += 1
     }
   }
 }
 
-nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable {
-  enum Status: Equatable, Hashable, Sendable {
+public nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable {
+  public enum Status: Equatable, Hashable, Sendable {
     case pending
     case passing
     case failing
     case skipped
   }
 
-  enum State: Equatable, Sendable {
+  public enum State: Equatable, Sendable {
     case pending
     case queued
     case waiting
@@ -279,19 +279,19 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
     }
   }
 
-  let id: String
-  let name: String
-  let workflowName: String?
-  let state: State
-  let startedAt: Date?
-  let completedAt: Date?
-  let url: URL?
+  public let id: String
+  public let name: String
+  public let workflowName: String?
+  public let state: State
+  public let startedAt: Date?
+  public let completedAt: Date?
+  public let url: URL?
 
-  var status: Status {
+  public var status: Status {
     state.status
   }
 
-  var title: String {
+  public var title: String {
     guard let workflowName, workflowName != name else {
       return name
     }
@@ -320,7 +320,7 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
     self.url = url
   }
 
-  func detailText(now: Date = Date()) -> String {
+  public func detailText(now: Date = Date()) -> String {
     if let activeFallback = state.activeFallback {
       if let startedAt {
         return "Started \(Self.relativeText(from: startedAt, to: now)) ago"
@@ -381,10 +381,10 @@ nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Sendable 
   }
 }
 
-nonisolated struct PaneAgentArtifact: Equatable, Identifiable, Sendable {
-  let id: String
-  let title: String
-  let url: URL
+public nonisolated struct PaneAgentArtifact: Equatable, Identifiable, Sendable {
+  public let id: String
+  public let title: String
+  public let url: URL
 
   init(title: String, url: URL) {
     self.id = url.absoluteString

@@ -1,6 +1,7 @@
 import AppKit
 import SupatermCLIShared
 import SupatermGhosttyFeature
+import SupatermTerminalFeature
 import SwiftUI
 import UniformTypeIdentifiers
 

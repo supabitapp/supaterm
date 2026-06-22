@@ -1,4 +1,5 @@
 import AppKit
+import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermUpdateFeature
 import SwiftUI

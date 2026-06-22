@@ -7,6 +7,7 @@ import Textual
 @testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
+@testable import SupatermTerminalUIFeature
 @testable import supaterm
 
 struct TerminalSidebarChromeViewTests {

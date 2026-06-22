@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import Combine
+import SupatermTerminalFeature
 import SupatermTerminalModels
 import SwiftUI
 

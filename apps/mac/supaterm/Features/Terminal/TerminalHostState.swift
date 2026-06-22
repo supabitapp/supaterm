@@ -88,9 +88,9 @@ public final class TerminalHostState {
     }
   }
 
-  struct SidebarNotificationPresentation: Equatable, Sendable {
-    let markdown: String
-    let previewMarkdown: String?
+  public struct SidebarNotificationPresentation: Equatable, Sendable {
+    public let markdown: String
+    public let previewMarkdown: String?
   }
 
   struct PaneNotification: Equatable, Sendable {
@@ -147,7 +147,7 @@ public final class TerminalHostState {
     let text: String
   }
 
-  enum AgentActivityTone: Equatable, Sendable {
+  public enum AgentActivityTone: Equatable, Sendable {
     case attention
     case active
     case muted
@@ -174,21 +174,21 @@ public final class TerminalHostState {
       self.detail = normalizedTerminalAgentDetail(detail)
     }
 
-    static func claude(
+    public static func claude(
       _ phase: AgentActivityPhase,
       detail: String? = nil
     ) -> Self {
       AgentActivity(kind: .claude, phase: phase, detail: detail)
     }
 
-    static func codex(
+    public static func codex(
       _ phase: AgentActivityPhase,
       detail: String? = nil
     ) -> Self {
       AgentActivity(kind: .codex, phase: phase, detail: detail)
     }
 
-    var tone: AgentActivityTone {
+    public var tone: AgentActivityTone {
       switch phase {
       case .needsInput:
         return .attention
@@ -199,7 +199,7 @@ public final class TerminalHostState {
       }
     }
 
-    var showsLeadingIndicator: Bool {
+    public var showsLeadingIndicator: Bool {
       switch phase {
       case .needsInput, .running:
         return true
@@ -233,12 +233,12 @@ public final class TerminalHostState {
     }
   }
 
-  struct TabAgentPresentation: Equatable, Sendable {
-    let badgeActivities: [AgentActivity]
-    let badgeActivity: AgentActivity?
-    let badgeActivityIsFocused: Bool
-    let detailActivity: AgentActivity?
-    let hoverMarkdown: String?
+  public struct TabAgentPresentation: Equatable, Sendable {
+    public let badgeActivities: [AgentActivity]
+    public let badgeActivity: AgentActivity?
+    public let badgeActivityIsFocused: Bool
+    public let detailActivity: AgentActivity?
+    public let hoverMarkdown: String?
   }
 
   struct FocusHistory: Equatable {
@@ -648,7 +648,7 @@ public final class TerminalHostState {
     return view.window === surface.window
   }
 
-  func splitTree(
+  public func splitTree(
     for tabID: TerminalTabID,
     inheritingFromSurfaceID: UUID? = nil,
     startupCommand: String? = nil,
@@ -1332,7 +1332,7 @@ public final class TerminalHostState {
     sessionDidChange()
   }
 
-  func promptTabTitle(_ tabID: TerminalTabID) {
+  public func promptTabTitle(_ tabID: TerminalTabID) {
     guard let view = selectedSurfaceView ?? titleSurface(for: tabID) else { return }
     promptTabTitle(for: tabID, using: view)
   }

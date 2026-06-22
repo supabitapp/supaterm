@@ -1,4 +1,4 @@
-enum TerminalTone: CaseIterable, Equatable, Sendable {
+public enum TerminalTone: CaseIterable, Equatable, Sendable {
   case amber
   case coral
   case mint

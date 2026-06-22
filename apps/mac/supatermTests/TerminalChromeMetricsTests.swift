@@ -1,7 +1,7 @@
 import CoreGraphics
 import Testing
 
-@testable import SupatermTerminalFeature
+@testable import SupatermTerminalUIFeature
 @testable import supaterm
 
 struct TerminalChromeMetricsTests {

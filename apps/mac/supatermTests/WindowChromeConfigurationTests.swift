@@ -1,7 +1,7 @@
 import AppKit
 import Testing
 
-@testable import SupatermTerminalFeature
+@testable import SupatermTerminalUIFeature
 @testable import supaterm
 
 @MainActor

@@ -1,5 +1,6 @@
 import Foundation
 import SupatermCLIShared
+import SupatermTerminalFeature
 import SupatermTerminalModels
 import SwiftUI
 

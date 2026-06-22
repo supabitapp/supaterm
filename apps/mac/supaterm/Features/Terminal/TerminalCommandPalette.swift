@@ -169,23 +169,23 @@ public struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
   )
 }
 
-enum TerminalCommandPalettePresentation {
+public enum TerminalCommandPalettePresentation {
   private static let toggleSidebarShortcut = KeyboardShortcut("s", modifiers: .command).display
 
-  static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
+  public static func rows(from snapshot: TerminalCommandPaletteSnapshot) -> [TerminalCommandPaletteRow] {
     var rows = sortRows(contextRows(from: snapshot))
     rows.append(contentsOf: snapshot.updateEntries.map(updateRow))
     return rows
   }
 
-  static func visibleRows(
+  public static func visibleRows(
     from snapshot: TerminalCommandPaletteSnapshot,
     query: String
   ) -> [TerminalCommandPaletteRow] {
     visibleRows(in: rows(from: snapshot), query: query)
   }
 
-  static func visibleRows(
+  public static func visibleRows(
     in rows: [TerminalCommandPaletteRow],
     query: String
   ) -> [TerminalCommandPaletteRow] {
@@ -207,7 +207,7 @@ enum TerminalCommandPalettePresentation {
       .map(\.row)
   }
 
-  static func normalizedSelection(
+  public static func normalizedSelection(
     _ selectedRowID: TerminalCommandPaletteRow.ID?,
     in visibleRows: [TerminalCommandPaletteRow]
   ) -> TerminalCommandPaletteRow.ID? {
@@ -218,7 +218,7 @@ enum TerminalCommandPalettePresentation {
     return selectedRowID
   }
 
-  static func movedSelection(
+  public static func movedSelection(
     _ selectedRowID: TerminalCommandPaletteRow.ID?,
     by offset: Int,
     in visibleRows: [TerminalCommandPaletteRow]
@@ -234,7 +234,7 @@ enum TerminalCommandPalettePresentation {
     return visibleRows[nextIndex].id
   }
 
-  static func row(
+  public static func row(
     atVisibleIndex index: Int,
     in visibleRows: [TerminalCommandPaletteRow]
   ) -> TerminalCommandPaletteRow? {
@@ -242,7 +242,7 @@ enum TerminalCommandPalettePresentation {
     return visibleRows[index]
   }
 
-  static func rowForSlot(
+  public static func rowForSlot(
     _ slot: Int,
     in visibleRows: [TerminalCommandPaletteRow]
   ) -> TerminalCommandPaletteRow? {
