@@ -46,7 +46,7 @@ enum GhosttySearchNavigator {
 }
 
 extension GhosttySurfaceView {
-  func navigateSearch(_ direction: GhosttySearchDirection) {
+  public func navigateSearch(_ direction: GhosttySearchDirection) {
     let commands = GhosttySearchNavigator.commands(
       direction: direction,
       selected: bridge.state.searchSelected,

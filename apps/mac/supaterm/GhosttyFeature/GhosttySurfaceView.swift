@@ -7,7 +7,7 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalModels
 
-final class GhosttySurfaceView: NSView, Identifiable {
+public final class GhosttySurfaceView: NSView, Identifiable {
   private struct ScrollbarState {
     let total: UInt64
     let offset: UInt64
@@ -49,9 +49,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private let runtime: GhosttyRuntime
-  let id: UUID
-  let bridge: GhosttySurfaceBridge
-  private(set) var surface: ghostty_surface_t?
+  public let id: UUID
+  public let bridge: GhosttySurfaceBridge
+  public private(set) var surface: ghostty_surface_t?
   private var surfaceRef: GhosttyRuntime.SurfaceReference?
   private let workingDirectoryCString: UnsafeMutablePointer<CChar>?
   private let commandCString: UnsafeMutablePointer<CChar>?
@@ -79,7 +79,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     [weak self] in
     self?.readScreenContents() ?? ""
   }
-  var passwordInput: Bool = false {
+  public internal(set) var passwordInput: Bool = false {
     didSet {
       let input = SecureInput.shared
       let id = ObjectIdentifier(self)
@@ -101,8 +101,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
       }
     }
   }
-  var onFocusChange: ((Bool) -> Void)?
-  var onDirectInteraction: (() -> Void)?
+  public var onFocusChange: ((Bool) -> Void)?
+  public var onDirectInteraction: (() -> Void)?
 
   private var accessibilityPaneIndexHelp: String?
 
@@ -139,7 +139,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     .supatermTIFFImage,
   ]
 
-  static func normalizedWorkingDirectoryPath(_ path: String) -> String {
+  public static func normalizedWorkingDirectoryPath(_ path: String) -> String {
     var normalized = path
     while normalized.count > 1 && normalized.hasSuffix("/") {
       normalized.removeLast()
@@ -158,14 +158,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(content[swiftRange])
   }
 
-  static func cliDirectory(_ cliPath: String?) -> String? {
+  public static func cliDirectory(_ cliPath: String?) -> String? {
     guard let cliPath else { return nil }
     let trimmedPath = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedPath.isEmpty else { return nil }
     return URL(fileURLWithPath: trimmedPath).deletingLastPathComponent().path
   }
 
-  static func prependedPath(
+  public static func prependedPath(
     _ directory: String,
     currentPath: String?
   ) -> String {
@@ -183,11 +183,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return components.joined(separator: ":")
   }
 
-  static func titleOverride(from title: String) -> String? {
+  public static func titleOverride(from title: String) -> String? {
     title.isEmpty ? nil : title
   }
 
-  static func supatermEnvironmentVariables(
+  public static func supatermEnvironmentVariables(
     surfaceID: UUID,
     tabID: UUID,
     socketPath: String?,
@@ -258,9 +258,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return environmentVariables
   }
 
-  override var acceptsFirstResponder: Bool { true }
+  public override var acceptsFirstResponder: Bool { true }
 
-  init(
+  public init(
     id: UUID = UUID(),
     runtime: GhosttyRuntime,
     tabID: UUID,
@@ -344,7 +344,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  func closeSurface() {
+  public func closeSurface() {
     clearNotificationObservers()
     if let surface {
       if let surfaceRef {
@@ -443,7 +443,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     notificationObservers.removeAll()
   }
 
-  override func viewDidMoveToWindow() {
+  public override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     updateScreenObservers()
     updateContentScale()
@@ -451,7 +451,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     applyWindowBackgroundAppearance()
   }
 
-  override func viewDidChangeBackingProperties() {
+  public override func viewDidChangeBackingProperties() {
     super.viewDidChangeBackingProperties()
     if let window {
       CATransaction.begin()
@@ -463,7 +463,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     notifySizeChanged()
   }
 
-  override func layout() {
+  public override func layout() {
     super.layout()
     notifySizeChanged()
   }
@@ -476,7 +476,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func updateTrackingAreas() {
+  public override func updateTrackingAreas() {
     if let trackingArea {
       removeTrackingArea(trackingArea)
     }
@@ -490,7 +490,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     trackingArea = area
   }
 
-  override func resetCursorRects() {
+  public override func resetCursorRects() {
     addCursorRect(bounds, cursor: currentCursor)
   }
 
@@ -515,7 +515,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     window.backgroundColor = runtime.backgroundColor().withAlphaComponent(1)
   }
 
-  func focusDidChange(_ focused: Bool) {
+  public func focusDidChange(_ focused: Bool) {
     guard surface != nil else { return }
     guard self.focused != focused else { return }
     self.focused = focused
@@ -529,7 +529,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  func setAccessibilityPaneIndex(index: Int, total: Int) {
+  public func setAccessibilityPaneIndex(index: Int, total: Int) {
     guard total > 0, index > 0, index <= total else {
       accessibilityPaneIndexHelp = nil
       return
@@ -537,17 +537,17 @@ final class GhosttySurfaceView: NSView, Identifiable {
     accessibilityPaneIndexHelp = "Pane \(index) of \(total)"
   }
 
-  override func isAccessibilityElement() -> Bool {
+  public override func isAccessibilityElement() -> Bool {
     // Avoid interacting with panes after teardown.
     surface != nil
   }
 
-  override func accessibilityRole() -> NSAccessibility.Role? {
+  public override func accessibilityRole() -> NSAccessibility.Role? {
     // Match Ghostty.app so speech/input tools can treat the surface as editable text.
     .textArea
   }
 
-  override func accessibilityLabel() -> String? {
+  public override func accessibilityLabel() -> String? {
     if let title = bridge.state.effectiveTitle {
       return title
     }
@@ -558,19 +558,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return "Terminal pane"
   }
 
-  override func accessibilityValue() -> Any? {
+  public override func accessibilityValue() -> Any? {
     cachedScreenContents.get()
   }
 
-  override func accessibilityHelp() -> String? {
+  public override func accessibilityHelp() -> String? {
     accessibilityPaneIndexHelp
   }
 
-  override func accessibilitySelectedTextRange() -> NSRange {
+  public override func accessibilitySelectedTextRange() -> NSRange {
     selectedRange()
   }
 
-  override func accessibilitySelectedText() -> String? {
+  public override func accessibilitySelectedText() -> String? {
     guard let surface else { return nil }
     var text = ghostty_text_s()
     guard ghostty_surface_read_selection(surface, &text) else { return nil }
@@ -579,24 +579,24 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return value.isEmpty ? nil : value
   }
 
-  override func accessibilityNumberOfCharacters() -> Int {
+  public override func accessibilityNumberOfCharacters() -> Int {
     cachedScreenContents.get().count
   }
 
-  override func accessibilityVisibleCharacterRange() -> NSRange {
+  public override func accessibilityVisibleCharacterRange() -> NSRange {
     let content = cachedScreenContents.get()
     return NSRange(location: 0, length: content.count)
   }
 
-  override func accessibilityLine(for index: Int) -> Int {
+  public override func accessibilityLine(for index: Int) -> Int {
     Self.accessibilityLine(for: index, in: cachedScreenContents.get())
   }
 
-  override func accessibilityString(for range: NSRange) -> String? {
+  public override func accessibilityString(for range: NSRange) -> String? {
     Self.accessibilityString(for: range, in: cachedScreenContents.get())
   }
 
-  override func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
+  public override func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
     guard let surface else { return nil }
     guard let plainString = accessibilityString(for: range) else { return nil }
 
@@ -610,7 +610,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return NSAttributedString(string: plainString, attributes: attributes)
   }
 
-  override func becomeFirstResponder() -> Bool {
+  public override func becomeFirstResponder() -> Bool {
     let result = super.becomeFirstResponder()
     if result {
       focusDidChange(true)
@@ -619,7 +619,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return result
   }
 
-  override func resignFirstResponder() -> Bool {
+  public override func resignFirstResponder() -> Bool {
     let result = super.resignFirstResponder()
     if result {
       focusDidChange(false)
@@ -644,7 +644,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     ) ?? ""
   }
 
-  func captureText(
+  public func captureText(
     scope: SupatermCapturePaneScope,
     lines: Int?
   ) -> String? {
@@ -694,7 +694,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return String(cString: text.text)
   }
 
-  override func keyDown(with event: NSEvent) {
+  public override func keyDown(with event: NSEvent) {
     guard let surface else {
       interpretKeyEvents([event])
       return
@@ -738,11 +738,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func keyUp(with event: NSEvent) {
+  public override func keyUp(with event: NSEvent) {
     sendKey(action: GHOSTTY_ACTION_RELEASE, event: event)
   }
 
-  override func flagsChanged(with event: NSEvent) {
+  public override func flagsChanged(with event: NSEvent) {
     let mod: UInt32
     switch event.keyCode {
     case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
@@ -776,19 +776,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
     sendKey(action: action, event: event)
   }
 
-  override func mouseMoved(with event: NSEvent) {
+  public override func mouseMoved(with event: NSEvent) {
     sendMousePosition(event)
     if let window, window.isKeyWindow, !focused, runtime.focusFollowsMouse() {
       requestFocus()
     }
   }
 
-  override func mouseEntered(with event: NSEvent) {
+  public override func mouseEntered(with event: NSEvent) {
     super.mouseEntered(with: event)
     sendMousePosition(event)
   }
 
-  override func mouseExited(with event: NSEvent) {
+  public override func mouseExited(with event: NSEvent) {
     if NSEvent.pressedMouseButtons != 0 {
       return
     }
@@ -797,14 +797,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
     ghostty_surface_mouse_pos(surface, -1, -1, mods)
   }
 
-  override func mouseDown(with event: NSEvent) {
+  public override func mouseDown(with event: NSEvent) {
     if focused {
       onDirectInteraction?()
     }
     sendMouseButton(event, state: GHOSTTY_MOUSE_PRESS, button: GHOSTTY_MOUSE_LEFT)
   }
 
-  override func mouseUp(with event: NSEvent) {
+  public override func mouseUp(with event: NSEvent) {
     prevPressureStage = 0
     sendMouseButton(event, state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT)
     if let surface {
@@ -812,7 +812,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func rightMouseDown(with event: NSEvent) {
+  public override func rightMouseDown(with event: NSEvent) {
     guard let surface else {
       super.rightMouseDown(with: event)
       return
@@ -824,7 +824,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     super.rightMouseDown(with: event)
   }
 
-  override func rightMouseUp(with event: NSEvent) {
+  public override func rightMouseUp(with event: NSEvent) {
     guard let surface else {
       super.rightMouseUp(with: event)
       return
@@ -836,11 +836,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     super.rightMouseUp(with: event)
   }
 
-  override func otherMouseDown(with event: NSEvent) {
+  public override func otherMouseDown(with event: NSEvent) {
     sendMouseButton(event, state: GHOSTTY_MOUSE_PRESS, button: Self.ghosttyMouseButton(from: event.buttonNumber))
   }
 
-  override func otherMouseUp(with event: NSEvent) {
+  public override func otherMouseUp(with event: NSEvent) {
     sendMouseButton(event, state: GHOSTTY_MOUSE_RELEASE, button: Self.ghosttyMouseButton(from: event.buttonNumber))
   }
 
@@ -861,19 +861,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func mouseDragged(with event: NSEvent) {
+  public override func mouseDragged(with event: NSEvent) {
     sendMousePosition(event)
   }
 
-  override func rightMouseDragged(with event: NSEvent) {
+  public override func rightMouseDragged(with event: NSEvent) {
     sendMousePosition(event)
   }
 
-  override func otherMouseDragged(with event: NSEvent) {
+  public override func otherMouseDragged(with event: NSEvent) {
     sendMousePosition(event)
   }
 
-  override func scrollWheel(with event: NSEvent) {
+  public override func scrollWheel(with event: NSEvent) {
     if focused {
       onDirectInteraction?()
     }
@@ -887,7 +887,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     ghostty_surface_mouse_scroll(surface, scrollX, scrollY, scrollMods(for: event))
   }
 
-  override func pressureChange(with event: NSEvent) {
+  public override func pressureChange(with event: NSEvent) {
     guard let surface else { return }
     ghostty_surface_mouse_pressure(surface, UInt32(event.stage), Double(event.pressure))
     guard prevPressureStage < 2 else { return }
@@ -897,7 +897,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     quickLook(with: event)
   }
 
-  override func quickLook(with event: NSEvent) {
+  public override func quickLook(with event: NSEvent) {
     guard let surface else { return super.quickLook(with: event) }
     var text = ghostty_text_s()
     guard ghostty_surface_quicklook_word(surface, &text) else { return super.quickLook(with: event) }
@@ -974,11 +974,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
     scrollWrapper?.updateScrollbar(total: total, offset: offset, length: length)
   }
 
-  func currentCellSize() -> CGSize {
+  public func currentCellSize() -> CGSize {
     cellSize
   }
 
-  func currentFontSizePoints() -> Double? {
+  public func currentFontSizePoints() -> Double? {
     guard let surface else { return nil }
     guard let fontRaw = ghostty_surface_quicklook_font(surface) else { return nil }
     let font = Unmanaged<CTFont>.fromOpaque(fontRaw)
@@ -1120,7 +1120,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return 2.0
   }
 
-  func setOcclusion(_ visible: Bool) {
+  public func setOcclusion(_ visible: Bool) {
     guard let surface else { return }
     if lastOcclusion == visible {
       return
@@ -1138,17 +1138,17 @@ final class GhosttySurfaceView: NSView, Identifiable {
     ghostty_surface_set_focus(surface, focused)
   }
 
-  func requestFocus() {
+  public func requestFocus() {
     Self.moveFocus(to: self)
   }
 
-  func consumeSearchFocusRequest(_ count: Int) -> Bool {
+  public func consumeSearchFocusRequest(_ count: Int) -> Bool {
     guard count > handledSearchFocusCount else { return false }
     handledSearchFocusCount = count
     return true
   }
 
-  static func moveFocus(
+  public static func moveFocus(
     to view: GhosttySurfaceView,
     from previous: GhosttySurfaceView? = nil,
     delay: TimeInterval? = nil
@@ -1172,7 +1172,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+  public override func performKeyEquivalent(with event: NSEvent) -> Bool {
     guard event.type == .keyDown else { return false }
     guard let surface else { return false }
     guard focused else { return false }
@@ -1255,7 +1255,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func doCommand(by selector: Selector) {
+  public override func doCommand(by selector: Selector) {
     if let lastPerformKeyEvent,
       let current = NSApp.currentEvent,
       lastPerformKeyEvent == current.timestamp
@@ -1273,7 +1273,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  override func menu(for event: NSEvent) -> NSMenu? {
+  public override func menu(for event: NSEvent) -> NSMenu? {
     switch event.type {
     case .rightMouseDown:
       break
@@ -1300,7 +1300,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   @MainActor
-  static func contextMenu(hasSelection: Bool) -> NSMenu {
+  public static func contextMenu(hasSelection: Bool) -> NSMenu {
     let menu = NSMenu()
     menu.automaticallyInsertsWritingToolsItems = false
     if hasSelection {
@@ -1421,7 +1421,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     performBindingAction("paste_from_selection")
   }
 
-  @IBAction override func selectAll(_ sender: Any?) {
+  @IBAction public override func selectAll(_ sender: Any?) {
     performBindingAction("select_all")
   }
 
@@ -1463,18 +1463,18 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return ghostty_surface_key(surface, key)
   }
 
-  func performBindingAction(_ action: String) {
+  public func performBindingAction(_ action: String) {
     guard let surface else { return }
     _ = action.withCString { ptr in
       ghostty_surface_binding_action(surface, ptr, UInt(action.lengthOfBytes(using: .utf8)))
     }
   }
 
-  func effectiveTitle() -> String? {
+  public func effectiveTitle() -> String? {
     bridge.state.effectiveTitle
   }
 
-  func setTitleOverride(_ title: String?) {
+  public func setTitleOverride(_ title: String?) {
     let previousTitle = bridge.state.effectiveTitle
     let previousOverride = bridge.state.titleOverride
     bridge.state.titleOverride = title
@@ -1485,7 +1485,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
-  func promptTitle(
+  public func promptTitle(
     messageText: String,
     initialValue: String,
     handler: @escaping (String) -> Void
@@ -1630,7 +1630,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
 }
 
 extension GhosttySurfaceView {
-  override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+  public override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
     guard let types = sender.draggingPasteboard.types else { return [] }
     if Set(types).isDisjoint(with: Self.dropTypes) {
       return []
@@ -1638,7 +1638,7 @@ extension GhosttySurfaceView {
     return .copy
   }
 
-  override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+  public override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
     let pasteboard = sender.draggingPasteboard
     let content: String?
     if let url = pasteboard.string(forType: .URL) {
@@ -1662,16 +1662,16 @@ extension GhosttySurfaceView {
 }
 
 extension GhosttySurfaceView: NSTextInputClient {
-  func hasMarkedText() -> Bool {
+  public func hasMarkedText() -> Bool {
     markedText.length > 0
   }
 
-  func markedRange() -> NSRange {
+  public func markedRange() -> NSRange {
     guard markedText.length > 0 else { return NSRange() }
     return NSRange(location: 0, length: markedText.length)
   }
 
-  func selectedRange() -> NSRange {
+  public func selectedRange() -> NSRange {
     guard let surface else { return NSRange() }
     var text = ghostty_text_s()
     guard ghostty_surface_read_selection(surface, &text) else { return NSRange() }
@@ -1679,7 +1679,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     return NSRange(location: Int(text.offset_start), length: Int(text.offset_len))
   }
 
-  func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+  public func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
     switch string {
     case let attributedText as NSAttributedString:
       markedText = NSMutableAttributedString(attributedString: attributedText)
@@ -1693,18 +1693,18 @@ extension GhosttySurfaceView: NSTextInputClient {
     }
   }
 
-  func unmarkText() {
+  public func unmarkText() {
     if markedText.length > 0 {
       markedText.mutableString.setString("")
       syncPreedit()
     }
   }
 
-  func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+  public func validAttributesForMarkedText() -> [NSAttributedString.Key] {
     []
   }
 
-  func attributedSubstring(
+  public func attributedSubstring(
     forProposedRange range: NSRange,
     actualRange: NSRangePointer?
   ) -> NSAttributedString? {
@@ -1722,11 +1722,11 @@ extension GhosttySurfaceView: NSTextInputClient {
     return NSAttributedString(string: String(cString: text.text), attributes: attributes)
   }
 
-  func characterIndex(for point: NSPoint) -> Int {
+  public func characterIndex(for point: NSPoint) -> Int {
     0
   }
 
-  func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+  public func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
     guard let surface else {
       return NSRect(x: frame.origin.x, y: frame.origin.y, width: 0, height: 0)
     }
@@ -1761,7 +1761,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     return window.convertToScreen(winRect)
   }
 
-  func insertText(_ string: Any, replacementRange: NSRange) {
+  public func insertText(_ string: Any, replacementRange: NSRange) {
     guard NSApp.currentEvent != nil else { return }
     guard let surface else { return }
     var chars = ""
@@ -1788,7 +1788,7 @@ extension GhosttySurfaceView: NSTextInputClient {
 }
 
 extension GhosttySurfaceView: NSServicesMenuRequestor {
-  override func validRequestor(
+  public override func validRequestor(
     forSendType sendType: NSPasteboard.PasteboardType?,
     returnType: NSPasteboard.PasteboardType?
   ) -> Any? {
@@ -1809,7 +1809,7 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
     return super.validRequestor(forSendType: sendType, returnType: returnType)
   }
 
-  func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
+  public func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
     guard let surface else { return false }
     var text = ghostty_text_s()
     guard ghostty_surface_read_selection(surface, &text) else { return false }
@@ -1819,7 +1819,7 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
     return true
   }
 
-  func readSelection(from pboard: NSPasteboard) -> Bool {
+  public func readSelection(from pboard: NSPasteboard) -> Bool {
     guard let str = pboard.getOpinionatedStringContents() else { return false }
     let len = str.utf8CString.count
     if len == 0 { return true }

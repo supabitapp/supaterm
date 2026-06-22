@@ -4,6 +4,7 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
 import SwiftUI

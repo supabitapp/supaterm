@@ -1,5 +1,6 @@
 import Foundation
 import Sharing
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
 

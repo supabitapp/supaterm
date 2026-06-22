@@ -2,7 +2,7 @@ import AppKit
 import Carbon
 import Testing
 
-@testable import SupatermTerminalFeature
+@testable import SupatermGhosttyFeature
 @testable import supaterm
 
 @MainActor

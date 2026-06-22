@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
 

@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
 import SupatermUpdateFeature

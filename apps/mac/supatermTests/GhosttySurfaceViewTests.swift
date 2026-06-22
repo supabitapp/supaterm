@@ -3,6 +3,7 @@ import GhosttyKit
 import SwiftUI
 import Testing
 
+@testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import supaterm
 

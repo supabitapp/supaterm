@@ -1,4 +1,5 @@
 import AppKit
+import SupatermGhosttyFeature
 import SupatermSettingsFeature
 import SupatermSupport
 import SupatermTerminalFeature

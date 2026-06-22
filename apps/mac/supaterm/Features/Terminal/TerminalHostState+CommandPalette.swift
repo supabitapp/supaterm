@@ -1,4 +1,5 @@
 import Foundation
+import SupatermGhosttyFeature
 import SupatermTerminalModels
 
 extension TerminalHostState {

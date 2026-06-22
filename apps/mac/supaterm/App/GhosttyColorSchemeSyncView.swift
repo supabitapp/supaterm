@@ -1,3 +1,4 @@
+import SupatermGhosttyFeature
 import SupatermTerminalFeature
 import SwiftUI
 

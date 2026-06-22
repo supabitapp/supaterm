@@ -1,4 +1,5 @@
 import GhosttyKit
+import SupatermGhosttyFeature
 import SwiftUI
 
 struct GhosttySurfaceProgressOverlay: View {

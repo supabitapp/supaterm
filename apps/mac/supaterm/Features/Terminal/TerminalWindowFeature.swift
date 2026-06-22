@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermTerminalModels

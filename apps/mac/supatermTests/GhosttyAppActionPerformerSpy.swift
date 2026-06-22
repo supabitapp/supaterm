@@ -1,6 +1,6 @@
 import AppKit
 
-@testable import SupatermTerminalFeature
+@testable import SupatermGhosttyFeature
 @testable import supaterm
 
 @MainActor

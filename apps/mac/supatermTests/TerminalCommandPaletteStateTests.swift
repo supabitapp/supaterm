@@ -2,6 +2,7 @@ import Foundation
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
 @testable import supaterm

@@ -1,12 +1,12 @@
-enum GhosttySplitAction {
-  enum NewDirection {
+public enum GhosttySplitAction {
+  public enum NewDirection {
     case left
     case right
     case up
     case down
   }
 
-  enum FocusDirection {
+  public enum FocusDirection {
     case previous
     case next
     case left
@@ -15,7 +15,7 @@ enum GhosttySplitAction {
     case down
   }
 
-  enum ResizeDirection {
+  public enum ResizeDirection {
     case left
     case right
     case up

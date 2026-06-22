@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
 @testable import supaterm

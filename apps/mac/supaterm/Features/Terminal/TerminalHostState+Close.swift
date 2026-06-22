@@ -3,6 +3,7 @@ import Foundation
 import GhosttyKit
 import Observation
 import Sharing
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
 import SwiftUI

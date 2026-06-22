@@ -94,28 +94,28 @@ func ghosttyInputChunks(_ text: String) -> [GhosttyInputChunk] {
 }
 
 @MainActor
-final class GhosttySurfaceBridge {
-  let state = GhosttySurfaceState()
-  var surface: ghostty_surface_t?
+public final class GhosttySurfaceBridge {
+  public let state = GhosttySurfaceState()
+  public var surface: ghostty_surface_t?
   weak var surfaceView: GhosttySurfaceView?
-  var onTitleChange: ((String) -> Void)?
-  var onPromptSurfaceTitle: (() -> Void)?
-  var onPromptTabTitle: (() -> Void)?
-  var onPathChange: (() -> Void)?
-  var onTabTitleChange: ((String?) -> Bool)?
-  var onCopyTitleToClipboard: (() -> Bool)?
-  var onSplitAction: ((GhosttySplitAction) -> Bool)?
-  var onCloseRequest: ((Bool) -> Void)?
-  var onNewTab: (() -> Bool)?
-  var onCloseTab: ((ghostty_action_close_tab_mode_e) -> Bool)?
-  var onGotoTab: ((ghostty_action_goto_tab_e) -> Bool)?
-  var onMoveTab: ((ghostty_action_move_tab_s) -> Bool)?
-  var onCommandPaletteToggle: (() -> Bool)?
-  var onCommandFinished: (() -> Void)?
-  var onChildExited: (() -> Bool)?
-  var onProgressReport: ((ghostty_action_progress_report_state_e) -> Void)?
-  var onDesktopNotification: ((String, String) -> Void)?
-  var onStateChange: (() -> Void)?
+  public var onTitleChange: ((String) -> Void)?
+  public var onPromptSurfaceTitle: (() -> Void)?
+  public var onPromptTabTitle: (() -> Void)?
+  public var onPathChange: (() -> Void)?
+  public var onTabTitleChange: ((String?) -> Bool)?
+  public var onCopyTitleToClipboard: (() -> Bool)?
+  public var onSplitAction: ((GhosttySplitAction) -> Bool)?
+  public var onCloseRequest: ((Bool) -> Void)?
+  public var onNewTab: (() -> Bool)?
+  public var onCloseTab: ((ghostty_action_close_tab_mode_e) -> Bool)?
+  public var onGotoTab: ((ghostty_action_goto_tab_e) -> Bool)?
+  public var onMoveTab: ((ghostty_action_move_tab_s) -> Bool)?
+  public var onCommandPaletteToggle: (() -> Bool)?
+  public var onCommandFinished: (() -> Void)?
+  public var onChildExited: (() -> Bool)?
+  public var onProgressReport: ((ghostty_action_progress_report_state_e) -> Void)?
+  public var onDesktopNotification: ((String, String) -> Void)?
+  public var onStateChange: (() -> Void)?
   private var progressResetTask: Task<Void, Never>?
 
   deinit {
@@ -130,7 +130,7 @@ final class GhosttySurfaceBridge {
       NSAccessibility.post(element: surfaceView, notification: .titleChanged)
     }
   }
-  func handleAction(target _: ghostty_target_s, action: ghostty_action_s) -> Bool {
+  public func handleAction(target _: ghostty_target_s, action: ghostty_action_s) -> Bool {
     if let handled = handleAppAction(action) { return handled }
     if let handled = handleSplitAction(action) { return handled }
     if let handled = handleTabAction(action) { return handled }
@@ -178,7 +178,7 @@ final class GhosttySurfaceBridge {
     }
   }
 
-  func sendText(_ text: String) {
+  public func sendText(_ text: String) {
     guard let surface else { return }
     for chunk in ghosttyInputChunks(text) {
       switch chunk {
@@ -190,7 +190,7 @@ final class GhosttySurfaceBridge {
     }
   }
 
-  func sendKey(_ key: SupatermInputKey) {
+  public func sendKey(_ key: SupatermInputKey) {
     guard let surface else { return }
     sendKey(key, surface: surface)
   }

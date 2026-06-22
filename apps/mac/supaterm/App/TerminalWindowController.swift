@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalFeature
 import SupatermTerminalModels

@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
-import SupatermTerminalFeature
+import SupatermGhosttyFeature
 
 protocol GhosttyGlobalEventTapRegistration: AnyObject {
   nonisolated func invalidate()

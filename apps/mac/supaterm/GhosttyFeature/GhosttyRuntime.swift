@@ -577,7 +577,7 @@ public final class GhosttyRuntime {
   }
 
   @MainActor
-  static func dispatchAppAction(_ action: ghostty_action_s) -> Bool {
+  public static func dispatchAppAction(_ action: ghostty_action_s) -> Bool {
     let performer = NSApp.delegate as? any GhosttyAppActionPerforming
     switch action.tag {
     case GHOSTTY_ACTION_QUIT:
@@ -601,7 +601,7 @@ public final class GhosttyRuntime {
     }
   }
 
-  func commandPaletteEntries() -> [GhosttyCommand] {
+  public func commandPaletteEntries() -> [GhosttyCommand] {
     guard let config else { return [] }
     var value = ghostty_config_command_list_s()
     let key = "command-palette-entry"
@@ -662,7 +662,7 @@ public final class GhosttyRuntime {
     return true
   }
 
-  func splitPreserveZoomOnNavigation() -> Bool {
+  public func splitPreserveZoomOnNavigation() -> Bool {
     guard let config else { return false }
     var value: CUnsignedInt = 0
     let key = "split-preserve-zoom"
@@ -688,11 +688,11 @@ public final class GhosttyRuntime {
     return value
   }
 
-  func backgroundColor() -> NSColor {
+  public func backgroundColor() -> NSColor {
     color(forKey: "background") ?? NSColor.windowBackgroundColor
   }
 
-  func splitDividerColor() -> NSColor {
+  public func splitDividerColor() -> NSColor {
     if let color = color(forKey: "split-divider-color") {
       return color
     }
@@ -700,11 +700,11 @@ public final class GhosttyRuntime {
     return background.darken(by: background.isLightColor ? 0.08 : 0.4)
   }
 
-  func unfocusedSplitDimmingColor() -> NSColor {
+  public func unfocusedSplitDimmingColor() -> NSColor {
     color(forKey: "unfocused-split-fill") ?? backgroundColor()
   }
 
-  func unfocusedSplitDimmingOpacity() -> Double {
+  public func unfocusedSplitDimmingOpacity() -> Double {
     guard let config else { return 0.3 }
     var value: Double = 0.7
     let key = "unfocused-split-opacity"
@@ -712,7 +712,7 @@ public final class GhosttyRuntime {
     return 1 - min(max(value, 0.15), 1)
   }
 
-  func notificationAttentionColor() -> NSColor {
+  public func notificationAttentionColor() -> NSColor {
     let fallbackColor = color(forKey: "foreground") ?? .controlAccentColor
     guard
       let config,
@@ -749,7 +749,7 @@ public final class GhosttyRuntime {
       ?? fallbackColor
   }
 
-  func chromeColorScheme() -> ColorScheme {
+  public func chromeColorScheme() -> ColorScheme {
     backgroundColor().isLightColor ? .light : .dark
   }
 

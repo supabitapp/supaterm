@@ -4,6 +4,7 @@ import SwiftUI
 import Synchronization
 import Testing
 
+@testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import supaterm
 

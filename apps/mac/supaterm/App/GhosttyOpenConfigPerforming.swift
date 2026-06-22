@@ -1,5 +1,5 @@
+import SupatermGhosttyFeature
 import SupatermSettingsFeature
-import SupatermTerminalFeature
 
 extension AppDelegate: GhosttyOpenConfigPerforming {
   @discardableResult
