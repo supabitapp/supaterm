@@ -1,7 +1,7 @@
 import SupatermUpdateFeature
 import Testing
 
-@testable import SupatermTerminalUIFeature
+@testable import SupatermTerminalSidebarFeature
 @testable import supaterm
 
 struct TerminalSidebarUpdatePresentationTests {

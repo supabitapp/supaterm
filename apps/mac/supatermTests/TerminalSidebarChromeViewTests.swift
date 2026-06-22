@@ -8,7 +8,7 @@ import Textual
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
 @testable import SupatermTerminalPresentationFeature
-@testable import SupatermTerminalUIFeature
+@testable import SupatermTerminalSidebarFeature
 @testable import supaterm
 
 struct TerminalSidebarChromeViewTests {

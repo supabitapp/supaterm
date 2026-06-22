@@ -304,6 +304,32 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalSidebarFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-sidebar-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalSidebarFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+        .external(name: "Textual"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermTerminalSurfaceFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -440,12 +466,12 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalSidebarFeature"),
         .target(name: "SupatermTerminalSurfaceFeature"),
         .target(name: "SupatermUpdateFeature"),
         .external(name: "ComposableArchitecture"),
@@ -717,9 +743,9 @@ let project = Project(
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalSidebarFeature"),
         .target(name: "SupatermTerminalSurfaceFeature"),
         .target(name: "SupatermTerminalStateFeature"),
-        .target(name: "SupatermTerminalUIFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),

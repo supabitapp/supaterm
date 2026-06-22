@@ -1,11 +1,19 @@
 import AppKit
 import SwiftUI
 
-struct BlurEffectView: NSViewRepresentable {
+public struct BlurEffectView: NSViewRepresentable {
   let material: NSVisualEffectView.Material
   let blendingMode: NSVisualEffectView.BlendingMode
 
-  func makeNSView(context: Context) -> NSVisualEffectView {
+  public init(
+    material: NSVisualEffectView.Material,
+    blendingMode: NSVisualEffectView.BlendingMode
+  ) {
+    self.material = material
+    self.blendingMode = blendingMode
+  }
+
+  public func makeNSView(context: Context) -> NSVisualEffectView {
     let visualEffectView = NSVisualEffectView()
     visualEffectView.material = material
     visualEffectView.blendingMode = blendingMode
@@ -13,7 +21,7 @@ struct BlurEffectView: NSViewRepresentable {
     return visualEffectView
   }
 
-  func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+  public func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
     nsView.material = material
     nsView.blendingMode = blendingMode
     nsView.state = .active

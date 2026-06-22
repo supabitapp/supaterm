@@ -3,6 +3,7 @@ import ComposableArchitecture
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalSidebarFeature
 import SupatermTerminalSurfaceFeature
 import SupatermUpdateFeature
 import SwiftUI
@@ -93,32 +94,6 @@ struct TerminalSplitView: View {
       }
     }
     .coordinateSpace(name: TerminalCoordinateSpace.split)
-  }
-}
-
-struct TerminalSidebarView: View {
-  let store: StoreOf<TerminalWindowFeature>
-  let updateStore: StoreOf<UpdateFeature>
-  let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
-  let terminal: TerminalHostState
-  let dismissReleaseAnnouncement: () -> Void
-
-  var body: some View {
-    ZStack(alignment: .topLeading) {
-      TerminalSidebarChromeView(
-        store: store,
-        updateStore: updateStore,
-        releaseAnnouncement: releaseAnnouncement,
-        palette: palette,
-        terminal: terminal,
-        dismissReleaseAnnouncement: dismissReleaseAnnouncement
-      )
-      WindowTrafficLights()
-        .padding(.top, TerminalSidebarLayout.trafficLightTopPadding)
-    }
-    .padding(.bottom, sidebarBottomPadding)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -354,5 +329,3 @@ private struct FloatingSidebarView: View {
     .shadow(color: palette.shadow, radius: 16, x: 0, y: 6)
   }
 }
-
-private let sidebarBottomPadding: CGFloat = 8

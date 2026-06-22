@@ -2,7 +2,7 @@ import AppKit
 import Testing
 
 @testable import SupatermTerminalModels
-@testable import SupatermTerminalUIFeature
+@testable import SupatermTerminalSidebarFeature
 @testable import supaterm
 
 @MainActor
