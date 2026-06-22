@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import SupatermAgentFeature
 import SupatermCLIShared
 import SupatermSocketFeature
 import SupatermSupport

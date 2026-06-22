@@ -4,7 +4,7 @@ import SupatermTerminalFeature
 import SupatermTerminalModels
 
 @MainActor
-final class TerminalAgentSessionStore {
+public final class TerminalAgentSessionStore {
   private struct SessionKey: Hashable {
     let agent: SupatermAgentKind
     let sessionID: String
@@ -44,9 +44,11 @@ final class TerminalAgentSessionStore {
     var transcriptPath: String?
   }
 
-  var onMonitorSnapshot: @MainActor (AgentMonitorSnapshot, SupatermAgentKind, String, SupatermCLIContext?) -> Void =
-    { _, _, _, _ in }
-  var onRunningTimeoutExpired: @MainActor (SupatermAgentKind, String, SupatermCLIContext?) -> Void = { _, _, _ in }
+  public var onMonitorSnapshot:
+    @MainActor (AgentMonitorSnapshot, SupatermAgentKind, String, SupatermCLIContext?) -> Void =
+      { _, _, _, _ in }
+  public var onRunningTimeoutExpired: @MainActor (SupatermAgentKind, String, SupatermCLIContext?) -> Void = { _, _, _ in
+  }
 
   private let agentRunningTimeout: Duration
   private let claudeTasksHomeDirectoryURL: URL
@@ -57,7 +59,7 @@ final class TerminalAgentSessionStore {
   private var agentPanelMonitorTasks: [SessionKey: Task<Void, Never>] = [:]
   private var runningTimeoutTasks: [SessionKey: Task<Void, Never>] = [:]
 
-  init(
+  public init(
     agentRunningTimeout: Duration,
     transcriptPollInterval: Duration,
     claudeTasksHomeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
@@ -79,7 +81,7 @@ final class TerminalAgentSessionStore {
   }
 
   @discardableResult
-  func beginSession(
+  public func beginSession(
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?,
@@ -113,7 +115,7 @@ final class TerminalAgentSessionStore {
     return replacedForegroundSessionID
   }
 
-  func updateSession(
+  public func updateSession(
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?,
@@ -130,35 +132,35 @@ final class TerminalAgentSessionStore {
     sessions[key] = session
   }
 
-  func hasSession(
+  public func hasSession(
     agent: SupatermAgentKind,
     sessionID: String
   ) -> Bool {
     sessions[SessionKey(agent: agent, sessionID: sessionID)] != nil
   }
 
-  func shouldRouteSession(
+  public func shouldRouteSession(
     agent: SupatermAgentKind,
     sessionID: String
   ) -> Bool {
     sessions[SessionKey(agent: agent, sessionID: sessionID)]?.routing == .foreground
   }
 
-  func sessionSurfaceID(
+  public func sessionSurfaceID(
     agent: SupatermAgentKind,
     sessionID: String
   ) -> UUID? {
     sessions[SessionKey(agent: agent, sessionID: sessionID)]?.surfaceID
   }
 
-  func clearSession(
+  public func clearSession(
     agent: SupatermAgentKind,
     sessionID: String
   ) {
     removeSession(agent: agent, sessionID: sessionID)
   }
 
-  func clearSessions(for surfaceID: UUID) {
+  public func clearSessions(for surfaceID: UUID) {
     let keys = sessions.compactMap { entry in
       entry.value.surfaceID == surfaceID ? entry.key : nil
     }
@@ -167,7 +169,7 @@ final class TerminalAgentSessionStore {
     }
   }
 
-  func restoreSessions(
+  public func restoreSessions(
     from records: [TerminalPaneAgentRecord],
     surfaceID: UUID
   ) {
@@ -196,7 +198,7 @@ final class TerminalAgentSessionStore {
     }
   }
 
-  func clearRecordedSessionIfSurfaceMatches(
+  public func clearRecordedSessionIfSurfaceMatches(
     agent: SupatermAgentKind,
     sessionID: String,
     surfaceID: UUID
@@ -209,7 +211,7 @@ final class TerminalAgentSessionStore {
   }
 
   @discardableResult
-  func beginAgentPanelTracking(
+  public func beginAgentPanelTracking(
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -270,7 +272,7 @@ final class TerminalAgentSessionStore {
     onMonitorSnapshot(tick.snapshot, key.agent, sessionID, context)
   }
 
-  func cancelAgentPanelTracking(
+  public func cancelAgentPanelTracking(
     agent: SupatermAgentKind,
     sessionID: String
   ) {
@@ -279,7 +281,7 @@ final class TerminalAgentSessionStore {
     agentPanelMonitorTasks.removeValue(forKey: key)
   }
 
-  func armRunningTimeout(
+  public func armRunningTimeout(
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -300,7 +302,7 @@ final class TerminalAgentSessionStore {
     }
   }
 
-  func cancelRunningTimeout(
+  public func cancelRunningTimeout(
     agent: SupatermAgentKind,
     sessionID: String
   ) {

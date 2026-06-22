@@ -231,6 +231,25 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermAgentFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.agent-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/AgentFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSocketFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -518,6 +537,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "sp"),
+        .target(name: "SupatermAgentFeature"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSupport"),
@@ -570,6 +590,7 @@ let project = Project(
         .external(name: "Clocks"),
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
+        .target(name: "SupatermAgentFeature"),
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSupport"),

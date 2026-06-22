@@ -1,11 +1,11 @@
 import Foundation
 import SupatermTerminalFeature
 
-struct AgentMonitorSnapshot: Equatable {
-  var status: AgentTurnStatus?
-  var detail: String?
-  var hoverMessages: [String] = []
-  var progressRows: [PaneAgentProgressRow] = []
+public struct AgentMonitorSnapshot: Equatable {
+  public var status: AgentTurnStatus?
+  public var detail: String?
+  public var hoverMessages: [String] = []
+  public var progressRows: [PaneAgentProgressRow] = []
 }
 
 struct AgentPanelMonitorTick {

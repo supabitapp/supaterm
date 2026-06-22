@@ -1,4 +1,5 @@
 import Foundation
+import SupatermAgentFeature
 import SupatermCLIShared
 import SupatermTerminalCore
 import SupatermTerminalFeature

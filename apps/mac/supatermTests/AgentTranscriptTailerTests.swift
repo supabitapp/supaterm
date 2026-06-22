@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import SupatermAgentFeature
 @testable import supaterm
 
 struct AgentTranscriptTailerTests {

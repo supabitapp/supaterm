@@ -2,13 +2,13 @@ import Foundation
 import SupatermCLIShared
 import SupatermTerminalFeature
 
-enum AgentTurnStatus: Equatable {
+public enum AgentTurnStatus: Equatable {
   case started(String?)
   case completed(String?)
   case aborted(String?)
   case failed(String?)
 
-  var isFinal: Bool {
+  public var isFinal: Bool {
     switch self {
     case .started:
       false

@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Testing
 
+@testable import SupatermAgentFeature
 @testable import SupatermCLIShared
 @testable import SupatermTerminalFeature
 @testable import supaterm

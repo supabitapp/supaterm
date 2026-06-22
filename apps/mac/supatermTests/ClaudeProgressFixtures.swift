@@ -1,5 +1,6 @@
 import Foundation
 
+@testable import SupatermAgentFeature
 @testable import supaterm
 
 enum ClaudeProgressFixtures {
