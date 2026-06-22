@@ -4,6 +4,7 @@ import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 
 public struct TerminalNotificationEvent: Equatable, Sendable {
   public let attentionState: SupatermNotificationAttentionState

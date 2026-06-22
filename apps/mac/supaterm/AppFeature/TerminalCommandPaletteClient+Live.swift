@@ -1,4 +1,4 @@
-import SupatermTerminalFeature
+import SupatermTerminalPresentationFeature
 
 extension TerminalCommandPaletteClient {
   public static func live(registry: TerminalWindowRegistry) -> Self {

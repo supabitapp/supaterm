@@ -250,6 +250,26 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalPresentationFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-presentation-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalPresentationFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermAppFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -269,6 +289,7 @@ let project = Project(
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermTerminalUIFeature"),
         .target(name: "SupatermUpdateFeature"),
         .external(name: "ComposableArchitecture"),
@@ -335,7 +356,7 @@ let project = Project(
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
-        .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
@@ -362,6 +383,7 @@ let project = Project(
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
@@ -574,6 +596,7 @@ let project = Project(
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermTerminalUIFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
@@ -628,6 +651,7 @@ let project = Project(
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermTerminalUIFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),

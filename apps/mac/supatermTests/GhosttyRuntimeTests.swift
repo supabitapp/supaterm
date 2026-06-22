@@ -4,7 +4,6 @@ import GhosttyKit
 import Testing
 
 @testable import SupatermGhosttyFeature
-@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

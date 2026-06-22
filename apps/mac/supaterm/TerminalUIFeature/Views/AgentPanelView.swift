@@ -1,5 +1,6 @@
 import SupatermCLIShared
 import SupatermTerminalFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 enum AgentPanelMetrics {

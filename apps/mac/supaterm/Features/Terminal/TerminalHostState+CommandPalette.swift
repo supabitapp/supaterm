@@ -1,6 +1,7 @@
 import Foundation
 import SupatermGhosttyFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 
 extension TerminalHostState {
   public func commandPaletteGhosttyCommands() -> [GhosttyCommand] {

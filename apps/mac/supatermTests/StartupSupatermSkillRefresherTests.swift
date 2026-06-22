@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 
-@testable import SupatermTerminalFeature
 @testable import supaterm
 
 struct StartupSupatermSkillRefresherTests {

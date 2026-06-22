@@ -3,7 +3,6 @@ import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSettingsFeature
 import SupatermSupport
-import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalUIFeature
 import SwiftUI

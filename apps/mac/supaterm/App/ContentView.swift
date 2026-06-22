@@ -3,6 +3,7 @@ import SupatermAppFeature
 import SupatermGhosttyFeature
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SupatermTerminalUIFeature
 import SupatermUpdateFeature
 import SwiftUI

@@ -1,6 +1,6 @@
 import SupatermCLIShared
-import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 @MainActor

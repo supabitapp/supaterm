@@ -2,6 +2,7 @@
 import Combine
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 extension NSPasteboard.PasteboardType {

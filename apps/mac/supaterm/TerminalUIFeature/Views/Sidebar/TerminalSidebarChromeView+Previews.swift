@@ -2,6 +2,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 private enum TerminalSidebarTabPreviewSection: String, CaseIterable, Identifiable {

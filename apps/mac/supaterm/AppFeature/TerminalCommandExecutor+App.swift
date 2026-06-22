@@ -4,6 +4,7 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermTerminalFeature
+import SupatermTerminalPresentationFeature
 import SupatermUpdateFeature
 
 extension TerminalCommandExecutor {

@@ -5,6 +5,7 @@ import Observation
 import Sharing
 import SupatermTerminalCore
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 extension TerminalHostState {

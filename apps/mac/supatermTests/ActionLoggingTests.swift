@@ -9,6 +9,7 @@ import Testing
 @testable import SupatermAppFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 struct ActionLoggingTests {

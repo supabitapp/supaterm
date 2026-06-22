@@ -10,6 +10,7 @@ import Testing
 @testable import SupatermGhosttyFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor

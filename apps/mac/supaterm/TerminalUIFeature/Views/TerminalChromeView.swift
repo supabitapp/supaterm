@@ -1,5 +1,5 @@
 import AppKit
-import SupatermTerminalFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 enum TerminalSplitMetrics {

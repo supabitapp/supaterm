@@ -3,6 +3,7 @@ import Sharing
 import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 
 extension TerminalHostState {
   func observePinnedTabCatalog() {

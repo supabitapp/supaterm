@@ -10,6 +10,13 @@ public struct SplitTree<ViewType: NSView & Identifiable> {
     public let left: Node
     public let right: Node
 
+    public init(direction: Direction, ratio: Double, left: Node, right: Node) {
+      self.direction = direction
+      self.ratio = ratio
+      self.left = left
+      self.right = right
+    }
+
     public static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.direction == rhs.direction
         && lhs.ratio == rhs.ratio

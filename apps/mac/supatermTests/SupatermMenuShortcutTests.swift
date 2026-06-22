@@ -3,7 +3,7 @@ import SwiftUI
 import Testing
 
 @testable import SupatermAppFeature
-@testable import SupatermTerminalFeature
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor

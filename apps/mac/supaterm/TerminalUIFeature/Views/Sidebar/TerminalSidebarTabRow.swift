@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct TerminalSidebarTabRow: View {

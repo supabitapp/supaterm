@@ -6,6 +6,7 @@ import Sharing
 import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 extension TerminalHostState {

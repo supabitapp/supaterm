@@ -4,7 +4,6 @@ import Testing
 
 @testable import SupatermCLIShared
 @testable import SupatermSocketFeature
-@testable import SupatermTerminalFeature
 @testable import supaterm
 
 struct SocketControlRuntimeTests {

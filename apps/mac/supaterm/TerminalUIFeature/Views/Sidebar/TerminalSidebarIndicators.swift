@@ -1,5 +1,6 @@
 import SupatermSupport
 import SupatermTerminalFeature
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 struct TerminalAgentBadgeGroupView: View {

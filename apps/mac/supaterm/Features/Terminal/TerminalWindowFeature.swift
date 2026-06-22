@@ -7,6 +7,7 @@ import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalCore
 import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"
