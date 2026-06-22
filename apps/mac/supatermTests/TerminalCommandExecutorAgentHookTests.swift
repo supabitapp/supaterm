@@ -9,6 +9,7 @@ import Testing
 @testable import SupatermAppFeature
 @testable import SupatermCLIShared
 @testable import SupatermGhosttyFeature
+@testable import SupatermTerminalAgentPanelFeature
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
 @testable import SupatermTerminalPresentationFeature

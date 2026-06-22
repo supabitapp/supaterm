@@ -1,6 +1,7 @@
 import AppKit
 import SupatermCLIShared
 import SupatermGhosttyFeature
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalFeature
 import SupatermTerminalPresentationFeature
 import SwiftUI

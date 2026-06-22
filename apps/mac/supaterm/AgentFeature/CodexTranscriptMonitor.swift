@@ -1,6 +1,6 @@
 import Foundation
 import SupatermCLIShared
-import SupatermTerminalFeature
+import SupatermTerminalAgentPanelFeature
 
 public enum AgentTurnStatus: Equatable {
   case started(String?)

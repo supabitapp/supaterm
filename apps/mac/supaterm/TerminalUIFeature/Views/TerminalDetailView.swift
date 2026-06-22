@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature

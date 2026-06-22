@@ -6,6 +6,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
 import SwiftUI

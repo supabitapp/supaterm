@@ -7,6 +7,18 @@ public nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   public var artifacts: [PaneAgentArtifact] = []
   public var session: PaneAgentPanelSession?
 
+  public init(
+    progressRows: [PaneAgentProgressRow] = [],
+    branchDetails: PaneAgentBranchDetails? = nil,
+    artifacts: [PaneAgentArtifact] = [],
+    session: PaneAgentPanelSession? = nil
+  ) {
+    self.progressRows = progressRows
+    self.branchDetails = branchDetails
+    self.artifacts = artifacts
+    self.session = session
+  }
+
   public var isEmpty: Bool {
     progressRows.isEmpty
       && branchDetails == nil
@@ -82,6 +94,18 @@ public nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
   public let removedLineCount: Int
   public let pullRequestStatus: PaneAgentPullRequestStatus
 
+  public init(
+    branchName: String,
+    addedLineCount: Int,
+    removedLineCount: Int,
+    pullRequestStatus: PaneAgentPullRequestStatus
+  ) {
+    self.branchName = branchName
+    self.addedLineCount = addedLineCount
+    self.removedLineCount = removedLineCount
+    self.pullRequestStatus = pullRequestStatus
+  }
+
   public var displayedPullRequestStatus: PaneAgentPullRequestStatus? {
     switch pullRequestStatus.kind {
     case .unavailable:
@@ -109,6 +133,22 @@ public nonisolated struct PaneAgentPullRequestStatus: Equatable, Sendable {
   public let addedLineCount: Int?
   public let removedLineCount: Int?
   public let checks: PaneAgentPullRequestChecks?
+
+  public init(
+    kind: Kind,
+    title: String,
+    url: URL?,
+    addedLineCount: Int?,
+    removedLineCount: Int?,
+    checks: PaneAgentPullRequestChecks?
+  ) {
+    self.kind = kind
+    self.title = title
+    self.url = url
+    self.addedLineCount = addedLineCount
+    self.removedLineCount = removedLineCount
+    self.checks = checks
+  }
 
   static let unavailable = Self(
     kind: .unavailable,
@@ -143,7 +183,7 @@ public nonisolated struct PaneAgentPullRequestChecks: Equatable, Sendable {
   public let totalCount: Int
   public let items: [PaneAgentPullRequestCheck]
 
-  init(status: Status, totalCount: Int, items: [PaneAgentPullRequestCheck]) {
+  public init(status: Status, totalCount: Int, items: [PaneAgentPullRequestCheck]) {
     self.status = status
     self.totalCount = totalCount
     self.items = items
@@ -298,11 +338,11 @@ public nonisolated struct PaneAgentPullRequestCheck: Equatable, Identifiable, Se
     return "\(workflowName) / \(name)"
   }
 
-  init(name: String, status: Status) {
+  public init(name: String, status: Status) {
     self.init(name: name, state: State(status: status))
   }
 
-  init(
+  public init(
     name: String,
     state: State,
     workflowName: String? = nil,
@@ -386,7 +426,7 @@ public nonisolated struct PaneAgentArtifact: Equatable, Identifiable, Sendable {
   public let title: String
   public let url: URL
 
-  init(title: String, url: URL) {
+  public init(title: String, url: URL) {
     self.id = url.absoluteString
     self.title = title
     self.url = url

@@ -5,6 +5,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature

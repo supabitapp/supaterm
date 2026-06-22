@@ -242,8 +242,25 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
-        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalModels"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalAgentPanelFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-agent-panel-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalAgentPanelFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
       ],
       settings: .settings(
         defaultSettings: .essential
@@ -286,6 +303,7 @@ let project = Project(
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalModels"),
@@ -354,6 +372,7 @@ let project = Project(
       dependencies: [
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalPresentationFeature"),
@@ -381,6 +400,7 @@ let project = Project(
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalPresentationFeature"),
@@ -593,6 +613,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
@@ -648,6 +669,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),

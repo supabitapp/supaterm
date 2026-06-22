@@ -1,6 +1,6 @@
 import Foundation
 import SupatermCLIShared
-import SupatermTerminalFeature
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalModels
 
 @MainActor

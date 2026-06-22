@@ -1,6 +1,7 @@
 #if SUPATERM_DEMO
   import Foundation
   import SupatermCLIShared
+  import SupatermTerminalAgentPanelFeature
 
   extension TerminalHostState {
     func demoInjectRunningAgent(

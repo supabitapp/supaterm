@@ -6,6 +6,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
@@ -52,7 +53,7 @@ nonisolated struct TerminalClosePerformLogContext: Sendable {
 
 @MainActor
 @Observable
-public final class TerminalHostState {
+public final class TerminalHostState: TerminalAgentPanelHost {
   struct NewTabSelectionInput: Equatable {
     let selectedSpaceID: TerminalSpaceID?
     let targetSpaceID: TerminalSpaceID

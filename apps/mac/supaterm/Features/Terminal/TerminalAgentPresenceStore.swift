@@ -1,11 +1,8 @@
 import Darwin
 import Foundation
 import SupatermCLIShared
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalModels
-
-public nonisolated func terminalAgentProcessIsAlive(_ processID: Int32) -> Bool {
-  TerminalAgentPresenceStore.isProcessAlive(processID)
-}
 
 struct TerminalAgentPresenceStore {
   struct Instance: Equatable, Sendable {

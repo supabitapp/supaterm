@@ -4,7 +4,7 @@ import Testing
 
 @testable import SupatermAgentFeature
 @testable import SupatermCLIShared
-@testable import SupatermTerminalFeature
+@testable import SupatermTerminalAgentPanelFeature
 @testable import supaterm
 
 @MainActor

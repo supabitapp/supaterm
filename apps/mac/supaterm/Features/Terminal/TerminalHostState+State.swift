@@ -6,6 +6,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
 import SwiftUI
@@ -351,7 +352,15 @@ extension TerminalHostState {
     agentPanelPresentation(for: surfaceID) != nil
   }
 
-  func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext? {
+  public func agentPanelPreservesSeededState(_ surfaceID: UUID) -> Bool {
+    #if SUPATERM_DEMO
+      DemoSeed.preservesSeededAgentState(surfaceID)
+    #else
+      false
+    #endif
+  }
+
+  public func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext? {
     guard agentPanelIsEnabled else {
       return nil
     }
@@ -372,7 +381,7 @@ extension TerminalHostState {
     )
   }
 
-  var agentPanelIsEnabled: Bool {
+  public var agentPanelIsEnabled: Bool {
     supatermSettings.codingAgentsShowPanel
   }
 
@@ -548,7 +557,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func storeAgentPanelBranchDetails(
+  public func storeAgentPanelBranchDetails(
     _ branchDetails: PaneAgentBranchDetails?,
     for surfaceID: UUID
   ) -> Bool {
@@ -566,7 +575,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func storeAgentPanelArtifacts(
+  public func storeAgentPanelArtifacts(
     _ artifacts: [PaneAgentArtifact],
     for surfaceID: UUID
   ) -> Bool {
@@ -584,7 +593,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func clearAgentPanelMetadata(for surfaceID: UUID) -> Bool {
+  public func clearAgentPanelMetadata(for surfaceID: UUID) -> Bool {
     paneAgentMetadataBySurfaceID.removeValue(forKey: surfaceID) != nil
   }
 

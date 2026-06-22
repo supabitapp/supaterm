@@ -2,9 +2,37 @@ import Darwin
 import Dispatch
 import Foundation
 
-nonisolated struct TerminalAgentPanelRefreshContext: Equatable, Sendable {
-  let workingDirectoryPath: String?
-  let processIDs: Set<Int32>
+public nonisolated struct TerminalAgentPanelRefreshContext: Equatable, Sendable {
+  public let workingDirectoryPath: String?
+  public let processIDs: Set<Int32>
+
+  public init(workingDirectoryPath: String?, processIDs: Set<Int32>) {
+    self.workingDirectoryPath = workingDirectoryPath
+    self.processIDs = processIDs
+  }
+}
+
+@MainActor
+public protocol TerminalAgentPanelHost: AnyObject {
+  var agentPanelIsEnabled: Bool { get }
+
+  func agentPanelPreservesSeededState(_ surfaceID: UUID) -> Bool
+  func agentPanelRefreshContext(for surfaceID: UUID) -> TerminalAgentPanelRefreshContext?
+
+  @discardableResult
+  func storeAgentPanelBranchDetails(
+    _ branchDetails: PaneAgentBranchDetails?,
+    for surfaceID: UUID
+  ) -> Bool
+
+  @discardableResult
+  func storeAgentPanelArtifacts(
+    _ artifacts: [PaneAgentArtifact],
+    for surfaceID: UUID
+  ) -> Bool
+
+  @discardableResult
+  func clearAgentPanelMetadata(for surfaceID: UUID) -> Bool
 }
 
 nonisolated struct TerminalAgentPanelWorkspaceKey: Equatable, Hashable, Sendable {
@@ -1351,13 +1379,13 @@ final class PaneAgentPortScanner {
 }
 
 @MainActor
-final class TerminalAgentPanelController {
+public final class TerminalAgentPanelController {
   private struct HeadWatcher {
     let headURL: URL
     let source: DispatchSourceFileSystemObject
   }
 
-  private weak var terminal: TerminalHostState?
+  private weak var terminal: (any TerminalAgentPanelHost)?
   private let gitClient: TerminalAgentGitClient
   private let githubClient: TerminalAgentGithubClient
   private let portScanner: PaneAgentPortScanner
@@ -1371,8 +1399,17 @@ final class TerminalAgentPanelController {
   private var filesDebounceTasks: [TerminalAgentPanelWorkspaceKey: Task<Void, Never>] = [:]
   private var headWatchers: [TerminalAgentPanelWorkspaceKey: HeadWatcher] = [:]
 
+  public convenience init(terminal: any TerminalAgentPanelHost) {
+    self.init(
+      terminal: terminal,
+      gitClient: TerminalAgentGitClient(),
+      githubClient: TerminalAgentGithubClient(),
+      portScanner: PaneAgentPortScanner()
+    )
+  }
+
   init(
-    terminal: TerminalHostState,
+    terminal: any TerminalAgentPanelHost,
     gitClient: TerminalAgentGitClient = TerminalAgentGitClient(),
     githubClient: TerminalAgentGithubClient = TerminalAgentGithubClient(),
     portScanner: PaneAgentPortScanner = PaneAgentPortScanner()
@@ -1383,10 +1420,8 @@ final class TerminalAgentPanelController {
     self.portScanner = portScanner
   }
 
-  func surfaceFocused(_ surfaceID: UUID) {
-    #if SUPATERM_DEMO
-      guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
-    #endif
+  public func surfaceFocused(_ surfaceID: UUID) {
+    guard terminal?.agentPanelPreservesSeededState(surfaceID) != true else { return }
     let context = terminal?.agentPanelRefreshContext(for: surfaceID)
     updatePortTracking(surfaceID, context: context)
     guard let workspaceKey = updateWorkspaceTracking(surfaceID, context: context) else {
@@ -1397,10 +1432,8 @@ final class TerminalAgentPanelController {
     schedulePeriodicRefresh(workspaceKey)
   }
 
-  func surfacePathChanged(_ surfaceID: UUID) {
-    #if SUPATERM_DEMO
-      guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
-    #endif
+  public func surfacePathChanged(_ surfaceID: UUID) {
+    guard terminal?.agentPanelPreservesSeededState(surfaceID) != true else { return }
     guard
       let workspaceKey = updateWorkspaceTracking(
         surfaceID,
@@ -1414,10 +1447,8 @@ final class TerminalAgentPanelController {
     schedulePeriodicRefresh(workspaceKey)
   }
 
-  func surfaceAgentStateChanged(_ surfaceID: UUID) {
-    #if SUPATERM_DEMO
-      guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
-    #endif
+  public func surfaceAgentStateChanged(_ surfaceID: UUID) {
+    guard terminal?.agentPanelPreservesSeededState(surfaceID) != true else { return }
     let context = terminal?.agentPanelRefreshContext(for: surfaceID)
     updatePortTracking(surfaceID, context: context)
     guard let workspaceKey = updateWorkspaceTracking(surfaceID, context: context) else {
@@ -1431,18 +1462,16 @@ final class TerminalAgentPanelController {
     schedulePeriodicRefresh(workspaceKey)
   }
 
-  func surfaceCommandFinished(_ surfaceID: UUID) {
-    #if SUPATERM_DEMO
-      guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
-    #endif
+  public func surfaceCommandFinished(_ surfaceID: UUID) {
+    guard terminal?.agentPanelPreservesSeededState(surfaceID) != true else { return }
     clearSurface(surfaceID)
   }
 
-  func surfaceRemoved(_ surfaceID: UUID) {
+  public func surfaceRemoved(_ surfaceID: UUID) {
     clearSurface(surfaceID)
   }
 
-  func stop() {
+  public func stop() {
     for surfaceID in Set(workspaceKeysBySurfaceID.keys) {
       clearSurface(surfaceID)
     }

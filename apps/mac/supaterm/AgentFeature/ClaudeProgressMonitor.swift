@@ -1,6 +1,6 @@
 import Foundation
 import SupatermCLIShared
-import SupatermTerminalFeature
+import SupatermTerminalAgentPanelFeature
 
 struct ClaudeProgressCursor {
   var transcriptOffset: UInt64

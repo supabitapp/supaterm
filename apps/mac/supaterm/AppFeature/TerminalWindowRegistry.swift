@@ -4,6 +4,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermTerminalModels

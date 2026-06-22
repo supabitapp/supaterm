@@ -1,5 +1,5 @@
 import SupatermCLIShared
-import SupatermTerminalFeature
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalPresentationFeature
 import SwiftUI
 

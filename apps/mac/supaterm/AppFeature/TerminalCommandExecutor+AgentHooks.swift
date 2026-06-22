@@ -2,6 +2,7 @@ import Foundation
 import SupatermAgentFeature
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
 import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermTerminalModels
