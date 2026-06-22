@@ -69,6 +69,26 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func surfaceRegistersPasteboardDropTypes() {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let types = Set(surfaceView.registeredDraggedTypes)
+
+    #expect(types.contains(.string))
+    #expect(types.contains(.fileURL))
+    #expect(types.contains(.URL))
+    #expect(types.contains(.supatermPNGImage))
+    #expect(types.contains(.supatermTIFFImage))
+  }
+
+  @Test
+  @MainActor
   func searchOverlayUpdateDoesNotStealFocusAfterSplit() async throws {
     initializeGhosttyForTests()
 
