@@ -1,5 +1,5 @@
 [tools]
-hk = "1.45.0"
+# hk removed: no Intel-macOS (darwin/amd64) build available; git-hooks tool not needed to build the app.
 pkl = "0.31.1"
 zig = "0.15.2"
 tuist = "4.192.3"
@@ -10,10 +10,3 @@ pnpm = "10.32.1"
 
 [env]
 HK_MISE = "1"
-
-[hooks]
-postinstall = '''
-set -e
-command -v vp >/dev/null 2>&1 || curl -fsSL https://vite.plus | bash
-make install-git-hooks
-'''

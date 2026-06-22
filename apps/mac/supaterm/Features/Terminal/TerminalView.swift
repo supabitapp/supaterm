@@ -83,7 +83,7 @@ struct TerminalView: View {
     )
   }
 
-  var body: some View {
+  private var baseBody: some View {
     GeometryReader(content: terminalLayout)
       .frame(minWidth: 1_080, minHeight: 720)
       .background(palette.windowBackgroundTint)
@@ -113,6 +113,10 @@ struct TerminalView: View {
         guard wasPresented, !isPresented else { return }
         restoreTerminalFocusIfNeeded()
       }
+  }
+
+  private var overlaidBody: some View {
+    baseBody
       .overlay {
         if let commandPalette = store.commandPalette {
           let snapshot = commandPaletteClient.snapshot(store.windowID)
@@ -200,6 +204,10 @@ struct TerminalView: View {
       } message: {
         Text(spaceDeleteMessage)
       }
+  }
+
+  var body: some View {
+    overlaidBody
       .terminalAnimation(
         .spring(response: 0.2, dampingFraction: 1.0),
         value: store.isSidebarCollapsed,

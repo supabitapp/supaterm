@@ -113,7 +113,7 @@ let project = Project(
           "SWIFT_STRICT_CONCURRENCY": "complete",
         ],
         release: [
-          "ARCHS": "arm64",
+          "ARCHS": "$(NATIVE_ARCH)",
           "DEAD_CODE_STRIPPING": "YES",
         ],
         defaultSettings: .essential
@@ -453,7 +453,7 @@ let project = Project(
           "CODE_SIGN_ENTITLEMENTS": "supatermDebug.entitlements",
         ],
         release: [
-          "ARCHS": "arm64",
+          "ARCHS": "$(NATIVE_ARCH)",
           "CODE_SIGN_ENTITLEMENTS": "supaterm.entitlements",
           "DEAD_CODE_STRIPPING": "YES",
         ],
