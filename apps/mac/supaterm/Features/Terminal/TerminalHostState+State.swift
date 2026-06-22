@@ -9,6 +9,7 @@ import SupatermSupport
 import SupatermTerminalAgentPanelFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {

@@ -7,6 +7,7 @@ import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {

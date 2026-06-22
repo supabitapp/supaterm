@@ -4,41 +4,43 @@ import SupatermTerminalModels
 
 @MainActor
 @Observable
-final class TerminalSpaceManager {
-  struct SpaceCatalogDiff: Equatable {
-    let removedTabIDs: [TerminalTabID]
+public final class TerminalSpaceManager {
+  public struct SpaceCatalogDiff: Equatable {
+    public let removedTabIDs: [TerminalTabID]
   }
 
-  private(set) var spaces: [TerminalSpaceItem] = []
+  public private(set) var spaces: [TerminalSpaceItem] = []
   private var tabManagers: [TerminalSpaceID: TerminalTabManager] = [:]
-  var selectedSpaceID: TerminalSpaceID?
+  public var selectedSpaceID: TerminalSpaceID?
 
-  var activeTabManager: TerminalTabManager? {
+  public init() {}
+
+  public var activeTabManager: TerminalTabManager? {
     guard let selectedSpaceID else { return nil }
     return tabManagers[selectedSpaceID]
   }
 
-  var tabs: [TerminalTabItem] {
+  public var tabs: [TerminalTabItem] {
     activeTabManager?.tabs ?? []
   }
 
-  var pinnedTabs: [TerminalTabItem] {
+  public var pinnedTabs: [TerminalTabItem] {
     activeTabManager?.pinnedTabs ?? []
   }
 
-  var regularTabs: [TerminalTabItem] {
+  public var regularTabs: [TerminalTabItem] {
     activeTabManager?.regularTabs ?? []
   }
 
-  var visibleTabs: [TerminalTabItem] {
+  public var visibleTabs: [TerminalTabItem] {
     activeTabManager?.visibleTabs ?? []
   }
 
-  var selectedTabID: TerminalTabID? {
+  public var selectedTabID: TerminalTabID? {
     activeTabManager?.selectedTabId
   }
 
-  func bootstrap(
+  public func bootstrap(
     from catalog: TerminalSpaceCatalog,
     initialSelectedSpaceID: TerminalSpaceID?
   ) {
@@ -59,13 +61,13 @@ final class TerminalSpaceManager {
       ?? resolvedCatalog.defaultSelectedSpaceID
   }
 
-  func selectSpace(_ id: TerminalSpaceID) -> Bool {
+  public func selectSpace(_ id: TerminalSpaceID) -> Bool {
     guard spaces.contains(where: { $0.id == id }) else { return false }
     selectedSpaceID = id
     return true
   }
 
-  func applyCatalog(_ catalog: TerminalSpaceCatalog) -> SpaceCatalogDiff {
+  public func applyCatalog(_ catalog: TerminalSpaceCatalog) -> SpaceCatalogDiff {
     let resolvedCatalog = Self.sanitizedCatalog(catalog)
     let previousSpaces = spaces
     let previousTabManagers = tabManagers
@@ -96,7 +98,7 @@ final class TerminalSpaceManager {
     return SpaceCatalogDiff(removedTabIDs: removedTabIDs)
   }
 
-  func isNameAvailable(
+  public func isNameAvailable(
     _ proposedName: String,
     excluding excludedID: TerminalSpaceID? = nil
   ) -> Bool {
@@ -106,35 +108,35 @@ final class TerminalSpaceManager {
     }
   }
 
-  func tabManager(for spaceID: TerminalSpaceID) -> TerminalTabManager? {
+  public func tabManager(for spaceID: TerminalSpaceID) -> TerminalTabManager? {
     tabManagers[spaceID]
   }
 
-  func space(for tabID: TerminalTabID) -> TerminalSpaceItem? {
+  public func space(for tabID: TerminalTabID) -> TerminalSpaceItem? {
     spaces.first { space in
       tabManagers[space.id]?.tabs.contains(where: { $0.id == tabID }) == true
     }
   }
 
-  func tabs(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
+  public func tabs(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
     tabManagers[spaceID]?.tabs ?? []
   }
 
-  func space(at index: Int) -> TerminalSpaceItem? {
+  public func space(at index: Int) -> TerminalSpaceItem? {
     let offset = index - 1
     guard spaces.indices.contains(offset) else { return nil }
     return spaces[offset]
   }
 
-  func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
+  public func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
     tabManagers[spaceID]?.selectedTabId
   }
 
-  func spaceIndex(for spaceID: TerminalSpaceID) -> Int? {
+  public func spaceIndex(for spaceID: TerminalSpaceID) -> Int? {
     spaces.firstIndex(where: { $0.id == spaceID }).map { $0 + 1 }
   }
 
-  func tab(for tabID: TerminalTabID) -> TerminalTabItem? {
+  public func tab(for tabID: TerminalTabID) -> TerminalTabItem? {
     for space in spaces {
       if let tab = tabManagers[space.id]?.tabs.first(where: { $0.id == tabID }) {
         return tab
@@ -144,7 +146,7 @@ final class TerminalSpaceManager {
   }
 
   @discardableResult
-  func restoreTabs(
+  public func restoreTabs(
     _ tabs: [TerminalTabItem],
     selectedTabID: TerminalTabID?,
     in spaceID: TerminalSpaceID

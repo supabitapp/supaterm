@@ -231,6 +231,23 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalStateFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-state-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalStateFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermTerminalModels"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermAgentFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -401,6 +418,7 @@ let project = Project(
         .target(name: "SupatermTerminalCore"),
         .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalStateFeature"),
         .target(name: "SupatermGhosttyFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
@@ -700,6 +718,7 @@ let project = Project(
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermTerminalPresentationFeature"),
         .target(name: "SupatermTerminalSurfaceFeature"),
+        .target(name: "SupatermTerminalStateFeature"),
         .target(name: "SupatermTerminalUIFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),

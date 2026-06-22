@@ -10,6 +10,7 @@ import SupatermTerminalAgentPanelFeature
 import SupatermTerminalCore
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 func normalizedTerminalAgentDetail(_ detail: String?) -> String? {

@@ -5,6 +5,7 @@ import Testing
 
 @testable import SupatermTerminalFeature
 @testable import SupatermTerminalModels
+@testable import SupatermTerminalStateFeature
 @testable import supaterm
 
 @MainActor

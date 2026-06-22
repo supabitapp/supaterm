@@ -1,11 +1,11 @@
 import Darwin
 import Foundation
 
-enum TerminalControlTrace {
-  static let enabledKey = "SUPATERM_TMUX_TRACE"
-  static let pathKey = "SUPATERM_TMUX_TRACE_PATH"
+public enum TerminalControlTrace {
+  private static let enabledKey = "SUPATERM_TMUX_TRACE"
+  private static let pathKey = "SUPATERM_TMUX_TRACE_PATH"
 
-  static func write(
+  public static func write(
     event: String,
     fields: [String: String?] = [:],
     environment: [String: String] = ProcessInfo.processInfo.environment
@@ -45,7 +45,7 @@ enum TerminalControlTrace {
     }
   }
 
-  static func preview(_ text: String, limit: Int = 200) -> String {
+  public static func preview(_ text: String, limit: Int = 200) -> String {
     let escapedText =
       text
       .replacingOccurrences(of: "\\", with: "\\\\")

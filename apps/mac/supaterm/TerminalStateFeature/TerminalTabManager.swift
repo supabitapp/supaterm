@@ -3,23 +3,25 @@ import SupatermTerminalModels
 
 @MainActor
 @Observable
-final class TerminalTabManager {
-  var tabs: [TerminalTabItem] = []
-  var selectedTabId: TerminalTabID?
+public final class TerminalTabManager {
+  public var tabs: [TerminalTabItem] = []
+  public var selectedTabId: TerminalTabID?
 
-  var pinnedTabs: [TerminalTabItem] {
+  public init() {}
+
+  public var pinnedTabs: [TerminalTabItem] {
     tabs.filter(\.isPinned)
   }
 
-  var regularTabs: [TerminalTabItem] {
+  public var regularTabs: [TerminalTabItem] {
     tabs.filter { !$0.isPinned }
   }
 
-  var visibleTabs: [TerminalTabItem] {
+  public var visibleTabs: [TerminalTabItem] {
     tabs
   }
 
-  func createTab(
+  public func createTab(
     title: String,
     isPinned: Bool = false,
     isTitleLocked: Bool = false
@@ -38,22 +40,22 @@ final class TerminalTabManager {
     return tab.id
   }
 
-  func selectTab(_ id: TerminalTabID) {
+  public func selectTab(_ id: TerminalTabID) {
     guard tabs.contains(where: { $0.id == id }) else { return }
     selectedTabId = id
   }
 
-  func clearSelection() {
+  public func clearSelection() {
     selectedTabId = nil
   }
 
-  func updateTitle(_ id: TerminalTabID, title: String) {
+  public func updateTitle(_ id: TerminalTabID, title: String) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     guard !tabs[index].isTitleLocked else { return }
     tabs[index].title = title
   }
 
-  func setLockedTitle(_ id: TerminalTabID, title: String?) {
+  public func setLockedTitle(_ id: TerminalTabID, title: String?) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     tabs[index].isTitleLocked = title != nil
     if let title {
@@ -61,26 +63,26 @@ final class TerminalTabManager {
     }
   }
 
-  func updateDirty(_ id: TerminalTabID, isDirty: Bool) {
+  public func updateDirty(_ id: TerminalTabID, isDirty: Bool) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     tabs[index].isDirty = isDirty
   }
 
-  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
+  public func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
     let pinnedByID = Dictionary(uniqueKeysWithValues: pinnedTabs.map { ($0.id, $0) })
     let orderedPinnedTabs = orderedIDs.compactMap { pinnedByID[$0] }
     guard orderedPinnedTabs.count == pinnedTabs.count else { return }
     setVisibleTabs(orderedPinnedTabs + regularTabs)
   }
 
-  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
+  public func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
     let regularByID = Dictionary(uniqueKeysWithValues: regularTabs.map { ($0.id, $0) })
     let orderedRegularTabs = orderedIDs.compactMap { regularByID[$0] }
     guard orderedRegularTabs.count == regularTabs.count else { return }
     setVisibleTabs(pinnedTabs + orderedRegularTabs)
   }
 
-  func moveTab(
+  public func moveTab(
     _ id: TerminalTabID,
     pinnedOrder: [TerminalTabID],
     regularOrder: [TerminalTabID]
@@ -123,12 +125,12 @@ final class TerminalTabManager {
     setVisibleTabs(orderedPinnedTabs + orderedRegularTabs)
   }
 
-  func togglePinned(_ id: TerminalTabID) {
+  public func togglePinned(_ id: TerminalTabID) {
     guard let tab = tabs.first(where: { $0.id == id }) else { return }
     moveTab(id, toPinned: !tab.isPinned)
   }
 
-  func closeTab(_ id: TerminalTabID) {
+  public func closeTab(_ id: TerminalTabID) {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
     let wasSelected = selectedTabId == id
     tabs.remove(at: index)
@@ -142,18 +144,18 @@ final class TerminalTabManager {
     }
   }
 
-  func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
+  public func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
     guard let index = tabs.firstIndex(where: { $0.id == id }) else { return [] }
     let nextIndex = tabs.index(after: index)
     guard nextIndex < tabs.endIndex else { return [] }
     return tabs[nextIndex...].map(\.id)
   }
 
-  func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
+  public func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
     tabs.map(\.id).filter { $0 != id }
   }
 
-  func restoreTabs(
+  public func restoreTabs(
     _ tabs: [TerminalTabItem],
     selectedTabID: TerminalTabID?
   ) {
