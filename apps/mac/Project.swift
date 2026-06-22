@@ -10,6 +10,20 @@ let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
 let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
 let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
 
+func tuistInspectScript(_ action: String) -> String {
+  """
+  for mise in "$HOME/.local/bin/mise" /opt/homebrew/bin/mise /usr/local/bin/mise mise; do
+    if command -v "$mise" >/dev/null 2>&1; then
+      "$mise" x -C "$SRCROOT" -- tuist inspect \(action)
+      exit $?
+    fi
+  done
+
+  echo "mise not found" >&2
+  exit 127
+  """
+}
+
 let ghosttyFingerprintInputScript = """
 "${SRCROOT}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
 """
@@ -493,14 +507,29 @@ let project = Project(
       buildAction: .buildAction(
         targets: [
           .target("supaterm"),
-        ]
+        ],
+        postActions: [
+          .executionAction(
+            title: "Push build insights",
+            scriptText: tuistInspectScript("build"),
+            target: .target("supaterm")
+          ),
+        ],
+        runPostActionsOnFailure: true
       ),
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermTests")),
         ],
         configuration: .debug,
-        expandVariableFromTarget: .target("supaterm")
+        expandVariableFromTarget: .target("supaterm"),
+        postActions: [
+          .executionAction(
+            title: "Push test insights",
+            scriptText: tuistInspectScript("test"),
+            target: .target("supatermTests")
+          ),
+        ]
       ),
       runAction: .runAction(
         configuration: .debug,
