@@ -2,7 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Testing
 
-@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 @MainActor

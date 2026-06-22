@@ -1,6 +1,7 @@
 import Foundation
 import Sharing
 import SupatermSupport
+import SupatermTerminalModels
 
 extension TerminalHostState {
   func observePinnedTabCatalog() {

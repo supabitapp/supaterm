@@ -1,6 +1,7 @@
 import Foundation
 import SupatermCLIShared
 import SupatermTerminalFeature
+import SupatermTerminalModels
 
 @MainActor
 final class TerminalAgentSessionStore {

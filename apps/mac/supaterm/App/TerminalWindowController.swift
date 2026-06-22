@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import SupatermSupport
 import SupatermTerminalFeature
+import SupatermTerminalModels
 import SwiftUI
 
 @MainActor

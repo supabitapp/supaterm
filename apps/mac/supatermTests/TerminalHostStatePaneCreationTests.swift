@@ -4,6 +4,7 @@ import Testing
 
 @testable import SupatermCLIShared
 @testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 @MainActor

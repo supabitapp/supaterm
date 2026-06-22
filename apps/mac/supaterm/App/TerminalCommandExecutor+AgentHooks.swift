@@ -2,6 +2,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermTerminalCore
 import SupatermTerminalFeature
+import SupatermTerminalModels
 
 extension TerminalCommandExecutor {
   struct AgentHookNotification {

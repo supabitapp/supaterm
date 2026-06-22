@@ -3,6 +3,7 @@ import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalModels
 import SupatermUpdateFeature
 import SwiftUI
 import Textual

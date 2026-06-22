@@ -1,5 +1,6 @@
 #if SUPATERM_DEMO
   import Foundation
+  import SupatermTerminalModels
   import Sharing
   import SupatermCLIShared
   import SupatermSupport

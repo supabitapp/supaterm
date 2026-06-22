@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import SupatermCLIShared
+import SupatermTerminalModels
 
 public nonisolated func terminalAgentProcessIsAlive(_ processID: Int32) -> Bool {
   TerminalAgentPresenceStore.isProcessAlive(processID)

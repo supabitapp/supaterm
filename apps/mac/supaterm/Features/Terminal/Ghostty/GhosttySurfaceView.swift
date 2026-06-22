@@ -5,6 +5,7 @@ import GhosttyKit
 import QuartzCore
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalModels
 
 final class GhosttySurfaceView: NSView, Identifiable {
   private struct ScrollbarState {

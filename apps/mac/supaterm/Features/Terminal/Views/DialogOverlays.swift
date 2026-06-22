@@ -1,4 +1,5 @@
 import AppKit
+import SupatermTerminalModels
 import SwiftUI
 
 struct ConfirmationOverlay: View {

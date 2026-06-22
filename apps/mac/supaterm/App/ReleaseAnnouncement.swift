@@ -3,6 +3,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalFeature
+import SupatermTerminalModels
 
 nonisolated struct ReleaseAnnouncementStorageState: Codable, Equatable, Sendable {
   var lastInstalledVersion: String?

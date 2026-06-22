@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Sharing
 import SupatermCLIShared
 import SupatermSupport
+import SupatermTerminalModels
 import SwiftUI
 
 struct TerminalDetailView: View {

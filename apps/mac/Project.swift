@@ -193,6 +193,24 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalModels",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-models",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalModels",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSocketFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -206,6 +224,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
       ],
@@ -248,6 +267,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
@@ -456,6 +476,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
@@ -505,6 +526,7 @@ let project = Project(
         .target(name: "SupatermCLIShared"),
         .target(name: "SupatermSupport"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
         .target(name: "SupatermTerminalFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),

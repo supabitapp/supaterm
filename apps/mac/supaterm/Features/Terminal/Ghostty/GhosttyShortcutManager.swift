@@ -1,4 +1,5 @@
 import Observation
+import SupatermTerminalModels
 import SwiftUI
 
 @MainActor

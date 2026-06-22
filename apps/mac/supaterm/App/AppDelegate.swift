@@ -6,6 +6,7 @@ import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
 import SupatermTerminalFeature
+import SupatermTerminalModels
 import UserNotifications
 
 private final class WeakToggleVisibilityWindow {

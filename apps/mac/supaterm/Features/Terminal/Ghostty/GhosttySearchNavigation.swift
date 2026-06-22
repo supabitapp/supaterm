@@ -1,3 +1,5 @@
+import SupatermTerminalModels
+
 public enum GhosttySearchDirection: Equatable, Sendable {
   case next
   case previous

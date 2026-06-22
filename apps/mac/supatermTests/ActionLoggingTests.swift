@@ -7,6 +7,7 @@ import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 struct ActionLoggingTests {

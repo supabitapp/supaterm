@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
 import SupatermTerminalCore
+import SupatermTerminalModels
 
 public struct TerminalNotificationEvent: Equatable, Sendable {
   public let attentionState: SupatermNotificationAttentionState

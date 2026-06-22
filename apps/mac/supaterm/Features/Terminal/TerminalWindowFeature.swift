@@ -5,6 +5,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalCore
+import SupatermTerminalModels
 
 private enum TerminalWindowCancelID {
   static let events = "TerminalWindowFeature.events"

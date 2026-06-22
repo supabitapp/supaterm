@@ -1,4 +1,5 @@
 import Observation
+import SupatermTerminalModels
 
 @MainActor
 @Observable

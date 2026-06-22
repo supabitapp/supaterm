@@ -1,4 +1,5 @@
 import Foundation
+import SupatermTerminalModels
 import SupatermUpdateFeature
 import SwiftUI
 

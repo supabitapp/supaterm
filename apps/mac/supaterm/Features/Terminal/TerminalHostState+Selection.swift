@@ -3,6 +3,7 @@ import Foundation
 import GhosttyKit
 import Observation
 import Sharing
+import SupatermTerminalModels
 import SwiftUI
 
 extension TerminalHostState {

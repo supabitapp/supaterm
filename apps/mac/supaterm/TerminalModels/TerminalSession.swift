@@ -71,7 +71,7 @@ public nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
     self.frame = frame
   }
 
-  func pruned(validSpaceIDs: Set<TerminalSpaceID>) -> TerminalWindowSession? {
+  public func pruned(validSpaceIDs: Set<TerminalSpaceID>) -> TerminalWindowSession? {
     var seenSpaceIDs: Set<TerminalSpaceID> = []
     let spaces = spaces.compactMap { space -> TerminalWindowSpaceSession? in
       guard validSpaceIDs.contains(space.id) else { return nil }
@@ -197,7 +197,7 @@ public nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
     self.root = root
   }
 
-  func pruned() -> TerminalTabSession? {
+  public func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
     return TerminalTabSession(
       isPinned: isPinned,
@@ -210,7 +210,7 @@ public nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
     )
   }
 
-  func updatingWorkingDirectoryPaths(
+  public func updatingWorkingDirectoryPaths(
     _ workingDirectoryPaths: [String?],
     focusedPaneIndex: Int
   ) -> TerminalTabSession {
@@ -453,7 +453,7 @@ public nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable 
     self.activityPhase = activityPhase
   }
 
-  func pruned() -> Self? {
+  public func pruned() -> Self? {
     let sessionIDs = Self.normalizedSessionIDs(sessionIDs)
     let processIDs = Self.normalizedProcessIDs(processIDs)
     guard !sessionIDs.isEmpty || !processIDs.isEmpty || activityPhase != nil else { return nil }

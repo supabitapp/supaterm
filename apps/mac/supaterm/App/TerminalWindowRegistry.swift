@@ -4,6 +4,7 @@ import Foundation
 import SupatermCLIShared
 import SupatermTerminalCore
 import SupatermTerminalFeature
+import SupatermTerminalModels
 import SupatermUpdateFeature
 import SwiftUI
 

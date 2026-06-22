@@ -66,7 +66,7 @@ public nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     )
   }
 
-  static func sanitized(_ catalog: Self?) -> Self {
+  public static func sanitized(_ catalog: Self?) -> Self {
     guard let catalog else { return .default }
 
     let spaces = catalog.spaces.compactMap { space -> PersistedTerminalSpace? in
@@ -87,7 +87,7 @@ public nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     )
   }
 
-  static func fileStorageEncoder() -> JSONEncoder {
+  public static func fileStorageEncoder() -> JSONEncoder {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     return encoder

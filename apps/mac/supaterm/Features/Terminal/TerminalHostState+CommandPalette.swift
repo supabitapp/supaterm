@@ -1,4 +1,5 @@
 import Foundation
+import SupatermTerminalModels
 
 extension TerminalHostState {
   public func commandPaletteGhosttyCommands() -> [GhosttyCommand] {

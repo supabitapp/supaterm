@@ -41,7 +41,7 @@ public nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable
     )
   }
 
-  static func sanitized(
+  public static func sanitized(
     _ catalog: Self?,
     validSpaceIDs: Set<TerminalSpaceID>? = nil
   ) -> Self {
@@ -75,13 +75,13 @@ public nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable
     return Self(spaces: spaces)
   }
 
-  static func fileStorageEncoder() -> JSONEncoder {
+  public static func fileStorageEncoder() -> JSONEncoder {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     return encoder
   }
 
-  func tabs(in spaceID: TerminalSpaceID) -> [PersistedPinnedTerminalTab] {
+  public func tabs(in spaceID: TerminalSpaceID) -> [PersistedPinnedTerminalTab] {
     spaces.first(where: { $0.id == spaceID })?.tabs ?? []
   }
 
@@ -93,7 +93,7 @@ public nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable
     }
   }
 
-  func updatingTabs(
+  public func updatingTabs(
     _ tabs: [PersistedPinnedTerminalTab],
     in spaceID: TerminalSpaceID
   ) -> Self {

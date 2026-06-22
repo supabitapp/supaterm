@@ -4,6 +4,7 @@ import Sharing
 import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermSupport
+import SupatermTerminalModels
 import SupatermUpdateFeature
 import SwiftUI
 
