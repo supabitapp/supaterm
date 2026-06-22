@@ -70,10 +70,12 @@ struct TerminalSidebarUpdateSection: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(spacing: 8) {
-        TerminalSidebarUpdateIndicator(
-          phase: phase,
-          palette: palette
-        )
+        if showsIndicator {
+          TerminalSidebarUpdateIndicator(
+            phase: phase,
+            palette: palette
+          )
+        }
 
         VStack(alignment: .leading, spacing: 2) {
           Text(phase.summaryText)
@@ -215,6 +217,13 @@ struct TerminalSidebarUpdateSection: View {
 
   private var progressTint: Color {
     style.progress
+  }
+
+  private var showsIndicator: Bool {
+    if case .installing = phase {
+      return false
+    }
+    return true
   }
 
   private var summaryDetailText: String {
