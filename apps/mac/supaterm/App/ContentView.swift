@@ -5,6 +5,7 @@ import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
 import SupatermTerminalUIFeature
+import SupatermTerminalWindowFeature
 import SupatermUpdateFeature
 import SwiftUI
 

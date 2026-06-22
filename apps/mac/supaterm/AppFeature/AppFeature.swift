@@ -1,6 +1,6 @@
 import ComposableArchitecture
-import SupatermTerminalFeature
 import SupatermTerminalModels
+import SupatermTerminalWindowFeature
 import SupatermUpdateFeature
 
 @Reducer

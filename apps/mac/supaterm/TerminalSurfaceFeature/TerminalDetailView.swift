@@ -6,6 +6,7 @@ import SupatermTerminalAgentPanelFeature
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalWindowFeature
 import SwiftUI
 
 public struct TerminalDetailView: View {

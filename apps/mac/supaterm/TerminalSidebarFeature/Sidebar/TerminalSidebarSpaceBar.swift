@@ -3,6 +3,7 @@ import Foundation
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalWindowFeature
 import SwiftUI
 
 struct TerminalSidebarSpaceBar: View {

@@ -27,11 +27,11 @@ public struct TerminalCloseRequest: Equatable, Sendable {
 }
 
 public struct TerminalClient: Sendable {
-  var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
-  var events: @MainActor @Sendable () -> AsyncStream<Event>
-  var send: @MainActor @Sendable (Command) -> Void
+  public var createPane: @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult
+  public var events: @MainActor @Sendable () -> AsyncStream<Event>
+  public var send: @MainActor @Sendable (Command) -> Void
 
-  init(
+  public init(
     createPane: @escaping @MainActor @Sendable (TerminalCreatePaneRequest) async throws -> SupatermNewPaneResult,
     events: @escaping @MainActor @Sendable () -> AsyncStream<Event>,
     send: @escaping @MainActor @Sendable (Command) -> Void
@@ -41,7 +41,7 @@ public struct TerminalClient: Sendable {
     self.send = send
   }
 
-  enum Command: Equatable, @unchecked Sendable {
+  public enum Command: Equatable, @unchecked Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
     case closeTabs([TerminalTabID])

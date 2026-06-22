@@ -9,6 +9,7 @@ import SupatermTerminalCore
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalWindowFeature
 import SupatermUpdateFeature
 import SwiftUI
 

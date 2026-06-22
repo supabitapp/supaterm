@@ -6,6 +6,7 @@ import SupatermSupport
 import SupatermTerminalFeature
 import SupatermTerminalModels
 import SupatermTerminalPresentationFeature
+import SupatermTerminalWindowFeature
 import SwiftUI
 
 @MainActor
