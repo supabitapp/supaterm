@@ -894,6 +894,24 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalStateFeatureTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.terminal-state-featureTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermTerminalStateFeatureTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalStateFeature"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSettingsFeatureTests",
       destinations: .macOS,
       product: .unitTests,
@@ -939,6 +957,7 @@ let project = Project(
           .testableTarget(target: .target("SPCLITests")),
           .testableTarget(target: .target("SupatermSharedTests")),
           .testableTarget(target: .target("SupatermTerminalAgentPanelFeatureTests")),
+          .testableTarget(target: .target("SupatermTerminalStateFeatureTests")),
           .testableTarget(target: .target("SupatermSettingsFeatureTests")),
         ],
         configuration: .debug,
