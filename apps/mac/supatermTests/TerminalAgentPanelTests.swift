@@ -26,7 +26,7 @@ struct TerminalAgentPanelTests {
   @Test
   func mainBranchHidesEmptyPullRequestAction() throws {
     let createStatus = PaneAgentPullRequestStatus.createPullRequest(
-      url: try #require(URL(string: "https://github.com/supabitapp/supaterm/compare/main?expand=1"))
+      url: URL(string: "https://github.com/supabitapp/supaterm/compare/main?expand=1")!
     )
     let mainBranchDetails = PaneAgentBranchDetails(
       branchName: "main",

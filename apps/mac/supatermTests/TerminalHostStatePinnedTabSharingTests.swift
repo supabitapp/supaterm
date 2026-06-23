@@ -554,8 +554,9 @@ struct TerminalHostStatePinnedTabSharingTests {
       let initialSurfaces = try #require(host.trees[pinnedTabID]?.leaves())
       let initialSurfaceIDs = initialSurfaces.map(\.id)
       let exitedSurface = initialSurfaces[0]
+      let exitedSurfaceID = exitedSurface.id
       sessionIDs.withValue {
-        $0.insert(ZmxSessionID.make(surfaceID: exitedSurface.id))
+        _ = $0.insert(ZmxSessionID.make(surfaceID: exitedSurfaceID))
       }
 
       let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
@@ -619,8 +620,9 @@ struct TerminalHostStatePinnedTabSharingTests {
       let initialSurfaces = try #require(host.trees[pinnedTabID]?.leaves())
       let initialSurfaceIDs = initialSurfaces.map(\.id)
       let exitedSurface = initialSurfaces[0]
+      let exitedSurfaceID = exitedSurface.id
       sessionIDs.withValue {
-        $0.insert(ZmxSessionID.make(surfaceID: exitedSurface.id))
+        _ = $0.insert(ZmxSessionID.make(surfaceID: exitedSurfaceID))
       }
 
       let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())

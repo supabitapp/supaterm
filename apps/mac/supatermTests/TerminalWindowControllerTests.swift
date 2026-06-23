@@ -9,8 +9,8 @@ import Testing
 @MainActor
 struct TerminalWindowControllerTests {
   @Test
-  func restoredSessionAppliesSavedWindowFrame() async throws {
-    try await withDependencies {
+  func restoredSessionAppliesSavedWindowFrame() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

@@ -232,8 +232,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotUsesRequestedWindowID() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotUsesRequestedWindowID() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -280,8 +280,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotAggregatesFocusTargetsAcrossWindows() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotAggregatesFocusTargetsAcrossWindows() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -354,8 +354,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotBuildsCheckForUpdatesEntryWhenIdle() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotBuildsCheckForUpdatesEntryWhenIdle() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -387,8 +387,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotBuildsRestartActionsWhenAutoInstallIsPending() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotBuildsRestartActionsWhenAutoInstallIsPending() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -421,8 +421,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotBuildsRestartActionsWhenPromptIsShown() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotBuildsRestartActionsWhenPromptIsShown() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -455,8 +455,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenRestartIsDeferred() async throws {
-    try await withDependencies {
+  func commandPaletteSnapshotBuildsRestartToUpdateEntryWhenRestartIsDeferred() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -489,8 +489,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func focusCommandPalettePaneFocusesTheRequestedPane() async throws {
-    try await withDependencies {
+  func focusCommandPalettePaneFocusesTheRequestedPane() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -531,7 +531,7 @@ struct TerminalWindowRegistryTests {
       let target = try #require(host.commandPaletteFocusTargets(windowControllerID: windowControllerID).last)
       #expect(host.selectedSurfaceView?.id != target.surfaceID)
 
-      await registry.focusCommandPalettePane(target)
+      registry.focusCommandPalettePane(target)
 
       #expect(host.selectedSurfaceView?.id == target.surfaceID)
     }
@@ -603,7 +603,7 @@ struct TerminalWindowRegistryTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    await registry.performCommandPaletteUpdateAction(
+    registry.performCommandPaletteUpdateAction(
       .allowAutomaticChecks,
       windowID: ObjectIdentifier(window)
     )
@@ -612,8 +612,8 @@ struct TerminalWindowRegistryTests {
   }
 
   @Test
-  func restorationSnapshotPreservesActiveWindowOrder() async throws {
-    try await withDependencies {
+  func restorationSnapshotPreservesActiveWindowOrder() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
