@@ -823,6 +823,25 @@ let project = Project(
         defaultSettings: .essential
       )
     ),
+    .target(
+      name: "SPCLITests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.sp-cliTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SPCLITests",
+      ],
+      dependencies: [
+        .external(name: "ArgumentParser"),
+        .target(name: "SPCLI"),
+        .target(name: "SupatermCLIShared"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
   ],
   schemes: [
     .scheme(
@@ -843,6 +862,7 @@ let project = Project(
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermTests")),
+          .testableTarget(target: .target("SPCLITests")),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm"),
