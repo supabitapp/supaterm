@@ -1,9 +1,8 @@
 import Darwin
 import Foundation
+import SupatermCLIShared
 
-@testable import SupatermCLIShared
-
-func writeExecutable(
+public func writeExecutable(
   at url: URL,
   script: String
 ) throws {
@@ -15,7 +14,7 @@ func writeExecutable(
   try setExecutablePermissions(at: url)
 }
 
-func setExecutablePermissions(at url: URL) throws {
+private func setExecutablePermissions(at url: URL) throws {
   let result = url.path.withCString { pointer in
     chmod(pointer, mode_t(0o755))
   }
@@ -24,7 +23,7 @@ func setExecutablePermissions(at url: URL) throws {
   }
 }
 
-func makeCommandExecutionTemporaryDirectory() throws -> URL {
+public func makeCommandExecutionTemporaryDirectory() throws -> URL {
   var template = Array("/tmp/stm.XXXXXX".utf8CString)
   guard let pointer = mkdtemp(&template) else {
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)

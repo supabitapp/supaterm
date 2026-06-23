@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import GhosttyKit
 import Sharing
+import SupatermTestSupport
 import Testing
 
 @testable import SupatermCLIShared

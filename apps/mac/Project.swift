@@ -784,6 +784,9 @@ let project = Project(
       buildableFolders: [
         "SupatermTestSupport",
       ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+      ],
       settings: .settings(
         defaultSettings: .essential
       )
@@ -852,6 +855,7 @@ let project = Project(
         .external(name: "ArgumentParser"),
         .target(name: "SPCLI"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTestSupport"),
       ],
       settings: .settings(
         defaultSettings: .essential
@@ -869,6 +873,7 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTestSupport"),
       ],
       settings: .settings(
         defaultSettings: .essential
