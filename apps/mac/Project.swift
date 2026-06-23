@@ -775,6 +775,20 @@ let project = Project(
       ])
     ),
     .target(
+      name: "SupatermTestSupport",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.test-support",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermTestSupport",
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "supatermTests",
       destinations: .macOS,
       product: .unitTests,
@@ -804,6 +818,7 @@ let project = Project(
         .target(name: "SupatermTerminalSurfaceFeature"),
         .target(name: "SupatermTerminalStateFeature"),
         .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "SupatermTestSupport"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
@@ -842,6 +857,29 @@ let project = Project(
         defaultSettings: .essential
       )
     ),
+    .target(
+      name: "SupatermSettingsFeatureTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.settings-featureTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermSettingsFeatureTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTestSupport"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
   ],
   schemes: [
     .scheme(
@@ -863,6 +901,7 @@ let project = Project(
         [
           .testableTarget(target: .target("supatermTests")),
           .testableTarget(target: .target("SPCLITests")),
+          .testableTarget(target: .target("SupatermSettingsFeatureTests")),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm"),

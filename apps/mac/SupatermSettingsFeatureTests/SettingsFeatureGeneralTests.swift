@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 import SupatermSupport
+import SupatermTestSupport
 import Testing
 
 @testable import SupatermCLIShared

@@ -3,6 +3,7 @@ import Foundation
 import Sharing
 import SupatermSupport
 import SupatermTerminalCore
+import SupatermTestSupport
 import SupatermUpdateFeature
 import Testing
 
