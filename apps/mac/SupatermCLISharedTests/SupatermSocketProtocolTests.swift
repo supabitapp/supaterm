@@ -326,7 +326,7 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func agentHookRequestRoundTripsTypedPayload() throws {
-    let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.preToolUse)
+    let event = SupatermAgentHookEvent(hookEventName: .preToolUse)
     let requestPayload = SupatermAgentHookRequest(
       agent: .claude,
       context: SupatermCLIContext(

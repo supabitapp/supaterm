@@ -858,6 +858,23 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermCLISharedTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.cli-sharedTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermCLISharedTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSharedTests",
       destinations: .macOS,
       product: .unitTests,
@@ -955,6 +972,7 @@ let project = Project(
         [
           .testableTarget(target: .target("supatermTests")),
           .testableTarget(target: .target("SPCLITests")),
+          .testableTarget(target: .target("SupatermCLISharedTests")),
           .testableTarget(target: .target("SupatermSharedTests")),
           .testableTarget(target: .target("SupatermTerminalAgentPanelFeatureTests")),
           .testableTarget(target: .target("SupatermTerminalStateFeatureTests")),

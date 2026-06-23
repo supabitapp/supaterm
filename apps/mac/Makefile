@@ -158,7 +158,7 @@ scan-dead-code: tuist-generate build-ghostty build-zmx
 	mise exec -- periphery scan
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupatermCLIShared SPCLI SPCLITests SupatermSharedTests SupatermSettingsFeatureTests SupatermTerminalAgentPanelFeatureTests SupatermTerminalStateFeatureTests SupatermTestSupport sp supaterm supatermTests
+	swift format -p --in-place --recursive --configuration ./.swift-format.json SupatermCLIShared SupatermCLISharedTests SPCLI SPCLITests SupatermSharedTests SupatermSettingsFeatureTests SupatermTerminalAgentPanelFeatureTests SupatermTerminalStateFeatureTests SupatermTestSupport sp supaterm supatermTests
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml
