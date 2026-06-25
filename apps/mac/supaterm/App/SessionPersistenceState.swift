@@ -1,4 +1,5 @@
 import AppKit
+import SupatermTerminalModels
 
 enum SessionPersistenceState: Equatable {
   case active

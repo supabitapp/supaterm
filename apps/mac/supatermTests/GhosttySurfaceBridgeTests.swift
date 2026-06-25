@@ -3,6 +3,7 @@ import GhosttyKit
 import SupatermCLIShared
 import Testing
 
+@testable import SupatermGhosttyFeature
 @testable import supaterm
 
 @MainActor

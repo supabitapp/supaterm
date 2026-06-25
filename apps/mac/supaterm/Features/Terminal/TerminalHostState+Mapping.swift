@@ -4,6 +4,9 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
 import SwiftUI
 
 extension TerminalHostState {
@@ -147,7 +150,7 @@ extension TerminalHostState {
     }
   }
 
-  func mapDropZone(_ zone: TerminalSplitTreeView.DropZone)
+  func mapDropZone(_ zone: TerminalSplitDropZone)
     -> SplitTree<GhosttySurfaceView>.NewDirection
   {
     switch zone {

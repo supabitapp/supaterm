@@ -1,4 +1,11 @@
 import ComposableArchitecture
+import SupatermAppFeature
+import SupatermGhosttyFeature
+import SupatermTerminalFeature
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalUIFeature
+import SupatermTerminalWindowFeature
 import SupatermUpdateFeature
 import SwiftUI
 

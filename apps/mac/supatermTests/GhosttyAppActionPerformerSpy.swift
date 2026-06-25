@@ -1,5 +1,6 @@
 import AppKit
 
+@testable import SupatermGhosttyFeature
 @testable import supaterm
 
 @MainActor

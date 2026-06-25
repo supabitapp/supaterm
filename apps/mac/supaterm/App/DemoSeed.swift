@@ -1,5 +1,6 @@
 #if SUPATERM_DEMO
   import Foundation
+  import SupatermTerminalModels
   import Sharing
   import SupatermCLIShared
   import SupatermSupport
@@ -58,12 +59,6 @@
         $0.restoreTerminalLayoutEnabled = true
         $0.codingAgentsShowPanel = true
       }
-      ReleaseAnnouncementStorage.save(
-        ReleaseAnnouncementStorageState(
-          lastInstalledVersion: AppBuild.version,
-          acknowledgedVersion: AppBuild.version
-        )
-      )
     }
 
     static func decorate(_ terminals: [TerminalHostState]) {

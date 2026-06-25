@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 
+@testable import SupatermAgentFeature
+@testable import SupatermTerminalAgentPanelFeature
 @testable import supaterm
 
 struct ClaudeProgressMonitorTests {

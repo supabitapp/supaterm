@@ -4,11 +4,16 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalAgentPanelFeature
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {
-  func restorationSnapshot() -> TerminalWindowSession {
+  public func restorationSnapshot() -> TerminalWindowSession {
     let spaces = spaces.map { space in
       let tabSnapshots = spaceManager.tabs(in: space.id).compactMap {
         tab -> (TerminalTabID, TerminalTabSession)? in
@@ -50,7 +55,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func restore(from session: TerminalWindowSession) -> Bool {
+  public func restore(from session: TerminalWindowSession) -> Bool {
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.restore.requested",
@@ -388,7 +393,7 @@ extension TerminalHostState {
     }
   }
 
-  func sessionDidChange(persistingPinnedTabLayouts: Bool = true) {
+  public func sessionDidChange(persistingPinnedTabLayouts: Bool = true) {
     guard suppressesSessionChanges == 0 else { return }
     SupatermLog.debug(
       SupatermLog.terminal,

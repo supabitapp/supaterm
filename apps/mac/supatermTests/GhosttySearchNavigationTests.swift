@@ -1,5 +1,7 @@
 import Testing
 
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 struct GhosttySearchNavigationTests {

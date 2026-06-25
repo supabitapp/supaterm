@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 struct TerminalHostStateSelectionTests {

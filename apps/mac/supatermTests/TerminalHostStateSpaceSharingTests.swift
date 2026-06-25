@@ -3,6 +3,9 @@ import Sharing
 import SupatermTerminalCore
 import Testing
 
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalStateFeature
 @testable import supaterm
 
 @MainActor
@@ -95,8 +98,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func adjacentSpaceCommandsWrapAndPersistDefaultSelection() async {
-    await withDependencies {
+  func adjacentSpaceCommandsWrapAndPersistDefaultSelection() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -169,8 +172,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func closeSpaceRejectsOnlyRemainingSpace() async throws {
-    try await withDependencies {
+  func closeSpaceRejectsOnlyRemainingSpace() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -186,8 +189,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func createSpaceRejectsBlankName() async throws {
-    try await withDependencies {
+  func createSpaceRejectsBlankName() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default
@@ -208,8 +211,8 @@ struct TerminalHostStateSpaceSharingTests {
   }
 
   @Test
-  func createSpaceRejectsDuplicateName() async throws {
-    try await withDependencies {
+  func createSpaceRejectsDuplicateName() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       @Shared(.terminalSpaceCatalog) var sharedCatalog = .default

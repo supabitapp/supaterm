@@ -1,6 +1,7 @@
 import CoreGraphics
 import Testing
 
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 struct TerminalSplitMetricsTests {

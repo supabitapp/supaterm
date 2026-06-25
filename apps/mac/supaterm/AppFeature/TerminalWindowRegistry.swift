@@ -1,0 +1,622 @@
+import AppKit
+import ComposableArchitecture
+import Foundation
+import SupatermCLIShared
+import SupatermGhosttyFeature
+import SupatermSupport
+import SupatermTerminalAgentPanelFeature
+import SupatermTerminalCore
+import SupatermTerminalFeature
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalWindowFeature
+import SupatermUpdateFeature
+import SwiftUI
+
+@MainActor
+public final class TerminalWindowRegistry {
+  struct CloseAllWindowsCandidate {
+    let windowID: ObjectIdentifier
+    let needsConfirmation: Bool
+  }
+
+  enum CloseAllWindowsPlan {
+    case noWindows
+    case closeImmediately([ObjectIdentifier])
+    case confirm([ObjectIdentifier])
+  }
+
+  public struct CommandAvailability: Equatable {
+    public let hasWindow: Bool
+    public let hasTab: Bool
+    public let hasSurface: Bool
+    public var hasAnySurface = false
+    public var hasAgentPanel = false
+    public var hasAgentPanelSession = false
+  }
+
+  public struct MenuContext: Equatable {
+    public let availability: CommandAvailability
+    public let closesKeyWindowDirectly: Bool
+    public let hasSearch: Bool
+    public let updateMenuItemText: String
+    public let visibleTabCount: Int
+    public let spaceCount: Int
+    public let isUpdateMenuItemEnabled: Bool
+  }
+
+  final class WindowReference {
+    weak var value: NSWindow?
+  }
+
+  struct Entry {
+    let keyboardShortcutForAction: (String) -> KeyboardShortcut?
+    let requestConfirmedWindowClose: @MainActor () -> Void
+    let setTerminatesTerminalSessionsOnClose: @MainActor (Bool) -> Void
+    let windowControllerID: UUID
+    let store: StoreOf<AppFeature>
+    let terminal: TerminalHostState
+    let windowReference: WindowReference
+  }
+
+  private struct SelectedAgentPanel {
+    let surfaceID: UUID
+    let session: PaneAgentPanelSession?
+  }
+
+  public var commandExecutor: TerminalCommandExecutor?
+
+  private var entries: [Entry] = []
+  private let zmxClient: ZmxClient
+  public var onChange: @MainActor () -> Void = {}
+
+  public init(zmxClient: ZmxClient = .live) {
+    self.zmxClient = zmxClient
+  }
+
+  public var hasShortcutSource: Bool {
+    !entries.isEmpty
+  }
+
+  public var needsQuitConfirmation: Bool {
+    activeEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
+  }
+
+  public var hasActiveAgentWorkForQuit: Bool {
+    activeEntries().contains { $0.terminal.hasActiveAgentWorkForQuit }
+  }
+
+  public var bypassesQuitConfirmation: Bool {
+    activeEntries().contains { $0.store.withState(\.update.phase.bypassesQuitConfirmation) }
+  }
+
+  public func register(
+    keyboardShortcutForAction: @escaping (String) -> KeyboardShortcut?,
+    windowControllerID: UUID,
+    store: StoreOf<AppFeature>,
+    terminal: TerminalHostState,
+    requestConfirmedWindowClose: @escaping @MainActor () -> Void,
+    setTerminatesTerminalSessionsOnClose: @escaping @MainActor (Bool) -> Void = { _ in }
+  ) {
+    guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
+    terminal.onSurfaceCommandFinished = { [weak self] surfaceID in
+      self?.commandExecutor?.handleCommandFinished(for: surfaceID)
+    }
+    let entry = Entry(
+      keyboardShortcutForAction: keyboardShortcutForAction,
+      requestConfirmedWindowClose: requestConfirmedWindowClose,
+      setTerminatesTerminalSessionsOnClose: setTerminatesTerminalSessionsOnClose,
+      windowControllerID: windowControllerID,
+      store: store,
+      terminal: terminal,
+      windowReference: WindowReference()
+    )
+    entries.append(entry)
+    onChange()
+  }
+
+  public func unregister(windowControllerID: UUID) {
+    entries.removeAll { $0.windowControllerID == windowControllerID }
+    onChange()
+  }
+
+  public func updateWindow(_ window: NSWindow?, for windowControllerID: UUID) {
+    guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
+    else { return }
+    entries[index].windowReference.value = window
+    onChange()
+  }
+
+  func commandAvailability() -> CommandAvailability {
+    guard let entry = preferredActiveEntry() else {
+      return CommandAvailability(hasWindow: false, hasTab: false, hasSurface: false, hasAnySurface: hasAnySurface)
+    }
+
+    return commandAvailability(for: entry)
+  }
+
+  public func menuContext(keyWindow: NSWindow? = NSApp.keyWindow) -> MenuContext {
+    let closesKeyWindowDirectly = closesWindowDirectly(keyWindow)
+    guard let entry = preferredActiveEntry() else {
+      return MenuContext(
+        availability: CommandAvailability(
+          hasWindow: false, hasTab: false, hasSurface: false, hasAnySurface: hasAnySurface),
+        closesKeyWindowDirectly: closesKeyWindowDirectly,
+        hasSearch: false,
+        updateMenuItemText: "Check for Updates...",
+        visibleTabCount: 0,
+        spaceCount: 0,
+        isUpdateMenuItemEnabled: false
+      )
+    }
+
+    let updateState = entry.store.withState(\.update)
+    let updateMenuItemAction = Self.updateMenuItemAction(for: updateState)
+
+    return MenuContext(
+      availability: commandAvailability(for: entry),
+      closesKeyWindowDirectly: closesKeyWindowDirectly,
+      hasSearch: entry.terminal.selectedSurfaceHasSearch,
+      updateMenuItemText: updateState.phase.menuItemTitle,
+      visibleTabCount: entry.terminal.visibleTabs.count,
+      spaceCount: entry.terminal.spaces.count,
+      isUpdateMenuItemEnabled: updateMenuItemAction != nil
+    )
+  }
+
+  public func keyboardShortcut(forAction action: String) -> KeyboardShortcut? {
+    shortcutEntry()?.keyboardShortcutForAction(action)
+  }
+
+  public func requestNewTabInKeyWindow() {
+    guard let entry = preferredActiveEntry() else { return }
+    entry.store.send(
+      .terminal(
+        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceID)
+      )
+    )
+  }
+
+  @discardableResult
+  public func createTabInPreferredWindow(workingDirectoryPath: String) -> Bool {
+    guard let entry = preferredActiveEntry() else { return false }
+    if let window = entry.windowReference.value {
+      if window.isMiniaturized {
+        window.deminiaturize(nil)
+      }
+      window.makeKeyAndOrderFront(nil)
+    }
+    return entry.terminal.createTab(
+      focusing: true,
+      workingDirectoryPath: workingDirectoryPath,
+      inheritingFromSurfaceID: entry.terminal.selectedSurfaceID
+    ) != nil
+  }
+
+  public func requestNextTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.nextTabMenuItemSelected))
+  }
+
+  public func requestPreviousTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.previousTabMenuItemSelected))
+  }
+
+  public func requestSelectTabInKeyWindow(_ slot: Int) {
+    preferredActiveEntry()?.store.send(.terminal(.selectTabMenuItemSelected(slot)))
+  }
+
+  public func requestSelectLastTabInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.selectLastTabMenuItemSelected))
+  }
+
+  public func requestSelectSpaceInKeyWindow(_ slot: Int) {
+    preferredActiveEntry()?.store.send(.terminal(.selectSpaceMenuItemSelected(slot)))
+  }
+
+  public func requestToggleSidebarInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.toggleSidebarButtonTapped))
+  }
+
+  public func requestToggleAgentPanelInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let surfaceID = selectedAgentPanel(in: entry)?.surfaceID
+    else { return }
+    entry.store.send(.terminal(.agentPanelVisibilityToggled(surfaceID)))
+  }
+
+  public func requestForkAgentPanelSessionInKeyWindow(direction: SupatermPaneDirection) {
+    guard
+      let entry = preferredActiveEntry(),
+      let selectedAgentPanel = selectedAgentPanel(in: entry),
+      let session = selectedAgentPanel.session
+    else { return }
+    entry.store.send(
+      .terminal(
+        .agentPanelForkSessionRequested(
+          surfaceID: selectedAgentPanel.surfaceID,
+          direction: direction,
+          session: session
+        )
+      )
+    )
+  }
+
+  public func requestCopyAgentPanelSessionIDInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let session = selectedAgentPanel(in: entry)?.session
+    else { return }
+    entry.store.send(.terminal(.agentPanelCopySessionID(session.sessionID)))
+  }
+
+  public func requestToggleCommandPaletteInKeyWindow() {
+    preferredActiveEntry()?.store.send(.terminal(.commandPaletteToggleRequested))
+  }
+
+  public func requestBindingActionInKeyWindow(_ command: SupatermCommand) {
+    preferredActiveEntry()?.store.send(.terminal(.bindingMenuItemSelected(command)))
+  }
+
+  public func requestNavigateSearchInKeyWindow(_ direction: GhosttySearchDirection) {
+    preferredActiveEntry()?.store.send(.terminal(.navigateSearchMenuItemSelected(direction)))
+  }
+
+  @discardableResult
+  public func requestUpdateMenuActionInKeyWindow() -> Bool {
+    guard let entry = preferredActiveEntry() else { return false }
+    guard let action = Self.updateMenuItemAction(for: entry.store.withState(\.update)) else {
+      return false
+    }
+    entry.store.send(.update(.perform(action)))
+    return true
+  }
+
+  public func requestCloseSurfaceInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let surfaceID = entry.terminal.selectedSurfaceID
+    else {
+      SupatermLog.debug(
+        SupatermLog.terminal,
+        "terminal.close.registryRequest.dropped",
+        fields: ["reason=missingSurface"]
+      )
+      return
+    }
+    SupatermLog.debug(
+      SupatermLog.terminal,
+      "terminal.close.registryRequest",
+      fields: [
+        "surfaceID=\(SupatermLog.uuid(surfaceID))",
+        "tabID=\(SupatermLog.uuid(entry.terminal.selectedTabID?.rawValue))",
+      ]
+    )
+    entry.store.send(.terminal(.closeSurfaceRequested(surfaceID)))
+  }
+
+  func ownsWindow(_ window: NSWindow) -> Bool {
+    entry(for: window) != nil
+  }
+
+  public func closesWindowDirectly(_ window: NSWindow?) -> Bool {
+    guard let window else { return false }
+    guard !ownsWindow(window) else { return false }
+    return window.styleMask.contains(.closable)
+  }
+
+  public func requestCloseTabInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let tabID = entry.terminal.selectedTabID
+    else {
+      return
+    }
+    entry.store.send(.terminal(.closeTabRequested(tabID)))
+  }
+
+  @discardableResult
+  public func requestCloseAllWindows() -> Bool {
+    let activeEntries = activeEntries()
+    switch Self.closeAllWindowsPlan(for: closeAllWindowsCandidates(from: activeEntries)) {
+    case .noWindows:
+      return false
+
+    case .closeImmediately(let windowIDs):
+      closeWindows(windowIDs)
+      return true
+
+    case .confirm(let windowIDs):
+      guard let entry = preferredActiveEntry() ?? activeEntries.first else {
+        return false
+      }
+      entry.store.send(.terminal(.closeAllWindowsRequested(windowIDs)))
+      return true
+    }
+  }
+
+  static func closeAllWindowsPlan(for candidates: [CloseAllWindowsCandidate]) -> CloseAllWindowsPlan {
+    let windowIDs = candidates.map(\.windowID)
+    guard !windowIDs.isEmpty else { return .noWindows }
+    guard candidates.contains(where: \.needsConfirmation) else {
+      return .closeImmediately(windowIDs)
+    }
+    return .confirm(windowIDs)
+  }
+
+  func closeWindow(_ windowID: ObjectIdentifier) {
+    guard let entry = entry(for: windowID) else { return }
+    entry.requestConfirmedWindowClose()
+  }
+
+  func closeWindows(_ windowIDs: [ObjectIdentifier]) {
+    for windowID in windowIDs {
+      closeWindow(windowID)
+    }
+  }
+
+  public func terminateLiveTerminalSessionsAndWait() async {
+    for entry in activeEntries() {
+      await entry.terminal.terminateLiveTerminalSessionsAndWait()
+    }
+  }
+
+  public func setTerminatesTerminalSessionsOnWindowClose(_ terminates: Bool) {
+    for entry in activeEntries() {
+      entry.setTerminatesTerminalSessionsOnClose(terminates)
+    }
+  }
+
+  public func terminateAllTerminalSessions() {
+    let windowIDs = activeEntries().compactMap { entry in
+      entry.windowReference.value.map(ObjectIdentifier.init)
+    }
+    Task { @MainActor in
+      await terminateLiveTerminalSessionsAndWait()
+      await terminateAllZmxSessionsAndWait()
+      closeWindows(windowIDs)
+    }
+  }
+
+  public func terminateAllZmxSessionsAndWait() async {
+    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.start")
+    await Self.terminateAllZmxSessions(using: zmxClient)
+    SupatermLog.debug(SupatermLog.zmx, "zmx.terminateAll.finished")
+  }
+
+  public func restorationSnapshot() -> TerminalSessionCatalog {
+    TerminalSessionCatalog(
+      windows: activeEntries().map { entry in
+        var snapshot = entry.terminal.restorationSnapshot()
+        snapshot.frame = entry.windowReference.value.map { TerminalWindowFrame($0.frame) }
+        return snapshot
+      }
+    )
+  }
+
+  var hasAnySurface: Bool {
+    !liveSurfaceIDs().isEmpty
+  }
+
+  public func liveSurfaceIDs() -> Set<UUID> {
+    activeEntries().reduce(into: Set<UUID>()) { result, entry in
+      result.formUnion(entry.terminal.liveSurfaceIDs())
+    }
+  }
+
+  func commandPaletteSnapshot(windowID: ObjectIdentifier?) -> TerminalCommandPaletteSnapshot {
+    guard let entry = commandPaletteEntry(for: windowID) else {
+      return .empty
+    }
+
+    let terminal = entry.terminal
+    let updateState = entry.store.withState(\.update)
+    let focusTargets = activeEntries().flatMap { activeEntry in
+      activeEntry.terminal.commandPaletteFocusTargets(
+        windowControllerID: activeEntry.windowControllerID
+      )
+    }
+
+    return TerminalCommandPaletteSnapshot(
+      ghosttyCommands: terminal.commandPaletteGhosttyCommands(),
+      ghosttyShortcutDisplayByAction: terminal.commandPaletteGhosttyShortcutDisplayByAction(),
+      hasFocusedSurface: terminal.hasSelectedSurface,
+      updateEntries: Self.commandPaletteUpdateEntries(for: updateState),
+      focusTargets: focusTargets,
+      selectedSpaceID: terminal.selectedSpaceID,
+      spaces: terminal.spaces,
+      selectedTabID: terminal.selectedTabID,
+      visibleTabs: terminal.visibleTabs
+    )
+  }
+
+  func focusCommandPalettePane(_ target: TerminalCommandPaletteFocusTarget) {
+    guard let entry = entry(forWindowControllerID: target.windowControllerID) else { return }
+    guard let window = entry.windowReference.value else { return }
+    window.makeKeyAndOrderFront(nil)
+    entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+    _ = try? entry.terminal.focusPane(.contextPane(target.surfaceID))
+  }
+
+  @discardableResult
+  public func focusNotificationSurface(_ surfaceID: UUID) -> Bool {
+    for entry in activeEntries() {
+      guard entry.terminal.tabID(containing: surfaceID) != nil else { continue }
+      do {
+        guard let window = entry.windowReference.value else { continue }
+        NSApp.activate(ignoringOtherApps: true)
+        if window.isMiniaturized {
+          window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+        _ = try entry.terminal.focusPane(.contextPane(surfaceID))
+        return true
+      } catch let error as TerminalControlError {
+        if case .contextPaneNotFound = error {
+          continue
+        }
+        return false
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
+
+  func performCommandPaletteUpdateAction(
+    _ action: UpdateUserAction,
+    windowID: ObjectIdentifier?
+  ) {
+    guard let entry = commandPaletteEntry(for: windowID) else { return }
+    entry.store.send(.update(.perform(action)))
+  }
+
+  func activeEntries() -> [Entry] {
+    entries.filter { $0.windowReference.value != nil }
+  }
+
+  func entry(for windowIndex: Int) throws -> Entry {
+    let activeEntries = activeEntries()
+    let offset = windowIndex - 1
+    guard activeEntries.indices.contains(offset) else {
+      throw TerminalCreatePaneError.windowNotFound(windowIndex)
+    }
+    return activeEntries[offset]
+  }
+
+  func preferredActiveEntry() -> Entry? {
+    if let keyWindow = NSApp.keyWindow, let entry = entry(for: keyWindow) {
+      return entry
+    }
+    return activeEntries().first(where: { $0.terminal.windowActivity.isKeyWindow })
+      ?? activeEntries().first
+  }
+
+  func shortcutEntry() -> Entry? {
+    preferredActiveEntry() ?? entries.first
+  }
+
+  private func selectedAgentPanel(in entry: Entry) -> SelectedAgentPanel? {
+    guard let surfaceID = entry.terminal.selectedSurfaceID else { return nil }
+    guard entry.terminal.hasAgentPanelPresentation(for: surfaceID) else { return nil }
+    return SelectedAgentPanel(
+      surfaceID: surfaceID,
+      session: entry.terminal.agentPanelSession(for: surfaceID)
+    )
+  }
+
+  private func commandAvailability(for entry: Entry) -> CommandAvailability {
+    let selectedAgentPanel = selectedAgentPanel(in: entry)
+    return CommandAvailability(
+      hasWindow: true,
+      hasTab: entry.terminal.selectedTabID != nil,
+      hasSurface: entry.terminal.hasSelectedSurface,
+      hasAnySurface: hasAnySurface,
+      hasAgentPanel: selectedAgentPanel != nil,
+      hasAgentPanelSession: selectedAgentPanel?.session != nil
+    )
+  }
+
+  public func globalKeybindRuntimes() -> [GhosttyRuntime] {
+    let entries = activeEntries()
+    guard let preferred = preferredActiveEntry() else {
+      return entries.compactMap(\.terminal.runtime)
+    }
+    return ([preferred] + entries.filter { $0.windowControllerID != preferred.windowControllerID })
+      .compactMap(\.terminal.runtime)
+  }
+
+  private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {
+    state.phase.menuItemAction ?? (state.canCheckForUpdates ? .checkForUpdates : nil)
+  }
+
+  private static func commandPaletteUpdateEntries(
+    for state: UpdateFeature.State
+  ) -> [TerminalCommandPaletteUpdateEntry] {
+    let summary = state.phase.summaryText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let detail = state.phase.detailMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    var entries: [TerminalCommandPaletteUpdateEntry] = state.phase.actionPresentations.map { presentation in
+      TerminalCommandPaletteUpdateEntry(
+        id: "\(state.phase.debugIdentifier):\(presentation.title)",
+        title: presentation.title,
+        subtitle: summary.isEmpty ? nil : summary,
+        description: detail.isEmpty ? nil : detail,
+        leadingIcon: state.phase.iconName,
+        badge: state.phase.badgeText,
+        emphasis: presentation.isProminent,
+        action: presentation.action
+      )
+    }
+
+    if entries.isEmpty, let action = updateMenuItemAction(for: state) {
+      entries.append(
+        TerminalCommandPaletteUpdateEntry(
+          id: "menu:\(state.phase.debugIdentifier):\(state.phase.menuItemTitle)",
+          title: state.phase.menuItemTitle,
+          subtitle: summary.isEmpty ? nil : summary,
+          description: detail.isEmpty ? nil : detail,
+          leadingIcon: state.phase.menuItemAction == .restartNow ? state.phase.iconName : nil,
+          badge: state.phase.badgeText,
+          emphasis: state.phase.menuItemAction == .restartNow,
+          action: action
+        )
+      )
+    }
+
+    return entries
+  }
+
+  private func commandPaletteEntry(for windowID: ObjectIdentifier?) -> Entry? {
+    windowID.flatMap(entry(for:)) ?? preferredActiveEntry()
+  }
+
+  private func closeAllWindowsCandidates(from entries: [Entry]) -> [CloseAllWindowsCandidate] {
+    entries.compactMap { entry in
+      guard let window = entry.windowReference.value else { return nil }
+      return CloseAllWindowsCandidate(
+        windowID: ObjectIdentifier(window),
+        needsConfirmation: entry.terminal.windowNeedsCloseConfirmation()
+      )
+    }
+  }
+
+  private func entry(for windowID: ObjectIdentifier) -> Entry? {
+    activeEntries().first { entry in
+      entry.windowReference.value.map(ObjectIdentifier.init) == windowID
+    }
+  }
+
+  private func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
+    activeEntries().first { $0.windowControllerID == windowControllerID }
+  }
+
+  private func entry(for window: NSWindow) -> Entry? {
+    entries.first { $0.windowReference.value === window }
+  }
+
+  nonisolated private static func terminateAllZmxSessions(using zmxClient: ZmxClient) async {
+    guard let sessionIDs = await zmxClient.listSessions() else {
+      SupatermLog.error(SupatermLog.zmx, "zmx.terminateAll.skipped", fields: ["reason=listFailed"])
+      return
+    }
+    let surfaceIDs = sessionIDs.compactMap { ZmxSessionID.surfaceID(from: $0) }
+    SupatermLog.debug(
+      SupatermLog.zmx,
+      "zmx.terminateAll.plan",
+      fields: [
+        "count=\(surfaceIDs.count)",
+        "surfaceIDs=\(TerminalHostState.logSurfaceIDs(surfaceIDs))",
+      ]
+    )
+    await withTaskGroup(of: Void.self) { group in
+      for surfaceID in surfaceIDs {
+        group.addTask {
+          await zmxClient.killSession(surfaceID)
+        }
+      }
+    }
+  }
+
+}

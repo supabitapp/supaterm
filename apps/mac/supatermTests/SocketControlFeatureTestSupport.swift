@@ -6,7 +6,9 @@ import SupatermSupport
 import SupatermTerminalCore
 import Testing
 
+@testable import SupatermAppFeature
 @testable import SupatermCLIShared
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 func makeStore(

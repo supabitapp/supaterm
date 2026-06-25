@@ -4,6 +4,9 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermTerminalCore
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {
@@ -61,7 +64,7 @@ extension TerminalHostState {
     sessionDidChange()
   }
 
-  func isSpaceNameAvailable(
+  public func isSpaceNameAvailable(
     _ proposedName: String,
     excluding excludedSpaceID: TerminalSpaceID? = nil
   ) -> Bool {

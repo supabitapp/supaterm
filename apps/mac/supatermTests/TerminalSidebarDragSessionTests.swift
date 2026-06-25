@@ -1,6 +1,8 @@
 import AppKit
 import Testing
 
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalSidebarFeature
 @testable import supaterm
 
 @MainActor

@@ -3,7 +3,11 @@ import Foundation
 import GhosttyKit
 import Observation
 import Sharing
+import SupatermGhosttyFeature
 import SupatermSupport
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {
@@ -109,7 +113,7 @@ extension TerminalHostState {
     return GHOSTTY_SURFACE_CONTEXT_WINDOW
   }
 
-  func liveSurfaceIDs() -> [UUID] {
+  public func liveSurfaceIDs() -> [UUID] {
     Array(surfaces.keys).sorted { $0.uuidString < $1.uuidString }
   }
 
@@ -191,11 +195,11 @@ extension TerminalHostState {
     )
   }
 
-  func terminateLiveTerminalSessions() {
+  public func terminateLiveTerminalSessions() {
     killZmxSessions(for: liveSurfaceIDs())
   }
 
-  func terminateLiveTerminalSessionsAndWait() async {
+  public func terminateLiveTerminalSessionsAndWait() async {
     await killZmxSessionsAndWait(for: liveSurfaceIDs())
   }
 }

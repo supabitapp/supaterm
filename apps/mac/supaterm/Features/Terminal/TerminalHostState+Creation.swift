@@ -4,12 +4,16 @@ import GhosttyKit
 import Observation
 import Sharing
 import SupatermCLIShared
+import SupatermGhosttyFeature
 import SupatermSupport
 import SupatermTerminalCore
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 import SwiftUI
 
 extension TerminalHostState {
-  func ensureInitialTab(
+  public func ensureInitialTab(
     focusing: Bool,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil
@@ -23,7 +27,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func createTab(
+  public func createTab(
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil,
@@ -45,7 +49,7 @@ extension TerminalHostState {
   }
 
   @discardableResult
-  func createTab(
+  public func createTab(
     in spaceID: TerminalSpaceID,
     focusing: Bool = true,
     startupCommand: String? = nil,
@@ -206,7 +210,7 @@ extension TerminalHostState {
     )
   }
 
-  func currentFocusedSurfaceID() -> UUID? {
+  public func currentFocusedSurfaceID() -> UUID? {
     guard let selectedTabID = spaceManager.selectedTabID else { return nil }
     return focusHistoryByTab[selectedTabID]?.current
   }

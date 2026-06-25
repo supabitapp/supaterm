@@ -4,6 +4,10 @@ import SupatermSettingsFeature
 import SwiftUI
 import Testing
 
+@testable import SupatermAppFeature
+@testable import SupatermMenuFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor

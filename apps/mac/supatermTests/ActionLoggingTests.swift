@@ -6,6 +6,10 @@ import SupatermSocketFeature
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermAppFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
+@testable import SupatermTerminalWindowFeature
 @testable import supaterm
 
 struct ActionLoggingTests {

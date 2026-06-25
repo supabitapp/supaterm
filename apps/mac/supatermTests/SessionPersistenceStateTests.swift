@@ -1,6 +1,7 @@
 import AppKit
 import Testing
 
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 struct SessionPersistenceStateTests {

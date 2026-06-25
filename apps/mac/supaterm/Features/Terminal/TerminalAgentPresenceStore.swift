@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 import SupatermCLIShared
+import SupatermTerminalAgentPanelFeature
+import SupatermTerminalModels
 
 struct TerminalAgentPresenceStore {
   struct Instance: Equatable, Sendable {

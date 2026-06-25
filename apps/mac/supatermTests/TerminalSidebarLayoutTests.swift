@@ -1,6 +1,9 @@
 import CoreGraphics
 import Testing
 
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
+@testable import SupatermTerminalSidebarFeature
 @testable import supaterm
 
 struct TerminalSidebarLayoutTests {

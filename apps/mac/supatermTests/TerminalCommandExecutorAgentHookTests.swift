@@ -5,7 +5,14 @@ import SupatermSupport
 import SupatermTerminalCore
 import Testing
 
+@testable import SupatermAgentFeature
+@testable import SupatermAppFeature
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalAgentPanelFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor

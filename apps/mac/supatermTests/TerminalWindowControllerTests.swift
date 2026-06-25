@@ -2,13 +2,15 @@ import AppKit
 import ComposableArchitecture
 import Testing
 
+@testable import SupatermAppFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 @MainActor
 struct TerminalWindowControllerTests {
   @Test
-  func restoredSessionAppliesSavedWindowFrame() async throws {
-    try await withDependencies {
+  func restoredSessionAppliesSavedWindowFrame() {
+    withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

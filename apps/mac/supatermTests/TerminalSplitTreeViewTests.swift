@@ -2,6 +2,10 @@ import SupatermCLIShared
 import SwiftUI
 import Testing
 
+@testable import SupatermTerminalAgentPanelFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalPresentationFeature
+@testable import SupatermTerminalSurfaceFeature
 @testable import supaterm
 
 struct TerminalSplitTreeViewTests {

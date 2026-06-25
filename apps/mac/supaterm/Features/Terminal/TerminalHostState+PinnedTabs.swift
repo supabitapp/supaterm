@@ -1,5 +1,10 @@
 import Foundation
 import Sharing
+import SupatermGhosttyFeature
+import SupatermSupport
+import SupatermTerminalModels
+import SupatermTerminalPresentationFeature
+import SupatermTerminalStateFeature
 
 extension TerminalHostState {
   func observePinnedTabCatalog() {

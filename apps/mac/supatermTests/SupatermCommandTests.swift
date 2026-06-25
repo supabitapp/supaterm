@@ -1,5 +1,7 @@
 import Testing
 
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 struct SupatermCommandTests {

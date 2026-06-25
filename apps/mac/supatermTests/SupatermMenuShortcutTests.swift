@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 import Testing
 
+@testable import SupatermMenuFeature
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor

@@ -193,6 +193,226 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupatermTerminalModels",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-models",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalModels",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermGhosttyFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.ghostty-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/GhosttyFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "GhosttyKit"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalStateFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-state-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalStateFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermTerminalModels"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermAgentFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.agent-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/AgentFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+        .target(name: "SupatermTerminalModels"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalAgentPanelFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-agent-panel-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalAgentPanelFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalPresentationFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-presentation-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalPresentationFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalSidebarFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-sidebar-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalSidebarFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+        .external(name: "Textual"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalSurfaceFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-surface-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalSurfaceFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "GhosttyKit"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermAppFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.app-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/AppFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermAgentFeature"),
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSocketFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermMenuFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.menu-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/MenuFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermAppFeature"),
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSocketFeature",
       destinations: .macOS,
       product: .staticFramework,
@@ -229,6 +449,88 @@ let project = Project(
         .target(name: "SupatermUpdateFeature"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/Features/Terminal",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalStateFeature"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "GhosttyKit"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalWindowFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-window-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalWindowFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalUIFeature",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.terminal-ui-feature",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supaterm/TerminalUIFeature",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalSidebarFeature"),
+        .target(name: "SupatermTerminalSurfaceFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+        .external(name: "Textual"),
       ],
       settings: .settings(
         defaultSettings: .essential
@@ -303,8 +605,6 @@ let project = Project(
       ],
       buildableFolders: [
         "supaterm/App",
-        "supaterm/Features/Chrome",
-        "supaterm/Features/Terminal",
       ],
       scripts: [
         .pre(
@@ -430,9 +730,20 @@ let project = Project(
       ],
       dependencies: [
         .target(name: "sp"),
+        .target(name: "SupatermAgentFeature"),
+        .target(name: "SupatermAppFeature"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermMenuFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalSurfaceFeature"),
+        .target(name: "SupatermTerminalUIFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
@@ -464,6 +775,23 @@ let project = Project(
       ])
     ),
     .target(
+      name: "SupatermTestSupport",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.test-support",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermTestSupport",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "supatermTests",
       destinations: .macOS,
       product: .unitTests,
@@ -478,9 +806,22 @@ let project = Project(
         .external(name: "Clocks"),
         .target(name: "SPCLI"),
         .target(name: "supaterm"),
+        .target(name: "SupatermAgentFeature"),
+        .target(name: "SupatermAppFeature"),
         .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermGhosttyFeature"),
+        .target(name: "SupatermMenuFeature"),
         .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalAgentPanelFeature"),
         .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalFeature"),
+        .target(name: "SupatermTerminalPresentationFeature"),
+        .target(name: "SupatermTerminalSidebarFeature"),
+        .target(name: "SupatermTerminalSurfaceFeature"),
+        .target(name: "SupatermTerminalStateFeature"),
+        .target(name: "SupatermTerminalWindowFeature"),
+        .target(name: "SupatermTestSupport"),
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
@@ -497,6 +838,121 @@ let project = Project(
           "BUNDLE_LOADER": "$(BUILT_PRODUCTS_DIR)/supaterm.app/Contents/MacOS/supaterm.debug.dylib",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @loader_path/../Frameworks @executable_path/../Frameworks @loader_path/../../../supaterm.app/Contents/MacOS",
         ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SPCLITests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.sp-cliTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SPCLITests",
+      ],
+      dependencies: [
+        .external(name: "ArgumentParser"),
+        .target(name: "SPCLI"),
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTestSupport"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermCLISharedTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.cli-sharedTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermCLISharedTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermTestSupport"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermSharedTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.sharedTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermSharedTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .external(name: "TOML"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalAgentPanelFeatureTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.terminal-agent-panel-featureTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermTerminalAgentPanelFeatureTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermTerminalAgentPanelFeature"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermTerminalStateFeatureTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.terminal-state-featureTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermTerminalStateFeatureTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermTerminalModels"),
+        .target(name: "SupatermTerminalStateFeature"),
+      ],
+      settings: .settings(
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupatermSettingsFeatureTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supaterm.settings-featureTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupatermSettingsFeatureTests",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTestSupport"),
+        .target(name: "SupatermUpdateFeature"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Sharing"),
+      ],
+      settings: .settings(
         defaultSettings: .essential
       )
     ),
@@ -520,6 +976,12 @@ let project = Project(
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermTests")),
+          .testableTarget(target: .target("SPCLITests")),
+          .testableTarget(target: .target("SupatermCLISharedTests")),
+          .testableTarget(target: .target("SupatermSharedTests")),
+          .testableTarget(target: .target("SupatermTerminalAgentPanelFeatureTests")),
+          .testableTarget(target: .target("SupatermTerminalStateFeatureTests")),
+          .testableTarget(target: .target("SupatermSettingsFeatureTests")),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm"),

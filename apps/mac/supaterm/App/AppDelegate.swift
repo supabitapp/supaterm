@@ -1,39 +1,20 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
-import SupatermCLIShared
+import SupatermAppFeature
+import SupatermGhosttyFeature
+import SupatermMenuFeature
 import SupatermSettingsFeature
 import SupatermSocketFeature
 import SupatermSupport
+import SupatermTerminalFeature
+import SupatermTerminalModels
 import UserNotifications
 
 @MainActor
-protocol GhosttyAppActionPerforming: AnyObject {
-  func performCheckForUpdates() -> Bool
-  func performCloseAllWindows() -> Bool
-  func performNewWindow() -> Bool
-  func performQuit() -> Bool
-  func performQuitTerminatingSessions() -> Bool
-  func performToggleVisibility() -> Bool
-}
-
-private final class WeakToggleVisibilityWindow {
-  weak var value: NSWindow?
-
-  init(_ value: NSWindow) {
-    self.value = value
-  }
-}
-
-@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate,
-  GhosttyAppActionPerforming
+  GhosttyAppActionPerforming, GhosttyBindingMenuKeyPerforming
 {
-  struct LaunchWindowRequest: Equatable {
-    let session: TerminalWindowSession?
-    let startupCommand: String?
-  }
-
   @Shared(.supatermSettings)
   private var supatermSettings = .default
   @Shared(.lastAppLaunchedDate)
@@ -62,10 +43,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var terminatesSessionsForNextQuit = false
   private var toggleVisibilityState: ToggleVisibilityState?
   private var windowControllers: [UUID: TerminalWindowController] = [:]
-
-  private static var onboardingStartupCommand: String {
-    SupatermShellCommand.interactiveStartupCommand(for: "sp onboard")
-  }
 
   override init() {
     AppCrashReporting.setup()
@@ -394,20 +371,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  static func knownZmxSessionIDsForLaunchReaping(
-    restoreTerminalLayoutEnabled: Bool,
-    sessionCatalog: TerminalSessionCatalog,
-    pinnedTabCatalog: TerminalPinnedTabCatalog,
-    liveSurfaceIDs: Set<UUID>
-  ) -> Set<String> {
-    let persistedSurfaceIDs =
-      restoreTerminalLayoutEnabled
-      ? sessionCatalog.surfaceIDs
-      : []
-    let knownSurfaceIDs = persistedSurfaceIDs.union(pinnedTabCatalog.surfaceIDs).union(liveSurfaceIDs)
-    return Set(knownSurfaceIDs.map { ZmxSessionID.make(surfaceID: $0) })
-  }
-
   private func openServiceTabs(workingDirectoryPaths: [String]) {
     guard let firstPath = workingDirectoryPaths.first else { return }
     NSApp.activate(ignoringOtherApps: true)
@@ -484,117 +447,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
-  static func initialWindowSessions(
-    from sessionCatalog: TerminalSessionCatalog,
-    restoreTerminalLayoutEnabled: Bool
-  ) -> [TerminalWindowSession?] {
-    guard restoreTerminalLayoutEnabled else {
-      return [nil]
-    }
-    if sessionCatalog.windows.isEmpty {
-      return [nil]
-    }
-    return sessionCatalog.windows.map(Optional.some)
-  }
-
-  static func initialWindowRequests(
-    from sessionCatalog: TerminalSessionCatalog,
-    restoreTerminalLayoutEnabled: Bool,
-    lastAppLaunchedDate: Date?
-  ) -> [LaunchWindowRequest] {
-    let sessions = initialWindowSessions(
-      from: sessionCatalog,
-      restoreTerminalLayoutEnabled: restoreTerminalLayoutEnabled
-    )
-    let onboardingWindowIndex: Int?
-    if lastAppLaunchedDate == nil {
-      onboardingWindowIndex = sessions.firstIndex(where: { $0 == nil })
-    } else {
-      onboardingWindowIndex = nil
-    }
-
-    return sessions.enumerated().map { index, session in
-      LaunchWindowRequest(
-        session: session,
-        startupCommand: index == onboardingWindowIndex ? onboardingStartupCommand : nil
-      )
-    }
-  }
-
-  struct TerminationPlan {
-    let reply: NSApplication.TerminateReply
-    let terminatesSessions: Bool
-  }
-
-  static func terminationPlan(
-    hasVisibleAppWindows: Bool,
-    confirmQuitMode: ConfirmQuitMode = .auto,
-    hasActiveAgentWorkForQuit: Bool = false,
-    needsQuitConfirmation: Bool,
-    bypassesQuitConfirmation: Bool,
-    terminatesSessionsOnQuit: Bool = false,
-    confirmQuit: () -> QuitConfirmationDecision
-  ) -> TerminationPlan {
-    let defaultPlan = TerminationPlan(reply: .terminateNow, terminatesSessions: terminatesSessionsOnQuit)
-    guard hasVisibleAppWindows else { return defaultPlan }
-    guard !bypassesQuitConfirmation else { return defaultPlan }
-    guard
-      shouldConfirmQuit(
-        mode: confirmQuitMode,
-        hasActiveAgentWorkForQuit: hasActiveAgentWorkForQuit,
-        needsQuitConfirmation: needsQuitConfirmation,
-        terminatesSessionsOnQuit: terminatesSessionsOnQuit
-      )
-    else {
-      return defaultPlan
-    }
-    switch confirmQuit() {
-    case .cancel:
-      return TerminationPlan(reply: .terminateCancel, terminatesSessions: false)
-    case .quitPreservingSessions:
-      return TerminationPlan(reply: .terminateNow, terminatesSessions: false)
-    case .quitTerminatingSessions:
-      return TerminationPlan(reply: .terminateNow, terminatesSessions: true)
-    }
-  }
-
-  static func shouldConfirmQuit(
-    mode: ConfirmQuitMode,
-    hasActiveAgentWorkForQuit: Bool,
-    needsQuitConfirmation: Bool,
-    terminatesSessionsOnQuit: Bool
-  ) -> Bool {
-    switch mode {
-    case .always:
-      return true
-    case .never:
-      return false
-    case .auto:
-      return hasActiveAgentWorkForQuit || needsQuitConfirmation || terminatesSessionsOnQuit
-    }
-  }
-
-  struct ToggleVisibilityState {
-    private let hiddenWindows: [WeakToggleVisibilityWindow]
-    private let keyWindow: WeakToggleVisibilityWindow?
-
-    init(windows: [NSWindow] = NSApp.windows, keyWindow: NSWindow? = NSApp.keyWindow) {
-      self.keyWindow = keyWindow.map(WeakToggleVisibilityWindow.init)
-      var visibleWindows: [WeakToggleVisibilityWindow] = []
-      for window in windows where window.isVisible && !window.styleMask.contains(.fullScreen) {
-        let windowToHide = window.tabGroup?.selectedWindow ?? window
-        if !visibleWindows.contains(where: { $0.value === windowToHide }) {
-          visibleWindows.append(WeakToggleVisibilityWindow(windowToHide))
-        }
-      }
-      self.hiddenWindows = visibleWindows
-    }
-
-    func restore() {
-      for window in hiddenWindows {
-        window.value?.orderFrontRegardless()
-      }
-      keyWindow?.value?.makeKey()
-    }
-  }
 }

@@ -3,10 +3,17 @@ import Foundation
 import Sharing
 import SupatermSupport
 import SupatermTerminalCore
+import SupatermTestSupport
 import SupatermUpdateFeature
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalAgentPanelFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
+@testable import SupatermTerminalWindowFeature
 @testable import supaterm
 
 @MainActor

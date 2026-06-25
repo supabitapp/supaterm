@@ -3,6 +3,8 @@ import Foundation
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermAppFeature
+@testable import SupatermTerminalModels
 @testable import supaterm
 
 @MainActor

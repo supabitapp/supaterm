@@ -1,6 +1,8 @@
 import AppKit
 import Testing
 
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 struct TerminalHostStateTitleTests {

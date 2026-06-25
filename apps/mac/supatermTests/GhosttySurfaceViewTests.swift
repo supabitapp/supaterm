@@ -3,6 +3,10 @@ import GhosttyKit
 import SwiftUI
 import Testing
 
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalPresentationFeature
+@testable import SupatermTerminalSurfaceFeature
 @testable import supaterm
 
 struct GhosttySurfaceViewTests {
@@ -61,6 +65,26 @@ struct GhosttySurfaceViewTests {
     #expect(wrapper.safeAreaInsets.left == 0)
     #expect(wrapper.safeAreaInsets.bottom == 0)
     #expect(wrapper.safeAreaInsets.right == 0)
+  }
+
+  @Test
+  @MainActor
+  func surfaceRegistersPasteboardDropTypes() {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let types = Set(surfaceView.registeredDraggedTypes)
+
+    #expect(types.contains(.string))
+    #expect(types.contains(.fileURL))
+    #expect(types.contains(.URL))
+    #expect(types.contains(.supatermPNGImage))
+    #expect(types.contains(.supatermTIFFImage))
   }
 
   @Test

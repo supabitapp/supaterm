@@ -1,0 +1,10 @@
+import SupatermTerminalPresentationFeature
+
+extension WindowCloseClient {
+  public static func live(registry: TerminalWindowRegistry) -> Self {
+    Self(
+      closeWindow: { registry.closeWindow($0) },
+      closeWindows: { registry.closeWindows($0) }
+    )
+  }
+}

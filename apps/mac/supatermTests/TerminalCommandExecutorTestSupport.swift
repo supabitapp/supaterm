@@ -6,7 +6,12 @@ import SupatermTerminalCore
 import SupatermUpdateFeature
 import Testing
 
+@testable import SupatermAppFeature
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 func makeWindow() -> NSWindow {

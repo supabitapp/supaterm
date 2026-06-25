@@ -4,6 +4,8 @@ import GhosttyKit
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalFeature
 @testable import supaterm
 
 @MainActor

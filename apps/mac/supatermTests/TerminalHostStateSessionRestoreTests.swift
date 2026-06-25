@@ -4,6 +4,10 @@ import SupatermSupport
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalStateFeature
 @testable import supaterm
 
 @MainActor
@@ -117,8 +121,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func ensureInitialTabUsesRequestedWorkingDirectoryPath() async throws {
-    try await withDependencies {
+  func ensureInitialTabUsesRequestedWorkingDirectoryPath() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -147,8 +151,8 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
-  func restorationSnapshotRoundTripsTabsSplitsAndSelections() async throws {
-    try await withDependencies {
+  func restorationSnapshotRoundTripsTabsSplitsAndSelections() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()

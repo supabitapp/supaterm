@@ -3,6 +3,10 @@ import ComposableArchitecture
 import Testing
 
 @testable import SupatermCLIShared
+@testable import SupatermGhosttyFeature
+@testable import SupatermTerminalFeature
+@testable import SupatermTerminalModels
+@testable import SupatermTerminalPresentationFeature
 @testable import supaterm
 
 @MainActor
@@ -14,7 +18,7 @@ struct TerminalHostStateZoomTests {
 
     let tree = try SplitTree(view: first)
       .inserting(view: second, at: first, direction: .right)
-    let zoomedTree = tree.settingZoomed(try #require(tree.find(id: second.id)))
+    let zoomedTree = tree.settingZoomed(tree.find(id: second.id))
 
     #expect(TerminalHostState.isPaneZoomed(focusedSurfaceID: second.id, in: zoomedTree))
     #expect(!TerminalHostState.isPaneZoomed(focusedSurfaceID: first.id, in: zoomedTree))
@@ -23,8 +27,8 @@ struct TerminalHostStateZoomTests {
   }
 
   @Test
-  func gotoSplitPreservesZoomOnNavigationWhenConfigured() async throws {
-    try await withDependencies {
+  func gotoSplitPreservesZoomOnNavigationWhenConfigured() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
@@ -44,8 +48,8 @@ struct TerminalHostStateZoomTests {
   }
 
   @Test
-  func gotoSplitClearsZoomOnNavigationWhenConfigIsDisabled() async throws {
-    try await withDependencies {
+  func gotoSplitClearsZoomOnNavigationWhenConfigIsDisabled() throws {
+    try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
       initializeGhosttyForTests()
