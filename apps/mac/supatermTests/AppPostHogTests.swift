@@ -47,6 +47,29 @@ struct AppPostHogTests {
   }
 
   @Test
+  func configKeepsLifecycleAutocaptureEnabled() throws {
+    let configuration = try #require(
+      AppPostHog.Configuration(
+        infoDictionary: [
+          "PostHogProjectToken": "phc_test",
+          "PostHogHost": "https://us.i.posthog.com",
+          "PostHogPersonProfiles": "identified_only",
+        ]
+      )
+    )
+    let config = AppPostHog.makeConfig(
+      configuration: configuration,
+      supatermSettings: .default
+    )
+
+    #expect(config.captureApplicationLifecycleEvents)
+    #expect(!config.captureScreenViews)
+    #expect(!config.enableSwizzling)
+    #expect(config.errorTrackingConfig.autoCapture)
+    #expect(config.personProfiles == .identifiedOnly)
+  }
+
+  @Test
   func setupRequiresAnalyticsOrErrorReportingAndNonDebugBuild() {
     #expect(AppPostHog.isSetupEnabled(supatermSettings: .default, isDebugBuild: false))
     #expect(

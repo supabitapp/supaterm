@@ -66,15 +66,10 @@ enum AppPostHog {
         return
       }
 
-      let config = PostHogConfig(
-        projectToken: configuration.projectToken,
-        host: configuration.host
+      let config = makeConfig(
+        configuration: configuration,
+        supatermSettings: supatermSettings
       )
-      config.captureApplicationLifecycleEvents = false
-      config.captureScreenViews = false
-      config.enableSwizzling = false
-      config.errorTrackingConfig.autoCapture = supatermSettings.crashReportsEnabled
-      config.personProfiles = configuration.personProfiles
       PostHogSDK.shared.setup(config)
       state.setErrorReportingEnabled(supatermSettings.crashReportsEnabled)
       if supatermSettings.analyticsEnabled {
@@ -131,6 +126,22 @@ enum AppPostHog {
       guard state.isErrorReportingEnabled else { return }
       PostHogSDK.shared.captureException(error, properties: properties)
     #endif
+  }
+
+  static func makeConfig(
+    configuration: Configuration,
+    supatermSettings: SupatermSettings
+  ) -> PostHogConfig {
+    let config = PostHogConfig(
+      projectToken: configuration.projectToken,
+      host: configuration.host
+    )
+    config.captureApplicationLifecycleEvents = true
+    config.captureScreenViews = false
+    config.enableSwizzling = false
+    config.errorTrackingConfig.autoCapture = supatermSettings.crashReportsEnabled
+    config.personProfiles = configuration.personProfiles
+    return config
   }
 
   static func isSetupEnabled(
