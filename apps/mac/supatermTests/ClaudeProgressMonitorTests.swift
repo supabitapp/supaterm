@@ -242,6 +242,51 @@ struct ClaudeProgressMonitorTests {
 
   @MainActor
   @Test
+  func transcriptTextMessagesProduceConversationTimeline() throws {
+    let homeDirectoryURL = try ClaudeProgressFixtures.makeHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try ClaudeProgressFixtures.appendText(
+      role: "user",
+      text: "Find the agent panel transcript view",
+      to: transcriptURL
+    )
+    try ClaudeProgressFixtures.appendText(
+      role: "assistant",
+      text: "I found the panel view and transcript monitor",
+      to: transcriptURL
+    )
+
+    let monitor = ClaudePanelMonitor(
+      sessionID: "session:123",
+      homeDirectoryURL: homeDirectoryURL,
+      transcriptPath: { transcriptURL.path }
+    )
+    let tick = try #require(monitor.start())
+
+    #expect(
+      tick.snapshot.conversationTimeline
+        == [
+          PaneAgentConversationTimelineItem(
+            id: "claude:0:user",
+            role: .user,
+            text: "Find the agent panel transcript view",
+            occurrence: 0
+          ),
+          PaneAgentConversationTimelineItem(
+            id: "claude:1:assistant",
+            role: .assistant,
+            text: "I found the panel view and transcript monitor",
+            occurrence: 0
+          ),
+        ].compactMap { $0 }
+    )
+  }
+
+  @MainActor
+  @Test
   func panelMonitorKeepsGoalRowWhenTaskFilesExist() throws {
     let homeDirectoryURL = try ClaudeProgressFixtures.makeHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }

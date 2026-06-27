@@ -28,6 +28,7 @@ struct AgentPanelView: View {
   let copyBranchName: (String) -> Void
   let copySessionID: (String) -> Void
   let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
+  let jumpToConversationItem: (PaneAgentConversationTimelineItem) -> Void
   let openURL: (URL) -> Void
 
   @State private var checksAreExpanded = false
@@ -48,6 +49,16 @@ struct AgentPanelView: View {
               progressRow(row)
             }
           }
+        }
+      }
+
+      if !presentation.conversationTimeline.isEmpty {
+        section("Conversation") {
+          AgentPanelConversationTimelineView(
+            items: presentation.conversationTimeline,
+            palette: palette,
+            jumpToItem: jumpToConversationItem
+          )
         }
       }
 
@@ -375,6 +386,148 @@ struct AgentPanelView: View {
     }
   }
 
+}
+
+private struct AgentPanelConversationTimelineView: View {
+  let items: [PaneAgentConversationTimelineItem]
+  let palette: TerminalPalette
+  let jumpToItem: (PaneAgentConversationTimelineItem) -> Void
+
+  @State private var previewedItemID: PaneAgentConversationTimelineItem.ID?
+
+  private var previewedItem: PaneAgentConversationTimelineItem? {
+    previewedItemID.flatMap { id in items.first { $0.id == id } } ?? items.last
+  }
+
+  private var timelineHeight: CGFloat {
+    min(max(CGFloat(items.count) * 22, 44), 132)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
+      if let previewedItem {
+        AgentPanelConversationPreview(item: previewedItem, palette: palette)
+      }
+      ScrollView(.vertical, showsIndicators: items.count > 6) {
+        VStack(alignment: .leading, spacing: 0) {
+          ForEach(items) { item in
+            AgentPanelConversationTimelineRow(
+              item: item,
+              isPreviewed: item.id == previewedItem?.id,
+              palette: palette,
+              action: {
+                jumpToItem(item)
+              }
+            )
+            .onHover { isHovering in
+              if isHovering {
+                previewedItemID = item.id
+              } else if previewedItemID == item.id {
+                previewedItemID = nil
+              }
+            }
+          }
+        }
+        .padding(.vertical, 1)
+      }
+      .frame(height: timelineHeight)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+private struct AgentPanelConversationPreview: View {
+  let item: PaneAgentConversationTimelineItem
+  let palette: TerminalPalette
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(item.role.title)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(tint)
+        .textCase(.uppercase)
+      Text(item.preview)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(.leading, 8)
+    .overlay(alignment: .leading) {
+      Rectangle()
+        .fill(tint)
+        .frame(width: 2)
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  private var tint: Color {
+    switch item.role {
+    case .user:
+      palette.mint
+    case .assistant:
+      palette.violet
+    }
+  }
+}
+
+private struct AgentPanelConversationTimelineRow: View {
+  let item: PaneAgentConversationTimelineItem
+  let isPreviewed: Bool
+  let palette: TerminalPalette
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 6) {
+        Text(item.role.title)
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(roleColor)
+          .lineLimit(1)
+          .frame(width: 30, alignment: .trailing)
+        AgentPanelConversationTimelineTick(isActive: isPreviewed, color: roleColor, palette: palette)
+        Text(item.preview)
+          .font(.system(size: 11, weight: isPreviewed ? .semibold : .medium))
+          .foregroundStyle(isPreviewed ? palette.primaryText : palette.secondaryText)
+          .lineLimit(1)
+          .truncationMode(.tail)
+      }
+      .frame(height: 22)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .help(item.preview)
+    .accessibilityLabel("\(item.role.title): \(item.preview)")
+  }
+
+  private var roleColor: Color {
+    switch item.role {
+    case .user:
+      palette.mint
+    case .assistant:
+      palette.violet
+    }
+  }
+}
+
+private struct AgentPanelConversationTimelineTick: View {
+  let isActive: Bool
+  let color: Color
+  let palette: TerminalPalette
+
+  var body: some View {
+    ZStack {
+      Rectangle()
+        .fill(palette.detailStroke)
+        .frame(width: 1, height: 22)
+      RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+        .fill(isActive ? color : palette.secondaryText.opacity(0.6))
+        .frame(width: isActive ? 18 : 9, height: isActive ? 3 : 2)
+    }
+    .frame(width: 20, height: 22)
+    .accessibilityHidden(true)
+  }
 }
 
 private enum AgentPanelIcon {

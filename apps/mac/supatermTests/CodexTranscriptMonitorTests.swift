@@ -482,4 +482,63 @@ struct CodexTranscriptMonitorTests {
 
     #expect(incrementalConversation.sidebarSnapshot == rebuiltConversation.sidebarSnapshot)
   }
+
+  @Test
+  func conversationTimelineUsesVisibleUserAndAssistantMessages() {
+    var conversation = CodexConversationState()
+    conversation.absorb(
+      [
+        .eventMessage(type: "task_started", payload: ["turn_id": .string("turn-1")]),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("user"),
+            "content": .array([.object(["text": .string("Add a conversation timeline")])]),
+          ]
+        ),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("assistant"),
+            "content": .array([.object(["text": .string("I will inspect the transcript UI")])]),
+          ]
+        ),
+        .responseItem(
+          type: "message",
+          payload: [
+            "role": .string("user"),
+            "content": .array([
+              .object([
+                "text": .string(
+                  """
+                  <codex_internal_context source="goal">
+                  <objective>internal</objective>
+                  </codex_internal_context>
+                  """
+                )
+              ])
+            ]),
+          ]
+        ),
+      ]
+    )
+
+    #expect(
+      conversation.sidebarSnapshot.conversationTimeline
+        == [
+          PaneAgentConversationTimelineItem(
+            id: "codex:turn-1:0:user",
+            role: .user,
+            text: "Add a conversation timeline",
+            occurrence: 0
+          ),
+          PaneAgentConversationTimelineItem(
+            id: "codex:turn-1:1:assistant",
+            role: .assistant,
+            text: "I will inspect the transcript UI",
+            occurrence: 0
+          ),
+        ].compactMap { $0 }
+    )
+  }
 }

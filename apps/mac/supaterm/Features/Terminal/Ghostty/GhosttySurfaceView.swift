@@ -667,6 +667,23 @@ final class GhosttySurfaceView: NSView, Identifiable {
     return components.suffix(lines).joined(separator: "\n")
   }
 
+  @discardableResult
+  func scrollToConversationTimelineItem(_ item: PaneAgentConversationTimelineItem) -> Bool {
+    guard let text = captureText(scope: .scrollback, lines: nil),
+      let row = PaneAgentTimelineJumpResolver.scrollRow(
+        for: item,
+        in: text,
+        visibleRowCount: lastScrollbar.map { Int($0.length) },
+        totalRowCount: lastScrollbar.map { Int($0.total) }
+      )
+    else {
+      return false
+    }
+    performBindingAction("scroll_to_row:\(row)")
+    window?.makeFirstResponder(self)
+    return true
+  }
+
   private func readText(
     topLeftTag: ghostty_point_tag_e,
     bottomRightTag: ghostty_point_tag_e

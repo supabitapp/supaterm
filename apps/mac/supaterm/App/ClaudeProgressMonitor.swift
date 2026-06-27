@@ -159,8 +159,10 @@ private struct ClaudeTranscriptTaskState: Equatable {
   var tasks: [String: ClaudeProgressTask] = [:]
   var pendingCreates: [String: ClaudePendingTask] = [:]
   var goalRow: PaneAgentProgressRow?
+  var conversationTimeline: [PaneAgentConversationTimelineItem] = []
 
   mutating func apply(_ object: JSONObject) -> [PaneAgentProgressRow]? {
+    appendTimelineItem(from: object)
     let timestamp = Self.timestamp(in: object) ?? Date()
     if let rows = applyGoalStatus(object) {
       return rows
@@ -381,6 +383,62 @@ private struct ClaudeTranscriptTaskState: Equatable {
     return displayRows(taskRows())
   }
 
+  private mutating func appendTimelineItem(from object: JSONObject) {
+    guard let role = Self.timelineRole(object["type"]?.stringValue),
+      let text = Self.timelineText(in: object),
+      let needle = PaneAgentConversationTimelineItem.matchNeedle(text)
+    else {
+      return
+    }
+    let occurrence = conversationTimeline.filter { $0.matchNeedle == needle }.count
+    guard
+      let item = PaneAgentConversationTimelineItem(
+        id: "claude:\(conversationTimeline.count):\(role.rawValue)",
+        role: role,
+        text: text,
+        occurrence: occurrence
+      )
+    else {
+      return
+    }
+    conversationTimeline.append(item)
+  }
+
+  private static func timelineRole(_ value: String?) -> PaneAgentConversationTimelineRole? {
+    switch value {
+    case "user":
+      .user
+    case "assistant":
+      .assistant
+    default:
+      nil
+    }
+  }
+
+  private static func timelineText(in object: JSONObject) -> String? {
+    guard let content = object["message"]?.objectValue?["content"] else { return nil }
+    if let text = content.stringValue {
+      return PaneAgentConversationTimelineItem.normalizedText(text)
+    }
+    guard let values = content.arrayValue else { return nil }
+    return PaneAgentConversationTimelineItem.normalizedText(
+      values.compactMap(timelineTextBlock).joined(separator: " ")
+    )
+  }
+
+  private static func timelineTextBlock(_ value: JSONValue) -> String? {
+    if let text = value.stringValue {
+      return text
+    }
+    guard let object = value.objectValue else { return nil }
+    switch object["type"]?.stringValue {
+    case "text", nil:
+      return object["text"]?.stringValue
+    default:
+      return nil
+    }
+  }
+
   private static func goalRow(from object: JSONObject) -> PaneAgentProgressRow? {
     guard let condition = AgentProgressParsing.normalizedTitle(object["condition"]?.stringValue) else {
       return nil
@@ -506,7 +564,10 @@ final class ClaudePanelMonitor: AgentPanelMonitor {
       taskRows.isEmpty
       ? transcriptRows
       : cursor.transcriptState.displayRows(taskRows)
-    return AgentMonitorSnapshot(progressRows: rows)
+    return AgentMonitorSnapshot(
+      progressRows: rows,
+      conversationTimeline: cursor.transcriptState.conversationTimeline
+    )
   }
 }
 

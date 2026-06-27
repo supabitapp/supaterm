@@ -466,6 +466,9 @@ struct TerminalSplitTreeView: View {
               )
             )
           },
+          jumpToConversationItem: { item in
+            _ = surfaceView.scrollToConversationTimelineItem(item)
+          },
           toggle: toggleAgentPanel,
           openURL: { url in
             action(.agentPanelURLTapped(url))
@@ -697,6 +700,7 @@ struct TerminalSplitTreeView: View {
     let copyBranchName: (String) -> Void
     let copySessionID: (String) -> Void
     let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
+    let jumpToConversationItem: (PaneAgentConversationTimelineItem) -> Void
     let toggle: () -> Void
     let openURL: (URL) -> Void
 
@@ -712,6 +716,7 @@ struct TerminalSplitTreeView: View {
           copyBranchName: copyBranchName,
           copySessionID: copySessionID,
           forkSession: forkSession,
+          jumpToConversationItem: jumpToConversationItem,
           openURL: openURL
         )
         .fixedSize(horizontal: false, vertical: true)

@@ -210,6 +210,29 @@ enum ClaudeProgressFixtures {
     )
   }
 
+  static func appendText(
+    role: String,
+    text: String,
+    timestamp: String = "2026-06-14T14:24:06.660Z",
+    to transcriptURL: URL
+  ) throws {
+    try appendLine(
+      [
+        "type": role,
+        "timestamp": timestamp,
+        "message": [
+          "content": [
+            [
+              "type": "text",
+              "text": text,
+            ]
+          ]
+        ],
+      ],
+      to: transcriptURL
+    )
+  }
+
   static func writeTask(
     id: String,
     subject: String,

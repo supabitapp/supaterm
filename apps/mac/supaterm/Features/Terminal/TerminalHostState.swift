@@ -212,13 +212,14 @@ final class TerminalHostState {
     var progressRows: [PaneAgentProgressRow] = []
     var branchDetails: PaneAgentBranchDetails?
     var artifacts: [PaneAgentArtifact] = []
+    var conversationTimeline: [PaneAgentConversationTimelineItem] = []
 
     var isEmpty: Bool {
       agentHoverMessages.isEmpty && panelPresentation().isEmpty
     }
 
     var hasStructuredPanelContent: Bool {
-      !progressRows.isEmpty
+      !progressRows.isEmpty || !conversationTimeline.isEmpty
     }
 
     func panelPresentation(session: PaneAgentPanelSession? = nil) -> PaneAgentPanelPresentation {
@@ -226,6 +227,7 @@ final class TerminalHostState {
         progressRows: progressRows,
         branchDetails: branchDetails,
         artifacts: artifacts,
+        conversationTimeline: conversationTimeline,
         session: session
       )
     }

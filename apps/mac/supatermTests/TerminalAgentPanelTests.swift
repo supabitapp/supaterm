@@ -246,6 +246,40 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
+  func conversationTimelineOnlySnapshotExposesPanel() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+    let timeline = [
+      PaneAgentConversationTimelineItem(
+        id: "message-1",
+        role: .user,
+        text: "Preview this earlier prompt",
+        occurrence: 0
+      )
+    ].compactMap { $0 }
+
+    #expect(
+      host.recordAgentPanelSnapshot(
+        progressRows: [],
+        conversationTimeline: timeline,
+        for: surfaceID
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.conversationTimeline == timeline)
+  }
+
+  @Test
+  @MainActor
   func disabledPanelSkipsWorkspaceRefresh() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory

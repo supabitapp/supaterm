@@ -87,6 +87,7 @@ extension TerminalCommandExecutor {
   ) {
     _ = updateAgentPanelSnapshot(
       progressRows: snapshot.progressRows,
+      conversationTimeline: snapshot.conversationTimeline,
       agent: agent,
       sessionID: sessionID,
       context: context
@@ -627,6 +628,7 @@ extension TerminalCommandExecutor {
   ) -> Bool {
     updateAgentPanelSnapshot(
       progressRows: [],
+      conversationTimeline: [],
       agent: agent,
       sessionID: sessionID,
       context: context
@@ -636,6 +638,7 @@ extension TerminalCommandExecutor {
   @discardableResult
   func updateAgentPanelSnapshot(
     progressRows: [PaneAgentProgressRow],
+    conversationTimeline: [PaneAgentConversationTimelineItem] = [],
     agent: SupatermAgentKind,
     sessionID: String,
     context: SupatermCLIContext?
@@ -649,6 +652,7 @@ extension TerminalCommandExecutor {
       for entry in registry.activeEntries()
       where entry.terminal.recordAgentPanelSnapshot(
         progressRows: progressRows,
+        conversationTimeline: conversationTimeline,
         for: surfaceID
       ) {
         return true

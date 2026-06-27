@@ -126,6 +126,10 @@ struct CodexConversationState: Equatable {
     (activeTurn ?? latestTurn)?.displayedProgressRows(fallbackGoalRow: activeGoalRow) ?? []
   }
 
+  var conversationTimeline: [PaneAgentConversationTimelineItem] {
+    Self.conversationTimelineItems(from: turns)
+  }
+
   private var activeGoalRow: PaneAgentProgressRow? {
     guard let row = turns.reversed().compactMap(\.goalRow).first else { return nil }
     return row.status == .completed ? nil : row
@@ -136,7 +140,8 @@ struct CodexConversationState: Equatable {
       status: activityStatus,
       detail: detail,
       hoverMessages: hoverMessages,
-      progressRows: progressRows
+      progressRows: progressRows,
+      conversationTimeline: conversationTimeline
     )
   }
 
@@ -521,6 +526,35 @@ struct CodexConversationState: Equatable {
       return
     }
     state.hoverMessages.append(normalized)
+  }
+
+  private static func conversationTimelineItems(
+    from turns: [CodexConversationTurn]
+  ) -> [PaneAgentConversationTimelineItem] {
+    var occurrences: [String: Int] = [:]
+    var items: [PaneAgentConversationTimelineItem] = []
+    for turn in turns {
+      for (index, item) in turn.items.enumerated() {
+        guard case .message(let message) = item,
+          let role = PaneAgentConversationTimelineRole(rawValue: message.role),
+          !message.text.contains("<codex_internal_context"),
+          let needle = PaneAgentConversationTimelineItem.matchNeedle(message.text)
+        else {
+          continue
+        }
+        let occurrence = occurrences[needle, default: 0]
+        occurrences[needle] = occurrence + 1
+        if let item = PaneAgentConversationTimelineItem(
+          id: "codex:\(turn.id):\(index):\(role.rawValue)",
+          role: role,
+          text: message.text,
+          occurrence: occurrence
+        ) {
+          items.append(item)
+        }
+      }
+    }
+    return items
   }
 
   private mutating func updateStructuredPanelState(

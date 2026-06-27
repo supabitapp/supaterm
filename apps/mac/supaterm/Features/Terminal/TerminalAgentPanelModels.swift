@@ -5,12 +5,14 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var progressRows: [PaneAgentProgressRow] = []
   var branchDetails: PaneAgentBranchDetails?
   var artifacts: [PaneAgentArtifact] = []
+  var conversationTimeline: [PaneAgentConversationTimelineItem] = []
   var session: PaneAgentPanelSession?
 
   var isEmpty: Bool {
     progressRows.isEmpty
       && branchDetails == nil
       && artifacts.isEmpty
+      && conversationTimeline.isEmpty
       && session == nil
   }
 }
@@ -68,6 +70,121 @@ nonisolated struct PaneAgentProgressRow: Equatable, Identifiable, Sendable {
   let id: String
   let title: String
   let status: Status
+}
+
+nonisolated enum PaneAgentConversationTimelineRole: String, Equatable, Sendable {
+  case user
+  case assistant
+
+  var title: String {
+    switch self {
+    case .user:
+      "You"
+    case .assistant:
+      "Agent"
+    }
+  }
+}
+
+nonisolated struct PaneAgentConversationTimelineItem: Equatable, Identifiable, Sendable {
+  let id: String
+  let role: PaneAgentConversationTimelineRole
+  let text: String
+  let occurrence: Int
+
+  init?(
+    id: String,
+    role: PaneAgentConversationTimelineRole,
+    text: String,
+    occurrence: Int
+  ) {
+    guard let normalized = Self.normalizedText(text) else { return nil }
+    self.id = id
+    self.role = role
+    self.text = Self.truncated(normalized, limit: 600)
+    self.occurrence = occurrence
+  }
+
+  var matchNeedle: String? {
+    Self.matchNeedle(text)
+  }
+
+  var preview: String {
+    Self.truncated(text, limit: 160)
+  }
+
+  static func normalizedText(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let normalized =
+      value
+      .components(separatedBy: .whitespacesAndNewlines)
+      .filter { !$0.isEmpty }
+      .joined(separator: " ")
+    guard !normalized.isEmpty else { return nil }
+    return normalized
+  }
+
+  static func matchNeedle(_ value: String) -> String? {
+    guard let normalized = normalizedText(value) else { return nil }
+    return String(normalized.prefix(96))
+  }
+
+  static func truncated(_ value: String, limit: Int) -> String {
+    guard value.count > limit else { return value }
+    return String(value.prefix(max(0, limit - 3))) + "..."
+  }
+}
+
+nonisolated enum PaneAgentTimelineJumpResolver {
+  static func scrollRow(
+    for item: PaneAgentConversationTimelineItem,
+    in scrollbackText: String,
+    visibleRowCount: Int?,
+    totalRowCount: Int?
+  ) -> Int? {
+    guard let needle = item.matchNeedle else { return nil }
+    let lines = scrollbackText.components(separatedBy: .newlines)
+    guard !lines.isEmpty else { return nil }
+    guard
+      let lineIndex = matchingLineIndex(
+        needle: needle,
+        occurrence: item.occurrence,
+        lines: lines
+      )
+    else {
+      return nil
+    }
+    let visibleRows = max(1, visibleRowCount ?? 1)
+    let totalRows = max(totalRowCount ?? lines.count, lines.count)
+    return max(0, totalRows - lineIndex - visibleRows)
+  }
+
+  private static func matchingLineIndex(
+    needle: String,
+    occurrence: Int,
+    lines: [String]
+  ) -> Int? {
+    let firstWord = needle.split(separator: " ").first.map(String.init)
+    var matchCount = 0
+    for index in lines.indices {
+      let end = min(lines.count, index + 6)
+      let line = PaneAgentConversationTimelineItem.normalizedText(lines[index])
+      guard firstWord.map({ line?.localizedCaseInsensitiveContains($0) == true }) ?? true else {
+        continue
+      }
+      let candidate = PaneAgentConversationTimelineItem.normalizedText(
+        lines[index..<end].joined(separator: " ")
+      )
+      guard candidate?.localizedCaseInsensitiveContains(needle) == true else {
+        continue
+      }
+      if matchCount == occurrence {
+        return index
+      }
+      matchCount += 1
+    }
+    return nil
+  }
 }
 
 nonisolated struct PaneAgentBranchDetails: Equatable, Sendable {
