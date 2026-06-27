@@ -1,6 +1,14 @@
+import Darwin
 import Foundation
 
 struct AgentHookSettingsFileInstaller {
+  struct MutationHooks {
+    let afterLoad: @Sendable () -> Void
+    let beforeWrite: @Sendable () -> Void
+
+    static let none = Self(afterLoad: {}, beforeWrite: {})
+  }
+
   struct Errors {
     let invalidEventHooks: @Sendable (String) -> Error
     let invalidHooksObject: @Sendable () -> Error
@@ -14,25 +22,28 @@ struct AgentHookSettingsFileInstaller {
 
   let fileManager: FileManager
   let errors: Errors
+  let mutationHooks: MutationHooks
+
+  init(
+    fileManager: FileManager,
+    errors: Errors,
+    mutationHooks: MutationHooks = .none
+  ) {
+    self.fileManager = fileManager
+    self.errors = errors
+    self.mutationHooks = mutationHooks
+  }
 
   func install(
     settingsURL: URL,
     hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]]
   ) throws {
-    let settingsObject = try loadSettingsObject(at: settingsURL)
-    let mergedObject = try mergedSettingsObject(
-      from: settingsObject,
-      hookGroupsByEvent: try hookGroupsByEvent()
-    )
-    try fileManager.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(mergedObject))
-    try data.write(to: settingsURL, options: .atomic)
+    try mutateSettingsObject(at: settingsURL) { settingsObject in
+      try mergedSettingsObject(
+        from: settingsObject,
+        hookGroupsByEvent: try hookGroupsByEvent()
+      )
+    }
   }
 
   func hasSupatermHooks(settingsURL: URL) throws -> Bool {
@@ -41,17 +52,72 @@ struct AgentHookSettingsFileInstaller {
   }
 
   func removeSupatermHooks(settingsURL: URL) throws {
-    let settingsObject = try loadSettingsObject(at: settingsURL)
-    let prunedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    try mutateSettingsObject(at: settingsURL) { settingsObject in
+      try settingsObjectByRemovingManagedHooks(from: settingsObject)
+    }
+  }
+
+  private func mutateSettingsObject(
+    at url: URL,
+    _ transform: ([String: JSONValue]) throws -> [String: JSONValue]
+  ) throws {
+    try withSettingsFileLock(for: url) {
+      let settingsObject = try loadSettingsObject(at: url)
+      mutationHooks.afterLoad()
+      let mutatedObject = try transform(settingsObject)
+      mutationHooks.beforeWrite()
+      try writeSettingsObject(mutatedObject, to: url)
+    }
+  }
+
+  private func writeSettingsObject(_ settingsObject: [String: JSONValue], to url: URL) throws {
     try fileManager.createDirectory(
-      at: settingsURL.deletingLastPathComponent(),
+      at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true
     )
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(JSONValue.object(prunedObject))
-    try data.write(to: settingsURL, options: .atomic)
+    let data = try encoder.encode(JSONValue.object(settingsObject))
+    try data.write(to: url, options: .atomic)
+  }
+
+  private func withSettingsFileLock<T>(
+    for settingsURL: URL,
+    _ body: () throws -> T
+  ) throws -> T {
+    try fileManager.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+
+    let lockURL = settingsURL.appendingPathExtension("lock")
+    let fileDescriptor = Darwin.open(
+      lockURL.path,
+      O_CREAT | O_RDWR,
+      mode_t(S_IRUSR | S_IWUSR)
+    )
+    guard fileDescriptor >= 0 else {
+      throw posixError()
+    }
+    defer { Darwin.close(fileDescriptor) }
+
+    try lock(fileDescriptor)
+    defer { _ = flock(fileDescriptor, LOCK_UN) }
+
+    return try body()
+  }
+
+  private func lock(_ fileDescriptor: CInt) throws {
+    while flock(fileDescriptor, LOCK_EX) != 0 {
+      guard errno == EINTR else {
+        throw posixError()
+      }
+    }
+  }
+
+  private func posixError() -> POSIXError {
+    POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
   }
 
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {
