@@ -23,10 +23,12 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make swiftlint
-      - run: make mac-tuist-install
+      - parallel:
+          - run: make swiftlint
+          - run: make mac-tuist-install
       - run: make mac-tuist-generate
-      - run: make mac-build-ghostty
-      - run: make mac-build-zmx
+      - parallel:
+          - run: make mac-build-ghostty
+          - run: make mac-build-zmx
       - run: make mac-scan-dead-code
       - run: make mac-test-xcodebuild
