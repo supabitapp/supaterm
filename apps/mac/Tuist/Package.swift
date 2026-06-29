@@ -7,7 +7,13 @@ import ProjectDescription
 let packageSettings = PackageSettings(
   productTypes: [
     "Sparkle": .framework,
-  ]
+  ],
+  baseSettings: .settings(
+    release: [
+      "CLANG_ENABLE_MODULE_DEBUGGING": "NO",
+      "GCC_GENERATE_DEBUGGING_SYMBOLS": "NO",
+    ]
+  )
 )
 #endif
 
