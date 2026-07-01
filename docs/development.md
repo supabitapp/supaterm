@@ -68,6 +68,16 @@ make mac-test-snapshots         # Run snapshot tests
 make mac-record-snapshots       # Regenerate snapshot PNG baselines
 ```
 
+### Hot reloading the snapshot catalog
+
+The catalog app supports [Inject](https://github.com/krzysztofzablocki/Inject) hot reloading, so SwiftUI edits appear without rebuilding:
+
+1. Install [InjectionIII](https://github.com/johnno1962/InjectionIII/releases) into `/Applications` and launch it.
+2. Add this repository directory to its file watcher from the menu-bar icon.
+3. Run `make mac-run-snapshot-catalog`, edit a view under `apps/mac/supaterm/Features`, and save.
+
+Limits: scenario definitions in `SnapshotCatalogScenarios.swift` are `static let` and need a rebuild; GhosttyKit terminal content never reloads. If InjectionIII fails on a new Xcode, use [InjectionNext](https://github.com/johnno1962/InjectionNext) instead — no code changes required.
+
 Use `$SUPATERM_CLI_PATH` inside Supaterm panes to call the Debug CLI injected by the running app instead of an installed `sp`:
 
 ```bash

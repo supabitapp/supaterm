@@ -1,5 +1,5 @@
 {
-  "originHash" : "dc773c6c0d9096cd0d2bc2f343956ce2485f3c9a898062408b8bb21b867d0781",
+  "originHash" : "ee87201e0b7e54bce9a3d4ae2de3100d8d0271c82d2c749282a8829512404274",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "inject",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/krzysztofzablocki/Inject",
+      "state" : {
+        "revision" : "f53380e986a8b056e37d7ce9ca68de610b8415ef",
+        "version" : "1.6.0"
       }
     },
     {

@@ -1,6 +1,8 @@
+import Inject
 import SwiftUI
 
 struct SnapshotCatalogRootView: View {
+  @ObserveInjection var inject
   @State private var query = ""
   @State private var selectedAppearance = SnapshotAppearance.light
   @State private var selectedGroupID = SnapshotCatalog.scenarios.first?.group
@@ -34,6 +36,7 @@ struct SnapshotCatalogRootView: View {
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 960, minHeight: 680)
+    .enableInjection()
   }
 }
 

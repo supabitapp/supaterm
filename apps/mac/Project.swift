@@ -529,6 +529,7 @@ let project = Project(
         .target(name: "SupatermUpdateFeature"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
+        .external(name: "Inject"),
         .external(name: "PostHog"),
         .external(name: "Sharing"),
         .external(name: "Textual"),
@@ -536,7 +537,9 @@ let project = Project(
       settings: .settings(
         base: [
           "ASSETCATALOG_COMPILER_APPICON_NAME": "supaterm",
+          "EMIT_FRONTEND_COMMAND_LINES": "YES",
           "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
+          "OTHER_LDFLAGS": "$(inherited) -Xlinker -interposable",
           "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) SUPATERM_SNAPSHOT_CATALOG",
         ],
         defaultSettings: .essential
