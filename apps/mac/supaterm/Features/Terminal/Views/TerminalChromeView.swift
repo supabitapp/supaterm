@@ -362,7 +362,7 @@ struct TerminalPalette {
     pressedFill = Color.white.opacity(isDark ? 0.31 : 0.7)
     selectedFill = isDark ? Color.black : .white
     selectedStroke = Color.white.opacity(isDark ? 0.2 : 0.98)
-    selectedShadow = isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12)
+    selectedShadow = isDark ? Color.clear : Color.black.opacity(0.12)
     selectedText = isDark ? Color.white : .black
 
     if isDark {
