@@ -49,7 +49,7 @@ public struct SettingsView: View {
   }
 }
 
-private struct SettingsTabContentView: View {
+struct SettingsTabContentView: View {
   let store: StoreOf<SettingsFeature>
   let tab: SettingsFeature.Tab
 

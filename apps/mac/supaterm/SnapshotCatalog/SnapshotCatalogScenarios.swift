@@ -1,9 +1,10 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
-import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
+
+@testable import SupatermSettingsFeature
 
 extension SnapshotCatalog {
   static let sidebarScenarios: [SnapshotScenario] = [
@@ -20,7 +21,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000001",
             title: "supaterm - fish",
             isSelected: true,
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm"]
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
           )
         )
       )
@@ -39,7 +40,7 @@ extension SnapshotCatalog {
             title: "release-check",
             isPinned: true,
             isRowHovering: true,
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm/apps/mac"],
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
             shortcutHint: "⌘2",
             showsShortcutHint: true
           )
@@ -60,8 +61,8 @@ extension SnapshotCatalog {
             title: "Build failures",
             notificationPreviewMarkdown: "2 failures in `TerminalSidebarChromeViewTests` after snapshot pass",
             paneWorkingDirectories: [
-              "/Users/khoi/code/supaterm/apps/mac",
-              "/Users/khoi/code/supaterm/apps/mac/supatermTests",
+              SnapshotFixtureValues.workspace("apps/mac"),
+              SnapshotFixtureValues.workspace("apps/mac/supatermTests"),
             ],
             unreadCount: 12
           )
@@ -81,7 +82,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000004",
             title: "Socket cleanup",
             notificationPreviewMarkdown: "Applying patch while keeping the socket route stable",
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm/apps/mac"],
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
             badgeActivities: [.codex(.running)],
             badgeActivity: .codex(.running)
           )
@@ -101,7 +102,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000005",
             title: "Release note pass",
             notificationPreviewMarkdown: "Approval needed before publishing the release note",
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm/apps/supaterm.com"],
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/supaterm.com")],
             badgeActivities: [.codex(.needsInput)],
             badgeActivity: .codex(.needsInput)
           )
@@ -121,7 +122,7 @@ extension SnapshotCatalog {
             id: "10000000-0000-0000-0000-000000000006",
             title: "Parallel fixes",
             notificationPreviewMarkdown: "Three panes are reporting active work",
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm"],
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace()],
             badgeActivities: [
               .codex(.running),
               TerminalHostState.AgentActivity(kind: .pi, phase: .running),
@@ -145,7 +146,7 @@ extension SnapshotCatalog {
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000007",
             title: "Archive export",
-            paneWorkingDirectories: ["/Users/khoi/code/supaterm/apps/mac"],
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace("apps/mac")],
             terminalProgress: TerminalSidebarTerminalProgress(fraction: 0.68, tone: .paused)
           )
         )
@@ -162,10 +163,10 @@ extension SnapshotCatalog {
           appearance: appearance,
           item: SidebarRowSnapshotItem(
             id: "10000000-0000-0000-0000-000000000008",
-            title: "/Users/khoi/code/github.com/supabitapp/supaterm/apps/mac/supaterm/SnapshotCatalog",
+            title: SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
             paneWorkingDirectories: [
-              "/Users/khoi/code/supaterm/apps/mac/supaterm/SnapshotCatalog",
-              "/Users/khoi/code/supaterm/docs",
+              SnapshotFixtureValues.workspace("apps/mac/supaterm/SnapshotCatalog"),
+              SnapshotFixtureValues.workspace("docs"),
             ],
             hasTerminalBell: true
           )
@@ -209,7 +210,7 @@ extension SnapshotCatalog {
               PaneAgentProgressRow(id: "task-1", title: "Waiting for review", status: .running)
             ],
             branchDetails: PaneAgentBranchDetails(
-              branchName: "khoi/snapshot-catalog",
+              branchName: "feature/snapshot-catalog",
               addedLineCount: 1482,
               removedLineCount: 28,
               pullRequestStatus: PaneAgentPullRequestStatus(
@@ -260,7 +261,7 @@ extension SnapshotCatalog {
           appearance: appearance,
           presentation: PaneAgentPanelPresentation(
             branchDetails: PaneAgentBranchDetails(
-              branchName: "khoi/sidebar-polish",
+              branchName: "feature/sidebar-polish",
               addedLineCount: 82,
               removedLineCount: 19,
               pullRequestStatus: PaneAgentPullRequestStatus(
@@ -761,7 +762,8 @@ private struct SettingsSnapshotFixture: View {
   }
 
   var body: some View {
-    SettingsView(store: store)
+    SettingsTabContentView(store: store, tab: store.selectedTab)
+      .background(Color(nsColor: .windowBackgroundColor))
   }
 
   private static func store(
@@ -782,7 +784,7 @@ private struct SettingsSnapshotFixture: View {
         apply: { settings in
           GhosttyTerminalSettingsValues(
             confirmCloseSurface: settings.confirmCloseSurface,
-            configPath: "/Users/khoi/.config/ghostty/config",
+            configPath: SnapshotFixtureValues.ghosttyConfigPath,
             darkTheme: settings.darkTheme,
             fontFamily: settings.fontFamily,
             fontSize: settings.fontSize,
@@ -816,7 +818,10 @@ private struct SettingsSnapshotFixture: View {
         )
       )
     case .terminalError:
-      _ = store.send(.terminalSettingsLoadFailed("Could not read /Users/khoi/.config/ghostty/config."))
+      _ = store.send(.terminalSettingsLoaded(terminalSettingsSnapshot(warningMessage: nil)))
+      _ = store.send(
+        .terminalSettingsLoadFailed("Could not read \(SnapshotFixtureValues.ghosttyConfigPath).")
+      )
     case .codingAgentsEnabled:
       _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(true)))
       _ = store.send(.agentIntegrationStatusRefreshed(.pi, .success(true)))
@@ -864,7 +869,7 @@ private struct SettingsSnapshotFixture: View {
       availableDarkThemes: ["Builtin Dark", "Zenbones Dark", "Supaterm Night"],
       availableLightThemes: ["Builtin Light", "Zenbones Light", "Supaterm Day"],
       confirmCloseSurface: .whenNotAtPrompt,
-      configPath: "/Users/khoi/.config/ghostty/config",
+      configPath: SnapshotFixtureValues.ghosttyConfigPath,
       darkTheme: "Supaterm Night",
       fontFamily: "Berkeley Mono",
       fontSize: 15,
@@ -875,6 +880,15 @@ private struct SettingsSnapshotFixture: View {
 }
 
 private enum SnapshotFixtureValues {
+  nonisolated static let homeDirectory = "/tmp/supaterm-snapshot/home"
+  nonisolated static let workspaceDirectory = "/tmp/supaterm-snapshot/workspace"
+
+  nonisolated static let ghosttyConfigPath = "\(homeDirectory)/.config/ghostty/config"
+
+  nonisolated static func workspace(_ path: String = "") -> String {
+    path.isEmpty ? workspaceDirectory : "\(workspaceDirectory)/\(path)"
+  }
+
   static func uuid(_ value: String) -> UUID {
     UUID(uuidString: value)!
   }
