@@ -3,6 +3,7 @@ strict: true
 included:
   - supaterm
   - supatermTests
+  - supatermSnapshotTests
 
 disabled_rules:
   - file_length

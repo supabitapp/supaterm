@@ -32,3 +32,4 @@ jobs:
           - run: make mac-build-zmx
       - run: make mac-scan-dead-code
       - run: make mac-test-xcodebuild
+      - run: make mac-test-snapshots

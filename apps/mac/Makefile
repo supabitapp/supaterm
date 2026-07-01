@@ -23,7 +23,7 @@ TUIST_GENERATE_CACHE_PROFILE ?= $(TUIST_BINARY_CACHE_PROFILE)
 TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo run-app run-app-demo install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -85,6 +85,9 @@ build-app: tuist-generate build-ghostty build-zmx # Build the macOS app (Debug)
 build-app-demo: tuist-generate build-ghostty build-zmx # Build the macOS app in demo mode (Debug)
 	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug build "SWIFT_ACTIVE_COMPILATION_CONDITIONS=\$$(inherited) SUPATERM_DEMO" 2>&1 | mise exec -- xcbeautify --disable-logging'
 
+build-snapshot-catalog: tuist-generate build-ghostty # Build the snapshot catalog app (Debug)
+	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshotCatalog" -configuration Debug build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
+
 run-app: build-app # Build then launch (Debug) with log streaming
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "$(APP_SCHEME)" '.[] | select(.target == $$target) | .buildSettings')"; \
 	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
@@ -101,6 +104,13 @@ run-app: build-app # Build then launch (Debug) with log streaming
 		SUPATERM_STATE_HOME="$$state_home" \
 		ZMX_DIR="$$zmx_dir" \
 		"$$build_dir/$$product/Contents/MacOS/$$exec_name"
+
+run-snapshot-catalog: build-snapshot-catalog # Build then launch the snapshot catalog app.
+	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshotCatalog" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "supatermSnapshotCatalog" '.[] | select(.target == $$target) | .buildSettings')"; \
+	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
+	product="$$(echo "$$settings" | jq -r '.FULL_PRODUCT_NAME')"; \
+	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
+	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
 run-app-demo: build-app-demo # Build then launch seeded demo mode (Debug)
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "$(APP_SCHEME)" '.[] | select(.target == $$target) | .buildSettings')"; \
@@ -154,11 +164,21 @@ test-xcodebuild:
 		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
 	fi
 
+test-snapshots: tuist-generate build-ghostty # Run snapshot tests.
+	@if [ -t 1 ]; then \
+		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'; \
+	else \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
+	fi
+
+record-snapshots: tuist-generate build-ghostty # Record snapshot references.
+	SNAPSHOT_TESTING_RECORD=all xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
 scan-dead-code: tuist-generate build-ghostty build-zmx
 	mise exec -- periphery scan
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupatermCLIShared SPCLI sp supaterm supatermTests
+	swift format -p --in-place --recursive --configuration ./.swift-format.json SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml

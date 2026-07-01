@@ -498,6 +498,73 @@ let project = Project(
         defaultSettings: .essential
       )
     ),
+    .target(
+      name: "supatermSnapshotCatalog",
+      destinations: .macOS,
+      product: .app,
+      bundleId: "app.supabit.supaterm.snapshot-catalog",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .extendingDefault(with: [
+        "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+        "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+        "LSApplicationCategoryType": "public.app-category.developer-tools",
+        "SupatermDevelopmentBuild": "YES",
+      ]),
+      resources: [
+        "supaterm/Assets.xcassets",
+        "supaterm/supaterm.icon",
+      ],
+      buildableFolders: [
+        "supaterm/App",
+        "supaterm/Features/Chrome",
+        "supaterm/Features/Terminal",
+        "supaterm/SnapshotCatalog",
+      ],
+      dependencies: [
+        .target(name: "SupatermCLIShared"),
+        .target(name: "SupatermSupport"),
+        .target(name: "SupatermTerminalCore"),
+        .target(name: "SupatermSocketFeature"),
+        .target(name: "SupatermSettingsFeature"),
+        .target(name: "SupatermUpdateFeature"),
+        .target(name: "GhosttyKit"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "PostHog"),
+        .external(name: "Sharing"),
+        .external(name: "Textual"),
+      ],
+      settings: .settings(
+        base: [
+          "ASSETCATALOG_COMPILER_APPICON_NAME": "supaterm",
+          "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @executable_path/../Frameworks",
+          "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) SUPATERM_SNAPSHOT_CATALOG",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "supatermSnapshotTests",
+      destinations: .macOS,
+      product: .unitTests,
+      bundleId: "app.supabit.supatermSnapshotTests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supatermSnapshotTests",
+      ],
+      dependencies: [
+        .target(name: "supatermSnapshotCatalog"),
+        .external(name: "SnapshotTesting"),
+      ],
+      settings: .settings(
+        base: [
+          "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/supatermSnapshotCatalog.app/Contents/MacOS/supatermSnapshotCatalog",
+          "BUNDLE_LOADER": "$(TEST_HOST)",
+          "LD_RUNPATH_SEARCH_PATHS": "$(inherited) @loader_path/../Frameworks @executable_path/../Frameworks @loader_path/../../../supatermSnapshotCatalog.app/Contents/MacOS",
+        ],
+        defaultSettings: .essential
+      )
+    ),
   ],
   schemes: [
     .scheme(
@@ -538,6 +605,42 @@ let project = Project(
       profileAction: .profileAction(
         configuration: .release,
         executable: .target("supaterm")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
+    ),
+    .scheme(
+      name: "supatermSnapshotCatalog",
+      buildAction: .buildAction(
+        targets: [
+          .target("supatermSnapshotCatalog"),
+        ]
+      ),
+      runAction: .runAction(
+        configuration: .debug,
+        executable: .executable(.target("supatermSnapshotCatalog")),
+        expandVariableFromTarget: .target("supatermSnapshotCatalog")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
+    ),
+    .scheme(
+      name: "supatermSnapshots",
+      buildAction: .buildAction(
+        targets: [
+          .target("supatermSnapshotCatalog"),
+          .target("supatermSnapshotTests"),
+        ]
+      ),
+      testAction: .targets(
+        [
+          .testableTarget(target: .target("supatermSnapshotTests")),
+        ],
+        configuration: .debug,
+        expandVariableFromTarget: .target("supatermSnapshotCatalog")
+      ),
+      runAction: .runAction(
+        configuration: .debug,
+        executable: .executable(.target("supatermSnapshotCatalog")),
+        expandVariableFromTarget: .target("supatermSnapshotCatalog")
       ),
       analyzeAction: .analyzeAction(configuration: .debug)
     ),
