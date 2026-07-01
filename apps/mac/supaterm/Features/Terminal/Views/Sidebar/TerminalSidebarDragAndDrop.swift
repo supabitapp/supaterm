@@ -534,7 +534,7 @@ private struct TerminalSidebarMorphingPreview: View {
     TerminalSidebarTabSummaryView(
       tab: tab,
       palette: palette,
-      isSelected: false,
+      isSelected: true,
       notificationPreviewMarkdown: notificationPreviewMarkdown,
       paneWorkingDirectories: paneWorkingDirectories,
       unreadCount: unreadCount,
@@ -554,14 +554,10 @@ private struct TerminalSidebarMorphingPreview: View {
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(width: rowWidth)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-    .background(Color(nsColor: .controlBackgroundColor).opacity(0.95))
+    .background(palette.selectedFill)
     .clipShape(
       RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
     )
-    .overlay {
-      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-    }
     .shadow(
       color: .black.opacity(0.25),
       radius: 8,
