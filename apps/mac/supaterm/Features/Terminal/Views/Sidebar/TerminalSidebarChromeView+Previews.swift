@@ -508,7 +508,7 @@ private struct TerminalSidebarGroupedTabPreview: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
       RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .fill(palette.clearFill)
+        .fill(palette.unselectedFill)
       RoundedRectangle(cornerRadius: 16, style: .continuous)
         .fill(accent.opacity(groupFillOpacity))
     }
@@ -542,9 +542,7 @@ private struct TerminalSidebarGroupedTabPreview: View {
   }
 
   private var innerFill: Color {
-    colorScheme == .dark
-      ? palette.clearFill.opacity(0.92)
-      : palette.clearFill.opacity(0.72)
+    palette.unselectedFill
   }
 
   private var groupFillOpacity: Double {

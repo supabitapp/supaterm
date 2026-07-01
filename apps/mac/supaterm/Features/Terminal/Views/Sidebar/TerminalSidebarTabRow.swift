@@ -175,7 +175,7 @@ struct TerminalSidebarTabRow: View {
               .accessibilityHidden(true)
               .background(
                 isCloseHovering
-                  ? (isSelected ? palette.clearFill : palette.rowFill)
+                  ? (isSelected ? palette.selectedPillFill : palette.unselectedFill)
                   : .clear,
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
               )
@@ -189,16 +189,14 @@ struct TerminalSidebarTabRow: View {
       .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
       .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       .frame(maxWidth: .infinity)
-      .background(backgroundColor)
-      .clipShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
-      .shadow(color: isSelected ? palette.shadow : .clear, radius: isSelected ? 2 : 0, y: 1.5)
-      .contentShape(
-        RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
-      )
     }
-    .buttonStyle(.plain)
+    .buttonStyle(
+      TerminalSidebarTabRowButtonStyle(
+        palette: palette,
+        isSelected: isSelected,
+        isHovering: isHovering
+      )
+    )
     .terminalAnimation(
       .spring(response: 0.24, dampingFraction: 0.88),
       value: animatedPresentation,
@@ -282,16 +280,6 @@ struct TerminalSidebarTabRow: View {
     }
   }
 
-  private var backgroundColor: Color {
-    if isSelected {
-      return palette.selectedFill
-    }
-    if isHovering {
-      return palette.rowFill
-    }
-    return .clear
-  }
-
   private var animatedPresentation: AnimatedPresentation {
     AnimatedPresentation(
       badgeActivities: agentPresentation.badgeActivities,
@@ -324,6 +312,41 @@ struct TerminalSidebarTabRow: View {
     TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
       _ = store.send(.closeTabRequested(tab.id))
     }
+  }
+}
+
+private struct TerminalSidebarTabRowButtonStyle: ButtonStyle {
+  let palette: TerminalPalette
+  let isSelected: Bool
+  let isHovering: Bool
+
+  func makeBody(configuration: Configuration) -> some View {
+    let shape = RoundedRectangle(
+      cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous
+    )
+    configuration.label
+      .background(fill(isPressed: configuration.isPressed))
+      .clipShape(shape)
+      .overlay(shape.strokeBorder(isSelected ? palette.selectedStroke : .clear, lineWidth: 1))
+      .shadow(
+        color: isSelected ? palette.selectedShadow : .clear,
+        radius: isSelected ? 2 : 0,
+        y: 1.5
+      )
+      .contentShape(shape)
+  }
+
+  private func fill(isPressed: Bool) -> Color {
+    if isSelected {
+      return palette.selectedFill
+    }
+    if isPressed {
+      return palette.pressedFill
+    }
+    if isHovering {
+      return palette.hoverFill
+    }
+    return .clear
   }
 }
 

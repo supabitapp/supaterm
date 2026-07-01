@@ -103,8 +103,18 @@ struct TerminalSidebarUpdateSection: View {
       )
       .fill(backgroundColor)
     )
+    .overlay(
+      RoundedRectangle(
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        style: .continuous
+      )
+      .strokeBorder(
+        style.usesSelectedRowStyle ? palette.selectedStroke : .clear,
+        lineWidth: 1
+      )
+    )
     .shadow(
-      color: style.usesSelectedRowStyle ? palette.shadow : .clear,
+      color: style.usesSelectedRowStyle ? palette.selectedShadow : .clear,
       radius: style.usesSelectedRowStyle ? 2 : 0,
       y: 1.5
     )
@@ -208,9 +218,9 @@ struct TerminalSidebarUpdateSection: View {
       return palette.selectedFill
     }
     if isHovering {
-      return palette.rowFill
+      return palette.hoverFill
     }
-    return palette.rowFill.opacity(0.84)
+    return palette.unselectedFill
   }
 
   private var progressTint: Color {
@@ -400,7 +410,7 @@ private struct TerminalSidebarUpdateStyle {
   }
 
   var buttonFill: Color {
-    usesSelectedRowStyle ? primaryText.opacity(0.08) : palette.clearFill
+    usesSelectedRowStyle ? primaryText.opacity(0.08) : palette.unselectedFill
   }
 
   var warning: Color {

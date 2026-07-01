@@ -319,6 +319,8 @@ final class WindowChromeConfiguratorView: NSView {
 }
 
 struct TerminalPalette {
+  static let primary = Color(red: 0.953, green: 0.898, blue: 0.839)
+
   let windowBackgroundTint: Color
   let detailBackground: Color
   let detailStroke: Color
@@ -330,15 +332,15 @@ struct TerminalPalette {
   let dialogDestructiveFill: Color
   let dialogDestructiveHoverFill: Color
   let dialogPrimaryText: Color
-  let pillFill: Color
-  let rowFill: Color
-  let clearFill: Color
+  let unselectedFill: Color
+  let hoverFill: Color
+  let pressedFill: Color
   let selectedFill: Color
-  let selectionStroke: Color
+  let selectedStroke: Color
+  let selectedShadow: Color
   let primaryText: Color
   let secondaryText: Color
   let selectedText: Color
-  let selectedIcon: Color
   let attention: Color
   let shadow: Color
   let amber: Color
@@ -353,52 +355,43 @@ struct TerminalPalette {
   var selectedPillStroke: Color { selectedText.opacity(0.14) }
 
   init(colorScheme: ColorScheme) {
-    if colorScheme == .dark {
-      windowBackgroundTint = Color(red: 0.078, green: 0.078, blue: 0.078, opacity: 0.3)
+    let isDark = colorScheme == .dark
+    windowBackgroundTint = Self.primary.mix(with: .black, by: isDark ? 0.86 : 0).opacity(0.3)
+    unselectedFill = (isDark ? Color.white : .black).opacity(0.06)
+    hoverFill = Color.white.opacity(isDark ? 0.16 : 0.55)
+    pressedFill = Color.white.opacity(isDark ? 0.31 : 0.7)
+    selectedFill = isDark ? Color.black : .white
+    selectedStroke = Color.white.opacity(isDark ? 0.2 : 0.98)
+    selectedShadow = isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12)
+    selectedText = isDark ? Color.white : .black
+
+    if isDark {
       detailBackground = Color(red: 0.15, green: 0.14, blue: 0.14)
       detailStroke = Color.white.opacity(0.08)
       dialogOuterBackground = Color(red: 0.1412, green: 0.1412, blue: 0.1412)
       dialogInnerBackground = Color(red: 0.1137, green: 0.1137, blue: 0.1137)
-      dialogBorder = Color(nsColor: .separatorColor)
       dialogSecondaryFill = Color.white.opacity(0.136)
       dialogSecondaryHoverFill = Color.white.opacity(0.085)
-      dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
-      dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
       dialogPrimaryText = .white
-      pillFill = Color.white.opacity(0.08)
-      rowFill = Color.white.opacity(0.06)
-      clearFill = Color.white.opacity(0.03)
-      selectedFill = Color(red: 0.93, green: 0.93, blue: 0.95)
-      selectionStroke = Color.black.opacity(0.14)
       primaryText = Color.white.opacity(0.94)
       secondaryText = Color.white.opacity(0.58)
-      selectedText = Color.black.opacity(0.82)
-      selectedIcon = Color.black.opacity(0.82)
       shadow = .black.opacity(0.28)
     } else {
-      windowBackgroundTint = Color(red: 0.953, green: 0.898, blue: 0.839, opacity: 0.3)
       detailBackground = Color(red: 0.985, green: 0.975, blue: 0.96)
       detailStroke = Color.black.opacity(0.06)
       dialogOuterBackground = .white
       dialogInnerBackground = Color.black.opacity(0.1)
-      dialogBorder = Color(nsColor: .separatorColor)
       dialogSecondaryFill = Color.black.opacity(0.08)
       dialogSecondaryHoverFill = Color.black.opacity(0.05)
-      dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
-      dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
       dialogPrimaryText = .black
-      pillFill = Color.black.opacity(0.07)
-      rowFill = Color.black.opacity(0.05)
-      clearFill = Color.black.opacity(0.02)
-      selectedFill = Color(red: 0.12, green: 0.12, blue: 0.12)
-      selectionStroke = Color.white.opacity(0.08)
       primaryText = Color.black.opacity(0.86)
       secondaryText = Color.black.opacity(0.48)
-      selectedText = .white
-      selectedIcon = .white
       shadow = .black.opacity(0.08)
     }
 
+    dialogBorder = Color(nsColor: .separatorColor)
+    dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
+    dialogDestructiveHoverFill = Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85)
     attention = Color(nsColor: .systemOrange)
     amber = Color(red: 0.89, green: 0.64, blue: 0.28)
     mint = Color(red: 0.3, green: 0.72, blue: 0.58)

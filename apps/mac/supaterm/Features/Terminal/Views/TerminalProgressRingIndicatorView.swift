@@ -16,14 +16,14 @@ struct TerminalAgentRunningSpinnerView: View {
 
   private var color: Color {
     if isSelected {
-      return palette.selectedIcon.opacity(0.56)
+      return palette.selectedText.opacity(0.56)
     }
     return palette.secondaryText.opacity(0.72)
   }
 
   private var trackColor: Color {
     if isSelected {
-      return palette.selectedIcon.opacity(0.18)
+      return palette.selectedText.opacity(0.18)
     }
     return palette.secondaryText.opacity(0.22)
   }

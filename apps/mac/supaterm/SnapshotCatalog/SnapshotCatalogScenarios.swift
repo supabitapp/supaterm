@@ -47,6 +47,24 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "pressed",
+      group: "Sidebar Rows",
+      title: "Pressed shell tab",
+      size: CGSize(width: 320, height: 72)
+    ) { appearance in
+      AnyView(
+        SidebarRowSnapshotFixture(
+          appearance: appearance,
+          item: SidebarRowSnapshotItem(
+            id: "10000000-0000-0000-0000-000000000009",
+            title: "supaterm - fish",
+            isPressed: true,
+            paneWorkingDirectories: [SnapshotFixtureValues.workspace()]
+          )
+        )
+      )
+    },
+    scenario(
       "unread-markdown",
       group: "Sidebar Rows",
       title: "Unread markdown preview",
@@ -545,6 +563,7 @@ private struct SidebarRowSnapshotItem {
   var isSelected = false
   var isPinned = false
   var isRowHovering = false
+  var isPressed = false
   var notificationPreviewMarkdown: String?
   var paneWorkingDirectories: [String] = []
   var unreadCount = 0
@@ -596,10 +615,35 @@ private struct SidebarRowSnapshotFixture: View {
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(item.isSelected ? palette.selectedFill : item.isRowHovering ? palette.rowFill : .clear)
+    .background(fill)
     .clipShape(.rect(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius))
+    .overlay(
+      RoundedRectangle(
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        style: .continuous
+      )
+      .strokeBorder(item.isSelected ? palette.selectedStroke : .clear, lineWidth: 1)
+    )
+    .shadow(
+      color: item.isSelected ? palette.selectedShadow : .clear,
+      radius: item.isSelected ? 2 : 0,
+      y: 1.5
+    )
     .padding(10)
     .background(palette.detailBackground)
+  }
+
+  private var fill: Color {
+    if item.isSelected {
+      return palette.selectedFill
+    }
+    if item.isPressed {
+      return palette.pressedFill
+    }
+    if item.isRowHovering {
+      return palette.hoverFill
+    }
+    return .clear
   }
 }
 

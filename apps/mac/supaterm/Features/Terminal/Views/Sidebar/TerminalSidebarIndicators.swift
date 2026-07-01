@@ -41,7 +41,7 @@ struct TerminalAgentBadgeGroupView: View {
       if overflowCount > 0 {
         Text("+\(overflowCount)")
           .font(.system(size: 7, weight: .bold))
-          .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+          .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
           .padding(.horizontal, 3)
           .frame(minWidth: 16, minHeight: 16)
           .background(badgeFill, in: Capsule(style: .continuous))
@@ -58,7 +58,7 @@ struct TerminalAgentBadgeGroupView: View {
   @Environment(\.pixelLength) private var pixelLength
 
   private var badgeFill: Color {
-    isSelected ? palette.selectedPillFill : palette.pillFill
+    isSelected ? palette.selectedPillFill : palette.unselectedFill
   }
 
   private var badgeStroke: Color {
@@ -78,7 +78,7 @@ private struct TerminalAgentBadgeView: View {
       .aspectRatio(contentMode: .fit)
       .padding(3)
       .frame(width: 16, height: 16)
-      .foregroundStyle(isSelected ? palette.selectedIcon : palette.primaryText)
+      .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
       .background(badgeFill, in: Circle())
       .overlay {
         Circle()
@@ -90,7 +90,7 @@ private struct TerminalAgentBadgeView: View {
   @Environment(\.pixelLength) private var pixelLength
 
   private var badgeFill: Color {
-    isSelected ? palette.selectedPillFill : palette.pillFill
+    isSelected ? palette.selectedPillFill : palette.unselectedFill
   }
 
   private var badgeStroke: Color {

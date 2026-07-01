@@ -464,7 +464,7 @@ struct TerminalSidebarChromeView: View {
 private struct TerminalSidebarSectionDivider: View {
   var body: some View {
     RoundedRectangle(cornerRadius: 100, style: .continuous)
-      .fill(Color(nsColor: .separatorColor).opacity(0.85))
+      .fill(Color.white.opacity(0.3))
       .frame(height: 1)
   }
 }
@@ -515,7 +515,7 @@ private struct TerminalSidebarScrollIndicatorButton: View {
           .accessibilityHidden(true)
           .overlay {
             Circle()
-              .stroke(palette.selectionStroke.opacity(0.45), lineWidth: 1)
+              .stroke(palette.detailStroke, lineWidth: 1)
           }
       }
       .buttonStyle(.plain)

@@ -57,7 +57,7 @@ struct ReleaseAnnouncementCardView: View {
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
         style: .continuous
       )
-      .fill(palette.rowFill.opacity(0.84))
+      .fill(palette.unselectedFill)
     )
     .contentShape(
       RoundedRectangle(
