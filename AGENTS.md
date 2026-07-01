@@ -7,6 +7,7 @@
 ## Documentation
 
 - `./docs/development.md` - general development doc
+- `./docs/theming.md` - how chrome colors are derived from the single primary
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the `sp` CLI and the macOS app talk through socket IPC
 - `integrations/supaterm-skills/skills/supaterm` - user-facing `sp` skill and command references
