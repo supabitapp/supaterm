@@ -68,3 +68,26 @@ struct SupatermSnapshotTests {
     return image
   }
 }
+
+extension SnapshotScenario {
+  fileprivate func snapshotName(appearance: SnapshotAppearance) -> String {
+    "\(slug(group))-\(slug(id))-\(appearance.rawValue)"
+  }
+
+  private func slug(_ value: String) -> String {
+    var result = ""
+    var previousDash = false
+
+    for scalar in value.lowercased().unicodeScalars {
+      if CharacterSet.alphanumerics.contains(scalar) {
+        result.unicodeScalars.append(scalar)
+        previousDash = false
+      } else if !previousDash {
+        result.append("-")
+        previousDash = true
+      }
+    }
+
+    return result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+  }
+}

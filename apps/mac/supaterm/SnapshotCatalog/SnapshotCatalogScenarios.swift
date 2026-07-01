@@ -1,10 +1,9 @@
 import ComposableArchitecture
 import Foundation
 import SupatermCLIShared
+import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
-
-@testable import SupatermSettingsFeature
 
 extension SnapshotCatalog {
   static let sidebarScenarios: [SnapshotScenario] = [

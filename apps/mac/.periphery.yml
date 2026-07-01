@@ -1,6 +1,7 @@
 project: supaterm.xcworkspace
 schemes:
   - supaterm
+  - supatermSnapshotCatalog
 format: xcode
 relative_results: true
 strict: true

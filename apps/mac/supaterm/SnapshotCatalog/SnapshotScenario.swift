@@ -34,31 +34,6 @@ struct SnapshotScenario: Identifiable {
   let size: CGSize
   let appearances: [SnapshotAppearance]
   let makeView: @MainActor (SnapshotAppearance) -> AnyView
-
-  var snapshotBaseName: String {
-    "\(slug(group))-\(slug(id))"
-  }
-
-  func snapshotName(appearance: SnapshotAppearance) -> String {
-    "\(snapshotBaseName)-\(appearance.rawValue)"
-  }
-
-  private func slug(_ value: String) -> String {
-    var result = ""
-    var previousDash = false
-
-    for scalar in value.lowercased().unicodeScalars {
-      if CharacterSet.alphanumerics.contains(scalar) {
-        result.unicodeScalars.append(scalar)
-        previousDash = false
-      } else if !previousDash {
-        result.append("-")
-        previousDash = true
-      }
-    }
-
-    return result.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-  }
 }
 
 struct SnapshotCatalogScenarioRender: View {

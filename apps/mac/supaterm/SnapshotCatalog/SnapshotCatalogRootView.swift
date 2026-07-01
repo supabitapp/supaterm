@@ -15,6 +15,12 @@ struct SnapshotCatalogRootView: View {
       ?? SnapshotCatalog.scenarios[0]
   }
 
+  private var selectedScenarios: [SnapshotScenario] {
+    let selectedScenario = selectedScenario
+    let scenarios = filteredScenarios.filter { $0.group == selectedScenario.group }
+    return scenarios.isEmpty ? [selectedScenario] : scenarios
+  }
+
   var body: some View {
     NavigationSplitView {
       SnapshotCatalogSidebar(
@@ -25,7 +31,8 @@ struct SnapshotCatalogRootView: View {
     } detail: {
       SnapshotCatalogDetail(
         appearance: $selectedAppearance,
-        scenario: selectedScenario
+        selectedScenario: selectedScenario,
+        scenarios: selectedScenarios
       )
     }
     .navigationSplitViewStyle(.balanced)
@@ -67,40 +74,110 @@ private struct SnapshotCatalogSidebar: View {
 
 private struct SnapshotCatalogDetail: View {
   @Binding var appearance: SnapshotAppearance
-  let scenario: SnapshotScenario
+  let selectedScenario: SnapshotScenario
+  let scenarios: [SnapshotScenario]
+
+  private var maxScenarioWidth: CGFloat {
+    scenarios.map(\.size.width).max() ?? selectedScenario.size.width
+  }
+
+  private var countTitle: String {
+    scenarios.count == 1 ? "1 snapshot" : "\(scenarios.count) snapshots"
+  }
+
+  private var availableAppearances: [SnapshotAppearance] {
+    SnapshotAppearance.allCases.filter { appearance in
+      scenarios.contains { scenario in
+        scenario.appearances.contains(appearance)
+      }
+    }
+  }
+
+  private var compactScenarioColumns: [[SnapshotScenario]] {
+    scenarios.enumerated().reduce(into: Array(repeating: [SnapshotScenario](), count: 2)) { columns, element in
+      columns[element.offset % columns.count].append(element.element)
+    }
+  }
 
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
-          Text(scenario.group)
+          Text(countTitle)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
-          Text(scenario.title)
+          Text(selectedScenario.group)
             .font(.system(size: 18, weight: .semibold))
         }
         Spacer()
         Picker("Appearance", selection: $appearance) {
-          ForEach(SnapshotAppearance.allCases) { appearance in
+          ForEach(availableAppearances) { appearance in
             Text(appearance.title).tag(appearance)
           }
         }
         .pickerStyle(.segmented)
-        .frame(width: 180)
+        .labelsHidden()
+        .frame(width: 132)
       }
       .padding(16)
 
       Divider()
 
-      ScrollView([.horizontal, .vertical]) {
-        SnapshotCatalogPreviewSurface(
-          appearance: appearance,
-          scenario: scenario
-        )
-        .padding(32)
+      ScrollView {
+        previewGrid
+          .padding(32)
+          .frame(maxWidth: .infinity, alignment: .top)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Color(nsColor: .windowBackgroundColor))
+    }
+  }
+
+  @ViewBuilder
+  private var previewGrid: some View {
+    if maxScenarioWidth <= 420 {
+      HStack(alignment: .top, spacing: 24) {
+        ForEach(compactScenarioColumns.indices, id: \.self) { columnIndex in
+          VStack(alignment: .leading, spacing: 24) {
+            ForEach(compactScenarioColumns[columnIndex]) { scenario in
+              SnapshotCatalogPreviewCard(
+                appearance: appearance,
+                scenario: scenario
+              )
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .center)
+    } else {
+      VStack(alignment: .leading, spacing: 24) {
+        ForEach(scenarios) { scenario in
+          SnapshotCatalogPreviewCard(
+            appearance: appearance,
+            scenario: scenario
+          )
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .center)
+    }
+  }
+}
+
+private struct SnapshotCatalogPreviewCard: View {
+  let appearance: SnapshotAppearance
+  let scenario: SnapshotScenario
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text(scenario.title)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+
+      SnapshotCatalogPreviewSurface(
+        appearance: appearance,
+        scenario: scenario
+      )
     }
   }
 }
