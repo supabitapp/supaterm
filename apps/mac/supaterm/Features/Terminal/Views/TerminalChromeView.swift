@@ -319,7 +319,7 @@ final class WindowChromeConfiguratorView: NSView {
 }
 
 struct TerminalPalette {
-  static let primary = Color(red: 0.953, green: 0.898, blue: 0.839)
+  static let primary = Color(.displayP3, red: 0.89, green: 0.902, blue: 0.925)
 
   let windowBackgroundTint: Color
   let detailBackground: Color
