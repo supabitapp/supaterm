@@ -172,7 +172,7 @@ test-snapshots: tuist-generate build-ghostty # Run snapshot tests.
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.
-	SNAPSHOT_TESTING_RECORD=all xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+	TEST_RUNNER_SNAPSHOT_TESTING_RECORD=all xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermSnapshots" -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
 scan-dead-code: tuist-generate build-ghostty build-zmx
 	mise exec -- periphery scan
