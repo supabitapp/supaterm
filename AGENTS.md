@@ -31,6 +31,21 @@ make mac-run            # Debug run with isolated ephemeral state
 make mac-inspect-dependencies # Check Tuist dependency graph hygiene
 ```
 
+Snapshot commands:
+
+```bash
+make mac-build-snapshot-catalog # Build the visual snapshot catalog app
+make mac-test-snapshots         # Run snapshot tests
+make mac-record-snapshots       # Regenerate snapshot PNG baselines
+```
+
+Snapshot schemes:
+
+```bash
+supatermSnapshotCatalog # Visual catalog for quick UI iteration
+supatermSnapshots       # Snapshot test scheme
+```
+
 Run a single test class or method:
 ```bash
 xcodebuild test -workspace apps/mac/supaterm.xcworkspace -scheme supaterm -destination "platform=macOS" \
@@ -59,6 +74,7 @@ make web-dev            # dev server
 ## Miscs
 
 - When logic changes in a Reducer, always add tests
+- Snapshot fixtures must use mock data only. Do not put local usernames, home directories, absolute workspace paths, or machine-specific config paths into snapshots.
 - Only spawned a new worktree if the user asked for it, run make worktree-create WORKTREE="name-of-the-work-tree" to create it.
 - Lucide icons may be used in the macOS app; fetch them with `apps/mac/scripts/fetch-lucide-icon.sh <icon-name>`.
 
