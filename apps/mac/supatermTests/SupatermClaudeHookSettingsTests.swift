@@ -21,8 +21,13 @@ struct SupatermClaudeHookSettingsTests {
     let hooks = try #require(object?["hooks"] as? [String: [[String: Any]]])
 
     #expect(
-      Set(hooks.keys) == ["Notification", "PreToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"])
+      Set(hooks.keys) == [
+        "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
+        "UserPromptSubmit",
+      ])
     #expect(try commandHook(in: hooks, event: "Notification")["timeout"] as? Int == 10)
+    #expect(try commandHook(in: hooks, event: "PostToolUse")["timeout"] as? Int == 5)
+    #expect(try commandHook(in: hooks, event: "PostToolUse")["async"] as? Bool == true)
     #expect(try commandHook(in: hooks, event: "PreToolUse")["timeout"] as? Int == 5)
     #expect(try commandHook(in: hooks, event: "PreToolUse")["async"] as? Bool == true)
     #expect(try commandHook(in: hooks, event: "SessionEnd")["timeout"] as? Int == 1)

@@ -265,6 +265,130 @@ struct TerminalAgentSessionStoreTests {
     )
   }
 
+  @Test
+  func transcriptGrowthExtendsArmedRunningTimeout() async throws {
+    let clock = TestClock()
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    let events = SessionStoreEventsSpy()
+    let store = TerminalAgentSessionStore(
+      agentRunningTimeout: .seconds(3),
+      transcriptPollInterval: .seconds(1),
+      sleep: { duration in
+        try await clock.sleep(for: duration)
+      }
+    )
+    events.bind(to: store)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    store.beginSession(
+      agent: .claude,
+      sessionID: "session-1",
+      context: context,
+      transcriptPath: transcriptURL.path
+    )
+    #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
+    store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: context)
+    await flushEffects()
+
+    for toolUseID in ["toolu_1", "toolu_2"] {
+      try ClaudeProgressFixtures.appendTaskCreate(
+        toolUseID: toolUseID,
+        subject: "Heartbeat line",
+        to: transcriptURL
+      )
+      await clock.advance(by: .seconds(1))
+      await flushEffects()
+    }
+    await clock.advance(by: .seconds(2))
+    await flushEffects()
+
+    #expect(events.expirations.isEmpty)
+  }
+
+  @Test
+  func transcriptGrowthDoesNotRearmCancelledRunningTimeout() async throws {
+    let clock = TestClock()
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    let events = SessionStoreEventsSpy()
+    let store = TerminalAgentSessionStore(
+      agentRunningTimeout: .seconds(3),
+      transcriptPollInterval: .seconds(1),
+      sleep: { duration in
+        try await clock.sleep(for: duration)
+      }
+    )
+    events.bind(to: store)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    store.beginSession(
+      agent: .claude,
+      sessionID: "session-1",
+      context: context,
+      transcriptPath: transcriptURL.path
+    )
+    #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
+    store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: context)
+    await flushEffects()
+    store.cancelRunningTimeout(agent: .claude, sessionID: "session-1")
+
+    try ClaudeProgressFixtures.appendTaskCreate(
+      toolUseID: "toolu_1",
+      subject: "Heartbeat line",
+      to: transcriptURL
+    )
+    for _ in 0..<5 {
+      await clock.advance(by: .seconds(1))
+      await flushEffects()
+    }
+
+    #expect(events.expirations.isEmpty)
+  }
+
+  @Test
+  func runningTimeoutExpiresAfterTranscriptGoesQuiet() async throws {
+    let clock = TestClock()
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    let events = SessionStoreEventsSpy()
+    let store = TerminalAgentSessionStore(
+      agentRunningTimeout: .seconds(3),
+      transcriptPollInterval: .seconds(1),
+      sleep: { duration in
+        try await clock.sleep(for: duration)
+      }
+    )
+    events.bind(to: store)
+    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    store.beginSession(
+      agent: .claude,
+      sessionID: "session-1",
+      context: context,
+      transcriptPath: transcriptURL.path
+    )
+    #expect(store.beginAgentPanelTracking(agent: .claude, sessionID: "session-1", context: context))
+    store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: context)
+    await flushEffects()
+
+    try ClaudeProgressFixtures.appendTaskCreate(
+      toolUseID: "toolu_1",
+      subject: "Heartbeat line",
+      to: transcriptURL
+    )
+    await clock.advance(by: .seconds(1))
+    await flushEffects()
+    await clock.advance(by: .seconds(2))
+    await flushEffects()
+
+    #expect(events.expirations.isEmpty)
+
+    await clock.advance(by: .seconds(1))
+    await flushEffects()
+
+    #expect(events.expirations.count == 1)
+    #expect(events.expirations.first?.0 == .claude)
+    #expect(events.expirations.first?.1 == "session-1")
+  }
+
   private func flushEffects() async {
     for _ in 0..<5 {
       await Task.yield()

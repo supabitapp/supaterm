@@ -218,10 +218,15 @@ final class TerminalAgentSessionStore {
     let interval = transcriptPollInterval
     let sleep = self.sleep
     agentPanelMonitorTasks[key] = Task { [weak self] in
+      var transcriptSize = self?.transcriptFileSize(key: key)
       while !Task.isCancelled {
         try? await sleep(interval)
         guard !Task.isCancelled else { return }
         guard let self, self.sessions[key] != nil else { return }
+        if let size = self.transcriptFileSize(key: key), size != transcriptSize {
+          transcriptSize = size
+          self.extendRunningTimeoutIfArmed(agent: agent, sessionID: sessionID, context: context)
+        }
         guard let tick = monitor.poll() else { continue }
         self.handleMonitorTick(tick, key: key, sessionID: sessionID, context: context)
         if tick.isFinal {
@@ -300,6 +305,21 @@ final class TerminalAgentSessionStore {
     let key = SessionKey(agent: agent, sessionID: sessionID)
     runningTimeoutTasks[key]?.cancel()
     runningTimeoutTasks.removeValue(forKey: key)
+  }
+
+  private func extendRunningTimeoutIfArmed(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    context: SupatermCLIContext?
+  ) {
+    guard runningTimeoutTasks[SessionKey(agent: agent, sessionID: sessionID)] != nil else { return }
+    armRunningTimeout(agent: agent, sessionID: sessionID, context: context)
+  }
+
+  private func transcriptFileSize(key: SessionKey) -> UInt64? {
+    guard let path = sessions[key]?.transcriptPath else { return nil }
+    let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey])
+    return values?.fileSize.map(UInt64.init)
   }
 
   private func handleRunningTimeoutExpiry(

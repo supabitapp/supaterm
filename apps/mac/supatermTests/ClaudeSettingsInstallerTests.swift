@@ -14,7 +14,10 @@ struct ClaudeSettingsInstallerTests {
     let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
     let hooks = try #require(object["hooks"] as? [String: Any])
     #expect(
-      Set(hooks.keys) == ["Notification", "PreToolUse", "SessionEnd", "SessionStart", "Stop", "UserPromptSubmit"])
+      Set(hooks.keys) == [
+        "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
+        "UserPromptSubmit",
+      ])
   }
 
   @Test
