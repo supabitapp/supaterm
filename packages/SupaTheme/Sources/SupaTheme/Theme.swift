@@ -78,6 +78,10 @@ public nonisolated struct Theme: Identifiable, Equatable, Sendable {
   ]
 
   public static let `default` = isabelline
+
+  public static func curated(id: String) -> Theme {
+    curated.first { $0.id == id } ?? .default
+  }
 }
 
 extension Color {

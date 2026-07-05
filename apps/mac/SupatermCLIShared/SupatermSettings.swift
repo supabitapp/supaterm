@@ -2,6 +2,7 @@ import Foundation
 
 public struct SupatermSettings: Codable, Equatable, Sendable {
   public var appearanceMode: AppearanceMode
+  public var themeID: String
   public var analyticsEnabled: Bool
   public var codingAgentsShowPanel: Bool
   public var codingAgentsShowIcons: Bool
@@ -17,6 +18,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 
   public init(
     appearanceMode: AppearanceMode,
+    themeID: String = "isabelline",
     analyticsEnabled: Bool,
     codingAgentsShowPanel: Bool = true,
     codingAgentsShowIcons: Bool = true,
@@ -31,6 +33,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     zmxSessionsEnabled: Bool = true
   ) {
     self.appearanceMode = appearanceMode
+    self.themeID = themeID
     self.analyticsEnabled = analyticsEnabled
     self.codingAgentsShowPanel = codingAgentsShowPanel
     self.codingAgentsShowIcons = codingAgentsShowIcons
@@ -47,6 +50,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 
   public static let `default` = Self(
     appearanceMode: .dark,
+    themeID: "isabelline",
     analyticsEnabled: true,
     codingAgentsShowPanel: true,
     codingAgentsShowIcons: true,
@@ -96,6 +100,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 
     self.init(
       appearanceMode: appearance?.mode ?? defaults.appearanceMode,
+      themeID: appearance?.theme ?? defaults.themeID,
       analyticsEnabled: privacy?.analyticsEnabled ?? defaults.analyticsEnabled,
       codingAgentsShowPanel: codingAgents?.showPanel ?? defaults.codingAgentsShowPanel,
       codingAgentsShowIcons: codingAgents?.showIcons ?? defaults.codingAgentsShowIcons,
@@ -115,8 +120,9 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     let defaults = Self.default
     var container = encoder.container(keyedBy: CodingKeys.self)
 
-    if appearanceMode != defaults.appearanceMode {
-      try container.encode(PersistedAppearance(mode: appearanceMode), forKey: .appearance)
+    if appearanceMode != defaults.appearanceMode || themeID != defaults.themeID {
+      try container.encode(
+        PersistedAppearance(mode: appearanceMode, theme: themeID), forKey: .appearance)
     }
     if codingAgentsShowPanel != defaults.codingAgentsShowPanel
       || codingAgentsShowIcons != defaults.codingAgentsShowIcons
@@ -189,9 +195,11 @@ extension SupatermSettings {
 
   struct PersistedAppearance: Codable, Equatable, Sendable {
     let mode: AppearanceMode
+    let theme: String
 
-    init(mode: AppearanceMode) {
+    init(mode: AppearanceMode, theme: String) {
       self.mode = mode
+      self.theme = theme
     }
 
     init(from decoder: any Decoder) throws {
@@ -199,16 +207,23 @@ extension SupatermSettings {
       mode =
         try container.decodeIfPresent(AppearanceMode.self, forKey: .mode)
         ?? SupatermSettings.default.appearanceMode
+      theme =
+        try container.decodeIfPresent(String.self, forKey: .theme)
+        ?? SupatermSettings.default.themeID
     }
 
     enum CodingKeys: String, CodingKey {
       case mode
+      case theme
     }
 
     func encode(to encoder: any Encoder) throws {
       var container = encoder.container(keyedBy: CodingKeys.self)
       if mode != SupatermSettings.default.appearanceMode {
         try container.encode(mode, forKey: .mode)
+      }
+      if theme != SupatermSettings.default.themeID {
+        try container.encode(theme, forKey: .theme)
       }
     }
   }
@@ -479,6 +494,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var supatermSettings: SupatermSettings {
     SupatermSettings(
       appearanceMode: appearanceMode,
+      themeID: SupatermSettings.default.themeID,
       analyticsEnabled: analyticsEnabled,
       codingAgentsShowPanel: codingAgentsShowPanel,
       codingAgentsShowIcons: codingAgentsShowIcons,

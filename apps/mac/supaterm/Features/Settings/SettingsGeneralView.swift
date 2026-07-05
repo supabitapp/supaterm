@@ -1,15 +1,27 @@
 import ComposableArchitecture
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
 struct SettingsGeneralView: View {
   let store: StoreOf<SettingsFeature>
 
+  @Environment(\.colorScheme) private var colorScheme
+
   private var appearanceMode: Binding<AppearanceMode> {
     Binding(
       get: { store.appearanceMode },
       set: { newValue in
         _ = store.send(.appearanceModeSelected(newValue))
+      }
+    )
+  }
+
+  private var themeID: Binding<Theme.ID> {
+    Binding(
+      get: { store.themeID },
+      set: { newValue in
+        _ = store.send(.themeSelected(newValue))
       }
     )
   }
@@ -56,6 +68,14 @@ struct SettingsGeneralView: View {
               }
             }
           }
+          .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        LabeledContent("Theme") {
+          ThemeSwatchPicker(
+            selection: themeID,
+            palette: Palette(colorScheme: colorScheme)
+          )
           .frame(maxWidth: .infinity, alignment: .leading)
         }
       }

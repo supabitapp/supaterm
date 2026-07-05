@@ -21,4 +21,9 @@ struct ThemeTests {
     #expect(Theme.mint.primary(for: .light) == Theme.mint.lightPrimary)
     #expect(Theme.mint.primary(for: .dark) == Theme.mint.darkPrimary)
   }
+
+  @Test func curatedLookupFallsBackToDefault() {
+    #expect(Theme.curated(id: "steel-blue") == .steelBlue)
+    #expect(Theme.curated(id: "nonexistent") == .default)
+  }
 }

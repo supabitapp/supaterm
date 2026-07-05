@@ -8,6 +8,10 @@ extension SettingsFeature {
       state.appearanceMode = appearanceMode
       return persist(state)
 
+    case .themeSelected(let themeID):
+      state.themeID = themeID
+      return persist(state)
+
     case .analyticsEnabledChanged(let isEnabled):
       state.analyticsEnabled = isEnabled
       return persist(state)

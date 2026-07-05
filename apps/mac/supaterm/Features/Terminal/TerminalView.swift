@@ -30,7 +30,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(colorScheme: chromeColorScheme)
+    Palette(theme: .curated(id: supatermSettings.themeID), colorScheme: chromeColorScheme)
   }
 
   private var pendingCloseBinding: Binding<Bool> {

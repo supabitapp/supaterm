@@ -2,12 +2,13 @@
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
 - `apps/supaterm.com` — Marketing website (Vite+, Cloudflare Workers)
+- `packages/SupaTheme` — Shared Swift package for chrome theming (themes, palette, background, picker)
 - `integrations/supaterm-skills` — User-facing skill submodule for Supaterm integrations and agent workflows
 
 ## Documentation
 
 - `./docs/development.md` - general development doc
-- `./docs/theming.md` - how chrome colors are derived from the single primary
+- `./docs/theming.md` - how Supaterm consumes the SupaTheme package; the recipe lives in `packages/SupaTheme/README.md`
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the `sp` CLI and the macOS app talk through socket IPC
 - `integrations/supaterm-skills/skills/supaterm` - user-facing `sp` skill and command references
