@@ -244,8 +244,9 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func agentBadgeGroupSpacingDoesNotOverlapBadges() {
-    #expect(TerminalAgentBadgeGroupView.badgeSpacing >= 0)
+  func agentBadgeGroupOverlapsBadgesWithinBadgeSize() {
+    #expect(TerminalAgentBadgeGroupView.badgeOverlap > 0)
+    #expect(TerminalAgentBadgeGroupView.badgeOverlap < TerminalAgentBadgeGroupView.badgeSize)
   }
 
   @Test
