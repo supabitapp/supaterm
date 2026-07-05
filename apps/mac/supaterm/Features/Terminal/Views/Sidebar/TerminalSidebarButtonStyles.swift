@@ -1,41 +1,5 @@
 import SwiftUI
 
-struct TerminalSelectableRowButtonStyle: ButtonStyle {
-  let palette: TerminalPalette
-  let isSelected: Bool
-  let isHovering: Bool
-  let cornerRadius: CGFloat
-  var showsSelectionEdge = true
-  var restFill: Color = .clear
-
-  func makeBody(configuration: Configuration) -> some View {
-    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-    let hasEdge = isSelected && showsSelectionEdge
-    configuration.label
-      .background(fill(isPressed: configuration.isPressed))
-      .clipShape(shape)
-      .overlay(shape.strokeBorder(palette.selectedStroke.opacity(hasEdge ? 1 : 0), lineWidth: 1))
-      .shadow(
-        color: hasEdge ? palette.selectedShadow : .clear,
-        radius: hasEdge ? 5 : 0
-      )
-      .contentShape(shape)
-  }
-
-  private func fill(isPressed: Bool) -> Color {
-    if isSelected {
-      return palette.selectedFill
-    }
-    if isPressed {
-      return palette.pressedFill
-    }
-    if isHovering {
-      return palette.hoverFill
-    }
-    return restFill
-  }
-}
-
 struct TerminalSidebarButtonStyle: ButtonStyle {
   enum Layout {
     case rect

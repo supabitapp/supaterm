@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 import UniformTypeIdentifiers
@@ -45,7 +46,7 @@ struct TerminalSplitTreeView: View {
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
   let notificationColor: Color
-  let palette: TerminalPalette
+  let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool
@@ -224,7 +225,7 @@ struct TerminalSplitTreeView: View {
     let focusedSurfaceID: UUID?
     let hiddenAgentPanelSurfaceIDs: Set<UUID>
     let notificationColor: Color
-    let palette: TerminalPalette
+    let palette: Palette
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
@@ -324,7 +325,7 @@ struct TerminalSplitTreeView: View {
     let focusedSurfaceID: UUID?
     let isAgentPanelCollapsed: Bool
     let notificationColor: Color
-    let palette: TerminalPalette
+    let palette: Palette
     let agentPanelForksDown: Bool
     let agentPanelShortcutHint: String?
     let showsGlowingPaneRing: Bool
@@ -690,7 +691,7 @@ struct TerminalSplitTreeView: View {
   private struct AgentPanelSurface: View {
     let isCollapsed: Bool
     let presentation: PaneAgentPanelPresentation
-    let palette: TerminalPalette
+    let palette: Palette
     let forksDown: Bool
     let reduceMotion: Bool
     let shortcutHint: String?
@@ -778,7 +779,7 @@ struct TerminalSplitTreeView: View {
 
   private struct AgentPanelVisibilityButton: View {
     let isVisible: Bool
-    let palette: TerminalPalette
+    let palette: Palette
     let shortcutHint: String?
     let action: () -> Void
 
@@ -1219,7 +1220,7 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
   let focusedSurfaceID: UUID?
   let hiddenAgentPanelSurfaceIDs: Set<UUID>
   let notificationColor: Color
-  let palette: TerminalPalette
+  let palette: Palette
   let agentPanelForksDown: Bool
   let agentPanelShortcutHint: String?
   let showsGlowingPaneRing: Bool

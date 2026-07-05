@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermUpdateFeature
@@ -595,8 +596,8 @@ private struct SidebarRowSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let item: SidebarRowSnapshotItem
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -704,8 +705,8 @@ private enum SidebarChromeSnapshotContext {
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -739,8 +740,8 @@ private struct AgentPanelSnapshotFixture: View {
   var forksDown = false
   var showsShortcutHints = false
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -763,10 +764,10 @@ private struct AgentPanelSnapshotFixture: View {
 
 private struct SidebarCardSnapshotFixture<Content: View>: View {
   let appearance: SnapshotAppearance
-  let content: (TerminalPalette) -> Content
+  let content: (Palette) -> Content
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -780,8 +781,8 @@ private struct TerminalSidebarUpdateSnapshotFixture: View {
   let appearance: SnapshotAppearance
   let phase: UpdatePhase
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -813,8 +814,8 @@ private struct CommandPaletteSnapshotFixture: View {
   let rows: [TerminalCommandPaletteRow]
   let commandHeld: Bool
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {
@@ -860,10 +861,10 @@ private struct CommandPaletteSnapshotFixture: View {
 
 private struct DialogSnapshotFixture<Content: View>: View {
   let appearance: SnapshotAppearance
-  let content: (TerminalPalette) -> Content
+  let content: (Palette) -> Content
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: appearance.colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: appearance.colorScheme)
   }
 
   var body: some View {

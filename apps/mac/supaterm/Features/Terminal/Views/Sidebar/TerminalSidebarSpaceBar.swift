@@ -1,10 +1,11 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarSpaceBar: View {
   let store: StoreOf<TerminalWindowFeature>
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -128,7 +129,7 @@ private struct TerminalSidebarSpaceItemView: View {
   let space: TerminalSpaceItem
   let monogram: String
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   let spacesCount: Int
   let onHoverChange: (Bool) -> Void
   let onSelect: () -> Void

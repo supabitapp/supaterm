@@ -1,8 +1,9 @@
+import SupaTheme
 import SwiftUI
 
 struct ReleaseAnnouncementCardView: View {
   let announcement: ReleaseAnnouncement
-  let palette: TerminalPalette
+  let palette: Palette
   let dismiss: () -> Void
 
   var body: some View {

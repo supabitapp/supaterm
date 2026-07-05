@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarTabRow: View {
@@ -70,7 +71,7 @@ struct TerminalSidebarTabRow: View {
   let unreadCount: Int
   let terminalProgress: TerminalSidebarTerminalProgress?
   let hasTerminalBell: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
   let shortcutHint: String?
@@ -191,7 +192,7 @@ struct TerminalSidebarTabRow: View {
       .frame(maxWidth: .infinity)
     }
     .buttonStyle(
-      TerminalSelectableRowButtonStyle(
+      SelectableRowButtonStyle(
         palette: palette,
         isSelected: isSelected,
         isHovering: isHovering,

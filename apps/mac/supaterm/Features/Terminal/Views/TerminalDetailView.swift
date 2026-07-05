@@ -1,12 +1,13 @@
 import ComposableArchitecture
 import Sharing
+import SupaTheme
 import SupatermSupport
 import SwiftUI
 
 struct TerminalDetailView: View {
   @Shared(.supatermSettings) private var supatermSettings = .default
   let store: StoreOf<TerminalWindowFeature>
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let selectedTabID: TerminalTabID
 
@@ -69,7 +70,7 @@ private struct TerminalDetailTopBar: View {
   let isPaneZoomed: Bool
   let isSidebarCollapsed: Bool
   let showsSidebarAttentionIndicator: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   let backgroundColor: Color
   let equalizePanes: () -> Void
   let toggleSidebar: () -> Void
@@ -158,7 +159,7 @@ private struct TerminalDetailTopBar: View {
 
 private struct SplitZoomButton: View {
   let isPaneZoomed: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   let action: () -> Void
 
   @State private var isHovering = false
@@ -212,7 +213,7 @@ private struct TerminalDetailSurface: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
-  let palette: TerminalPalette
+  let palette: Palette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let terminal: TerminalHostState
@@ -242,7 +243,7 @@ private struct TerminalSurfacePaneView: View {
   let dimmingOpacity: Double
   let focusedSurfaceID: UUID?
   let notificationColor: Color
-  let palette: TerminalPalette
+  let palette: Palette
   let showsGlowingPaneRing: Bool
   let splitDividerColor: Color
   let store: StoreOf<TerminalWindowFeature>

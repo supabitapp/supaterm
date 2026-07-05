@@ -1,3 +1,4 @@
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
@@ -22,7 +23,7 @@ enum AgentPanelShortcut {
 
 struct AgentPanelView: View {
   let presentation: PaneAgentPanelPresentation
-  let palette: TerminalPalette
+  let palette: Palette
   let forksDown: Bool
   let showsShortcutHints: Bool
   let copyBranchName: (String) -> Void
@@ -419,7 +420,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
   init(
     @ViewBuilder leading: () -> Leading,
     title: String,
-    palette: TerminalPalette,
+    palette: Palette,
     titleColor: Color? = nil,
     trailingSpacing: CGFloat? = AgentPanelMetrics.rowTrailingSpacing,
     @ViewBuilder trailing: () -> Trailing
@@ -434,7 +435,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
   init(
     icon: AgentPanelIcon,
     title: String,
-    palette: TerminalPalette,
+    palette: Palette,
     iconColor: Color,
     @ViewBuilder trailing: () -> Trailing
   ) where Leading == AgentPanelIconView {
@@ -470,7 +471,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
   init(
     @ViewBuilder leading: () -> Leading,
     title: String,
-    palette: TerminalPalette,
+    palette: Palette,
     titleColor: Color? = nil
   ) {
     self.init(
@@ -488,7 +489,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
   init(
     icon: AgentPanelIcon,
     title: String,
-    palette: TerminalPalette,
+    palette: Palette,
     iconColor: Color
   ) where Leading == AgentPanelIconView {
     self.init(
@@ -508,7 +509,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
 private struct AgentPanelActionRow: View {
   let icon: AgentPanelIcon
   let title: String
-  let palette: TerminalPalette
+  let palette: Palette
   let shortcutHint: String?
   let helpText: String
   let action: () -> Void
@@ -564,7 +565,7 @@ private struct AgentPanelActionRow: View {
 private struct AgentPanelProgressIcon: View {
   let status: PaneAgentProgressRow.Status
   let kind: PaneAgentProgressRow.Kind
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     Group {
@@ -595,7 +596,7 @@ private struct AgentPanelProgressIcon: View {
 
 private struct PullRequestChecksRingView: View {
   let checks: PaneAgentPullRequestChecks
-  let palette: TerminalPalette
+  let palette: Palette
 
   @ScaledMetric(relativeTo: .caption) private var diameter: CGFloat = 12
   @ScaledMetric(relativeTo: .caption) private var lineWidth: CGFloat = 2

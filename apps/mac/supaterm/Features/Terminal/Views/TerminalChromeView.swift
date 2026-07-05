@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 enum TerminalSplitMetrics {
@@ -63,7 +64,7 @@ enum TerminalCoordinateSpace {
 }
 
 extension View {
-  func terminalPaneChrome(palette: TerminalPalette) -> some View {
+  func terminalPaneChrome(palette: Palette) -> some View {
     self
       .clipShape(.rect(cornerRadius: TerminalChromeMetrics.paneCornerRadius))
       .overlay {
@@ -76,7 +77,7 @@ extension View {
 
 struct ToolbarIconButton: View {
   let symbol: String
-  let palette: TerminalPalette
+  let palette: Palette
   let accessibilityLabel: String?
   let showsAttentionIndicator: Bool
   let action: () -> Void
@@ -85,7 +86,7 @@ struct ToolbarIconButton: View {
 
   init(
     symbol: String,
-    palette: TerminalPalette,
+    palette: Palette,
     accessibilityLabel: String? = nil,
     showsAttentionIndicator: Bool = false,
     action: @escaping () -> Void = {}
@@ -314,112 +315,6 @@ final class WindowChromeConfiguratorView: NSView {
       guard let self, let window = self.window, ObjectIdentifier(window) == windowID else { return }
       WindowChromeConfiguration.apply(to: window)
       self.scheduleDeferredApply(for: window)
-    }
-  }
-}
-
-struct TerminalPalette {
-  static let primary = Color(.displayP3, red: 0.89, green: 0.902, blue: 0.925)
-
-  let isDark: Bool
-  let windowBackgroundTint: Color
-  let detailStroke: Color
-  let dialogDestructiveFill: Color
-  let unselectedFill: Color
-  let hoverFill: Color
-  let pressedFill: Color
-  let selectedFill: Color
-  let selectedStrokeBright: Color
-  let selectedStrokeDim: Color
-  let selectedShadow: Color
-  let primaryText: Color
-  let secondaryText: Color
-  let selectedText: Color
-  let attention: Color
-  let shadow: Color
-  let scrim: Color
-  let overlayShadow: Color
-  let divider: Color
-  let amber: Color
-  let mint: Color
-  let sky: Color
-  let coral: Color
-  let violet: Color
-  let slate: Color
-
-  var selectedSecondaryText: Color { selectedText.opacity(0.72) }
-  var selectedPillFill: Color { selectedText.opacity(0.12) }
-  var selectedPillStroke: Color { selectedText.opacity(0.14) }
-  var detailBackground: Color { Self.primary.mix(with: isDark ? .black : .white, by: 0.85) }
-  var dialogDestructiveHoverFill: Color { dialogDestructiveFill.opacity(0.85) }
-
-  var selectedStroke: LinearGradient {
-    LinearGradient(
-      stops: [
-        Gradient.Stop(color: selectedStrokeBright, location: 0),
-        Gradient.Stop(color: selectedStrokeDim, location: 0.5),
-        Gradient.Stop(color: selectedStrokeBright, location: 1),
-      ],
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
-  }
-
-  init(colorScheme: ColorScheme) {
-    isDark = colorScheme == .dark
-    windowBackgroundTint = Self.primary.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3)
-    unselectedFill = (isDark ? Color.white : .black).opacity(0.06)
-    hoverFill = Color.white.opacity(isDark ? 0.16 : 0.55)
-    pressedFill = Color.white.opacity(isDark ? 0.31 : 0.7)
-    selectedFill = isDark ? Color(white: 0.04) : .white
-    selectedStrokeBright = Color.white.opacity(isDark ? 0.35 : 0.98)
-    selectedStrokeDim = Color.white.opacity(isDark ? 0.08 : 0.98)
-    selectedShadow = isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12)
-    selectedText = isDark ? Color.white : .black
-
-    if isDark {
-      detailStroke = Color.white.opacity(0.08)
-      primaryText = Color.white.opacity(0.94)
-      secondaryText = Color.white.opacity(0.58)
-      shadow = .black.opacity(0.28)
-    } else {
-      detailStroke = Color.black.opacity(0.06)
-      primaryText = Color.black.opacity(0.86)
-      secondaryText = Color.black.opacity(0.48)
-      shadow = .black.opacity(0.08)
-    }
-
-    scrim = Color.black.opacity(0.4)
-    overlayShadow = Color.black.opacity(0.25)
-    divider = Color.white.opacity(0.3)
-    dialogDestructiveFill = Color(red: 1, green: 0.4118, blue: 0.4118)
-    attention = Color(nsColor: .systemOrange)
-    amber = Color(red: 0.89, green: 0.64, blue: 0.28)
-    mint = Color(red: 0.3, green: 0.72, blue: 0.58)
-    sky = Color(red: 0.31, green: 0.59, blue: 0.94)
-    coral = Color(red: 0.9, green: 0.43, blue: 0.38)
-    violet = Color(red: 0.57, green: 0.45, blue: 0.86)
-    slate = Color(red: 0.38, green: 0.44, blue: 0.56)
-  }
-
-  func fill(for tone: TerminalTone) -> Color {
-    color(for: tone).opacity(0.85)
-  }
-
-  private func color(for tone: TerminalTone) -> Color {
-    switch tone {
-    case .amber:
-      amber
-    case .coral:
-      coral
-    case .mint:
-      mint
-    case .sky:
-      sky
-    case .slate:
-      slate
-    case .violet:
-      violet
     }
   }
 }

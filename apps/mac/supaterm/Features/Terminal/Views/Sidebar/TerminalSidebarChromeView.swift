@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
@@ -86,7 +87,7 @@ struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let dismissReleaseAnnouncement: () -> Void
 
@@ -467,7 +468,7 @@ struct TerminalSidebarChromeView: View {
 }
 
 private struct TerminalSidebarSectionDivider: View {
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     RoundedRectangle(cornerRadius: 100, style: .continuous)
@@ -477,7 +478,7 @@ private struct TerminalSidebarSectionDivider: View {
 }
 
 private struct TerminalSidebarRegularSectionHeader: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let action: () -> Void
 
   var body: some View {
@@ -504,7 +505,7 @@ private struct TerminalSidebarRegularSectionHeader: View {
 
 private struct TerminalSidebarScrollIndicatorButton: View {
   let symbol: String
-  let palette: TerminalPalette
+  let palette: Palette
   let action: () -> Void
 
   var body: some View {

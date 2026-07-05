@@ -4,6 +4,8 @@ included:
   - supaterm
   - supatermTests
   - supatermSnapshotTests
+  - ../../packages/SupaTheme/Sources
+  - ../../packages/SupaTheme/Tests
 
 disabled_rules:
   - file_length

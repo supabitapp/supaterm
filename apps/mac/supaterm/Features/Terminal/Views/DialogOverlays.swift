@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 private let dialogTransition: AnyTransition = .asymmetric(
@@ -7,7 +8,7 @@ private let dialogTransition: AnyTransition = .asymmetric(
 )
 
 private struct DialogChrome<Content: View>: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let scrimLabel: String
   let onScrimTap: () -> Void
   @ViewBuilder let content: () -> Content
@@ -39,7 +40,7 @@ private struct DialogChrome<Content: View>: View {
 }
 
 struct ConfirmationOverlay: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let title: String
   let message: String
   let confirmTitle: String
@@ -95,7 +96,7 @@ struct ConfirmationOverlay: View {
 }
 
 struct QuitConfirmationOverlay: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let content: QuitConfirmationContent
   let onPreserve: () -> Void
   let onTerminate: () -> Void
@@ -187,7 +188,7 @@ private struct DialogActionButton: View {
     case text(String)
   }
 
-  let palette: TerminalPalette
+  let palette: Palette
   let title: String
   let style: Style
   let shortcut: Shortcut?
@@ -196,7 +197,7 @@ private struct DialogActionButton: View {
   @State private var isHovering = false
 
   init(
-    palette: TerminalPalette,
+    palette: Palette,
     title: String,
     style: Style,
     shortcut: Shortcut?,
@@ -250,7 +251,7 @@ private struct DialogActionButton: View {
     case .secondary:
       isHovering ? palette.selectedText.opacity(0.2) : palette.selectedPillFill
     case .destructive:
-      isHovering ? palette.dialogDestructiveHoverFill : palette.dialogDestructiveFill
+      isHovering ? palette.destructiveHoverFill : palette.destructive
     }
   }
 
@@ -283,7 +284,7 @@ private struct DialogActionButton: View {
 }
 
 struct SpaceNameOverlay: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let title: String
   let confirmTitle: String
   @Binding var name: String

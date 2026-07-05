@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -76,8 +77,8 @@ private enum TerminalSidebarUpdatePreviewFixtures {
 private struct TerminalSidebarUpdatePreviewGallery: View {
   let colorScheme: ColorScheme
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: colorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: colorScheme)
   }
 
   var body: some View {

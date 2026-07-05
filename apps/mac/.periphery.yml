@@ -10,6 +10,8 @@ clean_build: true
 retain_codable_properties: true
 retain_objc_accessible: true
 retain_swift_ui_previews: true
+report_exclude:
+  - "../../packages/SupaTheme/**"
 build_arguments:
   - -destination
   - platform=macOS

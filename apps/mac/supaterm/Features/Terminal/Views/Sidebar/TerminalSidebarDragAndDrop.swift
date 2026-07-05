@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import Combine
+import SupaTheme
 import SwiftUI
 
 extension NSPasteboard.PasteboardType {
@@ -488,7 +489,7 @@ private struct TerminalSidebarDragPreviewContent: View {
   var body: some View {
     Group {
       if let preview = manager.draggedPreview {
-        let palette = TerminalPalette(colorScheme: manager.colorScheme)
+        let palette = Palette(colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: preview.tab,
           notificationPreviewMarkdown: preview.notificationPreviewMarkdown,
@@ -528,7 +529,7 @@ private struct TerminalSidebarMorphingPreview: View {
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
   let rowWidth: CGFloat
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     TerminalSidebarTabSummaryView(

@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import SupaTheme
 import SupatermUpdateFeature
 import SwiftUI
 
@@ -7,7 +8,7 @@ struct TerminalSplitView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
@@ -96,7 +97,7 @@ struct TerminalSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let dismissReleaseAnnouncement: () -> Void
 
@@ -122,7 +123,7 @@ struct FloatingSidebarOverlay: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
@@ -327,7 +328,7 @@ private struct FloatingSidebarView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
   let releaseAnnouncement: ReleaseAnnouncement?
-  let palette: TerminalPalette
+  let palette: Palette
   let terminal: TerminalHostState
   let width: CGFloat
   let dismissReleaseAnnouncement: () -> Void

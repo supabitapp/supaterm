@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 @MainActor
@@ -101,7 +102,7 @@ private final class QuitConfirmationPanelController: NSWindowController {
       return true
     }
 
-    let palette = TerminalPalette(colorScheme: Self.colorScheme(for: parentWindow))
+    let palette = Palette(colorScheme: Self.colorScheme(for: parentWindow))
     window.contentViewController = NSHostingController(
       rootView: QuitConfirmationOverlay(
         palette: palette,

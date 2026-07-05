@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupaTheme
 import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI
@@ -28,8 +29,8 @@ struct TerminalView: View {
     supatermSettings.appearanceMode.appearance
   }
 
-  private var palette: TerminalPalette {
-    TerminalPalette(colorScheme: chromeColorScheme)
+  private var palette: Palette {
+    Palette(colorScheme: chromeColorScheme)
   }
 
   private var pendingCloseBinding: Binding<Bool> {

@@ -1,8 +1,9 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 struct TerminalCommandPaletteOverlay: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let state: TerminalCommandPaletteState
   let rows: [TerminalCommandPaletteRow]
   let onActivate: () -> Void
@@ -94,17 +95,7 @@ struct TerminalCommandPaletteOverlay: View {
         }
         .padding(9)
         .frame(width: cardWidth, height: cardHeight, alignment: .top)
-        .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cardCornerRadius))
-        .background {
-          BlurEffectView(material: .popover, blendingMode: .withinWindow)
-            .clipShape(.rect(cornerRadius: cardCornerRadius))
-        }
-        .compositingGroup()
-        .clipShape(.rect(cornerRadius: cardCornerRadius))
-        .overlay {
-          RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-            .stroke(palette.detailStroke, lineWidth: 0.5)
-        }
+        .blurCard(palette, cornerRadius: cardCornerRadius)
         .shadow(color: palette.overlayShadow, radius: 22, y: 12)
         .frame(width: geometry.size.width, height: geometry.size.height, alignment: .center)
       }
@@ -207,7 +198,7 @@ struct TerminalCommandPaletteOverlay: View {
 private struct CommandPaletteRowButton: View {
   let row: TerminalCommandPaletteRow
   let shortcutHint: String?
-  let palette: TerminalPalette
+  let palette: Palette
   let isHovered: Bool
   let isSelected: Bool
   let action: () -> Void
@@ -263,7 +254,7 @@ private struct CommandPaletteRowButton: View {
       .frame(maxWidth: .infinity)
     }
     .buttonStyle(
-      TerminalSelectableRowButtonStyle(
+      SelectableRowButtonStyle(
         palette: palette,
         isSelected: isSelected,
         isHovering: isHovered,
@@ -392,7 +383,7 @@ private struct TerminalCommandPalettePreviewColumn: View {
         }
 
       TerminalCommandPaletteOverlay(
-        palette: TerminalPalette(colorScheme: colorScheme),
+        palette: Palette(colorScheme: colorScheme),
         state: state,
         rows: rows,
         onActivate: {},

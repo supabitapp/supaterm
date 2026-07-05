@@ -1,10 +1,11 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 import Textual
 
 struct SidebarPopoverPresenter: NSViewRepresentable {
   let isPresented: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   let markdown: String?
 
   func makeNSView(context: Context) -> SidebarPopoverAnchorView {
@@ -34,7 +35,7 @@ struct SidebarPopoverPresenter: NSViewRepresentable {
 }
 
 private struct TerminalSidebarNotificationPopover: View {
-  let palette: TerminalPalette
+  let palette: Palette
   let markdown: String
 
   private let cornerRadius: CGFloat = 14
@@ -60,17 +61,7 @@ private struct TerminalSidebarNotificationPopover: View {
     .padding(popoverPadding)
     .frame(width: popoverWidth, alignment: .topLeading)
     .allowsHitTesting(false)
-    .background(palette.windowBackgroundTint, in: .rect(cornerRadius: cornerRadius))
-    .background {
-      BlurEffectView(material: .popover, blendingMode: .withinWindow)
-        .clipShape(.rect(cornerRadius: cornerRadius))
-    }
-    .compositingGroup()
-    .clipShape(.rect(cornerRadius: cornerRadius))
-    .overlay {
-      RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        .stroke(palette.detailStroke, lineWidth: 0.5)
-    }
+    .blurCard(palette, cornerRadius: cornerRadius)
     .shadow(color: palette.shadow, radius: 18, y: 10)
   }
 }
@@ -99,7 +90,7 @@ final class SidebarPopoverAnchorView: NSView {
 
   func render(
     isPresented: Bool,
-    palette: TerminalPalette,
+    palette: Palette,
     markdown: String?
   ) {
     guard isPresented, let markdown, window != nil else {

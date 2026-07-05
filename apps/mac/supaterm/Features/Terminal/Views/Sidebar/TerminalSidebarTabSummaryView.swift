@@ -1,3 +1,4 @@
+import SupaTheme
 import SwiftUI
 import Textual
 
@@ -11,7 +12,7 @@ struct TerminalSidebarTabSummaryView: View {
   }
 
   let tab: TerminalTabItem
-  let palette: TerminalPalette
+  let palette: Palette
   let isSelected: Bool
   let notificationPreviewMarkdown: String?
   let paneWorkingDirectories: [String]

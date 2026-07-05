@@ -1,8 +1,9 @@
+import SupaTheme
 import SwiftUI
 
 struct TerminalAgentRunningSpinnerView: View {
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
   var diameter: CGFloat = 14
 
   var body: some View {

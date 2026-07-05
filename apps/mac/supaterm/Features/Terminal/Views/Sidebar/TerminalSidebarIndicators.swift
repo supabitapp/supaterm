@@ -1,3 +1,4 @@
+import SupaTheme
 import SupatermSupport
 import SwiftUI
 
@@ -7,7 +8,7 @@ struct TerminalAgentBadgeGroupView: View {
 
   let activities: [TerminalHostState.AgentActivity]
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
 
   static func visibleActivities(
     _ activities: [TerminalHostState.AgentActivity],
@@ -69,7 +70,7 @@ struct TerminalAgentBadgeGroupView: View {
 private struct TerminalAgentBadgeView: View {
   let activity: TerminalHostState.AgentActivity
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     Image(activity.kind.markImageName)
@@ -126,7 +127,7 @@ struct TerminalSidebarTerminalProgress: Equatable {
 struct TerminalSidebarProgressIndicatorView: View {
   let progress: TerminalSidebarTerminalProgress
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     Group {
@@ -171,7 +172,7 @@ struct TerminalSidebarProgressIndicatorView: View {
 struct TerminalSidebarAgentActivityView: View {
   let activity: TerminalHostState.AgentActivity
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isAnimating = false
@@ -263,7 +264,7 @@ struct TerminalSidebarAgentActivityView: View {
 
 struct TerminalSidebarBellIndicatorView: View {
   let isSelected: Bool
-  let palette: TerminalPalette
+  let palette: Palette
 
   var body: some View {
     RoundedRectangle(cornerRadius: 5, style: .continuous)
