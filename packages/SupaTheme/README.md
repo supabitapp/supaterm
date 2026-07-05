@@ -23,7 +23,7 @@ Supabit's chrome theming system: themes as data, one derived semantic palette, a
 `ThemeBackgroundView(palette:style:)` renders the window background layer:
 
 - `.flat` — exactly the window tint color, for compositing over a blur material.
-- `.gradient` — an opaque 3×3 mesh whose stops are computed from the primary (lifted toward white at the top-leading corner, deepened toward black at the bottom-trailing), finished with a deterministic seeded grain tile at low alpha. No stop values are stored; changing the theme primary restyles the gradient.
+- `.gradient` — an opaque horizontal two-color ramp computed from the primary (lifted toward white on the leading edge, deepened toward black), completing at 75% of the width and interpolated perceptually, finished with a deterministic grain tile multiplied in at low alpha. No stop values are stored; changing the theme primary restyles the gradient.
 
 ## Picker
 
