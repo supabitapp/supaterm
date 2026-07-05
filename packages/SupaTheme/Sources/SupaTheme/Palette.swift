@@ -4,7 +4,6 @@ import SwiftUI
 public struct Palette {
   public let theme: Theme
   public let isDark: Bool
-  public let usesDarkForeground: Bool
   public let windowBackgroundTint: Color
   public let detailStroke: Color
   public let destructive: Color
@@ -58,12 +57,6 @@ public struct Palette {
     let isDark = colorScheme == .dark
     self.isDark = isDark
     let surface = theme.primary(for: colorScheme).mix(with: .black, by: isDark ? 0.8 : 0)
-    let resolved = surface.resolve(in: EnvironmentValues())
-    let luma =
-      0.299 * Double(resolved.red) + 0.587 * Double(resolved.green) + 0.114 * Double(resolved.blue)
-    let usesDarkForeground = luma > 0.55
-    self.usesDarkForeground = usesDarkForeground
-
     windowBackgroundTint = surface.opacity(0.3)
     unselectedFill = (isDark ? Color.white : .black).opacity(0.06)
     hoverFill = Color.white.opacity(isDark ? 0.16 : 0.55)
@@ -74,15 +67,9 @@ public struct Palette {
     selectedShadow = isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12)
     selectedText = isDark ? Color.white : .black
 
-    if usesDarkForeground {
-      detailStroke = Color.black.opacity(0.06)
-      primaryText = Color.black.opacity(0.86)
-      secondaryText = Color.black.opacity(0.48)
-    } else {
-      detailStroke = Color.white.opacity(0.08)
-      primaryText = Color.white.opacity(0.94)
-      secondaryText = Color.white.opacity(0.58)
-    }
+    detailStroke = isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+    primaryText = isDark ? Color.white.opacity(0.94) : Color.black.opacity(0.86)
+    secondaryText = isDark ? Color.white.opacity(0.58) : Color.black.opacity(0.48)
 
     shadow = .black.opacity(isDark ? 0.28 : 0.08)
     scrim = Color.black.opacity(0.4)

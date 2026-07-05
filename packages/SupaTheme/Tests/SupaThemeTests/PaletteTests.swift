@@ -119,22 +119,22 @@ struct PaletteTokenTests {
   }
 }
 
-struct PalettePolarityTests {
-  @Test func brightSeedTakesDarkForeground() {
-    let palette = Palette(theme: .hunyadiYellow, colorScheme: .light)
-    #expect(palette.usesDarkForeground)
-    expectSameColor(palette.primaryText, Color.black.opacity(0.86), "primaryText")
-  }
-
-  @Test func dimSeedTakesLightForeground() {
-    let palette = Palette(theme: .steelBlue, colorScheme: .light)
-    #expect(!palette.usesDarkForeground)
-    expectSameColor(palette.primaryText, Color.white.opacity(0.94), "primaryText")
-  }
-
-  @Test func darkSchemeSurfaceTakesLightForeground() {
+struct PaletteForegroundTests {
+  @Test func lightSchemeTakesDarkForegroundForEveryTheme() {
     for theme in Theme.curated {
-      #expect(!Palette(theme: theme, colorScheme: .dark).usesDarkForeground, "\(theme.id)")
+      let palette = Palette(theme: theme, colorScheme: .light)
+      expectSameColor(palette.primaryText, Color.black.opacity(0.86), theme.id)
+      expectSameColor(palette.secondaryText, Color.black.opacity(0.48), theme.id)
+      expectSameColor(palette.detailStroke, Color.black.opacity(0.06), theme.id)
+    }
+  }
+
+  @Test func darkSchemeTakesLightForegroundForEveryTheme() {
+    for theme in Theme.curated {
+      let palette = Palette(theme: theme, colorScheme: .dark)
+      expectSameColor(palette.primaryText, Color.white.opacity(0.94), theme.id)
+      expectSameColor(palette.secondaryText, Color.white.opacity(0.58), theme.id)
+      expectSameColor(palette.detailStroke, Color.white.opacity(0.08), theme.id)
     }
   }
 }
