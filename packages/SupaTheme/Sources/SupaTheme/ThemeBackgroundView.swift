@@ -32,8 +32,7 @@ public struct ThemeBackgroundView: View {
   ]
 
   private var meshColors: [Color] {
-    let surface = palette.theme.primary(for: palette.isDark ? .dark : .light)
-      .mix(with: .black, by: palette.isDark ? 0.8 : 0)
+    let surface = palette.primary.mix(with: .black, by: palette.isDark ? 0.8 : 0)
     let lifted = surface.mix(with: .white, by: palette.isDark ? 0.16 : 0.12)
     let deepened = surface.mix(with: .black, by: palette.isDark ? 0.3 : 0.16)
     return [0, 0.25, 0.5, 0.25, 0.5, 0.75, 0.5, 0.75, 1].map { position in

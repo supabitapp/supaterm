@@ -5,8 +5,8 @@ public struct SelectableRowButtonStyle: ButtonStyle {
   public let isSelected: Bool
   public let isHovering: Bool
   public let cornerRadius: CGFloat
-  public var showsSelectionEdge = true
-  public var restFill: Color = .clear
+  public let showsSelectionEdge: Bool
+  public let restFill: Color
 
   public init(
     palette: Palette,
