@@ -6,7 +6,6 @@ struct TerminalAgentBadgeGroupView: View {
   static let maxVisibleCount = 3
   static let badgeSize: CGFloat = 16
   static let badgeOverlap: CGFloat = badgeSize * 0.35
-  static let badgeCutoutGap: CGFloat = 1.5
 
   let activities: [TerminalHostState.AgentActivity]
   let isSelected: Bool
@@ -40,9 +39,7 @@ struct TerminalAgentBadgeGroupView: View {
             isSelected: isSelected,
             palette: palette
           )
-          .mask {
-            badgeMask(cutsLeadingNeighbor: index > 0)
-          }
+          .zIndex(Double(visibleActivities.count - index))
         }
       }
 
@@ -61,22 +58,6 @@ struct TerminalAgentBadgeGroupView: View {
     }
     .fixedSize()
     .accessibilityHidden(true)
-  }
-
-  private func badgeMask(cutsLeadingNeighbor: Bool) -> some View {
-    ZStack {
-      Rectangle()
-      if cutsLeadingNeighbor {
-        Circle()
-          .frame(
-            width: Self.badgeSize + Self.badgeCutoutGap * 2,
-            height: Self.badgeSize + Self.badgeCutoutGap * 2
-          )
-          .offset(x: -(Self.badgeSize - Self.badgeOverlap))
-          .blendMode(.destinationOut)
-      }
-    }
-    .compositingGroup()
   }
 
   @Environment(\.pixelLength) private var pixelLength
@@ -106,7 +87,12 @@ private struct TerminalAgentBadgeView: View {
         height: TerminalAgentBadgeGroupView.badgeSize
       )
       .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
-      .background(badgeFill, in: Circle())
+      .background {
+        ZStack {
+          Circle().fill(palette.detailBackground)
+          Circle().fill(badgeFill)
+        }
+      }
       .overlay {
         Circle()
           .strokeBorder(badgeStroke, lineWidth: pixelLength)
