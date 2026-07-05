@@ -216,7 +216,7 @@ struct TerminalSidebarTabSummaryView: View {
         .padding(.horizontal, unreadCount > 9 ? 6 : 5)
         .frame(minWidth: 16, minHeight: 16)
         .background(
-          isSelected ? palette.selectedText.opacity(0.16) : Color.accentColor,
+          isSelected ? palette.selectedText.opacity(0.16) : palette.accent,
           in: Capsule(style: .continuous)
         )
 

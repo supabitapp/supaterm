@@ -162,9 +162,9 @@ struct TerminalSidebarProgressIndicatorView: View {
     case .active:
       return isSelected ? palette.selectedSecondaryText : palette.secondaryText
     case .paused:
-      return .orange
+      return palette.attention
     case .error:
-      return .red
+      return palette.destructive
     }
   }
 }
@@ -255,7 +255,7 @@ struct TerminalSidebarAgentActivityView: View {
     case .attention:
       return palette.attention
     case .active:
-      return Color.accentColor
+      return palette.accent
     case .muted:
       return palette.secondaryText
     }

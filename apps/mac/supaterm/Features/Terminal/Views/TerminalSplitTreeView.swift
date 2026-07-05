@@ -544,7 +544,7 @@ struct TerminalSplitTreeView: View {
     @ViewBuilder
     private func dropOverlay(size: CGSize) -> some View {
       if case .dropping(let zone) = dropState {
-        DropOverlayView(zone: zone, size: size)
+        DropOverlayView(zone: zone, size: size, palette: palette)
           .allowsHitTesting(false)
       }
     }
@@ -1004,9 +1004,10 @@ struct TerminalSplitTreeView: View {
   struct DropOverlayView: View {
     let zone: DropZone
     let size: CGSize
+    let palette: Palette
 
     var body: some View {
-      let overlayColor = Color.accentColor.opacity(0.3)
+      let overlayColor = palette.accent.opacity(0.3)
 
       switch zone {
       case .up:

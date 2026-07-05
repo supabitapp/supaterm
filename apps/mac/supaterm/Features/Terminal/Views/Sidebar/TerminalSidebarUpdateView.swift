@@ -414,7 +414,7 @@ private struct TerminalSidebarUpdateStyle {
   }
 
   var warning: Color {
-    Color(nsColor: .systemOrange)
+    palette.attention
   }
 
   var indicator: Color {
@@ -429,7 +429,7 @@ private struct TerminalSidebarUpdateStyle {
   }
 
   private var success: Color {
-    Color(nsColor: .systemGreen)
+    palette.success
   }
 }
 

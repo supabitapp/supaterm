@@ -182,20 +182,20 @@ private struct SplitZoomButton: View {
         .font(.system(size: 13, weight: .medium))
         .foregroundStyle(
           isPaneZoomed
-            ? Color.accentColor
+            ? palette.accent
             : isHovering ? palette.secondaryText.opacity(0.8) : palette.secondaryText
         )
         .frame(width: 30, height: 30)
         .background(
           isPaneZoomed
-            ? Color.accentColor.opacity(isHovering ? 0.18 : 0.12)
+            ? palette.accent.opacity(isHovering ? 0.18 : 0.12)
             : isHovering ? palette.secondaryText.opacity(0.2) : .clear,
           in: .rect(cornerRadius: 6)
         )
         .overlay {
           if isPaneZoomed {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .stroke(Color.accentColor.opacity(isHovering ? 0.32 : 0.22), lineWidth: 1)
+              .stroke(palette.accent.opacity(isHovering ? 0.32 : 0.22), lineWidth: 1)
           }
         }
         .accessibilityHidden(true)
