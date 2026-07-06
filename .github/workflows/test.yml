@@ -66,4 +66,10 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make mac-test-e2e
+      - run: make mac-test-e2e E2E_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermE2E.xcresult"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-test-e2e-xcresult
+          path: ${{ runner.temp }}/supatermE2E.xcresult
+          if-no-files-found: ignore
