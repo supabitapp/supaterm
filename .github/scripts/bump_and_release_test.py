@@ -317,6 +317,7 @@ class BumpAndReleaseTest(unittest.TestCase):
       [
         call(["make", "web-check"]),
         call(["make", "web-test"]),
+        call(["make", "mac-scan-dead-code"]),
         call(["make", "mac-test"]),
       ],
     )

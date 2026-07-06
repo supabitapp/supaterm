@@ -404,6 +404,7 @@ def run_pre_push_branch_checks(stdin: TextIO) -> None:
     return
   run_interactive(["make", "web-check"])
   run_interactive(["make", "web-test"])
+  run_interactive(["make", "mac-scan-dead-code"])
   run_interactive(["make", "mac-test"])
 
 

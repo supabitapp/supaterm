@@ -22,24 +22,6 @@ hooks {
         check = "make lint"
         depends = "check-added-large-files"
       }
-      ["periphery"] {
-        glob = List(
-          "apps/mac/**/*.swift",
-          "apps/mac/.periphery.yml",
-          "apps/mac/Makefile",
-          "apps/mac/Project.swift",
-          "apps/mac/Workspace.swift",
-          "apps/mac/Tuist.swift",
-          "apps/mac/Tuist/**",
-          "mise.toml"
-        )
-        check = """
-          repo_root=$(git rev-parse --show-toplevel)
-          cd "$repo_root"
-          [ ! -d apps/mac ] || make mac-scan-dead-code
-          """
-        depends = "swiftlint"
-      }
     }
   }
   ["pre-push"] {
