@@ -5,6 +5,131 @@ import Testing
 extension SupatermE2ESuite {
   @Suite struct SessionRestoreTests {
     @Test(.timeLimit(.minutes(5)))
+    func layoutSelectionAndOnboardingSurviveSocketQuitRelaunch() async throws {
+      let app = try await SupatermE2EApp.launch()
+      defer { app.terminate() }
+
+      let token = token()
+      let directory = try scratchDirectory(app, token: token)
+      try await app.waitForDebugSnapshot("the initial pane is available") { snapshot in
+        snapshot.windows.first?.spaces.first?.tabs.first?.panes.first != nil
+      }
+      let initialPaneID = try #require(
+        try app.debugSnapshot().windows.first?.spaces.first?.tabs.first?.panes.first?.id
+      )
+      let initialPane = SupatermPaneTargetRequest(contextPaneID: initialPaneID)
+      try await app.waitForCapture(initialPane, contains: "Welcome to Supaterm!")
+      let onboardingOccurrences = countOccurrences(
+        "Welcome to Supaterm!",
+        in: try app.capture(initialPane, scope: .scrollback)
+      )
+      let firstSpaceName = "layout-a-\(token)"
+      let secondSpaceName = "layout-b-\(token)"
+      let firstTitle = "layout-a-one-\(token)"
+      let secondTitle = "layout-a-two-\(token)"
+      let thirdTitle = "layout-b-one-\(token)"
+
+      let firstSpace = try makeSpace(app, name: firstSpaceName)
+      _ = try lockTabTitle(app, paneID: firstSpace.paneID, title: firstTitle)
+      let secondTab = try makeTab(app, in: firstSpace, cwd: directory)
+      _ = try lockTabTitle(app, paneID: secondTab.paneID, title: secondTitle)
+      let split = try makeSplit(app, from: secondTab, cwd: directory)
+      let secondSpace = try makeSpace(app, name: secondSpaceName)
+      _ = try lockTabTitle(app, paneID: secondSpace.paneID, title: thirdTitle)
+      _ = try app.send(
+        .focusPane(SupatermPaneTargetRequest(contextPaneID: split.paneID)),
+        as: SupatermFocusPaneResult.self
+      )
+      let before = try app.debugSnapshot()
+
+      try await app.waitForPersistedStateQuiescence(
+        containing: [
+          firstSpaceName,
+          secondSpaceName,
+          firstTitle,
+          secondTitle,
+          thirdTitle,
+          firstSpace.paneID.uuidString,
+          secondTab.paneID.uuidString,
+          split.paneID.uuidString,
+          secondSpace.paneID.uuidString,
+        ]
+      )
+      try await app.quit()
+      try await app.relaunch()
+      try await app.waitForDebugSnapshot("the full restored layout is visible") { snapshot in
+        let paneIDs = Set(snapshot.windows.flatMap(\.spaces).flatMap(\.tabs).flatMap(\.panes).map(\.id))
+        return [initialPaneID, firstSpace.paneID, secondTab.paneID, split.paneID, secondSpace.paneID]
+          .allSatisfy { paneIDs.contains($0) }
+      }
+
+      let after = try app.debugSnapshot()
+      #expect(after.summary.windowCount == before.summary.windowCount)
+      #expect(after.summary.spaceCount == before.summary.spaceCount)
+      #expect(after.summary.tabCount == before.summary.tabCount)
+      #expect(after.summary.paneCount == before.summary.paneCount)
+
+      let restoredFirstSpace = try restoredSpace(named: firstSpaceName, in: app)
+      #expect(restoredFirstSpace.id == firstSpace.target.spaceID)
+      #expect(restoredFirstSpace.tabs.map(\.title) == [firstTitle, secondTitle])
+      #expect(restoredFirstSpace.tabs[0].panes.map(\.id) == [firstSpace.paneID])
+      #expect(Set(restoredFirstSpace.tabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
+
+      let restoredSecondSpace = try restoredSpace(named: secondSpaceName, in: app)
+      #expect(restoredSecondSpace.id == secondSpace.target.spaceID)
+      #expect(restoredSecondSpace.tabs.map(\.title) == [thirdTitle])
+      #expect(restoredSecondSpace.tabs[0].panes.map(\.id) == [secondSpace.paneID])
+
+      #expect(restoredFirstSpace.isSelected)
+      #expect(restoredFirstSpace.tabs[1].isSelected)
+      let restoredSplit = try #require(restoredFirstSpace.tabs[1].panes.first { $0.id == split.paneID })
+      #expect(restoredSplit.isFocused)
+
+      let restoredOnboarding = try app.capture(initialPane, scope: .scrollback)
+      #expect(countOccurrences("Welcome to Supaterm!", in: restoredOnboarding) == onboardingOccurrences)
+    }
+
+    @Test(.timeLimit(.minutes(5)))
+    func layoutSurvivesSigtermAfterQuiescence() async throws {
+      let app = try await SupatermE2EApp.launch()
+      defer { app.terminate() }
+
+      let token = token()
+      let directory = try scratchDirectory(app, token: token)
+      let spaceName = "sigterm-layout-\(token)"
+      let firstTitle = "sigterm-one-\(token)"
+      let secondTitle = "sigterm-two-\(token)"
+      let space = try makeSpace(app, name: spaceName)
+      _ = try lockTabTitle(app, paneID: space.paneID, title: firstTitle)
+      let secondTab = try makeTab(app, in: space, cwd: directory)
+      _ = try lockTabTitle(app, paneID: secondTab.paneID, title: secondTitle)
+      let split = try makeSplit(app, from: secondTab, cwd: directory)
+
+      try await app.waitForPersistedStateQuiescence(
+        containing: [
+          spaceName,
+          firstTitle,
+          secondTitle,
+          space.paneID.uuidString,
+          secondTab.paneID.uuidString,
+          split.paneID.uuidString,
+        ]
+      )
+      app.terminate(preservingZmxSessions: true)
+      try await app.relaunch()
+      try await app.waitForDebugSnapshot("the sigterm layout is restored") { snapshot in
+        let paneIDs = Set(snapshot.windows.flatMap(\.spaces).flatMap(\.tabs).flatMap(\.panes).map(\.id))
+        return [space.paneID, secondTab.paneID, split.paneID].allSatisfy { paneIDs.contains($0) }
+      }
+
+      let restored = try restoredSpace(named: spaceName, in: app)
+      #expect(restored.id == space.target.spaceID)
+      #expect(restored.tabs.map(\.title) == [firstTitle, secondTitle])
+      #expect(restored.tabs[0].panes.map(\.id) == [space.paneID])
+      #expect(Set(restored.tabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
+    }
+
+    @Test(.timeLimit(.minutes(5)))
     func scrollbackSurvivesSigtermRelaunch() async throws {
       let app = try await SupatermE2EApp.launch()
       defer { app.terminate() }
@@ -117,6 +242,7 @@ extension SupatermE2ESuite {
       }
 
       let restored = try restoredSpace(named: "pin-\(token)", in: app)
+      #expect(restored.id == space.target.spaceID)
       let restoredTab = try restoredTab(titled: title, in: restored)
       #expect(restoredTab.isPinned)
       #expect(restoredTab.isTitleLocked)
@@ -163,6 +289,43 @@ private func makeTab(
   )
 }
 
+private func makeSplit(
+  _ app: SupatermE2EApp,
+  from tab: SupatermNewTabResult,
+  cwd: URL
+) throws -> SupatermNewPaneResult {
+  try app.send(
+    .newPane(
+      SupatermNewPaneRequest(
+        startupCommand: hermeticShellStartupCommand,
+        contextPaneID: tab.paneID,
+        cwd: cwd.path,
+        direction: .right,
+        focus: true,
+        equalize: true
+      )
+    ),
+    as: SupatermNewPaneResult.self
+  )
+}
+
+@discardableResult
+private func lockTabTitle(
+  _ app: SupatermE2EApp,
+  paneID: UUID,
+  title: String
+) throws -> SupatermRenameTabResult {
+  try app.send(
+    .renameTab(
+      SupatermRenameTabRequest(
+        target: SupatermTabTargetRequest(contextPaneID: paneID),
+        title: title
+      )
+    ),
+    as: SupatermRenameTabResult.self
+  )
+}
+
 private func restoredSpace(
   named name: String,
   in app: SupatermE2EApp
@@ -191,4 +354,8 @@ private func token() -> String {
 private func lineCount(_ file: URL) -> Int {
   guard let contents = try? String(contentsOf: file, encoding: .utf8) else { return 0 }
   return contents.split(whereSeparator: \.isNewline).count
+}
+
+private func countOccurrences(_ needle: String, in haystack: String) -> Int {
+  haystack.components(separatedBy: needle).count - 1
 }
