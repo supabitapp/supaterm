@@ -30,7 +30,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(theme: .curated(id: supatermSettings.themeID), colorScheme: chromeColorScheme)
+    Palette(supatermSettings: supatermSettings, colorScheme: chromeColorScheme)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -90,10 +90,6 @@ struct TerminalView: View {
       .background(ThemeBackgroundView(palette: palette))
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
-      }
-      .background {
-        BlurEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-          .ignoresSafeArea()
       }
       .overlay {
         WindowChromeConfigurator()

@@ -18,7 +18,7 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
 
   public init(
     appearanceMode: AppearanceMode,
-    themeID: String = "isabelline",
+    themeID: String = Self.defaultThemeID,
     analyticsEnabled: Bool,
     codingAgentsShowPanel: Bool = true,
     codingAgentsShowIcons: Bool = true,
@@ -48,9 +48,11 @@ public struct SupatermSettings: Codable, Equatable, Sendable {
     self.zmxSessionsEnabled = zmxSessionsEnabled
   }
 
+  public static let defaultThemeID = "isabelline"
+
   public static let `default` = Self(
     appearanceMode: .dark,
-    themeID: "isabelline",
+    themeID: defaultThemeID,
     analyticsEnabled: true,
     codingAgentsShowPanel: true,
     codingAgentsShowIcons: true,
@@ -209,7 +211,7 @@ extension SupatermSettings {
         ?? SupatermSettings.default.appearanceMode
       theme =
         try container.decodeIfPresent(String.self, forKey: .theme)
-        ?? SupatermSettings.default.themeID
+        ?? SupatermSettings.defaultThemeID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -222,7 +224,7 @@ extension SupatermSettings {
       if mode != SupatermSettings.default.appearanceMode {
         try container.encode(mode, forKey: .mode)
       }
-      if theme != SupatermSettings.default.themeID {
+      if theme != SupatermSettings.defaultThemeID {
         try container.encode(theme, forKey: .theme)
       }
     }
@@ -494,7 +496,7 @@ struct LegacySupatermSettingsFile: Decodable, Equatable, Sendable {
   var supatermSettings: SupatermSettings {
     SupatermSettings(
       appearanceMode: appearanceMode,
-      themeID: SupatermSettings.default.themeID,
+      themeID: SupatermSettings.defaultThemeID,
       analyticsEnabled: analyticsEnabled,
       codingAgentsShowPanel: codingAgentsShowPanel,
       codingAgentsShowIcons: codingAgentsShowIcons,

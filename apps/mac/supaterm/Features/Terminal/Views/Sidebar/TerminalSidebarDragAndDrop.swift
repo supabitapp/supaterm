@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import Combine
+import Sharing
 import SupaTheme
 import SwiftUI
 
@@ -485,11 +486,12 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
 
 private struct TerminalSidebarDragPreviewContent: View {
   @ObservedObject var manager: TerminalSidebarDragSession
+  @Shared(.supatermSettings) private var supatermSettings = .default
 
   var body: some View {
     Group {
       if let preview = manager.draggedPreview {
-        let palette = Palette(colorScheme: manager.colorScheme)
+        let palette = Palette(supatermSettings: supatermSettings, colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: preview.tab,
           notificationPreviewMarkdown: preview.notificationPreviewMarkdown,

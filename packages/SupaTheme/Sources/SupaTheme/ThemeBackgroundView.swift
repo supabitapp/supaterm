@@ -18,7 +18,6 @@ public struct ThemeBackgroundView: View {
       colorSpace: .perceptual
     )
     .overlay(GrainOverlay())
-    .compositingGroup()
   }
 
   private static let rampPoints: [SIMD2<Float>] = [

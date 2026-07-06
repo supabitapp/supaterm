@@ -231,7 +231,13 @@ private struct SupatermSettingsUnknownKeyAudit: Decodable {
       )
     )
 
-    warnings.append(contentsOf: try Self.unknownNestedKeys(in: container, section: "appearance", allowedKeys: ["mode"]))
+    warnings.append(
+      contentsOf: try Self.unknownNestedKeys(
+        in: container,
+        section: "appearance",
+        allowedKeys: ["mode", "theme"]
+      )
+    )
     warnings.append(
       contentsOf: try Self.unknownNestedKeys(
         in: container,

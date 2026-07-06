@@ -402,8 +402,17 @@ private struct TerminalSidebarTabPreviewComparison: View {
 
 private struct TerminalSidebarTabGroupPreviewModel {
   let title: String
-  let tone: Tone
+  let tone: TerminalSidebarTabGroupPreviewTone
   let items: [TerminalSidebarTabPreviewItem]
+}
+
+private enum TerminalSidebarTabGroupPreviewTone {
+  case amber
+  case coral
+  case mint
+  case sky
+  case slate
+  case violet
 }
 
 private enum TerminalSidebarGroupedTabPreviewFixtures {
@@ -539,7 +548,20 @@ private struct TerminalSidebarGroupedTabPreview: View {
   }
 
   private var accent: Color {
-    palette.fill(for: group.tone)
+    switch group.tone {
+    case .amber:
+      palette.amber.opacity(0.85)
+    case .coral:
+      palette.coral.opacity(0.85)
+    case .mint:
+      palette.mint.opacity(0.85)
+    case .sky:
+      palette.sky.opacity(0.85)
+    case .slate:
+      palette.slate.opacity(0.85)
+    case .violet:
+      palette.violet.opacity(0.85)
+    }
   }
 
   private var innerFill: Color {

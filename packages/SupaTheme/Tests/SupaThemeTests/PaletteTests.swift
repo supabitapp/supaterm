@@ -22,7 +22,7 @@ private func expectSameColor(
 }
 
 struct PaletteTokenTests {
-  private func expectLegacyTokens(_ palette: Palette, isDark: Bool) {
+  private func expectDefaultTokens(_ palette: Palette, isDark: Bool) {
     let primary = Color(.displayP3, red: 0.89, green: 0.902, blue: 0.925)
     expectSameColor(
       palette.windowBackgroundTint,
@@ -100,22 +100,12 @@ struct PaletteTokenTests {
     expectSameColor(palette.accent, Color(red: 0.31, green: 0.59, blue: 0.94), "accent")
   }
 
-  @Test func defaultThemeLightMatchesLegacyPalette() {
-    expectLegacyTokens(Palette(colorScheme: .light), isDark: false)
+  @Test func defaultThemeLightMatchesExpectedPalette() {
+    expectDefaultTokens(Palette(colorScheme: .light), isDark: false)
   }
 
-  @Test func defaultThemeDarkMatchesLegacyPalette() {
-    expectLegacyTokens(Palette(colorScheme: .dark), isDark: true)
-  }
-
-  @Test func toneFillsMatchLegacyPalette() {
-    let palette = Palette(colorScheme: .light)
-    expectSameColor(
-      palette.fill(for: .amber), Color(red: 0.89, green: 0.64, blue: 0.28).opacity(0.85), "amber"
-    )
-    expectSameColor(
-      palette.fill(for: .slate), Color(red: 0.38, green: 0.44, blue: 0.56).opacity(0.85), "slate"
-    )
+  @Test func defaultThemeDarkMatchesExpectedPalette() {
+    expectDefaultTokens(Palette(colorScheme: .dark), isDark: true)
   }
 }
 

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SupaTheme
 import SupatermCLIShared
 import SupatermSettingsFeature
 import SupatermUpdateFeature
@@ -44,6 +45,8 @@ struct SupatermSettingsTests {
     let prefs = SupatermSettings.default
 
     #expect(prefs.appearanceMode == .dark)
+    #expect(SupatermSettings.defaultThemeID == Theme.default.id)
+    #expect(prefs.themeID == Theme.default.id)
     #expect(prefs.analyticsEnabled)
     #expect(prefs.codingAgentsShowPanel)
     #expect(prefs.codingAgentsShowIcons)

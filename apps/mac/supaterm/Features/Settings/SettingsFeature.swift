@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
@@ -316,7 +317,7 @@ public struct SettingsFeature {
     supatermSettings: SupatermSettings
   ) {
     state.appearanceMode = supatermSettings.appearanceMode
-    state.themeID = supatermSettings.themeID
+    state.themeID = Theme.curated(id: supatermSettings.themeID).id
     state.analyticsEnabled = supatermSettings.analyticsEnabled
     state.codingAgentsShowPanel = supatermSettings.codingAgentsShowPanel
     state.codingAgentsShowIcons = supatermSettings.codingAgentsShowIcons

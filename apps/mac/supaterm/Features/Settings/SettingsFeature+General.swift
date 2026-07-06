@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 
 extension SettingsFeature {
   func reduceGeneral(_ state: inout State, action: Action) -> Effect<Action> {
@@ -9,7 +10,7 @@ extension SettingsFeature {
       return persist(state)
 
     case .themeSelected(let themeID):
-      state.themeID = themeID
+      state.themeID = Theme.curated(id: themeID).id
       return persist(state)
 
     case .analyticsEnabledChanged(let isEnabled):

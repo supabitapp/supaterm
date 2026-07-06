@@ -6,7 +6,7 @@ Chrome theming lives in the `SupaTheme` package (`packages/SupaTheme`) — theme
 
 - Views take an explicit `let palette: Palette` and read tokens; the palette is constructed from the selected theme and chrome color scheme in `TerminalView` and `QuitConfirmationPresenter`.
 - The theme is a user setting: `appearance.theme` in `settings.toml` (`SupatermSettings.themeID`), picked in Settings > General via `ThemeSwatchPicker`.
-- The window background renders `ThemeBackgroundView` over the behind-window blur.
+- The window background renders `ThemeBackgroundView` as opaque gradient chrome.
 
 ## Exceptions
 
@@ -16,9 +16,9 @@ Deliberately outside the palette: the Ghostty terminal progress bar (terminal co
 
 Theme changes can refresh snapshot baselines with `make mac-record-snapshots`. The Theme Backgrounds and Theme Kit catalog groups render every theme's gradient and every palette token for review.
 
-## Inspiration
+## Reference Palette
 
-The recipe follows Dia's sidebar: one theme color per surface, every interactive state a white/black-at-alpha overlay on top, selection as a scheme-matched solid pill with a specular rim. Dia ships 8 curated themes, each a Primary/Secondary/Tertiary/Vibrant set per appearance. Their Primaries (light / dark, Display P3):
+The recipe uses one theme color per surface, every interactive state as a white/black-at-alpha overlay on top, and selection as a scheme-matched solid pill with a specular rim. The curated set has 8 themes, each with a primary per appearance. Primaries (light / dark, Display P3):
 
 | Theme | Light | Dark |
 |---|---|---|

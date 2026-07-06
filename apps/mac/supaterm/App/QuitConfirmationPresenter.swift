@@ -106,7 +106,7 @@ private final class QuitConfirmationPanelController: NSWindowController {
 
     @Shared(.supatermSettings) var supatermSettings = .default
     let palette = Palette(
-      theme: .curated(id: supatermSettings.themeID),
+      supatermSettings: supatermSettings,
       colorScheme: Self.colorScheme(for: parentWindow)
     )
     window.contentViewController = NSHostingController(

@@ -15,6 +15,7 @@ struct GrainTextureTests {
   @Test func tileDimensions() {
     #expect(GrainTexture.tile.width == 128)
     #expect(GrainTexture.tile.height == 128)
+    #expect(GrainTexture.tile.bitsPerPixel == 32)
   }
 
   private func pixelBytes(of image: CGImage) -> Data {
