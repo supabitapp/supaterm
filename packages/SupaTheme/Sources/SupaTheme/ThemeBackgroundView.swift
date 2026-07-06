@@ -20,8 +20,8 @@ public struct ThemeBackgroundView: View {
       palette.windowBackgroundTint
     case .gradient:
       MeshGradient(
-        width: 3,
-        height: 2,
+        width: 2,
+        height: 3,
         points: Self.rampPoints,
         colors: rampColors,
         colorSpace: .perceptual
@@ -32,14 +32,22 @@ public struct ThemeBackgroundView: View {
   }
 
   private static let rampPoints: [SIMD2<Float>] = [
-    [0, 0], [0.75, 0], [1, 0],
-    [0, 1], [0.75, 1], [1, 1],
+    [0, 0], [1, 0],
+    [0, 0.75], [1, 0.75],
+    [0, 1], [1, 1],
   ]
 
   private var rampColors: [Color] {
-    let surface = palette.primary.mix(with: .black, by: palette.isDark ? 0.8 : 0)
-    let start = surface.mix(with: .white, by: palette.isDark ? 0.16 : 0.12)
-    let end = surface.mix(with: .black, by: palette.isDark ? 0.3 : 0.16)
-    return [start, end, end, start, end, end]
+    let start: Color
+    let end: Color
+    if palette.isDark {
+      let surface = palette.primary.mix(with: .black, by: 0.8)
+      start = surface.mix(with: .white, by: 0.15)
+      end = surface.mix(with: .black, by: 0.15)
+    } else {
+      start = palette.primary.mix(with: .white, by: 0.65)
+      end = palette.primary.mix(with: .white, by: 0.92)
+    }
+    return [start, start, end, end, end, end]
   }
 }

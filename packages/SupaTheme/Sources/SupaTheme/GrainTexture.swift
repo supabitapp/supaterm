@@ -43,7 +43,7 @@ struct GrainOverlay: View {
     Image(decorative: GrainTexture.tile, scale: 1)
       .resizable(resizingMode: .tile)
       .blendMode(.multiply)
-      .opacity(0.07)
+      .opacity(0.03)
       .allowsHitTesting(false)
   }
 }
