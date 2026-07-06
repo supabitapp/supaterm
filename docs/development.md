@@ -66,14 +66,7 @@ Snapshot commands:
 ```bash
 make mac-build-snapshot-catalog # Build the visual snapshot catalog app
 make mac-test-snapshots         # Run snapshot tests
-make mac-record-snapshots       # Regenerate snapshot PNG baselines
-```
-
-Checked-in snapshot baselines are CI-rendered; local renders differ slightly and will not pass CI. To refresh them, dispatch the `record-snapshots` workflow and commit the downloaded artifact:
-
-```bash
-gh workflow run record-snapshots.yml
-gh run download --name snapshot-baselines --dir apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests
+make mac-record-snapshots       # Regenerate snapshot PNG baselines locally
 ```
 
 Use `$SUPATERM_CLI_PATH` inside Supaterm panes to call the Debug CLI injected by the running app instead of an installed `sp`:

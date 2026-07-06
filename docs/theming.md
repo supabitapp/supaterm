@@ -14,7 +14,7 @@ Deliberately outside the palette: the Ghostty terminal progress bar (terminal co
 
 ## Snapshots
 
-Theme changes re-record snapshot baselines. Checked-in baselines are CI-rendered; refresh via the `record-snapshots` workflow (see `docs/development.md`). The Theme Backgrounds and Theme Kit catalog groups render every theme's gradient and every palette token for review.
+Theme changes can refresh snapshot baselines with `make mac-record-snapshots`. The Theme Backgrounds and Theme Kit catalog groups render every theme's gradient and every palette token for review.
 
 ## Inspiration
 
