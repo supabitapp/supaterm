@@ -38,9 +38,15 @@ public struct ThemeBackgroundView: View {
   ]
 
   private var rampColors: [Color] {
-    let pole = palette.isDark ? Color(white: 0.12) : .white
-    let start = palette.primary.mix(with: pole, by: 0.75)
-    let end = palette.primary.mix(with: pole, by: 0.92)
+    let start: Color
+    let end: Color
+    if palette.isDark {
+      start = palette.primary.mix(with: .black, by: 0.72)
+      end = palette.primary.mix(with: Color(white: 0.24), by: 0.94)
+    } else {
+      start = palette.primary.mix(with: .white, by: 0.75)
+      end = palette.primary.mix(with: .white, by: 0.95)
+    }
     return [start, start, end, end, end, end]
   }
 }
