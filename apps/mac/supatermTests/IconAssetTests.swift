@@ -4,7 +4,7 @@ import Testing
 struct IconAssetTests {
   @Test
   func lucideIconsUseTemplateVectorImagesets() throws {
-    for iconName in ["git-branch", "git-pull-request-arrow"] {
+    for iconName in ["git-branch", "git-pull-request-arrow", "goal"] {
       let svg = try templateVectorImagesetSVG(iconName)
 
       #expect(svg.contains("lucide-\(iconName)"))

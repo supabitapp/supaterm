@@ -571,7 +571,7 @@ private struct AgentPanelProgressIcon: View {
     Group {
       switch kind {
       case .goal:
-        image("target", color: status == .completed ? palette.mint : palette.secondaryText)
+        assetImage("goal", color: status == .completed ? palette.mint : palette.secondaryText)
       case .task:
         switch status {
         case .pending:
@@ -589,6 +589,16 @@ private struct AgentPanelProgressIcon: View {
   private func image(_ symbol: String, color: Color) -> some View {
     Image(systemName: symbol)
       .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(color)
+      .accessibilityHidden(true)
+  }
+
+  private func assetImage(_ name: String, color: Color) -> some View {
+    Image(name)
+      .renderingMode(.template)
+      .resizable()
+      .aspectRatio(contentMode: .fit)
+      .frame(width: 13, height: 13)
       .foregroundStyle(color)
       .accessibilityHidden(true)
   }
