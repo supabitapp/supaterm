@@ -465,6 +465,15 @@ struct TerminalAgentPanelTests {
         )
       )
       #expect(await waitForPullRequestRefreshes(recorder: recorder, count: 2))
+      #expect(
+        await waitForBranchDetails(
+          host: host,
+          surfaceIDs: [surfaceID],
+          branchName: "feature/flicker",
+          addedLineCount: 12,
+          removedLineCount: 3
+        )
+      )
 
       let branchDetails = try #require(host.agentPanelPresentation(for: surfaceID)?.branchDetails)
       #expect(branchDetails.displayedPullRequestStatus?.title == "#9")
@@ -1623,13 +1632,23 @@ private func restoreSplitHost(
 private func waitForBranchDetails(
   host: TerminalHostState,
   surfaceIDs: [UUID],
-  branchName: String
+  branchName: String,
+  addedLineCount: Int? = nil,
+  removedLineCount: Int? = nil
 ) async -> Bool {
   let clock = ContinuousClock()
   let deadline = clock.now.advanced(by: .seconds(1))
   while clock.now < deadline {
     if surfaceIDs.allSatisfy({
-      host.agentPanelPresentation(for: $0)?.branchDetails?.branchName == branchName
+      guard let branchDetails = host.agentPanelPresentation(for: $0)?.branchDetails else { return false }
+      guard branchDetails.branchName == branchName else { return false }
+      if let addedLineCount, branchDetails.addedLineCount != addedLineCount {
+        return false
+      }
+      if let removedLineCount, branchDetails.removedLineCount != removedLineCount {
+        return false
+      }
+      return true
     }) {
       return true
     }
