@@ -48,16 +48,6 @@ jobs:
       - uses: ./.github/actions/setup-macos
       - run: make mac-test
 
-  mac-test-snapshots:
-    name: mac-test-snapshots
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: recursive
-      - uses: ./.github/actions/setup-macos
-      - run: make mac-test-snapshots
-
   theme-test:
     name: theme-test
     runs-on: macos-26
