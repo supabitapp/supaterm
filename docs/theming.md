@@ -6,7 +6,7 @@ Chrome theming lives in the `SupaTheme` package (`packages/SupaTheme`) — theme
 
 - Views take an explicit `let palette: Palette` and read tokens; the palette is constructed from the selected theme and chrome color scheme in `TerminalView` and `QuitConfirmationPresenter`.
 - The theme is a user setting: `appearance.theme` in `settings.toml` (`SupatermSettings.themeID`), picked in Settings > General via `ThemeSwatchPicker`.
-- The window background renders `ThemeBackgroundView(style: .flat)` over the behind-window blur.
+- The window background renders `ThemeBackgroundView` over the behind-window blur.
 
 ## Exceptions
 
@@ -14,7 +14,7 @@ Deliberately outside the palette: the Ghostty terminal progress bar (terminal co
 
 ## Snapshots
 
-Theme changes re-record snapshot baselines. Checked-in baselines are CI-rendered; refresh via the `record-snapshots` workflow (see `docs/development.md`). The Theme Backgrounds and Theme Kit catalog groups are the tuning surface for gradient derivation and palette tokens.
+Theme changes re-record snapshot baselines. Checked-in baselines are CI-rendered; refresh via the `record-snapshots` workflow (see `docs/development.md`). The Theme Backgrounds and Theme Kit catalog groups render every theme's gradient and every palette token for review.
 
 ## Inspiration
 

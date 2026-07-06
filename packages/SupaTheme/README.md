@@ -4,7 +4,7 @@ Supabit's chrome theming system: themes as data, one derived semantic palette, a
 
 ## Model
 
-- `Theme` — id, name, and one primary `Color` per appearance. Themes store only what cannot be computed. Curated set: `isabelline` (default), `bittersweetShimmer`, `burntSienna`, `hunyadiYellow`, `mint`, `puce`, `steelBlue`, `ultraViolet`. Look up by id with `Theme.curated(id:)`; unknown ids fall back to the default.
+- `Theme` — id, name, a primary `Color` per appearance (the accent swatch), and a `Background` ramp (top and bottom stop) per appearance. Themes store only what cannot be computed. Curated set: `isabelline` (default), `bittersweetShimmer`, `burntSienna`, `hunyadiYellow`, `mint`, `puce`, `steelBlue`, `ultraViolet`. Look up by id with `Theme.curated(id:)`; unknown ids fall back to the default.
 - `Palette(theme:colorScheme:)` — every chrome token, derived. Views never hardcode chrome colors; they read palette tokens.
 - `Tone` — content accent tones (`amber`, `coral`, `mint`, `sky`, `slate`, `violet`) with `palette.fill(for:)`.
 
@@ -20,10 +20,7 @@ Supabit's chrome theming system: themes as data, one derived semantic palette, a
 
 ## Background
 
-`ThemeBackgroundView(palette:style:)` renders the window background layer:
-
-- `.flat` — exactly the window tint color, for compositing over a blur material.
-- `.gradient` — an opaque vertical ramp between the theme's stored `Background` stops (top and bottom, per appearance), completing at 75% of the height, interpolated perceptually, finished with a deterministic grain tile multiplied in at low alpha. The stops are design values on each `Theme`, not derived from the primary — a single formula can't reproduce the per-theme desaturation the ramps carry.
+`ThemeBackgroundView(palette:)` renders an opaque vertical ramp between the theme's `Background` stops, completing at 75% of the height, interpolated perceptually, finished with a deterministic grain tile multiplied in at low alpha. The stops are design values on each `Theme`, not derived from the primary — a single formula can't reproduce the per-theme desaturation the ramps carry.
 
 ## Picker
 
@@ -31,4 +28,4 @@ Supabit's chrome theming system: themes as data, one derived semantic palette, a
 
 ## Testing
 
-`swift test` pins every token of the default theme against the reference derivation, the polarity rule, and grain determinism. Visual coverage lives in the consuming app's snapshot catalog.
+`swift test` pins every palette token against its expected value, the scheme-driven foreground for every theme, and grain determinism. Visual coverage lives in the consuming app's snapshot catalog.

@@ -2,10 +2,9 @@ import AppKit
 import SwiftUI
 
 public struct Palette {
-  public let primary: Color
-  public let background: Theme.Background
-  public let isDark: Bool
+  let background: Theme.Background
   public let windowBackgroundTint: Color
+  public let detailBackground: Color
   public let detailStroke: Color
   public let destructive: Color
   public let unselectedFill: Color
@@ -37,10 +36,6 @@ public struct Palette {
   public var selectedPillStroke: Color { selectedText.opacity(0.14) }
   public var destructiveHoverFill: Color { destructive.opacity(0.85) }
 
-  public var detailBackground: Color {
-    primary.mix(with: isDark ? .black : .white, by: 0.85)
-  }
-
   public var selectedStroke: LinearGradient {
     LinearGradient(
       stops: [
@@ -56,10 +51,9 @@ public struct Palette {
   public init(theme: Theme = .default, colorScheme: ColorScheme) {
     let isDark = colorScheme == .dark
     let primary = theme.primary(for: colorScheme)
-    self.isDark = isDark
-    self.primary = primary
     background = theme.background(for: colorScheme)
     windowBackgroundTint = primary.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3)
+    detailBackground = primary.mix(with: isDark ? .black : .white, by: 0.85)
     unselectedFill = (isDark ? Color.white : .black).opacity(0.06)
     hoverFill = Color.white.opacity(isDark ? 0.16 : 0.55)
     pressedFill = Color.white.opacity(isDark ? 0.31 : 0.7)

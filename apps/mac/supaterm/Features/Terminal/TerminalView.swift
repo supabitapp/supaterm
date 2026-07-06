@@ -87,7 +87,7 @@ struct TerminalView: View {
   var body: some View {
     GeometryReader(content: terminalLayout)
       .frame(minWidth: 1_080, minHeight: 720)
-      .background(ThemeBackgroundView(palette: palette, style: .gradient))
+      .background(ThemeBackgroundView(palette: palette))
       .background {
         WindowAppearanceApplier(appliedAppearance: windowAppearance)
       }

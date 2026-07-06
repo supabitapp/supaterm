@@ -6,24 +6,14 @@ extension SnapshotCatalog {
     themeBackgroundScenarios + themeKitScenarios
 
   private static let themeBackgroundScenarios: [SnapshotScenario] =
-    [
-      scenario(
-        "background-flat-default",
-        group: "Theme Backgrounds",
-        title: "Flat default",
-        size: CGSize(width: 480, height: 300)
-      ) { appearance in
-        AnyView(ThemeBackgroundSnapshotFixture(theme: .default, style: .flat, appearance: appearance))
-      }
-    ]
-    + Theme.curated.map { theme in
+    Theme.curated.map { theme in
       scenario(
         "background-\(theme.id)",
         group: "Theme Backgrounds",
         title: theme.name,
         size: CGSize(width: 480, height: 300)
       ) { appearance in
-        AnyView(ThemeBackgroundSnapshotFixture(theme: theme, style: .gradient, appearance: appearance))
+        AnyView(ThemeBackgroundSnapshotFixture(theme: theme, appearance: appearance))
       }
     }
 
@@ -59,15 +49,10 @@ extension SnapshotCatalog {
 
 private struct ThemeBackgroundSnapshotFixture: View {
   let theme: Theme
-  let style: ThemeBackgroundView.Style
   let appearance: SnapshotAppearance
 
   var body: some View {
-    let palette = Palette(theme: theme, colorScheme: appearance.colorScheme)
-    ZStack {
-      palette.detailBackground
-      ThemeBackgroundView(palette: palette, style: style)
-    }
+    ThemeBackgroundView(palette: Palette(theme: theme, colorScheme: appearance.colorScheme))
   }
 }
 
