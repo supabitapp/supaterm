@@ -3,6 +3,7 @@ import SwiftUI
 
 public struct Palette {
   public let primary: Color
+  public let background: Theme.Background
   public let isDark: Bool
   public let windowBackgroundTint: Color
   public let detailStroke: Color
@@ -57,6 +58,7 @@ public struct Palette {
     let primary = theme.primary(for: colorScheme)
     self.isDark = isDark
     self.primary = primary
+    background = theme.background(for: colorScheme)
     windowBackgroundTint = primary.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3)
     unselectedFill = (isDark ? Color.white : .black).opacity(0.06)
     hoverFill = Color.white.opacity(isDark ? 0.16 : 0.55)
