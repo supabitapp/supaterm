@@ -12,7 +12,7 @@ WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache theme-test web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache supa-theme-package-test web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -131,7 +131,7 @@ mac-inspect-dependencies:  # Check the macOS Tuist graph for implicit dependenci
 mac-warm-cache:  # Warm the macOS external Tuist cache.
 	@$(MAKE) -C "$(MAC_APP_DIR)" warm-cache
 
-theme-test:  # Run the SupaTheme package tests.
+supa-theme-package-test:  # Run the SupaTheme package tests.
 	@swift test --package-path packages/SupaTheme
 
 web-help:  # Show available Vite+ commands for the web app.

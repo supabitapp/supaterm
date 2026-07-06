@@ -48,12 +48,12 @@ jobs:
       - uses: ./.github/actions/setup-macos
       - run: make mac-test
 
-  theme-test:
-    name: theme-test
+  supa-theme-package-test:
+    name: supa-theme-package-test
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make theme-test
+      - run: make supa-theme-package-test
