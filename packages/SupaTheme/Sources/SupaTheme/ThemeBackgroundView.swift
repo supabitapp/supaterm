@@ -41,11 +41,10 @@ public struct ThemeBackgroundView: View {
     let start: Color
     let end: Color
     if palette.isDark {
-      let surface = palette.primary.mix(with: .black, by: 0.8)
-      start = surface.mix(with: .white, by: 0.15)
-      end = surface.mix(with: .black, by: 0.15)
+      start = palette.primary.mix(with: .black, by: 0.66)
+      end = palette.primary.mix(with: .black, by: 0.84)
     } else {
-      start = palette.primary.mix(with: .white, by: 0.65)
+      start = palette.primary.mix(with: .white, by: 0.75)
       end = palette.primary.mix(with: .white, by: 0.92)
     }
     return [start, start, end, end, end, end]
