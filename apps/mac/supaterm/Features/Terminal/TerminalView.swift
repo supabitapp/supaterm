@@ -30,7 +30,7 @@ struct TerminalView: View {
   }
 
   private var palette: Palette {
-    Palette(supatermSettings: supatermSettings, colorScheme: chromeColorScheme)
+    Palette(theme: terminal.selectedSpaceTheme, colorScheme: chromeColorScheme)
   }
 
   private var pendingCloseBinding: Binding<Bool> {
@@ -59,6 +59,13 @@ struct TerminalView: View {
     Binding(
       get: { store.spaceEditor?.draftName ?? "" },
       set: { _ = store.send(.spaceEditorTextChanged($0)) }
+    )
+  }
+
+  private var spaceEditorThemeBinding: Binding<String> {
+    Binding(
+      get: { store.spaceEditor?.draftThemeID ?? terminal.selectedSpaceThemeID },
+      set: { _ = store.send(.spaceEditorThemeSelected($0)) }
     )
   }
 
@@ -154,11 +161,12 @@ struct TerminalView: View {
       }
       .overlay {
         if let spaceEditor = store.spaceEditor {
-          SpaceNameOverlay(
+          SpaceEditorOverlay(
             palette: palette,
             title: spaceEditor.title,
             confirmTitle: spaceEditor.confirmTitle,
             name: spaceEditorTextBinding,
+            themeID: spaceEditorThemeBinding,
             isSaveEnabled: spaceEditorIsValid,
             onSave: {
               guard spaceEditorIsValid else { return }

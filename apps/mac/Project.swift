@@ -229,7 +229,6 @@ let project = Project(
         .target(name: "SupatermUpdateFeature"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
-        .external(name: "SupaTheme"),
       ],
       settings: .settings(
         defaultSettings: .essential

@@ -4,8 +4,8 @@ Chrome theming lives in the `SupaTheme` package (`packages/SupaTheme`) — theme
 
 ## Consumption
 
-- Views take an explicit `let palette: Palette` and read tokens; the palette is constructed from the selected theme and chrome color scheme in `TerminalView` and `QuitConfirmationPresenter`.
-- The theme is a user setting: `appearance.theme` in `settings.toml` (`SupatermSettings.themeID`), picked in Settings > General via `ThemeSwatchPicker`.
+- Views take an explicit `let palette: Palette` and read tokens; terminal chrome builds it from the selected space theme and chrome color scheme in `TerminalView`.
+- The theme belongs to each terminal space in `spaces.json`; create and edit space flows pick it with `ThemeSwatchPicker`.
 - The window background renders `ThemeBackgroundView` as opaque gradient chrome.
 
 ## Exceptions
@@ -31,4 +31,4 @@ The recipe uses one theme color per surface, every interactive state as a white/
 | Steel Blue | `#3A88C4` | `#007FBD` |
 | Ultra Violet | `#5F5B9E` | `#625DA5` |
 
-Our curated set uses these primaries (Isabelline keeps its light value for both appearances). If spaces ever get per-space colors, this is the shape to copy: a small named set with light/dark variants, not a free color picker.
+Our curated set uses these primaries (Isabelline keeps its light value for both appearances). Space themes use this small named set with light/dark variants, not a free color picker.

@@ -1,6 +1,5 @@
 @preconcurrency import AppKit
 import Combine
-import Sharing
 import SupaTheme
 import SwiftUI
 
@@ -47,6 +46,7 @@ final class TerminalSidebarDragSession: ObservableObject {
   @Published var pendingReorder: TerminalSidebarPendingReorder?
   @Published var cursorScreenLocation: NSPoint = .zero
   @Published var colorScheme: ColorScheme = .light
+  @Published var themeID: String = Theme.default.id
   @Published var sidebarScreenFrame: CGRect = .zero
 
   var zoneFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
@@ -486,12 +486,11 @@ final class TerminalSidebarDragPreviewWindow: NSWindow {
 
 private struct TerminalSidebarDragPreviewContent: View {
   @ObservedObject var manager: TerminalSidebarDragSession
-  @Shared(.supatermSettings) private var supatermSettings = .default
 
   var body: some View {
     Group {
       if let preview = manager.draggedPreview {
-        let palette = Palette(supatermSettings: supatermSettings, colorScheme: manager.colorScheme)
+        let palette = Palette(spaceThemeID: manager.themeID, colorScheme: manager.colorScheme)
         TerminalSidebarMorphingPreview(
           tab: preview.tab,
           notificationPreviewMarkdown: preview.notificationPreviewMarkdown,

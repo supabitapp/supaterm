@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
-import SupaTheme
 import SupatermSupport
 import SupatermUpdateFeature
 import Testing
@@ -99,24 +98,6 @@ struct SettingsFeatureTests {
         $0.piIntegration.isPending = false
       }
     }
-  }
-
-  @Test
-  func loadedUnknownThemeSelectsDefaultTheme() {
-    var state = SettingsFeature.State()
-
-    SettingsFeature().applyLoadedSettings(
-      &state,
-      supatermSettings: SupatermSettings(
-        appearanceMode: .dark,
-        themeID: "missing-theme",
-        analyticsEnabled: true,
-        crashReportsEnabled: true,
-        updateChannel: .stable
-      )
-    )
-
-    #expect(state.themeID == Theme.default.id)
   }
 
   @Test

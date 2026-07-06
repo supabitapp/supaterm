@@ -2,6 +2,7 @@ import ComposableArchitecture
 import CoreGraphics
 import Foundation
 import Sharing
+import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 import SupatermTerminalCore
@@ -24,6 +25,7 @@ enum TerminalSpaceEditorMode: Equatable {
 struct TerminalSpaceEditorState: Equatable, Identifiable {
   let mode: TerminalSpaceEditorMode
   var draftName: String
+  var draftThemeID: String
 
   var id: String {
     switch mode {
@@ -188,6 +190,7 @@ struct TerminalWindowFeature {
     case spaceEditorCancelButtonTapped
     case spaceRenameRequested(TerminalSpaceItem)
     case spaceEditorSaveButtonTapped
+    case spaceEditorThemeSelected(String)
     case spaceEditorTextChanged(String)
     case togglePinned(TerminalTabID)
     case toggleSidebarButtonTapped
@@ -204,6 +207,7 @@ struct TerminalWindowFeature {
   @Dependency(DesktopNotificationClient.self) var desktopNotificationClient
   @Dependency(TerminalCommandPaletteClient.self) var terminalCommandPaletteClient
   @Dependency(TerminalClient.self) var terminalClient
+  @Dependency(TerminalSpaceThemeClient.self) var terminalSpaceThemeClient
   @Dependency(WindowCloseClient.self) var windowCloseClient
 
   var body: some Reducer<State, Action> {
@@ -453,7 +457,15 @@ struct TerminalWindowFeature {
         )
 
       case .spaceCreateButtonTapped:
-        state.spaceEditor = TerminalSpaceEditorState(mode: .create, draftName: "")
+        @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
+        let themeID = terminalSpaceThemeClient.randomCreateThemeID(
+          TerminalSpaceCatalog.sanitized(spaceCatalog).spaces.map(\.themeID)
+        )
+        state.spaceEditor = TerminalSpaceEditorState(
+          mode: .create,
+          draftName: "",
+          draftThemeID: themeID
+        )
         return .none
 
       case .spaceDeleteRequested(let space):
@@ -465,7 +477,11 @@ struct TerminalWindowFeature {
         return .none
 
       case .spaceRenameRequested(let space):
-        state.spaceEditor = TerminalSpaceEditorState(mode: .rename(space), draftName: space.name)
+        state.spaceEditor = TerminalSpaceEditorState(
+          mode: .rename(space),
+          draftName: space.name,
+          draftThemeID: space.themeID
+        )
         return .none
 
       case .spaceEditorSaveButtonTapped:
@@ -474,10 +490,20 @@ struct TerminalWindowFeature {
         switch spaceEditor.mode {
         case .create:
           analyticsClient.capture("space_created")
-          return sendCommand(.createSpace(spaceEditor.draftName))
+          return sendCommand(.createSpace(name: spaceEditor.draftName, themeID: spaceEditor.draftThemeID))
         case .rename(let space):
-          return sendCommand(.renameSpace(space.id, spaceEditor.draftName))
+          return sendCommand(
+            .updateSpace(
+              space.id,
+              name: spaceEditor.draftName,
+              themeID: spaceEditor.draftThemeID
+            )
+          )
         }
+
+      case .spaceEditorThemeSelected(let themeID):
+        state.spaceEditor?.draftThemeID = Theme.curated(id: themeID).id
+        return .none
 
       case .spaceEditorTextChanged(let text):
         state.spaceEditor?.draftName = text

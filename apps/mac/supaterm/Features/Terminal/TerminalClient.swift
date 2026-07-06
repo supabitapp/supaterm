@@ -32,7 +32,7 @@ struct TerminalClient: Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
     case closeTabs([TerminalTabID])
-    case createSpace(String)
+    case createSpace(name: String, themeID: String)
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
@@ -59,6 +59,7 @@ struct TerminalClient: Sendable {
     case setPinnedTabOrder([TerminalTabID])
     case setRegularTabOrder([TerminalTabID])
     case togglePinned(TerminalTabID)
+    case updateSpace(TerminalSpaceID, name: String, themeID: String)
     case updateWindowActivity(WindowActivityState)
   }
 

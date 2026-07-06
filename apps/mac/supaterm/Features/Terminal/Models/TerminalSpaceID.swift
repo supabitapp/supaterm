@@ -1,4 +1,5 @@
 import Foundation
+import SupaTheme
 import SupatermCLIShared
 
 nonisolated struct TerminalSpaceID: Hashable, Identifiable, Codable, Sendable {
@@ -18,26 +19,48 @@ nonisolated struct TerminalSpaceID: Hashable, Identifiable, Codable, Sendable {
 nonisolated struct TerminalSpaceItem: Identifiable, Equatable, Codable, Sendable {
   let id: TerminalSpaceID
   var name: String
+  var themeID: String
 
   init(
     id: TerminalSpaceID = TerminalSpaceID(),
-    name: String
+    name: String,
+    themeID: String = Theme.default.id
   ) {
     self.id = id
     self.name = name
+    self.themeID = Theme.curated(id: themeID).id
   }
 }
 
 nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
   let id: TerminalSpaceID
   var name: String
+  var themeID: String
 
   init(
     id: TerminalSpaceID = TerminalSpaceID(),
-    name: String
+    name: String,
+    themeID: String = Theme.default.id
   ) {
     self.id = id
     self.name = name
+    self.themeID = Theme.curated(id: themeID).id
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(TerminalSpaceID.self, forKey: .id)
+    name = try container.decode(String.self, forKey: .name)
+    themeID =
+      Theme.curated(
+        id: try container.decodeIfPresent(String.self, forKey: .themeID) ?? Theme.default.id
+      ).id
+  }
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case name
+    case themeID
   }
 }
 
@@ -64,7 +87,11 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     let spaces = catalog.spaces.compactMap { space -> PersistedTerminalSpace? in
       let trimmedName = space.name.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedName.isEmpty else { return nil }
-      return PersistedTerminalSpace(id: space.id, name: trimmedName)
+      return PersistedTerminalSpace(
+        id: space.id,
+        name: trimmedName,
+        themeID: space.themeID
+      )
     }
     guard !spaces.isEmpty else { return .default }
 
@@ -88,7 +115,8 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
   private static func makeDefault() -> Self {
     let space = PersistedTerminalSpace(
       id: TerminalSpaceID(),
-      name: "1"
+      name: "1",
+      themeID: Theme.default.id
     )
     return Self(
       defaultSelectedSpaceID: space.id,

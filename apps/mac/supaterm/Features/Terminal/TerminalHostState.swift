@@ -403,7 +403,8 @@ final class TerminalHostState {
       .performBindingActionOnFocusedSurface,
       .performSplitOperation,
       .previousTab,
-      .renameSpace:
+      .renameSpace,
+      .updateSpace:
       handleInteractionCommand(command)
     case .nextSpace,
       .previousSpace,
@@ -453,8 +454,8 @@ final class TerminalHostState {
         startupCommand: startupCommand,
         workingDirectoryPath: workingDirectoryPath
       )
-    case .createSpace(let name):
-      _ = try? createSpace(named: name)
+    case .createSpace(let name, let themeID):
+      _ = try? createSpace(named: name, themeID: themeID)
     default:
       return
     }
@@ -476,6 +477,8 @@ final class TerminalHostState {
       previousTab()
     case .renameSpace(let spaceID, let name):
       renameSpace(spaceID, to: name)
+    case .updateSpace(let spaceID, let name, let themeID):
+      updateSpace(spaceID, name: name, themeID: themeID)
     default:
       return
     }

@@ -1,16 +1,11 @@
 import ComposableArchitecture
 import Foundation
-import SupaTheme
 
 extension SettingsFeature {
   func reduceGeneral(_ state: inout State, action: Action) -> Effect<Action> {
     switch action {
     case .appearanceModeSelected(let appearanceMode):
       state.appearanceMode = appearanceMode
-      return persist(state)
-
-    case .themeSelected(let themeID):
-      state.themeID = Theme.curated(id: themeID).id
       return persist(state)
 
     case .analyticsEnabledChanged(let isEnabled):

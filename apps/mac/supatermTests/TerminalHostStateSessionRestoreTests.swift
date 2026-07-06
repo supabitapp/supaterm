@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 import SupatermSupport
 import Testing
 
@@ -181,7 +182,7 @@ struct TerminalHostStateSessionRestoreTests {
       )
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
 
-      host.handleCommand(.createSpace("Workspace"))
+      host.handleCommand(.createSpace(name: "Workspace", themeID: Theme.default.id))
       let secondSpaceID = try #require(host.selectedSpaceID)
       let secondSpaceInitialTabID = try #require(host.selectedTabID)
       host.handleCommand(.togglePinned(secondSpaceInitialTabID))

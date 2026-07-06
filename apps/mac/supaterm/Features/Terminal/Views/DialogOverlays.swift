@@ -283,11 +283,12 @@ private struct DialogActionButton: View {
   }
 }
 
-struct SpaceNameOverlay: View {
+struct SpaceEditorOverlay: View {
   let palette: Palette
   let title: String
   let confirmTitle: String
   @Binding var name: String
+  @Binding var themeID: String
   let isSaveEnabled: Bool
   let onSave: () -> Void
   let onCancel: () -> Void
@@ -304,6 +305,9 @@ struct SpaceNameOverlay: View {
         Text(title)
           .font(.system(size: 22, weight: .semibold))
           .foregroundStyle(palette.selectedText)
+
+        ThemeSwatchPicker(selection: $themeID, palette: palette)
+          .frame(maxWidth: .infinity, alignment: .leading)
 
         TextField("Space name", text: $name)
           .textFieldStyle(.plain)

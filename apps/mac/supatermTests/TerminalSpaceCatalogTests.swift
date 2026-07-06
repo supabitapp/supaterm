@@ -1,4 +1,5 @@
 import Foundation
+import SupaTheme
 import SupatermCLIShared
 import Testing
 
@@ -40,6 +41,7 @@ struct TerminalSpaceCatalogTests {
     )
 
     #expect(catalog.spaces.map(\.name) == ["1"])
+    #expect(catalog.spaces.map(\.themeID) == [Theme.default.id])
     #expect(catalog.defaultSelectedSpaceID == catalog.spaces[0].id)
   }
 
@@ -63,5 +65,66 @@ struct TerminalSpaceCatalogTests {
 
     #expect(catalog.defaultSelectedSpaceID == firstSpace.id)
     #expect(catalog.spaces.map(\.name) == ["A", "B"])
+  }
+
+  @Test
+  func sanitizedPreservesValidThemesAndNormalizesUnknownThemes() {
+    let firstSpace = PersistedTerminalSpace(
+      id: TerminalSpaceID(rawValue: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!),
+      name: "A",
+      themeID: Theme.steelBlue.id
+    )
+    let secondSpace = PersistedTerminalSpace(
+      id: TerminalSpaceID(rawValue: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!),
+      name: "B",
+      themeID: "missing-theme"
+    )
+
+    let catalog = TerminalSpaceCatalog.sanitized(
+      TerminalSpaceCatalog(
+        defaultSelectedSpaceID: firstSpace.id,
+        spaces: [firstSpace, secondSpace]
+      )
+    )
+
+    #expect(catalog.spaces.map(\.themeID) == [Theme.steelBlue.id, Theme.default.id])
+  }
+
+  @Test
+  func persistedSpaceDecodesMissingThemeAsDefaultTheme() throws {
+    let data = Data(
+      #"""
+      {
+        "defaultSelectedSpaceID": {
+          "rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+        },
+        "spaces": [
+          {
+            "id": {
+              "rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+            },
+            "name": "A"
+          }
+        ]
+      }
+      """#.utf8
+    )
+
+    let catalog = try JSONDecoder().decode(TerminalSpaceCatalog.self, from: data)
+
+    #expect(catalog.spaces.map(\.themeID) == [Theme.default.id])
+  }
+
+  @Test
+  func createThemeSelectionFallsBackToAllThemesWhenAllAreUsed() {
+    let selectedThemeID = TerminalSpaceThemeSelection.randomThemeID(
+      usedThemeIDs: Theme.curated.map(\.id),
+      randomIndex: { count in
+        #expect(count == Theme.curated.count)
+        return Theme.curated.firstIndex(where: { $0.id == Theme.steelBlue.id })!
+      }
+    )
+
+    #expect(selectedThemeID == Theme.steelBlue.id)
   }
 }

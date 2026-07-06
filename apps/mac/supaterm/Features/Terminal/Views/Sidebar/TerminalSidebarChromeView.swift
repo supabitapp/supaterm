@@ -129,9 +129,13 @@ struct TerminalSidebarChromeView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       dragSession.colorScheme = colorScheme
+      dragSession.themeID = terminal.selectedSpaceThemeID
     }
     .onChange(of: colorScheme) { _, newValue in
       dragSession.colorScheme = newValue
+    }
+    .onChange(of: terminal.selectedSpaceThemeID) { _, newValue in
+      dragSession.themeID = newValue
     }
     .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
       handle(pendingReorder)

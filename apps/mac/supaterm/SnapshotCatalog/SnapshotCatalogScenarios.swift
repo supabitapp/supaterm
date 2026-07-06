@@ -483,11 +483,12 @@ extension SnapshotCatalog {
     ) { appearance in
       AnyView(
         DialogSnapshotFixture(appearance: appearance) { palette in
-          SpaceNameOverlay(
+          SpaceEditorOverlay(
             palette: palette,
             title: "Rename Space",
             confirmTitle: "Rename",
             name: .constant("Release work"),
+            themeID: .constant(Theme.steelBlue.id),
             isSaveEnabled: true,
             onSave: {},
             onCancel: {}
@@ -503,11 +504,12 @@ extension SnapshotCatalog {
     ) { appearance in
       AnyView(
         DialogSnapshotFixture(appearance: appearance) { palette in
-          SpaceNameOverlay(
+          SpaceEditorOverlay(
             palette: palette,
             title: "Create Space",
             confirmTitle: "Create",
             name: .constant(""),
+            themeID: .constant(Theme.default.id),
             isSaveEnabled: false,
             onSave: {},
             onCancel: {}

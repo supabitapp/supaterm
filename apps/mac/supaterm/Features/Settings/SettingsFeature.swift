@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import Foundation
 import Sharing
-import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
@@ -72,7 +71,6 @@ public struct SettingsFeature {
   @ObservableState
   public struct State: Equatable {
     var appearanceMode = SupatermSettings.default.appearanceMode
-    var themeID = SupatermSettings.default.themeID
     var analyticsEnabled = SupatermSettings.default.analyticsEnabled
     @Presents var alert: AlertState<Alert>?
     var claudeIntegration = SettingsAgentIntegrationState()
@@ -120,7 +118,6 @@ public struct SettingsFeature {
     case systemNotificationsEnabledChanged(Bool)
     case tabSelected(Tab)
     case task
-    case themeSelected(String)
     case terminalConfirmCloseSurfaceSelected(GhosttyTerminalCloseConfirmation)
     case terminalDarkThemeSelected(String?)
     case terminalFontFamilySelected(String?)
@@ -249,7 +246,6 @@ public struct SettingsFeature {
         return persist(state)
 
       case .appearanceModeSelected,
-        .themeSelected,
         .analyticsEnabledChanged,
         .confirmQuitModeSelected,
         .crashReportsEnabledChanged,
@@ -317,7 +313,6 @@ public struct SettingsFeature {
     supatermSettings: SupatermSettings
   ) {
     state.appearanceMode = supatermSettings.appearanceMode
-    state.themeID = Theme.curated(id: supatermSettings.themeID).id
     state.analyticsEnabled = supatermSettings.analyticsEnabled
     state.codingAgentsShowPanel = supatermSettings.codingAgentsShowPanel
     state.codingAgentsShowIcons = supatermSettings.codingAgentsShowIcons
@@ -342,7 +337,6 @@ public struct SettingsFeature {
   func persist(_ state: State) -> Effect<Action> {
     let supatermSettings = SupatermSettings(
       appearanceMode: state.appearanceMode,
-      themeID: state.themeID,
       analyticsEnabled: state.analyticsEnabled,
       codingAgentsShowPanel: state.codingAgentsShowPanel,
       codingAgentsShowIcons: state.codingAgentsShowIcons,

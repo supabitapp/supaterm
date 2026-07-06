@@ -3,6 +3,7 @@ import Foundation
 import GhosttyKit
 import Observation
 import Sharing
+import SupaTheme
 import SupatermCLIShared
 import SupatermSupport
 import SwiftUI
@@ -14,6 +15,20 @@ extension TerminalHostState {
 
   var selectedSpaceID: TerminalSpaceID? {
     spaceManager.selectedSpaceID
+  }
+
+  var selectedSpaceThemeID: String {
+    guard
+      let selectedSpaceID,
+      let space = spaces.first(where: { $0.id == selectedSpaceID })
+    else {
+      return Theme.default.id
+    }
+    return Theme.curated(id: space.themeID).id
+  }
+
+  var selectedSpaceTheme: Theme {
+    Theme.curated(id: selectedSpaceThemeID)
   }
 
   var tabs: [TerminalTabItem] {
