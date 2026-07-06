@@ -91,5 +91,7 @@ func decodeSPJSON<T: Decodable>(
   from result: SPBinaryResult
 ) throws -> T {
   let data = try #require(result.stdout.data(using: .utf8))
-  return try JSONDecoder().decode(type, from: data)
+  let decoder = JSONDecoder()
+  decoder.dateDecodingStrategy = .iso8601
+  return try decoder.decode(type, from: data)
 }

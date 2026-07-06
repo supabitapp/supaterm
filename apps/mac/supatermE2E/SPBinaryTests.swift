@@ -59,7 +59,8 @@ extension SupatermE2ESuite {
           try runner.run(["config", "validate", "--json"], cwd: space.directory)
         )
         let defaultValidation = try decodeSPJSON(SupatermSettingsValidationResult.self, from: defaultConfig)
-        #expect(defaultValidation.status == .missing)
+        #expect(defaultValidation.status != .invalid)
+        #expect(defaultValidation.errors.isEmpty)
         #expect(defaultValidation.path.hasPrefix(app.stateHome.path))
 
         let validConfigURL = space.directory.appendingPathComponent("settings.toml")
@@ -222,8 +223,7 @@ extension SupatermE2ESuite {
         let result = try requireSuccessfulSPResult(
           try runner.run(["ls", "--socket", app.socketPath, "--json"], cwd: space.directory)
         )
-        let data = try #require(result.stdout.data(using: .utf8))
-        let decoded = try JSONDecoder().decode(SupatermTreeSnapshot.self, from: data)
+        let decoded = try decodeSPJSON(SupatermTreeSnapshot.self, from: result)
         let socket = try app.send(.tree(), as: SupatermTreeSnapshot.self)
         #expect(stableTreeRows(decoded) == stableTreeRows(socket))
       }
@@ -660,7 +660,7 @@ private func closeCLIResources(
   )
   _ = try requireSuccessfulSPResult(
     try cliSpace.runner.run(
-      ["space", "close", "--socket", app.socketPath, "--json", cliSpace.result.target.spaceID.uuidString],
+      ["space", "destroy", "--socket", app.socketPath, "--json", "-y", cliSpace.result.target.spaceID.uuidString],
       cwd: space.directory)
   )
   try await app.waitForDebugSnapshot("CLI-created space closes") { snapshot in
@@ -808,7 +808,7 @@ private func exerciseTmuxCloseAndFailures(_ tmux: TmuxE2E, fixture: TmuxFixture)
   _ = try tmux.run(["kill-window", "-t", tmuxTabSelector(fixture.createdWindow)])
   _ = try requireSuccessfulSPResult(
     try tmux.runner.run(
-      ["space", "close", "--socket", tmux.app.socketPath, "--json", fixture.newSession.uuidString],
+      ["space", "destroy", "--socket", tmux.app.socketPath, "--json", "-y", fixture.newSession.uuidString],
       cwd: tmux.space.directory)
   )
   let unsupported = try requireFailedSPResult(

@@ -20,9 +20,16 @@ public enum SPEntrypoint {
       }
       SP.main()
     } catch {
-      FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+      FileHandle.standardError.write(Data((errorMessage(for: error) + "\n").utf8))
       Darwin.exit(EXIT_FAILURE)
     }
+  }
+
+  static func errorMessage(for error: Error) -> String {
+    if let error = error as? ValidationError {
+      return error.message
+    }
+    return error.localizedDescription
   }
 
   static func redirectedCLIPath(

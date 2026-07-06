@@ -1,3 +1,4 @@
+import ArgumentParser
 import Testing
 
 @testable import SPCLI
@@ -44,5 +45,13 @@ struct SPEntrypointTests {
     )
 
     #expect(redirectedPath == nil)
+  }
+
+  @Test
+  func rawEntrypointValidationErrorsUseValidationMessage() {
+    #expect(
+      SPEntrypoint.errorMessage(for: ValidationError("wait-for timed out waiting for 'missing'"))
+        == "wait-for timed out waiting for 'missing'"
+    )
   }
 }
