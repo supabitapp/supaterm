@@ -207,18 +207,12 @@ func svg(palette: ReferencePalette, logoMark: LogoMark, scheme: Scheme) -> Strin
   let clay = palette.clay.color(for: scheme)
   let gold = palette.gold.color(for: scheme)
   let blue = palette.blue.color(for: scheme)
-  let tileTop = scheme == .dark ? neutral.mixed(with: .black, by: 0.82) : neutral.mixed(with: .white, by: 0.84)
-  let tileBottom = scheme == .dark ? RGB.black.mixed(with: neutral, by: 0.16) : neutral.mixed(with: .white, by: 0.94)
   let warmMiddle = neutral.mixed(with: gold, by: scheme == .dark ? 0.68 : 0.58)
   let boltPath = logoMark.path
 
   return """
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Supaterm lightning logo">
     <defs>
-      <linearGradient id="tileGradient" x1="512" y1="48" x2="512" y2="976" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stop-color="\(tileTop.svg)"/>
-        <stop offset="1" stop-color="\(tileBottom.svg)"/>
-      </linearGradient>
       <linearGradient id="boltGradient" x1="512" y1="108" x2="512" y2="916" gradientUnits="userSpaceOnUse">
         <stop offset="0" stop-color="\(blue.svg)"/>
         <stop offset="0.36" stop-color="\(blue.mixed(with: warmMiddle, by: 0.46).svg)"/>
@@ -227,23 +221,8 @@ func svg(palette: ReferencePalette, logoMark: LogoMark, scheme: Scheme) -> Strin
         <stop offset="0.92" stop-color="\(clay.svg)"/>
         <stop offset="1" stop-color="\(rose.svg)"/>
       </linearGradient>
-      <radialGradient id="boltHighlight" cx="42%" cy="18%" r="68%">
-        <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
-        <stop offset="0.42" stop-color="#FFFFFF" stop-opacity="0.28"/>
-        <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-      </radialGradient>
-      <filter id="tileShadow" x="-12%" y="-10%" width="124%" height="128%">
-        <feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#000000" flood-opacity="0.18"/>
-      </filter>
-      <filter id="boltShadow" x="-22%" y="-16%" width="144%" height="150%">
-        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#1B2130" flood-opacity="0.24"/>
-      </filter>
     </defs>
-    <rect x="76" y="76" width="872" height="872" rx="176" fill="url(#tileGradient)" filter="url(#tileShadow)"/>
-    <path d="\(boltPath)" fill="url(#boltGradient)" filter="url(#boltShadow)"/>
-    <path d="\(boltPath)" fill="url(#boltHighlight)" opacity="0.82"/>
-    <path d="\(boltPath)" fill="none" stroke="#FFFFFF" stroke-opacity="0.46" stroke-width="18" stroke-linejoin="round"/>
-    <path d="\(boltPath)" fill="none" stroke="#000000" stroke-opacity="0.08" stroke-width="3" stroke-linejoin="round"/>
+    <path d="\(boltPath)" fill="url(#boltGradient)"/>
   </svg>
   """
 }
