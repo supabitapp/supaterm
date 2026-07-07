@@ -95,6 +95,21 @@ struct ChromePaletteTests {
     }
   }
 
+  @Test func fillTokensMeetControlContrast() {
+    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+      for background in [palette.agentPanelBackgroundValue, palette.backgroundTopValue, palette.backgroundBottomValue] {
+        expectContrast(palette.warningFillValue, background, minimum: 3, token: "warningFill")
+        expectContrast(palette.dangerFillValue, background, minimum: 3, token: "dangerFill")
+        expectContrast(palette.dangerHoverFillValue, background, minimum: 3, token: "dangerHoverFill")
+      }
+      expectContrast(palette.onWarningFillValue, palette.warningFillValue, minimum: 4.5, token: "onWarningFill")
+      expectContrast(palette.onDangerFillValue, palette.dangerFillValue, minimum: 4.5, token: "onDangerFill")
+      expectContrast(palette.onDangerFillValue, palette.dangerHoverFillValue, minimum: 4.5, token: "onDangerHoverFill")
+      expectSameThemeColor(palette.onWarningFillValue, .black, "onWarningFill")
+      expectSameThemeColor(palette.onDangerFillValue, .white, "onDangerFill")
+    }
+  }
+
   @Test func colorMathComputesContrastAndReadableForeground() {
     #expect(abs(ColorMath.contrastRatio(.black, .white) - 21) < 0.0001)
     expectSameThemeColor(ColorMath.readableForeground(on: .black), .white, "blackForeground")

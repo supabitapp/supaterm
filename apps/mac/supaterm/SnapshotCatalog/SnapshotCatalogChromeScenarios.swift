@@ -93,12 +93,16 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "success", color: palette.success),
       TokenSwatch(name: "danger", color: palette.danger),
       TokenSwatch(name: "merged", color: palette.merged),
+      TokenSwatch(name: "warningFill", color: palette.warningFill),
+      TokenSwatch(name: "dangerFill", color: palette.dangerFill),
       TokenSwatch(name: "dangerHoverFill", color: palette.dangerHoverFill),
       TokenSwatch(name: "onAccent", color: palette.onAccent),
       TokenSwatch(name: "onWarning", color: palette.onWarning),
       TokenSwatch(name: "onSuccess", color: palette.onSuccess),
       TokenSwatch(name: "onDanger", color: palette.onDanger),
       TokenSwatch(name: "onMerged", color: palette.onMerged),
+      TokenSwatch(name: "onWarningFill", color: palette.onWarningFill),
+      TokenSwatch(name: "onDangerFill", color: palette.onDangerFill),
     ]
     return semanticTokens
       + palette.referenceSwatches.map {

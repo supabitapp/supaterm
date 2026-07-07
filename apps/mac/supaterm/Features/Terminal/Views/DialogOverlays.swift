@@ -251,7 +251,7 @@ private struct DialogActionButton: View {
     case .secondary:
       isHovering ? palette.selectedText.opacity(0.2) : palette.selectedPillFill
     case .destructive:
-      isHovering ? palette.dangerHoverFill : palette.danger
+      isHovering ? palette.dangerHoverFill : palette.dangerFill
     }
   }
 
@@ -260,7 +260,7 @@ private struct DialogActionButton: View {
     case .secondary:
       palette.selectedText
     case .destructive:
-      .white
+      palette.onDangerFill
     }
   }
 

@@ -11,11 +11,16 @@ public struct Palette {
   public let successValue: ThemeColor
   public let dangerValue: ThemeColor
   public let mergedValue: ThemeColor
+  public let warningFillValue: ThemeColor
+  public let dangerFillValue: ThemeColor
+  public let dangerHoverFillValue: ThemeColor
   public let onAccentValue: ThemeColor
   public let onWarningValue: ThemeColor
   public let onSuccessValue: ThemeColor
   public let onDangerValue: ThemeColor
   public let onMergedValue: ThemeColor
+  public let onWarningFillValue: ThemeColor
+  public let onDangerFillValue: ThemeColor
   private let detailBackgroundValue: ThemeColor
 
   private var isDark: Bool { colorScheme == .dark }
@@ -46,15 +51,19 @@ public struct Palette {
   public var success: Color { successValue.color }
   public var danger: Color { dangerValue.color }
   public var merged: Color { mergedValue.color }
+  public var warningFill: Color { warningFillValue.color }
+  public var dangerFill: Color { dangerFillValue.color }
+  public var dangerHoverFill: Color { dangerHoverFillValue.color }
   public var onAccent: Color { onAccentValue.color }
   public var onWarning: Color { onWarningValue.color }
   public var onSuccess: Color { onSuccessValue.color }
   public var onDanger: Color { onDangerValue.color }
   public var onMerged: Color { onMergedValue.color }
+  public var onWarningFill: Color { onWarningFillValue.color }
+  public var onDangerFill: Color { onDangerFillValue.color }
   public var selectedSecondaryText: Color { selectedText.opacity(0.72) }
   public var selectedPillFill: Color { selectedText.opacity(0.12) }
   public var selectedPillStroke: Color { selectedText.opacity(0.14) }
-  public var dangerHoverFill: Color { danger.opacity(0.85) }
 
   public var selectedStroke: LinearGradient {
     LinearGradient(
@@ -91,6 +100,19 @@ public struct Palette {
     let successValue = Self.semantic(referencePalette.green.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let dangerValue = Self.semantic(referencePalette.rose.color(for: colorScheme), backgrounds: semanticBackgrounds)
     let mergedValue = Self.semantic(referencePalette.violet.color(for: colorScheme), backgrounds: semanticBackgrounds)
+    let warningFillValue = Self.fill(referencePalette.gold.color(for: colorScheme), backgrounds: semanticBackgrounds)
+    let onDangerFillValue = ThemeColor.white
+    let dangerFillValue = Self.fill(
+      referencePalette.rose.color(for: colorScheme),
+      backgrounds: semanticBackgrounds,
+      foreground: onDangerFillValue
+    )
+    let onWarningFillValue = ColorMath.readableForeground(on: warningFillValue)
+    let dangerHoverFillValue = Self.fill(
+      dangerFillValue.mixed(with: isDark ? .white : .black, by: 0.06),
+      backgrounds: semanticBackgrounds,
+      foreground: onDangerFillValue
+    )
 
     self.backgroundTopValue = backgroundTopValue
     self.backgroundBottomValue = backgroundBottomValue
@@ -101,11 +123,16 @@ public struct Palette {
     self.successValue = successValue
     self.dangerValue = dangerValue
     self.mergedValue = mergedValue
+    self.warningFillValue = warningFillValue
+    self.dangerFillValue = dangerFillValue
+    self.dangerHoverFillValue = dangerHoverFillValue
     self.onAccentValue = ColorMath.readableForeground(on: accentValue)
     self.onWarningValue = ColorMath.readableForeground(on: warningValue)
     self.onSuccessValue = ColorMath.readableForeground(on: successValue)
     self.onDangerValue = ColorMath.readableForeground(on: dangerValue)
     self.onMergedValue = ColorMath.readableForeground(on: mergedValue)
+    self.onWarningFillValue = onWarningFillValue
+    self.onDangerFillValue = onDangerFillValue
   }
 
   private static func semantic(_ anchor: ThemeColor, backgrounds: [ThemeColor]) -> ThemeColor {
@@ -118,6 +145,29 @@ public struct Palette {
       anchor: anchor,
       against: background,
       minimumContrast: 4.5
+    )
+  }
+
+  private static func fill(
+    _ anchor: ThemeColor,
+    backgrounds: [ThemeColor],
+    foreground: ThemeColor? = nil
+  ) -> ThemeColor {
+    let readableForeground = foreground ?? ColorMath.readableForeground(on: anchor)
+    let foregroundAdjusted = ColorMath.adjustedForContrast(
+      anchor: anchor,
+      against: readableForeground,
+      minimumContrast: 4.5
+    )
+    guard
+      let background = backgrounds.min(by: {
+        ColorMath.contrastRatio(foregroundAdjusted, $0) < ColorMath.contrastRatio(foregroundAdjusted, $1)
+      })
+    else { return foregroundAdjusted }
+    return ColorMath.adjustedForContrast(
+      anchor: foregroundAdjusted,
+      against: background,
+      minimumContrast: 3
     )
   }
 }

@@ -198,7 +198,7 @@ struct TerminalSidebarAgentActivityView: View {
         case .needsInput:
           Image(systemName: "bell.fill")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(palette.onWarningFill)
             .scaleEffect(scale)
             .offset(y: verticalOffset)
             .accessibilityHidden(true)
@@ -246,11 +246,11 @@ struct TerminalSidebarAgentActivityView: View {
   private var backgroundColor: Color {
     switch activity.phase {
     case .needsInput:
-      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+      return fillColor(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     case .running:
       return .clear
     case .idle:
-      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+      return fillColor(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     }
   }
 
@@ -262,10 +262,10 @@ struct TerminalSidebarAgentActivityView: View {
     activity.phase == .needsInput && isAnimating ? -1 : 0
   }
 
-  private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
+  private func fillColor(for tone: TerminalHostState.AgentActivityTone) -> Color {
     switch tone {
     case .attention:
-      return palette.warning
+      return palette.warningFill
     case .active:
       return palette.accent
     case .muted:
@@ -280,12 +280,12 @@ struct TerminalSidebarBellIndicatorView: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: 5, style: .continuous)
-      .fill(palette.warning.opacity(isSelected ? 0.72 : 0.9))
+      .fill(palette.warningFill.opacity(isSelected ? 0.72 : 0.9))
       .frame(width: 16, height: 16)
       .overlay {
         Image(systemName: "bell.fill")
           .font(.system(size: 9, weight: .semibold))
-          .foregroundStyle(Color.white)
+          .foregroundStyle(palette.onWarningFill)
           .accessibilityHidden(true)
       }
   }
