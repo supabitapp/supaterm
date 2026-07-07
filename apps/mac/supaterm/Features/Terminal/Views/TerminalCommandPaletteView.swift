@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 struct TerminalCommandPaletteOverlay: View {
@@ -129,7 +130,7 @@ struct TerminalCommandPaletteOverlay: View {
           .textFieldStyle(.plain)
           .font(.system(size: 17, weight: .medium))
           .foregroundStyle(state.query.isEmpty ? palette.secondaryText : palette.primaryText)
-          .tint(palette.sky)
+          .tint(palette.accent)
           .focused($isQueryFocused)
           .onChange(of: isQueryFocused) { _, isFocused in
             if !isFocused {

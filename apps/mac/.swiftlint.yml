@@ -1,6 +1,7 @@
 strict: true
 
 included:
+  - SupaTheme
   - supaterm
   - supatermTests
   - supatermSnapshotTests

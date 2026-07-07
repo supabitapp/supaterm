@@ -1,3 +1,4 @@
+import SupaTheme
 import SwiftUI
 
 struct ReleaseAnnouncementCardView: View {

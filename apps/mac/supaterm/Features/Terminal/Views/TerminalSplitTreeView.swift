@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 import UniformTypeIdentifiers

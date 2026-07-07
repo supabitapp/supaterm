@@ -1,4 +1,5 @@
 import Foundation
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
@@ -406,12 +407,12 @@ private struct TerminalSidebarTabGroupPreviewModel {
 }
 
 private enum TerminalSidebarTabGroupPreviewTone {
-  case amber
-  case coral
-  case mint
-  case sky
-  case slate
-  case violet
+  case warning
+  case danger
+  case success
+  case accent
+  case muted
+  case merged
 }
 
 private enum TerminalSidebarGroupedTabPreviewFixtures {
@@ -436,7 +437,7 @@ private enum TerminalSidebarGroupedTabPreviewFixtures {
 
   static let group = TerminalSidebarTabGroupPreviewModel(
     title: "Launch Prep",
-    tone: .amber,
+    tone: .warning,
     items: [
       item(
         title: "supaterm.com polish",
@@ -548,18 +549,18 @@ private struct TerminalSidebarGroupedTabPreview: View {
 
   private var accent: Color {
     switch group.tone {
-    case .amber:
-      palette.amber.opacity(0.85)
-    case .coral:
-      palette.coral.opacity(0.85)
-    case .mint:
-      palette.mint.opacity(0.85)
-    case .sky:
-      palette.sky.opacity(0.85)
-    case .slate:
-      palette.slate.opacity(0.85)
-    case .violet:
-      palette.violet.opacity(0.85)
+    case .warning:
+      palette.warning.opacity(0.85)
+    case .danger:
+      palette.danger.opacity(0.85)
+    case .success:
+      palette.success.opacity(0.85)
+    case .accent:
+      palette.accent.opacity(0.85)
+    case .muted:
+      palette.secondaryText.opacity(0.85)
+    case .merged:
+      palette.merged.opacity(0.85)
     }
   }
 

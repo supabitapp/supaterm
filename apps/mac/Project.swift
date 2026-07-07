@@ -134,6 +134,24 @@ let project = Project(
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
     ),
     .target(
+      name: "SupaTheme",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.theme",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupaTheme",
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSupport",
       destinations: .macOS,
       product: .staticFramework,
@@ -435,6 +453,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -482,6 +501,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -549,6 +569,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),

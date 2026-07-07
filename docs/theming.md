@@ -1,11 +1,12 @@
 # Chrome Styling
 
-Supaterm chrome has one default look. The mac app owns the palette, window background, blurred card styling, selectable row style, and grain texture in `apps/mac/supaterm/Features/Chrome`.
+Supaterm chrome has one default look. `SupaTheme` owns the palette reference anchors, color math, and computed semantic tokens. The mac app keeps window background rendering, blurred card styling, selectable row style, and grain texture in `apps/mac/supaterm/Features/Chrome`.
 
 ## Consumption
 
 - Views take an explicit `let palette: Palette` and read semantic chrome tokens.
 - `TerminalView` builds `Palette(colorScheme:)` from the resolved chrome color scheme.
+- Reference colors are stored once in `apps/mac/SupaTheme`; role colors such as accent, warning, success, danger, and merged are computed from those anchors against the chrome surfaces where they render.
 - `ChromeBackgroundView` renders the fixed opaque window ramp with deterministic grain.
 - The agent panel uses an opaque floating surface token so terminal content underneath cannot change its color.
 - Spaces store identity and name only; the create and rename flows do not expose chrome choices.

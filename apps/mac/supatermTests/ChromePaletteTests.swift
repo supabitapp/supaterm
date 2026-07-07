@@ -1,9 +1,27 @@
 import CoreGraphics
 import Foundation
+import SupaTheme
 import SwiftUI
 import Testing
 
 @testable import supaterm
+
+private func expectSameThemeColor(
+  _ actual: ThemeColor,
+  _ expected: ThemeColor,
+  _ token: String,
+  tolerance: Double = 0.0001,
+  sourceLocation: SourceLocation = #_sourceLocation
+) {
+  #expect(
+    abs(actual.red - expected.red) < tolerance
+      && abs(actual.green - expected.green) < tolerance
+      && abs(actual.blue - expected.blue) < tolerance
+      && abs(actual.alpha - expected.alpha) < tolerance,
+    "\(token): \(actual) != \(expected)",
+    sourceLocation: sourceLocation
+  )
+}
 
 private func expectSameColor(
   _ actual: Color,
@@ -25,12 +43,32 @@ private func expectSameColor(
 
 @MainActor
 struct ChromePaletteTests {
-  @Test func lightSchemeMatchesExpectedPalette() {
-    expectDefaultTokens(Palette(colorScheme: .light), isDark: false)
+  @Test func referenceAnchorsMatchExpectedValues() {
+    let reference = ReferencePalette.default
+    expectSameThemeColor(reference.neutral.light, ThemeColor(hex: 0xE3E6EC), "neutralLight")
+    expectSameThemeColor(reference.neutral.dark, ThemeColor(hex: 0x9AA2AF), "neutralDark")
+    expectSameThemeColor(reference.rose.light, ThemeColor(hex: 0xC1575C), "roseLight")
+    expectSameThemeColor(reference.rose.dark, ThemeColor(hex: 0xCC4A55), "roseDark")
+    expectSameThemeColor(reference.clay.light, ThemeColor(hex: 0xD87249), "clayLight")
+    expectSameThemeColor(reference.clay.dark, ThemeColor(hex: 0xC95125), "clayDark")
+    expectSameThemeColor(reference.gold.light, ThemeColor(hex: 0xE3AC38), "goldLight")
+    expectSameThemeColor(reference.gold.dark, ThemeColor(hex: 0xC98400), "goldDark")
+    expectSameThemeColor(reference.green.light, ThemeColor(hex: 0x3EB489), "greenLight")
+    expectSameThemeColor(reference.green.dark, ThemeColor(hex: 0x008B5D), "greenDark")
+    expectSameThemeColor(reference.blush.light, ThemeColor(hex: 0xD37B8B), "blushLight")
+    expectSameThemeColor(reference.blush.dark, ThemeColor(hex: 0xBD556B), "blushDark")
+    expectSameThemeColor(reference.blue.light, ThemeColor(hex: 0x3A88C4), "blueLight")
+    expectSameThemeColor(reference.blue.dark, ThemeColor(hex: 0x007FBD), "blueDark")
+    expectSameThemeColor(reference.violet.light, ThemeColor(hex: 0x5F5B9E), "violetLight")
+    expectSameThemeColor(reference.violet.dark, ThemeColor(hex: 0x625DA5), "violetDark")
   }
 
-  @Test func darkSchemeMatchesExpectedPalette() {
-    expectDefaultTokens(Palette(colorScheme: .dark), isDark: true)
+  @Test func lightSchemeMatchesExpectedSurfaces() {
+    expectDefaultSurfaceTokens(Palette(colorScheme: .light), isDark: false)
+  }
+
+  @Test func darkSchemeMatchesExpectedSurfaces() {
+    expectDefaultSurfaceTokens(Palette(colorScheme: .dark), isDark: true)
   }
 
   @Test func foregroundFollowsColorScheme() {
@@ -40,21 +78,87 @@ struct ChromePaletteTests {
     expectSameColor(Palette(colorScheme: .dark).secondaryText, Color.white.opacity(0.58), "darkSecondaryText")
   }
 
-  private func expectDefaultTokens(_ palette: Palette, isDark: Bool) {
-    let primary = Color(.displayP3, red: 0.89, green: 0.902, blue: 0.925)
+  @Test func semanticTokensMeetContrastOnChromeSurfaces() {
+    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+      for background in [palette.agentPanelBackgroundValue, palette.backgroundTopValue, palette.backgroundBottomValue] {
+        expectContrast(palette.accentValue, background, minimum: 4.5, token: "accent")
+        expectContrast(palette.warningValue, background, minimum: 4.5, token: "warning")
+        expectContrast(palette.successValue, background, minimum: 4.5, token: "success")
+        expectContrast(palette.dangerValue, background, minimum: 4.5, token: "danger")
+        expectContrast(palette.mergedValue, background, minimum: 4.5, token: "merged")
+      }
+      expectContrast(palette.onAccentValue, palette.accentValue, minimum: 4.5, token: "onAccent")
+      expectContrast(palette.onWarningValue, palette.warningValue, minimum: 4.5, token: "onWarning")
+      expectContrast(palette.onSuccessValue, palette.successValue, minimum: 4.5, token: "onSuccess")
+      expectContrast(palette.onDangerValue, palette.dangerValue, minimum: 4.5, token: "onDanger")
+      expectContrast(palette.onMergedValue, palette.mergedValue, minimum: 4.5, token: "onMerged")
+    }
+  }
+
+  @Test func colorMathComputesContrastAndReadableForeground() {
+    #expect(abs(ColorMath.contrastRatio(.black, .white) - 21) < 0.0001)
+    expectSameThemeColor(ColorMath.readableForeground(on: .black), .white, "blackForeground")
+    expectSameThemeColor(ColorMath.readableForeground(on: .white), .black, "whiteForeground")
+  }
+
+  @Test func oklchRoundTripsRepresentativeColors() {
+    for color in [
+      ThemeColor(hex: 0x3A88C4),
+      ThemeColor(hex: 0xC98400),
+      ThemeColor(hex: 0xE3E6EC),
+    ] {
+      let roundTrip = ColorMath.color(from: ColorMath.oklch(from: color))
+      expectSameThemeColor(roundTrip, color, "roundTrip", tolerance: 0.00001)
+    }
+  }
+
+  @Test func contrastAdjustmentComputesDisplayableColor() {
+    let background = Palette(colorScheme: .dark).agentPanelBackgroundValue
+    let adjusted = ColorMath.adjustedForContrast(
+      anchor: ReferencePalette.default.violet.dark,
+      against: background,
+      minimumContrast: 4.5
+    )
+    expectContrast(adjusted, background, minimum: 4.5, token: "adjustedViolet")
+    #expect(adjusted.red >= 0 && adjusted.red <= 1)
+    #expect(adjusted.green >= 0 && adjusted.green <= 1)
+    #expect(adjusted.blue >= 0 && adjusted.blue <= 1)
+  }
+
+  @Test func clampedOklchColorStaysDisplayable() {
+    let color = ColorMath.clampedColor(
+      from: ColorMath.OKLCH(lightness: 0.65, chroma: 0.5, hue: 0.2)
+    )
+    #expect(color.red >= 0 && color.red <= 1)
+    #expect(color.green >= 0 && color.green <= 1)
+    #expect(color.blue >= 0 && color.blue <= 1)
+  }
+
+  private func expectDefaultSurfaceTokens(_ palette: Palette, isDark: Bool) {
+    let surfaceSeed = ReferencePalette.default.neutral.light
+    expectSameColor(
+      palette.backgroundTop,
+      (isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4)).color,
+      "backgroundTop"
+    )
+    expectSameColor(
+      palette.backgroundBottom,
+      (isDark ? ThemeColor(hex: 0x191919) : ThemeColor(hex: 0xEDEDED)).color,
+      "backgroundBottom"
+    )
     expectSameColor(
       palette.windowBackgroundTint,
-      primary.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3),
+      surfaceSeed.color.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3),
       "windowBackgroundTint"
     )
     expectSameColor(
       palette.detailBackground,
-      primary.mix(with: isDark ? .black : .white, by: 0.85),
+      surfaceSeed.mixed(with: isDark ? .black : .white, by: 0.85).color,
       "detailBackground"
     )
     expectSameColor(
       palette.agentPanelBackground,
-      primary.mix(with: isDark ? .black : .white, by: isDark ? 0.82 : 0.85),
+      palette.agentPanelBackgroundValue.color,
       "agentPanelBackground"
     )
     expectSameColor(
@@ -93,21 +197,20 @@ struct ChromePaletteTests {
     expectSameColor(palette.scrim, Color.black.opacity(0.4), "scrim")
     expectSameColor(palette.overlayShadow, Color.black.opacity(0.25), "overlayShadow")
     expectSameColor(palette.divider, Color.white.opacity(0.3), "divider")
-    expectSameColor(palette.destructive, Color(red: 1, green: 0.4118, blue: 0.4118), "destructive")
-    expectSameColor(
-      palette.destructiveHoverFill,
-      Color(red: 1, green: 0.4118, blue: 0.4118).opacity(0.85),
-      "destructiveHoverFill"
+  }
+
+  private func expectContrast(
+    _ foreground: ThemeColor,
+    _ background: ThemeColor,
+    minimum: Double,
+    token: String,
+    sourceLocation: SourceLocation = #_sourceLocation
+  ) {
+    #expect(
+      ColorMath.contrastRatio(foreground, background) >= minimum,
+      "\(token): \(ColorMath.contrastRatio(foreground, background)) < \(minimum)",
+      sourceLocation: sourceLocation
     )
-    expectSameColor(palette.attention, Color(nsColor: .systemOrange), "attention")
-    expectSameColor(palette.success, Color(nsColor: .systemGreen), "success")
-    expectSameColor(palette.amber, Color(red: 0.89, green: 0.64, blue: 0.28), "amber")
-    expectSameColor(palette.mint, Color(red: 0.3, green: 0.72, blue: 0.58), "mint")
-    expectSameColor(palette.sky, Color(red: 0.31, green: 0.59, blue: 0.94), "sky")
-    expectSameColor(palette.coral, Color(red: 0.9, green: 0.43, blue: 0.38), "coral")
-    expectSameColor(palette.violet, Color(red: 0.57, green: 0.45, blue: 0.86), "violet")
-    expectSameColor(palette.slate, Color(red: 0.38, green: 0.44, blue: 0.56), "slate")
-    expectSameColor(palette.accent, Color(red: 0.31, green: 0.59, blue: 0.94), "accent")
   }
 }
 

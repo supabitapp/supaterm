@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 @MainActor

@@ -1,3 +1,4 @@
+import SupaTheme
 import SupatermSupport
 import SwiftUI
 
@@ -173,9 +174,9 @@ struct TerminalSidebarProgressIndicatorView: View {
     case .active:
       return isSelected ? palette.selectedSecondaryText : palette.secondaryText
     case .paused:
-      return palette.attention
+      return palette.warning
     case .error:
-      return palette.destructive
+      return palette.danger
     }
   }
 }
@@ -264,7 +265,7 @@ struct TerminalSidebarAgentActivityView: View {
   private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
     switch tone {
     case .attention:
-      return palette.attention
+      return palette.warning
     case .active:
       return palette.accent
     case .muted:
@@ -279,7 +280,7 @@ struct TerminalSidebarBellIndicatorView: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: 5, style: .continuous)
-      .fill(palette.attention.opacity(isSelected ? 0.72 : 0.9))
+      .fill(palette.warning.opacity(isSelected ? 0.72 : 0.9))
       .frame(width: 16, height: 16)
       .overlay {
         Image(systemName: "bell.fill")

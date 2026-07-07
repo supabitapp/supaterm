@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarSpaceBar: View {
