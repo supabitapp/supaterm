@@ -134,6 +134,46 @@ let project = Project(
       output: .xcframework(path: ghosttyXCFrameworkPath, linking: .static)
     ),
     .target(
+      name: "SupaTheme",
+      destinations: .macOS,
+      product: .staticFramework,
+      bundleId: "app.supabit.supaterm.theme",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupaTheme",
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
+      name: "SupaThemeLogoGenerator",
+      destinations: .macOS,
+      product: .commandLineTool,
+      bundleId: "app.supabit.supaterm.theme-logo-generator",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupaThemeLogoGenerator",
+      ],
+      dependencies: [
+        .target(name: "SupaTheme"),
+      ],
+      settings: .settings(
+        base: [
+          "SKIP_INSTALL": "YES",
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSupport",
       destinations: .macOS,
       product: .staticFramework,
@@ -435,6 +475,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -482,6 +523,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -549,6 +591,7 @@ let project = Project(
         .target(name: "SupatermSocketFeature"),
         .target(name: "SupatermSettingsFeature"),
         .target(name: "SupatermUpdateFeature"),
+        .target(name: "SupaTheme"),
         .target(name: "GhosttyKit"),
         .external(name: "ComposableArchitecture"),
         .external(name: "PostHog"),
@@ -641,6 +684,20 @@ let project = Project(
         configuration: .debug,
         executable: .executable(.target("supatermSnapshotCatalog")),
         expandVariableFromTarget: .target("supatermSnapshotCatalog")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
+    ),
+    .scheme(
+      name: "SupaThemeLogoGenerator",
+      buildAction: .buildAction(
+        targets: [
+          .target("SupaThemeLogoGenerator"),
+        ]
+      ),
+      runAction: .runAction(
+        configuration: .debug,
+        executable: .executable(.target("SupaThemeLogoGenerator")),
+        expandVariableFromTarget: .target("SupaThemeLogoGenerator")
       ),
       analyzeAction: .analyzeAction(configuration: .debug)
     ),

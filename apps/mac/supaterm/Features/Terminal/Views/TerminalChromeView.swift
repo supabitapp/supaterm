@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 enum TerminalSplitMetrics {
@@ -107,7 +108,7 @@ struct ToolbarIconButton: View {
         if showsAttentionIndicator {
           Image(systemName: "circle.fill")
             .font(.system(size: 7, weight: .bold))
-            .foregroundStyle(palette.amber)
+            .foregroundStyle(palette.warning)
             .background {
               Image(systemName: "circle.fill")
                 .font(.system(size: 9, weight: .bold))

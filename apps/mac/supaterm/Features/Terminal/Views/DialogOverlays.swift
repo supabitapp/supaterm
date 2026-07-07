@@ -1,4 +1,5 @@
 import AppKit
+import SupaTheme
 import SwiftUI
 
 private let dialogTransition: AnyTransition = .asymmetric(
@@ -250,7 +251,7 @@ private struct DialogActionButton: View {
     case .secondary:
       isHovering ? palette.selectedText.opacity(0.2) : palette.selectedPillFill
     case .destructive:
-      isHovering ? palette.destructiveHoverFill : palette.destructive
+      isHovering ? palette.dangerHoverFill : palette.dangerFill
     }
   }
 
@@ -259,7 +260,7 @@ private struct DialogActionButton: View {
     case .secondary:
       palette.selectedText
     case .destructive:
-      .white
+      palette.onDangerFill
     }
   }
 

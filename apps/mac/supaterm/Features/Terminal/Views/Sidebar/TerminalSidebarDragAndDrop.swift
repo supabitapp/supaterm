@@ -1,5 +1,6 @@
 @preconcurrency import AppKit
 import Combine
+import SupaTheme
 import SwiftUI
 
 extension NSPasteboard.PasteboardType {

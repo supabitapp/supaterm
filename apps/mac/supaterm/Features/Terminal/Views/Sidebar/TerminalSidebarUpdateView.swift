@@ -2,6 +2,7 @@ import AppKit
 import ComposableArchitecture
 import Foundation
 import Sharing
+import SupaTheme
 import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
@@ -413,7 +414,7 @@ private struct TerminalSidebarUpdateStyle {
   }
 
   var warning: Color {
-    palette.attention
+    palette.warning
   }
 
   var indicator: Color {

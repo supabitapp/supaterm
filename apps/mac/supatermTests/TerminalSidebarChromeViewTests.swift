@@ -1,5 +1,6 @@
 import Foundation
 import GhosttyKit
+import SupaTheme
 import SwiftUI
 import Testing
 import Textual
@@ -163,6 +164,15 @@ struct TerminalSidebarChromeViewTests {
         hasTerminalBell: true
       ) == .terminalBell
     )
+  }
+
+  @Test
+  func selectedWarningBadgeForegroundMeetsContrast() {
+    for palette in [Palette(colorScheme: .light), Palette(colorScheme: .dark)] {
+      let background = TerminalSidebarWarningBadgeStyle.selectedBackgroundValue(palette: palette)
+      let foreground = TerminalSidebarWarningBadgeStyle.foregroundValue(isSelected: true, palette: palette)
+      #expect(ColorMath.contrastRatio(foreground, background) >= 4.5)
+    }
   }
 
   @Test

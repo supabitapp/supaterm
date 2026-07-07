@@ -1,3 +1,4 @@
+import SupaTheme
 import SwiftUI
 
 extension SnapshotCatalog {
@@ -65,7 +66,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
   }
 
   private func tokens(for palette: Palette) -> [TokenSwatch] {
-    [
+    let semanticTokens = [
       TokenSwatch(name: "windowBackgroundTint", color: palette.windowBackgroundTint),
       TokenSwatch(name: "detailBackground", color: palette.detailBackground),
       TokenSwatch(name: "agentPanelBackground", color: palette.agentPanelBackground),
@@ -88,16 +89,24 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "overlayShadow", color: palette.overlayShadow),
       TokenSwatch(name: "divider", color: palette.divider),
       TokenSwatch(name: "accent", color: palette.accent),
-      TokenSwatch(name: "attention", color: palette.attention),
+      TokenSwatch(name: "warning", color: palette.warning),
       TokenSwatch(name: "success", color: palette.success),
-      TokenSwatch(name: "destructive", color: palette.destructive),
-      TokenSwatch(name: "destructiveHoverFill", color: palette.destructiveHoverFill),
-      TokenSwatch(name: "amber", color: palette.amber),
-      TokenSwatch(name: "mint", color: palette.mint),
-      TokenSwatch(name: "sky", color: palette.sky),
-      TokenSwatch(name: "coral", color: palette.coral),
-      TokenSwatch(name: "violet", color: palette.violet),
-      TokenSwatch(name: "slate", color: palette.slate),
+      TokenSwatch(name: "danger", color: palette.danger),
+      TokenSwatch(name: "merged", color: palette.merged),
+      TokenSwatch(name: "warningFill", color: palette.warningFill),
+      TokenSwatch(name: "dangerFill", color: palette.dangerFill),
+      TokenSwatch(name: "dangerHoverFill", color: palette.dangerHoverFill),
+      TokenSwatch(name: "onAccent", color: palette.onAccent),
+      TokenSwatch(name: "onWarning", color: palette.onWarning),
+      TokenSwatch(name: "onSuccess", color: palette.onSuccess),
+      TokenSwatch(name: "onDanger", color: palette.onDanger),
+      TokenSwatch(name: "onMerged", color: palette.onMerged),
+      TokenSwatch(name: "onWarningFill", color: palette.onWarningFill),
+      TokenSwatch(name: "onDangerFill", color: palette.onDangerFill),
     ]
+    return semanticTokens
+      + palette.referenceSwatches.map {
+        TokenSwatch(name: $0.name, color: $0.color)
+      }
   }
 }

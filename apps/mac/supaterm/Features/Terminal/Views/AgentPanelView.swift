@@ -1,3 +1,4 @@
+import SupaTheme
 import SupatermCLIShared
 import SwiftUI
 
@@ -196,9 +197,9 @@ struct AgentPanelView: View {
         .accessibilityHidden(true)
       HStack(spacing: 4) {
         Text("+\(addedLineCount, format: .number)")
-          .foregroundStyle(palette.mint)
+          .foregroundStyle(palette.success)
         Text("-\(removedLineCount, format: .number)")
-          .foregroundStyle(palette.coral)
+          .foregroundStyle(palette.danger)
       }
       .font(.system(size: 12, weight: .medium))
       .lineLimit(1)
@@ -351,26 +352,26 @@ struct AgentPanelView: View {
   private func pullRequestColor(_ kind: PaneAgentPullRequestStatus.Kind) -> Color {
     switch kind {
     case .unavailable:
-      return palette.amber
+      return palette.warning
     case .none:
       return palette.secondaryText
     case .open:
-      return palette.mint
+      return palette.success
     case .draft:
       return palette.secondaryText
     case .merged:
-      return palette.violet
+      return palette.merged
     }
   }
 
   private func checkColor(_ status: PaneAgentPullRequestCheck.Status) -> Color {
     switch status {
     case .pending:
-      return palette.amber
+      return palette.warning
     case .passing:
-      return palette.mint
+      return palette.success
     case .failing:
-      return palette.coral
+      return palette.danger
     case .skipped:
       return palette.secondaryText
     }
@@ -570,7 +571,7 @@ private struct AgentPanelProgressIcon: View {
     Group {
       switch kind {
       case .goal:
-        assetImage("goal", color: status == .completed ? palette.mint : palette.secondaryText)
+        assetImage("goal", color: status == .completed ? palette.success : palette.secondaryText)
       case .task:
         switch status {
         case .pending:
@@ -578,7 +579,7 @@ private struct AgentPanelProgressIcon: View {
         case .running:
           TerminalAgentRunningSpinnerView(isSelected: false, palette: palette, diameter: 11)
         case .completed:
-          image("checkmark.circle.fill", color: palette.mint)
+          image("checkmark.circle.fill", color: palette.success)
         }
       }
     }
@@ -640,10 +641,10 @@ private struct PullRequestChecksRingView: View {
       segments.append(Segment(id: id, start: start, end: end, color: color))
       start = end
     }
-    addSegment(id: "failing", count: counts[.failing, default: 0], color: palette.coral)
-    addSegment(id: "pending", count: counts[.pending, default: 0], color: palette.amber)
+    addSegment(id: "failing", count: counts[.failing, default: 0], color: palette.danger)
+    addSegment(id: "pending", count: counts[.pending, default: 0], color: palette.warning)
     addSegment(id: "skipped", count: counts[.skipped, default: 0], color: palette.secondaryText)
-    addSegment(id: "passing", count: counts[.passing, default: 0], color: palette.mint)
+    addSegment(id: "passing", count: counts[.passing, default: 0], color: palette.success)
     guard segments.count > 1 else {
       return segments
     }

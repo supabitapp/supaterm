@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Sharing
+import SupaTheme
 import SupatermSettingsFeature
 import SupatermUpdateFeature
 import SwiftUI

@@ -1,3 +1,4 @@
+import SupaTheme
 import SupatermSupport
 import SwiftUI
 
@@ -173,9 +174,9 @@ struct TerminalSidebarProgressIndicatorView: View {
     case .active:
       return isSelected ? palette.selectedSecondaryText : palette.secondaryText
     case .paused:
-      return palette.attention
+      return palette.warning
     case .error:
-      return palette.destructive
+      return palette.danger
     }
   }
 }
@@ -197,7 +198,7 @@ struct TerminalSidebarAgentActivityView: View {
         case .needsInput:
           Image(systemName: "bell.fill")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
             .scaleEffect(scale)
             .offset(y: verticalOffset)
             .accessibilityHidden(true)
@@ -245,11 +246,11 @@ struct TerminalSidebarAgentActivityView: View {
   private var backgroundColor: Color {
     switch activity.phase {
     case .needsInput:
-      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+      return TerminalSidebarWarningBadgeStyle.backgroundColor(isSelected: isSelected, palette: palette)
     case .running:
       return .clear
     case .idle:
-      return color(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+      return fillColor(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
     }
   }
 
@@ -261,15 +262,43 @@ struct TerminalSidebarAgentActivityView: View {
     activity.phase == .needsInput && isAnimating ? -1 : 0
   }
 
-  private func color(for tone: TerminalHostState.AgentActivityTone) -> Color {
+  private func fillColor(for tone: TerminalHostState.AgentActivityTone) -> Color {
     switch tone {
     case .attention:
-      return palette.attention
+      return palette.warningFill
     case .active:
       return palette.accent
     case .muted:
       return palette.secondaryText
     }
+  }
+}
+
+enum TerminalSidebarWarningBadgeStyle {
+  static func backgroundColor(isSelected: Bool, palette: Palette) -> Color {
+    palette.warningFill.opacity(backgroundOpacity(isSelected: isSelected))
+  }
+
+  static func foregroundColor(isSelected: Bool, palette: Palette) -> Color {
+    foregroundValue(isSelected: isSelected, palette: palette).color
+  }
+
+  static func selectedBackgroundValue(palette: Palette) -> ThemeColor {
+    ColorMath.composited(
+      palette.warningFillValue,
+      opacity: backgroundOpacity(isSelected: true),
+      over: palette.selectedFillValue
+    )
+  }
+
+  static func foregroundValue(isSelected: Bool, palette: Palette) -> ThemeColor {
+    isSelected
+      ? ColorMath.readableForeground(on: selectedBackgroundValue(palette: palette))
+      : palette.onWarningFillValue
+  }
+
+  private static func backgroundOpacity(isSelected: Bool) -> Double {
+    isSelected ? 0.72 : 0.9
   }
 }
 
@@ -279,12 +308,12 @@ struct TerminalSidebarBellIndicatorView: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: 5, style: .continuous)
-      .fill(palette.attention.opacity(isSelected ? 0.72 : 0.9))
+      .fill(TerminalSidebarWarningBadgeStyle.backgroundColor(isSelected: isSelected, palette: palette))
       .frame(width: 16, height: 16)
       .overlay {
         Image(systemName: "bell.fill")
           .font(.system(size: 9, weight: .semibold))
-          .foregroundStyle(Color.white)
+          .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
           .accessibilityHidden(true)
       }
   }
