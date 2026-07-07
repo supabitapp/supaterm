@@ -116,6 +116,11 @@ struct ChromePaletteTests {
     expectSameThemeColor(ColorMath.readableForeground(on: .white), .black, "whiteForeground")
   }
 
+  @Test func perceptualMixInterpolatesInOKLab() {
+    let mixed = ColorMath.perceptualMix(ThemeColor(hex: 0x2F7EC8), ThemeColor(hex: 0xF0C766), by: 0.36 / 0.54)
+    expectSameThemeColor(mixed, ThemeColor(hex: 0xB4B294), "clearSunriseMidpoint", tolerance: 0.003)
+  }
+
   @Test func oklchRoundTripsRepresentativeColors() {
     for color in [
       ThemeColor(hex: 0x3A88C4),

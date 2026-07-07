@@ -2,6 +2,7 @@ strict: true
 
 included:
   - SupaTheme
+  - SupaThemeLogoGenerator
   - supaterm
   - supatermTests
   - supatermSnapshotTests

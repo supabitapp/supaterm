@@ -48,6 +48,19 @@ public enum ColorMath {
     contrastRatio(.white, background) >= contrastRatio(.black, background) ? .white : .black
   }
 
+  public static func perceptualMix(_ first: ThemeColor, _ second: ThemeColor, by amount: Double) -> ThemeColor {
+    let t = clamped(amount)
+    let firstLab = oklab(from: first)
+    let secondLab = oklab(from: second)
+    return color(
+      from: OKLab(
+        lightness: firstLab.lightness + (secondLab.lightness - firstLab.lightness) * t,
+        a: firstLab.a + (secondLab.a - firstLab.a) * t,
+        b: firstLab.b + (secondLab.b - firstLab.b) * t
+      )
+    )
+  }
+
   public static func oklch(from color: ThemeColor) -> OKLCH {
     let lab = oklab(from: color)
     let chroma = sqrt(lab.a * lab.a + lab.b * lab.b)

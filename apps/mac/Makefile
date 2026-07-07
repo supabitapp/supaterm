@@ -11,6 +11,7 @@ CURRENT_MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 CURRENT_MAKEFILE_DIR := $(patsubst %/,%,$(dir $(CURRENT_MAKEFILE_PATH)))
 PROJECT_WORKSPACE := $(CURRENT_MAKEFILE_DIR)/supaterm.xcworkspace
 APP_SCHEME := supaterm
+LOGO_GENERATOR_SCHEME := SupaThemeLogoGenerator
 TUIST_GENERATION_STAMP_DIR := $(CURRENT_MAKEFILE_DIR)/.build/.tuist-generated-stamps
 TUIST_INSTALL_STAMP := $(TUIST_GENERATION_STAMP_DIR)/.installed
 TUIST_BINARY_CACHE_PROFILE ?= only-external
@@ -24,8 +25,9 @@ TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
+LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -114,6 +116,13 @@ run-snapshot-catalog: build-snapshot-catalog # Build then launch the snapshot ca
 	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
 	"$$build_dir/$$product/Contents/MacOS/$$exec_name"
 
+generate-lightning-logo-svg: tuist-generate # Generate the Icon Composer-ready SVG logo.
+	bash -o pipefail -c 'xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(LOGO_GENERATOR_SCHEME)" -configuration Debug build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'
+	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(LOGO_GENERATOR_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "$(LOGO_GENERATOR_SCHEME)" '.[] | select(.target == $$target) | .buildSettings')"; \
+	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
+	exec_name="$$(echo "$$settings" | jq -r '.EXECUTABLE_NAME')"; \
+	"$$build_dir/$$exec_name" --output "$(LOGO_OUTPUT)"
+
 run-app-demo: build-app-demo # Build then launch seeded demo mode (Debug)
 	@settings="$$(xcodebuild -workspace "$(PROJECT_WORKSPACE)" -scheme "$(APP_SCHEME)" -configuration Debug -showBuildSettings -json 2>/dev/null | jq -cer --arg target "$(APP_SCHEME)" '.[] | select(.target == $$target) | .buildSettings')"; \
 	build_dir="$$(echo "$$settings" | jq -r '.BUILT_PRODUCTS_DIR')"; \
@@ -182,7 +191,7 @@ scan-dead-code: tuist-generate build-ghostty build-zmx
 	mise exec -- periphery scan
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E
+	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml

@@ -152,6 +152,28 @@ let project = Project(
       )
     ),
     .target(
+      name: "SupaThemeLogoGenerator",
+      destinations: .macOS,
+      product: .commandLineTool,
+      bundleId: "app.supabit.supaterm.theme-logo-generator",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "SupaThemeLogoGenerator",
+      ],
+      dependencies: [
+        .target(name: "SupaTheme"),
+      ],
+      settings: .settings(
+        base: [
+          "SKIP_INSTALL": "YES",
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "SupatermSupport",
       destinations: .macOS,
       product: .staticFramework,
@@ -662,6 +684,20 @@ let project = Project(
         configuration: .debug,
         executable: .executable(.target("supatermSnapshotCatalog")),
         expandVariableFromTarget: .target("supatermSnapshotCatalog")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
+    ),
+    .scheme(
+      name: "SupaThemeLogoGenerator",
+      buildAction: .buildAction(
+        targets: [
+          .target("SupaThemeLogoGenerator"),
+        ]
+      ),
+      runAction: .runAction(
+        configuration: .debug,
+        executable: .executable(.target("SupaThemeLogoGenerator")),
+        expandVariableFromTarget: .target("SupaThemeLogoGenerator")
       ),
       analyzeAction: .analyzeAction(configuration: .debug)
     ),
