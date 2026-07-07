@@ -61,6 +61,10 @@ public enum ColorMath {
     )
   }
 
+  public static func composited(_ foreground: ThemeColor, opacity: Double, over background: ThemeColor) -> ThemeColor {
+    background.mixed(with: foreground, by: opacity)
+  }
+
   public static func oklch(from color: ThemeColor) -> OKLCH {
     let lab = oklab(from: color)
     let chroma = sqrt(lab.a * lab.a + lab.b * lab.b)

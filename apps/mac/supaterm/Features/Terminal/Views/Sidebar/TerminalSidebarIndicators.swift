@@ -198,7 +198,7 @@ struct TerminalSidebarAgentActivityView: View {
         case .needsInput:
           Image(systemName: "bell.fill")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(palette.onWarningFill)
+            .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
             .scaleEffect(scale)
             .offset(y: verticalOffset)
             .accessibilityHidden(true)
@@ -246,7 +246,7 @@ struct TerminalSidebarAgentActivityView: View {
   private var backgroundColor: Color {
     switch activity.phase {
     case .needsInput:
-      return fillColor(for: activity.tone).opacity(isSelected ? 0.72 : 0.9)
+      return TerminalSidebarWarningBadgeStyle.backgroundColor(isSelected: isSelected, palette: palette)
     case .running:
       return .clear
     case .idle:
@@ -274,18 +274,46 @@ struct TerminalSidebarAgentActivityView: View {
   }
 }
 
+enum TerminalSidebarWarningBadgeStyle {
+  static func backgroundColor(isSelected: Bool, palette: Palette) -> Color {
+    palette.warningFill.opacity(backgroundOpacity(isSelected: isSelected))
+  }
+
+  static func foregroundColor(isSelected: Bool, palette: Palette) -> Color {
+    foregroundValue(isSelected: isSelected, palette: palette).color
+  }
+
+  static func selectedBackgroundValue(palette: Palette) -> ThemeColor {
+    ColorMath.composited(
+      palette.warningFillValue,
+      opacity: backgroundOpacity(isSelected: true),
+      over: palette.selectedFillValue
+    )
+  }
+
+  static func foregroundValue(isSelected: Bool, palette: Palette) -> ThemeColor {
+    isSelected
+      ? ColorMath.readableForeground(on: selectedBackgroundValue(palette: palette))
+      : palette.onWarningFillValue
+  }
+
+  private static func backgroundOpacity(isSelected: Bool) -> Double {
+    isSelected ? 0.72 : 0.9
+  }
+}
+
 struct TerminalSidebarBellIndicatorView: View {
   let isSelected: Bool
   let palette: Palette
 
   var body: some View {
     RoundedRectangle(cornerRadius: 5, style: .continuous)
-      .fill(palette.warningFill.opacity(isSelected ? 0.72 : 0.9))
+      .fill(TerminalSidebarWarningBadgeStyle.backgroundColor(isSelected: isSelected, palette: palette))
       .frame(width: 16, height: 16)
       .overlay {
         Image(systemName: "bell.fill")
           .font(.system(size: 9, weight: .semibold))
-          .foregroundStyle(palette.onWarningFill)
+          .foregroundStyle(TerminalSidebarWarningBadgeStyle.foregroundColor(isSelected: isSelected, palette: palette))
           .accessibilityHidden(true)
       }
   }

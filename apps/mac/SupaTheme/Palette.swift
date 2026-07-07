@@ -35,7 +35,8 @@ public struct Palette {
   public var unselectedFill: Color { (isDark ? Color.white : .black).opacity(0.06) }
   public var hoverFill: Color { Color.white.opacity(isDark ? 0.16 : 0.55) }
   public var pressedFill: Color { Color.white.opacity(isDark ? 0.31 : 0.7) }
-  public var selectedFill: Color { isDark ? Color(white: 0.04) : .white }
+  public var selectedFillValue: ThemeColor { isDark ? ThemeColor(red: 0.04, green: 0.04, blue: 0.04) : .white }
+  public var selectedFill: Color { selectedFillValue.color }
   public var selectedStrokeBright: Color { Color.white.opacity(isDark ? 0.35 : 0.98) }
   public var selectedStrokeDim: Color { Color.white.opacity(isDark ? 0.08 : 0.98) }
   public var selectedShadow: Color { isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12) }
