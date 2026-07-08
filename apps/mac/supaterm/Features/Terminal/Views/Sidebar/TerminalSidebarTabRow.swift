@@ -204,13 +204,6 @@ struct TerminalSidebarTabRow: View {
       value: animatedPresentation,
       reduceMotion: reduceMotion
     )
-    .background {
-      SidebarPopoverPresenter(
-        isPresented: showsPopover,
-        palette: palette,
-        markdown: popoverMarkdown
-      )
-    }
     .overlay(
       TerminalSidebarMiddleClickActionView(action: close)
     )
@@ -294,16 +287,6 @@ struct TerminalSidebarTabRow: View {
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )
-  }
-
-  private var popoverMarkdown: String? {
-    TerminalSidebarTabSummaryView.popoverMarkdown(
-      notificationMarkdown: notificationPresentation?.markdown
-    )
-  }
-
-  private var showsPopover: Bool {
-    isHovering && popoverMarkdown != nil
   }
 
   private func select() {

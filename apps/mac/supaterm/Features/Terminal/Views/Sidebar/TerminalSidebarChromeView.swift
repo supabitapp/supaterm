@@ -6,7 +6,6 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
-import Textual
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"

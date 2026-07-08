@@ -100,12 +100,6 @@ struct TerminalSidebarTabSummaryView: View {
     return paneWorkingDirectories.joined(separator: "\n")
   }
 
-  static func popoverMarkdown(
-    notificationMarkdown: String?
-  ) -> String? {
-    return notificationMarkdown
-  }
-
   var body: some View {
     let rowAccessories = Self.rowAccessories(
       shortcutHint: shortcutHint,

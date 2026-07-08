@@ -888,9 +888,9 @@ extension TerminalHostState {
   ) -> SidebarNotificationPresentation? {
     guard let markdown = notificationText(notification) else { return nil }
     let previewMarkdown = sidebarNotificationPreviewMarkdown(markdown)
+    guard !previewMarkdown.isEmpty else { return nil }
     return SidebarNotificationPresentation(
-      markdown: markdown,
-      previewMarkdown: previewMarkdown.isEmpty ? nil : previewMarkdown
+      previewMarkdown: previewMarkdown
     )
   }
 

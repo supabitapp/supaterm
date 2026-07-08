@@ -3,7 +3,6 @@ import GhosttyKit
 import SupaTheme
 import SwiftUI
 import Testing
-import Textual
 
 @testable import supaterm
 
@@ -440,47 +439,6 @@ struct TerminalSidebarChromeViewTests {
         paneWorkingDirectories: ["~/Downloads", "~/Downloads/abc"]
       ) == "~/Downloads\n~/Downloads/abc"
     )
-  }
-
-  @Test
-  func notificationMarkdownDrivesPopover() {
-    #expect(
-      TerminalSidebarTabSummaryView.popoverMarkdown(
-        notificationMarkdown: """
-          Need approval
-
-          Full notification body
-          """
-      ) == """
-        Need approval
-
-        Full notification body
-        """
-    )
-  }
-
-  @Test
-  func popoverMarkdownIsNilWithoutNotification() {
-    #expect(
-      TerminalSidebarTabSummaryView.popoverMarkdown(
-        notificationMarkdown: nil
-      ) == nil
-    )
-  }
-
-  @MainActor
-  @Test
-  func notificationPopoverParserReturnsPartialDocumentForInvalidMarkdown() throws {
-    let output = try SidebarNotificationMarkdown.popoverParser.attributedString(
-      for: """
-        # Project Notes
-
-        Here's a broken link [Docs](https://supaterm.com
-        and the rest of the document should still render.
-        """
-    )
-
-    #expect(!String(output.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
   }
 
   @Test

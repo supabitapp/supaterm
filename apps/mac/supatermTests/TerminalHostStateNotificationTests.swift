@@ -141,7 +141,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func sidebarNotificationPresentationPreservesMarkdownAndBuildsCompactPreview() throws {
+  func sidebarNotificationPresentationBuildsCompactPreview() throws {
     let notification = makeNotification(
       attentionState: .unread,
       body: """
@@ -161,12 +161,6 @@ struct TerminalHostStateNotificationTests {
     #expect(
       presentation
         == TerminalHostState.SidebarNotificationPresentation(
-          markdown: """
-            ## Release
-
-            - [Docs](https://example.com)
-            - `sp`
-            """,
           previewMarkdown: "Release Docs `sp`"
         )
     )
@@ -188,14 +182,13 @@ struct TerminalHostStateNotificationTests {
     #expect(
       presentation
         == TerminalHostState.SidebarNotificationPresentation(
-          markdown: "[Ship notes](https://example.com)",
           previewMarkdown: "Ship notes"
         )
     )
   }
 
   @Test
-  func sidebarNotificationPresentationOmitsEmptyPreviewMarkdown() throws {
+  func sidebarNotificationPresentationOmitsEmptyPreview() throws {
     let notification = makeNotification(
       attentionState: .unread,
       body: "https://example.com",
@@ -203,17 +196,7 @@ struct TerminalHostStateNotificationTests {
       title: "Ignored"
     )
 
-    let presentation = try #require(
-      TerminalHostState.sidebarNotificationPresentation(notification)
-    )
-
-    #expect(
-      presentation
-        == TerminalHostState.SidebarNotificationPresentation(
-          markdown: "https://example.com",
-          previewMarkdown: nil
-        )
-    )
+    #expect(TerminalHostState.sidebarNotificationPresentation(notification) == nil)
   }
 
   @Test
