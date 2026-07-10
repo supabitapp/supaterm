@@ -90,22 +90,24 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
-  func updatePlanFunctionCallUpdatesProgressRows() throws {
+  func updatePlanExecCallUpdatesProgressRows() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "update_plan",
-        arguments: [
-          "plan": [
-            ["step": "Read terminal state", "status": "completed"],
-            ["step": "Wire panel overlay", "status": "inProgress"],
-            ["step": "Run tests", "status": "pending"],
+    try CodexTranscriptFixtures.appendExec(
+      input: #"""
+        const result = await tools.update_plan({
+          explanation: "Keep the panel synchronized with Codex.",
+          plan: [
+            { step: "Read terminal state", status: "completed" },
+            { step: "Wire panel overlay", status: "in_progress" },
+            { step: "Run tests", status: "pending" }
           ]
-        ]
-      ),
+        });
+        text(result);
+        """#,
+      status: "Script completed",
       to: transcriptURL
     )
 
@@ -136,6 +138,197 @@ struct CodexTranscriptMonitorTests {
   }
 
   @Test
+  func directUpdatePlanFunctionCallUpdatesProgressRows() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [
+            ["step": "Inspect state", "status": "completed"],
+            ["step": "Run tests", "status": "in_progress"],
+          ]
+        ]
+      ),
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(
+      conversation.sidebarSnapshot.progressRows.map(\.status) == [.completed, .running]
+    )
+  }
+
+  @Test
+  func yieldedPromiseAllUpdatePlanExecCallUpdatesProgressRows() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.appendExec(
+      input: #"""
+        const results = await Promise.all([
+          tools.exec_command({ cmd: "sleep 30" }),
+          tools.update_plan({
+            plan: [{ step: "Inspect state", status: "in_progress" }]
+          })
+        ]);
+        text(results);
+        """#,
+      status: "Script running with cell ID 1",
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(conversation.sidebarSnapshot.progressRows.isEmpty)
+
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-2"), to: transcriptURL)
+    try CodexTranscriptFixtures.appendWait(
+      cellID: "1",
+      status: "Script completed",
+      to: transcriptURL
+    )
+
+    let advance = try #require(CodexTranscriptMonitor.advance(result.0, at: transcriptURL.path))
+    conversation.absorb(try #require(advance.batch).records)
+
+    #expect(conversation.sidebarSnapshot.progressRows.map(\.title) == ["Inspect state"])
+  }
+
+  @Test
+  func olderYieldedPlanDoesNotReplaceNewerPlan() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.appendExec(
+      input: "await tools.update_plan({ plan: [{ step: 'Older plan', status: 'pending' }] });",
+      status: "Script running with cell ID 1",
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-2"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(
+        name: "update_plan",
+        arguments: [
+          "plan": [["step": "Newer plan", "status": "in_progress"]]
+        ]
+      ),
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.appendWait(
+      cellID: "1",
+      status: "Script completed",
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(conversation.sidebarSnapshot.progressRows.map(\.title) == ["Newer plan"])
+  }
+
+  @Test
+  func failedUpdatePlanExecCallDoesNotChangeProgressRows() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.appendUpdatePlan(
+      [["step": "Unreachable plan", "status": "in_progress"]],
+      status: "Script failed",
+      to: transcriptURL
+    )
+
+    let result = try #require(CodexTranscriptMonitor.start(at: transcriptURL.path))
+    let batch = try #require(result.1)
+    var conversation = CodexConversationState()
+    conversation.absorb(batch.records)
+
+    #expect(conversation.sidebarSnapshot.progressRows.isEmpty)
+  }
+
+  @Test
+  func updatePlanExecCallIgnoresStringsAndComments() {
+    #expect(
+      CodexPlanSourceParser.parse(
+        #"""
+        const command = "rg 'tools.update_plan({ plan: [] })'";
+        // tools.update_plan({ plan: [] });
+        /* tools.update_plan({ plan: [] }); */
+        """#
+      ) == nil
+    )
+  }
+
+  @Test
+  func updatePlanExecCallCanClearProgressRows() {
+    #expect(CodexPlanSourceParser.parse("await tools.update_plan({ plan: [] });") == [])
+  }
+
+  @Test
+  func updatePlanExecCallSupportsStaticSingleQuotedStrings() {
+    let plan = CodexPlanSourceParser.parse(
+      "await tools.update_plan({ plan: [{ step: 'Inspect state', status: 'in_progress' }] });"
+    )
+
+    #expect(plan?.map(\.step) == ["Inspect state"])
+  }
+
+  @Test
+  func updatePlanExecCallMustBeTopLevel() {
+    #expect(
+      CodexPlanSourceParser.parse(
+        "if (false) { await tools.update_plan({ plan: [] }); }"
+      ) == nil
+    )
+  }
+
+  @Test
+  func updatePlanExecCallMustBeAwaitedAndReachable() {
+    #expect(CodexPlanSourceParser.parse("tools.update_plan({ plan: [] });") == nil)
+    #expect(CodexPlanSourceParser.parse("exit(); await tools.update_plan({ plan: [] });") == nil)
+    #expect(
+      CodexPlanSourceParser.parse(
+        #"""
+        const results = await Promise.all([
+          tools.update_plan({ plan: [] }),
+          tools.update_plan({ plan: [] })
+        ]);
+        """#
+      ) == nil
+    )
+  }
+
+  @Test
+  func updatePlanExecCallRejectsMutatedPlanBinding() {
+    #expect(
+      CodexPlanSourceParser.parse(
+        #"""
+        const plan = [{ step: "Initial", status: "pending" }];
+        plan.push({ step: "Added later", status: "in_progress" });
+        await tools.update_plan({plan});
+        """#
+      ) == nil
+    )
+  }
+
+  @Test
   func threadGoalUpdatedAddsGoalProgressRow() throws {
     let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
@@ -149,16 +342,11 @@ struct CodexTranscriptMonitorTests {
       ),
       to: transcriptURL
     )
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "update_plan",
-        arguments: [
-          "plan": [
-            ["step": "Wire goal parser", "status": "completed"],
-            ["step": "Run tests", "status": "in_progress"],
-          ]
-        ]
-      ),
+    try CodexTranscriptFixtures.appendUpdatePlan(
+      [
+        ["step": "Wire goal parser", "status": "completed"],
+        ["step": "Run tests", "status": "in_progress"],
+      ],
       to: transcriptURL
     )
 
@@ -199,16 +387,11 @@ struct CodexTranscriptMonitorTests {
       .goalContext(objective: "figure out what in this folder"),
       to: transcriptURL
     )
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "update_plan",
-        arguments: [
-          "plan": [
-            ["step": "Inspect top-level contents and metadata", "status": "in_progress"],
-            ["step": "Summarize what matters in the folder", "status": "pending"],
-          ]
-        ]
-      ),
+    try CodexTranscriptFixtures.appendUpdatePlan(
+      [
+        ["step": "Inspect top-level contents and metadata", "status": "in_progress"],
+        ["step": "Summarize what matters in the folder", "status": "pending"],
+      ],
       to: transcriptURL
     )
 
@@ -274,12 +457,30 @@ struct CodexTranscriptMonitorTests {
           ]
         ),
         .responseItem(
-          type: "function_call",
+          type: "custom_tool_call",
           payload: [
-            "name": .string("update_plan"),
-            "arguments": .string(
-              #"{"plan":[{"step":"Commit and push operand evidence work","status":"in_progress"}]}"#
+            "name": .string("exec"),
+            "call_id": .string("call-1"),
+            "input": .string(
+              #"""
+              const plan = [
+                { step: "Commit and push operand evidence work", status: "in_progress" }
+              ];
+              await tools.update_plan({plan});
+              """#
             ),
+          ]
+        ),
+        .responseItem(
+          type: "custom_tool_call_output",
+          payload: [
+            "call_id": .string("call-1"),
+            "output": .array([
+              .object([
+                "type": .string("input_text"),
+                "text": .string("Script completed\nWall time: 0 seconds\nOutput:\n"),
+              ])
+            ]),
           ]
         ),
       ]
@@ -333,17 +534,12 @@ struct CodexTranscriptMonitorTests {
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
-    try CodexTranscriptFixtures.append(
-      .functionCall(
-        name: "update_plan",
-        arguments: [
-          "plan": [
-            ["step": "Inspect state", "status": "completed"],
-            ["step": "Commit and push scoped changes", "status": "in_progress"],
-            ["step": "Report final status", "status": "pending"],
-          ]
-        ]
-      ),
+    try CodexTranscriptFixtures.appendUpdatePlan(
+      [
+        ["step": "Inspect state", "status": "completed"],
+        ["step": "Commit and push scoped changes", "status": "in_progress"],
+        ["step": "Report final status", "status": "pending"],
+      ],
       to: transcriptURL
     )
     try CodexTranscriptFixtures.append(.taskComplete(turnID: "turn-1"), to: transcriptURL)

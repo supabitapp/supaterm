@@ -94,6 +94,7 @@ struct CodexConversationState: Equatable {
     nextImplicitTurnIndex = turns.count + 1
     turnIndexByID = Dictionary(uniqueKeysWithValues: turns.enumerated().map { ($1.id, $0) })
     activeTurnIndex = turns.lastIndex(where: { !$0.status.isFinal })
+    refreshStructuredProgressState()
   }
 
   var activeTurn: CodexConversationTurn? {
@@ -398,7 +399,7 @@ struct CodexConversationState: Equatable {
     let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
     let operation = CodexConversationItem.operation(type: type, payload: payload)
     turns[index].items.append(operation)
-    updateStructuredPanelState(forAppended: operation, at: index)
+    updateStructuredPanelState(forAppended: operation)
   }
 
   private mutating func ensureTurnForItem(
@@ -462,7 +463,6 @@ struct CodexConversationState: Equatable {
     let state = Self.assistantMessageState(from: turns[index].items)
     turns[index].lastAssistantDetail = state.lastAssistantDetail
     turns[index].hoverMessages = state.hoverMessages
-    turns[index].progressRows = Self.structuredProgressRows(from: turns[index].items)
     turns[index].goalRow = Self.structuredGoalRow(from: turns[index].items)
   }
 
@@ -486,7 +486,6 @@ struct CodexConversationState: Equatable {
     let state = assistantMessageState(from: turn.items)
     turn.lastAssistantDetail = state.lastAssistantDetail
     turn.hoverMessages = state.hoverMessages
-    turn.progressRows = structuredProgressRows(from: turn.items)
     turn.goalRow = structuredGoalRow(from: turn.items)
     return turn
   }
@@ -524,15 +523,25 @@ struct CodexConversationState: Equatable {
   }
 
   private mutating func updateStructuredPanelState(
-    forAppended item: CodexConversationItem,
-    at index: Int
+    forAppended item: CodexConversationItem
   ) {
-    guard case .operation(let type, let payload) = item,
-      let rows = Self.progressRows(operationType: type, payload: payload)
-    else {
-      return
+    guard case .operation(let type, _) = item,
+      ["custom_tool_call", "custom_tool_call_output", "function_call", "function_call_output"]
+        .contains(type)
+    else { return }
+    refreshStructuredProgressState()
+  }
+
+  private mutating func refreshStructuredProgressState() {
+    var state = StructuredProgressState()
+    for index in turns.indices {
+      state.rows = []
+      for item in turns[index].items {
+        guard case .operation(let type, let payload) = item else { continue }
+        Self.reduceStructuredProgress(&state, operationType: type, payload: payload)
+      }
+      turns[index].progressRows = state.rows
     }
-    turns[index].progressRows = rows
   }
 
   private mutating func updateGoalState(
@@ -543,19 +552,117 @@ struct CodexConversationState: Equatable {
     turns[index].goalRow = row
   }
 
-  private static func structuredProgressRows(
-    from items: [CodexConversationItem]
-  ) -> [PaneAgentProgressRow] {
+  private struct StructuredProgressState {
     var rows: [PaneAgentProgressRow] = []
-    for item in items {
-      guard case .operation(let type, let payload) = item,
-        let nextRows = progressRows(operationType: type, payload: payload)
-      else {
-        continue
-      }
-      rows = nextRows
+    var codeModePlansByCallID: [String: SequencedPlan] = [:]
+    var codeModePlansByCellID: [String: SequencedPlan] = [:]
+    var waitCellIDsByCallID: [String: String] = [:]
+    var nextPlanSequence = 0
+    var latestAppliedPlanSequence: Int?
+  }
+
+  private struct SequencedPlan {
+    let sequence: Int
+    let rows: [PaneAgentProgressRow]
+  }
+
+  private static func reduceStructuredProgress(
+    _ state: inout StructuredProgressState,
+    operationType: String,
+    payload: JSONObject
+  ) {
+    switch operationType {
+    case "function_call": reduceFunctionCall(&state, payload: payload)
+    case "function_call_output": reduceFunctionCallOutput(&state, payload: payload)
+    case "custom_tool_call": reduceCustomToolCall(&state, payload: payload)
+    case "custom_tool_call_output": reduceCustomToolCallOutput(&state, payload: payload)
+    default: break
     }
-    return rows
+  }
+
+  private static func reduceFunctionCall(
+    _ state: inout StructuredProgressState,
+    payload: JSONObject
+  ) {
+    if let rows = directProgressRows(from: payload) {
+      let plan = nextPlan(rows: rows, in: &state)
+      apply(plan, to: &state)
+      return
+    }
+    guard let callID = payload["call_id"]?.stringValue,
+      let cellID = waitCellID(from: payload)
+    else { return }
+    state.waitCellIDsByCallID[callID] = cellID
+  }
+
+  private static func reduceFunctionCallOutput(
+    _ state: inout StructuredProgressState,
+    payload: JSONObject
+  ) {
+    guard let callID = payload["call_id"]?.stringValue,
+      let cellID = state.waitCellIDsByCallID.removeValue(forKey: callID)
+    else { return }
+
+    switch codeModeExecutionStatus(payload) {
+    case .completed:
+      if let plan = state.codeModePlansByCellID.removeValue(forKey: cellID) {
+        apply(plan, to: &state)
+      }
+    case .running:
+      break
+    case .failed:
+      state.codeModePlansByCellID.removeValue(forKey: cellID)
+    }
+  }
+
+  private static func reduceCustomToolCall(
+    _ state: inout StructuredProgressState,
+    payload: JSONObject
+  ) {
+    guard let callID = payload["call_id"]?.stringValue,
+      let rows = codeModeProgressRows(from: payload)
+    else { return }
+    let plan = nextPlan(rows: rows, in: &state)
+    state.codeModePlansByCallID[callID] = plan
+  }
+
+  private static func reduceCustomToolCallOutput(
+    _ state: inout StructuredProgressState,
+    payload: JSONObject
+  ) {
+    guard let callID = payload["call_id"]?.stringValue,
+      let plan = state.codeModePlansByCallID.removeValue(forKey: callID)
+    else { return }
+
+    switch codeModeExecutionStatus(payload) {
+    case .completed:
+      apply(plan, to: &state)
+    case .running(let cellID):
+      state.codeModePlansByCellID[cellID] = plan
+    case .failed:
+      break
+    }
+  }
+
+  private static func nextPlan(
+    rows: [PaneAgentProgressRow],
+    in state: inout StructuredProgressState
+  ) -> SequencedPlan {
+    defer { state.nextPlanSequence += 1 }
+    return SequencedPlan(sequence: state.nextPlanSequence, rows: rows)
+  }
+
+  private static func apply(
+    _ plan: SequencedPlan,
+    to state: inout StructuredProgressState
+  ) {
+    if let latestSequence = state.latestAppliedPlanSequence,
+      plan.sequence < latestSequence
+    {
+      return
+    }
+    state.rows = plan.rows
+    state.latestAppliedPlanSequence = plan.sequence
   }
 
   private static func structuredGoalRow(
@@ -570,12 +677,10 @@ struct CodexConversationState: Equatable {
     return row
   }
 
-  static func progressRows(
-    operationType: String,
-    payload: JSONObject
+  private static func directProgressRows(
+    from payload: JSONObject
   ) -> [PaneAgentProgressRow]? {
-    guard operationType == "function_call",
-      payload["name"]?.stringValue == "update_plan",
+    guard payload["name"]?.stringValue == "update_plan",
       let arguments = payload["arguments"]?.stringValue,
       let object = (try? JSONDecoder().decode(JSONValue.self, from: Data(arguments.utf8)))?
         .objectValue,
@@ -583,19 +688,71 @@ struct CodexConversationState: Equatable {
     else {
       return nil
     }
-    let rows: [PaneAgentProgressRow] = plan.enumerated().compactMap { index, value in
+    let items = plan.compactMap { value -> CodexPlanSourceParser.Item? in
       guard let item = value.objectValue,
-        let title = AgentProgressParsing.normalizedTitle(item["step"]?.stringValue)
+        let step = item["step"]?.stringValue,
+        let status = item["status"]?.stringValue
       else {
         return nil
       }
+      return CodexPlanSourceParser.Item(step: step, status: status)
+    }
+    guard items.count == plan.count else { return nil }
+    return progressRows(from: items)
+  }
+
+  private static func codeModeProgressRows(
+    from payload: JSONObject
+  ) -> [PaneAgentProgressRow]? {
+    guard payload["name"]?.stringValue == "exec",
+      let input = payload["input"]?.stringValue,
+      let plan = CodexPlanSourceParser.parse(input)
+    else {
+      return nil
+    }
+    return progressRows(from: plan)
+  }
+
+  private static func progressRows(
+    from plan: [CodexPlanSourceParser.Item]
+  ) -> [PaneAgentProgressRow] {
+    plan.enumerated().compactMap { index, item in
+      guard let title = AgentProgressParsing.normalizedTitle(item.step) else { return nil }
       return PaneAgentProgressRow(
         id: "\(index):\(title)",
         title: title,
-        status: AgentProgressParsing.status(item["status"]?.stringValue)
+        status: item.status
       )
     }
-    return rows
+  }
+
+  private enum CodeModeExecutionStatus {
+    case completed
+    case running(String)
+    case failed
+  }
+
+  private static func codeModeExecutionStatus(_ payload: JSONObject) -> CodeModeExecutionStatus {
+    let output = payload["output"]
+    let status = output?.stringValue ?? output?.arrayValue?.first?.objectValue?["text"]?.stringValue
+    guard let status else { return .failed }
+    if status.hasPrefix("Script completed\n") { return .completed }
+    let runningPrefix = "Script running with cell ID "
+    guard status.hasPrefix(runningPrefix) else { return .failed }
+    let cellID = status.dropFirst(runningPrefix.count).prefix { !$0.isNewline }
+    guard !cellID.isEmpty else { return .failed }
+    return .running(String(cellID))
+  }
+
+  private static func waitCellID(from payload: JSONObject) -> String? {
+    guard payload["name"]?.stringValue == "wait",
+      let arguments = payload["arguments"]?.stringValue,
+      let object = (try? JSONDecoder().decode(JSONValue.self, from: Data(arguments.utf8)))?
+        .objectValue
+    else {
+      return nil
+    }
+    return object["cell_id"]?.stringValue
   }
 
   static func goalProgressRow(

@@ -19,7 +19,10 @@ enum CodexTranscriptFixtures {
     case threadGoalUpdated(turnID: String, objective: String, status: String)
     case goalContext(objective: String)
     case localShellCall(command: [String])
-    case functionCall(name: String, arguments: [String: Any]? = nil)
+    case functionCall(name: String, arguments: [String: Any]? = nil, callID: String = "call-1")
+    case functionCallOutput(status: String, callID: String = "wait-call-1")
+    case customToolCall(name: String, input: String)
+    case customToolCallOutput(status: String)
     case reasoning(String)
     case assistantMessage(String, phase: String? = nil)
     case agentReasoning(String)
@@ -140,15 +143,31 @@ enum CodexTranscriptFixtures {
           ]
         )
 
-      case .functionCall(let name, let arguments):
+      case .functionCall(let name, let arguments, let callID):
         object = responseItem(
           payload: [
             "type": "function_call",
             "name": name,
             "arguments": jsonString(arguments ?? [:]),
+            "call_id": callID,
+          ]
+        )
+
+      case .functionCallOutput(let status, let callID):
+        object = responseItem(payload: toolOutput(type: "function_call_output", callID: callID, status: status))
+
+      case .customToolCall(let name, let input):
+        object = responseItem(
+          payload: [
+            "type": "custom_tool_call",
+            "name": name,
+            "input": input,
             "call_id": "call-1",
           ]
         )
+
+      case .customToolCallOutput(let status):
+        object = responseItem(payload: toolOutput(type: "custom_tool_call_output", callID: "call-1", status: status))
 
       case .reasoning(let text):
         object = responseItem(
@@ -206,6 +225,49 @@ enum CodexTranscriptFixtures {
     try append(line.json, to: fileURL)
   }
 
+  static func appendUpdatePlan(
+    _ plan: [[String: String]],
+    status: String = "Script completed",
+    to fileURL: URL
+  ) throws {
+    try appendExec(
+      input: "await tools.update_plan(\(jsonString(["plan": plan])));",
+      status: status,
+      to: fileURL
+    )
+  }
+
+  static func appendExec(
+    input: String,
+    status: String,
+    to fileURL: URL
+  ) throws {
+    try append(
+      .customToolCall(
+        name: "exec",
+        input: input
+      ),
+      to: fileURL
+    )
+    try append(.customToolCallOutput(status: status), to: fileURL)
+  }
+
+  static func appendWait(
+    cellID: String,
+    status: String,
+    to fileURL: URL
+  ) throws {
+    try append(
+      .functionCall(
+        name: "wait",
+        arguments: ["cell_id": cellID],
+        callID: "wait-call-1"
+      ),
+      to: fileURL
+    )
+    try append(.functionCallOutput(status: status), to: fileURL)
+  }
+
   static func append(
     _ line: String,
     to fileURL: URL
@@ -235,6 +297,23 @@ enum CodexTranscriptFixtures {
       "timestamp": "2026-04-05T07:00:00.000Z",
       "type": "response_item",
       "payload": payload,
+    ]
+  }
+
+  private static func toolOutput(
+    type: String,
+    callID: String,
+    status: String
+  ) -> [String: Any] {
+    [
+      "type": type,
+      "call_id": callID,
+      "output": [
+        [
+          "type": "input_text",
+          "text": "\(status)\nWall time: 0 seconds\nOutput:\n",
+        ]
+      ],
     ]
   }
 
