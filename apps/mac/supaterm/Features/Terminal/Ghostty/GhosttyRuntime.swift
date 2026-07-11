@@ -37,7 +37,6 @@ final class GhosttyRuntime {
   private var observers: [NSObjectProtocol] = []
   private var surfaceRefs: [SurfaceReference] = []
   private var lastColorScheme: ghostty_color_scheme_e?
-  var onConfigChange: (() -> Void)?
 
   private static let notificationAttentionPaletteIndexes = [4, 12]
   private static let minNotificationContrastRatio = 2.2
@@ -460,7 +459,6 @@ final class GhosttyRuntime {
         let config = action.action.config_change.config
         guard let clone = ghostty_config_clone(config) else { return false }
         runtime.setConfig(clone)
-        runtime.onConfigChange?()
         NotificationCenter.default.post(name: .ghosttyRuntimeConfigDidChange, object: runtime)
         return true
       }

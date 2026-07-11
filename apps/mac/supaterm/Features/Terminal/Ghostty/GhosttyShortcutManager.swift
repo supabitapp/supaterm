@@ -5,12 +5,26 @@ import SwiftUI
 @Observable
 final class GhosttyShortcutManager {
   private let runtime: GhosttyRuntime?
+  @ObservationIgnored private var configObserver: NSObjectProtocol?
   private var generation = 0
 
   init(runtime: GhosttyRuntime?) {
     self.runtime = runtime
-    runtime?.onConfigChange = { [weak self] in
-      self?.refresh()
+    guard let runtime else { return }
+    configObserver = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: runtime,
+      queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.refresh()
+      }
+    }
+  }
+
+  isolated deinit {
+    if let configObserver {
+      NotificationCenter.default.removeObserver(configObserver)
     }
   }
 
