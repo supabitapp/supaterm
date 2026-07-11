@@ -7,6 +7,11 @@ import SupatermCLIShared
 import SupatermSupport
 
 final class GhosttySurfaceView: NSView, Identifiable {
+  typealias SurfaceFactory = (
+    ghostty_app_t,
+    UnsafePointer<ghostty_surface_config_s>
+  ) -> ghostty_surface_t?
+
   private struct ScrollbarState {
     let total: UInt64
     let offset: UInt64
@@ -274,6 +279,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
     zmxSessionsEnabled: Bool = true,
     applicationAndWindowAreActive: @escaping (NSWindow) -> Bool = {
       NSApp.isActive && $0.isKeyWindow
+    },
+    surfaceFactory: SurfaceFactory = { app, config in
+      ghostty_surface_new(app, config)
     }
   ) {
     self.runtime = runtime
@@ -308,13 +316,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
       commandCString = nil
     }
     super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
-    wantsLayer = true
     bridge.state.pwd = initialWorkingDirectoryPath
     bridge.surfaceView = self
     bridge.onPromptSurfaceTitle = { [weak self] in
       self?.promptSurfaceTitle()
     }
-    createSurface()
+    createSurface(using: surfaceFactory)
     if let surface {
       surfaceRef = runtime.registerSurface(surface)
     }
@@ -1071,7 +1078,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     NSCursor.setHiddenUntilMouseMoves(!visible)
   }
 
-  private func createSurface() {
+  private func createSurface(using surfaceFactory: SurfaceFactory) {
     guard let app = runtime.app else { return }
     var config = ghostty_surface_config_new()
     config.userdata = Unmanaged.passUnretained(bridge).toOpaque()
@@ -1091,10 +1098,14 @@ final class GhosttySurfaceView: NSView, Identifiable {
       Self.withCStringArray(commandWrapper) { wrapper, wrapperCount in
         config.command_wrapper = wrapper
         config.command_wrapper_count = wrapperCount
-        surface = ghostty_surface_new(app, &config)
+        surface = surfaceFactory(app, &config)
       }
     }
     bridge.surface = surface
+    guard surface != nil else {
+      bridge.state.failure = .surfaceCreationFailed
+      return
+    }
     lastOcclusion = nil
     lastSurfaceFocus = nil
     updateSurfaceSize()

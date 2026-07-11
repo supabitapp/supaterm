@@ -3,6 +3,7 @@ import Observation
 
 enum GhosttySurfaceFailure: Equatable {
   case rendererUnavailable
+  case surfaceCreationFailed
 }
 
 @MainActor

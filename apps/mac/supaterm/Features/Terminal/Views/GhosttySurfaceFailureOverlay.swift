@@ -28,13 +28,24 @@ struct GhosttySurfaceFailureOverlay: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(palette.detailBackground)
     .accessibilityElement(children: .combine)
-    .accessibilityIdentifier("terminal-renderer-unavailable")
+    .accessibilityIdentifier(accessibilityIdentifier)
+  }
+
+  private var accessibilityIdentifier: String {
+    switch failure {
+    case .rendererUnavailable:
+      "terminal-renderer-unavailable"
+    case .surfaceCreationFailed:
+      "terminal-surface-creation-failed"
+    }
   }
 
   private var title: String {
     switch failure {
     case .rendererUnavailable:
       "Terminal renderer unavailable"
+    case .surfaceCreationFailed:
+      "Terminal failed to start"
     }
   }
 
@@ -45,6 +56,8 @@ struct GhosttySurfaceFailureOverlay: View {
       The renderer stopped, usually because GPU memory is exhausted. \
       Free up system resources; this pane will resume when rendering recovers.
       """
+    case .surfaceCreationFailed:
+      "The terminal surface could not be created. Open a new pane to try again."
     }
   }
 }

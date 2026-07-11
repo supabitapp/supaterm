@@ -70,6 +70,53 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func failedSurfaceCreationPublishesFailure() {
+    initializeGhosttyForTests()
+
+    var creationCount = 0
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      surfaceFactory: { _, _ in
+        creationCount += 1
+        return nil
+      }
+    )
+
+    #expect(creationCount == 1)
+    #expect(surfaceView.surface == nil)
+    #expect(surfaceView.bridge.state.failure == .surfaceCreationFailed)
+  }
+
+  @Test
+  @MainActor
+  func surfaceCreationReceivesUnbackedView() {
+    initializeGhosttyForTests()
+
+    var wantsLayerAtCreation: Bool?
+    var hasLayerAtCreation: Bool?
+    _ = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      surfaceFactory: { _, config in
+        guard let pointer = config.pointee.platform.macos.nsview else { return nil }
+        let surfaceView = Unmanaged<GhosttySurfaceView>.fromOpaque(pointer).takeUnretainedValue()
+        wantsLayerAtCreation = surfaceView.wantsLayer
+        hasLayerAtCreation = surfaceView.layer != nil
+        return nil
+      }
+    )
+
+    #expect(wantsLayerAtCreation == false)
+    #expect(hasLayerAtCreation == false)
+  }
+
+  @Test
+  @MainActor
   func searchOverlayUpdateDoesNotStealFocusAfterSplit() async throws {
     initializeGhosttyForTests()
 
