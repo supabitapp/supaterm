@@ -52,7 +52,7 @@ struct ConfigurationDiagnosticsView: View {
     let count = messages.count
     let countText = count == 1 ? "1 error was" : "\(count) errors were"
     return
-      "\(countText) found while loading the configuration. "
+      "\(countText) found while loading the terminal configuration. "
       + "Review the errors below, then reload your configuration or ignore the erroneous lines."
   }
 }

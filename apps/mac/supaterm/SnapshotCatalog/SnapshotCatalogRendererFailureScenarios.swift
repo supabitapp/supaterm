@@ -15,6 +15,19 @@ extension SnapshotCatalog {
           palette: Palette(colorScheme: appearance.colorScheme)
         )
       )
-    }
+    },
+    scenario(
+      "surface-creation-failed",
+      group: "Terminal Pane",
+      title: "Surface creation failed",
+      size: CGSize(width: 640, height: 400)
+    ) { appearance in
+      AnyView(
+        GhosttySurfaceFailureOverlay(
+          failure: .surfaceCreationFailed,
+          palette: Palette(colorScheme: appearance.colorScheme)
+        )
+      )
+    },
   ]
 }
