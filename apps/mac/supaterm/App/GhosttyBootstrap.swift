@@ -2,7 +2,7 @@ import Foundation
 import GhosttyKit
 import SupatermSupport
 
-enum GhosttyBootstrapError: Error, Equatable, LocalizedError {
+enum GhosttyBootstrapError: Equatable, LocalizedError {
   case configSeedFailed(String)
   case coreInitializationFailed(Int32)
   case environmentSetFailed(String)

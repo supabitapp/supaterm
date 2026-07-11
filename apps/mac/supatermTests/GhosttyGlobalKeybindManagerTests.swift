@@ -207,9 +207,9 @@ private func toggleVisibilityKeyEvent() throws -> GhosttyGlobalKeyEvent {
 }
 
 private final class FakeGhosttyGlobalEventTapRegistration: GhosttyGlobalEventTapRegistration {
-  nonisolated(unsafe) var invalidated = false
+  var invalidated = false
 
-  nonisolated func invalidate() {
+  func invalidate() {
     invalidated = true
   }
 }

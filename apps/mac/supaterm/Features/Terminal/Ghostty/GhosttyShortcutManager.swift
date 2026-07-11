@@ -28,7 +28,7 @@ final class GhosttyShortcutManager {
     }
   }
 
-  func refresh() {
+  private func refresh() {
     generation += 1
   }
 

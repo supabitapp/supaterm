@@ -3,31 +3,35 @@ import SwiftUI
 
 extension SnapshotCatalog {
   static let rendererFailureScenarios: [SnapshotScenario] = [
-    scenario(
+    rendererFailureScenario(
       "renderer-unavailable",
-      group: "Terminal Pane",
       title: "Renderer unavailable",
-      size: CGSize(width: 640, height: 400)
-    ) { appearance in
-      AnyView(
-        GhosttySurfaceFailureOverlay(
-          failure: .rendererUnavailable,
-          palette: Palette(colorScheme: appearance.colorScheme)
-        )
-      )
-    },
-    scenario(
+      failure: .rendererUnavailable
+    ),
+    rendererFailureScenario(
       "surface-creation-failed",
-      group: "Terminal Pane",
       title: "Surface creation failed",
+      failure: .surfaceCreationFailed
+    ),
+  ]
+
+  private static func rendererFailureScenario(
+    _ id: String,
+    title: String,
+    failure: GhosttySurfaceFailure
+  ) -> SnapshotScenario {
+    scenario(
+      id,
+      group: "Terminal Pane",
+      title: title,
       size: CGSize(width: 640, height: 400)
     ) { appearance in
       AnyView(
         GhosttySurfaceFailureOverlay(
-          failure: .surfaceCreationFailed,
+          failure: failure,
           palette: Palette(colorScheme: appearance.colorScheme)
         )
       )
-    },
-  ]
+    }
+  }
 }

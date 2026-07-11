@@ -119,12 +119,9 @@ extension NSPasteboard.PasteboardType {
   static let supatermTIFFImage = NSPasteboard.PasteboardType("public.tiff")
 
   init?(mimeType: String) {
-    switch mimeType {
-    case "text/plain":
+    if mimeType == "text/plain" {
       self = .string
       return
-    default:
-      break
     }
     guard let utType = UTType(mimeType: mimeType) else {
       self.init(mimeType)

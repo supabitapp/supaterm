@@ -988,7 +988,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
-    guard let window, event.window != nil, window == event.window else { return event }
+    guard let window, window == event.window else { return event }
     guard let contentView = window.contentView else { return event }
     let location = contentView.convert(event.locationInWindow, from: nil)
     guard contentView.hitTest(location) === self else { return event }
