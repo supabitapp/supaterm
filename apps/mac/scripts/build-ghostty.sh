@@ -14,6 +14,7 @@ ghostty_fingerprint_path="${ghostty_build_root}/fingerprint"
 ghostty_legacy_prefix_path="${ghostty_dir}/zig-out"
 ghostty_legacy_share_path="${ghostty_legacy_prefix_path}/share"
 xcframework_path="${ghostty_build_root}/GhosttyKit.xcframework"
+generated_xcframework_path="${ghostty_dir}/macos/GhosttyKit.xcframework"
 ghostty_resources_path="${ghostty_build_root}/share/ghostty"
 ghostty_terminfo_path="${ghostty_build_root}/share/terminfo"
 ghostty_patches_dir="${srcroot}/patches"
@@ -127,7 +128,9 @@ if [ -f "${ghostty_fingerprint_path}" ] &&
 fi
 
 cd "${ghostty_dir}"
+rm -rf "${generated_xcframework_path}"
 mise exec -- zig build -Doptimize=ReleaseFast -Demit-xcframework=true -Demit-macos-app=false -Dxcframework-target=native -Dsentry=false --prefix "${ghostty_build_root}" --cache-dir "${ghostty_local_cache_dir}" --global-cache-dir "${ghostty_global_cache_dir}"
-rsync -a --delete "${ghostty_dir}/macos/GhosttyKit.xcframework/" "${xcframework_path}/"
+rsync -a --delete "${generated_xcframework_path}/" "${xcframework_path}/"
+rm -rf "${generated_xcframework_path}"
 prepare_xcframework
 printf '%s\n' "${fingerprint}" > "${ghostty_fingerprint_path}"
