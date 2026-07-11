@@ -364,6 +364,41 @@ final class GhosttySurfaceView: NSView, Identifiable {
     }
   }
 
+  func confirmClipboardRead(
+    value: String?,
+    state: UnsafeMutableRawPointer?,
+    request: ghostty_clipboard_request_e
+  ) {
+    runtime.confirmClipboardRead(
+      from: self,
+      surfaceReference: surfaceRef,
+      value: value,
+      state: state,
+      request: request
+    )
+  }
+
+  func readClipboard(
+    location: ghostty_clipboard_e,
+    state: UnsafeMutableRawPointer?
+  ) -> Bool {
+    runtime.readClipboard(from: self, location: location, state: state)
+  }
+
+  func writeClipboard(
+    location: ghostty_clipboard_e,
+    items: [(mime: String, data: String)],
+    confirm: Bool
+  ) {
+    runtime.writeClipboard(
+      from: self,
+      surfaceReference: surfaceRef,
+      location: location,
+      items: items,
+      confirm: confirm
+    )
+  }
+
   private func updateScreenObservers() {
     clearNotificationObservers()
     guard let window else { return }
@@ -450,6 +485,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
+    if window == nil {
+      runtime.cancelClipboardConfirmation(for: surfaceRef)
+    }
     updateScreenObservers()
     updateContentScale()
     notifySizeChanged()

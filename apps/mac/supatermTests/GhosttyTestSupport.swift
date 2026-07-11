@@ -38,7 +38,10 @@ func initializeGhosttyForTests() {
 
 func makeGhosttyRuntime(
   _ config: String,
-  applicationIsActive: () -> Bool = { NSApp.isActive }
+  applicationIsActive: () -> Bool = { NSApp.isActive },
+  pasteboardProvider: @escaping (ghostty_clipboard_e) -> NSPasteboard? = {
+    NSPasteboard.ghostty($0)
+  }
 ) throws -> GhosttyRuntime {
   initializeGhosttyForTests()
   let url = FileManager.default.temporaryDirectory
@@ -48,7 +51,11 @@ func makeGhosttyRuntime(
   defer {
     try? FileManager.default.removeItem(at: url)
   }
-  return GhosttyRuntime(configPath: url.path, applicationIsActive: applicationIsActive)
+  return GhosttyRuntime(
+    configPath: url.path,
+    applicationIsActive: applicationIsActive,
+    pasteboardProvider: pasteboardProvider
+  )
 }
 
 struct GhosttyRuntimeFixture {
