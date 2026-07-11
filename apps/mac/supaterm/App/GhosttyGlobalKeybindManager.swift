@@ -14,7 +14,7 @@ final class GhosttyGlobalKeybindManager {
   private let requestAccessibilityTrust: () -> Void
   private let makeEventTapRegistration: () -> GhosttyGlobalEventTapRegistration?
   private let isAppActive: () -> Bool
-  private var runtimes: () -> [GhosttyRuntime]
+  private var runtime: GhosttyRuntime?
   private var eventTapRegistration: GhosttyGlobalEventTapRegistration?
   private var enableTimer: Timer?
   private var configObserver: NSObjectProtocol?
@@ -33,23 +33,34 @@ final class GhosttyGlobalKeybindManager {
       LiveGhosttyGlobalEventTapRegistration.create()
     },
     isAppActive: @escaping () -> Bool = { NSApp.isActive },
-    runtimes: @escaping () -> [GhosttyRuntime] = { [] }
+    runtime: GhosttyRuntime? = nil
   ) {
     self.isAccessibilityTrusted = isAccessibilityTrusted
     self.requestAccessibilityTrust = requestAccessibilityTrust
     self.makeEventTapRegistration = makeEventTapRegistration
     self.isAppActive = isAppActive
-    self.runtimes = runtimes
+    self.runtime = runtime
+    if let runtime {
+      installConfigObserver(for: runtime)
+    }
   }
 
-  func setRuntimeProvider(_ provider: @escaping () -> [GhosttyRuntime]) {
-    runtimes = provider
-    installConfigObserver()
+  isolated deinit {
+    enableTimer?.invalidate()
+    eventTapRegistration?.invalidate()
+    if let configObserver {
+      NotificationCenter.default.removeObserver(configObserver)
+    }
+  }
+
+  func setRuntime(_ runtime: GhosttyRuntime) {
+    self.runtime = runtime
+    installConfigObserver(for: runtime)
     refresh()
   }
 
   func refresh() {
-    if runtimes().contains(where: { $0.hasGlobalKeybinds() }) {
+    if runtime?.hasGlobalKeybinds() == true {
       enable()
     } else {
       disable()
@@ -65,7 +76,7 @@ final class GhosttyGlobalKeybindManager {
 
   func handle(_ event: GhosttyGlobalKeyEvent) -> Bool {
     guard !isAppActive() else { return false }
-    return runtimes().contains { $0.handleGlobalKeyEvent(event) }
+    return runtime?.handleGlobalKeyEvent(event) ?? false
   }
 
   private func enable() {
@@ -98,14 +109,16 @@ final class GhosttyGlobalKeybindManager {
     requestAccessibilityTrust()
   }
 
-  private func installConfigObserver() {
-    guard configObserver == nil else { return }
+  private func installConfigObserver(for runtime: GhosttyRuntime) {
+    if let configObserver {
+      NotificationCenter.default.removeObserver(configObserver)
+    }
     configObserver = NotificationCenter.default.addObserver(
       forName: .ghosttyRuntimeConfigDidChange,
-      object: nil,
+      object: runtime,
       queue: .main
     ) { [weak self] _ in
-      Task { @MainActor [weak self] in
+      MainActor.assumeIsolated {
         self?.refresh()
       }
     }

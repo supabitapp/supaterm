@@ -71,10 +71,6 @@ final class TerminalWindowRegistry {
     !entries.isEmpty
   }
 
-  var needsQuitConfirmation: Bool {
-    activeEntries().contains { $0.terminal.windowNeedsCloseConfirmation() }
-  }
-
   var hasActiveAgentWorkForQuit: Bool {
     activeEntries().contains { $0.terminal.hasActiveAgentWorkForQuit }
   }
@@ -512,15 +508,6 @@ final class TerminalWindowRegistry {
       hasAgentPanel: selectedAgentPanel != nil,
       hasAgentPanelSession: selectedAgentPanel?.session != nil
     )
-  }
-
-  func globalKeybindRuntimes() -> [GhosttyRuntime] {
-    let entries = activeEntries()
-    guard let preferred = preferredActiveEntry() else {
-      return entries.compactMap(\.terminal.runtime)
-    }
-    return ([preferred] + entries.filter { $0.windowControllerID != preferred.windowControllerID })
-      .compactMap(\.terminal.runtime)
   }
 
   private static func updateMenuItemAction(for state: UpdateFeature.State) -> UpdateUserAction? {

@@ -1,11 +1,74 @@
 import AppKit
 import ComposableArchitecture
+import Foundation
+import Observation
+import Synchronization
 import Testing
 
 @testable import supaterm
 
 @MainActor
 struct TerminalWindowControllerTests {
+  @Test
+  func injectedRuntimeReloadUpdatesEveryWindow() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let fixture = try makePersistentGhosttyRuntime(
+        """
+        background = #101010
+        """
+      )
+      defer {
+        fixture.cleanup()
+      }
+      let registry = TerminalWindowRegistry(zmxClient: .noop)
+      let firstController = TerminalWindowController(
+        runtime: fixture.runtime,
+        registry: registry,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      let secondController = TerminalWindowController(
+        runtime: fixture.runtime,
+        registry: registry,
+        zmxClient: .noop,
+        zmxSessionsEnabled: false
+      )
+      defer {
+        firstController.window?.delegate = nil
+        firstController.window?.close()
+        secondController.window?.delegate = nil
+        secondController.window?.close()
+      }
+      let firstInvalidationCount = Mutex(0)
+      let secondInvalidationCount = Mutex(0)
+
+      withObservationTracking {
+        _ = firstController.terminal.terminalBackgroundColor
+      } onChange: {
+        firstInvalidationCount.withLock { $0 += 1 }
+      }
+      withObservationTracking {
+        _ = secondController.terminal.terminalBackgroundColor
+      } onChange: {
+        secondInvalidationCount.withLock { $0 += 1 }
+      }
+
+      try """
+      background = #202020
+      """
+      .write(to: fixture.configURL, atomically: true, encoding: .utf8)
+      fixture.runtime.reloadAppConfig()
+      for _ in 0..<5 {
+        await Task.yield()
+      }
+
+      #expect(firstInvalidationCount.withLock { $0 } == 1)
+      #expect(secondInvalidationCount.withLock { $0 } == 1)
+    }
+  }
+
   @Test
   func restoredSessionAppliesSavedWindowFrame() async throws {
     try await withDependencies {
@@ -26,6 +89,7 @@ struct TerminalWindowControllerTests {
         frame: TerminalWindowFrame(frame)
       )
       let controller = TerminalWindowController(
+        runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: TerminalWindowRegistry(zmxClient: .noop),
         session: session,
         zmxClient: .noop,
@@ -47,6 +111,7 @@ struct TerminalWindowControllerTests {
       initializeGhosttyForTests()
 
       let controller = TerminalWindowController(
+        runtime: GhosttyRuntime(applicationIsActive: { false }),
         registry: TerminalWindowRegistry(zmxClient: .noop),
         zmxClient: .noop,
         zmxSessionsEnabled: false

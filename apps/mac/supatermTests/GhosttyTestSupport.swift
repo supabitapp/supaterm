@@ -33,6 +33,7 @@ private let ghosttyInitializedForTests: Void = {
 }()
 
 func initializeGhosttyForTests() {
+  _ = NSApplication.shared
   _ = ghosttyInitializedForTests
 }
 

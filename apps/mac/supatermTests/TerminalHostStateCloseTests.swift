@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct TerminalHostStateCloseTests {
   @Test
-  func windowCloseConfirmationIgnoresSurfacesOwnedByAnotherHost() throws {
+  func appQuitSeesSharedSurfaceWhileWindowCloseScopesToItsHost() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -25,8 +25,13 @@ struct TerminalHostStateCloseTests {
         zmxSessionsEnabled: false
       )
 
-      hostWithLiveSurface.ensureInitialTab(focusing: false)
+      hostWithLiveSurface.ensureInitialTab(
+        focusing: false,
+        startupCommand: "exec /bin/cat"
+      )
+      runtime.tick()
 
+      #expect(runtime.needsConfirmQuit())
       #expect(hostWithLiveSurface.windowNeedsCloseConfirmation())
       #expect(!emptyHost.windowNeedsCloseConfirmation())
     }

@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   private let menuController: SupatermMenuController
   private let globalKeybindManager: GhosttyGlobalKeybindManager
+  private let ghosttyRuntime: GhosttyRuntime
   private let quitConfirmationPresenter: QuitConfirmationPresenter
   private let socketStore: StoreOf<SocketControlFeature>
   private let terminalWindowRegistry: TerminalWindowRegistry
@@ -71,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   override init() {
     AppPostHog.setup()
     GhosttyBootstrap.initialize()
+    let ghosttyRuntime = GhosttyRuntime()
     @Shared(.supatermSettings) var launchSupatermSettings = .default
     SupatermLog.setVerboseLoggingEnabled(launchSupatermSettings.verboseLoggingEnabled)
     let zmxSessionsEnabledAtLaunch = launchSupatermSettings.zmxSessionsEnabled
@@ -88,21 +90,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     self.menuController = menuController
     self.globalKeybindManager = globalKeybindManager
+    self.ghosttyRuntime = ghosttyRuntime
     self.quitConfirmationPresenter = quitConfirmationPresenter
     self.socketStore = socketStore
     self.terminalWindowRegistry = terminalWindowRegistry
     self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
     super.init()
-    globalKeybindManager.setRuntimeProvider { [weak terminalWindowRegistry] in
-      terminalWindowRegistry?.globalKeybindRuntimes() ?? []
-    }
+    globalKeybindManager.setRuntime(ghosttyRuntime)
     terminalWindowRegistry.commandExecutor = terminalCommandExecutor
     terminalCommandExecutor.onQuitRequested = { [weak self] in
       self?.performSocketQuit()
     }
-    terminalWindowRegistry.onChange = { [weak menuController, weak globalKeybindManager] in
+    terminalWindowRegistry.onChange = { [weak menuController] in
       menuController?.refresh()
-      globalKeybindManager?.refresh()
     }
     menuController.setNewWindowAction { [weak self] in
       self?.performNewWindow() ?? false
@@ -220,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
       hasVisibleAppWindows: NSApp.windows.contains(where: \.isVisible),
       confirmQuitMode: supatermSettings.confirmQuitMode,
       hasActiveAgentWorkForQuit: terminalWindowRegistry.hasActiveAgentWorkForQuit,
-      needsQuitConfirmation: terminalWindowRegistry.needsQuitConfirmation,
+      needsQuitConfirmation: ghosttyRuntime.needsConfirmQuit(),
       bypassesQuitConfirmation: terminatesSessionsForNextQuit
         || bypassesConfirmationForNextQuit
         || terminalWindowRegistry.bypassesQuitConfirmation,
@@ -466,6 +466,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     startupCommand: String? = nil
   ) -> TerminalWindowController {
     let controller = TerminalWindowController(
+      runtime: ghosttyRuntime,
       registry: terminalWindowRegistry,
       session: session,
       startupCommand: startupCommand,

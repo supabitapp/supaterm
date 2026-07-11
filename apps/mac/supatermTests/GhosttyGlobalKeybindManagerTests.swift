@@ -23,7 +23,7 @@ struct GhosttyGlobalKeybindManagerTests {
         registrationCount += 1
         return registration
       },
-      runtimes: { [runtime] }
+      runtime: runtime
     )
 
     manager.refresh()
@@ -50,17 +50,15 @@ struct GhosttyGlobalKeybindManagerTests {
       keybind = super+shift+0=toggle_visibility
       """
     )
-    var activeRuntimes = [globalRuntime]
     let registration = FakeGhosttyGlobalEventTapRegistration()
     let manager = GhosttyGlobalKeybindManager(
       isAccessibilityTrusted: { true },
       makeEventTapRegistration: { registration },
-      runtimes: { activeRuntimes }
+      runtime: globalRuntime
     )
 
     manager.refresh()
-    activeRuntimes = [localRuntime]
-    manager.refresh()
+    manager.setRuntime(localRuntime)
 
     #expect(!manager.isEnabled)
     #expect(registration.invalidated)
@@ -82,7 +80,7 @@ struct GhosttyGlobalKeybindManagerTests {
         registrationCount += 1
         return FakeGhosttyGlobalEventTapRegistration()
       },
-      runtimes: { [runtime] }
+      runtime: runtime
     )
 
     manager.refresh()
@@ -105,7 +103,7 @@ struct GhosttyGlobalKeybindManagerTests {
       isAccessibilityTrusted: { trusted },
       requestAccessibilityTrust: { trusted = true },
       makeEventTapRegistration: { FakeGhosttyGlobalEventTapRegistration() },
-      runtimes: { [runtime] }
+      runtime: runtime
     )
 
     manager.refresh()
@@ -123,7 +121,7 @@ struct GhosttyGlobalKeybindManagerTests {
     )
     let manager = GhosttyGlobalKeybindManager(
       isAppActive: { true },
-      runtimes: { [runtime] }
+      runtime: runtime
     )
     let event = try toggleVisibilityKeyEvent()
 
@@ -146,7 +144,7 @@ struct GhosttyGlobalKeybindManagerTests {
     )
     let manager = GhosttyGlobalKeybindManager(
       isAppActive: { false },
-      runtimes: { [runtime] }
+      runtime: runtime
     )
     let event = try toggleVisibilityKeyEvent()
 

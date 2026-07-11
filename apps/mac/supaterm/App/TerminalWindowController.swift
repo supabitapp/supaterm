@@ -70,6 +70,7 @@ final class TerminalWindowController: NSWindowController {
   private var terminatesTerminalSessionsOnClose = true
 
   init(
+    runtime: GhosttyRuntime,
     registry: TerminalWindowRegistry,
     session: TerminalWindowSession? = nil,
     startupCommand: String? = nil,
@@ -81,8 +82,11 @@ final class TerminalWindowController: NSWindowController {
     let windowControllerID = UUID()
     self.windowControllerID = windowControllerID
 
-    let ghostty = GhosttyRuntime()
-    let terminal = TerminalHostState(runtime: ghostty, zmxClient: zmxClient, zmxSessionsEnabled: zmxSessionsEnabled)
+    let terminal = TerminalHostState(
+      runtime: runtime,
+      zmxClient: zmxClient,
+      zmxSessionsEnabled: zmxSessionsEnabled
+    )
     terminal.onSessionChange = onSessionChange
     if let session {
       _ = terminal.restore(from: session)
@@ -107,7 +111,7 @@ final class TerminalWindowController: NSWindowController {
       $0.terminalClient = .live(host: terminal)
       $0.windowCloseClient = .live(registry: registry)
     }
-    let ghosttyShortcuts = GhosttyShortcutManager(runtime: ghostty)
+    let ghosttyShortcuts = GhosttyShortcutManager(runtime: runtime)
     let commandHoldObserver = CommandHoldObserver()
 
     self.commandHoldObserver = commandHoldObserver
@@ -116,7 +120,7 @@ final class TerminalWindowController: NSWindowController {
 
     let hostingController = NSHostingController(
       rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: ghostty) {
+        GhosttyColorSchemeSyncView(ghostty: runtime) {
           ContentView(
             commandHoldObserver: commandHoldObserver,
             ghosttyShortcuts: ghosttyShortcuts,
