@@ -323,10 +323,7 @@ extension TerminalHostState {
   }
 
   func windowNeedsCloseConfirmation() -> Bool {
-    if let runtime {
-      return runtime.needsConfirmQuit()
-    }
-    return trees.values.contains { tree in
+    trees.values.contains { tree in
       tree.leaves().contains(where: \.needsCloseConfirmation)
     }
   }
