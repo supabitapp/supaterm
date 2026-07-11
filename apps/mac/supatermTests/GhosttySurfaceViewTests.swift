@@ -5,7 +5,12 @@ import Testing
 
 @testable import supaterm
 
+@Suite(.serialized)
 struct GhosttySurfaceViewTests {
+  init() {
+    _ = NSApplication.shared
+  }
+
   @Test
   func legacyScrollerFlashRequiresLegacyStyleAndMotionAllowance() {
     #expect(
@@ -171,6 +176,78 @@ struct GhosttySurfaceViewTests {
     await Task.yield()
 
     #expect(window.firstResponder !== surface)
+  }
+
+  @Test
+  @MainActor
+  func clickingUnfocusedSplitTransfersFocusWithoutDirectInteraction() throws {
+    initializeGhosttyForTests()
+
+    let app = NSApplication.shared
+    let runtime = try makeGhosttyRuntime("", applicationIsActive: { false })
+    let firstSurface = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    let secondSurface = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB,
+      applicationAndWindowAreActive: { _ in true }
+    )
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let container = NSView(frame: window.contentView?.bounds ?? .zero)
+    firstSurface.frame = NSRect(x: 0, y: 0, width: 200, height: 200)
+    secondSurface.frame = NSRect(x: 200, y: 0, width: 200, height: 200)
+    window.contentView = container
+    container.addSubview(firstSurface)
+    container.addSubview(secondSurface)
+    defer {
+      firstSurface.closeSurface()
+      secondSurface.closeSurface()
+      window.contentView = nil
+      window.orderOut(nil)
+    }
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(firstSurface)
+    var directInteractionCount = 0
+    secondSurface.onDirectInteraction = {
+      directInteractionCount += 1
+    }
+    let locationInWindow = secondSurface.convert(
+      NSPoint(x: secondSurface.bounds.midX, y: secondSurface.bounds.midY),
+      to: nil
+    )
+    let event = try #require(
+      NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: locationInWindow,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 1,
+        clickCount: 1,
+        pressure: 1
+      )
+    )
+    try #require(event.window === window)
+    try #require(
+      container.hitTest(container.convert(event.locationInWindow, from: nil)) === secondSurface
+    )
+
+    app.sendEvent(event)
+
+    #expect(window.firstResponder === secondSurface)
+    #expect(directInteractionCount == 0)
   }
 }
 

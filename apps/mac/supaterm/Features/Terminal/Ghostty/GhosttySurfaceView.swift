@@ -59,6 +59,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private let fontSize: Float32
   private let context: ghostty_surface_context_e
   private let managesWindowAppearance: Bool
+  private let applicationAndWindowAreActive: (NSWindow) -> Bool
   private var trackingArea: NSTrackingArea?
   private var lastBackingSize: CGSize = .zero
   private var lastPerformKeyEvent: TimeInterval?
@@ -74,6 +75,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private var eventMonitor: Any?
   private var notificationObservers: [NSObjectProtocol] = []
   private var prevPressureStage: Int = 0
+  private var suppressNextLeftMouseUp = false
   private lazy var cachedScreenContents = CachedValue<String>(duration: .milliseconds(500)) {
     [weak self] in
     self?.readScreenContents() ?? ""
@@ -269,7 +271,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     fontSize: Float32? = nil,
     context: ghostty_surface_context_e,
     managesWindowAppearance: Bool = false,
-    zmxSessionsEnabled: Bool = true
+    zmxSessionsEnabled: Bool = true,
+    applicationAndWindowAreActive: @escaping (NSWindow) -> Bool = {
+      NSApp.isActive && $0.isKeyWindow
+    }
   ) {
     self.runtime = runtime
     self.id = id
@@ -285,6 +290,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.fontSize = fontSize ?? 0
     self.context = context
     self.managesWindowAppearance = managesWindowAppearance
+    self.applicationAndWindowAreActive = applicationAndWindowAreActive
     let initialWorkingDirectoryPath: String?
     if let workingDirectory {
       let path = Self.normalizedWorkingDirectoryPath(
@@ -803,6 +809,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   override func mouseUp(with event: NSEvent) {
+    if suppressNextLeftMouseUp {
+      suppressNextLeftMouseUp = false
+      return
+    }
     prevPressureStage = 0
     sendMouseButton(event, state: GHOSTTY_MOUSE_RELEASE, button: GHOSTTY_MOUSE_LEFT)
     if let surface {
@@ -934,10 +944,16 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
     guard let window, event.window != nil, window == event.window else { return event }
-    let location = convert(event.locationInWindow, from: nil)
-    guard hitTest(location) == self else { return event }
-    guard !NSApp.isActive || !window.isKeyWindow else { return event }
-    guard !focused else { return event }
+    guard let contentView = window.contentView else { return event }
+    let location = contentView.convert(event.locationInWindow, from: nil)
+    guard contentView.hitTest(location) === self else { return event }
+    suppressNextLeftMouseUp = false
+    guard window.firstResponder !== self else { return event }
+    if applicationAndWindowAreActive(window) {
+      window.makeFirstResponder(self)
+      suppressNextLeftMouseUp = true
+      return nil
+    }
     window.makeFirstResponder(self)
     return event
   }
