@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import GhosttyKit
 import SupatermCLIShared
 import SwiftUI
@@ -355,6 +356,11 @@ final class GhosttyRuntime {
     )
   }
 
+  func configurationDiagnostics() -> [String] {
+    guard let config else { return [] }
+    return GhosttyConfigDiagnostics.messages(in: config)
+  }
+
   private func applyConfig(
     _ config: ghostty_config_t,
     target: ghostty_target_s,
@@ -404,15 +410,17 @@ final class GhosttyRuntime {
 
   private nonisolated static func wakeupCallback(_ userdata: UnsafeMutableRawPointer?) {
     let userdataBits = userdata.map { UInt(bitPattern: $0) }
-    if Thread.isMainThread {
-      MainActor.assumeIsolated {
-        wakeup(userdataBits: userdataBits)
-      }
-      return
-    }
+    scheduleWakeup(userdataBits: userdataBits)
+  }
+
+  private nonisolated static func scheduleWakeup(
+    userdataBits: UInt?,
+    onTick: (@MainActor @Sendable () -> Void)? = nil
+  ) {
     DispatchQueue.main.async {
       MainActor.assumeIsolated {
         wakeup(userdataBits: userdataBits)
+        onTick?()
       }
     }
   }
@@ -570,6 +578,13 @@ final class GhosttyRuntime {
     wakeup(userdataBits: userdataBits)
   }
 
+  static func wakeupForTesting(
+    userdataBits: UInt?,
+    onTick: @escaping @MainActor @Sendable () -> Void
+  ) {
+    scheduleWakeup(userdataBits: userdataBits, onTick: onTick)
+  }
+
   private static func handleAction(
     appBits: UInt,
     target: ghostty_target_s,
@@ -669,10 +684,12 @@ final class GhosttyRuntime {
     } else {
       ghostty_config_load_default_files(config)
     }
-    ghostty_config_load_recursive_files(config)
-    if includeCLIArgs {
+    if includeCLIArgs,
+      ProcessInfo.processInfo.environment["__XCODE_BUILT_PRODUCTS_DIR_PATHS"] == nil
+    {
       ghostty_config_load_cli_args(config)
     }
+    ghostty_config_load_recursive_files(config)
     ghostty_config_finalize(config)
     return config
   }

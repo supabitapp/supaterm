@@ -180,27 +180,14 @@ struct GhosttyTerminalConfigFile {
     ghostty_config_load_file(config, url.path)
     ghostty_config_load_recursive_files(config)
     ghostty_config_finalize(config)
-    let diagnostics = diagnosticsMessage(for: config)
+    let diagnostics = GhosttyConfigDiagnostics.messages(in: config)
     if !diagnostics.isEmpty {
-      throw GhosttyTerminalConfigFileError.invalidConfig(diagnostics)
+      throw GhosttyTerminalConfigFileError.invalidConfig(diagnostics.joined(separator: "\n"))
     }
     var value: Float = 15
     let key = "font-size"
     _ = ghostty_config_get(config, &value, key, UInt(key.count))
     return Double(value)
-  }
-
-  private static func diagnosticsMessage(for config: ghostty_config_t) -> String {
-    let count = Int(ghostty_config_diagnostics_count(config))
-    guard count > 0 else { return "" }
-    return (0..<count)
-      .compactMap { index in
-        let diagnostic = ghostty_config_get_diagnostic(config, UInt32(index))
-        guard let message = diagnostic.message else { return nil }
-        return String(cString: message).trimmingCharacters(in: .whitespacesAndNewlines)
-      }
-      .filter { !$0.isEmpty }
-      .joined(separator: "\n")
   }
 
   private func selectedFontFamily(in contents: String) -> String? {
