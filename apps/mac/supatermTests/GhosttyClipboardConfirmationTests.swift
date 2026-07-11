@@ -25,6 +25,54 @@ struct GhosttyClipboardConfirmationTests {
   }
 
   @Test
+  func unfocusedSplitClipboardRequestIsDeniedBeforeFocusedRequest() async throws {
+    let fixture = try SplitClipboardSurfaceFixture()
+    defer { fixture.close() }
+    let pasteboard = NSPasteboard.ghosttySelection
+    pasteboard.clearContents()
+    pasteboard.setString("UNFOCUSED_A\nUNFOCUSED_B", forType: .string)
+
+    fixture.unfocusedSurface.pasteSelection(nil)
+
+    let unfocusedSheet = try await presentedSheet(of: fixture.window, timeout: .milliseconds(100))
+    #expect(unfocusedSheet == nil)
+    if let unfocusedSheet {
+      try button(titled: "Cancel", in: unfocusedSheet).performClick(nil)
+      try await waitForSheetDismissal(from: fixture.window)
+    }
+
+    pasteboard.clearContents()
+    pasteboard.setString("FOCUSED_A\nFOCUSED_B", forType: .string)
+    fixture.focusedSurface.pasteSelection(nil)
+
+    let focusedSheet = try await attachedSheet(of: fixture.window)
+    #expect(textPreview(in: focusedSheet).contains("FOCUSED_B"))
+    try button(titled: "Cancel", in: focusedSheet).performClick(nil)
+    try await waitForSheetDismissal(from: fixture.window)
+  }
+
+  @Test
+  func confirmationPreviewPreservesLongSelectableMonospacedTextInVerticalScroller() async throws {
+    let fixture = try ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    let contents = (0..<300).map { "line-\($0)" }.joined(separator: "\n")
+    let pasteboard = NSPasteboard.ghosttySelection
+    pasteboard.clearContents()
+    pasteboard.setString(contents, forType: .string)
+
+    fixture.surface.pasteSelection(nil)
+
+    let sheet = try await attachedSheet(of: fixture.window)
+    let scrollView = try #require(textPreviewScrollView(in: sheet))
+    let textView = try #require(scrollView.documentView as? NSTextView)
+    #expect(scrollView.hasVerticalScroller)
+    #expect(textView.isSelectable)
+    #expect(!textView.isEditable)
+    #expect(textView.font?.fontDescriptor.symbolicTraits.contains(.monoSpace) == true)
+    #expect(textView.string == contents)
+  }
+
+  @Test
   func cancellingUnsafePasteLeavesTerminalInputUnchanged() async throws {
     let fixture = try ClipboardSurfaceFixture()
     defer { fixture.close() }
@@ -166,6 +214,7 @@ struct GhosttyClipboardConfirmationTests {
     try await waitForSheetDismissal(from: fixture.window)
     #expect(fixture.surface.window == nil)
     fixture.window.contentView = fixture.surface
+    #expect(fixture.window.makeFirstResponder(fixture.surface))
     pasteboard.clearContents()
     pasteboard.setString("\(allowedMarker)_A\n\(allowedMarker)_B\n", forType: .string)
     fixture.surface.pasteSelection(nil)
@@ -482,6 +531,7 @@ private final class ClipboardSurfaceFixture {
     )
     window.contentView = surface
     window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(surface)
   }
 
   func close() {
@@ -489,6 +539,63 @@ private final class ClipboardSurfaceFixture {
       window.endSheet(sheet)
     }
     surface.closeSurface()
+    window.contentView = nil
+    window.orderOut(nil)
+    NSPasteboard.ghosttySelection.clearContents()
+  }
+}
+
+@MainActor
+private final class SplitClipboardSurfaceFixture {
+  let runtime: GhosttyRuntime
+  let focusedSurface: GhosttySurfaceView
+  let unfocusedSurface: GhosttySurfaceView
+  let window: NSWindow
+
+  init() throws {
+    initializeGhosttyForTests()
+    runtime = try makeGhosttyRuntime(
+      "clipboard-paste-protection = true",
+      applicationIsActive: { false },
+      pasteboardProvider: { _ in NSPasteboard.ghosttySelection }
+    )
+    let tabID = UUID()
+    focusedSurface = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: tabID,
+      workingDirectory: nil,
+      command: "/bin/sh -c 'stty -echo; cat'",
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    unfocusedSurface = GhosttySurfaceView(
+      runtime: runtime,
+      tabID: tabID,
+      workingDirectory: nil,
+      command: "/bin/sh -c 'stty -echo; cat'",
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+    let container = NSView(frame: window.contentView?.bounds ?? .zero)
+    focusedSurface.frame = NSRect(x: 0, y: 0, width: 300, height: 400)
+    unfocusedSurface.frame = NSRect(x: 300, y: 0, width: 300, height: 400)
+    window.contentView = container
+    container.addSubview(focusedSurface)
+    container.addSubview(unfocusedSurface)
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(focusedSurface)
+  }
+
+  func close() {
+    if let sheet = window.attachedSheet {
+      window.endSheet(sheet)
+    }
+    focusedSurface.closeSurface()
+    unfocusedSurface.closeSurface()
     window.contentView = nil
     window.orderOut(nil)
     NSPasteboard.ghosttySelection.clearContents()
@@ -504,6 +611,19 @@ private func attachedSheet(of window: NSWindow) async throws -> NSWindow {
     try await Task.sleep(for: .milliseconds(10))
   }
   return try #require(window.attachedSheet)
+}
+
+@MainActor
+private func presentedSheet(of window: NSWindow, timeout: Duration) async throws -> NSWindow? {
+  let clock = ContinuousClock()
+  let deadline = clock.now.advanced(by: timeout)
+  while clock.now < deadline {
+    if let sheet = window.attachedSheet {
+      return sheet
+    }
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  return window.attachedSheet
 }
 
 @MainActor
@@ -532,7 +652,15 @@ private func button(titled title: String, in window: NSWindow) throws -> NSButto
 @MainActor
 private func textPreview(in window: NSWindow) -> String {
   guard let contentView = window.contentView else { return "" }
-  return textFields(in: contentView).map(\.stringValue).joined(separator: "\n")
+  let fieldText = textFields(in: contentView).map(\.stringValue)
+  let viewText = textViews(in: contentView).map(\.string)
+  return (fieldText + viewText).joined(separator: "\n")
+}
+
+@MainActor
+private func textPreviewScrollView(in window: NSWindow) -> NSScrollView? {
+  guard let contentView = window.contentView else { return nil }
+  return scrollViews(in: contentView).first { $0.documentView is NSTextView }
 }
 
 @MainActor
@@ -570,6 +698,24 @@ private func textFields(in view: NSView) -> [NSTextField] {
   let nested = view.subviews.flatMap(textFields(in:))
   if let textField = view as? NSTextField {
     return [textField] + nested
+  }
+  return nested
+}
+
+@MainActor
+private func textViews(in view: NSView) -> [NSTextView] {
+  let nested = view.subviews.flatMap(textViews(in:))
+  if let textView = view as? NSTextView {
+    return [textView] + nested
+  }
+  return nested
+}
+
+@MainActor
+private func scrollViews(in view: NSView) -> [NSScrollView] {
+  let nested = view.subviews.flatMap(scrollViews(in:))
+  if let scrollView = view as? NSScrollView {
+    return [scrollView] + nested
   }
   return nested
 }

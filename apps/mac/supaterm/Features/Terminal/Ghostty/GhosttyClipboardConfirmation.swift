@@ -61,7 +61,11 @@ final class GhosttyClipboardConfirmationCoordinator {
     view: GhosttySurfaceView,
     completion: @escaping (Bool) -> Void
   ) {
-    guard let window = view.window, window.isVisible else {
+    guard
+      let window = view.window,
+      window.isVisible,
+      window.firstResponder === view
+    else {
       completion(false)
       return
     }
@@ -143,11 +147,17 @@ final class GhosttyClipboardConfirmationCoordinator {
     alert.messageText = presentation.title
     alert.informativeText = presentation.message
 
-    let preview = NSTextField(wrappingLabelWithString: contents)
-    preview.frame = NSRect(x: 0, y: 0, width: 480, height: 180)
-    preview.isSelectable = true
-    preview.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-    alert.accessoryView = preview
+    let scrollView = NSTextView.scrollableTextView()
+    scrollView.frame = NSRect(x: 0, y: 0, width: 480, height: 180)
+    scrollView.hasVerticalScroller = true
+    scrollView.hasHorizontalScroller = false
+    let preview = scrollView.documentView as? NSTextView
+    preview?.isEditable = false
+    preview?.isSelectable = true
+    preview?.isRichText = false
+    preview?.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    preview?.string = contents
+    alert.accessoryView = scrollView
 
     let confirmButton = alert.addButton(withTitle: presentation.confirmTitle)
     confirmButton.keyEquivalent = "\r"
