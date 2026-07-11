@@ -170,6 +170,30 @@ struct GhosttySurfaceBridgeTests {
     }
   }
 
+  @Test
+  func unhealthyRendererExposesRendererUnavailableFailure() {
+    let bridge = GhosttySurfaceBridge()
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_RENDERER_HEALTH, action: ghostty_action_u())
+    action.action.renderer_health = GHOSTTY_RENDERER_HEALTH_UNHEALTHY
+
+    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.state.failure == .rendererUnavailable)
+  }
+
+  @Test
+  func healthyRendererClearsRendererUnavailableFailure() {
+    let bridge = GhosttySurfaceBridge()
+    let target = ghostty_target_s(tag: GHOSTTY_TARGET_SURFACE, target: ghostty_target_u())
+    var action = ghostty_action_s(tag: GHOSTTY_ACTION_RENDERER_HEALTH, action: ghostty_action_u())
+    action.action.renderer_health = GHOSTTY_RENDERER_HEALTH_UNHEALTHY
+    _ = bridge.handleAction(target: target, action: action)
+
+    action.action.renderer_health = GHOSTTY_RENDERER_HEALTH_HEALTHY
+    #expect(bridge.handleAction(target: target, action: action) == false)
+    #expect(bridge.state.failure == nil)
+  }
+
   private func withOpenURLAction<T>(
     url: String,
     kind: ghostty_action_open_url_kind_e = GHOSTTY_ACTION_OPEN_URL_KIND_UNKNOWN,

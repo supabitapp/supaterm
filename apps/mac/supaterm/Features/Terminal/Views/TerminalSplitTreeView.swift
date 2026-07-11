@@ -412,6 +412,9 @@ struct TerminalSplitTreeView: View {
         .overlay {
           dimmingOverlay
         }
+        .overlay {
+          failureOverlay
+        }
         .overlay(alignment: .top) {
           dragHandleOverlay
         }
@@ -484,6 +487,13 @@ struct TerminalSplitTreeView: View {
           .fill(dimmingColor)
           .opacity(dimmingOpacity)
           .allowsHitTesting(false)
+      }
+    }
+
+    @ViewBuilder
+    private var failureOverlay: some View {
+      if let failure = surfaceView.bridge.state.failure {
+        GhosttySurfaceFailureOverlay(failure: failure, palette: palette)
       }
     }
 

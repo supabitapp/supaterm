@@ -1,6 +1,10 @@
 import GhosttyKit
 import Observation
 
+enum GhosttySurfaceFailure: Equatable {
+  case rendererUnavailable
+}
+
 @MainActor
 @Observable
 final class GhosttySurfaceState {
@@ -18,7 +22,7 @@ final class GhosttySurfaceState {
   var mouseShape: ghostty_action_mouse_shape_e?
   var mouseVisibility: ghostty_action_mouse_visibility_e?
   var mouseOverLink: String?
-  var rendererHealth: ghostty_action_renderer_health_e?
+  var failure: GhosttySurfaceFailure?
   var openUrl: String?
   var openUrlKind: ghostty_action_open_url_kind_e?
   var colorChangeKind: ghostty_action_color_kind_e?

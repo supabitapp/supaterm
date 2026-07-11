@@ -491,7 +491,10 @@ final class GhosttySurfaceBridge {
       return true
 
     case GHOSTTY_ACTION_RENDERER_HEALTH:
-      state.rendererHealth = action.action.renderer_health
+      state.failure =
+        action.action.renderer_health == GHOSTTY_RENDERER_HEALTH_HEALTHY
+        ? nil
+        : .rendererUnavailable
       return true
 
     case GHOSTTY_ACTION_OPEN_URL:
