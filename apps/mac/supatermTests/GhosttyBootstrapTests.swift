@@ -3,7 +3,107 @@ import SupatermCLIShared
 import SupatermSupport
 import Testing
 
+@testable import supaterm
+
 struct GhosttyBootstrapTests {
+  @Test
+  func missingResourcesStopBeforeCoreInitialization() {
+    var coreInitialized = false
+
+    #expect(throws: GhosttyBootstrapError.missingResources) {
+      try GhosttyBootstrap.initialize(
+        resourceDirectories: { nil },
+        seedDefaultConfig: {},
+        setEnvironment: { _, _ in true },
+        initializeCore: {
+          coreInitialized = true
+          return 0
+        }
+      )
+    }
+
+    #expect(!coreInitialized)
+  }
+
+  @Test
+  func configSeedFailureStopsBeforeEnvironmentAndCoreInitialization() {
+    var operations: [String] = []
+
+    #expect(throws: GhosttyBootstrapError.configSeedFailed("seed failed")) {
+      try GhosttyBootstrap.initialize(
+        resourceDirectories: { ghosttyBootstrapResourceDirectories() },
+        seedDefaultConfig: { throw GhosttyBootstrapTestError.seedFailure },
+        setEnvironment: { _, _ in
+          operations.append("environment")
+          return true
+        },
+        initializeCore: {
+          operations.append("core")
+          return 0
+        }
+      )
+    }
+
+    #expect(operations.isEmpty)
+  }
+
+  @Test
+  func environmentFailureStopsBeforeCoreInitialization() {
+    var coreInitialized = false
+
+    #expect(throws: GhosttyBootstrapError.environmentSetFailed("TERMINFO_DIRS")) {
+      try GhosttyBootstrap.initialize(
+        resourceDirectories: { ghosttyBootstrapResourceDirectories() },
+        seedDefaultConfig: {},
+        setEnvironment: { name, _ in name != "TERMINFO_DIRS" },
+        initializeCore: {
+          coreInitialized = true
+          return 0
+        }
+      )
+    }
+
+    #expect(!coreInitialized)
+  }
+
+  @Test
+  func coreInitializationFailureReportsStatus() {
+    #expect(throws: GhosttyBootstrapError.coreInitializationFailed(17)) {
+      try GhosttyBootstrap.initialize(
+        resourceDirectories: { ghosttyBootstrapResourceDirectories() },
+        seedDefaultConfig: {},
+        setEnvironment: { _, _ in true },
+        initializeCore: { 17 }
+      )
+    }
+  }
+
+  @Test
+  func successfulBootstrapSetsEnvironmentBeforeCoreInitialization() throws {
+    var operations: [String] = []
+
+    try GhosttyBootstrap.initialize(
+      resourceDirectories: { ghosttyBootstrapResourceDirectories() },
+      seedDefaultConfig: {},
+      setEnvironment: { name, value in
+        operations.append("\(name)=\(value)")
+        return true
+      },
+      initializeCore: {
+        operations.append("core")
+        return 0
+      }
+    )
+
+    #expect(
+      operations == [
+        "GHOSTTY_RESOURCES_DIR=/Resources/ghostty",
+        "TERMINFO_DIRS=/Resources/terminfo",
+        "core",
+      ]
+    )
+  }
+
   @Test
   func bundledCommandDirectoryUsesResourcesBin() {
     let resourcesURL = URL(fileURLWithPath: "/Applications/Supaterm.app/Contents/Resources", isDirectory: true)
@@ -167,4 +267,19 @@ private func writeGhosttyBootstrapFile(at url: URL, contents: String) throws {
     withIntermediateDirectories: true
   )
   try contents.write(to: url, atomically: true, encoding: .utf8)
+}
+
+private func ghosttyBootstrapResourceDirectories() -> (ghostty: URL, terminfo: URL) {
+  (
+    ghostty: URL(fileURLWithPath: "/Resources/ghostty", isDirectory: true),
+    terminfo: URL(fileURLWithPath: "/Resources/terminfo", isDirectory: true)
+  )
+}
+
+private enum GhosttyBootstrapTestError: LocalizedError {
+  case seedFailure
+
+  var errorDescription: String? {
+    "seed failed"
+  }
 }

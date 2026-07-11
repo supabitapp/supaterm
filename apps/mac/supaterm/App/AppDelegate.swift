@@ -71,7 +71,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
   override init() {
     AppPostHog.setup()
-    GhosttyBootstrap.initialize()
     let ghosttyRuntime = GhosttyRuntime()
     @Shared(.supatermSettings) var launchSupatermSettings = .default
     SupatermLog.setVerboseLoggingEnabled(launchSupatermSettings.verboseLoggingEnabled)
