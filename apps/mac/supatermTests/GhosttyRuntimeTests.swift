@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import GhosttyKit
 import Testing
@@ -7,6 +8,43 @@ import Testing
 
 @MainActor
 struct GhosttyRuntimeTests {
+  @Test
+  func runtimeCreatedWhileApplicationIsInactiveRejectsNonGlobalBinding() throws {
+    let app = NSApplication.shared
+    let previousDelegate = app.delegate
+    let delegate = GhosttyAppActionPerformerSpy()
+    app.delegate = delegate
+    defer {
+      app.delegate = previousDelegate
+    }
+
+    let runtime = try makeGhosttyRuntime(
+      """
+      keybind = super+shift+0=toggle_visibility
+      """,
+      applicationIsActive: { false }
+    )
+    let event = try GhosttyGlobalKeyEvent(
+      #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command, .shift],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: ")",
+          charactersIgnoringModifiers: "0",
+          isARepeat: false,
+          keyCode: UInt16(kVK_ANSI_0)
+        )
+      )
+    )
+
+    #expect(!runtime.handleGlobalKeyEvent(event))
+    #expect(delegate.toggleVisibilityCount == 0)
+  }
+
   @Test
   func opinionatedStringContentsReturnsStringBeforeImageData() throws {
     let pasteboard = makePasteboard()

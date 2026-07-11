@@ -43,24 +43,38 @@ final class GhosttyRuntime {
   private static let minNotificationContrastRatio = 2.2
   private static let minNotificationSaturation = 0.12
 
-  convenience init() {
+  convenience init(applicationIsActive: () -> Bool = { NSApp.isActive }) {
     guard let config = Self.loadConfig(includeCLIArgs: true) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config, configPath: nil, includeCLIArgs: true)
+    self.init(
+      loadedConfig: config,
+      configPath: nil,
+      includeCLIArgs: true,
+      applicationIsActive: applicationIsActive
+    )
   }
 
-  convenience init(configPath: String) {
+  convenience init(
+    configPath: String,
+    applicationIsActive: () -> Bool = { NSApp.isActive }
+  ) {
     guard let config = Self.loadConfig(at: configPath, includeCLIArgs: false) else {
       preconditionFailure("ghostty_config_new failed")
     }
-    self.init(loadedConfig: config, configPath: configPath, includeCLIArgs: false)
+    self.init(
+      loadedConfig: config,
+      configPath: configPath,
+      includeCLIArgs: false,
+      applicationIsActive: applicationIsActive
+    )
   }
 
   private init(
     loadedConfig config: ghostty_config_t,
     configPath: String?,
-    includeCLIArgs: Bool
+    includeCLIArgs: Bool,
+    applicationIsActive: () -> Bool
   ) {
     self.config = config
     self.configPath = configPath
@@ -94,6 +108,7 @@ final class GhosttyRuntime {
       preconditionFailure("ghostty_app_new failed")
     }
     self.app = app
+    ghostty_app_set_focus(app, applicationIsActive())
 
     let center = NotificationCenter.default
     observers.append(

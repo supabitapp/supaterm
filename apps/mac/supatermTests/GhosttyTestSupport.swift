@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import GhosttyKit
 
@@ -35,7 +36,10 @@ func initializeGhosttyForTests() {
   _ = ghosttyInitializedForTests
 }
 
-func makeGhosttyRuntime(_ config: String) throws -> GhosttyRuntime {
+func makeGhosttyRuntime(
+  _ config: String,
+  applicationIsActive: () -> Bool = { NSApp.isActive }
+) throws -> GhosttyRuntime {
   initializeGhosttyForTests()
   let url = FileManager.default.temporaryDirectory
     .appendingPathComponent(UUID().uuidString)
@@ -44,7 +48,7 @@ func makeGhosttyRuntime(_ config: String) throws -> GhosttyRuntime {
   defer {
     try? FileManager.default.removeItem(at: url)
   }
-  return GhosttyRuntime(configPath: url.path)
+  return GhosttyRuntime(configPath: url.path, applicationIsActive: applicationIsActive)
 }
 
 struct GhosttyRuntimeFixture {
