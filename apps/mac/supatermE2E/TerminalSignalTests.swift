@@ -8,6 +8,13 @@ extension SupatermE2ESuite {
     func bellUpdatesDebugSnapshot() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
+        let focusedPane = try makeSplit(app, in: space)
+        try await app.waitForShellPrompt(
+          SupatermPaneTargetRequest(contextPaneID: focusedPane.paneID)
+        )
+        try await app.waitUntil("the source pane loses focus") {
+          try app.debugPane(space.tab.paneID)?.isFocused == false
+        }
         let before = try #require(try app.debugPane(space.tab.paneID))
 
         try app.type("printf '\\a'\n", into: space.pane)
