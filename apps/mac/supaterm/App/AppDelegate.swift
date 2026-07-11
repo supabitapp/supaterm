@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var pinnedTabCatalog = TerminalPinnedTabCatalog.default
 
   private let menuController: SupatermMenuController
+  private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
   private let globalKeybindManager: GhosttyGlobalKeybindManager
   private let ghosttyRuntime: GhosttyRuntime
   private let quitConfirmationPresenter: QuitConfirmationPresenter
@@ -59,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   )
   private var settingsWindowController: SettingsWindowController?
+  private var configurationDiagnosticsObserver: NSObjectProtocol?
   private var bypassesConfirmationForNextQuit = false
   private var sessionPersistenceState = SessionPersistenceState.active
   private var terminatesSessionsForNextQuit = false
@@ -111,12 +113,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
   }
 
+  isolated deinit {
+    if let configurationDiagnosticsObserver {
+      NotificationCenter.default.removeObserver(configurationDiagnosticsObserver)
+    }
+  }
+
   private var launchZmxClient: ZmxClient {
     zmxSessionsEnabledAtLaunch ? .live : .noop
   }
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSWindow.allowsAutomaticWindowTabbing = false
+    installConfigurationDiagnosticsObserver()
+    refreshConfigurationDiagnostics()
     NSApp.servicesProvider = serviceProvider
     UNUserNotificationCenter.current().delegate = self
     menuController.install()
@@ -136,6 +146,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     $lastAppLaunchedDate.withLock {
       $0 = Date()
     }
+  }
+
+  private func installConfigurationDiagnosticsObserver() {
+    guard configurationDiagnosticsObserver == nil else { return }
+    configurationDiagnosticsObserver = NotificationCenter.default.addObserver(
+      forName: .ghosttyRuntimeConfigDidChange,
+      object: ghosttyRuntime,
+      queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.refreshConfigurationDiagnostics()
+      }
+    }
+  }
+
+  private func refreshConfigurationDiagnostics() {
+    configurationDiagnosticsWindowController.update(
+      messages: ghosttyRuntime.configurationDiagnostics()
+    )
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
