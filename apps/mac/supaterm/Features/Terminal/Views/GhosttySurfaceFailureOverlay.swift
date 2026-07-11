@@ -2,10 +2,17 @@ import SupaTheme
 import SwiftUI
 
 struct GhosttySurfaceFailureOverlay: View {
+  private struct Presentation {
+    let accessibilityIdentifier: String
+    let title: String
+    let message: String
+  }
+
   let failure: GhosttySurfaceFailure
   let palette: Palette
 
   var body: some View {
+    let presentation = Self.presentation(for: failure)
     VStack(spacing: 16) {
       Image(systemName: "exclamationmark.triangle.fill")
         .font(.system(size: 44, weight: .semibold))
@@ -13,11 +20,11 @@ struct GhosttySurfaceFailureOverlay: View {
         .accessibilityHidden(true)
 
       VStack(spacing: 8) {
-        Text(title)
+        Text(presentation.title)
           .font(.title2.weight(.semibold))
           .foregroundStyle(palette.primaryText)
 
-        Text(message)
+        Text(presentation.message)
           .font(.body)
           .foregroundStyle(palette.secondaryText)
           .multilineTextAlignment(.center)
@@ -28,36 +35,28 @@ struct GhosttySurfaceFailureOverlay: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(palette.detailBackground)
     .accessibilityElement(children: .combine)
-    .accessibilityIdentifier(accessibilityIdentifier)
+    .accessibilityIdentifier(presentation.accessibilityIdentifier)
   }
 
-  private var accessibilityIdentifier: String {
+  private static func presentation(
+    for failure: GhosttySurfaceFailure
+  ) -> Presentation {
     switch failure {
     case .rendererUnavailable:
-      "terminal-renderer-unavailable"
+      Presentation(
+        accessibilityIdentifier: "terminal-renderer-unavailable",
+        title: "Terminal renderer unavailable",
+        message: """
+          The renderer stopped, usually because GPU memory is exhausted. \
+          Free up system resources; this pane will resume when rendering recovers.
+          """
+      )
     case .surfaceCreationFailed:
-      "terminal-surface-creation-failed"
-    }
-  }
-
-  private var title: String {
-    switch failure {
-    case .rendererUnavailable:
-      "Terminal renderer unavailable"
-    case .surfaceCreationFailed:
-      "Terminal failed to start"
-    }
-  }
-
-  private var message: String {
-    switch failure {
-    case .rendererUnavailable:
-      """
-      The renderer stopped, usually because GPU memory is exhausted. \
-      Free up system resources; this pane will resume when rendering recovers.
-      """
-    case .surfaceCreationFailed:
-      "The terminal surface could not be created. Open a new pane to try again."
+      Presentation(
+        accessibilityIdentifier: "terminal-surface-creation-failed",
+        title: "Terminal failed to start",
+        message: "The terminal surface could not be created. Open a new pane to try again."
+      )
     }
   }
 }

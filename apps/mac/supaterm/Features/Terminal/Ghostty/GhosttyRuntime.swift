@@ -219,7 +219,6 @@ final class GhosttyRuntime {
   func registerSurface(_ surface: ghostty_surface_t) -> SurfaceReference {
     let ref = SurfaceReference(surface)
     surfaceRefs.append(ref)
-    surfaceRefs = surfaceRefs.filter { $0.isValid }
     if let lastColorScheme {
       ghostty_surface_set_color_scheme(surface, lastColorScheme)
     }
@@ -229,7 +228,7 @@ final class GhosttyRuntime {
   func unregisterSurface(_ ref: SurfaceReference) {
     clipboardConfirmations.cancel(surface: ref)
     ref.invalidate()
-    surfaceRefs = surfaceRefs.filter { $0.isValid }
+    surfaceRefs.removeAll { $0 === ref }
   }
 
   func readClipboard(
@@ -323,11 +322,13 @@ final class GhosttyRuntime {
       return
     }
     guard let pasteboard = pasteboardProvider(location) else { return }
-    let types = items.compactMap { NSPasteboard.PasteboardType(mimeType: $0.mime) }
-    pasteboard.declareTypes(types, owner: nil)
-    for item in items {
-      guard let type = NSPasteboard.PasteboardType(mimeType: item.mime) else { continue }
-      pasteboard.setString(item.data, forType: type)
+    let pasteboardItems: [(type: NSPasteboard.PasteboardType, data: String)] = items.compactMap { item in
+      guard let type = NSPasteboard.PasteboardType(mimeType: item.mime) else { return nil }
+      return (type: type, data: item.data)
+    }
+    pasteboard.declareTypes(pasteboardItems.map(\.type), owner: nil)
+    for item in pasteboardItems {
+      pasteboard.setString(item.data, forType: item.type)
     }
   }
 
@@ -378,7 +379,7 @@ final class GhosttyRuntime {
   }
 
   private func applyColorSchemeToSurfaces(_ scheme: ghostty_color_scheme_e) {
-    for ref in surfaceRefs where ref.isValid {
+    for ref in surfaceRefs {
       ghostty_surface_set_color_scheme(ref.surface, scheme)
       ghostty_surface_refresh(ref.surface)
     }

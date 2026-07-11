@@ -18,50 +18,18 @@ enum GhosttyClipboardConfirmationRequest {
       return nil
     }
   }
-
-  var title: String {
-    switch self {
-    case .paste:
-      "Warning: Potentially Unsafe Paste"
-    case .osc52Read, .osc52Write:
-      "Authorize Clipboard Access"
-    }
-  }
-
-  var message: String {
-    switch self {
-    case .paste:
-      "Pasting this text may execute multiple commands."
-    case .osc52Read:
-      "A terminal application is attempting to read from the clipboard."
-    case .osc52Write:
-      "A terminal application is attempting to write to the clipboard."
-    }
-  }
-
-  var cancelTitle: String {
-    switch self {
-    case .paste:
-      "Cancel"
-    case .osc52Read, .osc52Write:
-      "Deny"
-    }
-  }
-
-  var confirmTitle: String {
-    switch self {
-    case .paste:
-      "Paste"
-    case .osc52Read, .osc52Write:
-      "Allow"
-    }
-  }
 }
 
 @MainActor
 final class GhosttyClipboardConfirmationCoordinator {
+  private struct Presentation {
+    let title: String
+    let message: String
+    let cancelTitle: String
+    let confirmTitle: String
+  }
+
   private final class PendingRequest {
-    let key: ObjectIdentifier
     let surface: GhosttyRuntime.SurfaceReference
     let window: NSWindow
     let alert: NSAlert
@@ -70,14 +38,12 @@ final class GhosttyClipboardConfirmationCoordinator {
     var windowCloseObserver: NSObjectProtocol?
 
     init(
-      key: ObjectIdentifier,
       surface: GhosttyRuntime.SurfaceReference,
       window: NSWindow,
       alert: NSAlert,
       view: GhosttySurfaceView,
       completion: @escaping (Bool) -> Void
     ) {
-      self.key = key
       self.surface = surface
       self.window = window
       self.alert = alert
@@ -108,7 +74,6 @@ final class GhosttyClipboardConfirmationCoordinator {
 
     let alert = Self.alert(contents: contents, request: request)
     let pending = PendingRequest(
-      key: key,
       surface: surface,
       window: window,
       alert: alert,
@@ -154,7 +119,8 @@ final class GhosttyClipboardConfirmationCoordinator {
     allowed: Bool,
     dismissSheet: Bool
   ) {
-    guard pendingRequests.removeValue(forKey: pending.key) === pending else { return }
+    let key = ObjectIdentifier(pending.window)
+    guard pendingRequests.removeValue(forKey: key) === pending else { return }
     if let observer = pending.windowCloseObserver {
       NotificationCenter.default.removeObserver(observer)
       pending.windowCloseObserver = nil
@@ -171,10 +137,11 @@ final class GhosttyClipboardConfirmationCoordinator {
     contents: String,
     request: GhosttyClipboardConfirmationRequest
   ) -> NSAlert {
+    let presentation = presentation(for: request)
     let alert = NSAlert()
     alert.alertStyle = .warning
-    alert.messageText = request.title
-    alert.informativeText = request.message
+    alert.messageText = presentation.title
+    alert.informativeText = presentation.message
 
     let preview = NSTextField(wrappingLabelWithString: contents)
     preview.frame = NSRect(x: 0, y: 0, width: 480, height: 180)
@@ -182,10 +149,35 @@ final class GhosttyClipboardConfirmationCoordinator {
     preview.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     alert.accessoryView = preview
 
-    let confirmButton = alert.addButton(withTitle: request.confirmTitle)
+    let confirmButton = alert.addButton(withTitle: presentation.confirmTitle)
     confirmButton.keyEquivalent = "\r"
-    let cancelButton = alert.addButton(withTitle: request.cancelTitle)
+    let cancelButton = alert.addButton(withTitle: presentation.cancelTitle)
     cancelButton.keyEquivalent = "\u{1b}"
     return alert
+  }
+
+  private static func presentation(
+    for request: GhosttyClipboardConfirmationRequest
+  ) -> Presentation {
+    let message: String
+    switch request {
+    case .paste:
+      return Presentation(
+        title: "Warning: Potentially Unsafe Paste",
+        message: "Pasting this text may execute multiple commands.",
+        cancelTitle: "Cancel",
+        confirmTitle: "Paste"
+      )
+    case .osc52Read:
+      message = "A terminal application is attempting to read from the clipboard."
+    case .osc52Write:
+      message = "A terminal application is attempting to write to the clipboard."
+    }
+    return Presentation(
+      title: "Authorize Clipboard Access",
+      message: message,
+      cancelTitle: "Deny",
+      confirmTitle: "Allow"
+    )
   }
 }
