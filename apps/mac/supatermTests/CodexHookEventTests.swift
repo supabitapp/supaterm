@@ -15,16 +15,50 @@ struct CodexHookEventTests {
   }
 
   @Test
-  func toolFixturesIgnoreUnknownToolInputFields() throws {
+  func toolFixturesPreserveNativeInput() throws {
     let event = try CodexHookFixtures.event(CodexHookFixtures.preToolUse)
     let postToolUse = try CodexHookFixtures.event(CodexHookFixtures.postToolUse)
 
     #expect(event.hookEventName == .preToolUse)
     #expect(event.toolName == "Bash")
-    #expect(event.toolInput == SupatermAgentHookToolInput())
+    #expect(event.toolInput == .object(["command": .string("git status --short")]))
     #expect(postToolUse.hookEventName == .postToolUse)
     #expect(postToolUse.toolName == "Bash")
-    #expect(postToolUse.toolInput == SupatermAgentHookToolInput())
+    #expect(postToolUse.toolInput == .object(["command": .string("git status --short")]))
+  }
+
+  @Test
+  func nativePayloadRoundTripsWithoutLoss() throws {
+    let payload = #"""
+      {
+        "session_id": "session-123",
+        "turn_id": "turn-456",
+        "agent_id": "agent-789",
+        "agent_type": "worker",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "update_plan",
+        "tool_input": {
+          "explanation": "Keep the panel current",
+          "plan": [
+            { "step": "Read state", "status": "completed" },
+            { "step": "Update panel", "status": "in_progress" }
+          ]
+        },
+        "tool_response": {
+          "content": [{ "type": "text", "text": "Plan updated" }]
+        },
+        "future_field": {
+          "nested": [true, 42, null]
+        }
+      }
+      """#
+    let expected = try JSONDecoder().decode(JSONValue.self, from: Data(payload.utf8))
+    let event = try CodexHookFixtures.event(payload)
+
+    let encoded = try JSONEncoder().encode(event)
+    let actual = try JSONDecoder().decode(JSONValue.self, from: encoded)
+
+    #expect(actual == expected)
   }
 
   @Test
