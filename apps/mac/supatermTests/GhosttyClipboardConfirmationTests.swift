@@ -149,6 +149,37 @@ struct GhosttyClipboardConfirmationTests {
   }
 
   @Test
+  func detachingSurfaceDeniesPendingPasteAndAllowsRequestAfterReattachment() async throws {
+    let fixture = try ClipboardSurfaceFixture()
+    defer { fixture.close() }
+    _ = try await capturedText(from: fixture.surface, containing: "SUPATERM_READY")
+    let deniedMarker = "SUPATERM_DENIED_\(UUID().uuidString)"
+    let allowedMarker = "SUPATERM_REATTACHED_\(UUID().uuidString)"
+    let pasteboard = NSPasteboard.ghosttySelection
+    pasteboard.clearContents()
+    pasteboard.setString("\(deniedMarker)_A\n\(deniedMarker)_B", forType: .string)
+    fixture.surface.pasteSelection(nil)
+    let dismissedSheet = try await attachedSheet(of: fixture.window)
+
+    fixture.window.contentView = nil
+
+    try await waitForSheetDismissal(from: fixture.window)
+    #expect(fixture.surface.window == nil)
+    fixture.window.contentView = fixture.surface
+    pasteboard.clearContents()
+    pasteboard.setString("\(allowedMarker)_A\n\(allowedMarker)_B\n", forType: .string)
+    fixture.surface.pasteSelection(nil)
+    let reattachedSheet = try await attachedSheet(of: fixture.window)
+    #expect(reattachedSheet !== dismissedSheet)
+    try button(titled: "Paste", in: reattachedSheet).performClick(nil)
+    let contents = try await capturedText(
+      from: fixture.surface,
+      containing: "\(allowedMarker)_B"
+    )
+    #expect(!contents.contains(deniedMarker))
+  }
+
+  @Test
   func escapeDeniesUnsafePaste() async throws {
     let fixture = try ClipboardSurfaceFixture()
     defer { fixture.close() }
@@ -305,6 +336,33 @@ struct GhosttyClipboardConfirmationTests {
     )
     #expect(contents.contains("SUPATERM_RESPONSE_1b5d35323b733b6332566a636d56301b5c"))
   }
+
+  @Test
+  func closingWindowCompletesPendingOSC52ReadOnceWithEmptyResponse() async throws {
+    let script = try TemporaryExecutableScript.countingOSC52Read()
+    defer { script.remove() }
+    let fixture = try ClipboardSurfaceFixture(
+      config: "clipboard-read = ask",
+      command: script.path
+    )
+    defer { fixture.close() }
+    fixture.window.isReleasedWhenClosed = false
+    _ = try await capturedText(from: fixture.surface, containing: "SUPATERM_READY")
+    let pasteboard = NSPasteboard.ghosttySelection
+    pasteboard.clearContents()
+    pasteboard.setString("secret", forType: .string)
+    fixture.surface.bridge.sendKey(.enter)
+    _ = try await attachedSheet(of: fixture.window)
+
+    fixture.window.close()
+
+    let expectedResponse = "SUPATERM_RESPONSE_COUNT_1_1b5d35323b733b1b5c"
+    let contents = try await capturedText(
+      from: fixture.surface,
+      containing: expectedResponse
+    )
+    #expect(occurrences(of: "SUPATERM_RESPONSE_COUNT_", in: contents) == 1)
+  }
 }
 
 private struct TemporaryExecutableScript {
@@ -348,6 +406,38 @@ private struct TemporaryExecutableScript {
       done
       stty "$terminal_state"
       printf SUPATERM_RESPONSE_
+      printf %s "$response" | od -An -tx1 | tr -d ' \n'
+      printf '\n'
+      cat
+      """#
+    )
+  }
+
+  static func countingOSC52Read() throws -> Self {
+    try Self(
+      #"""
+      #!/bin/bash
+      printf SUPATERM_READY
+      IFS= read -r trigger
+      terminal_state=$(stty -g)
+      stty raw -echo
+      printf '\033]52;s;?\a'
+      response=
+      until [[ "$response" == *$'\033\\' ]]; do
+        IFS= read -r -n 1 character
+        response+="$character"
+      done
+      response_count=1
+      if IFS= read -r -n 1 -t 1 character; then
+        extra_response="$character"
+        until [[ "$extra_response" == *$'\033\\' ]]; do
+          IFS= read -r -n 1 character
+          extra_response+="$character"
+        done
+        response_count=2
+      fi
+      stty "$terminal_state"
+      printf SUPATERM_RESPONSE_COUNT_%s_ "$response_count"
       printf %s "$response" | od -An -tx1 | tr -d ' \n'
       printf '\n'
       cat
