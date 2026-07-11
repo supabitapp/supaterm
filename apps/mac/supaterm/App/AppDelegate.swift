@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let terminalWindowRegistry = TerminalWindowRegistry(zmxClient: zmxClient)
     let terminalCommandExecutor = TerminalCommandExecutor(registry: terminalWindowRegistry)
     let menuController = SupatermMenuController(registry: terminalWindowRegistry)
-    let globalKeybindManager = GhosttyGlobalKeybindManager.shared
+    let globalKeybindManager = GhosttyGlobalKeybindManager(runtime: ghosttyRuntime)
     let quitConfirmationPresenter = QuitConfirmationPresenter()
     let socketStore = Store(initialState: SocketControlFeature.State()) {
       SocketControlFeature()
@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     self.terminalWindowRegistry = terminalWindowRegistry
     self.zmxSessionsEnabledAtLaunch = zmxSessionsEnabledAtLaunch
     super.init()
-    globalKeybindManager.setRuntime(ghosttyRuntime)
+    globalKeybindManager.refresh()
     terminalWindowRegistry.commandExecutor = terminalCommandExecutor
     terminalCommandExecutor.onQuitRequested = { [weak self] in
       self?.performSocketQuit()
