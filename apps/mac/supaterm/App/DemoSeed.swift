@@ -69,7 +69,7 @@
     static func decorate(_ terminals: [TerminalHostState]) {
       for terminal in terminals {
         terminal.demoInjectRunningAgent(
-          kind: .claude,
+          kind: .codex,
           surfaceID: IDs.webAgentSurface,
           detail: "Reviewing tab restore",
           sessionID: "019b1fd8-49f5-7b72-a4e4-62f59f9c7d21"
@@ -80,7 +80,7 @@
           detail: "Refining sidebar states",
           sessionID: "demo-web-shell"
         )
-        terminal.demoInjectPanelMetadata(surfaceID: IDs.webAgentSurface)
+        terminal.demoInjectRichPanel(surfaceID: IDs.webAgentSurface)
         terminal.demoInjectRunningAgent(
           kind: .codex,
           surfaceID: IDs.apiSurface,

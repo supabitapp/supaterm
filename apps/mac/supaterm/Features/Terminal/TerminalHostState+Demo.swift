@@ -33,7 +33,7 @@
       )
     }
 
-    func demoInjectPanelMetadata(surfaceID: UUID) {
+    func demoInjectRichPanel(surfaceID: UUID) {
       guard let tabID = tabID(containing: surfaceID),
         let snapshot = agentStateStore.snapshots(for: surfaceID)
           .filter(\.isForeground)
@@ -52,6 +52,19 @@
           action: .progressUpdated(Self.demoProgressRows, source: .transcript)
         )
       )
+      for nickname in ["Linnaeus", "Mendel", "Turing"] {
+        _ = applyAgentEvent(
+          TerminalAgentEvent(
+            scope: TerminalAgentEvent.Scope(
+              agent: snapshot.agent,
+              sessionID: snapshot.sessionID,
+              subagentID: "demo-\(nickname.lowercased())"
+            ),
+            context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+            action: .subagentStarted(nickname: nickname, role: nil)
+          )
+        )
+      }
     }
 
     func demoInjectNotification(surfaceID: UUID) {
