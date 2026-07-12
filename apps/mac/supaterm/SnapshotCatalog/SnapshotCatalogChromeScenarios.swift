@@ -43,7 +43,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
         ForEach(tokens(for: palette), id: \.name) { token in
           VStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .fill(token.color)
+              .fill(token.style)
               .frame(height: 34)
               .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -62,7 +62,12 @@ private struct PaletteTokenSheetSnapshotFixture: View {
 
   private struct TokenSwatch {
     let name: String
-    let color: Color
+    let style: AnyShapeStyle
+
+    init<Style: ShapeStyle>(name: String, color: Style) {
+      self.name = name
+      style = AnyShapeStyle(color)
+    }
   }
 
   private func tokens(for palette: Palette) -> [TokenSwatch] {

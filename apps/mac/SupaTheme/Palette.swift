@@ -26,8 +26,8 @@ public struct Palette {
   private var isDark: Bool { colorScheme == .dark }
   private var surfaceSeed: ThemeColor { referencePalette.neutral.light }
   private var sidebarItemInk: ThemeColor { isDark ? ThemeColor(hex: 0xFAFBFF) : ThemeColor(hex: 0x0E0F10) }
-  private var sidebarSelectedFillValue: ThemeColor { isDark ? .black : .white }
-  private var sidebarSelectedFillOpacity: Double { isDark ? 0.2 : 0.85 }
+  private var sidebarSelectedFillValue: ThemeColor { isDark ? ThemeColor(hex: 0x141414) : .white }
+  private var sidebarSelectedFillOpacity: Double { isDark ? 1 : 0.85 }
 
   public var backgroundTop: Color { backgroundTopValue.color }
   public var backgroundBottom: Color { backgroundBottomValue.color }
@@ -73,7 +73,16 @@ public struct Palette {
   public var secondaryText: Color { isDark ? Color.white.opacity(0.58) : Color.black.opacity(0.48) }
   public var sidebarTabTitle: Color { (isDark ? Color.white : .black).opacity(isDark ? 0.78 : 0.68) }
   public var sidebarSelectedFill: Color { sidebarSelectedFillValue.color.opacity(sidebarSelectedFillOpacity) }
-  public var sidebarSelectedStroke: Color { Color.white.opacity(isDark ? 0.2 : 0.98) }
+  public var sidebarSelectedStroke: LinearGradient {
+    LinearGradient(
+      colors: [
+        Color.white.opacity(isDark ? 0.18 : 0.98),
+        Color.white.opacity(isDark ? 0.1 : 0.98),
+      ],
+      startPoint: .top,
+      endPoint: .bottom
+    )
+  }
   public var sidebarSelectedShadow: Color { Color.black.opacity(isDark ? 0.25 : 0.12) }
   public var sidebarItemHoverFill: Color { sidebarItemInk.color.opacity(isDark ? 0.15 : 0.1) }
   public var sidebarItemPressedFill: Color { sidebarItemInk.color.opacity(0.065) }
@@ -131,7 +140,7 @@ public struct Palette {
 
     let surfaceSeed = referencePalette.neutral.light
     let isDark = colorScheme == .dark
-    let backgroundTopValue = isDark ? ThemeColor(hex: 0x262626) : ThemeColor(hex: 0xE4E4E4)
+    let backgroundTopValue = isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4)
     let backgroundBottomValue = isDark ? ThemeColor(hex: 0x161616) : ThemeColor(hex: 0xEDEDED)
     let detailBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: 0.85)
     let agentPanelBackgroundValue = surfaceSeed.mixed(with: isDark ? .black : .white, by: isDark ? 0.82 : 0.85)

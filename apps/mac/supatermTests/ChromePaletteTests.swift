@@ -71,6 +71,17 @@ struct ChromePaletteTests {
     expectDefaultSurfaceTokens(Palette(colorScheme: .dark), isDark: true)
   }
 
+  @Test func darkSidebarSelectionIsOpaqueReferenceSurface() {
+    let palette = Palette(colorScheme: .dark)
+    for background in [palette.backgroundTopValue, palette.backgroundBottomValue] {
+      expectSameThemeColor(
+        palette.sidebarSelectedSurface(over: background),
+        ThemeColor(hex: 0x141414),
+        "sidebarSelectedSurface"
+      )
+    }
+  }
+
   @Test func foregroundFollowsColorScheme() {
     expectSameColor(Palette(colorScheme: .light).primaryText, Color.black.opacity(0.86), "lightPrimaryText")
     expectSameColor(Palette(colorScheme: .dark).primaryText, Color.white.opacity(0.94), "darkPrimaryText")
@@ -169,7 +180,7 @@ struct ChromePaletteTests {
     let surfaceSeed = ReferencePalette.default.neutral.light
     expectSameColor(
       palette.backgroundTop,
-      (isDark ? ThemeColor(hex: 0x262626) : ThemeColor(hex: 0xE4E4E4)).color,
+      (isDark ? ThemeColor(hex: 0x1F1F1F) : ThemeColor(hex: 0xE4E4E4)).color,
       "backgroundTop"
     )
     expectSameColor(
@@ -292,8 +303,8 @@ struct ChromePaletteTests {
   }
 
   private func expectSidebarTokens(_ palette: Palette, isDark: Bool) {
-    let selectedFillValue = isDark ? ThemeColor.black : .white
-    let selectedFillOpacity = isDark ? 0.2 : 0.85
+    let selectedFillValue = isDark ? ThemeColor(hex: 0x141414) : .white
+    let selectedFillOpacity = isDark ? 1 : 0.85
     expectSameColor(
       palette.sidebarTabTitle,
       (isDark ? Color.white : .black).opacity(isDark ? 0.78 : 0.68),
@@ -304,7 +315,6 @@ struct ChromePaletteTests {
       selectedFillValue.color.opacity(selectedFillOpacity),
       "sidebarSelectedFill"
     )
-    expectSameColor(palette.sidebarSelectedStroke, Color.white.opacity(isDark ? 0.2 : 0.98), "sidebarSelectedStroke")
     expectSameColor(
       palette.sidebarSelectedShadow,
       Color.black.opacity(isDark ? 0.25 : 0.12),
