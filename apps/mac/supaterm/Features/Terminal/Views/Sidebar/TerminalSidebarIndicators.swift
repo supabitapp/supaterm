@@ -284,7 +284,7 @@ enum TerminalSidebarWarningBadgeStyle {
   }
 
   static func selectedBackgroundValues(palette: Palette) -> [ThemeColor] {
-    [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue].map { background in
+    [palette.backgroundTopValue, palette.backgroundBottomValue].map { background in
       ColorMath.composited(
         palette.warningFillValue,
         opacity: backgroundOpacity(isSelected: true),

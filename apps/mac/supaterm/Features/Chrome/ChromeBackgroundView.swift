@@ -8,58 +8,24 @@ struct ChromeBackgroundView: View {
     MeshGradient(
       width: 2,
       height: 3,
-      points: Self.compressedRampPoints,
+      points: Self.rampPoints,
       colors: [
-        palette.chromeBackgroundBaseStart,
-        palette.chromeBackgroundBaseStart,
-        palette.chromeBackgroundBaseStop,
-        palette.chromeBackgroundBaseStop,
-        palette.chromeBackgroundBaseStop,
-        palette.chromeBackgroundBaseStop,
+        palette.backgroundTop,
+        palette.backgroundTop,
+        palette.backgroundBottom,
+        palette.backgroundBottom,
+        palette.backgroundBottom,
+        palette.backgroundBottom,
       ],
       colorSpace: .perceptual
     )
-    .overlay {
-      MeshGradient(
-        width: 2,
-        height: 3,
-        points: Self.compressedRampPoints,
-        colors: [
-          palette.backgroundIlluminationStart,
-          palette.backgroundIlluminationStart,
-          palette.backgroundIlluminationStop,
-          palette.backgroundIlluminationStop,
-          palette.backgroundIlluminationStop,
-          palette.backgroundIlluminationStop,
-        ],
-        colorSpace: .perceptual
-      )
-    }
-    .overlay {
-      MeshGradient(
-        width: 2,
-        height: 2,
-        points: Self.fullRampPoints,
-        colors: [
-          palette.backgroundTintStart,
-          palette.backgroundTintStart,
-          palette.backgroundTintStop,
-          palette.backgroundTintStop,
-        ],
-        colorSpace: .perceptual
-      )
-    }
     .overlay(GrainOverlay())
   }
 
-  private static let compressedRampPoints: [SIMD2<Float>] = [
+  private static let rampPoints: [SIMD2<Float>] = [
     [0, 0], [1, 0],
     [0, 0.75], [1, 0.75],
     [0, 1], [1, 1],
   ]
 
-  private static let fullRampPoints: [SIMD2<Float>] = [
-    [0, 0], [1, 0],
-    [0, 1], [1, 1],
-  ]
 }
