@@ -293,7 +293,8 @@ extension SnapshotCatalog {
                   sessionID: "session-26-0701",
                   turnID: "turn-4"
                 ),
-                type: "reviewer",
+                nickname: "Linnaeus",
+                role: "reviewer",
                 phase: .running,
                 detail: "Reviewing native hook ownership"
               ),
@@ -303,7 +304,8 @@ extension SnapshotCatalog {
                   sessionID: "session-26-0701",
                   turnID: "turn-4"
                 ),
-                type: "tester",
+                nickname: "Turing",
+                role: "tester",
                 phase: .needsInput,
                 detail: "Needs approval to run tests"
               ),

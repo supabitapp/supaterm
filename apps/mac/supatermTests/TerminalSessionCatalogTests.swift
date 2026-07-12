@@ -258,7 +258,8 @@ struct TerminalSessionCatalogTests {
             sessionID: "session-1",
             turnID: "turn-1"
           ),
-          type: "reviewer",
+          nickname: "Mendel",
+          role: "reviewer",
           phase: .running,
           detail: "Reviewing"
         )

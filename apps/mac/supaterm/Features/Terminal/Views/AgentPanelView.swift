@@ -135,7 +135,7 @@ struct AgentPanelView: View {
         palette: palette
       )
       VStack(alignment: .leading, spacing: 2) {
-        Text(childTitle(child))
+        Text(Self.childTitle(child))
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.primaryText)
         if let detail = child.detail {
@@ -150,13 +150,26 @@ struct AgentPanelView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func childTitle(_ child: TerminalAgentActiveChild) -> String {
-    guard let type = child.type?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !type.isEmpty
-    else {
+  static func childTitle(_ child: TerminalAgentActiveChild) -> String {
+    let nickname = normalizedChildLabel(child.nickname)
+    let role = normalizedChildLabel(child.role)
+    switch (nickname, role) {
+    case (.some(let nickname), .some(let role)):
+      return "\(nickname) [\(role)]"
+    case (.some(let nickname), nil):
+      return nickname
+    case (nil, .some(let role)):
+      return role.replacingOccurrences(of: "_", with: " ").capitalized
+    case (nil, nil):
       return "Agent"
     }
-    return type.replacingOccurrences(of: "_", with: " ").capitalized
+  }
+
+  private static func normalizedChildLabel(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !value.isEmpty
+    else { return nil }
+    return value
   }
 
   private func childProgressStatus(

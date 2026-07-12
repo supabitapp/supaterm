@@ -299,7 +299,43 @@ struct TerminalAgentEventTranslatorTests {
       + TerminalAgentEventTranslator.events(for: stopped)
 
     #expect(events.map(\.scope.subagentID) == ["agent-3", "agent-3"])
-    #expect(events.map(\.action) == [.subagentStarted(type: "explorer"), .subagentStopped])
+    #expect(
+      events.map(\.action) == [
+        .subagentStarted(nickname: nil, role: "explorer"),
+        .subagentStopped,
+      ]
+    )
+  }
+
+  @Test
+  func codexSubagentStartUsesTranscriptNickname() throws {
+    let transcript = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcript.deletingLastPathComponent()) }
+    try CodexTranscriptFixtures.append(
+      .subagentSessionMeta(
+        id: "agent-3",
+        sessionID: "session-1",
+        nickname: "Mendel"
+      ),
+      to: transcript
+    )
+    let request = SupatermAgentHookRequest(
+      agent: .codex,
+      event: SupatermAgentHookEvent(
+        agentType: "default",
+        hookEventName: .subagentStart,
+        sessionID: "session-1",
+        transcriptPath: transcript.path,
+        turnID: "turn-2",
+        agentID: "agent-3"
+      )
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).map(\.action) == [
+        .subagentStarted(nickname: "Mendel", role: nil)
+      ]
+    )
   }
 
   @Test

@@ -27,7 +27,7 @@ protocol AgentPanelMonitor {
   func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot?
 }
 
-enum AgentProgressParsing {
+nonisolated enum AgentProgressParsing {
   static func normalizedTitle(_ text: String?) -> String? {
     guard let text else { return nil }
     let normalized =

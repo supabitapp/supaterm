@@ -21,20 +21,23 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   }
 
   let id: Identity
-  let type: String?
+  let nickname: String?
+  let role: String?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
 
   init(
     id: Identity,
-    type: String?,
+    nickname: String?,
+    role: String?,
     phase: AgentActivityPhase,
     detail: String?,
     attentionRequestID: String? = nil
   ) {
     self.id = id
-    self.type = type
+    self.nickname = nickname
+    self.role = role
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -303,14 +306,20 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
-    case .subagentStarted(let type):
+    case .subagentStarted(let nickname, let role):
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
-      if state.activeChildren[childKey] == nil {
+      if let child = state.activeChildren[childKey] {
+        state.activeChildren[childKey] = child.updating(
+          nickname: nickname,
+          role: role
+        )
+      } else {
         state.activeChildren[childKey] = TerminalAgentActiveChild(
           id: childKey,
-          type: type,
+          nickname: nickname,
+          role: role,
           phase: .running,
           detail: nil
         )
@@ -728,13 +737,28 @@ nonisolated struct TerminalAgentStateStore {
 
 extension TerminalAgentActiveChild {
   fileprivate nonisolated func updating(
+    nickname: String?,
+    role: String?
+  ) -> Self {
+    Self(
+      id: id,
+      nickname: nickname ?? self.nickname,
+      role: role ?? self.role,
+      phase: phase,
+      detail: detail,
+      attentionRequestID: attentionRequestID
+    )
+  }
+
+  fileprivate nonisolated func updating(
     phase: AgentActivityPhase,
     detail: String?,
     attentionRequestID: String? = nil
   ) -> Self {
     Self(
       id: id,
-      type: type,
+      nickname: nickname,
+      role: role,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID

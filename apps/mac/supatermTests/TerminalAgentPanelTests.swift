@@ -10,6 +10,35 @@ import Testing
 struct TerminalAgentPanelTests {
   @Test
   @MainActor
+  func childTitleMatchesCodexLabels() {
+    #expect(AgentPanelView.childTitle(child(nickname: "Mendel")) == "Mendel")
+    #expect(
+      AgentPanelView.childTitle(child(nickname: "Mendel", role: "reviewer"))
+        == "Mendel [reviewer]"
+    )
+    #expect(AgentPanelView.childTitle(child(role: "reviewer")) == "Reviewer")
+    #expect(AgentPanelView.childTitle(child()) == "Agent")
+  }
+
+  private func child(
+    nickname: String? = nil,
+    role: String? = nil
+  ) -> TerminalAgentActiveChild {
+    TerminalAgentActiveChild(
+      id: TerminalAgentActiveChild.Identity(
+        subagentID: "child-1",
+        sessionID: "session-1",
+        turnID: "turn-1"
+      ),
+      nickname: nickname,
+      role: role,
+      phase: .running,
+      detail: nil
+    )
+  }
+
+  @Test
+  @MainActor
   func restoredAgentStateRequiresCurrentProcessIdentityAndPreservesForegroundPlan() throws {
     let host = TerminalHostState(managesTerminalSurfaces: false)
     let surfaceID = UUID()

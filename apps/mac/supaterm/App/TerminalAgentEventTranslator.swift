@@ -11,7 +11,7 @@ nonisolated enum TerminalAgentEventTranslator {
           event(
             request,
             scope: scope,
-            action: .subagentStarted(type: request.event.agentType)
+            action: subagentStartedAction(for: request)
           )
         ]
       case .subagentStop:
@@ -37,6 +37,24 @@ nonisolated enum TerminalAgentEventTranslator {
     "idle_prompt",
     "permission_prompt",
   ]
+
+  private static func subagentStartedAction(
+    for request: SupatermAgentHookRequest
+  ) -> TerminalAgentEvent.Action {
+    let role = normalized(request.event.agentType)
+    guard request.agent == .codex else {
+      return .subagentStarted(nickname: nil, role: role)
+    }
+    let nickname = CodexTranscriptMetadataParser.subagentNickname(
+      at: request.event.transcriptPath,
+      agentID: request.event.agentID,
+      sessionID: request.event.sessionID
+    )
+    return .subagentStarted(
+      nickname: nickname,
+      role: role?.lowercased() == "default" ? nil : role
+    )
+  }
 
   private static func claudeEvents(
     for request: SupatermAgentHookRequest,
