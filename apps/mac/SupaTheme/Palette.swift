@@ -28,7 +28,6 @@ public struct Palette {
   private var sidebarItemInk: ThemeColor { isDark ? ThemeColor(hex: 0xFAFBFF) : ThemeColor(hex: 0x0E0F10) }
   private var sidebarSelectedFillValue: ThemeColor { isDark ? .black : .white }
   private var sidebarSelectedFillOpacity: Double { isDark ? 0.2 : 0.85 }
-  private var lightChromeBackgroundRecipe: ChromeBackgroundRecipe { Self.lightChromeBackgroundRecipe }
 
   public var backgroundTop: Color { backgroundTopValue.color }
   public var backgroundBottom: Color { backgroundBottomValue.color }
@@ -36,27 +35,27 @@ public struct Palette {
   public var chromeBackgroundBaseStop: Color { isDark ? backgroundBottom : backgroundTop }
   public var backgroundIlluminationStart: Color {
     lightChromeLayer(
-      lightChromeBackgroundRecipe.illuminationStart,
-      opacity: lightChromeBackgroundRecipe.illuminationStartOpacity
+      Self.lightChromeBackgroundRecipe.illuminationStart,
+      opacity: Self.lightChromeBackgroundRecipe.illuminationStartOpacity
     )
   }
   public var backgroundIlluminationStop: Color {
     lightChromeLayer(
-      lightChromeBackgroundRecipe.illuminationStop,
-      opacity: lightChromeBackgroundRecipe.illuminationStopOpacity
+      Self.lightChromeBackgroundRecipe.illuminationStop,
+      opacity: Self.lightChromeBackgroundRecipe.illuminationStopOpacity
     )
   }
   public var backgroundTintStart: Color {
-    lightChromeLayer(lightChromeBackgroundRecipe.tintStart, opacity: lightChromeBackgroundRecipe.tintOpacity)
+    lightChromeLayer(Self.lightChromeBackgroundRecipe.tintStart, opacity: Self.lightChromeBackgroundRecipe.tintOpacity)
   }
   public var backgroundTintStop: Color {
-    lightChromeLayer(lightChromeBackgroundRecipe.tintStop, opacity: lightChromeBackgroundRecipe.tintOpacity)
+    lightChromeLayer(Self.lightChromeBackgroundRecipe.tintStop, opacity: Self.lightChromeBackgroundRecipe.tintOpacity)
   }
   public var chromeBackgroundStartValue: ThemeColor {
-    isDark ? backgroundTopValue : lightChromeBackgroundRecipe.startSurface(over: backgroundTopValue)
+    isDark ? backgroundTopValue : Self.lightChromeBackgroundRecipe.startSurface(over: backgroundTopValue)
   }
   public var chromeBackgroundStopValue: ThemeColor {
-    isDark ? backgroundBottomValue : lightChromeBackgroundRecipe.stopSurface(over: backgroundTopValue)
+    isDark ? backgroundBottomValue : Self.lightChromeBackgroundRecipe.stopSurface(over: backgroundTopValue)
   }
   public var windowBackgroundTint: Color { surfaceSeed.color.mix(with: .black, by: isDark ? 0.8 : 0).opacity(0.3) }
   public var detailBackground: Color { detailBackgroundValue.color }
@@ -191,21 +190,35 @@ public struct Palette {
     let tintOpacity: Double
 
     func startSurface(over underlay: ThemeColor) -> ThemeColor {
-      let illuminated = ColorMath.composited(
-        illuminationStart,
-        opacity: illuminationStartOpacity,
+      surface(
+        illumination: illuminationStart,
+        illuminationOpacity: illuminationStartOpacity,
+        tint: tintStart,
         over: underlay
       )
-      return ColorMath.composited(tintStart, opacity: tintOpacity, over: illuminated)
     }
 
     func stopSurface(over underlay: ThemeColor) -> ThemeColor {
-      let illuminated = ColorMath.composited(
-        illuminationStop,
-        opacity: illuminationStopOpacity,
+      surface(
+        illumination: illuminationStop,
+        illuminationOpacity: illuminationStopOpacity,
+        tint: tintStop,
         over: underlay
       )
-      return ColorMath.composited(tintStop, opacity: tintOpacity, over: illuminated)
+    }
+
+    private func surface(
+      illumination: ThemeColor,
+      illuminationOpacity: Double,
+      tint: ThemeColor,
+      over underlay: ThemeColor
+    ) -> ThemeColor {
+      let illuminated = ColorMath.composited(
+        illumination,
+        opacity: illuminationOpacity,
+        over: underlay
+      )
+      return ColorMath.composited(tint, opacity: tintOpacity, over: illuminated)
     }
   }
 
