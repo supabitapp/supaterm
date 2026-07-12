@@ -3,6 +3,16 @@ import Foundation
 import SupatermCLIShared
 
 extension SP {
+  struct Project: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      commandName: "project",
+      abstract: "Create and manage projects.",
+      subcommands: [ProjectNew.self, ProjectDestroy.self, ProjectRename.self, ProjectPin.self, ProjectUnpin.self]
+    )
+
+    mutating func run() throws { print(Self.helpMessage()) }
+  }
+
   struct Space: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "space",
@@ -69,6 +79,101 @@ extension SP {
     mutating func run() throws {
       print(Self.helpMessage())
     }
+  }
+}
+
+extension SP {
+  struct ProjectNew: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "new", abstract: "Create a project.")
+
+    @Flag(name: .long, help: "Focus the first tab in the new project.")
+    var focus = false
+
+    @Option(name: .customLong("in"), help: "Space that will contain the project.", transform: parseSpaceReference)
+    var space: SPSpaceReference?
+
+    @Argument(help: "Name for the new project.")
+    var name: String
+
+    @OptionGroup var options: SPCommandOptions
+
+    mutating func run() throws {
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let target = try resolvePublicSpaceTarget(
+        space,
+        context: SupatermCLIContext.current,
+        snapshot: try treeSnapshot(client)
+      )
+      let response = try client.send(
+        .createProject(.init(name: name, focus: focus, target: spaceTargetRequest(target)))
+      )
+      guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
+      try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
+    }
+  }
+
+  struct ProjectDestroy: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "destroy", abstract: "Destroy a project.")
+
+    @Flag(name: [.customShort("y"), .long], help: "Destroy without interactive confirmation.")
+    var yes = false
+
+    @Argument(help: "Optional project target.", transform: parseProjectReference)
+    var project: SPProjectReference?
+
+    @OptionGroup var options: SPCommandOptions
+
+    mutating func run() throws {
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let target = try resolvedProjectTarget(project, client: client)
+      if !yes { try confirmDestructiveAction(prompt: "Destroy project? [y/N] ") }
+      let response = try client.send(.closeProject(projectTargetRequest(target)))
+      guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
+      try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
+    }
+  }
+
+  struct ProjectRename: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "rename", abstract: "Rename a project.")
+
+    @Argument(help: "New project name.")
+    var name: String
+
+    @Argument(help: "Optional project target.", transform: parseProjectReference)
+    var project: SPProjectReference?
+
+    @OptionGroup var options: SPCommandOptions
+
+    mutating func run() throws {
+      let client = try socketClient(
+        path: options.connection.explicitSocketPath,
+        instance: options.connection.instance
+      )
+      let target = try resolvedProjectTarget(project, client: client)
+      let response = try client.send(.renameProject(.init(name: name, target: projectTargetRequest(target))))
+      guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
+      try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
+    }
+  }
+
+  struct ProjectPin: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "pin", abstract: "Pin a project.")
+    @Argument(help: "Optional project target.", transform: parseProjectReference) var project: SPProjectReference?
+    @OptionGroup var options: SPCommandOptions
+    mutating func run() throws { try runProjectPinning(project, options: options, pin: true) }
+  }
+
+  struct ProjectUnpin: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "unpin", abstract: "Unpin a project.")
+    @Argument(help: "Optional project target.", transform: parseProjectReference) var project: SPProjectReference?
+    @OptionGroup var options: SPCommandOptions
+    mutating func run() throws { try runProjectPinning(project, options: options, pin: false) }
   }
 }
 
@@ -1057,10 +1162,11 @@ private func tabTargetRequest(_ target: SPResolvedTabTarget) -> SupatermTabTarge
   switch target {
   case .context(let contextPaneID):
     return .init(contextPaneID: contextPaneID)
-  case .tab(let windowIndex, let spaceIndex, let tabIndex):
+  case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
     return .init(
       targetWindowIndex: windowIndex,
       targetSpaceIndex: spaceIndex,
+      targetProjectIndex: projectIndex,
       targetTabIndex: tabIndex
     )
   }
@@ -1070,14 +1176,66 @@ private func paneTargetRequest(_ target: SPResolvedPaneOnlyTarget) -> SupatermPa
   switch target {
   case .context(let contextPaneID):
     return .init(contextPaneID: contextPaneID)
-  case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+  case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
     return .init(
       targetWindowIndex: windowIndex,
       targetSpaceIndex: spaceIndex,
+      targetProjectIndex: projectIndex,
       targetTabIndex: tabIndex,
       targetPaneIndex: paneIndex
     )
   }
+}
+
+private func resolvedProjectTarget(
+  _ reference: SPProjectReference?,
+  client: SPSocketClient
+) throws -> SPResolvedProjectTarget {
+  try resolvePublicProjectTarget(
+    reference,
+    context: SupatermCLIContext.current,
+    snapshot: try treeSnapshot(client)
+  )
+}
+
+private func projectTargetRequest(_ target: SPResolvedProjectTarget) -> SupatermProjectTargetRequest {
+  switch target {
+  case .context(let paneID):
+    return .init(contextPaneID: paneID)
+  case .project(let windowIndex, let spaceIndex, let projectIndex):
+    return .init(
+      targetWindowIndex: windowIndex,
+      targetSpaceIndex: spaceIndex,
+      targetProjectIndex: projectIndex
+    )
+  }
+}
+
+private func runProjectPinning(
+  _ reference: SPProjectReference?,
+  options: SPCommandOptions,
+  pin: Bool
+) throws {
+  let client = try socketClient(
+    path: options.connection.explicitSocketPath,
+    instance: options.connection.instance
+  )
+  let target = projectTargetRequest(try resolvedProjectTarget(reference, client: client))
+  let response = try client.send(pin ? .pinProject(target) : .unpinProject(target))
+  guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
+  try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
+}
+
+private func emitProjectResult(
+  _ result: SupatermProjectTarget,
+  options: SPOutputOptions
+) throws {
+  try emitCommandResult(
+    result,
+    options: options,
+    plain: "\(result.spaceIndex)/\(result.projectIndex)",
+    human: "window \(result.windowIndex) space \(result.spaceIndex) project \(result.projectIndex) \(result.name)"
+  )
 }
 
 private func runSpaceNavigation(

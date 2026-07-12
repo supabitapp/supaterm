@@ -23,8 +23,8 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = try #require(host.spaceManager.activeTabManager)
-      let tabID = tabManager.createTab(title: "Terminal 1")
+      let tabManager = try #require(host.spaceManager.activeProjectManager)
+      let tabID = try #require(tabManager.createTab(title: "Terminal 1", in: host.projects[0].id))
       tabManager.selectTab(tabID)
 
       registry.register(
@@ -616,9 +616,9 @@ struct TerminalWindowRegistryTests {
 
       #expect(snapshot.windows.count == 2)
       #expect(snapshot.windows[0].frame == TerminalWindowFrame(firstFrame))
-      #expect(snapshot.windows[0].spaces.first?.tabs.count == 1)
+      #expect(snapshot.windows[0].spaces.first?.projects.flatMap(\.tabs).count == 1)
       #expect(snapshot.windows[1].frame == TerminalWindowFrame(secondFrame))
-      #expect(snapshot.windows[1].spaces.first?.tabs.count == 2)
+      #expect(snapshot.windows[1].spaces.first?.projects.flatMap(\.tabs).count == 2)
     }
   }
   @Test
@@ -636,8 +636,8 @@ struct TerminalWindowRegistryTests {
       }
       let windowControllerID = UUID()
 
-      let tabManager = try #require(host.spaceManager.activeTabManager)
-      let tabID = tabManager.createTab(title: "Terminal 1")
+      let tabManager = try #require(host.spaceManager.activeProjectManager)
+      let tabID = try #require(tabManager.createTab(title: "Terminal 1", in: host.projects[0].id))
       tabManager.selectTab(tabID)
 
       registry.register(
@@ -902,6 +902,8 @@ struct TerminalWindowRegistryTests {
             windowIndex: 1,
             spaceIndex: 1,
             spaceID: UUID(),
+            projectIndex: 1,
+            projectID: UUID(),
             tabIndex: 1,
             tabID: UUID(),
             paneIndex: 2,

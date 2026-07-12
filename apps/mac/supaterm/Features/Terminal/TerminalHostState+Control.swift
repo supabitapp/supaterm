@@ -25,22 +25,32 @@ extension TerminalHostState {
       index: 1,
       isKey: windowActivity.isKeyWindow,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            SupatermTreeSnapshot.Pane(
-              index: paneOffset + 1,
-              id: pane.id,
-              isFocused: pane.id == focusedSurfaceID
+        let projects = spaceManager.projects(in: space.id).enumerated().map { projectOffset, project in
+          let tabs = spaceManager.tabs(in: project.id).enumerated().map { tabOffset, tab in
+            let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+            let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+              SupatermTreeSnapshot.Pane(
+                index: paneOffset + 1,
+                id: pane.id,
+                isFocused: pane.id == focusedSurfaceID
+              )
+            }
+
+            return SupatermTreeSnapshot.Tab(
+              index: tabOffset + 1,
+              id: tab.id.rawValue,
+              title: tab.title,
+              isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
+              panes: panes
             )
           }
 
-          return SupatermTreeSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            panes: panes
+          return SupatermTreeSnapshot.Project(
+            index: projectOffset + 1,
+            id: project.id.rawValue,
+            name: project.name,
+            isPinned: project.isPinned,
+            tabs: tabs
           )
         }
 
@@ -49,7 +59,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          projects: projects
         )
       }
     )
@@ -62,29 +72,39 @@ extension TerminalHostState {
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            debugPaneSnapshot(
-              pane,
-              index: paneOffset + 1,
-              isFocused: pane.id == focusedSurfaceID
+        let projects = spaceManager.projects(in: space.id).enumerated().map { projectOffset, project in
+          let tabs = spaceManager.tabs(in: project.id).enumerated().map { tabOffset, tab in
+            let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+            let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+              debugPaneSnapshot(
+                pane,
+                index: paneOffset + 1,
+                isFocused: pane.id == focusedSurfaceID
+              )
+            }
+
+            return SupatermAppDebugSnapshot.Tab(
+              index: tabOffset + 1,
+              id: tab.id.rawValue,
+              title: tab.title,
+              isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
+              isPinned: tab.isPinned,
+              isDirty: tab.isDirty,
+              isTitleLocked: tab.isTitleLocked,
+              hasRunningActivity: panes.contains(where: \.isRunning),
+              hasBell: panes.contains(where: { $0.bellCount > 0 }),
+              hasReadOnly: panes.contains(where: \.isReadOnly),
+              hasSecureInput: panes.contains(where: \.hasSecureInput),
+              panes: panes
             )
           }
 
-          return SupatermAppDebugSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            isPinned: tab.isPinned,
-            isDirty: tab.isDirty,
-            isTitleLocked: tab.isTitleLocked,
-            hasRunningActivity: panes.contains(where: \.isRunning),
-            hasBell: panes.contains(where: { $0.bellCount > 0 }),
-            hasReadOnly: panes.contains(where: \.isReadOnly),
-            hasSecureInput: panes.contains(where: \.hasSecureInput),
-            panes: panes
+          return SupatermAppDebugSnapshot.Project(
+            index: projectOffset + 1,
+            id: project.id.rawValue,
+            name: project.name,
+            isPinned: project.isPinned,
+            tabs: tabs
           )
         }
 
@@ -93,7 +113,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          projects: projects
         )
       }
     )
@@ -159,6 +179,8 @@ extension TerminalHostState {
         windowIndex: 1,
         spaceIndex: paneLocation.spaceIndex,
         spaceID: resolvedTarget.spaceID.rawValue,
+        projectIndex: paneLocation.projectIndex,
+        projectID: paneLocation.projectID.rawValue,
         tabIndex: paneLocation.tabIndex,
         tabID: resolvedTarget.tabID.rawValue,
         paneIndex: paneLocation.paneIndex,
@@ -187,6 +209,7 @@ extension TerminalHostState {
       let tabID =
         createTab(
           in: resolvedTarget.space.id,
+          projectID: resolvedTarget.project.id,
           focusing: false,
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
@@ -214,8 +237,8 @@ extension TerminalHostState {
         currentSelectedSpaceID: currentSelectedSpaceID,
         currentSelectedTabID: currentSelectedTabID
       )
-      if let tabManager = spaceManager.tabManager(for: resolvedTarget.space.id),
-        resolvedSelectedTabID != tabManager.selectedTabId
+      if let projectManager = spaceManager.projectManager(for: resolvedTarget.space.id),
+        resolvedSelectedTabID != projectManager.selectedTabId
       {
         applySelectedTab(resolvedSelectedTabID, in: resolvedTarget.space.id)
       }
@@ -235,7 +258,8 @@ extension TerminalHostState {
 
       guard
         let spaceIndex = spaceManager.spaceIndex(for: resolvedTarget.space.id),
-        let tabIndex = spaceManager.tabs(in: resolvedTarget.space.id)
+        let projectIndex = spaceManager.projectIndex(for: resolvedTarget.project.id, in: resolvedTarget.space.id),
+        let tabIndex = spaceManager.tabs(in: resolvedTarget.project.id)
           .firstIndex(where: { $0.id == tabID }),
         let paneIndex = tree.leaves().firstIndex(where: { $0.id == surfaceID })
       else {
@@ -261,6 +285,8 @@ extension TerminalHostState {
         windowIndex: 1,
         spaceIndex: spaceIndex,
         spaceID: resolvedTarget.space.id.rawValue,
+        projectIndex: projectIndex,
+        projectID: resolvedTarget.project.id.rawValue,
         tabIndex: tabIndex + 1,
         tabID: tabID.rawValue,
         paneIndex: paneIndex + 1,
@@ -269,13 +295,13 @@ extension TerminalHostState {
     } catch let error as TerminalCreateTabError {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.projectManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw error
     } catch {
       if let createdTabID {
         removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
+        spaceManager.projectManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw TerminalCreateTabError.creationFailed
     }
@@ -598,6 +624,47 @@ extension TerminalHostState {
     return try spaceTarget(for: resolvedTarget.space.id)
   }
 
+  func createProject(_ request: TerminalCreateProjectRequest) throws -> SupatermProjectTarget {
+    let resolvedSpace = try resolveSpaceTarget(request.target)
+    let projectID = try createProject(
+      named: request.name,
+      in: resolvedSpace.space.id,
+      focusing: request.focus
+    )
+    return try projectTarget(for: projectID)
+  }
+
+  func closeProject(_ target: TerminalProjectTarget) throws -> SupatermProjectTarget {
+    let project = try resolveProjectTarget(target)
+    guard spaceManager.projects(in: project.spaceID).count > 1 else {
+      throw TerminalControlError.onlyRemainingProject
+    }
+    let result = try projectTarget(for: project.projectID)
+    deleteProject(project.projectID)
+    return result
+  }
+
+  func renameProject(_ request: TerminalRenameProjectRequest) throws -> SupatermProjectTarget {
+    let project = try resolveProjectTarget(request.target)
+    guard let normalizedName = Self.trimmedNonEmpty(request.name) else {
+      throw TerminalControlError.invalidProjectName
+    }
+    guard isProjectNameAvailable(normalizedName, in: project.spaceID, excluding: project.projectID) else {
+      throw TerminalControlError.projectNameUnavailable
+    }
+    renameProject(project.projectID, to: normalizedName)
+    return try projectTarget(for: project.projectID)
+  }
+
+  func setProjectPinned(
+    _ target: TerminalProjectTarget,
+    isPinned: Bool
+  ) throws -> SupatermProjectTarget {
+    let project = try resolveProjectTarget(target)
+    setProjectPinned(project.projectID, isPinned: isPinned)
+    return try projectTarget(for: project.projectID)
+  }
+
   func nextSpace(_ request: TerminalSpaceNavigationRequest) throws -> SupatermSelectSpaceResult {
     let currentSpaceID = try resolvedNavigationSpaceID(request)
     let allSpaces = spaces
@@ -709,19 +776,71 @@ extension TerminalHostState {
       }
 
     case .space(let windowIndex, let spaceIndex):
-      do {
-        return try resolveCreateTabTarget(.space(windowIndex: windowIndex, spaceIndex: spaceIndex))
-      } catch TerminalCreateTabError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
-        throw TerminalControlError.spaceNotFound(
-          windowIndex: resolvedWindowIndex,
-          spaceIndex: resolvedSpaceIndex
-        )
-      } catch TerminalCreateTabError.windowNotFound(let resolvedWindowIndex) {
-        throw TerminalControlError.windowNotFound(resolvedWindowIndex)
-      } catch {
+      guard windowIndex == 1 else { throw TerminalControlError.windowNotFound(windowIndex) }
+      guard let space = spaceManager.space(at: spaceIndex) else {
         throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
       }
+      guard let project = spaceManager.projects(in: space.id).first else {
+        throw TerminalControlError.projectNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          projectIndex: 1
+        )
+      }
+      return ResolvedCreateTabTarget(inheritedSurfaceID: nil, project: project, space: space)
     }
+  }
+
+  func resolveProjectTarget(
+    _ target: TerminalProjectTarget
+  ) throws -> (spaceID: TerminalSpaceID, projectID: TerminalProjectID) {
+    switch target {
+    case .contextPane(let paneID):
+      guard
+        let tabID = tabID(containing: paneID),
+        let spaceID = spaceManager.space(for: tabID)?.id,
+        let projectID = spaceManager.projectID(for: tabID)
+      else {
+        throw TerminalControlError.contextPaneNotFound
+      }
+      return (spaceID, projectID)
+
+    case .project(let windowIndex, let spaceIndex, let projectIndex):
+      guard windowIndex == 1 else { throw TerminalControlError.windowNotFound(windowIndex) }
+      guard let space = spaceManager.space(at: spaceIndex) else {
+        throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
+      }
+      guard let project = spaceManager.project(at: projectIndex, in: space.id) else {
+        throw TerminalControlError.projectNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          projectIndex: projectIndex
+        )
+      }
+      return (space.id, project.id)
+    }
+  }
+
+  func projectTarget(for projectID: TerminalProjectID) throws -> SupatermProjectTarget {
+    guard let space = spaceManager.space(for: projectID) else {
+      throw TerminalControlError.projectNotFound(windowIndex: 1, spaceIndex: 1, projectIndex: 1)
+    }
+    guard
+      let spaceIndex = spaceManager.spaceIndex(for: space.id),
+      let projectIndex = spaceManager.projectIndex(for: projectID, in: space.id),
+      let project = spaceManager.projects(in: space.id).first(where: { $0.id == projectID })
+    else {
+      throw TerminalControlError.projectNotFound(windowIndex: 1, spaceIndex: 1, projectIndex: 1)
+    }
+    return SupatermProjectTarget(
+      windowIndex: 1,
+      spaceIndex: spaceIndex,
+      spaceID: space.id.rawValue,
+      projectIndex: projectIndex,
+      projectID: project.id.rawValue,
+      name: project.name,
+      isPinned: project.isPinned
+    )
   }
 
   func resolveTabTarget(_ target: TerminalTabTarget) throws -> ResolvedCreatePaneTarget {
@@ -745,10 +864,15 @@ extension TerminalHostState {
         throw TerminalControlError.contextPaneNotFound
       }
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       do {
         return try resolveCreatePaneTarget(
-          .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+          .tab(
+            windowIndex: windowIndex,
+            spaceIndex: spaceIndex,
+            projectIndex: projectIndex,
+            tabIndex: tabIndex
+          )
         )
       } catch TerminalCreatePaneError.spaceNotFound(let resolvedWindowIndex, let resolvedSpaceIndex) {
         throw TerminalControlError.spaceNotFound(
@@ -788,14 +912,21 @@ extension TerminalHostState {
       }
       return ResolvedTabItemTarget(spaceID: space.id, tabID: tabID)
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       guard windowIndex == 1 else {
         throw TerminalControlError.windowNotFound(windowIndex)
       }
       guard let space = spaceManager.space(at: spaceIndex) else {
         throw TerminalControlError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
       }
-      let tabs = spaceManager.tabs(in: space.id)
+      guard let project = spaceManager.project(at: projectIndex, in: space.id) else {
+        throw TerminalControlError.projectNotFound(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          projectIndex: projectIndex
+        )
+      }
+      let tabs = spaceManager.tabs(in: project.id)
       let tabOffset = tabIndex - 1
       guard tabs.indices.contains(tabOffset) else {
         throw TerminalControlError.tabNotFound(
@@ -838,12 +969,13 @@ extension TerminalHostState {
         throw TerminalControlError.contextPaneNotFound
       }
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       do {
         return try resolveCreatePaneTarget(
           .pane(
             windowIndex: windowIndex,
             spaceIndex: spaceIndex,
+            projectIndex: projectIndex,
             tabIndex: tabIndex,
             paneIndex: paneIndex
           )
@@ -961,7 +1093,13 @@ extension TerminalHostState {
     guard let spaceIndex = spaceManager.spaceIndex(for: space.id) else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     }
-    let tabs = spaceManager.tabs(in: space.id)
+    guard
+      let projectID = spaceManager.projectID(for: tabID),
+      let projectIndex = spaceManager.projectIndex(for: projectID, in: space.id)
+    else {
+      throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: 1)
+    }
+    let tabs = spaceManager.tabs(in: projectID)
     guard let tabIndex = tabs.firstIndex(where: { $0.id == tabID }) else {
       throw TerminalControlError.tabNotFound(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: 1)
     }
@@ -970,6 +1108,8 @@ extension TerminalHostState {
       windowIndex: 1,
       spaceIndex: spaceIndex,
       spaceID: space.id.rawValue,
+      projectIndex: projectIndex,
+      projectID: projectID.rawValue,
       tabIndex: tabIndex + 1,
       tabID: tabID.rawValue,
       title: tab.title
@@ -992,6 +1132,8 @@ extension TerminalHostState {
       windowIndex: 1,
       spaceIndex: location.spaceIndex,
       spaceID: spaceID.rawValue,
+      projectIndex: location.projectIndex,
+      projectID: location.projectID.rawValue,
       tabIndex: location.tabIndex,
       tabID: tabID.rawValue,
       paneIndex: location.paneIndex,
@@ -1106,6 +1248,8 @@ extension TerminalHostState {
       isSelectedTab: selectedTabID == tabID,
       paneIndex: paneTarget.paneIndex,
       paneID: paneTarget.paneID,
+      projectIndex: tabTarget.projectIndex,
+      projectID: tabTarget.projectID,
       tabIndex: tabTarget.tabIndex,
       tabID: tabTarget.tabID,
       target: target

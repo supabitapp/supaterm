@@ -19,6 +19,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let subtitle: String
   public let targetPaneIndex: Int?
+  public let targetProjectIndex: Int?
   public let targetSpaceIndex: Int?
   public let targetTabIndex: Int?
   public let targetWindowIndex: Int?
@@ -29,6 +30,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
     contextPaneID: UUID? = nil,
     subtitle: String = "",
     targetPaneIndex: Int? = nil,
+    targetProjectIndex: Int? = nil,
     targetSpaceIndex: Int? = nil,
     targetTabIndex: Int? = nil,
     targetWindowIndex: Int? = nil,
@@ -38,6 +40,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
     self.contextPaneID = contextPaneID
     self.subtitle = subtitle
     self.targetPaneIndex = targetPaneIndex
+    self.targetProjectIndex = targetProjectIndex
     self.targetSpaceIndex = targetSpaceIndex
     self.targetTabIndex = targetTabIndex
     self.targetWindowIndex = targetWindowIndex
@@ -51,6 +54,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
       contextPaneID: try container.decodeIfPresent(UUID.self, forKey: .contextPaneID),
       subtitle: try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "",
       targetPaneIndex: try container.decodeIfPresent(Int.self, forKey: .targetPaneIndex),
+      targetProjectIndex: try container.decodeIfPresent(Int.self, forKey: .targetProjectIndex),
       targetSpaceIndex: try container.decodeIfPresent(Int.self, forKey: .targetSpaceIndex),
       targetTabIndex: try container.decodeIfPresent(Int.self, forKey: .targetTabIndex),
       targetWindowIndex: try container.decodeIfPresent(Int.self, forKey: .targetWindowIndex),
@@ -63,6 +67,7 @@ public struct SupatermNotifyRequest: Equatable, Sendable, Codable {
     case contextPaneID
     case subtitle
     case targetPaneIndex
+    case targetProjectIndex
     case targetSpaceIndex
     case targetTabIndex
     case targetWindowIndex

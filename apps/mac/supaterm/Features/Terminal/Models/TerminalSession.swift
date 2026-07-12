@@ -3,7 +3,7 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 5
+  static let currentVersion = 6
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -130,44 +130,52 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
 
 nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
   var id: TerminalSpaceID
-  var selectedTabIndex: Int?
-  var selectedPinnedTabID: TerminalTabID?
-  var tabs: [TerminalTabSession]
+  var selectedTabID: TerminalTabID?
+  var projects: [TerminalWindowProjectSession]
 
   func pruned() -> TerminalWindowSpaceSession {
-    let tabs = tabs.compactMap { $0.pruned() }
-    let resolvedSelectedTabIndex = Self.resolvedSelectedTabIndex(
-      selectedTabIndex,
-      tabCount: tabs.count
-    )
+    var seenProjectIDs: Set<TerminalProjectID> = []
+    var seenTabIDs: Set<TerminalTabID> = []
+    let projects = projects.compactMap { project -> TerminalWindowProjectSession? in
+      guard seenProjectIDs.insert(project.id).inserted else { return nil }
+      let tabs = project.tabs.compactMap { tab -> PersistedTerminalTab? in
+        guard seenTabIDs.insert(tab.id).inserted else { return nil }
+        guard let session = tab.session.pruned() else { return nil }
+        return PersistedTerminalTab(id: tab.id, session: session)
+      }
+      return TerminalWindowProjectSession(id: project.id, tabs: tabs)
+    }
     return TerminalWindowSpaceSession(
       id: id,
-      selectedTabIndex: resolvedSelectedTabIndex,
-      selectedPinnedTabID: selectedPinnedTabID,
-      tabs: tabs
+      selectedTabID: selectedTabID,
+      projects: projects
     )
-  }
-
-  private static func resolvedSelectedTabIndex(
-    _ selectedTabIndex: Int?,
-    tabCount: Int
-  ) -> Int? {
-    guard tabCount > 0 else { return nil }
-    guard let selectedTabIndex, (0..<tabCount).contains(selectedTabIndex) else {
-      return 0
-    }
-    return selectedTabIndex
   }
 
   var surfaceIDs: Set<UUID> {
-    tabs.reduce(into: Set<UUID>()) { result, tab in
-      result.formUnion(tab.surfaceIDs)
+    projects.reduce(into: Set<UUID>()) { result, project in
+      result.formUnion(project.surfaceIDs)
     }
   }
 }
 
+nonisolated struct TerminalWindowProjectSession: Equatable, Codable, Sendable {
+  var id: TerminalProjectID
+  var tabs: [PersistedTerminalTab]
+
+  var surfaceIDs: Set<UUID> {
+    tabs.reduce(into: Set<UUID>()) { result, tab in
+      result.formUnion(tab.session.surfaceIDs)
+    }
+  }
+}
+
+nonisolated struct PersistedTerminalTab: Equatable, Codable, Sendable {
+  let id: TerminalTabID
+  var session: TerminalTabSession
+}
+
 nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
-  var isPinned: Bool
   var lockedTitle: String?
   var focusedPaneIndex: Int
   var root: TerminalPaneNodeSession
@@ -175,7 +183,6 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
   func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
     return TerminalTabSession(
-      isPinned: isPinned,
       lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
       focusedPaneIndex: Self.resolvedFocusedPaneIndex(
         focusedPaneIndex,
@@ -208,7 +215,6 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
         return leaf
       }
     return TerminalTabSession(
-      isPinned: isPinned,
       lockedTitle: lockedTitle,
       focusedPaneIndex: resolvedFocusedPaneIndex,
       root: root

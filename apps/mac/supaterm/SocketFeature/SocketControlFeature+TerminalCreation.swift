@@ -57,6 +57,9 @@ extension SocketControlFeature {
     if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
       throw SocketRequestError.invalidIndex("space")
     }
+    if let projectIndex = payload.targetProjectIndex, projectIndex < 1 {
+      throw SocketRequestError.invalidIndex("project")
+    }
     if payload.targetWindowIndex != nil && payload.targetSpaceIndex == nil {
       throw SocketRequestError.windowRequiresSpace
     }
@@ -65,21 +68,24 @@ extension SocketControlFeature {
   func createTabTarget(
     from payload: SupatermNewTabRequest
   ) throws -> TerminalCreateTabRequest.Target {
-    switch payload.targetSpaceIndex {
-    case .some(let spaceIndex):
-      return .space(
+    switch (payload.targetSpaceIndex, payload.targetProjectIndex) {
+    case (.some(let spaceIndex), .some(let projectIndex)):
+      return .project(
         windowIndex: payload.targetWindowIndex ?? 1,
-        spaceIndex: spaceIndex
+        spaceIndex: spaceIndex,
+        projectIndex: projectIndex
       )
 
-    case .none:
+    case (.none, .none):
       guard let contextPaneID = payload.contextPaneID else {
-        throw SocketRequestError.missingSpaceTarget
+        throw SocketRequestError.missingProjectTarget
       }
       if payload.targetWindowIndex != nil {
         throw SocketRequestError.windowRequiresSpace
       }
       return .contextPane(contextPaneID)
+    default:
+      throw SocketRequestError.missingProjectTarget
     }
   }
 
@@ -104,6 +110,7 @@ extension SocketControlFeature {
     try validateTargetPayload(
       windowIndex: payload.targetWindowIndex,
       spaceIndex: payload.targetSpaceIndex,
+      projectIndex: payload.targetProjectIndex,
       tabIndex: payload.targetTabIndex,
       paneIndex: payload.targetPaneIndex
     )
@@ -112,8 +119,13 @@ extension SocketControlFeature {
   func createPaneTarget(
     from payload: SupatermNewPaneRequest
   ) throws -> TerminalCreatePaneRequest.Target {
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (nil, nil, nil):
+    switch (
+      payload.targetSpaceIndex,
+      payload.targetProjectIndex,
+      payload.targetTabIndex,
+      payload.targetPaneIndex
+    ) {
+    case (nil, nil, nil, nil):
       guard let contextPaneID = payload.contextPaneID else {
         throw SocketRequestError.missingTarget
       }
@@ -122,27 +134,25 @@ extension SocketControlFeature {
       }
       return .contextPane(contextPaneID)
 
-    case (.some, .some, nil):
+    case (.some, .some, .some, nil):
       return .tab(
         windowIndex: payload.targetWindowIndex ?? 1,
         spaceIndex: payload.targetSpaceIndex!,
+        projectIndex: payload.targetProjectIndex!,
         tabIndex: payload.targetTabIndex!
       )
 
-    case (.some, .some, .some):
+    case (.some, .some, .some, .some):
       return .pane(
         windowIndex: payload.targetWindowIndex ?? 1,
         spaceIndex: payload.targetSpaceIndex!,
+        projectIndex: payload.targetProjectIndex!,
         tabIndex: payload.targetTabIndex!,
         paneIndex: payload.targetPaneIndex!
       )
 
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.none, .none, .some):
-      throw SocketRequestError.paneRequiresTab
+    default:
+      throw SocketRequestError.tabRequiresProject
     }
   }
 }

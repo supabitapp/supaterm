@@ -71,6 +71,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let spaceIndex: Int
     public let spaceID: UUID
     public let spaceName: String
+    public let projectIndex: Int
+    public let projectID: UUID
+    public let projectName: String
     public let tabIndex: Int
     public let tabID: UUID
     public let tabTitle: String
@@ -82,6 +85,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       spaceIndex: Int,
       spaceID: UUID,
       spaceName: String,
+      projectIndex: Int,
+      projectID: UUID,
+      projectName: String,
       tabIndex: Int,
       tabID: UUID,
       tabTitle: String,
@@ -92,6 +98,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       self.spaceIndex = spaceIndex
       self.spaceID = spaceID
       self.spaceName = spaceName
+      self.projectIndex = projectIndex
+      self.projectID = projectID
+      self.projectName = projectName
       self.tabIndex = tabIndex
       self.tabID = tabID
       self.tabTitle = tabTitle
@@ -124,19 +133,37 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let projects: [Project]
+
+    public var tabs: [Tab] { projects.flatMap(\.tabs) }
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      projects: [Project]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
+      self.projects = projects
+    }
+  }
+
+  public struct Project: Equatable, Sendable, Codable {
+    public let index: Int
+    public let id: UUID
+    public let name: String
+    public let isPinned: Bool
+    public let tabs: [Tab]
+
+    public init(index: Int, id: UUID, name: String, isPinned: Bool, tabs: [Tab]) {
+      self.index = index
+      self.id = id
+      self.name = name
+      self.isPinned = isPinned
       self.tabs = tabs
     }
   }
@@ -281,19 +308,37 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let projects: [Project]
+
+    public var tabs: [Tab] { projects.flatMap(\.tabs) }
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      projects: [Project]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
+      self.projects = projects
+    }
+  }
+
+  public struct Project: Equatable, Sendable, Codable {
+    public let index: Int
+    public let id: UUID
+    public let name: String
+    public let isPinned: Bool
+    public let tabs: [Tab]
+
+    public init(index: Int, id: UUID, name: String, isPinned: Bool, tabs: [Tab]) {
+      self.index = index
+      self.id = id
+      self.name = name
+      self.isPinned = isPinned
       self.tabs = tabs
     }
   }

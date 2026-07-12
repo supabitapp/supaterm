@@ -105,7 +105,7 @@ struct TerminalHostStatePinnedTabSharingTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+          target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
         )
       )
       await flushPinnedTabCatalogObservation()
@@ -138,7 +138,7 @@ struct TerminalHostStatePinnedTabSharingTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+          target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
         )
       )
       await flushPinnedTabCatalogObservation()
@@ -472,7 +472,7 @@ struct TerminalHostStatePinnedTabSharingTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+          target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
         )
       )
       host.surfaces[pane.paneID]?.bridge.state.pwd = secondPathString
@@ -543,7 +543,7 @@ struct TerminalHostStatePinnedTabSharingTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+          target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
         )
       )
       let initialSurfaces = try #require(host.trees[pinnedTabID]?.leaves())
@@ -608,7 +608,7 @@ struct TerminalHostStatePinnedTabSharingTests {
           direction: .right,
           focus: false,
           equalize: false,
-          target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+          target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
         )
       )
       let initialSurfaces = try #require(host.trees[pinnedTabID]?.leaves())
@@ -703,12 +703,16 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       @Shared(.terminalPinnedTabCatalog) var sharedCatalog = .default
       $sharedCatalog.withLock {
-        let tabs = $0.tabs(in: selectedSpaceID).map { tab in
-          var tab = tab
-          tab.session.lockedTitle = "Pinned Shell"
-          return tab
+        let projects = $0.projects(in: selectedSpaceID).map { project in
+          var project = project
+          project.tabs = project.tabs.map { tab in
+            var tab = tab
+            tab.session.lockedTitle = "Pinned Shell"
+            return tab
+          }
+          return project
         }
-        $0 = $0.updatingTabs(tabs, in: selectedSpaceID)
+        $0 = $0.updatingProjects(projects, in: selectedSpaceID)
       }
       await flushPinnedTabCatalogObservation()
 
@@ -821,15 +825,19 @@ struct TerminalHostStatePinnedTabSharingTests {
           spaces: [
             PersistedPinnedTerminalTabsForSpace(
               id: secondSpace.id,
-              tabs: [
-                PersistedPinnedTerminalTab(
-                  id: TerminalTabID(),
-                  session: TerminalTabSession(
-                    isPinned: true,
-                    lockedTitle: "Pinned",
-                    focusedPaneIndex: 0,
-                    root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
-                  )
+              projects: [
+                PersistedPinnedTerminalTabsForProject(
+                  id: secondSpace.projects[0].id,
+                  tabs: [
+                    PersistedTerminalTab(
+                      id: TerminalTabID(),
+                      session: TerminalTabSession(
+                        lockedTitle: "Pinned",
+                        focusedPaneIndex: 0,
+                        root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
+                      )
+                    )
+                  ]
                 )
               ]
             )
@@ -868,8 +876,9 @@ struct TerminalHostStatePinnedTabSharingTests {
       let selectedSpaceID = try #require(host.selectedSpaceID)
       let snapshot = host.restorationSnapshot()
 
-      #expect(snapshot.spaces.first(where: { $0.id == selectedSpaceID })?.tabs.count == 1)
-      #expect(snapshot.spaces.flatMap(\.tabs).allSatisfy { !$0.isPinned })
+      #expect(
+        snapshot.spaces.first(where: { $0.id == selectedSpaceID })?.projects.flatMap(\.tabs).count == 1
+      )
 
       let restored = TerminalHostState()
       #expect(restored.restore(from: snapshot))
@@ -896,8 +905,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let snapshot = host.restorationSnapshot()
       let snapshotSpace = try #require(snapshot.spaces.first { $0.id == selectedSpaceID })
 
-      #expect(snapshotSpace.selectedPinnedTabID == pinnedTabID)
-      #expect(snapshotSpace.selectedTabIndex == nil)
+      #expect(snapshotSpace.selectedTabID == pinnedTabID)
 
       let restored = TerminalHostState()
       #expect(restored.restore(from: snapshot))

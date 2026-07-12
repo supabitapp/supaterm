@@ -20,7 +20,8 @@ struct SocketControlCreationTests {
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
-      targetSpaceIndex: 2
+      targetSpaceIndex: 2,
+      targetProjectIndex: 1,
     )
     let request = SocketControlClient.Request(
       handle: handle,
@@ -33,6 +34,8 @@ struct SocketControlCreationTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 1,
@@ -50,7 +53,7 @@ struct SocketControlCreationTests {
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
-              target: .space(windowIndex: 1, spaceIndex: 2)
+              target: .project(windowIndex: 1, spaceIndex: 2, projectIndex: 1)
             )
         )
         return expectedResult
@@ -87,6 +90,8 @@ struct SocketControlCreationTests {
       windowIndex: 1,
       spaceIndex: 1,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 2,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 1,
@@ -150,7 +155,7 @@ struct SocketControlCreationTests {
           response: .error(
             id: "new-tab-3",
             code: "invalid_request",
-            message: "Provide a target space or run the command inside a Supaterm pane."
+            message: "Provide a target project or run the command inside a Supaterm pane."
           )
         )
     )
@@ -166,7 +171,8 @@ struct SocketControlCreationTests {
           startupCommand: nil,
           focus: true,
           targetWindowIndex: 1,
-          targetSpaceIndex: 2
+          targetSpaceIndex: 2,
+          targetProjectIndex: 1,
         ),
         id: "new-tab-4"
       )
@@ -209,6 +215,7 @@ struct SocketControlCreationTests {
       equalize: false,
       targetWindowIndex: 1,
       targetSpaceIndex: 2,
+      targetProjectIndex: 1,
       targetTabIndex: 1,
       targetPaneIndex: 2
     )
@@ -223,6 +230,8 @@ struct SocketControlCreationTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 1,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 3,
@@ -242,7 +251,7 @@ struct SocketControlCreationTests {
               direction: .down,
               focus: false,
               equalize: false,
-              target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2)
+              target: .pane(windowIndex: 1, spaceIndex: 2, projectIndex: 1, tabIndex: 1, paneIndex: 2)
             )
         )
         return expectedResult
@@ -290,7 +299,7 @@ struct SocketControlCreationTests {
           response: .error(
             id: "new-pane-2",
             code: "invalid_request",
-            message: "Provide a target space and tab or run the command inside a Supaterm pane."
+            message: "Provide a target space, project, and tab or run the command inside a Supaterm pane."
           )
         )
     )
@@ -309,6 +318,7 @@ struct SocketControlCreationTests {
           equalize: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3
         ),
         id: "new-pane-3"
@@ -415,7 +425,7 @@ struct SocketControlCreationTests {
           response: .error(
             id: "new-pane-5",
             code: "invalid_request",
-            message: "tab target requires a space target."
+            message: "tab target requires a project target."
           )
         )
     )
@@ -433,7 +443,8 @@ struct SocketControlCreationTests {
           focus: true,
           equalize: true,
           targetWindowIndex: 1,
-          targetSpaceIndex: 2
+          targetSpaceIndex: 2,
+          targetProjectIndex: 1,
         ),
         id: "new-pane-6"
       )
@@ -456,7 +467,7 @@ struct SocketControlCreationTests {
           response: .error(
             id: "new-pane-6",
             code: "invalid_request",
-            message: "space target requires a tab target."
+            message: "project target requires a tab target."
           )
         )
     )
@@ -475,6 +486,7 @@ struct SocketControlCreationTests {
           equalize: true,
           targetWindowIndex: 1,
           targetSpaceIndex: 4,
+          targetProjectIndex: 1,
           targetTabIndex: 1
         ),
         id: "new-pane-7"

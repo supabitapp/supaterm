@@ -122,6 +122,7 @@ extension SupatermE2ESuite {
         try await app.waitForShellPrompt(space.pane)
         let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let cliSpace = try await exerciseSpaceCommands(app: app, space: space, runner: runner)
+        try exerciseProjectCommands(app: app, space: space, cliSpace: cliSpace)
         let cliTab = try await exerciseTabCommands(app: app, space: space, cliSpace: cliSpace)
         try await exercisePaneCommands(app: app, space: space, cliSpace: cliSpace, cliTab: cliTab)
       }
@@ -427,7 +428,7 @@ private func exerciseTabCommands(
         [
           "tab", "new", "--socket", app.socketPath, "--json", "--focus",
           "--cwd", space.directory.path, "--script", hermeticShellStartupCommand,
-          "--in", cliSpace.result.target.spaceID.uuidString,
+          "--in", cliSpace.result.projectID.uuidString,
         ],
         cwd: space.directory
       )
@@ -471,6 +472,48 @@ private func exerciseTabCommands(
 
   try exerciseTabNavigation(app: app, space: space, cliSpace: cliSpace, runner: runner)
   return CLITabE2E(result: created, runner: runner)
+}
+
+private func exerciseProjectCommands(
+  app: SupatermE2EApp,
+  space: TestSpace,
+  cliSpace: CLISpaceE2E
+) throws {
+  let created = try decodeSPJSON(
+    SupatermProjectTarget.self,
+    from: try requireSuccessfulSPResult(
+      try cliSpace.runner.run(
+        [
+          "project", "new", "--socket", app.socketPath, "--json", "--in",
+          cliSpace.result.target.spaceID.uuidString, "cli-project-\(space.token)",
+        ],
+        cwd: space.directory
+      )
+    )
+  )
+  for command in ["pin", "unpin"] {
+    _ = try requireSuccessfulSPResult(
+      try cliSpace.runner.run(
+        ["project", command, "--socket", app.socketPath, created.projectID.uuidString],
+        cwd: space.directory
+      )
+    )
+  }
+  _ = try requireSuccessfulSPResult(
+    try cliSpace.runner.run(
+      [
+        "project", "rename", "--socket", app.socketPath, "renamed-project-\(space.token)",
+        created.projectID.uuidString,
+      ],
+      cwd: space.directory
+    )
+  )
+  _ = try requireSuccessfulSPResult(
+    try cliSpace.runner.run(
+      ["project", "destroy", "-y", "--socket", app.socketPath, created.projectID.uuidString],
+      cwd: space.directory
+    )
+  )
 }
 
 private func exerciseTabNavigation(

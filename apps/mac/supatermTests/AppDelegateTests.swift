@@ -257,6 +257,8 @@ struct AppDelegateTests {
     let pinnedSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let liveSurfaceID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
     let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!)
+    let projectID = TerminalProjectID()
+    let tabID = TerminalTabID()
     let sessionCatalog = TerminalSessionCatalog(
       windows: [
         TerminalWindowSession(
@@ -264,13 +266,22 @@ struct AppDelegateTests {
           spaces: [
             TerminalWindowSpaceSession(
               id: spaceID,
-              selectedTabIndex: 0,
-              tabs: [
-                TerminalTabSession(
-                  isPinned: false,
-                  lockedTitle: nil,
-                  focusedPaneIndex: 0,
-                  root: .leaf(TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil))
+              selectedTabID: tabID,
+              projects: [
+                TerminalWindowProjectSession(
+                  id: projectID,
+                  tabs: [
+                    PersistedTerminalTab(
+                      id: tabID,
+                      session: TerminalTabSession(
+                        lockedTitle: nil,
+                        focusedPaneIndex: 0,
+                        root: .leaf(
+                          TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil)
+                        )
+                      )
+                    )
+                  ]
                 )
               ]
             )
@@ -282,15 +293,19 @@ struct AppDelegateTests {
       spaces: [
         PersistedPinnedTerminalTabsForSpace(
           id: spaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(
-              id: TerminalTabID(),
-              session: TerminalTabSession(
-                isPinned: true,
-                lockedTitle: nil,
-                focusedPaneIndex: 0,
-                root: .leaf(TerminalPaneLeafSession(id: pinnedSurfaceID, workingDirectoryPath: nil))
-              )
+          projects: [
+            PersistedPinnedTerminalTabsForProject(
+              id: projectID,
+              tabs: [
+                PersistedTerminalTab(
+                  id: TerminalTabID(),
+                  session: TerminalTabSession(
+                    lockedTitle: nil,
+                    focusedPaneIndex: 0,
+                    root: .leaf(TerminalPaneLeafSession(id: pinnedSurfaceID, workingDirectoryPath: nil))
+                  )
+                )
+              ]
             )
           ]
         )

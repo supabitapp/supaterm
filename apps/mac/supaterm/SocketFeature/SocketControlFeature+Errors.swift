@@ -107,6 +107,9 @@ extension SocketControlFeature {
         message: "The current pane could not be resolved."
       )
 
+    case .invalidProjectName, .onlyRemainingProject, .projectNameUnavailable:
+      return projectControlErrorResponse(error, requestID: requestID)
+
     case .invalidSpaceName:
       return .error(
         id: requestID,
@@ -150,6 +153,13 @@ extension SocketControlFeature {
           "Pane \(paneIndex) was not found in tab \(tabIndex) of space \(spaceIndex) of window \(windowIndex)."
       )
 
+    case .projectNotFound(let windowIndex, let spaceIndex, let projectIndex):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Project \(projectIndex) was not found in space \(spaceIndex) of window \(windowIndex)."
+      )
+
     case .resizeFailed:
       return .error(
         id: requestID,
@@ -185,5 +195,23 @@ extension SocketControlFeature {
         message: "Window \(windowIndex) was not found."
       )
     }
+  }
+
+  private func projectControlErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse {
+    let message =
+      switch error {
+      case .invalidProjectName:
+        "Project name must not be empty."
+      case .onlyRemainingProject:
+        "Cannot close the only remaining project."
+      case .projectNameUnavailable:
+        "Project name is already in use."
+      default:
+        preconditionFailure()
+      }
+    return .error(id: requestID, code: "invalid_request", message: message)
   }
 }

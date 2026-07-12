@@ -36,6 +36,7 @@ extension TerminalHostState {
     }
     return createTab(
       in: target.spaceID,
+      projectID: target.projectID,
       focusing: focusing,
       startupCommand: startupCommand,
       workingDirectory: workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) },
@@ -47,6 +48,7 @@ extension TerminalHostState {
   @discardableResult
   func createTab(
     in spaceID: TerminalSpaceID,
+    projectID: TerminalProjectID? = nil,
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectory: URL? = nil,
@@ -54,14 +56,19 @@ extension TerminalHostState {
     sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
-    guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
+    guard let projectManager = spaceManager.projectManager(for: spaceID) else { return nil }
+    guard let projectID = projectID ?? resolvedProjectIDForNewTab(in: spaceID) else { return nil }
     let context: ghostty_surface_context_e =
-      tabManager.tabs.isEmpty
+      projectManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
-    let tabID = tabManager.createTab(
-      title: "Terminal \(nextTabIndex(in: spaceID))"
-    )
+    guard
+      let tabID = projectManager.createTab(
+        title: "Terminal \(nextTabIndex(in: spaceID))",
+        in: projectID,
+        selecting: focusing
+      )
+    else { return nil }
     let tree = splitTree(
       for: tabID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
@@ -242,25 +249,31 @@ extension TerminalHostState {
     case .contextPane(let paneID):
       guard
         let tabID = tabID(containing: paneID),
-        let space = spaceManager.space(for: tabID)
+        let space = spaceManager.space(for: tabID),
+        let project = spaceManager.project(for: tabID)
       else {
         throw TerminalCreateTabError.contextPaneNotFound
       }
 
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: paneID,
+        project: project,
         space: space
       )
 
-    case .space(let windowIndex, let spaceIndex):
+    case .project(let windowIndex, let spaceIndex, let projectIndex):
       guard windowIndex == 1 else {
         throw TerminalCreateTabError.windowNotFound(windowIndex)
       }
       guard let space = spaceManager.space(at: spaceIndex) else {
         throw TerminalCreateTabError.spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
       }
+      guard let project = spaceManager.project(at: projectIndex, in: space.id) else {
+        throw TerminalCreateTabError.creationFailed
+      }
       return ResolvedCreateTabTarget(
         inheritedSurfaceID: inheritedSurfaceID(in: space.id),
+        project: project,
         space: space
       )
     }
@@ -271,22 +284,37 @@ extension TerminalHostState {
   ) -> ResolvedLocalCreateTabTarget? {
     if let inheritingFromSurfaceID,
       let anchorTabID = tabID(containing: inheritingFromSurfaceID),
-      let space = spaceManager.space(for: anchorTabID)
+      let space = spaceManager.space(for: anchorTabID),
+      let projectID = spaceManager.projectID(for: anchorTabID)
     {
       return ResolvedLocalCreateTabTarget(
         inheritedSurfaceID: inheritingFromSurfaceID,
+        projectID: projectID,
         spaceID: space.id
       )
     }
 
-    guard let spaceID = spaceManager.selectedSpaceID else {
+    guard
+      let spaceID = spaceManager.selectedSpaceID,
+      let projectID = resolvedProjectIDForNewTab(in: spaceID)
+    else {
       return nil
     }
 
     return ResolvedLocalCreateTabTarget(
       inheritedSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
+      projectID: projectID,
       spaceID: spaceID
     )
+  }
+
+  func resolvedProjectIDForNewTab(in spaceID: TerminalSpaceID) -> TerminalProjectID? {
+    if let selectedTabID = spaceManager.selectedTabID(in: spaceID),
+      let projectID = spaceManager.projectID(for: selectedTabID)
+    {
+      return projectID
+    }
+    return spaceManager.projects(in: spaceID).first?.id
   }
 
   func resolveCreatePaneTarget(
@@ -310,9 +338,13 @@ extension TerminalHostState {
         tree: tree
       )
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let resolvedTab = try resolveTab(
-        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        projectIndex: projectIndex,
+        tabIndex: tabIndex
+      )
       let panes = resolvedTab.tree.leaves()
       let paneOffset = paneIndex - 1
       guard panes.indices.contains(paneOffset) else {
@@ -331,9 +363,13 @@ extension TerminalHostState {
         tree: resolvedTab.tree
       )
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let resolvedTab = try resolveTab(
-        windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        projectIndex: projectIndex,
+        tabIndex: tabIndex
+      )
       let anchorSurface =
         focusHistoryByTab[resolvedTab.tabID].flatMap { surfaces[$0.current] }
         ?? resolvedTab.tree.root?.leftmostLeaf()

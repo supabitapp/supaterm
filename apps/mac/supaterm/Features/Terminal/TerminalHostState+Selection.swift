@@ -24,7 +24,7 @@ extension TerminalHostState {
     if currentSelectedTabID != tabID, let currentSelectedTabID {
       previousSelectedTabIDBySpace[spaceID] = currentSelectedTabID
     }
-    spaceManager.tabManager(for: spaceID)?.selectTab(tabID)
+    spaceManager.projectManager(for: spaceID)?.selectTab(tabID)
   }
 
   func selectTab(_ tabID: TerminalTabID) {
@@ -136,7 +136,7 @@ extension TerminalHostState {
       return
     }
 
-    spaceManager.tabManager(for: spaceID)?.clearSelection()
+    spaceManager.projectManager(for: spaceID)?.clearSelection()
 
     if let previousSelectedSpaceID,
       previousSelectedSpaceID != spaceID,

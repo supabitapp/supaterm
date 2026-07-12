@@ -75,7 +75,7 @@ extension TerminalCommandExecutor {
     case .contextPane:
       return try notifyContextPane(request)
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalNotifyRequest(
         body: request.body,
@@ -83,6 +83,7 @@ extension TerminalCommandExecutor {
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         ),
@@ -97,12 +98,12 @@ extension TerminalCommandExecutor {
         throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
       }
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalNotifyRequest(
         body: request.body,
         subtitle: request.subtitle,
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex),
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex),
         title: request.title
       )
       do {

@@ -19,12 +19,12 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.selectTab(
-            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
           ),
           windowIndex: windowIndex
         )
@@ -55,11 +55,12 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localTarget = TerminalTabTarget.tab(
         windowIndex: 1,
         spaceIndex: spaceIndex,
+        projectIndex: projectIndex,
         tabIndex: tabIndex
       )
       do {
@@ -94,12 +95,12 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.pinTab(
-            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
           ),
           windowIndex: windowIndex
         )
@@ -125,12 +126,12 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.unpinTab(
-            .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+            .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
           ),
           windowIndex: windowIndex
         )
@@ -156,10 +157,10 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalRenameTabRequest(
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex),
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex),
         title: request.title
       )
       do {
@@ -189,10 +190,10 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalEqualizePanesRequest(
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
       )
       do {
         return TerminalWindowRegistry.rewrite(
@@ -223,10 +224,10 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalMainVerticalPanesRequest(
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
       )
       do {
         return TerminalWindowRegistry.rewrite(
@@ -255,10 +256,10 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalTilePanesRequest(
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex)
       )
       do {
         return TerminalWindowRegistry.rewrite(

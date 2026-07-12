@@ -632,6 +632,8 @@ final class TerminalWindowRegistry {
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
       tabIndex: result.tabIndex,
       tabID: result.tabID,
       paneIndex: result.paneIndex,
@@ -659,6 +661,8 @@ final class TerminalWindowRegistry {
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
       tabIndex: result.tabIndex,
       tabID: result.tabID,
       title: result.title
@@ -673,6 +677,8 @@ final class TerminalWindowRegistry {
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
       tabIndex: result.tabIndex,
       tabID: result.tabID,
       paneIndex: result.paneIndex,
@@ -716,6 +722,8 @@ final class TerminalWindowRegistry {
       isSelectedTab: result.isSelectedTab,
       paneIndex: result.paneIndex,
       paneID: result.paneID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
       tabIndex: result.tabIndex,
       tabID: result.tabID,
       target: rewrite(result.target, windowIndex: windowIndex)
@@ -778,6 +786,8 @@ final class TerminalWindowRegistry {
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
       tabIndex: result.tabIndex,
       tabID: result.tabID,
       paneIndex: result.paneIndex,
@@ -810,6 +820,8 @@ final class TerminalWindowRegistry {
       return .captureFailed
     case .contextPaneNotFound:
       return .contextPaneNotFound
+    case .invalidProjectName, .onlyRemainingProject, .projectNameUnavailable:
+      return rewriteProjectCatalogError(error)
     case .invalidSpaceName:
       return .invalidSpaceName
     case .lastPaneNotFound:
@@ -827,6 +839,12 @@ final class TerminalWindowRegistry {
         tabIndex: tabIndex,
         paneIndex: paneIndex
       )
+    case .projectNotFound(_, let spaceIndex, let projectIndex):
+      return .projectNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        projectIndex: projectIndex
+      )
     case .resizeFailed:
       return .resizeFailed
     case .spaceNameUnavailable:
@@ -841,6 +859,21 @@ final class TerminalWindowRegistry {
       )
     case .windowNotFound:
       return .windowNotFound(windowIndex)
+    }
+  }
+
+  private static func rewriteProjectCatalogError(
+    _ error: TerminalControlError
+  ) -> TerminalControlError {
+    switch error {
+    case .invalidProjectName:
+      return .invalidProjectName
+    case .onlyRemainingProject:
+      return .onlyRemainingProject
+    case .projectNameUnavailable:
+      return .projectNameUnavailable
+    default:
+      preconditionFailure()
     }
   }
 

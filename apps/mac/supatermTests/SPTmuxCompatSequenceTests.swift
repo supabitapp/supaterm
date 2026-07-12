@@ -99,6 +99,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
     let spaceIndex = 1
     let spaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
     let spaceName = "main"
+    let projectID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
     let tabIndex = 1
     let tabID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let tabTitle = "supaterm"
@@ -137,6 +138,8 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         windowIndex: windowIndex,
         spaceIndex: spaceIndex,
         spaceID: spaceID,
+        projectIndex: 1,
+        projectID: projectID,
         tabIndex: tabIndex,
         tabID: tabID,
         paneIndex: pane.index,
@@ -152,6 +155,8 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         windowIndex: windowIndex,
         spaceIndex: spaceIndex,
         spaceID: spaceID,
+        projectIndex: 1,
+        projectID: projectID,
         tabIndex: tabIndex,
         tabID: tabID,
         paneIndex: pane.index,
@@ -164,6 +169,8 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         windowIndex: windowIndex,
         spaceIndex: spaceIndex,
         spaceID: spaceID,
+        projectIndex: 1,
+        projectID: projectID,
         tabIndex: tabIndex,
         tabID: tabID,
         title: tabTitle
@@ -210,7 +217,15 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         id: spaceID,
         name: spaceName,
         isSelected: true,
-        tabs: [debugTab]
+        projects: [
+          SupatermAppDebugSnapshot.Project(
+            index: 1,
+            id: projectID,
+            name: "Project",
+            isPinned: false,
+            tabs: [debugTab]
+          )
+        ]
       )
       let debugWindow = SupatermAppDebugSnapshot.Window(
         index: windowIndex,
@@ -242,6 +257,9 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
           spaceIndex: spaceIndex,
           spaceID: spaceID,
           spaceName: spaceName,
+          projectIndex: 1,
+          projectID: projectID,
+          projectName: "Project",
           tabIndex: tabIndex,
           tabID: tabID,
           tabTitle: tabTitle,

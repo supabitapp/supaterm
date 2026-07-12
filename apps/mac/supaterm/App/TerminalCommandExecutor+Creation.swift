@@ -8,13 +8,13 @@ extension TerminalCommandExecutor {
     case .contextPane:
       return try createContextTab(request)
 
-    case .space(let windowIndex, let spaceIndex):
+    case .project(let windowIndex, let spaceIndex, let projectIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreateTabRequest(
         startupCommand: request.startupCommand,
         cwd: request.cwd,
         focus: request.focus,
-        target: .space(windowIndex: 1, spaceIndex: spaceIndex)
+        target: .project(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex)
       )
       do {
         return TerminalWindowRegistry.rewrite(
@@ -32,7 +32,7 @@ extension TerminalCommandExecutor {
     case .contextPane:
       return try createContextPane(request)
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         startupCommand: request.startupCommand,
@@ -43,6 +43,7 @@ extension TerminalCommandExecutor {
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -56,7 +57,7 @@ extension TerminalCommandExecutor {
         throw TerminalWindowRegistry.rewrite(error, windowIndex: windowIndex)
       }
 
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreatePaneRequest(
         startupCommand: request.startupCommand,
@@ -64,7 +65,12 @@ extension TerminalCommandExecutor {
         direction: request.direction,
         focus: request.focus,
         equalize: request.equalize,
-        target: .tab(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        target: .tab(
+          windowIndex: 1,
+          spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
+          tabIndex: tabIndex
+        )
       )
       do {
         return TerminalWindowRegistry.rewrite(

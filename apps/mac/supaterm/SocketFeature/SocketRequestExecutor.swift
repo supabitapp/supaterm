@@ -93,6 +93,11 @@ public struct SocketRequestExecutor: Sendable {
   }
 
   public enum TerminalSpaceRequest: Sendable {
+    case createProject(TerminalCreateProjectRequest)
+    case closeProject(TerminalProjectTarget)
+    case renameProject(TerminalRenameProjectRequest)
+    case pinProject(TerminalProjectTarget)
+    case unpinProject(TerminalProjectTarget)
     case createSpace(TerminalCreateSpaceRequest)
     case selectSpace(TerminalSpaceTarget)
     case closeSpace(TerminalSpaceTarget)
@@ -103,6 +108,11 @@ public struct SocketRequestExecutor: Sendable {
   }
 
   public enum TerminalSpaceResult: Sendable {
+    case createProject(SupatermProjectTarget)
+    case closeProject(SupatermProjectTarget)
+    case renameProject(SupatermProjectTarget)
+    case pinProject(SupatermProjectTarget)
+    case unpinProject(SupatermProjectTarget)
     case createSpace(SupatermCreateSpaceResult)
     case selectSpace(SupatermSelectSpaceResult)
     case closeSpace(SupatermCloseSpaceResult)
@@ -256,6 +266,8 @@ extension SocketRequestExecutor: DependencyKey {
     },
     executeTerminalSpace: { request in
       switch request {
+      case .createProject, .closeProject, .renameProject, .pinProject, .unpinProject:
+        throw TerminalControlError.contextPaneNotFound
       case .createSpace:
         throw TerminalControlError.contextPaneNotFound
       case .selectSpace:

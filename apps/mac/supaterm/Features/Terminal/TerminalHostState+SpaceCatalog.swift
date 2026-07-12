@@ -29,6 +29,7 @@ extension TerminalHostState {
     guard applySelectedSpace(space.id) else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: spaces.count + 1)
     }
+    _ = createTab(in: space.id, projectID: space.projects[0].id, focusing: true)
     finalizeSpaceSelectionChange()
     sessionDidChange()
     return space.id
@@ -61,6 +62,129 @@ extension TerminalHostState {
     _ = writeSpaceCatalog(updatedSpaceCatalog)
     finalizeSpaceSelectionChange()
     sessionDidChange()
+  }
+
+  @discardableResult
+  func createProject(
+    named name: String,
+    in spaceID: TerminalSpaceID? = nil,
+    focusing: Bool = true
+  ) throws -> TerminalProjectID {
+    guard let normalizedName = Self.trimmedNonEmpty(name) else {
+      throw TerminalControlError.invalidProjectName
+    }
+    guard let spaceID = spaceID ?? selectedSpaceID else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
+    }
+    guard spaceManager.isProjectNameAvailable(normalizedName, in: spaceID) else {
+      throw TerminalControlError.projectNameUnavailable
+    }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
+    }
+
+    let project = TerminalProjectItem(name: normalizedName)
+    var updatedSpaceCatalog = spaceCatalog
+    updatedSpaceCatalog.spaces[spaceIndex].projects.append(project)
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+    _ = createTab(in: spaceID, projectID: project.id, focusing: focusing)
+    return project.id
+  }
+
+  func renameProject(_ projectID: TerminalProjectID, to name: String) {
+    guard let normalizedName = Self.trimmedNonEmpty(name) else { return }
+    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
+    guard spaceManager.isProjectNameAvailable(normalizedName, in: spaceID, excluding: projectID) else {
+      return
+    }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+    guard let projectIndex = spaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { $0.id == projectID }) else {
+      return
+    }
+
+    var updatedSpaceCatalog = spaceCatalog
+    updatedSpaceCatalog.spaces[spaceIndex].projects[projectIndex].name = normalizedName
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+  }
+
+  func deleteProject(_ projectID: TerminalProjectID) {
+    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+    guard spaceCatalog.spaces[spaceIndex].projects.count > 1 else { return }
+
+    var updatedSpaceCatalog = spaceCatalog
+    updatedSpaceCatalog.spaces[spaceIndex].projects.removeAll { $0.id == projectID }
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+    finalizeSpaceSelectionChange()
+    sessionDidChange()
+  }
+
+  func setProjectPinned(_ projectID: TerminalProjectID, isPinned: Bool) {
+    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+    guard let projectIndex = spaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { $0.id == projectID }) else {
+      return
+    }
+
+    var updatedSpaceCatalog = spaceCatalog
+    var project = updatedSpaceCatalog.spaces[spaceIndex].projects.remove(at: projectIndex)
+    project.isPinned = isPinned
+    let insertionIndex =
+      isPinned
+      ? updatedSpaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { !$0.isPinned })
+        ?? updatedSpaceCatalog.spaces[spaceIndex].projects.endIndex
+      : updatedSpaceCatalog.spaces[spaceIndex].projects.endIndex
+    updatedSpaceCatalog.spaces[spaceIndex].projects.insert(project, at: insertionIndex)
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+  }
+
+  func moveProject(_ projectID: TerminalProjectID, isPinned: Bool, at destinationIndex: Int) {
+    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
+    guard let projectIndex = spaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { $0.id == projectID }) else {
+      return
+    }
+
+    var updatedSpaceCatalog = spaceCatalog
+    var project = updatedSpaceCatalog.spaces[spaceIndex].projects.remove(at: projectIndex)
+    project.isPinned = isPinned
+    let laneStart = isPinned ? 0 : updatedSpaceCatalog.spaces[spaceIndex].projects.filter(\.isPinned).count
+    let laneCount = updatedSpaceCatalog.spaces[spaceIndex].projects.filter { $0.isPinned == isPinned }.count
+    updatedSpaceCatalog.spaces[spaceIndex].projects.insert(
+      project,
+      at: laneStart + max(0, min(destinationIndex, laneCount))
+    )
+    _ = writeSpaceCatalog(updatedSpaceCatalog)
+  }
+
+  func moveTab(
+    _ tabID: TerminalTabID,
+    to projectID: TerminalProjectID,
+    isPinned: Bool,
+    at destinationIndex: Int
+  ) {
+    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
+    guard spaceManager.space(for: projectID)?.id == spaceID else { return }
+    spaceManager.projectManager(for: spaceID)?.moveTab(
+      tabID,
+      to: projectID,
+      isPinned: isPinned,
+      at: destinationIndex
+    )
+    syncPinnedTabMembership(in: spaceID)
+    sessionDidChange()
+  }
+
+  func isProjectNameAvailable(
+    _ proposedName: String,
+    in spaceID: TerminalSpaceID,
+    excluding excludedProjectID: TerminalProjectID? = nil
+  ) -> Bool {
+    spaceManager.isProjectNameAvailable(
+      proposedName,
+      in: spaceID,
+      excluding: excludedProjectID
+    )
   }
 
   func isSpaceNameAvailable(

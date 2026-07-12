@@ -56,14 +56,15 @@ Discovery rules:
 ## Terminal Topology
 
 - Socket operations target the live terminal model exposed by the app.
-- Explicit hierarchical targeting resolves in window, then space, then tab, then pane order.
+- Explicit hierarchical targeting resolves in window, then space, then project, then tab, then pane order.
 - Pane-context targeting is available when the CLI is launched from inside Supaterm.
 - Public selectors are 1-based:
   - Space: `1`
-  - Tab: `1/2`
-  - Pane: `1/2/3`
-- UUIDs are accepted anywhere the matching command accepts a space, tab, or pane.
-- Creation commands return typed IDs: `spaceID`, `tabID`, and `paneID`.
+  - Project: `1/2`
+  - Tab: `1/2/3`
+  - Pane: `1/2/3/4`
+- UUIDs are accepted anywhere the matching command accepts a space, project, tab, or pane.
+- Creation commands return typed IDs: `spaceID`, `projectID`, `tabID`, and `paneID`.
 
 ## Public CLI Surface
 
@@ -82,20 +83,21 @@ Connection flags:
 ```bash
 sp ls --instance work-mac
 sp diagnostic --socket /path/to/socket
-sp pane capture --instance 2F4D3B19-91EC-4F78-9BCE-6F3F4E301E59 1/2/3
+sp pane capture --instance 2F4D3B19-91EC-4F78-9BCE-6F3F4E301E59 1/2/3/4
 ```
 
 Terminal control:
 
 ```bash
 sp space new --focus Work
-sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
-sp pane split --in 1/2 right
+sp project new --in 1 --focus Build
+sp tab new --in 1/1 --cwd ~/tmp -- ping 1.1.1.1
+sp pane split --in 1/1/2 right
 sp pane send --newline 'echo hello'
 sp pane capture --scope scrollback --lines 200
-sp pane layout main-vertical 1/2
-sp pane health 1/2/3
-sp pane wait-ready 1/2/3
+sp pane layout main-vertical 1/1/2
+sp pane health 1/1/2/3
+sp pane wait-ready 1/1/2/3
 ```
 
 Compatibility and config:
@@ -125,7 +127,7 @@ The full method list lives in `SupatermSocketMethod` (`apps/mac/SupatermCLIShare
 - `app.*` — onboarding, debug, tree, settings
 - `system.*` — identity, ping
 - `terminal.agent_hook` — coding agent hook events
-- `terminal.*` — space, tab, and pane control, one method per CLI verb
+- `terminal.*` — space, project, tab, and pane control, one method per CLI verb
 
 ## Code Index
 

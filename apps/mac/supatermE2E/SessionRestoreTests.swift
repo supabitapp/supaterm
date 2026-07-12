@@ -282,7 +282,8 @@ private func makeTab(
         cwd: cwd.path,
         focus: true,
         targetWindowIndex: space.target.windowIndex,
-        targetSpaceIndex: space.target.spaceIndex
+        targetSpaceIndex: space.target.spaceIndex,
+        targetProjectIndex: space.projectIndex
       )
     ),
     as: SupatermNewTabResult.self

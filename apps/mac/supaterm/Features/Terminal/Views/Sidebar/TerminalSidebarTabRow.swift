@@ -124,12 +124,19 @@ struct TerminalSidebarTabRow: View {
   }
 
   private var hasTabsBelow: Bool {
-    guard let index = terminal.tabs.firstIndex(where: { $0.id == tab.id }) else { return false }
-    return terminal.tabs.index(after: index) < terminal.tabs.endIndex
+    guard
+      let tabs = terminal.projectGroups.first(where: { group in
+        group.tabs.contains { $0.id == tab.id }
+      })?.tabs,
+      let index = tabs.firstIndex(where: { $0.id == tab.id })
+    else { return false }
+    return tabs.index(after: index) < tabs.endIndex
   }
 
   private var hasOtherTabs: Bool {
-    terminal.tabs.contains { $0.id != tab.id }
+    terminal.projectGroups.first(where: { group in
+      group.tabs.contains { $0.id == tab.id }
+    })?.tabs.contains { $0.id != tab.id } == true
   }
 
   var body: some View {

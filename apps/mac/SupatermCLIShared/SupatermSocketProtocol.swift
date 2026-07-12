@@ -17,6 +17,8 @@ public enum SupatermSocketMethod {
   public static let terminalCloseSpace = "terminal.close_space"
   public static let terminalCloseTab = "terminal.close_tab"
   public static let terminalCreateSpace = "terminal.create_space"
+  public static let terminalCreateProject = "terminal.create_project"
+  public static let terminalCloseProject = "terminal.close_project"
   public static let terminalEqualizePanes = "terminal.equalize_panes"
   public static let terminalFocusPane = "terminal.focus_pane"
   public static let terminalLastPane = "terminal.last_pane"
@@ -30,9 +32,11 @@ public enum SupatermSocketMethod {
   public static let terminalNextTab = "terminal.next_tab"
   public static let terminalNotify = "terminal.notify"
   public static let terminalPinTab = "terminal.pin_tab"
+  public static let terminalPinProject = "terminal.pin_project"
   public static let terminalPreviousSpace = "terminal.previous_space"
   public static let terminalPreviousTab = "terminal.previous_tab"
   public static let terminalRenameSpace = "terminal.rename_space"
+  public static let terminalRenameProject = "terminal.rename_project"
   public static let terminalRenameTab = "terminal.rename_tab"
   public static let terminalResizePane = "terminal.resize_pane"
   public static let terminalSelectSpace = "terminal.select_space"
@@ -42,6 +46,7 @@ public enum SupatermSocketMethod {
   public static let terminalSendText = "terminal.send_text"
   public static let terminalTilePanes = "terminal.tile_panes"
   public static let terminalUnpinTab = "terminal.unpin_tab"
+  public static let terminalUnpinProject = "terminal.unpin_project"
 }
 
 public enum SupatermSocketProtocolError: Error, Equatable, Sendable {
@@ -183,6 +188,41 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalNewTab, payload, id: id)
+  }
+
+  public static func createProject(
+    _ payload: SupatermCreateProjectRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalCreateProject, payload, id: id)
+  }
+
+  public static func closeProject(
+    _ payload: SupatermProjectTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalCloseProject, payload, id: id)
+  }
+
+  public static func renameProject(
+    _ payload: SupatermRenameProjectRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalRenameProject, payload, id: id)
+  }
+
+  public static func pinProject(
+    _ payload: SupatermProjectTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalPinProject, payload, id: id)
+  }
+
+  public static func unpinProject(
+    _ payload: SupatermProjectTargetRequest,
+    id: String = UUID().uuidString
+  ) throws -> Self {
+    try make(SupatermSocketMethod.terminalUnpinProject, payload, id: id)
   }
 
   public static func notify(

@@ -167,6 +167,7 @@ struct SPTmuxCommandRunner {
         target: .init(
           targetWindowIndex: created.target.windowIndex,
           targetSpaceIndex: created.target.spaceIndex,
+          targetProjectIndex: created.projectIndex,
           targetTabIndex: created.tabIndex,
           targetPaneIndex: created.paneIndex
         ),
@@ -179,6 +180,7 @@ struct SPTmuxCommandRunner {
             target: .init(
               targetWindowIndex: created.target.windowIndex,
               targetSpaceIndex: created.target.spaceIndex,
+              targetProjectIndex: created.projectIndex,
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
@@ -205,6 +207,7 @@ struct SPTmuxCommandRunner {
       let createdPane = try topology().locatePane(
         windowIndex: created.target.windowIndex,
         spaceIndex: created.target.spaceIndex,
+        projectIndex: created.projectIndex,
         tabIndex: created.tabIndex,
         paneIndex: created.paneIndex
       )
@@ -221,6 +224,7 @@ struct SPTmuxCommandRunner {
       boolFlags: ["-d", "-P"]
     )
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
+    let targetProject = try topology().preferredProject(in: targetSpace)
     let command = tmuxShellCommandText(commandTokens: parsed.positional, cwd: parsed.value("-c"))
     let created = try send(
       .newTab(
@@ -229,7 +233,8 @@ struct SPTmuxCommandRunner {
           cwd: try resolvedWorkingDirectory(parsed.value("-c")),
           focus: false,
           targetWindowIndex: targetSpace.window.index,
-          targetSpaceIndex: targetSpace.space.index
+          targetSpaceIndex: targetSpace.space.index,
+          targetProjectIndex: targetProject.index
         )
       ),
       as: SupatermNewTabResult.self
@@ -242,6 +247,7 @@ struct SPTmuxCommandRunner {
             target: .init(
               targetWindowIndex: created.windowIndex,
               targetSpaceIndex: created.spaceIndex,
+              targetProjectIndex: created.projectIndex,
               targetTabIndex: created.tabIndex
             ),
             title: title
@@ -264,6 +270,7 @@ struct SPTmuxCommandRunner {
         target: .init(
           targetWindowIndex: created.windowIndex,
           targetSpaceIndex: created.spaceIndex,
+          targetProjectIndex: created.projectIndex,
           targetTabIndex: created.tabIndex,
           targetPaneIndex: created.paneIndex
         ),
@@ -276,6 +283,7 @@ struct SPTmuxCommandRunner {
             target: .init(
               targetWindowIndex: created.windowIndex,
               targetSpaceIndex: created.spaceIndex,
+              targetProjectIndex: created.projectIndex,
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
@@ -290,6 +298,7 @@ struct SPTmuxCommandRunner {
       let createdPane = try topology().locatePane(
         windowIndex: created.windowIndex,
         spaceIndex: created.spaceIndex,
+        projectIndex: created.projectIndex,
         tabIndex: created.tabIndex,
         paneIndex: created.paneIndex
       )
@@ -323,6 +332,7 @@ struct SPTmuxCommandRunner {
           equalize: false,
           targetWindowIndex: targetPane.window.index,
           targetSpaceIndex: targetPane.space.index,
+          targetProjectIndex: targetPane.project.index,
           targetTabIndex: targetPane.tab.index,
           targetPaneIndex: targetPane.pane.index
         )
@@ -336,6 +346,7 @@ struct SPTmuxCommandRunner {
       target: .init(
         targetWindowIndex: created.windowIndex,
         targetSpaceIndex: created.spaceIndex,
+        targetProjectIndex: created.projectIndex,
         targetTabIndex: created.tabIndex,
         targetPaneIndex: created.paneIndex
       )
@@ -359,6 +370,7 @@ struct SPTmuxCommandRunner {
         target: .init(
           targetWindowIndex: created.windowIndex,
           targetSpaceIndex: created.spaceIndex,
+          targetProjectIndex: created.projectIndex,
           targetTabIndex: created.tabIndex,
           targetPaneIndex: created.paneIndex
         ),
@@ -371,6 +383,7 @@ struct SPTmuxCommandRunner {
             target: .init(
               targetWindowIndex: created.windowIndex,
               targetSpaceIndex: created.spaceIndex,
+              targetProjectIndex: created.projectIndex,
               targetTabIndex: created.tabIndex,
               targetPaneIndex: created.paneIndex
             ),
@@ -385,6 +398,7 @@ struct SPTmuxCommandRunner {
       let createdPane = try topology().locatePane(
         windowIndex: created.windowIndex,
         spaceIndex: created.spaceIndex,
+        projectIndex: created.projectIndex,
         tabIndex: created.tabIndex,
         paneIndex: created.paneIndex
       )
@@ -518,15 +532,18 @@ struct SPTmuxCommandRunner {
   private func runListWindows(_ arguments: [String]) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-F", "-t"], boolFlags: [])
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
-    for tab in targetSpace.space.tabs {
-      let location = SPTmuxTopology.TabLocation(
-        window: targetSpace.window,
-        space: targetSpace.space,
-        tab: tab
-      )
-      let context = formatContext(for: location)
-      let fallback = "\(tab.index) \(tab.title)"
-      print(renderFormat(parsed.value("-F"), context: context, fallback: fallback))
+    for project in targetSpace.space.projects {
+      for tab in project.tabs {
+        let location = SPTmuxTopology.TabLocation(
+          window: targetSpace.window,
+          space: targetSpace.space,
+          project: project,
+          tab: tab
+        )
+        let context = formatContext(for: location)
+        let fallback = "\(tab.index) \(tab.title)"
+        print(renderFormat(parsed.value("-F"), context: context, fallback: fallback))
+      }
     }
   }
 
@@ -537,6 +554,7 @@ struct SPTmuxCommandRunner {
       let location = SPTmuxTopology.PaneLocation(
         window: targetTab.window,
         space: targetTab.space,
+        project: targetTab.project,
         tab: targetTab.tab,
         pane: pane
       )

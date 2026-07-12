@@ -19,8 +19,12 @@ extension TerminalHostState {
     spaceManager.tabs
   }
 
-  var pinnedTabs: [TerminalTabItem] {
-    spaceManager.pinnedTabs
+  var projects: [TerminalProjectItem] {
+    spaceManager.projects
+  }
+
+  var projectGroups: [TerminalProjectTabs] {
+    spaceManager.projectGroups
   }
 
   var regularTabs: [TerminalTabItem] {
@@ -37,6 +41,10 @@ extension TerminalHostState {
 
   var selectedTabID: TerminalTabID? {
     spaceManager.selectedTabID
+  }
+
+  var selectedProjectID: TerminalProjectID? {
+    selectedTabID.flatMap(spaceManager.projectID(for:))
   }
 
   var selectedTree: SplitTree<GhosttySurfaceView>? {

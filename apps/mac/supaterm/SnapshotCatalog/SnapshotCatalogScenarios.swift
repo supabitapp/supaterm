@@ -705,7 +705,15 @@ private enum SidebarChromeSnapshotContext {
         id: TerminalSpaceID(
           rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-00000000000\(index + 1)")
         ),
-        name: name
+        name: name,
+        projects: [
+          TerminalProjectItem(
+            id: TerminalProjectID(
+              rawValue: SnapshotFixtureValues.uuid("31000000-0000-0000-0000-00000000000\(index + 1)")
+            ),
+            name: "Workspace"
+          )
+        ]
       )
     }
     terminal.spaceManager.bootstrap(
@@ -720,7 +728,7 @@ private enum SidebarChromeSnapshotContext {
       tab("45", title: "agent playground"),
     ]
     terminal.spaceManager.restoreTabs(
-      tabs,
+      [TerminalProjectTabs(projectID: spaces[0].projects[0].id, tabs: tabs)],
       selectedTabID: tabs[2].id,
       in: spaces[0].id
     )

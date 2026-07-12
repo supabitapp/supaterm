@@ -11,11 +11,14 @@ private enum SocketControlCancelID {
 enum SocketRequestError: Error, Equatable, LocalizedError {
   case invalidIndex(String)
   case missingTarget
+  case missingProjectTarget
   case missingSpaceTarget
   case onboardingUnavailable
   case paneRequiresTab
-  case spaceRequiresTab
-  case tabRequiresSpace
+  case projectRequiresSpace
+  case projectRequiresTab
+  case spaceRequiresProject
+  case tabRequiresProject
   case windowRequiresSpace
 
   var errorDescription: String? {
@@ -23,17 +26,23 @@ enum SocketRequestError: Error, Equatable, LocalizedError {
     case .invalidIndex(let field):
       return "\(field) must be 1 or greater."
     case .missingTarget:
-      return "Provide a target space and tab or run the command inside a Supaterm pane."
+      return "Provide a target space, project, and tab or run the command inside a Supaterm pane."
+    case .missingProjectTarget:
+      return "Provide a target project or run the command inside a Supaterm pane."
     case .missingSpaceTarget:
       return "Provide a target space or run the command inside a Supaterm pane."
     case .onboardingUnavailable:
       return "No Supaterm window is available."
     case .paneRequiresTab:
       return "pane target requires a tab target."
-    case .spaceRequiresTab:
-      return "space target requires a tab target."
-    case .tabRequiresSpace:
-      return "tab target requires a space target."
+    case .projectRequiresSpace:
+      return "project target requires a space target."
+    case .projectRequiresTab:
+      return "project target requires a tab target."
+    case .spaceRequiresProject:
+      return "space target requires a project target."
+    case .tabRequiresProject:
+      return "tab target requires a project target."
     case .windowRequiresSpace:
       return "window target requires a space target."
     }

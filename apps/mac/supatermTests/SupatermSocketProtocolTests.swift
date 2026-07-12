@@ -617,7 +617,15 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermTreeSnapshot.Project(
+          index: 1,
+          id: UUID(),
+          name: "Project",
+          isPinned: false,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -689,12 +697,19 @@ struct SupatermSocketProtocolTests {
       hasSecureInput: false,
       panes: [pane]
     )
+    let project = SupatermAppDebugSnapshot.Project(
+      index: 1,
+      id: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
+      name: "Project",
+      isPinned: false,
+      tabs: [tab]
+    )
     let space = SupatermAppDebugSnapshot.Space(
       index: 1,
       id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [project]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -726,6 +741,9 @@ struct SupatermSocketProtocolTests {
         spaceIndex: 1,
         spaceID: space.id,
         spaceName: space.name,
+        projectIndex: 1,
+        projectID: project.id,
+        projectName: "Project",
         tabIndex: 1,
         tabID: context.tabID,
         tabTitle: tab.title,
@@ -790,7 +808,8 @@ struct SupatermSocketProtocolTests {
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
-      targetSpaceIndex: 2
+      targetSpaceIndex: 2,
+      targetProjectIndex: 1
     )
     let result = SupatermNewTabResult(
       isFocused: false,
@@ -799,6 +818,8 @@ struct SupatermSocketProtocolTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 1,
@@ -823,6 +844,7 @@ struct SupatermSocketProtocolTests {
       equalize: false,
       targetWindowIndex: 1,
       targetSpaceIndex: 2,
+      targetProjectIndex: 1,
       targetTabIndex: 1,
       targetPaneIndex: 2
     )
@@ -833,6 +855,8 @@ struct SupatermSocketProtocolTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 1,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 3,
@@ -926,6 +950,8 @@ struct SupatermSocketProtocolTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 4,
@@ -935,6 +961,7 @@ struct SupatermSocketProtocolTests {
       SupatermPaneTargetRequest(
         targetWindowIndex: 1,
         targetSpaceIndex: 2,
+        targetProjectIndex: 1,
         targetTabIndex: 3,
         targetPaneIndex: 4
       ),
@@ -953,6 +980,7 @@ struct SupatermSocketProtocolTests {
         target: SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3,
           targetPaneIndex: 4
         ),
@@ -967,6 +995,7 @@ struct SupatermSocketProtocolTests {
         target: SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3,
           targetPaneIndex: 4
         ),
@@ -981,6 +1010,7 @@ struct SupatermSocketProtocolTests {
         == SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3,
           targetPaneIndex: 4
         )
@@ -993,6 +1023,7 @@ struct SupatermSocketProtocolTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           ),
@@ -1008,6 +1039,7 @@ struct SupatermSocketProtocolTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           ),
@@ -1022,6 +1054,8 @@ struct SupatermSocketProtocolTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 4,
@@ -1032,6 +1066,7 @@ struct SupatermSocketProtocolTests {
         target: SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3,
           targetPaneIndex: 4
         )
@@ -1058,6 +1093,7 @@ struct SupatermSocketProtocolTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           )

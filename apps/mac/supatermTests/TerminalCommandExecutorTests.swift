@@ -111,7 +111,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1))
     #expect(closeWindowCount == 1)
   }
 
@@ -141,7 +141,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
+    _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1))
 
     #expect(closeWindowCount == 0)
     #expect(host.spaceManager.tab(for: tabID) == nil)
@@ -172,7 +172,7 @@ struct TerminalCommandExecutorTests {
     let window = makeWindow()
     registry.updateWindow(window, for: windowControllerID)
 
-    _ = try commandExecutor.closePane(.pane(windowIndex: 1, spaceIndex: 1, tabIndex: 1, paneIndex: 1))
+    _ = try commandExecutor.closePane(.pane(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1, paneIndex: 1))
     #expect(closeWindowCount == 1)
   }
 
@@ -190,7 +190,7 @@ struct TerminalCommandExecutorTests {
     #expect(host.spaceManager.tab(for: tabID) != nil)
 
     let resolved = try host.resolveClose(
-      TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
+      TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
     )
 
     #expect(!resolved.shouldCloseWindow)
@@ -255,7 +255,7 @@ struct TerminalCommandExecutorTests {
         startupCommand: nil,
         cwd: nil,
         focus: false,
-        target: .space(windowIndex: 1, spaceIndex: 1)
+        target: .project(windowIndex: 1, spaceIndex: 1, projectIndex: 1)
       )
     )
 
@@ -319,6 +319,8 @@ struct TerminalCommandExecutorTests {
       windowIndex: 1,
       spaceIndex: 3,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 2,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 1,
@@ -334,6 +336,8 @@ struct TerminalCommandExecutorTests {
           windowIndex: 2,
           spaceIndex: 3,
           spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+          projectIndex: 1,
+          projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
           tabIndex: 2,
           tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
           paneIndex: 1,
@@ -350,6 +354,8 @@ struct TerminalCommandExecutorTests {
       windowIndex: 1,
       spaceIndex: 3,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "ECBA669C-0ADA-4730-9B36-D1B04F3F3326")!,
       tabIndex: 2,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 4,
@@ -365,6 +371,8 @@ struct TerminalCommandExecutorTests {
           windowIndex: 2,
           spaceIndex: 3,
           spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+          projectIndex: 1,
+          projectID: UUID(uuidString: "ECBA669C-0ADA-4730-9B36-D1B04F3F3326")!,
           tabIndex: 2,
           tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
           paneIndex: 4,

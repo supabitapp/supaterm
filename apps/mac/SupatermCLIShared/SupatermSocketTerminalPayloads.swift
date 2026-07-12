@@ -14,6 +14,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let focus: Bool
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
+  public let targetProjectIndex: Int?
 
   public init(
     startupCommand: String? = nil,
@@ -21,7 +22,8 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     cwd: String? = nil,
     focus: Bool,
     targetWindowIndex: Int? = nil,
-    targetSpaceIndex: Int? = nil
+    targetSpaceIndex: Int? = nil,
+    targetProjectIndex: Int? = nil
   ) {
     self.startupCommand = startupCommand
     self.contextPaneID = contextPaneID
@@ -29,6 +31,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     self.focus = focus
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
+    self.targetProjectIndex = targetProjectIndex
   }
 }
 
@@ -39,6 +42,8 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
   public let windowIndex: Int
   public let spaceIndex: Int
   public let spaceID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
   public let tabIndex: Int
   public let tabID: UUID
   public let paneIndex: Int
@@ -51,6 +56,8 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
     windowIndex: Int,
     spaceIndex: Int,
     spaceID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
     tabIndex: Int,
     tabID: UUID,
     paneIndex: Int,
@@ -62,6 +69,8 @@ public struct SupatermNewTabResult: Equatable, Sendable, Codable {
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
     self.spaceID = spaceID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
     self.tabIndex = tabIndex
     self.tabID = tabID
     self.paneIndex = paneIndex
@@ -78,6 +87,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
   public let equalize: Bool
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
+  public let targetProjectIndex: Int?
   public let targetTabIndex: Int?
   public let targetPaneIndex: Int?
 
@@ -90,6 +100,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     equalize: Bool,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil,
+    targetProjectIndex: Int? = nil,
     targetTabIndex: Int? = nil,
     targetPaneIndex: Int? = nil
   ) {
@@ -101,6 +112,7 @@ public struct SupatermNewPaneRequest: Equatable, Sendable, Codable {
     self.equalize = equalize
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
+    self.targetProjectIndex = targetProjectIndex
     self.targetTabIndex = targetTabIndex
     self.targetPaneIndex = targetPaneIndex
   }
@@ -126,17 +138,20 @@ public struct SupatermTabTargetRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
+  public let targetProjectIndex: Int?
   public let targetTabIndex: Int?
 
   public init(
     contextPaneID: UUID? = nil,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil,
+    targetProjectIndex: Int? = nil,
     targetTabIndex: Int? = nil
   ) {
     self.contextPaneID = contextPaneID
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
+    self.targetProjectIndex = targetProjectIndex
     self.targetTabIndex = targetTabIndex
   }
 }
@@ -145,6 +160,7 @@ public struct SupatermPaneTargetRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
+  public let targetProjectIndex: Int?
   public let targetTabIndex: Int?
   public let targetPaneIndex: Int?
 
@@ -152,12 +168,14 @@ public struct SupatermPaneTargetRequest: Equatable, Sendable, Codable {
     contextPaneID: UUID? = nil,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil,
+    targetProjectIndex: Int? = nil,
     targetTabIndex: Int? = nil,
     targetPaneIndex: Int? = nil
   ) {
     self.contextPaneID = contextPaneID
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
+    self.targetProjectIndex = targetProjectIndex
     self.targetTabIndex = targetTabIndex
     self.targetPaneIndex = targetPaneIndex
   }
@@ -307,6 +325,75 @@ public struct SupatermCreateSpaceRequest: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermProjectTargetRequest: Equatable, Sendable, Codable {
+  public let contextPaneID: UUID?
+  public let targetWindowIndex: Int?
+  public let targetSpaceIndex: Int?
+  public let targetProjectIndex: Int?
+
+  public init(
+    contextPaneID: UUID? = nil,
+    targetWindowIndex: Int? = nil,
+    targetSpaceIndex: Int? = nil,
+    targetProjectIndex: Int? = nil
+  ) {
+    self.contextPaneID = contextPaneID
+    self.targetWindowIndex = targetWindowIndex
+    self.targetSpaceIndex = targetSpaceIndex
+    self.targetProjectIndex = targetProjectIndex
+  }
+}
+
+public struct SupatermCreateProjectRequest: Equatable, Sendable, Codable {
+  public let name: String
+  public let focus: Bool
+  public let target: SupatermSpaceTargetRequest
+
+  public init(name: String, focus: Bool, target: SupatermSpaceTargetRequest) {
+    self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.focus = focus
+    self.target = target
+  }
+}
+
+public struct SupatermRenameProjectRequest: Equatable, Sendable, Codable {
+  public let name: String
+  public let target: SupatermProjectTargetRequest
+
+  public init(name: String, target: SupatermProjectTargetRequest) {
+    self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    self.target = target
+  }
+}
+
+public struct SupatermProjectTarget: Equatable, Sendable, Codable {
+  public let windowIndex: Int
+  public let spaceIndex: Int
+  public let spaceID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
+  public let name: String
+  public let isPinned: Bool
+
+  public init(
+    windowIndex: Int,
+    spaceIndex: Int,
+    spaceID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
+    name: String,
+    isPinned: Bool
+  ) {
+    self.windowIndex = windowIndex
+    self.spaceIndex = spaceIndex
+    self.spaceID = spaceID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
+    self.name = name
+    self.isPinned = isPinned
+  }
+}
+
 public struct SupatermRenameSpaceRequest: Equatable, Sendable, Codable {
   public let target: SupatermSpaceTargetRequest
   public let name: String
@@ -372,6 +459,8 @@ public struct SupatermTabTarget: Equatable, Sendable, Codable {
   public let windowIndex: Int
   public let spaceIndex: Int
   public let spaceID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
   public let tabIndex: Int
   public let tabID: UUID
   public let title: String
@@ -380,6 +469,8 @@ public struct SupatermTabTarget: Equatable, Sendable, Codable {
     windowIndex: Int,
     spaceIndex: Int,
     spaceID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
     tabIndex: Int,
     tabID: UUID,
     title: String
@@ -387,6 +478,8 @@ public struct SupatermTabTarget: Equatable, Sendable, Codable {
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
     self.spaceID = spaceID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
     self.tabIndex = tabIndex
     self.tabID = tabID
     self.title = title
@@ -397,6 +490,8 @@ public struct SupatermPaneTarget: Equatable, Sendable, Codable {
   public let windowIndex: Int
   public let spaceIndex: Int
   public let spaceID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
   public let tabIndex: Int
   public let tabID: UUID
   public let paneIndex: Int
@@ -406,6 +501,8 @@ public struct SupatermPaneTarget: Equatable, Sendable, Codable {
     windowIndex: Int,
     spaceIndex: Int,
     spaceID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
     tabIndex: Int,
     tabID: UUID,
     paneIndex: Int,
@@ -414,6 +511,8 @@ public struct SupatermPaneTarget: Equatable, Sendable, Codable {
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
     self.spaceID = spaceID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
     self.tabIndex = tabIndex
     self.tabID = tabID
     self.paneIndex = paneIndex
@@ -471,6 +570,8 @@ public struct SupatermSelectSpaceResult: Equatable, Sendable, Codable {
   public let isSelectedTab: Bool
   public let paneIndex: Int
   public let paneID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
   public let tabIndex: Int
   public let tabID: UUID
   public let target: SupatermSpaceTarget
@@ -481,6 +582,8 @@ public struct SupatermSelectSpaceResult: Equatable, Sendable, Codable {
     isSelectedTab: Bool,
     paneIndex: Int,
     paneID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
     tabIndex: Int,
     tabID: UUID,
     target: SupatermSpaceTarget
@@ -490,6 +593,8 @@ public struct SupatermSelectSpaceResult: Equatable, Sendable, Codable {
     self.isSelectedTab = isSelectedTab
     self.paneIndex = paneIndex
     self.paneID = paneID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
     self.tabIndex = tabIndex
     self.tabID = tabID
     self.target = target
@@ -582,6 +687,8 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
   public let windowIndex: Int
   public let spaceIndex: Int
   public let spaceID: UUID
+  public let projectIndex: Int
+  public let projectID: UUID
   public let tabIndex: Int
   public let tabID: UUID
   public let paneIndex: Int
@@ -594,6 +701,8 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
     windowIndex: Int,
     spaceIndex: Int,
     spaceID: UUID,
+    projectIndex: Int,
+    projectID: UUID,
     tabIndex: Int,
     tabID: UUID,
     paneIndex: Int,
@@ -605,6 +714,8 @@ public struct SupatermNewPaneResult: Equatable, Sendable, Codable {
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
     self.spaceID = spaceID
+    self.projectIndex = projectIndex
+    self.projectID = projectID
     self.tabIndex = tabIndex
     self.tabID = tabID
     self.paneIndex = paneIndex

@@ -1701,8 +1701,9 @@ private func restoreSplitHost(
   workingDirectoryPath: String
 ) throws -> [UUID] {
   let spaceID = try #require(host.spaces.first?.id)
+  let projectID = try #require(host.projects.first?.id)
+  let tabID = TerminalTabID()
   let tabSession = TerminalTabSession(
-    isPinned: false,
     lockedTitle: nil,
     focusedPaneIndex: 0,
     root: .split(
@@ -1719,15 +1720,20 @@ private func restoreSplitHost(
     spaces: [
       TerminalWindowSpaceSession(
         id: spaceID,
-        selectedTabIndex: 0,
-        tabs: [tabSession]
+        selectedTabID: tabID,
+        projects: [
+          TerminalWindowProjectSession(
+            id: projectID,
+            tabs: [PersistedTerminalTab(id: tabID, session: tabSession)]
+          )
+        ]
       )
     ]
   )
 
   #expect(host.restore(from: session))
-  let tabID = try #require(host.selectedTabID)
-  let leaves = try #require(host.trees[tabID]?.leaves())
+  let selectedTabID = try #require(host.selectedTabID)
+  let leaves = try #require(host.trees[selectedTabID]?.leaves())
   #expect(leaves.count == 2)
   return leaves.map(\.id)
 }

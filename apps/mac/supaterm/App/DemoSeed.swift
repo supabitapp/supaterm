@@ -17,7 +17,11 @@
         $0 = TerminalSpaceCatalog(
           defaultSelectedSpaceID: IDs.space,
           spaces: [
-            PersistedTerminalSpace(id: IDs.space, name: "Supaterm")
+            PersistedTerminalSpace(
+              id: IDs.space,
+              name: "Supaterm",
+              projects: [TerminalProjectItem(id: IDs.project, name: "supaterm")]
+            )
           ]
         )
       }
@@ -29,11 +33,15 @@
               spaces: [
                 TerminalWindowSpaceSession(
                   id: IDs.space,
-                  selectedTabIndex: 1,
-                  selectedPinnedTabID: nil,
-                  tabs: [
-                    deploySession,
-                    scratchSession,
+                  selectedTabID: IDs.scratchTab,
+                  projects: [
+                    TerminalWindowProjectSession(
+                      id: IDs.project,
+                      tabs: [
+                        PersistedTerminalTab(id: IDs.deployTab, session: deploySession),
+                        PersistedTerminalTab(id: IDs.scratchTab, session: scratchSession),
+                      ]
+                    )
                   ]
                 )
               ]
@@ -46,9 +54,14 @@
           spaces: [
             PersistedPinnedTerminalTabsForSpace(
               id: IDs.space,
-              tabs: [
-                PersistedPinnedTerminalTab(id: IDs.webTab, session: webSession),
-                PersistedPinnedTerminalTab(id: IDs.apiTab, session: apiSession),
+              projects: [
+                PersistedPinnedTerminalTabsForProject(
+                  id: IDs.project,
+                  tabs: [
+                    PersistedTerminalTab(id: IDs.webTab, session: webSession),
+                    PersistedTerminalTab(id: IDs.apiTab, session: apiSession),
+                  ]
+                )
               ]
             )
           ]
@@ -109,7 +122,6 @@
     ]
 
     private static let webSession = TerminalTabSession(
-      isPinned: true,
       lockedTitle: "supaterm/web",
       focusedPaneIndex: 0,
       root: .split(
@@ -135,7 +147,6 @@
     )
 
     private static let apiSession = TerminalTabSession(
-      isPinned: true,
       lockedTitle: "supaterm/api",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -148,7 +159,6 @@
     )
 
     private static let deploySession = TerminalTabSession(
-      isPinned: false,
       lockedTitle: "supaterm/deploy",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -161,7 +171,6 @@
     )
 
     private static let scratchSession = TerminalTabSession(
-      isPinned: false,
       lockedTitle: "scratch",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -200,8 +209,11 @@
 
     private enum IDs {
       static let space = TerminalSpaceID(rawValue: UUID(uuidString: "4F9DA8C0-7B80-42C4-A828-B7A7E4E1D3A1")!)
+      static let project = TerminalProjectID(rawValue: UUID(uuidString: "48A31370-23F5-42A7-8E0B-74A45DF27916")!)
       static let webTab = TerminalTabID(rawValue: UUID(uuidString: "F4218391-DB8F-43DD-830C-B63D6F877D81")!)
       static let apiTab = TerminalTabID(rawValue: UUID(uuidString: "85F58292-F7C3-47DB-89D7-B96DCC6A2771")!)
+      static let deployTab = TerminalTabID(rawValue: UUID(uuidString: "C4AF4D85-110A-4EC5-AF99-B304D7CDAC91")!)
+      static let scratchTab = TerminalTabID(rawValue: UUID(uuidString: "D4025E6E-1437-4668-AC3E-C58ACF8F1E05")!)
       static let webAgentSurface = UUID(uuidString: "8F02B7F2-4F60-465B-90DF-14C03BF6D482")!
       static let webShellSurface = UUID(uuidString: "F6D8226D-0C92-40D4-B5E8-52B3E850D675")!
       static let apiSurface = UUID(uuidString: "C095C9A1-7E44-4BD2-A9F5-7F322221B495")!

@@ -32,7 +32,15 @@ struct SocketControlFeatureAppTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermTreeSnapshot.Project(
+          index: 1,
+          id: UUID(),
+          name: "Project",
+          isPinned: false,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,

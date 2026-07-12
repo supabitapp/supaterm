@@ -20,6 +20,7 @@ struct SocketControlFeatureNotificationsTests {
       body: "Build finished",
       subtitle: "CI",
       targetPaneIndex: 2,
+      targetProjectIndex: 1,
       targetSpaceIndex: 2,
       targetTabIndex: 1,
       targetWindowIndex: 1,
@@ -63,7 +64,7 @@ struct SocketControlFeatureNotificationsTests {
               == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "CI",
-                target: .pane(windowIndex: 1, spaceIndex: 2, tabIndex: 1, paneIndex: 2),
+                target: .pane(windowIndex: 1, spaceIndex: 2, projectIndex: 1, tabIndex: 1, paneIndex: 2),
                 title: "Deploy complete"
               )
           )
@@ -102,6 +103,7 @@ struct SocketControlFeatureNotificationsTests {
         SupatermNotifyRequest(
           body: "Build finished",
           subtitle: "",
+          targetProjectIndex: 1,
           targetSpaceIndex: 1,
           targetTabIndex: 1,
           targetWindowIndex: 1,
@@ -136,7 +138,7 @@ struct SocketControlFeatureNotificationsTests {
             == TerminalNotifyRequest(
               body: "Build finished",
               subtitle: "",
-              target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+              target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1),
               title: "Deploy complete"
             )
         )
@@ -161,6 +163,7 @@ struct SocketControlFeatureNotificationsTests {
       body: "Build finished",
       subtitle: "CI",
       targetPaneIndex: 2,
+      targetProjectIndex: 1,
       targetSpaceIndex: 2,
       targetTabIndex: 1,
       targetWindowIndex: 1,
@@ -237,7 +240,7 @@ struct SocketControlFeatureNotificationsTests {
           response: .error(
             id: "notify-3",
             code: "invalid_request",
-            message: "Provide a target space and tab or run the command inside a Supaterm pane."
+            message: "Provide a target space, project, and tab or run the command inside a Supaterm pane."
           )
         )
     )
@@ -252,6 +255,7 @@ struct SocketControlFeatureNotificationsTests {
       payload: try .notify(
         SupatermNotifyRequest(
           body: "Build finished",
+          targetProjectIndex: 1,
           targetSpaceIndex: 1,
           targetTabIndex: 1
         ),
@@ -292,7 +296,7 @@ struct SocketControlFeatureNotificationsTests {
               == TerminalNotifyRequest(
                 body: "Build finished",
                 subtitle: "",
-                target: .tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1),
+                target: .tab(windowIndex: 1, spaceIndex: 1, projectIndex: 1, tabIndex: 1),
                 title: nil
               )
           )

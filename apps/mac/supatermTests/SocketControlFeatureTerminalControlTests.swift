@@ -21,6 +21,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermPaneTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3,
           targetPaneIndex: 4
         ),
@@ -34,6 +35,8 @@ struct SocketControlFeatureTerminalControlTests {
         windowIndex: 1,
         spaceIndex: 2,
         spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        projectIndex: 1,
+        projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
         tabIndex: 3,
         tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
         paneIndex: 4,
@@ -51,6 +54,7 @@ struct SocketControlFeatureTerminalControlTests {
             == .pane(
               windowIndex: 1,
               spaceIndex: 2,
+              projectIndex: 1,
               tabIndex: 3,
               paneIndex: 4
             )
@@ -78,6 +82,7 @@ struct SocketControlFeatureTerminalControlTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           )
@@ -90,6 +95,8 @@ struct SocketControlFeatureTerminalControlTests {
         windowIndex: 1,
         spaceIndex: 2,
         spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        projectIndex: 1,
+        projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
         tabIndex: 3,
         tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
         paneIndex: 4,
@@ -114,6 +121,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .pane(
                 windowIndex: 1,
                 spaceIndex: 2,
+                projectIndex: 1,
                 tabIndex: 3,
                 paneIndex: 4
               )
@@ -141,6 +149,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermTabTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3
         ),
         id: "equalize-panes-1"
@@ -150,6 +159,8 @@ struct SocketControlFeatureTerminalControlTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "Logs"
@@ -166,6 +177,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .tab(
                 windowIndex: 1,
                 spaceIndex: 2,
+                projectIndex: 1,
                 tabIndex: 3
               )
             )
@@ -191,6 +203,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermTabTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3
         ),
         id: "main-vertical-panes-1"
@@ -200,6 +213,8 @@ struct SocketControlFeatureTerminalControlTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "Workers"
@@ -216,6 +231,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .tab(
                 windowIndex: 1,
                 spaceIndex: 2,
+                projectIndex: 1,
                 tabIndex: 3
               )
             )
@@ -242,6 +258,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermTabTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 3
         ),
         id: "pin-tab-1"
@@ -253,6 +270,8 @@ struct SocketControlFeatureTerminalControlTests {
         windowIndex: 1,
         spaceIndex: 2,
         spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        projectIndex: 1,
+        projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
         tabIndex: 1,
         tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
         title: "Logs"
@@ -269,6 +288,7 @@ struct SocketControlFeatureTerminalControlTests {
             == .tab(
               windowIndex: 1,
               spaceIndex: 2,
+              projectIndex: 1,
               tabIndex: 3
             )
         )
@@ -294,6 +314,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermTabTargetRequest(
           targetWindowIndex: 1,
           targetSpaceIndex: 2,
+          targetProjectIndex: 1,
           targetTabIndex: 1
         ),
         id: "unpin-tab-1"
@@ -305,6 +326,8 @@ struct SocketControlFeatureTerminalControlTests {
         windowIndex: 1,
         spaceIndex: 2,
         spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        projectIndex: 1,
+        projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
         tabIndex: 3,
         tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
         title: "Logs"
@@ -321,6 +344,7 @@ struct SocketControlFeatureTerminalControlTests {
             == .tab(
               windowIndex: 1,
               spaceIndex: 2,
+              projectIndex: 1,
               tabIndex: 1
             )
         )
@@ -349,6 +373,7 @@ struct SocketControlFeatureTerminalControlTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           ),
@@ -361,6 +386,8 @@ struct SocketControlFeatureTerminalControlTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 4,
@@ -380,6 +407,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .pane(
                 windowIndex: 1,
                 spaceIndex: 2,
+                projectIndex: 1,
                 tabIndex: 3,
                 paneIndex: 4
               ),
@@ -409,6 +437,7 @@ struct SocketControlFeatureTerminalControlTests {
           target: SupatermPaneTargetRequest(
             targetWindowIndex: 1,
             targetSpaceIndex: 2,
+            targetProjectIndex: 1,
             targetTabIndex: 3,
             targetPaneIndex: 4
           )
@@ -420,6 +449,8 @@ struct SocketControlFeatureTerminalControlTests {
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 3,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       paneIndex: 4,
@@ -438,6 +469,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .pane(
                 windowIndex: 1,
                 spaceIndex: 2,
+                projectIndex: 1,
                 tabIndex: 3,
                 paneIndex: 4
               )
@@ -464,6 +496,7 @@ struct SocketControlFeatureTerminalControlTests {
         SupatermTabTargetRequest(
           targetWindowIndex: 2,
           targetSpaceIndex: 3,
+          targetProjectIndex: 1,
           targetTabIndex: 4
         ),
         id: "tile-panes-1"
@@ -473,6 +506,8 @@ struct SocketControlFeatureTerminalControlTests {
       windowIndex: 2,
       spaceIndex: 3,
       spaceID: UUID(uuidString: "9BA8A4E7-1958-48F5-BD2D-607552A3430E")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 4,
       tabID: UUID(uuidString: "EB066866-4BA8-4789-88CE-FB75A921EA0F")!,
       title: "Workers"
@@ -489,6 +524,7 @@ struct SocketControlFeatureTerminalControlTests {
               target: .tab(
                 windowIndex: 2,
                 spaceIndex: 3,
+                projectIndex: 1,
                 tabIndex: 4
               )
             )
@@ -524,6 +560,8 @@ struct SocketControlFeatureTerminalControlTests {
       isSelectedTab: true,
       paneIndex: 1,
       paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+      projectIndex: 1,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
       tabIndex: 1,
       tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       target: SupatermSpaceTarget(
@@ -645,6 +683,8 @@ struct SocketControlFeatureTerminalControlTests {
         windowIndex: 1,
         spaceIndex: 2,
         spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+        projectIndex: 1,
+        projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
         tabIndex: 3,
         tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
         title: "Logs"

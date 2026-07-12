@@ -28,13 +28,36 @@ struct SPCommandTests {
   }
 
   @Test
-  func newTabParserAcceptsUUIDSpaceTarget() throws {
-    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+  func newTabParserAcceptsUUIDProjectTarget() throws {
+    let projectID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
     let command = try #require(
-      try SP.parseAsRoot(["tab", "new", "--in", spaceID.uuidString]) as? SP.NewTab
+      try SP.parseAsRoot(["tab", "new", "--in", projectID.uuidString]) as? SP.NewTab
     )
 
-    #expect(command.space == .id(spaceID))
+    #expect(command.project == .id(projectID))
+  }
+
+  @Test
+  func projectParsersAcceptCreationAndManagementTargets() throws {
+    let create = try #require(
+      try SP.parseAsRoot(["project", "new", "--in", "2", "--focus", "Build"])
+        as? SP.ProjectNew
+    )
+    let rename = try #require(
+      try SP.parseAsRoot(["project", "rename", "Logs", "1/2"])
+        as? SP.ProjectRename
+    )
+    let destroy = try #require(
+      try SP.parseAsRoot(["project", "destroy", "-y", "1/2"])
+        as? SP.ProjectDestroy
+    )
+
+    #expect(create.space == .index(2))
+    #expect(create.focus)
+    #expect(create.name == "Build")
+    #expect(rename.project == .path(spaceIndex: 1, projectIndex: 2))
+    #expect(destroy.project == .path(spaceIndex: 1, projectIndex: 2))
+    #expect(destroy.yes)
   }
 
   @Test
@@ -61,13 +84,13 @@ struct SPCommandTests {
   func newPaneParserAcceptsTabAndPaneTargets() throws {
     let paneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
     let tabCommand = try #require(
-      try SP.parseAsRoot(["pane", "split", "right", "--in", "1/2"]) as? SP.NewPane
+      try SP.parseAsRoot(["pane", "split", "right", "--in", "1/1/2"]) as? SP.NewPane
     )
     let paneCommand = try #require(
       try SP.parseAsRoot(["pane", "split", "right", "--in", paneID.uuidString]) as? SP.NewPane
     )
 
-    #expect(tabCommand.container == .tab(.path(spaceIndex: 1, tabIndex: 2)))
+    #expect(tabCommand.container == .tab(.path(spaceIndex: 1, projectIndex: 1, tabIndex: 2)))
     #expect(paneCommand.container == .id(paneID))
   }
 
@@ -78,24 +101,24 @@ struct SPCommandTests {
       try SP.parseAsRoot(["pane", "focus", paneID.uuidString]) as? SP.FocusPane
     )
     let selectTab = try #require(
-      try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
+      try SP.parseAsRoot(["tab", "focus", "1/1/2"]) as? SP.SelectTab
     )
 
     #expect(focusPane.pane == .id(paneID))
-    #expect(selectTab.tab == .path(spaceIndex: 1, tabIndex: 2))
+    #expect(selectTab.tab == .path(spaceIndex: 1, projectIndex: 1, tabIndex: 2))
   }
 
   @Test
   func pinAndUnpinParsersAcceptSelectorTargets() throws {
     let tabID = UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
     let pinTab = try #require(
-      try SP.parseAsRoot(["tab", "pin", "1/2"]) as? SP.PinTab
+      try SP.parseAsRoot(["tab", "pin", "1/1/2"]) as? SP.PinTab
     )
     let unpinTab = try #require(
       try SP.parseAsRoot(["tab", "unpin", tabID.uuidString]) as? SP.UnpinTab
     )
 
-    #expect(pinTab.tab == .path(spaceIndex: 1, tabIndex: 2))
+    #expect(pinTab.tab == .path(spaceIndex: 1, projectIndex: 1, tabIndex: 2))
     #expect(unpinTab.tab == .id(tabID))
   }
 
@@ -425,37 +448,45 @@ struct SPCommandTests {
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               isSelected: true,
-              tabs: [
-                SupatermAppDebugSnapshot.Tab(
+              projects: [
+                SupatermAppDebugSnapshot.Project(
                   index: 1,
-                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-                  title: "fish",
-                  isSelected: true,
+                  id: UUID(),
+                  name: "Project",
                   isPinned: false,
-                  isDirty: false,
-                  isTitleLocked: false,
-                  hasRunningActivity: false,
-                  hasBell: false,
-                  hasReadOnly: false,
-                  hasSecureInput: false,
-                  panes: [
-                    SupatermAppDebugSnapshot.Pane(
+                  tabs: [
+                    SupatermAppDebugSnapshot.Tab(
                       index: 1,
-                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
-                      isFocused: true,
-                      displayTitle: "build",
-                      pwd: nil,
-                      isReadOnly: false,
+                      id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                      title: "fish",
+                      isSelected: true,
+                      isPinned: false,
+                      isDirty: false,
+                      isTitleLocked: false,
+                      hasRunningActivity: false,
+                      hasBell: false,
+                      hasReadOnly: false,
                       hasSecureInput: false,
-                      bellCount: 0,
-                      isRunning: false,
-                      progressState: nil,
-                      progressValue: nil,
-                      needsCloseConfirmation: false,
-                      lastCommandExitCode: nil,
-                      lastCommandDurationMs: nil,
-                      lastChildExitCode: nil,
-                      lastChildExitTimeMs: nil
+                      panes: [
+                        SupatermAppDebugSnapshot.Pane(
+                          index: 1,
+                          id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                          isFocused: true,
+                          displayTitle: "build",
+                          pwd: nil,
+                          isReadOnly: false,
+                          hasSecureInput: false,
+                          bellCount: 0,
+                          isRunning: false,
+                          progressState: nil,
+                          progressValue: nil,
+                          needsCloseConfirmation: false,
+                          lastCommandExitCode: nil,
+                          lastCommandDurationMs: nil,
+                          lastChildExitCode: nil,
+                          lastChildExitTimeMs: nil
+                        )
+                      ]
                     )
                   ]
                 )
@@ -472,16 +503,18 @@ struct SPCommandTests {
         == """
         window 1 [key]
         └─ space 1 "A" [selected]
-           └─ tab 1 "fish" [selected]
-              └─ pane 1 "build" [focused]
+           └─ project 1 "Project"
+              └─ tab 1 "fish" [selected]
+                 └─ pane 1 "build" [focused]
         """
     )
     #expect(
       SPTreeRenderer.renderPlain(snapshot)
         == """
         1\tspace\tA\tselected
-        1/1\ttab\tfish\tselected
-        1/1/1\tpane\tbuild\tfocused
+        1/1\tproject\tProject
+        1/1/1\ttab\tfish\tselected
+        1/1/1/1\tpane\tbuild\tfocused
         """
     )
   }
@@ -561,14 +594,14 @@ struct SPCommandTests {
   @Test
   func tabFocusAndPaneSendParsersAcceptPublicShape() throws {
     let focusCommand = try #require(
-      try SP.parseAsRoot(["tab", "focus", "1/2"]) as? SP.SelectTab
+      try SP.parseAsRoot(["tab", "focus", "1/1/2"]) as? SP.SelectTab
     )
     let sendCommand = try #require(
-      try SP.parseAsRoot(["pane", "send", "1/2/3", "pwd"]) as? SP.SendText
+      try SP.parseAsRoot(["pane", "send", "1/1/2/3", "pwd"]) as? SP.SendText
     )
 
-    #expect(focusCommand.tab == .path(spaceIndex: 1, tabIndex: 2))
-    #expect(sendCommand.arguments == ["1/2/3", "pwd"])
+    #expect(focusCommand.tab == .path(spaceIndex: 1, projectIndex: 1, tabIndex: 2))
+    #expect(sendCommand.arguments == ["1/1/2/3", "pwd"])
   }
 
   @Test(arguments: [
@@ -622,8 +655,10 @@ struct SPCommandTests {
       #expect(
         message.contains("1 or greater")
           || message.contains("space selector")
+          || message.contains("project selector")
           || message.contains("tab selector")
           || message.contains("space/tab")
+          || message.contains("space/project")
           || message.contains("space/tab/pane")
           || message.localizedCaseInsensitiveContains("invalid")
       )

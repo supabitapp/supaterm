@@ -16,6 +16,7 @@ struct SP: ParsableCommand {
     Config.self,
     Run.self,
     Space.self,
+    Project.self,
     Tab.self,
     Pane.self,
     Agent.self,

@@ -130,6 +130,16 @@ final class TerminalCommandExecutor {
     _ request: SocketRequestExecutor.TerminalSpaceRequest
   ) throws -> SocketRequestExecutor.TerminalSpaceResult {
     switch request {
+    case .createProject(let request):
+      return .createProject(try createProject(request))
+    case .closeProject(let target):
+      return .closeProject(try closeProject(target))
+    case .renameProject(let request):
+      return .renameProject(try renameProject(request))
+    case .pinProject(let target):
+      return .pinProject(try setProjectPinned(target, isPinned: true))
+    case .unpinProject(let target):
+      return .unpinProject(try setProjectPinned(target, isPinned: false))
     case .createSpace(let createSpaceRequest):
       return .createSpace(try createSpace(createSpaceRequest))
     case .selectSpace(let target):

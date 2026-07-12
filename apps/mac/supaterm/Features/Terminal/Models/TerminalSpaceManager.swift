@@ -9,32 +9,36 @@ final class TerminalSpaceManager {
   }
 
   private(set) var spaces: [TerminalSpaceItem] = []
-  private var tabManagers: [TerminalSpaceID: TerminalTabManager] = [:]
+  private var projectManagers: [TerminalSpaceID: TerminalProjectManager] = [:]
   var selectedSpaceID: TerminalSpaceID?
 
-  var activeTabManager: TerminalTabManager? {
+  var activeProjectManager: TerminalProjectManager? {
     guard let selectedSpaceID else { return nil }
-    return tabManagers[selectedSpaceID]
+    return projectManagers[selectedSpaceID]
+  }
+
+  var projects: [TerminalProjectItem] {
+    activeProjectManager?.projects ?? []
+  }
+
+  var projectGroups: [TerminalProjectTabs] {
+    activeProjectManager?.groups ?? []
   }
 
   var tabs: [TerminalTabItem] {
-    activeTabManager?.tabs ?? []
-  }
-
-  var pinnedTabs: [TerminalTabItem] {
-    activeTabManager?.pinnedTabs ?? []
+    activeProjectManager?.tabs ?? []
   }
 
   var regularTabs: [TerminalTabItem] {
-    activeTabManager?.regularTabs ?? []
+    activeProjectManager?.regularTabs ?? []
   }
 
   var visibleTabs: [TerminalTabItem] {
-    activeTabManager?.visibleTabs ?? []
+    activeProjectManager?.visibleTabs ?? []
   }
 
   var selectedTabID: TerminalTabID? {
-    activeTabManager?.selectedTabId
+    activeProjectManager?.selectedTabId
   }
 
   func bootstrap(
@@ -42,14 +46,14 @@ final class TerminalSpaceManager {
     initialSelectedSpaceID: TerminalSpaceID?
   ) {
     spaces.removeAll()
-    tabManagers.removeAll()
+    projectManagers.removeAll()
     selectedSpaceID = nil
 
     let resolvedCatalog = Self.sanitizedCatalog(catalog)
     for space in resolvedCatalog.spaces {
       let item = TerminalSpaceItem(id: space.id, name: space.name)
       spaces.append(item)
-      tabManagers[item.id] = TerminalTabManager()
+      projectManagers[item.id] = TerminalProjectManager(projects: space.projects)
     }
     selectedSpaceID =
       initialSelectedSpaceID.flatMap { spaceID in
@@ -67,25 +71,30 @@ final class TerminalSpaceManager {
   func applyCatalog(_ catalog: TerminalSpaceCatalog) -> SpaceCatalogDiff {
     let resolvedCatalog = Self.sanitizedCatalog(catalog)
     let previousSpaces = spaces
-    let previousTabManagers = tabManagers
+    let previousProjectManagers = projectManagers
     let previousSelectedSpaceID = selectedSpaceID
 
     let nextSpaces = resolvedCatalog.spaces.map {
       TerminalSpaceItem(id: $0.id, name: $0.name)
     }
-    var nextTabManagers: [TerminalSpaceID: TerminalTabManager] = [:]
-    for space in nextSpaces {
-      nextTabManagers[space.id] = previousTabManagers[space.id] ?? TerminalTabManager()
+    var nextProjectManagers: [TerminalSpaceID: TerminalProjectManager] = [:]
+    var removedTabIDs: [TerminalTabID] = []
+    for space in resolvedCatalog.spaces {
+      let manager = previousProjectManagers[space.id] ?? TerminalProjectManager()
+      removedTabIDs.append(contentsOf: manager.applyProjects(space.projects))
+      nextProjectManagers[space.id] = manager
     }
 
-    let removedSpaceIDs = Set(previousTabManagers.keys).subtracting(nextTabManagers.keys)
-    let removedTabIDs =
-      previousSpaces
-      .filter { removedSpaceIDs.contains($0.id) }
-      .flatMap { previousTabManagers[$0.id]?.tabs.map(\.id) ?? [] }
+    let removedSpaceIDs = Set(previousProjectManagers.keys).subtracting(nextProjectManagers.keys)
+    removedTabIDs.append(
+      contentsOf:
+        previousSpaces
+        .filter { removedSpaceIDs.contains($0.id) }
+        .flatMap { previousProjectManagers[$0.id]?.tabs.map(\.id) ?? [] }
+    )
 
     spaces = nextSpaces
-    tabManagers = nextTabManagers
+    projectManagers = nextProjectManagers
     selectedSpaceID = resolvedSelectedSpaceID(
       current: previousSelectedSpaceID,
       previousSpaces: previousSpaces,
@@ -105,18 +114,57 @@ final class TerminalSpaceManager {
     }
   }
 
-  func tabManager(for spaceID: TerminalSpaceID) -> TerminalTabManager? {
-    tabManagers[spaceID]
+  func isProjectNameAvailable(
+    _ proposedName: String,
+    in spaceID: TerminalSpaceID,
+    excluding excludedID: TerminalProjectID? = nil
+  ) -> Bool {
+    guard let normalizedName = normalizedName(proposedName) else { return false }
+    return !(projectManagers[spaceID]?.projects ?? []).contains {
+      $0.id != excludedID && $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
+    }
+  }
+
+  func projectManager(for spaceID: TerminalSpaceID) -> TerminalProjectManager? {
+    projectManagers[spaceID]
   }
 
   func space(for tabID: TerminalTabID) -> TerminalSpaceItem? {
     spaces.first { space in
-      tabManagers[space.id]?.tabs.contains(where: { $0.id == tabID }) == true
+      projectManagers[space.id]?.tab(for: tabID) != nil
     }
   }
 
+  func space(for projectID: TerminalProjectID) -> TerminalSpaceItem? {
+    spaces.first { space in
+      projectManagers[space.id]?.projects.contains(where: { $0.id == projectID }) == true
+    }
+  }
+
+  func project(for tabID: TerminalTabID) -> TerminalProjectItem? {
+    for space in spaces {
+      if let project = projectManagers[space.id]?.project(for: tabID) {
+        return project
+      }
+    }
+    return nil
+  }
+
+  func projects(in spaceID: TerminalSpaceID) -> [TerminalProjectItem] {
+    projectManagers[spaceID]?.projects ?? []
+  }
+
+  func projectGroups(in spaceID: TerminalSpaceID) -> [TerminalProjectTabs] {
+    projectManagers[spaceID]?.groups ?? []
+  }
+
   func tabs(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
-    tabManagers[spaceID]?.tabs ?? []
+    projectManagers[spaceID]?.tabs ?? []
+  }
+
+  func tabs(in projectID: TerminalProjectID) -> [TerminalTabItem] {
+    guard let space = space(for: projectID) else { return [] }
+    return projectManagers[space.id]?.tabs(in: projectID) ?? []
   }
 
   func space(at index: Int) -> TerminalSpaceItem? {
@@ -125,18 +173,35 @@ final class TerminalSpaceManager {
     return spaces[offset]
   }
 
+  func project(at index: Int, in spaceID: TerminalSpaceID) -> TerminalProjectItem? {
+    projectManagers[spaceID]?.project(at: index)
+  }
+
   func selectedTabID(in spaceID: TerminalSpaceID) -> TerminalTabID? {
-    tabManagers[spaceID]?.selectedTabId
+    projectManagers[spaceID]?.selectedTabId
   }
 
   func spaceIndex(for spaceID: TerminalSpaceID) -> Int? {
     spaces.firstIndex(where: { $0.id == spaceID }).map { $0 + 1 }
   }
 
+  func projectIndex(for projectID: TerminalProjectID, in spaceID: TerminalSpaceID) -> Int? {
+    projectManagers[spaceID]?.projectIndex(for: projectID)
+  }
+
   func tab(for tabID: TerminalTabID) -> TerminalTabItem? {
     for space in spaces {
-      if let tab = tabManagers[space.id]?.tabs.first(where: { $0.id == tabID }) {
+      if let tab = projectManagers[space.id]?.tab(for: tabID) {
         return tab
+      }
+    }
+    return nil
+  }
+
+  func projectID(for tabID: TerminalTabID) -> TerminalProjectID? {
+    for space in spaces {
+      if let projectID = projectManagers[space.id]?.projectID(for: tabID) {
+        return projectID
       }
     }
     return nil
@@ -144,12 +209,12 @@ final class TerminalSpaceManager {
 
   @discardableResult
   func restoreTabs(
-    _ tabs: [TerminalTabItem],
+    _ groups: [TerminalProjectTabs],
     selectedTabID: TerminalTabID?,
     in spaceID: TerminalSpaceID
   ) -> Bool {
-    guard let tabManager = tabManagers[spaceID] else { return false }
-    tabManager.restoreTabs(tabs, selectedTabID: selectedTabID)
+    guard let projectManager = projectManagers[spaceID] else { return false }
+    projectManager.restoreTabs(groups, selectedTabID: selectedTabID)
     return true
   }
 

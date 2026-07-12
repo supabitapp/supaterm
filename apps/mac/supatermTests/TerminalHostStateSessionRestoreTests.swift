@@ -191,14 +191,14 @@ struct TerminalHostStateSessionRestoreTests {
           startupCommand: nil,
           cwd: restoredPathString,
           focus: false,
-          target: .space(windowIndex: 1, spaceIndex: 2)
+          target: .project(windowIndex: 1, spaceIndex: 2, projectIndex: 1)
         )
       )
 
       let secondSpaceTabs = host.spaceManager.tabs(in: secondSpaceID)
       let secondSpaceSelectedTabID = try #require(secondSpaceTabs.last?.id)
       host.handleCommand(.selectTab(secondSpaceSelectedTabID))
-      host.spaceManager.tabManager(for: secondSpaceID)?.setLockedTitle(
+      host.spaceManager.projectManager(for: secondSpaceID)?.setLockedTitle(
         secondSpaceSelectedTabID, title: "Pinned Tab")
       host.selectedSurfaceView?.setTitleOverride("Pane Title")
 

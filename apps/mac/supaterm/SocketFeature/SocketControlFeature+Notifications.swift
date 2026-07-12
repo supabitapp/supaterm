@@ -58,6 +58,7 @@ extension SocketControlFeature {
     try validateTargetPayload(
       windowIndex: payload.targetWindowIndex,
       spaceIndex: payload.targetSpaceIndex,
+      projectIndex: payload.targetProjectIndex,
       tabIndex: payload.targetTabIndex,
       paneIndex: payload.targetPaneIndex
     )
@@ -73,8 +74,13 @@ extension SocketControlFeature {
   func createNotifyTarget(
     from payload: SupatermNotifyRequest
   ) throws -> TerminalNotifyRequest.Target {
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (nil, nil, nil):
+    switch (
+      payload.targetSpaceIndex,
+      payload.targetProjectIndex,
+      payload.targetTabIndex,
+      payload.targetPaneIndex
+    ) {
+    case (nil, nil, nil, nil):
       guard let contextPaneID = payload.contextPaneID else {
         throw SocketRequestError.missingTarget
       }
@@ -83,26 +89,24 @@ extension SocketControlFeature {
       }
       return .contextPane(contextPaneID)
 
-    case (.some, .some, nil):
+    case (.some, .some, .some, nil):
       return .tab(
         windowIndex: payload.targetWindowIndex ?? 1,
         spaceIndex: payload.targetSpaceIndex!,
+        projectIndex: payload.targetProjectIndex!,
         tabIndex: payload.targetTabIndex!
       )
 
-    case (.some, .some, .some):
+    case (.some, .some, .some, .some):
       return .pane(
         windowIndex: payload.targetWindowIndex ?? 1,
         spaceIndex: payload.targetSpaceIndex!,
+        projectIndex: payload.targetProjectIndex!,
         tabIndex: payload.targetTabIndex!,
         paneIndex: payload.targetPaneIndex!
       )
 
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.none, .none, .some):
+    default:
       throw SocketRequestError.paneRequiresTab
     }
   }

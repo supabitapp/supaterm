@@ -37,8 +37,6 @@ struct TerminalClient: Sendable {
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
     case navigateSearch(GhosttySearchDirection)
-    case moveSidebarTab(
-      tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
     case nextSpace
     case nextTab
     case performGhosttyBindingActionOnFocusedSurface(String)
@@ -56,8 +54,6 @@ struct TerminalClient: Sendable {
     case selectTabSlot(Int)
     case selectSpaceSlot(Int)
     case selectSpace(TerminalSpaceID)
-    case setPinnedTabOrder([TerminalTabID])
-    case setRegularTabOrder([TerminalTabID])
     case togglePinned(TerminalTabID)
     case updateWindowActivity(WindowActivityState)
   }

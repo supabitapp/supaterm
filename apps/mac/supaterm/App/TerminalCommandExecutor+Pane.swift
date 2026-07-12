@@ -19,12 +19,14 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.focusPane(
-            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+            .pane(
+              windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex,
+              paneIndex: paneIndex)
           ),
           windowIndex: windowIndex
         )
@@ -50,12 +52,14 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       do {
         return TerminalWindowRegistry.rewrite(
           try entry.terminal.lastPane(
-            .pane(windowIndex: 1, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex)
+            .pane(
+              windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex, tabIndex: tabIndex,
+              paneIndex: paneIndex)
           ),
           windowIndex: windowIndex
         )
@@ -86,11 +90,12 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localTarget = TerminalPaneTarget.pane(
         windowIndex: 1,
         spaceIndex: spaceIndex,
+        projectIndex: projectIndex,
         tabIndex: tabIndex,
         paneIndex: paneIndex
       )
@@ -126,12 +131,13 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalSendTextRequest(
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         ),
@@ -164,13 +170,14 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalSendKeyRequest(
         key: request.key,
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -202,7 +209,7 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCapturePaneRequest(
         lines: request.lines,
@@ -210,6 +217,7 @@ extension TerminalCommandExecutor {
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -241,12 +249,13 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalPaneHealthRequest(
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -278,7 +287,7 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalResizePaneRequest(
         amount: request.amount,
@@ -286,6 +295,7 @@ extension TerminalCommandExecutor {
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         )
@@ -317,7 +327,7 @@ extension TerminalCommandExecutor {
       }
       throw TerminalControlError.contextPaneNotFound
 
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalSetPaneSizeRequest(
         amount: request.amount,
@@ -325,6 +335,7 @@ extension TerminalCommandExecutor {
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
           tabIndex: tabIndex,
           paneIndex: paneIndex
         ),

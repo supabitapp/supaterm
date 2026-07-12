@@ -126,7 +126,8 @@ struct TerminalHostStateSpaceSharingTests {
       let catalog = makeCatalog(["A"])
       $sharedCatalog.withLock { $0 = catalog }
 
-      let firstHost = TerminalHostState(managesTerminalSurfaces: false)
+      let runtime = try makeGhosttyRuntime("")
+      let firstHost = TerminalHostState(runtime: runtime, managesTerminalSurfaces: false)
       let secondHost = TerminalHostState(managesTerminalSurfaces: false)
 
       firstHost.handleCommand(.createSpace(name: "Build"))
@@ -176,10 +177,10 @@ struct TerminalHostStateSpaceSharingTests {
       let host = TerminalHostState(managesTerminalSurfaces: false)
       let firstSpaceID = catalog.spaces[0].id
       let secondSpaceID = catalog.spaces[1].id
-      let firstTabID = host.spaceManager.tabManager(for: firstSpaceID)?
-        .createTab(title: "Terminal 1")
-      let secondTabID = host.spaceManager.tabManager(for: secondSpaceID)?
-        .createTab(title: "Terminal 2")
+      let firstTabID = host.spaceManager.projectManager(for: firstSpaceID)?
+        .createTab(title: "Terminal 1", in: catalog.spaces[0].projects[0].id)
+      let secondTabID = host.spaceManager.projectManager(for: secondSpaceID)?
+        .createTab(title: "Terminal 2", in: catalog.spaces[1].projects[0].id)
       _ = host.applySelectedSpace(firstSpaceID)
 
       host.performCloseTab(try #require(firstTabID))
@@ -286,8 +287,8 @@ struct TerminalHostStateSpaceSharingTests {
 
       _ = TerminalHostState(managesTerminalSurfaces: false)
       let secondHost = TerminalHostState(managesTerminalSurfaces: false)
-      let removedTabID = secondHost.spaceManager.tabManager(for: catalog.spaces[1].id)?
-        .createTab(title: "Terminal 1")
+      let removedTabID = secondHost.spaceManager.projectManager(for: catalog.spaces[1].id)?
+        .createTab(title: "Terminal 1", in: catalog.spaces[1].projects[0].id)
       #expect(removedTabID != nil)
       _ = secondHost.spaceManager.selectSpace(catalog.spaces[1].id)
 

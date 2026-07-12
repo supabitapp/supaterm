@@ -5,7 +5,7 @@ import SupatermSupport
 public struct TerminalCreateTabRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
     case contextPane(UUID)
-    case space(windowIndex: Int, spaceIndex: Int)
+    case project(windowIndex: Int, spaceIndex: Int, projectIndex: Int)
   }
 
   public let startupCommand: String?
@@ -29,8 +29,8 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
 public struct TerminalCreatePaneRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
     case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+    case pane(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int, paneIndex: Int)
+    case tab(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int)
   }
 
   public let startupCommand: String?
@@ -60,8 +60,8 @@ public struct TerminalCreatePaneRequest: Equatable, Sendable {
 public struct TerminalNotifyRequest: Equatable, Sendable {
   public enum Target: Equatable, Sendable {
     case contextPane(UUID)
-    case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
-    case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+    case pane(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int, paneIndex: Int)
+    case tab(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int)
   }
 
   public let allowDesktopNotificationWhenAgentActive: Bool
@@ -90,14 +90,41 @@ public enum TerminalSpaceTarget: Equatable, Sendable {
   case space(windowIndex: Int, spaceIndex: Int)
 }
 
+public enum TerminalProjectTarget: Equatable, Sendable {
+  case contextPane(UUID)
+  case project(windowIndex: Int, spaceIndex: Int, projectIndex: Int)
+}
+
+public struct TerminalCreateProjectRequest: Equatable, Sendable {
+  public let name: String
+  public let focus: Bool
+  public let target: TerminalSpaceTarget
+
+  public init(name: String, focus: Bool, target: TerminalSpaceTarget) {
+    self.name = name
+    self.focus = focus
+    self.target = target
+  }
+}
+
+public struct TerminalRenameProjectRequest: Equatable, Sendable {
+  public let name: String
+  public let target: TerminalProjectTarget
+
+  public init(name: String, target: TerminalProjectTarget) {
+    self.name = name
+    self.target = target
+  }
+}
+
 public enum TerminalTabTarget: Equatable, Sendable {
   case contextPane(UUID)
-  case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
+  case tab(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int)
 }
 
 public enum TerminalPaneTarget: Equatable, Sendable {
   case contextPane(UUID)
-  case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case pane(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int, paneIndex: Int)
 }
 
 public struct TerminalEqualizePanesRequest: Equatable, Sendable {
@@ -304,12 +331,16 @@ public enum TerminalCreateTabError: Error, Equatable {
 public enum TerminalControlError: Error, Equatable {
   case captureFailed
   case contextPaneNotFound
+  case invalidProjectName
   case invalidSpaceName
   case lastPaneNotFound
   case lastSpaceNotFound
   case lastTabNotFound
   case onlyRemainingSpace
+  case onlyRemainingProject
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case projectNotFound(windowIndex: Int, spaceIndex: Int, projectIndex: Int)
+  case projectNameUnavailable
   case resizeFailed
   case spaceNameUnavailable
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)

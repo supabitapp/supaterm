@@ -1,62 +1,54 @@
 import Foundation
-import SupatermCLIShared
 import Testing
 
 @testable import supaterm
 
 struct TerminalPinnedTabCatalogTests {
   @Test
-  func defaultURLUsesStateHomeWhenPresent() {
-    #expect(
-      TerminalPinnedTabCatalog.defaultURL(
-        homeDirectoryPath: "/tmp/ignored",
-        environment: [SupatermCLIEnvironment.stateHomeKey: "/tmp/supaterm-dev"]
-      ).path == "/tmp/supaterm-dev/pinned-tabs.json"
-    )
-  }
-
-  @Test
-  func sanitizedPrunesInvalidSpacesDuplicateTabsAndEmptyEntries() throws {
-    let validSpaceID = TerminalSpaceID()
-    let invalidSpaceID = TerminalSpaceID()
-    let duplicateTabID = TerminalTabID()
-    let validSession = TerminalTabSession(
-      isPinned: false,
-      lockedTitle: "Pinned",
+  func sanitizedCatalogPrunesUnknownProjectsAndDuplicateTabs() throws {
+    let spaceID = TerminalSpaceID()
+    let projectID = TerminalProjectID()
+    let unknownProjectID = TerminalProjectID()
+    let tabID = TerminalTabID()
+    let session = TerminalTabSession(
+      lockedTitle: nil,
       focusedPaneIndex: 0,
-      root: TerminalPaneNodeSession.leaf(TerminalPaneLeafSession(workingDirectoryPath: "/tmp"))
+      root: .leaf(TerminalPaneLeafSession(id: UUID(), workingDirectoryPath: nil))
     )
     let catalog = TerminalPinnedTabCatalog(
       spaces: [
         PersistedPinnedTerminalTabsForSpace(
-          id: validSpaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(id: duplicateTabID, session: validSession),
-            PersistedPinnedTerminalTab(id: duplicateTabID, session: validSession),
+          id: spaceID,
+          projects: [
+            PersistedPinnedTerminalTabsForProject(
+              id: projectID,
+              tabs: [
+                PersistedTerminalTab(id: tabID, session: session),
+                PersistedTerminalTab(id: tabID, session: session),
+              ]
+            ),
+            PersistedPinnedTerminalTabsForProject(
+              id: unknownProjectID,
+              tabs: [PersistedTerminalTab(id: TerminalTabID(), session: session)]
+            ),
           ]
-        ),
-        PersistedPinnedTerminalTabsForSpace(
-          id: invalidSpaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(id: TerminalTabID(), session: validSession)
-          ]
-        ),
-        PersistedPinnedTerminalTabsForSpace(
-          id: validSpaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(id: TerminalTabID(), session: validSession)
-          ]
-        ),
+        )
       ]
     )
 
     let sanitized = TerminalPinnedTabCatalog.sanitized(
       catalog,
-      validSpaceIDs: [validSpaceID]
+      validProjectIDsBySpaceID: [spaceID: [projectID]]
     )
 
-    #expect(sanitized.spaces.map(\.id) == [validSpaceID])
-    #expect(sanitized.spaces[0].tabs.map(\.id) == [duplicateTabID])
-    #expect(sanitized.spaces[0].tabs[0].session.isPinned)
+    #expect(sanitized.projects(in: spaceID).map(\.id) == [projectID])
+    #expect(sanitized.tabs(in: projectID, spaceID: spaceID).map(\.id) == [tabID])
+  }
+
+  @Test
+  func updatingProjectsRemovesEmptySpace() {
+    let spaceID = TerminalSpaceID()
+    let catalog = TerminalPinnedTabCatalog.default.updatingProjects([], in: spaceID)
+    #expect(catalog.spaces.isEmpty)
   }
 }

@@ -163,20 +163,13 @@ struct TerminalWindowFeature {
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
     case nextSpaceRequested
     case nextTabMenuItemSelected
-    case pinnedTabOrderChanged([TerminalTabID])
     case previousSpaceRequested
     case previousTabMenuItemSelected
-    case regularTabOrderChanged([TerminalTabID])
     case selectLastTabMenuItemSelected
     case selectTabMenuItemSelected(Int)
     case selectSpaceButtonTapped(TerminalSpaceID)
     case selectSpaceMenuItemSelected(Int)
     case sidebarTabSplitRequested(surfaceID: UUID, direction: SupatermPaneDirection)
-    case sidebarTabMoveCommitted(
-      tabID: TerminalTabID,
-      pinnedOrder: [TerminalTabID],
-      regularOrder: [TerminalTabID]
-    )
     case sidebarFractionChanged(CGFloat)
     case splitOperationRequested(tabID: TerminalTabID, operation: TerminalSplitTreeView.Operation)
     case tabSelected(TerminalTabID)
@@ -379,17 +372,11 @@ struct TerminalWindowFeature {
       case .nextTabMenuItemSelected:
         return sendCommand(.nextTab)
 
-      case .pinnedTabOrderChanged(let orderedIDs):
-        return sendCommand(.setPinnedTabOrder(orderedIDs))
-
       case .previousSpaceRequested:
         return sendCommand(.previousSpace)
 
       case .previousTabMenuItemSelected:
         return sendCommand(.previousTab)
-
-      case .regularTabOrderChanged(let orderedIDs):
-        return sendCommand(.setRegularTabOrder(orderedIDs))
 
       case .selectLastTabMenuItemSelected:
         return sendCommand(.selectLastTab)
@@ -416,11 +403,6 @@ struct TerminalWindowFeature {
             )
           )
         }
-
-      case .sidebarTabMoveCommitted(let tabID, let pinnedOrder, let regularOrder):
-        return sendCommand(
-          .moveSidebarTab(tabID: tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-        )
 
       case .sidebarFractionChanged(let fraction):
         state.sidebarFraction = fraction

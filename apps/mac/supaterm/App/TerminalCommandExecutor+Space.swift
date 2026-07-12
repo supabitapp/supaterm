@@ -3,6 +3,88 @@ import SupatermCLIShared
 import SupatermTerminalCore
 
 extension TerminalCommandExecutor {
+  func createProject(_ request: TerminalCreateProjectRequest) throws -> SupatermProjectTarget {
+    switch request.target {
+    case .contextPane:
+      for (offset, entry) in registry.activeEntries().enumerated() {
+        do {
+          return rewrite(try entry.terminal.createProject(request), windowIndex: offset + 1)
+        } catch TerminalControlError.contextPaneNotFound {
+          continue
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    case .space(let windowIndex, let spaceIndex):
+      let entry = try registry.entry(for: windowIndex)
+      let localRequest = TerminalCreateProjectRequest(
+        name: request.name,
+        focus: request.focus,
+        target: .space(windowIndex: 1, spaceIndex: spaceIndex)
+      )
+      return rewrite(try entry.terminal.createProject(localRequest), windowIndex: windowIndex)
+    }
+  }
+
+  func closeProject(_ target: TerminalProjectTarget) throws -> SupatermProjectTarget {
+    try executeProjectTarget(target) { terminal, localTarget in
+      try terminal.closeProject(localTarget)
+    }
+  }
+
+  func renameProject(_ request: TerminalRenameProjectRequest) throws -> SupatermProjectTarget {
+    try executeProjectTarget(request.target) { terminal, localTarget in
+      try terminal.renameProject(TerminalRenameProjectRequest(name: request.name, target: localTarget))
+    }
+  }
+
+  func setProjectPinned(
+    _ target: TerminalProjectTarget,
+    isPinned: Bool
+  ) throws -> SupatermProjectTarget {
+    try executeProjectTarget(target) { terminal, localTarget in
+      try terminal.setProjectPinned(localTarget, isPinned: isPinned)
+    }
+  }
+
+  private func executeProjectTarget(
+    _ target: TerminalProjectTarget,
+    operation: (TerminalHostState, TerminalProjectTarget) throws -> SupatermProjectTarget
+  ) throws -> SupatermProjectTarget {
+    switch target {
+    case .contextPane:
+      for (offset, entry) in registry.activeEntries().enumerated() {
+        do {
+          return rewrite(try operation(entry.terminal, target), windowIndex: offset + 1)
+        } catch TerminalControlError.contextPaneNotFound {
+          continue
+        }
+      }
+      throw TerminalControlError.contextPaneNotFound
+    case .project(let windowIndex, let spaceIndex, let projectIndex):
+      let entry = try registry.entry(for: windowIndex)
+      let result = try operation(
+        entry.terminal,
+        .project(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex)
+      )
+      return rewrite(result, windowIndex: windowIndex)
+    }
+  }
+
+  private func rewrite(
+    _ target: SupatermProjectTarget,
+    windowIndex: Int
+  ) -> SupatermProjectTarget {
+    SupatermProjectTarget(
+      windowIndex: windowIndex,
+      spaceIndex: target.spaceIndex,
+      spaceID: target.spaceID,
+      projectIndex: target.projectIndex,
+      projectID: target.projectID,
+      name: target.name,
+      isPinned: target.isPinned
+    )
+  }
+
   func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {
     if request.target.contextPaneID != nil && request.target.windowIndex == nil {
       for (offset, entry) in registry.activeEntries().enumerated() {

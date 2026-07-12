@@ -57,14 +57,14 @@ extension TerminalHostState {
 
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
-    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
-    requestCloseTabs(tabManager.tabIDsBelow(tabID))
+    guard let projectManager = spaceManager.projectManager(for: space.id) else { return }
+    requestCloseTabs(projectManager.tabIDsBelow(tabID))
   }
 
   func requestCloseOtherTabs(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
-    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
-    requestCloseTabs(tabManager.otherTabIDs(tabID))
+    guard let projectManager = spaceManager.projectManager(for: space.id) else { return }
+    requestCloseTabs(projectManager.otherTabIDs(tabID))
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {
@@ -117,7 +117,7 @@ extension TerminalHostState {
       persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
       removeTree(for: tabID, source: .pinnedLastPaneClose)
       if let spaceID {
-        spaceManager.tabManager(for: spaceID)?.updateDirty(tabID, isDirty: false)
+        spaceManager.projectManager(for: spaceID)?.updateDirty(tabID, isDirty: false)
         updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
       } else {
         lastEmittedFocusSurfaceID = nil
@@ -135,7 +135,7 @@ extension TerminalHostState {
       trees.removeValue(forKey: tabID)
       focusHistoryByTab.removeValue(forKey: tabID)
       spaceManager.space(for: tabID)
-        .flatMap { spaceManager.tabManager(for: $0.id) }?
+        .flatMap { spaceManager.projectManager(for: $0.id) }?
         .closeTab(tabID)
       if let spaceID {
         updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
@@ -164,7 +164,7 @@ extension TerminalHostState {
   func suspendPinnedTab(_ tabID: TerminalTabID) {
     guard
       let space = spaceManager.space(for: tabID),
-      let tabManager = spaceManager.tabManager(for: space.id),
+      let projectManager = spaceManager.projectManager(for: space.id),
       spaceManager.tab(for: tabID)?.isPinned == true
     else {
       return
@@ -181,7 +181,7 @@ extension TerminalHostState {
     )
     persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
     removeTree(for: tabID, terminateSessions: false, source: .pinnedSuspend)
-    tabManager.updateDirty(tabID, isDirty: false)
+    projectManager.updateDirty(tabID, isDirty: false)
   }
 
   func requestCloseSurfaceAfterProcessExit(

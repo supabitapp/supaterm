@@ -416,13 +416,10 @@ final class TerminalHostState {
     case .nextSpace,
       .previousSpace,
       .selectLastTab,
-      .moveSidebarTab,
       .selectTab,
       .selectTabSlot,
       .selectSpaceSlot,
       .selectSpace,
-      .setPinnedTabOrder,
-      .setRegularTabOrder,
       .togglePinned,
       .updateWindowActivity,
       .deleteSpace:
@@ -503,14 +500,8 @@ final class TerminalHostState {
       selectSpace(slot: slot)
     case .selectSpace(let spaceID):
       selectSpace(spaceID)
-    case .moveSidebarTab(let tabID, let pinnedOrder, let regularOrder):
-      moveSidebarTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-    case .setPinnedTabOrder(let orderedIDs):
-      setPinnedTabOrder(orderedIDs)
     case .previousSpace:
       previousSpace()
-    case .setRegularTabOrder(let orderedIDs):
-      setRegularTabOrder(orderedIDs)
     case .togglePinned(let tabID):
       togglePinned(tabID)
     case .deleteSpace(let spaceID):
@@ -522,39 +513,14 @@ final class TerminalHostState {
     }
   }
 
-  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
-    spaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
-    if let selectedSpaceID {
-      syncPinnedTabMembership(in: selectedSpaceID)
-    }
-    sessionDidChange()
-  }
-
-  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
-    spaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
-    sessionDidChange()
-  }
-
-  func moveSidebarTab(
-    _ tabID: TerminalTabID,
-    pinnedOrder: [TerminalTabID],
-    regularOrder: [TerminalTabID]
-  ) {
-    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
-    spaceManager.tabManager(for: spaceID)?
-      .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-    syncPinnedTabMembership(in: spaceID)
-    sessionDidChange()
-  }
-
   func togglePinned(_ tabID: TerminalTabID) {
     guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
     if spaceManager.tab(for: tabID)?.isPinned == true, trees[tabID] == nil {
       let wasSelectedSpace = selectedSpaceID == spaceID
-      spaceManager.tabManager(for: spaceID)?.closeTab(tabID)
+      spaceManager.projectManager(for: spaceID)?.closeTab(tabID)
       updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
     } else {
-      spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
+      spaceManager.projectManager(for: spaceID)?.togglePinned(tabID)
     }
     syncPinnedTabMembership(in: spaceID)
     sessionDidChange()
@@ -819,7 +785,7 @@ final class TerminalHostState {
 
   func performCloseTab(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
-    guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
+    guard let projectManager = spaceManager.projectManager(for: space.id) else { return }
     let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == space.id
     let dormantPinnedSurfaceIDs =
@@ -835,7 +801,7 @@ final class TerminalHostState {
     if !dormantPinnedSurfaceIDs.isEmpty {
       killZmxSessions(for: dormantPinnedSurfaceIDs)
     }
-    tabManager.closeTab(tabID)
+    projectManager.closeTab(tabID)
     updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
     syncFocus(windowActivity)
     sessionDidChange()
@@ -1003,11 +969,13 @@ final class TerminalHostState {
 
   struct ResolvedCreateTabTarget {
     let inheritedSurfaceID: UUID?
+    let project: TerminalProjectItem
     let space: TerminalSpaceItem
   }
 
   struct ResolvedLocalCreateTabTarget {
     let inheritedSurfaceID: UUID?
+    let projectID: TerminalProjectID
     let spaceID: TerminalSpaceID
   }
 
@@ -1031,6 +999,8 @@ final class TerminalHostState {
 
   struct ResolvedPaneLocation {
     let paneIndex: Int
+    let projectID: TerminalProjectID
+    let projectIndex: Int
     let spaceIndex: Int
     let tabIndex: Int
   }
@@ -1041,15 +1011,24 @@ final class TerminalHostState {
     switch target {
     case .contextPane(let paneID):
       return try resolveCreatePaneTarget(.contextPane(paneID))
-    case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
       return try resolveCreatePaneTarget(
         .pane(
-          windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex, paneIndex: paneIndex
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
+          tabIndex: tabIndex,
+          paneIndex: paneIndex
         )
       )
-    case .tab(let windowIndex, let spaceIndex, let tabIndex):
+    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
       return try resolveCreatePaneTarget(
-        .tab(windowIndex: windowIndex, spaceIndex: spaceIndex, tabIndex: tabIndex)
+        .tab(
+          windowIndex: windowIndex,
+          spaceIndex: spaceIndex,
+          projectIndex: projectIndex,
+          tabIndex: tabIndex
+        )
       )
     }
   }
@@ -1070,10 +1049,18 @@ final class TerminalHostState {
   func resolveTab(
     windowIndex: Int,
     spaceIndex: Int,
+    projectIndex: Int,
     tabIndex: Int
   ) throws -> ResolvedCreatePaneTab {
     let space = try resolveSpace(windowIndex: windowIndex, spaceIndex: spaceIndex)
-    let tabs = spaceManager.tabs(in: space.id)
+    guard let project = spaceManager.project(at: projectIndex, in: space.id) else {
+      throw TerminalCreatePaneError.tabNotFound(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex
+      )
+    }
+    let tabs = spaceManager.tabs(in: project.id)
     let tabOffset = tabIndex - 1
     guard tabs.indices.contains(tabOffset) else {
       throw TerminalCreatePaneError.tabNotFound(
@@ -1099,7 +1086,9 @@ final class TerminalHostState {
   ) throws -> ResolvedPaneLocation {
     guard
       let spaceIndex = spaceManager.spaceIndex(for: spaceID),
-      let tabIndex = spaceManager.tabs(in: spaceID).firstIndex(where: { $0.id == tabID }),
+      let projectID = spaceManager.projectID(for: tabID),
+      let projectIndex = spaceManager.projectIndex(for: projectID, in: spaceID),
+      let tabIndex = spaceManager.tabs(in: projectID).firstIndex(where: { $0.id == tabID }),
       let paneIndex = tree.leaves().firstIndex(where: { $0.id == surfaceID })
     else {
       throw TerminalCreatePaneError.creationFailed
@@ -1107,6 +1096,8 @@ final class TerminalHostState {
 
     return ResolvedPaneLocation(
       paneIndex: paneIndex + 1,
+      projectID: projectID,
+      projectIndex: projectIndex,
       spaceIndex: spaceIndex,
       tabIndex: tabIndex + 1
     )
@@ -1115,7 +1106,7 @@ final class TerminalHostState {
   func updateTabTitle(for tabID: TerminalTabID) {
     let resolvedTitle = currentTabTitle(for: tabID)
     spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
+      .flatMap { spaceManager.projectManager(for: $0.id) }?
       .updateTitle(tabID, title: resolvedTitle)
   }
 
@@ -1284,7 +1275,7 @@ final class TerminalHostState {
       Self.isRunning(progressState: surface.bridge.state.progressState)
     }
     spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
+      .flatMap { spaceManager.projectManager(for: $0.id) }?
       .updateDirty(tabID, isDirty: isRunning)
   }
 
@@ -1320,7 +1311,7 @@ final class TerminalHostState {
 
   func setLockedTabTitle(_ title: String?, for tabID: TerminalTabID) {
     spaceManager.space(for: tabID)
-      .flatMap { spaceManager.tabManager(for: $0.id) }?
+      .flatMap { spaceManager.projectManager(for: $0.id) }?
       .setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
     persistPinnedTabTitleIfNeeded(for: tabID)

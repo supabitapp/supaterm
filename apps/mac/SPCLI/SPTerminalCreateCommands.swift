@@ -15,10 +15,10 @@ extension SP {
 
     @Option(
       name: .customLong("in"),
-      help: "Create the new tab in the specified space.",
-      transform: parseSpaceReference
+      help: "Create the new tab in the specified project.",
+      transform: parseProjectReference
     )
-    var space: SPSpaceReference?
+    var project: SPProjectReference?
 
     @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
     var focus = false
@@ -38,9 +38,9 @@ extension SP {
         options: options,
         request: { try .newTab(try requestPayload(client: $0)) },
         as: SupatermNewTabResult.self,
-        plain: { plainTabSelector(spaceIndex: $0.spaceIndex, tabIndex: $0.tabIndex) },
+        plain: { "\($0.spaceIndex)/\($0.projectIndex)/\($0.tabIndex)" },
         human: {
-          "window \($0.windowIndex) space \($0.spaceIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
+          "window \($0.windowIndex) space \($0.spaceIndex) project \($0.projectIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
         }
       )
     }
@@ -53,7 +53,7 @@ extension SP {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicNewTabTarget(
-        space,
+        project,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
@@ -65,13 +65,14 @@ extension SP {
           focus: focus
         )
 
-      case .space(let windowIndex, let spaceIndex):
+      case .project(let windowIndex, let spaceIndex, let projectIndex):
         return SupatermNewTabRequest(
           startupCommand: command,
           cwd: cwd,
           focus: focus,
           targetWindowIndex: windowIndex,
-          targetSpaceIndex: spaceIndex
+          targetSpaceIndex: spaceIndex,
+          targetProjectIndex: projectIndex
         )
       }
     }
@@ -144,10 +145,10 @@ extension SP {
         request: { try .newPane(try requestPayload(client: $0)) },
         as: SupatermNewPaneResult.self,
         plain: {
-          plainPaneSelector(spaceIndex: $0.spaceIndex, tabIndex: $0.tabIndex, paneIndex: $0.paneIndex)
+          "\($0.spaceIndex)/\($0.projectIndex)/\($0.tabIndex)/\($0.paneIndex)"
         },
         human: {
-          "window \($0.windowIndex) space \($0.spaceIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
+          "window \($0.windowIndex) space \($0.spaceIndex) project \($0.projectIndex) tab \($0.tabIndex) pane \($0.paneIndex)"
         }
       )
     }
@@ -174,7 +175,7 @@ extension SP {
           equalize: layout == .equalize
         )
 
-      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
           startupCommand: command,
           cwd: cwd,
@@ -183,11 +184,12 @@ extension SP {
           equalize: layout == .equalize,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex,
+          targetProjectIndex: projectIndex,
           targetTabIndex: tabIndex,
           targetPaneIndex: paneIndex
         )
 
-      case .tab(let windowIndex, let spaceIndex, let tabIndex):
+      case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
         return SupatermNewPaneRequest(
           startupCommand: command,
           cwd: cwd,
@@ -196,6 +198,7 @@ extension SP {
           equalize: layout == .equalize,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex,
+          targetProjectIndex: projectIndex,
           targetTabIndex: tabIndex
         )
       }
@@ -253,11 +256,12 @@ extension SP {
           title: title
         )
 
-      case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
+      case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
         return .init(
           body: body,
           subtitle: subtitle,
           targetPaneIndex: paneIndex,
+          targetProjectIndex: projectIndex,
           targetSpaceIndex: spaceIndex,
           targetTabIndex: tabIndex,
           targetWindowIndex: windowIndex,

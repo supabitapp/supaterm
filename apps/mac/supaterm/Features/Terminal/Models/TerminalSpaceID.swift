@@ -31,13 +31,16 @@ nonisolated struct TerminalSpaceItem: Identifiable, Equatable, Codable, Sendable
 nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
   let id: TerminalSpaceID
   var name: String
+  var projects: [TerminalProjectItem]
 
   init(
     id: TerminalSpaceID = TerminalSpaceID(),
-    name: String
+    name: String,
+    projects: [TerminalProjectItem]? = nil
   ) {
     self.id = id
     self.name = name
+    self.projects = projects ?? [TerminalProjectItem(name: NSHomeDirectory())]
   }
 }
 
@@ -61,12 +64,16 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
   static func sanitized(_ catalog: Self?) -> Self {
     guard let catalog else { return .default }
 
+    var seenSpaceIDs: Set<TerminalSpaceID> = []
     let spaces = catalog.spaces.compactMap { space -> PersistedTerminalSpace? in
+      guard seenSpaceIDs.insert(space.id).inserted else { return nil }
       let trimmedName = space.name.trimmingCharacters(in: .whitespacesAndNewlines)
       guard !trimmedName.isEmpty else { return nil }
+      let projects = sanitizedProjects(space.projects)
       return PersistedTerminalSpace(
         id: space.id,
-        name: trimmedName
+        name: trimmedName,
+        projects: projects
       )
     }
     guard !spaces.isEmpty else { return .default }
@@ -97,5 +104,26 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
       defaultSelectedSpaceID: space.id,
       spaces: [space]
     )
+  }
+
+  private static func sanitizedProjects(
+    _ projects: [TerminalProjectItem]
+  ) -> [TerminalProjectItem] {
+    var seenIDs: Set<TerminalProjectID> = []
+    var seenNames: Set<String> = []
+    let projects = projects.compactMap { project -> TerminalProjectItem? in
+      let name = project.name.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !name.isEmpty else { return nil }
+      guard seenIDs.insert(project.id).inserted else { return nil }
+      guard seenNames.insert(name.folding(options: [.caseInsensitive], locale: .current)).inserted
+      else { return nil }
+      return TerminalProjectItem(
+        id: project.id,
+        name: name,
+        isPinned: project.isPinned
+      )
+    }
+    let resolved = projects.isEmpty ? [TerminalProjectItem(name: NSHomeDirectory())] : projects
+    return resolved.filter(\.isPinned) + resolved.filter { !$0.isPinned }
   }
 }

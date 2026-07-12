@@ -69,7 +69,8 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
         cwd: directory.path,
         focus: true,
         targetWindowIndex: created.target.windowIndex,
-        targetSpaceIndex: created.target.spaceIndex
+        targetSpaceIndex: created.target.spaceIndex,
+        targetProjectIndex: created.projectIndex
       )
     ),
     as: SupatermNewTabResult.self

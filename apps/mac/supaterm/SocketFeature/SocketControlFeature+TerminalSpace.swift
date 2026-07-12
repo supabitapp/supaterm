@@ -7,6 +7,22 @@ extension SocketControlFeature {
     for request: SupatermSocketRequest,
     socketRequestExecutor: SocketRequestExecutor
   ) async throws -> SupatermSocketResponse? {
+    if let response = try await terminalProjectResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
+    return try await terminalSpaceOnlyResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    )
+  }
+
+  private func terminalSpaceOnlyResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
     switch request.method {
     case SupatermSocketMethod.terminalCreateSpace:
       let payload = try request.decodeParams(SupatermCreateSpaceRequest.self)
@@ -93,6 +109,84 @@ extension SocketControlFeature {
     }
   }
 
+  private func terminalProjectResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse? {
+    switch request.method {
+    case SupatermSocketMethod.terminalCreateProject:
+      let payload = try request.decodeParams(SupatermCreateProjectRequest.self)
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .createProject(
+          TerminalCreateProjectRequest(
+            name: payload.name,
+            focus: payload.focus,
+            target: try createSpaceTarget(from: payload.target)
+          )
+        )
+      )
+      guard case .createProject(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalCloseProject:
+      let payload = try request.decodeParams(SupatermProjectTargetRequest.self)
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .closeProject(try createProjectTarget(from: payload))
+      )
+      guard case .closeProject(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalRenameProject:
+      let payload = try request.decodeParams(SupatermRenameProjectRequest.self)
+      let execution = try await socketRequestExecutor.executeTerminalSpace(
+        .renameProject(
+          TerminalRenameProjectRequest(
+            name: payload.name,
+            target: try createProjectTarget(from: payload.target)
+          )
+        )
+      )
+      guard case .renameProject(let result) = execution else {
+        throw SocketExecutorError.unexpectedResult
+      }
+      return try .ok(id: request.id, encodableResult: result)
+
+    case SupatermSocketMethod.terminalPinProject, SupatermSocketMethod.terminalUnpinProject:
+      return try await projectPinResponseResult(
+        for: request,
+        socketRequestExecutor: socketRequestExecutor
+      )
+
+    default:
+      return nil
+    }
+  }
+
+  private func projectPinResponseResult(
+    for request: SupatermSocketRequest,
+    socketRequestExecutor: SocketRequestExecutor
+  ) async throws -> SupatermSocketResponse {
+    let payload = try request.decodeParams(SupatermProjectTargetRequest.self)
+    let target = try createProjectTarget(from: payload)
+    let pins = request.method == SupatermSocketMethod.terminalPinProject
+    let execution = try await socketRequestExecutor.executeTerminalSpace(
+      pins ? .pinProject(target) : .unpinProject(target)
+    )
+    let result: SupatermProjectTarget
+    if pins, case .pinProject(let value) = execution {
+      result = value
+    } else if !pins, case .unpinProject(let value) = execution {
+      result = value
+    } else {
+      throw SocketExecutorError.unexpectedResult
+    }
+    return try .ok(id: request.id, encodableResult: result)
+  }
+
   func createSpaceTarget(
     from payload: SupatermSpaceTargetRequest
   ) throws -> TerminalSpaceTarget {
@@ -111,6 +205,34 @@ extension SocketControlFeature {
     }
     if payload.targetWindowIndex != nil {
       throw SocketRequestError.windowRequiresSpace
+    }
+    return .contextPane(contextPaneID)
+  }
+
+  func createProjectTarget(
+    from payload: SupatermProjectTargetRequest
+  ) throws -> TerminalProjectTarget {
+    if let windowIndex = payload.targetWindowIndex, windowIndex < 1 {
+      throw SocketRequestError.invalidIndex("window")
+    }
+    if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
+      throw SocketRequestError.invalidIndex("space")
+    }
+    if let projectIndex = payload.targetProjectIndex, projectIndex < 1 {
+      throw SocketRequestError.invalidIndex("project")
+    }
+    if let projectIndex = payload.targetProjectIndex {
+      guard let spaceIndex = payload.targetSpaceIndex else {
+        throw SocketRequestError.missingSpaceTarget
+      }
+      return .project(
+        windowIndex: payload.targetWindowIndex ?? 1,
+        spaceIndex: spaceIndex,
+        projectIndex: projectIndex
+      )
+    }
+    guard let contextPaneID = payload.contextPaneID else {
+      throw SocketRequestError.missingSpaceTarget
     }
     return .contextPane(contextPaneID)
   }

@@ -171,6 +171,9 @@ extension SocketControlFeature {
     if let spaceIndex = payload.targetSpaceIndex, spaceIndex < 1 {
       throw SocketRequestError.invalidIndex("space")
     }
+    if let projectIndex = payload.targetProjectIndex, projectIndex < 1 {
+      throw SocketRequestError.invalidIndex("project")
+    }
     if let tabIndex = payload.targetTabIndex, tabIndex < 1 {
       throw SocketRequestError.invalidIndex("tab")
     }
@@ -178,16 +181,22 @@ extension SocketControlFeature {
       throw SocketRequestError.invalidIndex("pane")
     }
 
-    switch (payload.targetSpaceIndex, payload.targetTabIndex, payload.targetPaneIndex) {
-    case (.some, .some, .some):
+    switch (
+      payload.targetSpaceIndex,
+      payload.targetProjectIndex,
+      payload.targetTabIndex,
+      payload.targetPaneIndex
+    ) {
+    case (.some, .some, .some, .some):
       return .pane(
         windowIndex: payload.targetWindowIndex ?? 1,
         spaceIndex: payload.targetSpaceIndex!,
+        projectIndex: payload.targetProjectIndex!,
         tabIndex: payload.targetTabIndex!,
         paneIndex: payload.targetPaneIndex!
       )
 
-    case (.none, .none, .none):
+    case (.none, .none, .none, .none):
       guard let contextPaneID = payload.contextPaneID else {
         throw SocketRequestError.missingTarget
       }
@@ -196,13 +205,7 @@ extension SocketControlFeature {
       }
       return .contextPane(contextPaneID)
 
-    case (.none, .some, _):
-      throw SocketRequestError.tabRequiresSpace
-    case (.some, .none, _):
-      throw SocketRequestError.spaceRequiresTab
-    case (.some, .some, .none):
-      throw SocketRequestError.paneRequiresTab
-    case (.none, .none, .some):
+    default:
       throw SocketRequestError.paneRequiresTab
     }
   }
