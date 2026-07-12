@@ -316,6 +316,15 @@ struct ChromePaletteTests {
       "sidebarSelectedFill"
     )
     expectSameColor(
+      palette.sidebarDragPreviewFill,
+      ColorMath.composited(
+        selectedFillValue,
+        opacity: selectedFillOpacity,
+        over: palette.chromeBackgroundStartValue
+      ).color,
+      "sidebarDragPreviewFill"
+    )
+    expectSameColor(
       palette.sidebarSelectedShadow,
       isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12),
       "sidebarSelectedShadow"

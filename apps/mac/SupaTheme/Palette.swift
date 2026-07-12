@@ -73,6 +73,9 @@ public struct Palette {
   public var secondaryText: Color { isDark ? Color.white.opacity(0.58) : Color.black.opacity(0.48) }
   public var sidebarTabTitle: Color { (isDark ? Color.white : .black).opacity(isDark ? 0.78 : 0.68) }
   public var sidebarSelectedFill: Color { sidebarSelectedFillValue.color.opacity(sidebarSelectedFillOpacity) }
+  public var sidebarDragPreviewFill: Color {
+    sidebarSelectedSurface(over: chromeBackgroundStartValue).color
+  }
   public var sidebarSelectedStroke: LinearGradient {
     LinearGradient(
       colors: [
