@@ -9,6 +9,31 @@ import Testing
 @MainActor
 struct SettingsFeatureCodingAgentsTests {
   @Test
+  func integrationHealthDrivesToggleAndStatusMessage() {
+    var state = SettingsAgentIntegrationState(health: .healthy)
+    #expect(state.isAvailable)
+    #expect(state.isEnabled)
+    #expect(state.message(for: .codex) == nil)
+
+    state.health = .partial
+    #expect(state.isEnabled)
+    #expect(state.message(for: .codex) == "Codex integration is incomplete.")
+
+    state.health = .drifted
+    #expect(state.isEnabled)
+    #expect(state.message(for: .codex) == "Codex integration needs repair.")
+
+    state.health = .unavailableInstalled
+    #expect(state.isAvailable)
+    #expect(state.isEnabled)
+    #expect(state.message(for: .codex) == "Codex 0.144.1 or newer is unavailable.")
+
+    state.health = .unavailable
+    #expect(!state.isAvailable)
+    #expect(state.message(for: .codex) == "Codex 0.144.1 or newer is unavailable.")
+  }
+
+  @Test
   func showPanelSettingPersistsPrefs() async {
     await withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -67,10 +92,10 @@ struct SettingsFeatureCodingAgentsTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.claudeSettingsClient.hasSupatermHooks = { true }
-      $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.claudeSettingsClient.integrationHealth = { .healthy }
+      $0.codexSettingsClient.integrationHealth = { .absent }
       $0.ghosttyTerminalSettingsClient.load = { terminalSettingsSnapshot() }
-      $0.piSettingsClient.hasSupatermIntegration = { true }
+      $0.piSettingsClient.integrationHealth = { .healthy }
     }
 
     await store.send(.task)
@@ -79,29 +104,27 @@ struct SettingsFeatureCodingAgentsTests {
       $0.terminal.isLoading = true
     }
     await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
-      $0.claudeIntegration.isPending = true
+      $0.claudeIntegration.isRefreshing = true
     }
     await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
-      $0.codexIntegration.isPending = true
+      $0.codexIntegration.isRefreshing = true
     }
     await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
-      $0.piIntegration.isPending = true
+      $0.piIntegration.isRefreshing = true
     }
     await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(true)), timeout: 0) {
-      $0.claudeIntegration.confirmedEnabled = true
-      $0.claudeIntegration.isEnabled = true
-      $0.claudeIntegration.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.healthy)), timeout: 0) {
+      $0.claudeIntegration.health = .healthy
+      $0.claudeIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(false)), timeout: 0) {
-      $0.codexIntegration.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: 0) {
+      $0.codexIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(true)), timeout: 0) {
-      $0.piIntegration.confirmedEnabled = true
-      $0.piIntegration.isEnabled = true
-      $0.piIntegration.isPending = false
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.healthy)), timeout: 0) {
+      $0.piIntegration.health = .healthy
+      $0.piIntegration.isRefreshing = false
     }
   }
 
@@ -117,14 +140,12 @@ struct SettingsFeatureCodingAgentsTests {
       }
 
       await store.send(.agentIntegrationToggled(agent, true)) {
-        $0[keyPath: keyPath].isEnabled = true
-        $0[keyPath: keyPath].isPending = true
+        $0[keyPath: keyPath].pendingEnabled = true
       }
 
-      await store.receive(.agentIntegrationToggleFinished(agent, .success(true)), timeout: 0) {
-        $0[keyPath: keyPath].confirmedEnabled = true
-        $0[keyPath: keyPath].isEnabled = true
-        $0[keyPath: keyPath].isPending = false
+      await store.receive(.agentIntegrationToggleFinished(agent, .success(.healthy)), timeout: 0) {
+        $0[keyPath: keyPath].health = .healthy
+        $0[keyPath: keyPath].pendingEnabled = nil
       }
 
       #expect(await recorder.commands() == [.skill, .integration(agent)])
@@ -137,8 +158,7 @@ struct SettingsFeatureCodingAgentsTests {
       let recorder = SettingsAgentInstallRecorder()
       var state = SettingsFeature.State()
       let keyPath = SettingsFeature().agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].confirmedEnabled = true
-      state[keyPath: keyPath].isEnabled = true
+      state[keyPath: keyPath].health = .healthy
 
       let store = TestStore(initialState: state) {
         SettingsFeature()
@@ -147,14 +167,12 @@ struct SettingsFeatureCodingAgentsTests {
       }
 
       await store.send(.agentIntegrationToggled(agent, false)) {
-        $0[keyPath: keyPath].isEnabled = false
-        $0[keyPath: keyPath].isPending = true
+        $0[keyPath: keyPath].pendingEnabled = false
       }
 
-      await store.receive(.agentIntegrationToggleFinished(agent, .success(false)), timeout: 0) {
-        $0[keyPath: keyPath].confirmedEnabled = false
-        $0[keyPath: keyPath].isEnabled = false
-        $0[keyPath: keyPath].isPending = false
+      await store.receive(.agentIntegrationToggleFinished(agent, .success(.absent)), timeout: 0) {
+        $0[keyPath: keyPath].health = .absent
+        $0[keyPath: keyPath].pendingEnabled = nil
       }
 
       #expect(await recorder.commands() == [.integration(agent)])
@@ -167,18 +185,16 @@ struct SettingsFeatureCodingAgentsTests {
       SettingsFeature()
     } withDependencies: {
       $0.claudeSettingsClient.installSupatermHooks = {}
-      $0.claudeSettingsClient.hasSupatermHooks = { true }
+      $0.claudeSettingsClient.integrationHealth = { .healthy }
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
-      $0.claudeIntegration.isEnabled = true
-      $0.claudeIntegration.isPending = true
+      $0.claudeIntegration.pendingEnabled = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.claude, .success(true)), timeout: 0) {
-      $0.claudeIntegration.confirmedEnabled = true
-      $0.claudeIntegration.isEnabled = true
-      $0.claudeIntegration.isPending = false
+    await store.receive(.agentIntegrationToggleFinished(.claude, .success(.healthy)), timeout: 0) {
+      $0.claudeIntegration.health = .healthy
+      $0.claudeIntegration.pendingEnabled = nil
     }
   }
 
@@ -193,8 +209,7 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.claude, true)) {
-      $0.claudeIntegration.isEnabled = true
-      $0.claudeIntegration.isPending = true
+      $0.claudeIntegration.pendingEnabled = true
     }
 
     await store.receive(
@@ -208,41 +223,61 @@ struct SettingsFeatureCodingAgentsTests {
         log: "Claude settings must be valid JSON before Supaterm can install hooks."
       )
       $0.claudeIntegration.errorMessage = "Claude settings must be valid JSON before Supaterm can install hooks."
-      $0.claudeIntegration.isEnabled = false
-      $0.claudeIntegration.isPending = false
+      $0.claudeIntegration.pendingEnabled = nil
     }
   }
 
   @Test
   func codexIntegrationToggleOffShowsSuccessState() async {
     var state = SettingsFeature.State()
-    state.codexIntegration.confirmedEnabled = true
-    state.codexIntegration.isEnabled = true
+    state.codexIntegration.health = .healthy
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
     } withDependencies: {
-      $0.codexSettingsClient.hasSupatermHooks = { false }
+      $0.codexSettingsClient.integrationHealth = { .absent }
       $0.codexSettingsClient.removeSupatermHooks = {}
     }
 
     await store.send(.agentIntegrationToggled(.codex, false)) {
-      $0.codexIntegration.isEnabled = false
-      $0.codexIntegration.isPending = true
+      $0.codexIntegration.pendingEnabled = false
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.codex, .success(false)), timeout: 0) {
-      $0.codexIntegration.confirmedEnabled = false
-      $0.codexIntegration.isEnabled = false
-      $0.codexIntegration.isPending = false
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.absent)), timeout: 0) {
+      $0.codexIntegration.health = .absent
+      $0.codexIntegration.pendingEnabled = nil
     }
+  }
+
+  @Test
+  func codexRemovalRunsWhenCodexBecomesUnavailable() async {
+    var state = SettingsFeature.State()
+    state.codexIntegration.health = .healthy
+    let recorder = SettingsAgentInstallRecorder()
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.codexSettingsClient.integrationHealth = { .unavailable }
+      $0.codexSettingsClient.removeSupatermHooks = {
+        await recorder.record(.integration(.codex))
+      }
+    }
+
+    await store.send(.agentIntegrationToggled(.codex, false)) {
+      $0.codexIntegration.pendingEnabled = false
+    }
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.unavailable)), timeout: 0) {
+      $0.codexIntegration.health = .unavailable
+      $0.codexIntegration.pendingEnabled = nil
+    }
+
+    #expect(await recorder.commands() == [.integration(.codex)])
   }
 
   @Test
   func codexIntegrationToggleFailureRevertsToConfirmedState() async {
     var state = SettingsFeature.State()
-    state.codexIntegration.confirmedEnabled = true
-    state.codexIntegration.isEnabled = true
+    state.codexIntegration.health = .healthy
 
     let store = TestStore(initialState: state) {
       SettingsFeature()
@@ -253,8 +288,7 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.codex, false)) {
-      $0.codexIntegration.isEnabled = false
-      $0.codexIntegration.isPending = true
+      $0.codexIntegration.pendingEnabled = false
     }
 
     await store.receive(
@@ -265,8 +299,7 @@ struct SettingsFeatureCodingAgentsTests {
     ) {
       $0.codexIntegration.errorMessage =
         "Codex must be installed and available in your login shell before Supaterm can install hooks."
-      $0.codexIntegration.isEnabled = true
-      $0.codexIntegration.isPending = false
+      $0.codexIntegration.pendingEnabled = nil
     }
   }
 
@@ -275,24 +308,47 @@ struct SettingsFeatureCodingAgentsTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.piSettingsClient.isPiAvailable = { false }
+      $0.piSettingsClient.integrationHealth = { .unavailable }
     }
 
     await store.send(.agentIntegrationStatusRefreshRequested(.pi)) {
-      $0.piIntegration.isPending = true
+      $0.piIntegration.isRefreshing = true
     }
 
     await store.receive(
       .agentIntegrationStatusRefreshed(
         .pi,
-        .unavailable("Pi must be installed and available in your login shell before Supaterm can manage the package.")
+        .success(.unavailable)
       )
     ) {
-      $0.piIntegration.errorMessage =
-        "Pi must be installed and available in your login shell before Supaterm can manage the package."
-      $0.piIntegration.isAvailable = false
-      $0.piIntegration.isPending = false
+      $0.piIntegration.health = .unavailable
+      $0.piIntegration.isRefreshing = false
     }
+  }
+
+  @Test
+  func piUnavailableInstalledIntegrationCanBeRemoved() async {
+    var state = SettingsFeature.State()
+    state.piIntegration.health = .unavailableInstalled
+    let recorder = SettingsAgentInstallRecorder()
+    let store = TestStore(initialState: state) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.piSettingsClient.integrationHealth = { .unavailable }
+      $0.piSettingsClient.removeSupatermIntegration = {
+        await recorder.record(.integration(.pi))
+      }
+    }
+
+    await store.send(.agentIntegrationToggled(.pi, false)) {
+      $0.piIntegration.pendingEnabled = false
+    }
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.unavailable)), timeout: 0) {
+      $0.piIntegration.health = .unavailable
+      $0.piIntegration.pendingEnabled = nil
+    }
+
+    #expect(await recorder.commands() == [.integration(.pi)])
   }
 
   @Test
@@ -300,19 +356,17 @@ struct SettingsFeatureCodingAgentsTests {
     let store = TestStore(initialState: SettingsFeature.State()) {
       SettingsFeature()
     } withDependencies: {
-      $0.piSettingsClient.hasSupatermIntegration = { true }
+      $0.piSettingsClient.integrationHealth = { .healthy }
       $0.piSettingsClient.installSupatermIntegration = {}
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.isEnabled = true
-      $0.piIntegration.isPending = true
+      $0.piIntegration.pendingEnabled = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.pi, .success(true)), timeout: 0) {
-      $0.piIntegration.confirmedEnabled = true
-      $0.piIntegration.isEnabled = true
-      $0.piIntegration.isPending = false
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.healthy)), timeout: 0) {
+      $0.piIntegration.health = .healthy
+      $0.piIntegration.pendingEnabled = nil
     }
   }
 
@@ -329,15 +383,13 @@ struct SettingsFeatureCodingAgentsTests {
     }
 
     await store.send(.agentIntegrationToggled(.pi, true)) {
-      $0.piIntegration.isEnabled = true
-      $0.piIntegration.isPending = true
+      $0.piIntegration.pendingEnabled = true
     }
 
     await store.receive(.agentIntegrationToggleFinished(.pi, .failure(message)), timeout: 0) {
       $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: .pi, log: message)
       $0.piIntegration.errorMessage = message
-      $0.piIntegration.isEnabled = false
-      $0.piIntegration.isPending = false
+      $0.piIntegration.pendingEnabled = nil
     }
 
     await store.send(.agentIntegrationInstallFailureDismissed) {
@@ -373,17 +425,17 @@ func configureEnableDependencies(
   }
   switch agent {
   case .claude:
-    dependencies.claudeSettingsClient.hasSupatermHooks = { true }
+    dependencies.claudeSettingsClient.integrationHealth = { .healthy }
     dependencies.claudeSettingsClient.installSupatermHooks = {
       await recorder.record(.integration(agent))
     }
   case .codex:
-    dependencies.codexSettingsClient.hasSupatermHooks = { true }
+    dependencies.codexSettingsClient.integrationHealth = { .healthy }
     dependencies.codexSettingsClient.installSupatermHooks = {
       await recorder.record(.integration(agent))
     }
   case .pi:
-    dependencies.piSettingsClient.hasSupatermIntegration = { true }
+    dependencies.piSettingsClient.integrationHealth = { .healthy }
     dependencies.piSettingsClient.installSupatermIntegration = {
       await recorder.record(.integration(agent))
     }
@@ -400,17 +452,17 @@ func configureDisableDependencies(
   }
   switch agent {
   case .claude:
-    dependencies.claudeSettingsClient.hasSupatermHooks = { false }
+    dependencies.claudeSettingsClient.integrationHealth = { .absent }
     dependencies.claudeSettingsClient.removeSupatermHooks = {
       await recorder.record(.integration(agent))
     }
   case .codex:
-    dependencies.codexSettingsClient.hasSupatermHooks = { false }
+    dependencies.codexSettingsClient.integrationHealth = { .absent }
     dependencies.codexSettingsClient.removeSupatermHooks = {
       await recorder.record(.integration(agent))
     }
   case .pi:
-    dependencies.piSettingsClient.hasSupatermIntegration = { false }
+    dependencies.piSettingsClient.integrationHealth = { .absent }
     dependencies.piSettingsClient.removeSupatermIntegration = {
       await recorder.record(.integration(agent))
     }

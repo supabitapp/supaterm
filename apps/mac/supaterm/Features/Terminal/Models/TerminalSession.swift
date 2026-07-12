@@ -1,10 +1,9 @@
 import CoreGraphics
-import CryptoKit
 import Foundation
 import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 4
+  static let currentVersion = 5
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -21,7 +20,7 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let version = try container.decode(Int.self, forKey: .version)
-    guard version == Self.currentVersion || version == 3 else {
+    guard version == Self.currentVersion else {
       throw DecodingError.dataCorruptedError(
         forKey: .version,
         in: container,
@@ -337,13 +336,6 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
   var titleOverride: String?
   var agents: [TerminalPaneAgentRecord]
 
-  private enum CodingKeys: String, CodingKey {
-    case id
-    case workingDirectoryPath
-    case titleOverride
-    case agents
-  }
-
   init(
     id: UUID = UUID(),
     workingDirectoryPath: String?,
@@ -354,42 +346,6 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
     self.workingDirectoryPath = workingDirectoryPath
     self.titleOverride = titleOverride
     self.agents = agents
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? Self.legacyID(codingPath: decoder.codingPath)
-    self.workingDirectoryPath = try container.decodeIfPresent(String.self, forKey: .workingDirectoryPath)
-    self.titleOverride = try container.decodeIfPresent(String.self, forKey: .titleOverride)
-    self.agents = try container.decodeIfPresent([TerminalPaneAgentRecord].self, forKey: .agents) ?? []
-  }
-
-  private static func legacyID(codingPath: [CodingKey]) -> UUID {
-    let seed = codingPath.map { key in
-      key.intValue.map { "[\($0)]" } ?? key.stringValue
-    }
-    .joined(separator: "/")
-    let digest = SHA256.hash(data: Data((seed.isEmpty ? "leaf" : seed).utf8))
-    let bytes = Array(digest.prefix(16))
-    return UUID(
-      uuid: (
-        bytes[0],
-        bytes[1],
-        bytes[2],
-        bytes[3],
-        bytes[4],
-        bytes[5],
-        bytes[6],
-        bytes[7],
-        bytes[8],
-        bytes[9],
-        bytes[10],
-        bytes[11],
-        bytes[12],
-        bytes[13],
-        bytes[14],
-        bytes[15]
-      ))
   }
 
   func pruned() -> TerminalPaneLeafSession {
@@ -405,56 +361,125 @@ nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {
   }
 }
 
-nonisolated enum TerminalPaneAgentActivityPhase: String, Codable, Equatable, Sendable {
-  case idle
-  case needsInput = "needs_input"
-  case running
-}
-
 nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
-  var agent: SupatermAgentKind
-  var sessionIDs: [String]
-  var processIDs: [Int32]
-  var activityPhase: TerminalPaneAgentActivityPhase?
+  let agent: SupatermAgentKind
+  let sessionID: String
+  let processes: [TerminalAgentProcessIdentity]
+  let transcriptPath: String?
+  let turnLifecycle: TerminalAgentTurnLifecycle
+  let phase: AgentActivityPhase
+  let detail: String?
+  let attentionRequestID: String?
+  let hoverMessages: [String]
+  let nativePlanRows: [PaneAgentProgressRow]
+  let transcriptRows: [PaneAgentProgressRow]
+  let activeChildren: [TerminalAgentActiveChild]
+  let isForeground: Bool
+  let revision: Int
 
   init(
     agent: SupatermAgentKind,
-    sessionIDs: [String] = [],
-    processIDs: [Int32] = [],
-    activityPhase: TerminalPaneAgentActivityPhase? = nil
+    sessionID: String,
+    processes: [TerminalAgentProcessIdentity],
+    transcriptPath: String? = nil,
+    turnLifecycle: TerminalAgentTurnLifecycle = .unseen,
+    phase: AgentActivityPhase = .idle,
+    detail: String? = nil,
+    attentionRequestID: String? = nil,
+    hoverMessages: [String] = [],
+    nativePlanRows: [PaneAgentProgressRow] = [],
+    transcriptRows: [PaneAgentProgressRow] = [],
+    activeChildren: [TerminalAgentActiveChild] = [],
+    isForeground: Bool = false,
+    revision: Int = 0
   ) {
     self.agent = agent
-    self.sessionIDs = Self.normalizedSessionIDs(sessionIDs)
-    self.processIDs = Self.normalizedProcessIDs(processIDs)
-    self.activityPhase = activityPhase
+    self.sessionID = sessionID
+    self.processes = processes
+    self.transcriptPath = transcriptPath
+    self.turnLifecycle = turnLifecycle
+    self.phase = phase
+    self.detail = detail
+    self.attentionRequestID = attentionRequestID
+    self.hoverMessages = hoverMessages
+    self.nativePlanRows = nativePlanRows
+    self.transcriptRows = transcriptRows
+    self.activeChildren = activeChildren
+    self.isForeground = isForeground
+    self.revision = revision
+  }
+
+  init(snapshot: TerminalAgentStateSnapshot) {
+    self.init(
+      agent: snapshot.agent,
+      sessionID: snapshot.sessionID,
+      processes: Array(snapshot.processes),
+      transcriptPath: snapshot.transcriptPath,
+      turnLifecycle: snapshot.turnLifecycle,
+      phase: snapshot.phase,
+      detail: snapshot.detail,
+      attentionRequestID: snapshot.attentionRequestID,
+      hoverMessages: snapshot.hoverMessages,
+      nativePlanRows: snapshot.progressRowsBySource[.nativePlan] ?? [],
+      transcriptRows: snapshot.progressRowsBySource[.transcript] ?? [],
+      activeChildren: snapshot.activeChildren,
+      isForeground: snapshot.isForeground,
+      revision: snapshot.revision
+    )
+  }
+
+  func snapshot(
+    surfaceID: UUID,
+    processes: Set<TerminalAgentProcessIdentity>
+  ) -> TerminalAgentStateSnapshot {
+    var progressRowsBySource: [TerminalAgentEvent.ProgressSource: [PaneAgentProgressRow]] = [:]
+    if !nativePlanRows.isEmpty {
+      progressRowsBySource[.nativePlan] = nativePlanRows
+    }
+    if !transcriptRows.isEmpty {
+      progressRowsBySource[.transcript] = transcriptRows
+    }
+    return TerminalAgentStateSnapshot(
+      agent: agent,
+      sessionID: sessionID,
+      surfaceID: surfaceID,
+      processes: processes,
+      transcriptPath: transcriptPath,
+      turnLifecycle: turnLifecycle,
+      phase: phase,
+      detail: detail,
+      attentionRequestID: attentionRequestID,
+      hoverMessages: hoverMessages,
+      isActionable: false,
+      progressRowsBySource: progressRowsBySource,
+      activeChildren: activeChildren,
+      isForeground: isForeground,
+      revision: revision
+    )
   }
 
   func pruned() -> Self? {
-    let sessionIDs = Self.normalizedSessionIDs(sessionIDs)
-    let processIDs = Self.normalizedProcessIDs(processIDs)
-    guard !sessionIDs.isEmpty || !processIDs.isEmpty || activityPhase != nil else { return nil }
+    let sessionID = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+    let processes = Array(Set(processes)).sorted {
+      ($0.processID, $0.startTimeMicroseconds) < ($1.processID, $1.startTimeMicroseconds)
+    }
+    guard !sessionID.isEmpty, !processes.isEmpty else { return nil }
     return Self(
       agent: agent,
-      sessionIDs: sessionIDs,
-      processIDs: processIDs,
-      activityPhase: activityPhase
+      sessionID: sessionID,
+      processes: processes,
+      transcriptPath: transcriptPath,
+      turnLifecycle: turnLifecycle,
+      phase: phase,
+      detail: detail,
+      attentionRequestID: attentionRequestID,
+      hoverMessages: hoverMessages,
+      nativePlanRows: nativePlanRows,
+      transcriptRows: transcriptRows,
+      activeChildren: activeChildren,
+      isForeground: isForeground,
+      revision: max(0, revision)
     )
-  }
-
-  private static func normalizedSessionIDs(_ sessionIDs: [String]) -> [String] {
-    Array(
-      Set(
-        sessionIDs.compactMap { sessionID in
-          let sessionID = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
-          return sessionID.isEmpty ? nil : sessionID
-        }
-      )
-    )
-    .sorted()
-  }
-
-  private static func normalizedProcessIDs(_ processIDs: [Int32]) -> [Int32] {
-    Array(Set(processIDs.filter { $0 > 0 })).sorted()
   }
 }
 

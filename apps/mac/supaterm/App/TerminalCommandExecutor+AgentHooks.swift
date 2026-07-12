@@ -9,74 +9,76 @@ extension TerminalCommandExecutor {
     let subtitle: String
   }
 
-  struct AgentHookSessionRegistration {
-    let didBeginSession: Bool
-    let replacedForegroundSessionID: String?
-
-    static let none = AgentHookSessionRegistration(
-      didBeginSession: false,
-      replacedForegroundSessionID: nil
-    )
-  }
-
   func handleCommandFinished(for surfaceID: UUID) {
-    agentSessionStore.clearSessions(for: surfaceID)
-    for entry in registry.activeEntries() where entry.terminal.clearAgentPresence(for: surfaceID) {
+    agentMonitorStore.clearSessions(for: surfaceID)
+    for entry in registry.activeEntries() {
+      guard entry.terminal.clearAgentState(for: surfaceID) else { continue }
       entry.terminal.sessionDidChange()
-      break
+      return
     }
   }
 
-  func restoreAgentSessions(from recordsBySurfaceID: [UUID: [TerminalPaneAgentRecord]]) {
-    for (surfaceID, records) in recordsBySurfaceID {
-      agentSessionStore.restoreSessions(from: records, surfaceID: surfaceID)
+  func handleSurfaceRemoved(_ surfaceID: UUID) {
+    agentMonitorStore.clearSessions(for: surfaceID)
+  }
+
+  func resumeAgentMonitoring(in terminal: TerminalHostState) {
+    for target in terminal.agentTranscriptTargets() {
+      _ = agentMonitorStore.track(
+        agent: target.agent,
+        sessionID: target.sessionID,
+        transcriptPath: target.transcriptPath,
+        context: target.context
+      )
     }
   }
 
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     pruneDeadAgentProcesses()
-    let sessionRegistration = registerAgentHookSession(request)
-    clearReplacedForegroundSessionIfNeeded(request, sessionRegistration: sessionRegistration)
-    let routesToForegroundSession = routesAgentHookToForegroundSession(request)
-
-    switch request.event.hookEventName {
-    case .sessionStart:
-      return handleSessionStartAgentHook(
-        request,
-        routesToForegroundSession: routesToForegroundSession
-      )
-
-    case .unsupported:
+    let events = TerminalAgentEventTranslator.events(for: request)
+    guard !events.isEmpty, let terminal = agentTerminal(for: request) else {
       return TerminalAgentHookResult(desktopNotification: nil)
-
-    case .postToolUse, .preToolUse:
-      return handleToolStateAgentHook(
-        request,
-        routesToForegroundSession: routesToForegroundSession,
-        didBeginSession: sessionRegistration.didBeginSession
-      )
-
-    case .userPromptSubmit:
-      return handleUserPromptSubmitAgentHook(
-        request,
-        routesToForegroundSession: routesToForegroundSession
-      )
-
-    case .stop:
-      return try handleStopAgentHook(
-        request,
-        routesToForegroundSession: routesToForegroundSession
-      )
-
-    case .sessionEnd:
-      return handleSessionEndAgentHook(request)
-
-    case .notification:
-      return try handleAttentionAgentHook(
-        request,
-        routesToForegroundSession: routesToForegroundSession
-      )
     }
+
+    var didChange = false
+    var didAccept = false
+    var result = TerminalAgentHookResult(desktopNotification: nil)
+    for event in events {
+      if event.action == .turnStarted {
+        clearRecentStructuredNotification(for: terminal, event: event)
+      }
+      let application = terminal.applyAgentEvent(event)
+      didAccept = application.accepted || didAccept
+      didChange = application.changed || didChange
+      guard application.accepted else { continue }
+      guard
+        terminal.agentSessionIsForeground(
+          agent: event.scope.agent,
+          sessionID: event.scope.sessionID
+        )
+      else {
+        continue
+      }
+      if let notification = notification(for: event, request: request) {
+        result = try handleAgentEventNotification(
+          event.scope.agent,
+          event: request.event,
+          context: request.context,
+          notification: notification
+        )
+      }
+    }
+
+    updateMonitoring(
+      for: request,
+      events: events,
+      accepted: didAccept,
+      terminal: terminal
+    )
+    if didChange {
+      terminal.sessionDidChange()
+    }
+    return result
   }
 
   func handleMonitorSnapshot(
@@ -85,29 +87,45 @@ extension TerminalCommandExecutor {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    _ = updateAgentPanelSnapshot(
-      progressRows: snapshot.progressRows,
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    guard let status = snapshot.status else { return }
-    _ = updateAgentHoverMessages(
-      snapshot.hoverMessages,
-      replacing: true,
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    _ = updateAgentPresenceActivity(
-      TerminalHostState.AgentActivity(
-        kind: agent,
-        phase: status.isFinal ? .idle : .running,
-        detail: status.isFinal ? nil : snapshot.detail
-      ),
-      sessionID: sessionID,
-      context: context
-    )
+    guard let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: context) else {
+      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+      return
+    }
+    guard terminal.hasAgentSession(agent: agent, sessionID: sessionID) else {
+      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+      return
+    }
+    let turnID = snapshot.status?.turnID
+    var actions: [TerminalAgentEvent.Action] = []
+    switch snapshot.status {
+    case .started:
+      actions.append(.turnRunning(detail: snapshot.detail))
+    case .aborted, .completed, .failed:
+      actions.append(.turnCompleted(message: nil))
+    case nil:
+      if snapshot.detail != nil {
+        actions.append(.turnRunning(detail: snapshot.detail))
+      }
+    }
+    actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
+    actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
+    var didChange = false
+    for action in actions {
+      let event = TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(
+          agent: agent,
+          sessionID: sessionID,
+          turnID: turnID
+        ),
+        context: context,
+        action: action,
+        origin: .transcript
+      )
+      didChange = terminal.applyAgentEvent(event).changed || didChange
+    }
+    if didChange {
+      terminal.sessionDidChange()
+    }
   }
 
   func handleRunningTimeoutExpired(
@@ -115,283 +133,26 @@ extension TerminalCommandExecutor {
     sessionID: String,
     context: SupatermCLIContext?
   ) {
-    _ = updateAgentPresenceActivity(
-      TerminalHostState.AgentActivity(kind: agent, phase: .idle, detail: nil),
-      sessionID: sessionID,
-      context: context
-    )
-  }
-
-  func handleRunningAgentHook(
-    _ request: SupatermAgentHookRequest
-  ) -> TerminalAgentHookResult {
-    guard let sessionID = prepareAgentTurn(request) else {
-      return TerminalAgentHookResult(desktopNotification: nil)
+    guard let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: context) else {
+      return
     }
-    _ = setAgentPresenceActivity(
-      TerminalHostState.AgentActivity(
-        kind: request.agent,
-        phase: .running
-      ),
-      sessionID: sessionID,
-      context: request.context,
-      processID: request.processID
-    )
-    return TerminalAgentHookResult(desktopNotification: nil)
-  }
-
-  func handleUserPromptSubmitAgentHook(
-    _ request: SupatermAgentHookRequest
-  ) -> TerminalAgentHookResult {
-    guard let sessionID = prepareAgentTurn(request) else {
-      return TerminalAgentHookResult(desktopNotification: nil)
+    guard terminal.hasAgentSession(agent: agent, sessionID: sessionID) else {
+      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+      return
     }
-    _ = agentSessionStore.beginAgentPanelTracking(
-      agent: request.agent,
-      sessionID: sessionID,
-      context: request.context
-    )
-    _ = markAgentSessionActionable(
-      agent: request.agent,
-      sessionID: sessionID,
-      context: request.context,
-      processID: request.processID
-    )
-    if !request.agent.drivesActivityFromTranscript {
-      _ = setAgentPresenceActivity(
-        TerminalHostState.AgentActivity(kind: request.agent, phase: .running),
-        sessionID: sessionID,
-        context: request.context,
-        processID: request.processID
-      )
-    }
-    return TerminalAgentHookResult(desktopNotification: nil)
-  }
-
-  func handleSessionStartAgentHook(
-    _ request: SupatermAgentHookRequest,
-    routesToForegroundSession: Bool
-  ) -> TerminalAgentHookResult {
-    guard routesToForegroundSession else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    if let sessionID = request.event.sessionID {
-      agentSessionStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-      _ = registerAgentPresence(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context,
-        processID: request.processID
-      )
-      _ = agentSessionStore.beginAgentPanelTracking(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context
-      )
-    }
-    return TerminalAgentHookResult(desktopNotification: nil)
-  }
-
-  func handleToolStateAgentHook(
-    _ request: SupatermAgentHookRequest,
-    routesToForegroundSession: Bool,
-    didBeginSession: Bool
-  ) -> TerminalAgentHookResult {
-    guard routesToForegroundSession else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    let result = handleRunningAgentHook(request)
-    if didBeginSession, let sessionID = request.event.sessionID {
-      _ = agentSessionStore.beginAgentPanelTracking(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context
-      )
-    }
-    return result
-  }
-
-  func handleUserPromptSubmitAgentHook(
-    _ request: SupatermAgentHookRequest,
-    routesToForegroundSession: Bool
-  ) -> TerminalAgentHookResult {
-    guard routesToForegroundSession else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    return handleUserPromptSubmitAgentHook(request)
-  }
-
-  func handleStopAgentHook(
-    _ request: SupatermAgentHookRequest,
-    routesToForegroundSession: Bool
-  ) throws -> TerminalAgentHookResult {
-    guard routesToForegroundSession else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    let event = request.event
-    if let sessionID = event.sessionID {
-      _ = setAgentPresenceActivity(
-        TerminalHostState.AgentActivity(kind: request.agent, phase: .idle),
-        sessionID: sessionID,
-        context: request.context,
-        processID: request.processID
-      )
-      if request.agent.drivesActivityFromTranscript {
-        _ = updateAgentHoverMessages(
-          event.lastAssistantMessage.map { [$0] } ?? [],
-          replacing: true,
-          agent: request.agent,
+    let turnID = terminal.agentTurnID(agent: agent, sessionID: sessionID)
+    if terminal.applyAgentEvent(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(
+          agent: agent,
           sessionID: sessionID,
-          context: request.context
-        )
-        _ = clearAgentPanelSnapshot(
-          agent: request.agent,
-          context: request.context,
-          sessionID: sessionID
-        )
-      }
-    }
-    guard
-      let body = event.lastAssistantMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !body.isEmpty
-    else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    return try handleAgentEventNotification(
-      request.agent,
-      event: event,
-      context: request.context,
-      notification: AgentHookNotification(
-        body: body,
-        semantic: .completion,
-        subtitle: "Turn complete"
+          turnID: turnID
+        ),
+        context: context,
+        action: .turnCompleted(message: nil)
       )
-    )
-  }
-
-  func handleSessionEndAgentHook(
-    _ request: SupatermAgentHookRequest
-  ) -> TerminalAgentHookResult {
-    guard let sessionID = request.event.sessionID else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    _ = clearAgentPresence(
-      agent: request.agent,
-      sessionID: sessionID,
-      context: request.context,
-      processID: request.processID
-    )
-    if request.agent.drivesActivityFromTranscript {
-      _ = clearAgentHoverMessages(
-        agent: request.agent,
-        context: request.context,
-        sessionID: sessionID
-      )
-    }
-    _ = clearAgentPanelSnapshot(
-      agent: request.agent,
-      context: request.context,
-      sessionID: sessionID
-    )
-    agentSessionStore.clearSession(agent: request.agent, sessionID: sessionID)
-    return TerminalAgentHookResult(desktopNotification: nil)
-  }
-
-  func handleAttentionAgentHook(
-    _ request: SupatermAgentHookRequest,
-    routesToForegroundSession: Bool
-  ) throws -> TerminalAgentHookResult {
-    guard routesToForegroundSession else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    let event = request.event
-    if let sessionID = event.sessionID {
-      _ = setAgentPresenceActivity(
-        TerminalHostState.AgentActivity(kind: request.agent, phase: .needsInput),
-        sessionID: sessionID,
-        context: request.context,
-        processID: request.processID
-      )
-    }
-    guard let body = event.notificationMessage(), !body.isEmpty else {
-      return TerminalAgentHookResult(desktopNotification: nil)
-    }
-    return try handleAgentEventNotification(
-      request.agent,
-      event: event,
-      context: request.context,
-      notification: AgentHookNotification(
-        body: body,
-        semantic: .attention,
-        subtitle: event.title ?? "Attention"
-      )
-    )
-  }
-
-  func registerAgentHookSession(
-    _ request: SupatermAgentHookRequest
-  ) -> AgentHookSessionRegistration {
-    guard let sessionID = request.event.sessionID else { return .none }
-    let sessionExists = agentSessionStore.hasSession(agent: request.agent, sessionID: sessionID)
-    if request.event.hookEventName == .sessionStart
-      || shouldRecoverAgentSessionBinding(request, sessionExists: sessionExists)
-    {
-      let replacedForegroundSessionID = agentSessionStore.beginSession(
-        agent: request.agent,
-        sessionID: sessionID,
-        context: request.context,
-        transcriptPath: request.event.transcriptPath
-      )
-      return AgentHookSessionRegistration(
-        didBeginSession: true,
-        replacedForegroundSessionID: replacedForegroundSessionID
-      )
-    }
-    guard sessionExists else { return .none }
-    agentSessionStore.updateSession(
-      agent: request.agent,
-      sessionID: sessionID,
-      context: request.context,
-      transcriptPath: request.event.transcriptPath
-    )
-    return AgentHookSessionRegistration(didBeginSession: false, replacedForegroundSessionID: nil)
-  }
-
-  func clearReplacedForegroundSessionIfNeeded(
-    _ request: SupatermAgentHookRequest,
-    sessionRegistration: AgentHookSessionRegistration
-  ) {
-    guard let sessionID = sessionRegistration.replacedForegroundSessionID else { return }
-    _ = clearAgentPresence(
-      agent: request.agent,
-      sessionID: sessionID,
-      context: request.context,
-      processID: nil
-    )
-    _ = clearAgentHoverMessages(
-      agent: request.agent,
-      context: request.context,
-      sessionID: sessionID
-    )
-    _ = clearAgentPanelSnapshot(
-      agent: request.agent,
-      context: request.context,
-      sessionID: sessionID
-    )
-  }
-
-  func shouldRecoverAgentSessionBinding(
-    _ request: SupatermAgentHookRequest,
-    sessionExists: Bool
-  ) -> Bool {
-    guard request.context != nil, !sessionExists else {
-      return false
-    }
-    switch request.event.hookEventName {
-    case .postToolUse, .preToolUse, .userPromptSubmit:
-      return true
-    case .notification, .sessionEnd, .sessionStart, .stop, .unsupported:
-      return false
+    ).changed {
+      terminal.sessionDidChange()
     }
   }
 
@@ -401,21 +162,18 @@ extension TerminalCommandExecutor {
     context: SupatermCLIContext?,
     notification: AgentHookNotification
   ) throws -> TerminalAgentHookResult {
-    let title = agent.notificationTitle
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
+    for surfaceID in agentCandidateSurfaceIDs(
       agent: agent,
       sessionID: event.sessionID,
       context: context
-    )
-
-    for surfaceID in candidateSurfaceIDs {
+    ) {
       do {
         let result = try notifyStructuredAgent(
           TerminalNotifyRequest(
             body: notification.body,
             subtitle: notification.subtitle,
             target: .contextPane(surfaceID),
-            title: title,
+            title: agent.notificationTitle,
             allowDesktopNotificationWhenAgentActive: true
           ),
           semantic: notification.semantic
@@ -431,311 +189,164 @@ extension TerminalCommandExecutor {
             : nil
         )
       } catch let error as TerminalCreatePaneError {
-        guard case .contextPaneNotFound = error else {
-          throw error
-        }
-        if let sessionID = event.sessionID {
-          agentSessionStore.clearRecordedSessionIfSurfaceMatches(
-            agent: agent,
-            sessionID: sessionID,
-            surfaceID: surfaceID
-          )
-          for entry in registry.activeEntries()
-          where entry.terminal.clearAgentPresence(
-            agent: agent,
-            for: surfaceID,
-            sessionID: sessionID,
-            processID: nil
-          ) {
-            entry.terminal.sessionDidChange()
-            break
-          }
-          return TerminalAgentHookResult(desktopNotification: nil)
-        }
+        guard case .contextPaneNotFound = error else { throw error }
       }
     }
-
     return TerminalAgentHookResult(desktopNotification: nil)
   }
 
-  func prepareAgentTurn(
-    _ request: SupatermAgentHookRequest
-  ) -> String? {
-    guard let sessionID = request.event.sessionID else { return nil }
-    clearRecentStructuredNotifications(
-      agent: request.agent,
-      context: request.context,
-      sessionID: sessionID
-    )
-    return sessionID
-  }
-
-  @discardableResult
-  func registerAgentPresence(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?,
-    processID: Int32?
-  ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.registerAgentPresence(
-        agent: agent,
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: processID
-      ) {
-        return true
-      }
+  private func notification(
+    for event: TerminalAgentEvent,
+    request: SupatermAgentHookRequest
+  ) -> AgentHookNotification? {
+    let body: String?
+    let semantic: TerminalHostState.NotificationSemantic
+    let subtitle: String
+    switch event.action {
+    case .attentionRequested(_, let message):
+      body = message ?? request.event.notificationMessage()
+      semantic = .attention
+      subtitle = request.event.title ?? "Attention"
+    case .turnCompleted(let message):
+      body = message
+      semantic = .completion
+      subtitle = "Turn complete"
+    default:
+      return nil
     }
-    return false
+    guard let body = normalizedTerminalAgentDetail(body) else { return nil }
+    return AgentHookNotification(body: body, semantic: semantic, subtitle: subtitle)
   }
 
-  @discardableResult
-  func markAgentSessionActionable(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?,
-    processID: Int32?
-  ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.markAgentSessionActionable(
-        agent: agent,
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: processID
-      ) {
-        return true
-      }
+  private func updateMonitoring(
+    for request: SupatermAgentHookRequest,
+    events: [TerminalAgentEvent],
+    accepted: Bool,
+    terminal: TerminalHostState
+  ) {
+    guard accepted else { return }
+    guard let sessionID = request.event.sessionID else { return }
+    if request.event.hookEventName == .sessionEnd
+      || request.event.hookEventName == .sessionShutdown
+    {
+      agentMonitorStore.clearSession(agent: request.agent, sessionID: sessionID)
+      return
     }
-    return false
+    if let transcriptPath = request.event.transcriptPath {
+      _ = agentMonitorStore.track(
+        agent: request.agent,
+        sessionID: sessionID,
+        transcriptPath: transcriptPath,
+        context: request.context
+      )
+    }
+    guard terminal.agentSessionIsForeground(agent: request.agent, sessionID: sessionID) else {
+      return
+    }
+    if events.contains(where: { event in
+      if case .attentionRequested = event.action { return true }
+      return false
+    }) {
+      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+      return
+    }
+    switch request.event.hookEventName {
+    case .postToolUse,
+      .userPromptSubmit,
+      .preToolUse where !request.agent.drivesActivityFromTranscript:
+      agentMonitorStore.armRunningTimeout(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context
+      )
+    case .stop:
+      agentMonitorStore.cancelTracking(agent: request.agent, sessionID: sessionID)
+      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+    case .sessionEnd, .sessionShutdown:
+      agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+    default:
+      break
+    }
   }
 
-  @discardableResult
-  func setAgentPresenceActivity(
-    _ activity: TerminalHostState.AgentActivity,
-    sessionID: String,
-    context: SupatermCLIContext?,
-    processID: Int32?
-  ) -> Bool {
+  private func clearRecentStructuredNotification(
+    for terminal: TerminalHostState,
+    event: TerminalAgentEvent
+  ) {
     guard
-      updateAgentPresenceActivity(
-        activity,
-        sessionID: sessionID,
-        context: context,
-        processID: processID
+      let surfaceID = terminal.agentStateSurfaceID(
+        agent: event.scope.agent,
+        sessionID: event.scope.sessionID
       )
     else {
-      return false
+      return
     }
-    let agent = activity.kind
-    switch activity.phase {
-    case .running where agent.drivesActivityFromTranscript:
-      agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
-    case .running:
-      if !agent.keepsPanelTrackingWhenNotRunning {
-        agentSessionStore.cancelAgentPanelTracking(agent: agent, sessionID: sessionID)
-      }
-      agentSessionStore.armRunningTimeout(agent: agent, sessionID: sessionID, context: context)
-    default:
-      if !agent.keepsPanelTrackingWhenNotRunning {
-        agentSessionStore.cancelAgentPanelTracking(agent: agent, sessionID: sessionID)
-      }
-      agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
-    }
-    return true
+    _ = terminal.clearRecentStructuredNotification(for: surfaceID)
   }
 
-  func clearRecentStructuredNotifications(
-    agent: SupatermAgentKind,
-    context: SupatermCLIContext?,
-    sessionID: String
-  ) {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.clearRecentStructuredNotification(for: surfaceID) {
-        break
-      }
-    }
-  }
-
-  @discardableResult
-  func clearAgentHoverMessages(
-    agent: SupatermAgentKind,
-    context: SupatermCLIContext?,
-    sessionID: String
-  ) -> Bool {
-    updateAgentHoverMessages(
-      [],
-      replacing: true,
-      agent: agent,
-      sessionID: sessionID,
-      context: context
+  private func agentTerminal(
+    for request: SupatermAgentHookRequest
+  ) -> TerminalHostState? {
+    agentTerminal(
+      agent: request.agent,
+      sessionID: request.event.sessionID,
+      context: request.context
     )
   }
 
-  @discardableResult
-  func updateAgentHoverMessages(
-    _ messages: [String],
-    replacing: Bool,
+  private func agentTerminal(
     agent: SupatermAgentKind,
-    sessionID: String,
+    sessionID: String?,
     context: SupatermCLIContext?
-  ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.recordAgentHoverMessages(
-        messages,
-        replacing: replacing,
-        for: surfaceID
-      ) {
-        return true
-      }
+  ) -> TerminalHostState? {
+    let entries = registry.activeEntries()
+    if let surfaceID = context?.surfaceID,
+      let terminal = entries.first(where: { $0.terminal.tabID(containing: surfaceID) != nil })?.terminal
+    {
+      return terminal
     }
-    return false
+    guard let sessionID else { return nil }
+    return entries.first {
+      $0.terminal.hasAgentSession(agent: agent, sessionID: sessionID)
+    }?.terminal
   }
 
-  @discardableResult
-  func clearAgentPanelSnapshot(
-    agent: SupatermAgentKind,
-    context: SupatermCLIContext?,
-    sessionID: String
-  ) -> Bool {
-    updateAgentPanelSnapshot(
-      progressRows: [],
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-  }
-
-  @discardableResult
-  func updateAgentPanelSnapshot(
-    progressRows: [PaneAgentProgressRow],
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?
-  ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.recordAgentPanelSnapshot(
-        progressRows: progressRows,
-        for: surfaceID
-      ) {
-        return true
-      }
-    }
-    return false
-  }
-
-  @discardableResult
-  func clearAgentPresence(
-    agent: SupatermAgentKind,
-    sessionID: String,
-    context: SupatermCLIContext?,
-    processID: Int32?
-  ) -> Bool {
-    agentSessionStore.cancelAgentPanelTracking(agent: agent, sessionID: sessionID)
-    agentSessionStore.cancelRunningTimeout(agent: agent, sessionID: sessionID)
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: agent,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.clearAgentPresence(
-        agent: agent,
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: processID
-      ) {
-        return true
-      }
-    }
-    return false
-  }
-
-  @discardableResult
-  func updateAgentPresenceActivity(
-    _ activity: TerminalHostState.AgentActivity,
-    sessionID: String,
-    context: SupatermCLIContext?,
-    processID: Int32? = nil
-  ) -> Bool {
-    let candidateSurfaceIDs = agentCandidateSurfaceIDs(
-      agent: activity.kind,
-      sessionID: sessionID,
-      context: context
-    )
-    for surfaceID in candidateSurfaceIDs {
-      for entry in registry.activeEntries()
-      where entry.terminal.setAgentPresenceActivity(
-        activity,
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: processID
-      ) {
-        return true
-      }
-    }
-    return false
-  }
-
-  func pruneDeadAgentProcesses() {
-    for entry in registry.activeEntries() where entry.terminal.pruneDeadAgentProcesses() {
-      entry.terminal.sessionDidChange()
-    }
-  }
-
-  func agentCandidateSurfaceIDs(
+  private func agentCandidateSurfaceIDs(
     agent: SupatermAgentKind,
     sessionID: String?,
     context: SupatermCLIContext?
   ) -> [UUID] {
-    var candidateSurfaceIDs: [UUID] = []
+    var surfaceIDs: [UUID] = []
     if let surfaceID = context?.surfaceID {
-      candidateSurfaceIDs.append(surfaceID)
+      surfaceIDs.append(surfaceID)
     }
     if let sessionID,
-      let surfaceID = agentSessionStore.sessionSurfaceID(agent: agent, sessionID: sessionID),
-      !candidateSurfaceIDs.contains(surfaceID)
+      let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: nil),
+      let surfaceID = terminal.agentStateSurfaceID(agent: agent, sessionID: sessionID),
+      !surfaceIDs.contains(surfaceID)
     {
-      candidateSurfaceIDs.append(surfaceID)
+      surfaceIDs.append(surfaceID)
     }
-    return candidateSurfaceIDs
+    return surfaceIDs
   }
 
-  func routesAgentHookToForegroundSession(
-    _ request: SupatermAgentHookRequest
-  ) -> Bool {
-    guard let sessionID = request.event.sessionID else { return true }
-    return agentSessionStore.shouldRouteSession(agent: request.agent, sessionID: sessionID)
+  private func pruneDeadAgentProcesses() {
+    for entry in registry.activeEntries()
+    where entry.terminal.pruneDeadAgentProcesses(
+      didClearSession: { [agentMonitorStore] agent, sessionID in
+        agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+      }
+    ) {
+      entry.terminal.sessionDidChange()
+    }
+  }
+}
+
+extension AgentTurnStatus {
+  fileprivate var turnID: String? {
+    switch self {
+    case .aborted(let turnID), .completed(let turnID), .failed(let turnID), .started(let turnID):
+      turnID
+    }
   }
 }

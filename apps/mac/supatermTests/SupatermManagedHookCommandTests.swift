@@ -29,18 +29,19 @@ struct SupatermManagedHookCommandTests {
   }
 
   @Test
-  func managedCommandDetectionMatchesAnySupatermCommand() {
-    let managedCommand = "echo SUPATERM bridge"
-    let unmanagedCommand = "echo terminal bridge"
-
+  func managedCommandDetectionMatchesOnlyCanonicalCommands() {
     #expect(
       AgentHookCommandOwnership.isSupatermManagedCommand(
         SupatermManagedHookCommand.receiveHookCommand(for: .claude)
       )
     )
-    #expect(AgentHookCommandOwnership.isSupatermManagedCommand(managedCommand))
     #expect(
-      !AgentHookCommandOwnership.isSupatermManagedCommand(unmanagedCommand)
+      AgentHookCommandOwnership.isSupatermManagedCommand(
+        "  \(SupatermManagedHookCommand.receiveHookCommand(for: .codex))\n"
+      )
+    )
+    #expect(
+      !AgentHookCommandOwnership.isSupatermManagedCommand("echo SUPATERM bridge")
     )
   }
 

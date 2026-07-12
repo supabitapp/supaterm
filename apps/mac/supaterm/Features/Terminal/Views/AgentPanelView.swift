@@ -52,6 +52,16 @@ struct AgentPanelView: View {
         }
       }
 
+      if !presentation.activeChildren.isEmpty {
+        section("Active agents") {
+          VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
+            ForEach(presentation.activeChildren) { child in
+              activeChildRow(child)
+            }
+          }
+        }
+      }
+
       if let branchDetails = presentation.branchDetails {
         section("Branch details") {
           VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
@@ -115,6 +125,48 @@ struct AgentPanelView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func activeChildRow(_ child: TerminalAgentActiveChild) -> some View {
+    HStack(alignment: .top, spacing: AgentPanelMetrics.rowContentSpacing) {
+      AgentPanelProgressIcon(
+        status: childProgressStatus(child.phase),
+        kind: .task,
+        palette: palette
+      )
+      VStack(alignment: .leading, spacing: 2) {
+        Text(childTitle(child))
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.primaryText)
+        if let detail = child.detail {
+          Text(detail)
+            .font(.system(size: 11))
+            .foregroundStyle(palette.secondaryText)
+            .lineLimit(2)
+        }
+      }
+      .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func childTitle(_ child: TerminalAgentActiveChild) -> String {
+    guard let type = child.type?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !type.isEmpty
+    else {
+      return "Agent"
+    }
+    return type.replacingOccurrences(of: "_", with: " ").capitalized
+  }
+
+  private func childProgressStatus(
+    _ phase: AgentActivityPhase
+  ) -> PaneAgentProgressRow.Status {
+    switch phase {
+    case .idle: .completed
+    case .needsInput: .pending
+    case .running: .running
+    }
   }
 
   private func actionBar(_ session: PaneAgentPanelSession) -> some View {

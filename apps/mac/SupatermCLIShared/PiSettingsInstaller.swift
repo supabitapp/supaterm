@@ -1,18 +1,14 @@
-import Darwin
 import Foundation
 
 public struct PiSettingsInstaller {
-  struct CommandResult: Equatable, Sendable {
-    let status: Int32
-    let standardOutput: String
-    let standardError: String
-  }
+  typealias CommandResult = CodingAgentCommandResult
 
-  private struct SettingsFile: Decodable {
-    let packages: [String]?
+  private struct PackageFile: Decodable {
+    let version: String
   }
 
   static let canonicalPackageSource = "git:github.com/supabitapp/supaterm-skills"
+  private static let minimumPackageVersion = PiIntegrationVersion(major: 0, minor: 2, patch: 0)
 
   public static var canonicalInstallDisplayCommand: String {
     installDisplayCommand(source: canonicalPackageSource)
@@ -55,27 +51,48 @@ public struct PiSettingsInstaller {
     try !installedSupatermPackageSources().isEmpty
   }
 
+  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+    let sources = try installedSupatermPackageSources()
+    guard try isPiAvailable() else {
+      return sources.isEmpty ? .unavailable : .unavailableInstalled
+    }
+    guard !sources.isEmpty else { return .absent }
+    if sources.count == 1, Self.isLocalPackageSource(sources[0]) {
+      return .healthy
+    }
+    guard sources == [Self.canonicalPackageSource] else { return .drifted }
+    guard let version = try? installedPackageVersion(),
+      version >= Self.minimumPackageVersion
+    else {
+      return .drifted
+    }
+    return .healthy
+  }
+
   public func installSupatermPackage() throws {
     guard try isPiAvailable() else {
       throw PiSettingsInstallerError.piUnavailable
     }
 
-    let commandResult = try runPiCommand(
-      Self.installCommandArguments(source: Self.canonicalPackageSource)
-    )
-    guard commandResult.status == 0 else {
-      throw PiSettingsInstallerError.installFailed(
-        Self.commandFailureDetails(from: commandResult)
-      )
+    let sources = try installedSupatermPackageSources()
+    for source in sources where source != Self.canonicalPackageSource {
+      try runInstallCommand(Self.removeCommandArguments(source: source))
     }
+    let arguments =
+      sources.contains(Self.canonicalPackageSource)
+      ? Self.updateCommandArguments(source: Self.canonicalPackageSource)
+      : Self.installCommandArguments(source: Self.canonicalPackageSource)
+    try runInstallCommand(arguments)
   }
 
   public func removeSupatermPackage() throws {
+    let sources = try installedSupatermPackageSources()
+    guard !sources.isEmpty else { return }
     guard try isPiAvailable() else {
-      throw PiSettingsInstallerError.piUnavailable
+      try removeSupatermPackagesFromSettings()
+      return
     }
-
-    for source in try installedSupatermPackageSources() {
+    for source in sources {
       let commandResult = try runPiCommand(
         Self.removeCommandArguments(source: source)
       )
@@ -112,6 +129,12 @@ public struct PiSettingsInstaller {
     )
   }
 
+  static func updateCommandArguments(source: String) -> [String] {
+    LoginShellCommandAvailability.interactiveCommandArguments(
+      for: "pi update \(shellEscaped(source))"
+    )
+  }
+
   public static func installDisplayCommand(source: String) -> String {
     "pi install \(source)"
   }
@@ -142,6 +165,12 @@ public struct PiSettingsInstaller {
     return packageName(for: normalizedSource) == "supaterm-skills"
   }
 
+  static func isLocalPackageSource(_ source: String) -> Bool {
+    let source = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    return !["git:", "github:", "http:", "https:", "npm:", "ssh:"]
+      .contains { source.hasPrefix($0) }
+  }
+
   private static func packageName(for source: String) -> String {
     let lastPathComponent = URL(fileURLWithPath: source).lastPathComponent
     guard lastPathComponent.hasSuffix(".git") else {
@@ -151,48 +180,73 @@ public struct PiSettingsInstaller {
   }
 
   private func installedSupatermPackageSources() throws -> [String] {
-    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
-    guard fileManager.fileExists(atPath: settingsURL.path) else {
-      return []
+    let settingsObject = try loadSettingsObject()
+    guard let packagesValue = settingsObject["packages"] else { return [] }
+    guard let packages = packagesValue.arrayValue else {
+      throw PiSettingsInstallerError.invalidSettings
     }
+    return packages.compactMap(Self.packageSource).filter(Self.isSupatermPackageSource)
+  }
 
-    let data = try Data(contentsOf: settingsURL)
-    let settingsFile: SettingsFile
+  private func removeSupatermPackagesFromSettings() throws {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    guard fileManager.fileExists(atPath: settingsURL.path) else { return }
+    var settingsObject = try loadSettingsObject()
+    guard let packagesValue = settingsObject["packages"] else { return }
+    guard let packages = packagesValue.arrayValue else {
+      throw PiSettingsInstallerError.invalidSettings
+    }
+    let remainingPackages = packages.filter { package in
+      guard let source = Self.packageSource(package) else { return true }
+      return !Self.isSupatermPackageSource(source)
+    }
+    guard remainingPackages != packages else { return }
+    settingsObject["packages"] = .array(remainingPackages)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    try encoder.encode(JSONValue.object(settingsObject)).write(to: settingsURL, options: .atomic)
+  }
+
+  private func loadSettingsObject() throws -> JSONObject {
+    let settingsURL = Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    guard fileManager.fileExists(atPath: settingsURL.path) else { return [:] }
     do {
-      settingsFile = try JSONDecoder().decode(SettingsFile.self, from: data)
+      let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: settingsURL))
+      guard let object = value.objectValue else {
+        throw PiSettingsInstallerError.invalidSettings
+      }
+      return object
+    } catch let error as PiSettingsInstallerError {
+      throw error
     } catch {
       throw PiSettingsInstallerError.invalidSettings
     }
+  }
 
-    return (settingsFile.packages ?? []).filter(Self.isSupatermPackageSource)
+  private static func packageSource(_ package: JSONValue) -> String? {
+    package.stringValue ?? package.objectValue?["source"]?.stringValue
+  }
+
+  private func installedPackageVersion() throws -> PiIntegrationVersion? {
+    let packageURL =
+      homeDirectoryURL
+      .appendingPathComponent(".pi/agent/git/github.com/supabitapp/supaterm-skills/package.json")
+    guard fileManager.fileExists(atPath: packageURL.path) else { return nil }
+    let package = try JSONDecoder().decode(PackageFile.self, from: Data(contentsOf: packageURL))
+    return PiIntegrationVersion(package.version)
+  }
+
+  private func runInstallCommand(_ arguments: [String]) throws {
+    let commandResult = try runPiCommand(arguments)
+    guard commandResult.status == 0 else {
+      throw PiSettingsInstallerError.installFailed(
+        Self.commandFailureDetails(from: commandResult)
+      )
+    }
   }
 
   private static func runShellCommand(commandArguments: [String]) throws -> CommandResult {
-    let process = Process()
-    process.executableURL = CodexSettingsInstaller.loginShellURL()
-    process.arguments = commandArguments
-
-    let outputPipe = Pipe()
-    let errorPipe = Pipe()
-    process.standardOutput = outputPipe
-    process.standardError = errorPipe
-
-    try process.run()
-    process.waitUntilExit()
-
-    return .init(
-      status: process.terminationStatus,
-      standardOutput: normalizedPipeOutput(outputPipe),
-      standardError: normalizedPipeOutput(errorPipe)
-    )
-  }
-
-  private static func normalizedPipeOutput(_ pipe: Pipe) -> String {
-    String(
-      bytes: pipe.fileHandleForReading.readDataToEndOfFile(),
-      encoding: .utf8
-    )?
-    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    try CodingAgentCommandRunner.run(arguments: commandArguments)
   }
 
   private static func commandFailureDetails(from commandResult: CommandResult) -> String {
@@ -204,6 +258,34 @@ public struct PiSettingsInstaller {
 
   private static func shellEscaped(_ value: String) -> String {
     "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+  }
+}
+
+private struct PiIntegrationVersion: Comparable {
+  let major: Int
+  let minor: Int
+  let patch: Int
+
+  init(major: Int, minor: Int, patch: Int) {
+    self.major = major
+    self.minor = minor
+    self.patch = patch
+  }
+
+  init?(_ value: String) {
+    let components = value.split(separator: ".")
+    guard components.count == 3,
+      let major = Int(components[0]),
+      let minor = Int(components[1]),
+      let patch = Int(components[2])
+    else {
+      return nil
+    }
+    self.init(major: major, minor: minor, patch: patch)
+  }
+
+  static func < (lhs: Self, rhs: Self) -> Bool {
+    (lhs.major, lhs.minor, lhs.patch) < (rhs.major, rhs.minor, rhs.patch)
   }
 }
 
@@ -223,7 +305,7 @@ public enum PiSettingsInstallerError: Error, Equatable, LocalizedError {
     case .invalidSettings:
       return "Pi settings must be valid JSON before Supaterm can manage the package."
     case .piUnavailable:
-      return "Pi must be installed and available in your login shell before Supaterm can manage the package."
+      return "Pi must be installed and available in your login shell before Supaterm can install or update the package."
     case .removeFailed(let details):
       if details.isEmpty {
         return "Supaterm could not remove the Pi package."

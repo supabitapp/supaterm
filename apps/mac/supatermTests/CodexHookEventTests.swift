@@ -11,7 +11,7 @@ struct CodexHookEventTests {
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
     #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
-    #expect(event.cwd == CodexHookFixtures.cwd)
+    #expect(event.payload["cwd"]?.stringValue == CodexHookFixtures.cwd)
   }
 
   @Test
@@ -89,8 +89,30 @@ struct CodexHookEventTests {
 
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
-    #expect(event.cwd == CodexHookFixtures.cwd)
+    #expect(event.payload["cwd"]?.stringValue == CodexHookFixtures.cwd)
     #expect(event.transcriptPath == nil)
     #expect(event.source == nil)
+  }
+
+  @Test
+  func nativeLifecycleNamesAndFutureNamesRemainLossless() throws {
+    let expected: [(String, SupatermAgentHookEventName)] = [
+      ("PermissionRequest", .permissionRequest),
+      ("SubagentStart", .subagentStart),
+      ("SubagentStop", .subagentStop),
+      ("session_start", .nativeSessionStart),
+      ("agent_start", .agentStart),
+      ("agent_end", .agentEnd),
+      ("session_shutdown", .sessionShutdown),
+      ("FutureLifecycle", SupatermAgentHookEventName(rawValue: "FutureLifecycle")),
+    ]
+
+    for (rawValue, eventName) in expected {
+      let event = try CodexHookFixtures.event(
+        #"{"hook_event_name":"\#(rawValue)"}"#
+      )
+      #expect(event.hookEventName == eventName)
+      #expect(event.hookEventName.rawValue == rawValue)
+    }
   }
 }

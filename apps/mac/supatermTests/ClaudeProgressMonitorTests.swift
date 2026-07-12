@@ -3,7 +3,13 @@ import Testing
 
 @testable import supaterm
 
+@MainActor
 struct ClaudeProgressMonitorTests {
+  private func rows(at path: String) throws -> [PaneAgentProgressRow] {
+    let tick = try #require(AgentTranscriptTailer.start(at: path))
+    return try #require(ClaudePanelMonitor().consume(AgentTranscriptUpdate(tick))).progressRows
+  }
+
   @Test
   func todoWriteTranscriptProducesProgressRows() throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
@@ -18,10 +24,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-todo:0:Read transcript",
           title: "Read transcript",
@@ -59,10 +65,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-goal:Ship session goal progress",
           title: "Goal: Ship session goal progress",
@@ -94,10 +100,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-goal:Ship session goal progress",
           title: "Goal: Ship session goal progress",
@@ -108,7 +114,6 @@ struct ClaudeProgressMonitorTests {
     )
   }
 
-  @MainActor
   @Test
   func panelMonitorPrependsGoalRowToTaskRows() throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
@@ -131,11 +136,12 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let monitor = ClaudePanelMonitor(transcriptPath: { transcriptURL.path })
-    let tick = try #require(monitor.start())
+    let monitor = ClaudePanelMonitor()
+    let transcriptTick = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
+    let snapshot = try #require(monitor.consume(AgentTranscriptUpdate(transcriptTick)))
 
     #expect(
-      tick.snapshot.progressRows == [
+      snapshot.progressRows == [
         PaneAgentProgressRow(
           id: "claude-goal:Ship session goal progress",
           title: "Goal: Ship session goal progress",
@@ -173,10 +179,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-task:1",
           title: "Wire transcript tasks",
@@ -211,10 +217,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-task:1",
           title: "Phase A",
@@ -263,10 +269,10 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
     #expect(
-      result.rows == [
+      rows == [
         PaneAgentProgressRow(
           id: "claude-task:1",
           title: "Render reminder task",
@@ -297,9 +303,9 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
-    #expect(result.rows == [])
+    #expect(rows == [])
   }
 
   @Test
@@ -319,9 +325,9 @@ struct ClaudeProgressMonitorTests {
       to: transcriptURL
     )
 
-    let result = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let rows = try rows(at: transcriptURL.path)
 
-    #expect(result.rows == [])
+    #expect(rows == [])
   }
 
   @Test
@@ -329,17 +335,67 @@ struct ClaudeProgressMonitorTests {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
 
-    let start = ClaudeTranscriptProgressMonitor.start(at: transcriptURL.path)
+    let monitor = ClaudePanelMonitor()
+    let start = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
+    _ = monitor.consume(AgentTranscriptUpdate(start))
     let handle = try FileHandle(forWritingTo: transcriptURL)
     defer { try? handle.close() }
     try handle.seekToEnd()
     try handle.write(contentsOf: Data(#"{"type":"assistant"}"#.utf8))
 
-    let result = try #require(
-      ClaudeTranscriptProgressMonitor.advance(start.cursor, at: transcriptURL.path)
-    )
+    let result = try #require(AgentTranscriptTailer.advance(start.cursor, at: transcriptURL.path))
 
-    #expect(result.cursor.transcriptOffset == start.cursor.transcriptOffset)
-    #expect(result.rows == nil)
+    #expect(result.cursor.offset == start.cursor.offset)
+    #expect(monitor.consume(AgentTranscriptUpdate(result)) == nil)
+  }
+
+  @Test
+  func advanceConsumesLineThatWasPartialWhenCursorWasPersisted() throws {
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    let line = try JSONSerialization.data(
+      withJSONObject: [
+        "type": "assistant",
+        "padding": String(repeating: "x", count: 70 * 1024),
+        "message": [
+          "content": [
+            [
+              "type": "tool_use",
+              "name": "TodoWrite",
+              "input": [
+                "todos": [
+                  ["content": "Persist boundary", "status": "in_progress"]
+                ]
+              ],
+            ]
+          ]
+        ],
+      ],
+      options: [.sortedKeys]
+    )
+    let splitIndex = line.count / 2
+    try Data(line.prefix(splitIndex)).write(to: transcriptURL)
+    let monitor = ClaudePanelMonitor()
+    let start = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
+    _ = monitor.consume(AgentTranscriptUpdate(start))
+
+    let handle = try FileHandle(forWritingTo: transcriptURL)
+    try handle.seekToEnd()
+    try handle.write(contentsOf: line.suffix(from: splitIndex))
+    try handle.write(contentsOf: Data([0x0A]))
+    try handle.close()
+
+    let result = try #require(AgentTranscriptTailer.advance(start.cursor, at: transcriptURL.path))
+    let snapshot = try #require(monitor.consume(AgentTranscriptUpdate(result)))
+
+    #expect(
+      snapshot.progressRows == [
+        PaneAgentProgressRow(
+          id: "claude-todo:0:Persist boundary",
+          title: "Persist boundary",
+          status: .running
+        )
+      ]
+    )
   }
 }

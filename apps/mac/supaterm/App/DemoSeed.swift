@@ -78,20 +78,20 @@
           kind: .claude,
           surfaceID: IDs.webShellSurface,
           detail: "Refining sidebar states",
-          sessionID: nil
+          sessionID: "demo-web-shell"
         )
         terminal.demoInjectPanelMetadata(surfaceID: IDs.webAgentSurface)
         terminal.demoInjectRunningAgent(
           kind: .codex,
           surfaceID: IDs.apiSurface,
           detail: "Refreshing API routes",
-          sessionID: nil
+          sessionID: "demo-api"
         )
         terminal.demoInjectNeedsInputAgent(
           kind: .pi,
           surfaceID: IDs.deploySurface,
           detail: "Waiting for approval",
-          sessionID: nil
+          sessionID: "demo-deploy"
         )
         terminal.demoInjectNotification(surfaceID: IDs.deploySurface)
       }

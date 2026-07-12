@@ -18,7 +18,9 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
-- The same shared activity model powers every agent, and desktop notification titles derive from the explicit agent kind.
+- Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
+- Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
+- The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
 
 ## Shared Responsibilities
 
@@ -41,11 +43,11 @@ The integration is split into three layers.
 
 - accept typed socket requests
 - bind agent sessions to pane surfaces
-- store any transient agent state the UI needs
+- reduce every adapter into one canonical agent state store
 - update tab-level activity
 - emit in-app or desktop notifications when needed
 - clear pane-bound agent state when the shell reports the foreground command has finished
-- monitor transcript or task-progress sources when an agent exposes them
+- consume transcript files through a bounded, file-event-driven stream when an agent exposes progress that hooks do not carry
 
 Future agent integrations should keep that split. The wrapper or adapter should stay thin, and all UI state should stay inside the app.
 
@@ -77,15 +79,16 @@ sp onboard
 
 ## Hook Bridge
 
-Claude and Codex share the settings-file hook bridge.
+Claude and Codex share the settings-file hook bridge, but each installer uses the agent's public configuration surface.
 
 - Settings > Coding Agents exposes a toggle per agent. Turning it on installs hooks with `sp agent install-hook <agent>`; turning it off removes them with `sp agent remove-hook <agent>`.
-- On open, Settings reads the agent's settings file to reflect whether Supaterm-managed hooks are currently present.
-- A hook is Supaterm-managed when its `command`, lowercased, contains `supaterm`.
+- On open, Settings reports each integration as unavailable, unavailable but installed, absent, partial, drifted, or healthy.
+- Claude must be available through the user's login shell. Codex must be version 0.144.1 or newer, have its hooks feature enabled, and have canonical trust state.
+- A hook is Supaterm-managed only when its command exactly matches one of Supaterm's canonical hook commands.
 - Install preserves unrelated settings, removes any existing Supaterm-managed hooks anywhere in the file, and then installs the canonical Supaterm hooks.
 - The installed hook command uses `SUPATERM_CLI_PATH` so the hook bridge targets the bundled `sp` binary injected into Supaterm panes, and passes `--pid "$PPID"` so Supaterm can track live agent processes.
 - The canonical hook fragment is also available from `sp internal agent-settings <agent>`.
-- On app launch, Supaterm silently refreshes installed Supaterm-managed hooks to the current canonical hook definition.
+- On app launch, Supaterm repairs partial and drifted integrations. It leaves absent and healthy integrations unchanged.
 
 Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 
@@ -96,53 +99,59 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 ## Claude
 
 - Settings file: `~/.claude/settings.json`.
-- Installed hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `Notification`, `UserPromptSubmit`, `Stop`, `SessionEnd`.
+- Installed hook events: `SessionStart`, `PreToolUse`, `PostToolUse`, `Notification`, `UserPromptSubmit`, `Stop`, `SubagentStart`, `SubagentStop`, `SessionEnd`.
 
 ### App Behavior
 
 The app binds Claude sessions to pane surfaces, tracks the foreground session for each pane, and turns Claude hook events into tab activity.
 
-- `SessionStart` binds the session to the current pane surface, registers agent presence, and starts panel monitoring.
+- `SessionStart` binds canonical session state to the current pane surface and starts panel monitoring.
 - `PreToolUse` and `PostToolUse` mark the tab as `running`.
-- `Notification` marks the tab as `needs input` and may trigger a notification.
+- `Notification` marks the tab as `needs input` only for `permission_prompt`, `idle_prompt`, and `elicitation_dialog`.
 - `UserPromptSubmit` marks the tab as `running`.
 - `PreToolUse`, `PostToolUse`, and `UserPromptSubmit` recover the pane binding when `SessionStart` was missed or announced a different session ID, which is what `claude --fork-session --resume` does: its `SessionStart` reports the parent session ID and every later hook carries the forked one.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
-- While the tab is `running`, transcript growth observed by the panel monitor's poll re-arms the running timeout, so long tool calls and streaming responses do not flip the tab to `idle` between hooks.
+- While the tab is `running`, transcript file events re-arm the running timeout, so long tool calls and streaming responses do not flip the tab to `idle` between hooks.
 - `SessionEnd` clears the tab activity and drops the stored session state.
-- A command-finished signal from the shell clears pane-bound agent sessions and presence.
+- `SubagentStart` and `SubagentStop` add and remove scoped child-agent rows without allowing a child to replace the foreground root session.
+- A command-finished signal from the shell clears pane-bound agent state and transcript observation.
 
-The panel monitor reads Claude task progress from the hook `transcript_path`.
+The panel monitor reads Claude task progress from the hook `transcript_path`. File-system events trigger incremental reads; partial JSON lines, truncation, replacement, and oversized records are handled without polling the file once per second.
 
 The monitor understands task reminders, `TaskCreate`, `TaskUpdate`, `TodoWrite`, and goal status records. It filters internal task rows and orders tasks by task ID, matching how Claude Code renders its own task list.
 
 ## Codex
 
-Codex uses the same bridge and tab-state model, with transcript lifecycle as the source of truth for detail and final running state.
+Codex uses the same bridge and canonical state model. Native hooks are authoritative for attention, turn boundaries, child agents, and plan changes; the transcript supplies live detail, hover history, goals, and final lifecycle evidence.
 
 - Settings file: `~/.codex/hooks.json`.
-- Installed hook events: `PostToolUse`, `PreToolUse`, `SessionStart`, `UserPromptSubmit`, `Stop`.
-- Install enables the Codex hooks feature by running `codex features enable hooks` through the user's login shell and trusts the installed Supaterm hook commands in `~/.codex/config.toml`.
-- Remove rewrites `~/.codex/hooks.json` and removes the matching Supaterm hook trust entries from `~/.codex/config.toml`; it does not disable the hooks feature flag.
-- The launch refresh also re-applies the trust state.
+- Installed hook events: `PermissionRequest`, `PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`, `SubagentStart`, `SubagentStop`, `UserPromptSubmit`.
+- `PreToolUse` is restricted to `request_user_input`; `PostToolUse` remains unfiltered so later activity can resolve attention state.
+- Install enables the Codex hooks feature through the user's login shell, writes the canonical `hooks.json` fragment, then uses `codex app-server --stdio` to discover native hooks and update trust.
+- Hook discovery uses `hooks/list`. User-layer version and trust state come from `config/read`; atomic trust replacement uses `config/batchWrite` with that version.
+- Supaterm does not parse Codex source, reproduce Codex's hook hashing, edit TOML trust state directly, vendor Codex, or depend on its internal modules.
+- Remove rewrites `~/.codex/hooks.json` and removes the matching native trust entries through the same app-server API. It does not disable the hooks feature flag.
+- Trust rebasing preserves unrelated hook state, including duplicate unrelated hooks from the same source, while removing displaced Supaterm entries.
 
 ### App Behavior
 
 The app binds Codex sessions to pane surfaces and turns Codex hook events into tab activity.
 
 - `SessionStart` binds the session to the current pane surface and starts transcript observation for the recorded `transcript_path`.
-- `PreToolUse` and `PostToolUse` optimistically mark the tab as `running` before transcript progress arrives, and
-  recover the pane binding when `SessionStart` was missed.
+- `PreToolUse` for `request_user_input` marks the tab as needing input. `PostToolUse` marks ordinary tool activity as
+  `running` before transcript progress arrives and recovers the pane binding when `SessionStart` was missed.
 - `UserPromptSubmit` re-arms transcript observation for the next turn, recovers the pane binding when `SessionStart`
   was missed, and clears structured completion suppression without supplying Codex detail on its own.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
-- Transcript lifecycle remains authoritative for Codex detail and final `idle` transitions.
+- `PermissionRequest` and `request_user_input` mark the foreground session as needing input; only completion of the matching tool resolves that attention state.
+- `SubagentStart` and `SubagentStop` maintain scoped child-agent rows. Reused child IDs and late stop events cannot remove a newer child lifetime.
+- A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the native plan rows immediately. Supaterm never reconstructs plans from transcript text.
+- Transcript lifecycle remains authoritative for live Codex detail and corroborates final `idle` transitions.
 - `task_started` and `turn_started` mark the tab as `running`.
 - `task_complete`, `turn_complete`, and `turn_aborted` mark the tab as `idle`.
-- `error` marks the turn failed and clears the active turn.
+- Codex does not persist error events, so a persisted exhausted `token_count` record with no usage info marks a usage-limited turn failed. A rounded 100 percent record that still contains usage info does not.
 - `thread_goal_updated` and goal context records can populate goal progress rows.
-- `update_plan` tool calls can populate panel progress rows.
-- Resume and startup read the current transcript snapshot before polling, so an already-active Codex turn appears as `running` immediately.
+- Resume and startup read the current transcript snapshot before waiting for file events, so an already-active Codex turn appears as `running` immediately.
 - While a Codex turn is running, Supaterm tails the Codex rollout file from `transcript_path`.
 - `event_msg` lines drive lifecycle, and non-final `agent_message` events can update live activity detail.
 - `response_item` lines only update live activity detail for non-final assistant messages.
@@ -153,6 +162,8 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
 Pi uses the extension package from `supaterm-skills`, not the `sp agent install-hook` settings bridge.
 
 Settings > Coding Agents can install or remove the package by invoking `pi` through the user's login shell.
+When Pi is unavailable, removal edits Pi's settings file directly so the installed integration can still be disabled.
+Supaterm treats canonical package protocol `0.2.0` or newer as healthy, updates an existing canonical checkout with `pi update`, and replaces noncanonical remote sources during repair.
 
 Install it with:
 
@@ -166,11 +177,10 @@ Install from a local checkout while developing:
 pi install /absolute/path/to/supaterm/integrations/supaterm-skills
 ```
 
+Local package sources are user-owned development configuration. Supaterm treats them as healthy and preserves them at startup without replacing or updating them.
+
 The Pi extension source lives in `integrations/supaterm-skills/extensions/pi-notify-supaterm`.
 
-The extension only forwards events when it sees both:
+The extension forwards events when `SUPATERM_CLI_PATH` is available. Ambient pane context still comes from the environment read by `sp`.
 
-- `SUPATERM_CLI_PATH`
-- `SUPATERM_SURFACE_ID`
-
-It synthesizes a stable Pi session ID from the pane surface ID, sends hook events through `sp agent receive-agent-hook --agent pi`, emits running heartbeats during active work, and sends completion or attention notifications when the Pi run finishes or waits for input.
+It uses Pi's native `sessionManager.getSessionId()` for every callback, preserves native session start and shutdown reasons, and forwards `session_start`, `agent_start`, `agent_end`, and `session_shutdown` through `sp agent receive-agent-hook --agent pi --pid <pi-process-id>`. The app derives running, completion, truncation, error, and attention state from those lifecycle events without synthetic session IDs or heartbeats.

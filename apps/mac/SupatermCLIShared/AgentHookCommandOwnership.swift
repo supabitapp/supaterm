@@ -1,5 +1,13 @@
+import Foundation
+
 enum AgentHookCommandOwnership {
   static func isSupatermManagedCommand(_ command: String?) -> Bool {
-    SupatermManagedHookCommand.isManagedCommand(command)
+    guard let command else {
+      return false
+    }
+    let normalizedCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
+    return SupatermAgentKind.allCases.contains {
+      normalizedCommand == SupatermManagedHookCommand.receiveHookCommand(for: $0)
+    }
   }
 }

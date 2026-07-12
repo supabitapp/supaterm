@@ -26,9 +26,8 @@ struct SPDevelopmentClaudeTests {
     let builder = SPDevelopmentClaudeEventBuilder(currentDirectoryPath: "/tmp/supaterm")
     let event = try builder.event(.preToolUse, context: context)
 
-    #expect(event.cwd == "/tmp/supaterm")
+    #expect(event.payload["cwd"]?.stringValue == "/tmp/supaterm")
     #expect(event.hookEventName == .preToolUse)
-    #expect(event.permissionMode == "acceptEdits")
     #expect(event.sessionID == builder.defaultSessionID(for: context))
     #expect(event.toolName == nil)
     #expect(event.toolUseID == nil)
@@ -55,9 +54,7 @@ struct SPDevelopmentClaudeTests {
 
     #expect(stop.hookEventName == .stop)
     #expect(stop.lastAssistantMessage == "Done.")
-    #expect(stop.stopHookActive == false)
     #expect(sessionEnd.hookEventName == .sessionEnd)
-    #expect(sessionEnd.reason == "exit")
   }
 
   @Test

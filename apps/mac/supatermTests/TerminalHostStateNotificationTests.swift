@@ -347,7 +347,7 @@ struct TerminalHostStateNotificationTests {
   }
 
   @Test
-  func setAgentPresenceActivityStoresNormalizedDetail() throws {
+  func agentActivityStoresNormalizedDetail() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -380,9 +380,17 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
+    #expect(
+      host.startTestAgentSession(
+        agent: .codex,
+        for: surface.id,
+        sessionID: "session-1",
+        processID: nil
+      )
+    )
 
-    #expect(host.recordAgentHoverMessages(["First message"], replacing: false, for: surface.id))
-    #expect(host.recordAgentHoverMessages(["Second message"], replacing: false, for: surface.id))
+    #expect(host.setTestAgentHoverMessages(["First message"], replacing: false, for: surface.id))
+    #expect(host.setTestAgentHoverMessages(["Second message"], replacing: false, for: surface.id))
 
     #expect(
       host.codexHoverMarkdown(for: tabID) == """
@@ -403,9 +411,17 @@ struct TerminalHostStateNotificationTests {
 
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
+    #expect(
+      host.startTestAgentSession(
+        agent: .codex,
+        for: surface.id,
+        sessionID: "session-1",
+        processID: nil
+      )
+    )
 
-    #expect(host.recordAgentHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
-    #expect(host.recordAgentHoverMessages(["Final answer"], replacing: true, for: surface.id))
+    #expect(host.setTestAgentHoverMessages(["First message", "Second message"], replacing: false, for: surface.id))
+    #expect(host.setTestAgentHoverMessages(["Final answer"], replacing: true, for: surface.id))
 
     #expect(host.codexHoverMarkdown(for: tabID) == "Final answer")
   }
@@ -473,9 +489,9 @@ struct TerminalHostStateNotificationTests {
         for: firstSurface.id
       )
     )
-    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
-    #expect(host.recordAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
+    #expect(host.setTestAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
 
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
     #expect(host.showsAgentActivityDetail(for: tabID))
@@ -569,10 +585,12 @@ struct TerminalHostStateNotificationTests {
       )
     )
 
+    #expect(host.setTestAgentActivity(.codex(.running), for: firstSurface.id))
+    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.codex(.idle), for: firstSurface.id))
-    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setTestAgentActivity(.codex(.running), for: secondPane.paneID))
+    #expect(host.setTestAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
     #expect(host.setTestAgentActivity(.codex(.idle), for: secondPane.paneID))
-    #expect(host.recordAgentHoverMessages(["Background hover"], replacing: false, for: secondPane.paneID))
     #expect(host.codexHoverMarkdown(for: tabID) == "Focused hover")
 
     _ = try host.focusPane(.contextPane(secondPane.paneID))
@@ -601,7 +619,7 @@ struct TerminalHostStateNotificationTests {
     )
 
     #expect(host.setTestAgentActivity(.codex(.running, detail: "Focused detail"), for: firstSurface.id))
-    #expect(host.recordAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
+    #expect(host.setTestAgentHoverMessages(["Focused hover"], replacing: false, for: firstSurface.id))
     #expect(host.setTestAgentActivity(.claude(.needsInput), for: secondPane.paneID))
     #expect(host.agentActivity(for: tabID) == .claude(.needsInput))
 
@@ -623,7 +641,7 @@ struct TerminalHostStateNotificationTests {
     let tabID = try #require(host.selectedTabID)
     let surface = try #require(host.selectedSurfaceView)
     #expect(host.setTestAgentActivity(.claude(.running, detail: "Thinking"), for: surface.id))
-    #expect(host.recordAgentHoverMessages(["Thinking"], replacing: true, for: surface.id))
+    #expect(host.setTestAgentHoverMessages(["Thinking"], replacing: true, for: surface.id))
 
     surface.bridge.onCommandFinished?()
 
@@ -869,9 +887,7 @@ struct TerminalHostStateNotificationTests {
       makeNotification(attentionState: .unread, createdAt: 1, title: "Build"),
       for: surface.id
     )
-    host.paneAgentMetadataBySurfaceID[surface.id] = TerminalHostState.PaneAgentMetadata(
-      agentHoverMessages: ["Working"]
-    )
+    host.paneAgentMetadataBySurfaceID[surface.id] = TerminalHostState.PaneAgentMetadata()
     host.notificationStore.setRecentStructured(
       TerminalHostState.RecentStructuredNotification(
         recordedAt: Date(),
@@ -887,7 +903,7 @@ struct TerminalHostStateNotificationTests {
     #expect(host.notificationStore.notifications(for: surface.id) == nil)
     #expect(host.paneAgentMetadataBySurfaceID[surface.id] == nil)
     #expect(host.notificationStore.recentStructured(for: surface.id) == nil)
-    #expect(host.agentPresenceStore.detailActivity(for: surface.id) == nil)
+    #expect(host.agentStateStore.snapshots(for: surface.id).isEmpty)
     #expect(host.surfaces[surface.id] == nil)
   }
 
@@ -909,10 +925,10 @@ struct TerminalHostStateNotificationTests {
 extension TerminalHostState {
   @discardableResult
   fileprivate func setTestAgentActivity(_ activity: AgentActivity, for surfaceID: UUID) -> Bool {
-    setAgentPresenceActivity(
+    applyTestAgentActivity(
       activity,
       for: surfaceID,
-      sessionID: "test-\(activity.kind.rawValue)",
+      sessionID: "test-\(activity.kind.rawValue)-\(surfaceID.uuidString)",
       processID: nil
     )
   }

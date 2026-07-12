@@ -277,6 +277,42 @@ extension SnapshotCatalog {
       )
     },
     scenario(
+      "active-agents",
+      group: "Agent Panel",
+      title: "Active child agents",
+      size: CGSize(width: 338, height: 190)
+    ) { appearance in
+      AnyView(
+        AgentPanelSnapshotFixture(
+          appearance: appearance,
+          presentation: PaneAgentPanelPresentation(
+            activeChildren: [
+              TerminalAgentActiveChild(
+                id: TerminalAgentActiveChild.Identity(
+                  subagentID: "reviewer-1",
+                  sessionID: "session-26-0701",
+                  turnID: "turn-4"
+                ),
+                type: "reviewer",
+                phase: .running,
+                detail: "Reviewing native hook ownership"
+              ),
+              TerminalAgentActiveChild(
+                id: TerminalAgentActiveChild.Identity(
+                  subagentID: "tester-1",
+                  sessionID: "session-26-0701",
+                  turnID: "turn-4"
+                ),
+                type: "tester",
+                phase: .needsInput,
+                detail: "Needs approval to run tests"
+              ),
+            ]
+          )
+        )
+      )
+    },
+    scenario(
       "merged-pr",
       group: "Agent Panel",
       title: "Merged pull request",
@@ -956,17 +992,17 @@ private struct SettingsSnapshotFixture: View {
         .terminalSettingsLoadFailed("Could not read \(SnapshotFixtureValues.ghosttyConfigPath).")
       )
     case .codingAgentsEnabled:
-      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(true)))
-      _ = store.send(.agentIntegrationStatusRefreshed(.pi, .success(true)))
+      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(.healthy)))
+      _ = store.send(.agentIntegrationStatusRefreshed(.pi, .success(.healthy)))
     case .codingAgentsUnavailable:
       _ = store.send(
         .agentIntegrationStatusRefreshed(
           .pi,
-          .unavailable("Install the package before enabling this integration.")
+          .success(.unavailable)
         )
       )
     case .codingAgentsInstallFailure:
-      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(true)))
+      _ = store.send(.agentIntegrationStatusRefreshed(.codex, .success(.healthy)))
       _ = store.send(
         .agentIntegrationToggleFinished(
           .codex,

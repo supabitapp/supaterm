@@ -3,15 +3,15 @@ import Foundation
 import SupatermCLIShared
 
 struct CodexSettingsClient: Sendable {
-  var hasSupatermHooks: @Sendable () async throws -> Bool
+  var integrationHealth: @Sendable () async throws -> CodingAgentIntegrationHealth
   var installSupatermHooks: @Sendable () async throws -> Void
   var removeSupatermHooks: @Sendable () async throws -> Void
 }
 
 extension CodexSettingsClient: DependencyKey {
   static let liveValue = Self(
-    hasSupatermHooks: {
-      try CodexSettingsInstaller().hasSupatermHooks()
+    integrationHealth: {
+      try CodexSettingsInstaller().integrationHealth()
     },
     installSupatermHooks: {
       try CodexSettingsInstaller().installSupatermHooks()
@@ -22,7 +22,7 @@ extension CodexSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    hasSupatermHooks: { false },
+    integrationHealth: { .absent },
     installSupatermHooks: {},
     removeSupatermHooks: {}
   )

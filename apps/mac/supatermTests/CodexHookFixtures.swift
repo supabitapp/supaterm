@@ -78,6 +78,28 @@ enum CodexHookFixtures {
     )
   }
 
+  static func planUpdate(
+    _ plan: [(step: String, status: String)],
+    turnID: String = "turn-1"
+  ) -> SupatermAgentHookEvent {
+    SupatermAgentHookEvent(
+      hookEventName: .postToolUse,
+      sessionID: sessionID,
+      toolInput: .object([
+        "plan": .array(
+          plan.map { item in
+            .object([
+              "step": .string(item.step),
+              "status": .string(item.status),
+            ])
+          }
+        )
+      ]),
+      toolName: "update_plan",
+      turnID: turnID
+    )
+  }
+
   static func replacingTranscriptPath(in json: String, with transcriptPath: String) -> String {
     json.replacingOccurrences(of: Self.transcriptPath, with: transcriptPath)
   }

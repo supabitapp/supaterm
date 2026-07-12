@@ -4,7 +4,7 @@ import SupatermCLIShared
 nonisolated struct StartupAgentHookRefresher {
   struct Operation: Sendable {
     let agent: SupatermAgentKind
-    let hasSupatermHooks: @Sendable () throws -> Bool
+    let integrationHealth: @Sendable () throws -> CodingAgentIntegrationHealth
     let installSupatermHooks: @Sendable () throws -> Void
   }
 
@@ -15,8 +15,8 @@ nonisolated struct StartupAgentHookRefresher {
     operations: [
       Operation(
         agent: .claude,
-        hasSupatermHooks: {
-          try ClaudeSettingsInstaller().hasSupatermHooks()
+        integrationHealth: {
+          try ClaudeSettingsInstaller().integrationHealth()
         },
         installSupatermHooks: {
           try ClaudeSettingsInstaller().installSupatermHooks()
@@ -24,11 +24,20 @@ nonisolated struct StartupAgentHookRefresher {
       ),
       Operation(
         agent: .codex,
-        hasSupatermHooks: {
-          try CodexSettingsInstaller().hasSupatermHooks()
+        integrationHealth: {
+          try CodexSettingsInstaller().integrationHealth()
         },
         installSupatermHooks: {
           try CodexSettingsInstaller().installSupatermHooks()
+        }
+      ),
+      Operation(
+        agent: .pi,
+        integrationHealth: {
+          try PiSettingsInstaller().integrationHealth()
+        },
+        installSupatermHooks: {
+          try PiSettingsInstaller().installSupatermPackage()
         }
       ),
     ],
@@ -48,7 +57,12 @@ nonisolated struct StartupAgentHookRefresher {
   func refreshInstalledHooks() {
     for operation in operations {
       do {
-        guard try operation.hasSupatermHooks() else { continue }
+        switch try operation.integrationHealth() {
+        case .partial, .drifted:
+          break
+        case .unavailable, .unavailableInstalled, .absent, .healthy:
+          continue
+        }
         try operation.installSupatermHooks()
       } catch {
         logFailure(operation.agent, error)

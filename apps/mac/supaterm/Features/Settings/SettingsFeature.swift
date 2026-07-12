@@ -30,11 +30,53 @@ struct SettingsTerminalState: Equatable {
 }
 
 struct SettingsAgentIntegrationState: Equatable {
-  var confirmedEnabled = false
   var errorMessage: String?
-  var isAvailable = true
-  var isEnabled = false
-  var isPending = false
+  var health = CodingAgentIntegrationHealth.absent
+  var isRefreshing = false
+  var pendingEnabled: Bool?
+
+  var isAvailable: Bool {
+    health != .unavailable
+  }
+
+  var isEnabled: Bool {
+    pendingEnabled
+      ?? {
+        switch health {
+        case .unavailable, .absent:
+          return false
+        case .unavailableInstalled, .partial, .drifted, .healthy:
+          return true
+        }
+      }()
+  }
+
+  var isPending: Bool {
+    isRefreshing || pendingEnabled != nil
+  }
+
+  func message(for agent: SupatermAgentKind) -> String? {
+    if let errorMessage {
+      return errorMessage
+    }
+    switch health {
+    case .unavailable, .unavailableInstalled:
+      switch agent {
+      case .claude:
+        return "Claude Code is unavailable."
+      case .codex:
+        return "Codex 0.144.1 or newer is unavailable."
+      case .pi:
+        return PiSettingsInstallerError.piUnavailable.localizedDescription
+      }
+    case .partial:
+      return "\(agent.notificationTitle) integration is incomplete."
+    case .drifted:
+      return "\(agent.notificationTitle) integration needs repair."
+    case .absent, .healthy:
+      return nil
+    }
+  }
 }
 
 struct SettingsAgentIntegrationInstallFailure: Equatable, Identifiable {
@@ -61,9 +103,8 @@ struct SettingsAboutState: Equatable {
 }
 
 public enum SettingsAgentIntegrationResult: Equatable {
-  case unavailable(String)
   case failure(String)
-  case success(Bool)
+  case success(CodingAgentIntegrationHealth)
 }
 
 @Reducer

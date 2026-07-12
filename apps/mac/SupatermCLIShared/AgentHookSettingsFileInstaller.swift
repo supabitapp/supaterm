@@ -1,6 +1,22 @@
 import Foundation
 
 struct AgentHookSettingsFileInstaller {
+  struct Mutation {
+    let url: URL
+    let previousData: Data?
+    let writtenData: Data
+
+    func rollback(fileManager: FileManager) throws {
+      let currentData = fileManager.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
+      guard currentData == writtenData else { return }
+      if let previousData {
+        try previousData.write(to: url, options: .atomic)
+      } else {
+        try fileManager.removeItem(at: url)
+      }
+    }
+  }
+
   struct Errors {
     let invalidEventHooks: @Sendable (String) -> Error
     let invalidHooksObject: @Sendable () -> Error
@@ -15,13 +31,14 @@ struct AgentHookSettingsFileInstaller {
   let fileManager: FileManager
   let errors: Errors
 
+  @discardableResult
   func install(
     settingsURL: URL,
     hookGroupsByEvent: @autoclosure () throws -> [String: [JSONValue]]
-  ) throws {
-    let settingsObject = try loadSettingsObject(at: settingsURL)
+  ) throws -> Mutation {
+    let loadedSettings = try loadSettings(at: settingsURL)
     let mergedObject = try mergedSettingsObject(
-      from: settingsObject,
+      from: loadedSettings.object,
       hookGroupsByEvent: try hookGroupsByEvent()
     )
     try fileManager.createDirectory(
@@ -33,14 +50,58 @@ struct AgentHookSettingsFileInstaller {
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     let data = try encoder.encode(JSONValue.object(mergedObject))
     try data.write(to: settingsURL, options: .atomic)
+    return Mutation(
+      url: settingsURL,
+      previousData: loadedSettings.data,
+      writtenData: data
+    )
   }
 
-  func hasSupatermHooks(settingsURL: URL) throws -> Bool {
+  func integrationHealth(
+    settingsURL: URL,
+    hookGroupsByEvent: [String: [JSONValue]]
+  ) throws -> CodingAgentIntegrationHealth {
     let settingsObject = try loadSettingsObject(at: settingsURL)
-    return try settingsObjectContainsManagedHooks(settingsObject)
+    guard let hooksValue = settingsObject["hooks"] else {
+      return .absent
+    }
+    guard let hooksObject = hooksValue.objectValue else {
+      throw errors.invalidHooksObject()
+    }
+
+    var remainingCanonicalGroups = hookGroupsByEvent
+    var foundManagedHook = false
+    var foundDrift = false
+
+    for (event, value) in hooksObject {
+      guard let groups = value.arrayValue else {
+        throw errors.invalidEventHooks(event)
+      }
+      for group in groups where groupContainsManagedHooks(group) {
+        foundManagedHook = true
+        guard
+          let index = remainingCanonicalGroups[event]?.firstIndex(of: group)
+        else {
+          foundDrift = true
+          continue
+        }
+        remainingCanonicalGroups[event]?.remove(at: index)
+      }
+    }
+
+    guard foundManagedHook else {
+      return .absent
+    }
+    guard !foundDrift else {
+      return .drifted
+    }
+    return remainingCanonicalGroups.values.allSatisfy(\.isEmpty) ? .healthy : .partial
   }
 
   func removeSupatermHooks(settingsURL: URL) throws {
+    guard fileManager.fileExists(atPath: settingsURL.path) else {
+      return
+    }
     let settingsObject = try loadSettingsObject(at: settingsURL)
     let prunedObject = try settingsObjectByRemovingManagedHooks(from: settingsObject)
     try fileManager.createDirectory(
@@ -55,8 +116,15 @@ struct AgentHookSettingsFileInstaller {
   }
 
   private func loadSettingsObject(at url: URL) throws -> [String: JSONValue] {
+    try loadSettings(at: url).object
+  }
+
+  private func loadSettings(at url: URL) throws -> (
+    object: [String: JSONValue],
+    data: Data?
+  ) {
     guard fileManager.fileExists(atPath: url.path) else {
-      return [:]
+      return ([:], nil)
     }
 
     let data = try Data(contentsOf: url)
@@ -66,7 +134,7 @@ struct AgentHookSettingsFileInstaller {
       guard let object = jsonValue.objectValue else {
         throw LoadError.invalidRootObject
       }
-      return object
+      return (object, data)
     } catch LoadError.invalidRootObject {
       throw errors.invalidRootObject()
     } catch {
@@ -120,27 +188,6 @@ struct AgentHookSettingsFileInstaller {
       prunedObject["hooks"] = .object(prunedHooksObject)
     }
     return prunedObject
-  }
-
-  private func settingsObjectContainsManagedHooks(
-    _ settingsObject: [String: JSONValue]
-  ) throws -> Bool {
-    guard let hooksValue = settingsObject["hooks"] else {
-      return false
-    }
-    guard let hooksObject = hooksValue.objectValue else {
-      throw errors.invalidHooksObject()
-    }
-
-    for (event, value) in hooksObject {
-      guard let groups = value.arrayValue else {
-        throw errors.invalidEventHooks(event)
-      }
-      if groups.contains(where: groupContainsManagedHooks(_:)) {
-        return true
-      }
-    }
-    return false
   }
 
   private func existingGroups(

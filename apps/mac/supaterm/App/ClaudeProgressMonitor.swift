@@ -1,23 +1,6 @@
 import Foundation
 import SupatermCLIShared
 
-struct ClaudeProgressCursor {
-  var transcriptOffset: UInt64
-  fileprivate var transcriptState = ClaudeTranscriptTaskState()
-
-  init(transcriptOffset: UInt64) {
-    self.transcriptOffset = transcriptOffset
-  }
-
-  fileprivate init(
-    transcriptOffset: UInt64,
-    transcriptState: ClaudeTranscriptTaskState
-  ) {
-    self.transcriptOffset = transcriptOffset
-    self.transcriptState = transcriptState
-  }
-}
-
 private struct ClaudeProgressTask: Equatable {
   var taskID: String
   var title: String
@@ -300,84 +283,28 @@ private struct ClaudeTranscriptTaskState: Equatable {
 
 @MainActor
 final class ClaudePanelMonitor: AgentPanelMonitor {
-  private let transcriptPath: () -> String?
-  private var cursor: ClaudeProgressCursor
-  private var transcriptRows: [PaneAgentProgressRow]
+  private var transcriptState = ClaudeTranscriptTaskState()
+  private var transcriptRows: [PaneAgentProgressRow] = []
   private var currentSnapshot: AgentMonitorSnapshot?
 
-  init(transcriptPath: @escaping () -> String?) {
-    self.transcriptPath = transcriptPath
-    let initialProgress =
-      transcriptPath().map { ClaudeTranscriptProgressMonitor.start(at: $0) }
-      ?? (cursor: ClaudeProgressCursor(transcriptOffset: 0), rows: nil)
-    cursor = initialProgress.cursor
-    transcriptRows = initialProgress.rows ?? []
-  }
-
-  func start() -> AgentPanelMonitorTick? {
-    let snapshot = AgentMonitorSnapshot(progressRows: transcriptRows)
-    currentSnapshot = snapshot
-    return AgentPanelMonitorTick(snapshot: snapshot, isFinal: false)
-  }
-
-  func poll() -> AgentPanelMonitorTick? {
-    if let path = transcriptPath(),
-      let result = ClaudeTranscriptProgressMonitor.advance(cursor, at: path)
-    {
-      cursor = result.cursor
-      if let rows = result.rows {
-        transcriptRows = rows
-      }
+  func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot? {
+    if update.didReset {
+      transcriptState = ClaudeTranscriptTaskState()
+      transcriptRows = []
+    }
+    if let rows = apply(update.objects) {
+      transcriptRows = rows
     }
     let nextSnapshot = AgentMonitorSnapshot(progressRows: transcriptRows)
     guard nextSnapshot != currentSnapshot else { return nil }
     currentSnapshot = nextSnapshot
-    return AgentPanelMonitorTick(snapshot: nextSnapshot, isFinal: false)
-  }
-}
-
-enum ClaudeTranscriptProgressMonitor {
-  static func start(
-    at path: String
-  ) -> (cursor: ClaudeProgressCursor, rows: [PaneAgentProgressRow]?) {
-    guard let tick = AgentTranscriptTailer.start(at: path) else {
-      return (ClaudeProgressCursor(transcriptOffset: 0), nil)
-    }
-    var state = ClaudeTranscriptTaskState()
-    let rows = apply(tick.objects, to: &state)
-    return (
-      ClaudeProgressCursor(transcriptOffset: tick.cursor.offset, transcriptState: state),
-      rows
-    )
+    return nextSnapshot
   }
 
-  static func advance(
-    _ cursor: ClaudeProgressCursor,
-    at path: String
-  ) -> (cursor: ClaudeProgressCursor, rows: [PaneAgentProgressRow]?)? {
-    guard
-      let tick = AgentTranscriptTailer.advance(
-        AgentTranscriptTailCursor(offset: cursor.transcriptOffset),
-        at: path
-      )
-    else {
-      return nil
-    }
-    var state = tick.didReset ? ClaudeTranscriptTaskState() : cursor.transcriptState
-    let rows = apply(tick.objects, to: &state)
-    return (
-      ClaudeProgressCursor(transcriptOffset: tick.cursor.offset, transcriptState: state),
-      rows
-    )
-  }
-
-  private static func apply(
-    _ objects: [JSONObject],
-    to state: inout ClaudeTranscriptTaskState
-  ) -> [PaneAgentProgressRow]? {
+  private func apply(_ objects: [JSONObject]) -> [PaneAgentProgressRow]? {
     var latestRows: [PaneAgentProgressRow]?
     for object in objects {
-      if let rows = state.apply(object) {
+      if let rows = transcriptState.apply(object) {
         latestRows = rows
       }
     }

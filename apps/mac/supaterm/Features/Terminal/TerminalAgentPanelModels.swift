@@ -3,12 +3,14 @@ import SupatermCLIShared
 
 nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var progressRows: [PaneAgentProgressRow] = []
+  var activeChildren: [TerminalAgentActiveChild] = []
   var branchDetails: PaneAgentBranchDetails?
   var artifacts: [PaneAgentArtifact] = []
   var session: PaneAgentPanelSession?
 
   var isEmpty: Bool {
     progressRows.isEmpty
+      && activeChildren.isEmpty
       && branchDetails == nil
       && artifacts.isEmpty
       && session == nil
@@ -58,14 +60,14 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   }
 }
 
-nonisolated struct PaneAgentProgressRow: Equatable, Identifiable, Sendable {
-  enum Status: Equatable, Sendable {
+nonisolated struct PaneAgentProgressRow: Codable, Equatable, Identifiable, Sendable {
+  enum Status: Codable, Equatable, Sendable {
     case pending
     case running
     case completed
   }
 
-  enum Kind: Equatable, Sendable {
+  enum Kind: Codable, Equatable, Sendable {
     case task
     case goal
   }

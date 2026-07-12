@@ -3,13 +3,29 @@ import Foundation
 public struct ClaudeSettingsInstaller {
   let homeDirectoryURL: URL
   let fileManager: FileManager
+  let runAvailabilityCommand: @Sendable () throws -> CodingAgentCommandResult
 
   public init(
     homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
     fileManager: FileManager = .default
   ) {
+    self.init(
+      homeDirectoryURL: homeDirectoryURL,
+      fileManager: fileManager,
+      runAvailabilityCommand: {
+        try CodingAgentCommandRunner.run(arguments: Self.availabilityCommandArguments())
+      }
+    )
+  }
+
+  init(
+    homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+    fileManager: FileManager = .default,
+    runAvailabilityCommand: @escaping @Sendable () throws -> CodingAgentCommandResult
+  ) {
     self.homeDirectoryURL = homeDirectoryURL
     self.fileManager = fileManager
+    self.runAvailabilityCommand = runAvailabilityCommand
   }
 
   public func installSupatermHooks() throws {
@@ -19,10 +35,15 @@ public struct ClaudeSettingsInstaller {
     )
   }
 
-  public func hasSupatermHooks() throws -> Bool {
-    try fileInstaller.hasSupatermHooks(
-      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL)
+  public func integrationHealth() throws -> CodingAgentIntegrationHealth {
+    let settingsHealth = try fileInstaller.integrationHealth(
+      settingsURL: Self.settingsURL(homeDirectoryURL: homeDirectoryURL),
+      hookGroupsByEvent: SupatermClaudeHookSettings.hookGroupsByEvent()
     )
+    guard try runAvailabilityCommand().status == 0 else {
+      return settingsHealth == .absent ? .unavailable : .unavailableInstalled
+    }
+    return settingsHealth
   }
 
   public func removeSupatermHooks() throws {
@@ -44,7 +65,7 @@ public struct ClaudeSettingsInstaller {
   private var fileInstaller: AgentHookSettingsFileInstaller {
     AgentHookSettingsFileInstaller(
       fileManager: fileManager,
-      errors: .init(
+      errors: AgentHookSettingsFileInstaller.Errors(
         invalidEventHooks: { ClaudeSettingsInstallerError.invalidEventHooks($0) },
         invalidHooksObject: { ClaudeSettingsInstallerError.invalidHooksObject },
         invalidJSON: { ClaudeSettingsInstallerError.invalidJSON },

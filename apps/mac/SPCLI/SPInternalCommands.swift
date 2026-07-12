@@ -250,7 +250,6 @@ struct SPDevelopmentClaudeEventBuilder {
       return .init(
         cwd: currentDirectoryPath,
         hookEventName: .preToolUse,
-        permissionMode: "acceptEdits",
         sessionID: sessionID
       )
 
@@ -268,8 +267,6 @@ struct SPDevelopmentClaudeEventBuilder {
       return .init(
         cwd: currentDirectoryPath,
         hookEventName: .userPromptSubmit,
-        permissionMode: "acceptEdits",
-        prompt: "Use the recommended option",
         sessionID: sessionID
       )
 
@@ -278,16 +275,13 @@ struct SPDevelopmentClaudeEventBuilder {
         cwd: currentDirectoryPath,
         hookEventName: .stop,
         lastAssistantMessage: "Done.",
-        permissionMode: "acceptEdits",
-        sessionID: sessionID,
-        stopHookActive: false
+        sessionID: sessionID
       )
 
     case .sessionEnd:
       return .init(
         cwd: currentDirectoryPath,
         hookEventName: .sessionEnd,
-        reason: "exit",
         sessionID: sessionID
       )
     }

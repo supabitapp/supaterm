@@ -29,12 +29,19 @@ public enum SupatermClaudeHookSettings {
 
   private struct Settings: Encodable {
     let hooks: [String: [HookGroup]] = [
-      "Notification": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
+      "Notification": [
+        .init(
+          matcher: "permission_prompt|idle_prompt|elicitation_dialog",
+          hooks: [.init(command: command, timeout: 10)]
+        )
+      ],
       "PostToolUse": [.init(matcher: "", hooks: [.init(command: command, timeout: 5, isAsync: true)])],
       "PreToolUse": [.init(matcher: "", hooks: [.init(command: command, timeout: 5, isAsync: true)])],
       "SessionEnd": [.init(matcher: "", hooks: [.init(command: command, timeout: 1)])],
       "SessionStart": [.init(matcher: "", hooks: [.init(command: command, timeout: 10)])],
       "Stop": [.init(hooks: [.init(command: command, timeout: 10)])],
+      "SubagentStart": [.init(hooks: [.init(command: command, timeout: 10)])],
+      "SubagentStop": [.init(hooks: [.init(command: command, timeout: 10)])],
       "UserPromptSubmit": [.init(hooks: [.init(command: command, timeout: 10)])],
     ]
   }

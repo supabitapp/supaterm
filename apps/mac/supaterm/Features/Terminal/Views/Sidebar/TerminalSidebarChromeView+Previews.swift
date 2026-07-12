@@ -117,7 +117,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
     self.terminalProgress = terminalProgress
   }
 
-  private func phaseLabel(_ phase: TerminalHostState.AgentActivityPhase) -> String {
+  private func phaseLabel(_ phase: AgentActivityPhase) -> String {
     switch phase {
     case .running:
       return "Running"

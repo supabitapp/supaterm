@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import Darwin
 import Foundation
 import Sharing
 import Testing
@@ -7,6 +8,78 @@ import Testing
 @testable import supaterm
 
 struct TerminalAgentPanelTests {
+  @Test
+  @MainActor
+  func restoredAgentStateRequiresCurrentProcessIdentityAndPreservesForegroundPlan() throws {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let surfaceID = UUID()
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let plan = PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
+
+    host.restoreAgentState(
+      [
+        TerminalPaneAgentRecord(
+          agent: .codex,
+          sessionID: "background",
+          processes: [identity],
+          turnLifecycle: .active("turn-1"),
+          phase: .running,
+          isForeground: false,
+          revision: 4
+        ),
+        TerminalPaneAgentRecord(
+          agent: .codex,
+          sessionID: "foreground",
+          processes: [identity],
+          transcriptPath: "/tmp/foreground.jsonl",
+          turnLifecycle: .active("turn-2"),
+          phase: .running,
+          nativePlanRows: [plan],
+          isForeground: true,
+          revision: 9
+        ),
+      ],
+      for: surfaceID
+    )
+
+    let snapshots = host.agentStateStore.snapshots(for: surfaceID)
+    let foreground = try #require(
+      snapshots.first(where: { $0.sessionID == "foreground" })
+    )
+    #expect(snapshots.count == 2)
+    #expect(host.agentStateStore.foregroundSessionID(for: surfaceID, agent: .codex) == "foreground")
+    #expect(foreground.progressRowsBySource[.nativePlan] == [plan])
+    #expect(foreground.turnLifecycle == .active("turn-2"))
+    #expect(!foreground.isActionable)
+  }
+
+  @Test
+  @MainActor
+  func restoredAgentStateRejectsReusedProcessID() throws {
+    let host = TerminalHostState(managesTerminalSurfaces: false)
+    let surfaceID = UUID()
+    let identity = try #require(TerminalAgentProcessInspector.identity(for: getpid()))
+    let staleIdentity = TerminalAgentProcessIdentity(
+      processID: identity.processID,
+      startTimeMicroseconds: identity.startTimeMicroseconds + 1
+    )
+
+    host.restoreAgentState(
+      [
+        TerminalPaneAgentRecord(
+          agent: .codex,
+          sessionID: "stale",
+          processes: [staleIdentity],
+          isForeground: true,
+          revision: 1
+        )
+      ],
+      for: surfaceID
+    )
+
+    #expect(host.agentStateStore.snapshots(for: surfaceID).isEmpty)
+  }
+
   @Test
   func workspaceKeyNormalizesEquivalentPaths() {
     let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
@@ -89,7 +162,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func registeredPresenceHidesSessionPanelWithoutActivity() throws {
+  func registeredStateHidesSessionPanelWithoutActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -102,7 +175,7 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(
-      host.registerAgentPresence(
+      host.startTestAgentSession(
         agent: .pi,
         for: surfaceID,
         sessionID: "session-1",
@@ -115,7 +188,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func runningPresenceWithoutSessionShowsStartingPanel() throws {
+  func runningStateWithoutSessionIsRejected() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -128,25 +201,63 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(
-      host.setAgentPresenceActivity(
+      !host.applyTestAgentActivity(
         TerminalHostState.AgentActivity(kind: .codex, phase: .running),
         for: surfaceID,
         sessionID: nil,
+        processID: nil
+      )
+    )
+
+    #expect(host.agentPanelPresentation(for: surfaceID) == nil)
+  }
+
+  @Test
+  @MainActor
+  func newerHookSessionBecomesForeground() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(
+        host,
+        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+      )
+      .first
+    )
+
+    #expect(
+      host.applyTestAgentActivity(
+        TerminalHostState.AgentActivity(kind: .codex, phase: .running, detail: "Previous"),
+        for: surfaceID,
+        sessionID: "session-0",
+        processID: nil
+      )
+    )
+    #expect(
+      host.applyTestAgentActivity(
+        TerminalHostState.AgentActivity(kind: .codex, phase: .running, detail: "Current"),
+        for: surfaceID,
+        sessionID: "session-1",
         processID: nil
       )
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    let tabID = try #require(host.selectedTabID)
     #expect(
-      presentation.progressRows == [
-        PaneAgentProgressRow(id: "agent-session-running", title: "Starting session", status: .running)
-      ])
-    #expect(presentation.session == nil)
+      presentation.session
+        == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
+    )
+    #expect(
+      host.agentActivity(for: tabID)
+        == .codex(.running, detail: "Current")
+    )
   }
 
   @Test
   @MainActor
-  func forkedPresenceAdoptsHookSessionID() throws {
+  func actionableStateExposesSessionPanelWithoutSnapshot() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -159,15 +270,7 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(
-      host.setAgentPresenceActivity(
-        TerminalHostState.AgentActivity(kind: .codex, phase: .running),
-        for: surfaceID,
-        sessionID: nil,
-        processID: nil
-      )
-    )
-    #expect(
-      host.registerAgentPresence(
+      host.makeTestAgentSessionActionable(
         agent: .codex,
         for: surfaceID,
         sessionID: "session-1",
@@ -182,7 +285,7 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func actionablePresenceExposesSessionPanelWithoutSnapshot() throws {
+  func unsupportedActionableStateDoesNotExposeSessionActions() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
@@ -195,43 +298,15 @@ struct TerminalAgentPanelTests {
     )
 
     #expect(
-      host.markAgentSessionActionable(
-        agent: .codex,
-        for: surfaceID,
-        sessionID: "session-1",
-        processID: nil
-      )
-    )
-
-    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
-    #expect(presentation.progressRows.isEmpty)
-  }
-
-  @Test
-  @MainActor
-  func unsupportedActionablePresenceDoesNotExposeSessionActions() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    let surfaceID = try #require(
-      restoreSplitHost(
-        host,
-        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
-      )
-      .first
-    )
-
-    #expect(
-      host.markAgentSessionActionable(
-        agent: .pi,
+      host.applyTestAgentActivity(
+        TerminalHostState.AgentActivity(kind: .pi, phase: .running, detail: nil),
         for: surfaceID,
         sessionID: "session-1",
         processID: nil
       )
     )
     #expect(
-      host.recordAgentPanelSnapshot(
+      host.setTestAgentProgressRows(
         progressRows: [
           PaneAgentProgressRow(id: "run-tests", title: "Run tests", status: .running)
         ],
@@ -299,7 +374,7 @@ struct TerminalAgentPanelTests {
         host,
         workingDirectoryPath: repoRoot.path(percentEncoded: false)
       )
-      _ = host.registerAgentPresence(
+      _ = host.startTestAgentSession(
         agent: .codex,
         for: surfaceIDs[0],
         sessionID: "session-0",
@@ -366,7 +441,7 @@ struct TerminalAgentPanelTests {
         workingDirectoryPath: repoRoot.path(percentEncoded: false)
       )
       for (index, surfaceID) in surfaceIDs.enumerated() {
-        _ = host.registerAgentPresence(
+        _ = host.startTestAgentSession(
           agent: .codex,
           for: surfaceID,
           sessionID: "session-\(index)",
@@ -437,7 +512,7 @@ struct TerminalAgentPanelTests {
         )
         .first
       )
-      _ = host.registerAgentPresence(
+      _ = host.startTestAgentSession(
         agent: .codex,
         for: surfaceID,
         sessionID: "session-0",
@@ -457,7 +532,7 @@ struct TerminalAgentPanelTests {
       #expect(host.agentPanelPresentation(for: surfaceID)?.branchDetails?.displayedPullRequestStatus?.title == "#9")
 
       #expect(
-        host.recordAgentPanelSnapshot(
+        host.setTestAgentProgressRows(
           progressRows: [
             PaneAgentProgressRow(id: "tool-call", title: "Tool call", status: .running)
           ],

@@ -7,7 +7,7 @@
       kind: SupatermAgentKind,
       surfaceID: UUID,
       detail: String,
-      sessionID: String?
+      sessionID: String
     ) {
       demoInjectAgent(
         kind: kind,
@@ -22,7 +22,7 @@
       kind: SupatermAgentKind,
       surfaceID: UUID,
       detail: String,
-      sessionID: String?
+      sessionID: String
     ) {
       demoInjectAgent(
         kind: kind,
@@ -34,8 +34,24 @@
     }
 
     func demoInjectPanelMetadata(surfaceID: UUID) {
-      guard tabID(containing: surfaceID) != nil else { return }
+      guard let tabID = tabID(containing: surfaceID),
+        let snapshot = agentStateStore.snapshots(for: surfaceID)
+          .filter(\.isForeground)
+          .max(by: { $0.revision < $1.revision })
+      else {
+        return
+      }
       storePaneAgentMetadata(.demoRichPanel, for: surfaceID)
+      _ = applyAgentEvent(
+        TerminalAgentEvent(
+          scope: TerminalAgentEvent.Scope(
+            agent: snapshot.agent,
+            sessionID: snapshot.sessionID
+          ),
+          context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+          action: .progressUpdated(Self.demoProgressRows, source: .transcript)
+        )
+      )
     }
 
     func demoInjectNotification(surfaceID: UUID) {
@@ -57,38 +73,56 @@
       phase: AgentActivityPhase,
       surfaceID: UUID,
       detail: String,
-      sessionID: String?
+      sessionID: String
     ) {
-      setAgentPresenceActivity(
-        AgentActivity(kind: kind, phase: phase, detail: detail),
-        for: surfaceID,
-        sessionID: sessionID,
-        processID: nil
+      guard let tabID = tabID(containing: surfaceID) else { return }
+      let context = SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue)
+      let scope = TerminalAgentEvent.Scope(agent: kind, sessionID: sessionID)
+      _ = applyAgentEvent(
+        TerminalAgentEvent(
+          scope: scope,
+          context: context,
+          action: .sessionResumed(transcriptPath: nil)
+        )
+      )
+      let action: TerminalAgentEvent.Action =
+        switch phase {
+        case .idle: .turnCompleted(message: nil)
+        case .needsInput: .attentionRequested(requestID: nil, message: detail)
+        case .running: .turnRunning(detail: detail)
+        }
+      _ = applyAgentEvent(
+        TerminalAgentEvent(
+          scope: scope,
+          context: context,
+          action: action
+        )
       )
     }
+
+    private static let demoProgressRows = [
+      PaneAgentProgressRow(
+        id: "inspect-restored-tabs",
+        title: "Inspect restored tabs",
+        status: .completed
+      ),
+      PaneAgentProgressRow(
+        id: "wire-agent-badges",
+        title: "Wire agent badges",
+        status: .running
+      ),
+      PaneAgentProgressRow(
+        id: "run-sidebar-checks",
+        title: "Run sidebar checks",
+        status: .pending
+      ),
+    ]
   }
 
   extension TerminalHostState.PaneAgentMetadata {
     fileprivate static var demoRichPanel: Self {
       let now = Date()
       return Self(
-        progressRows: [
-          PaneAgentProgressRow(
-            id: "inspect-restored-tabs",
-            title: "Inspect restored tabs",
-            status: .completed
-          ),
-          PaneAgentProgressRow(
-            id: "wire-agent-badges",
-            title: "Wire agent badges",
-            status: .running
-          ),
-          PaneAgentProgressRow(
-            id: "run-sidebar-checks",
-            title: "Run sidebar checks",
-            status: .pending
-          ),
-        ],
         branchDetails: PaneAgentBranchDetails(
           branchName: "feat/agent-panel-state",
           addedLineCount: 120,

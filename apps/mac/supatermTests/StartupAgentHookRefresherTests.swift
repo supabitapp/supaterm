@@ -6,12 +6,17 @@ import Testing
 
 struct StartupAgentHookRefresherTests {
   @Test
-  func refreshesOnlyInstalledHooks() {
+  func repairsOnlyPartialAndDriftedIntegrations() {
     let capture = StartupAgentHookRefreshCapture()
     let refresher = StartupAgentHookRefresher(
       operations: [
-        operation(.claude, installed: true, capture: capture),
-        operation(.codex, installed: false, capture: capture),
+        operation(.claude, health: .partial, capture: capture),
+        operation(.codex, health: .drifted, capture: capture),
+        operation(.pi, health: .drifted, capture: capture),
+        operation(.pi, health: .absent, capture: capture),
+        operation(.claude, health: .healthy, capture: capture),
+        operation(.codex, health: .unavailable, capture: capture),
+        operation(.claude, health: .unavailableInstalled, capture: capture),
       ],
       logFailure: { agent, _ in
         capture.recordFailure(agent)
@@ -20,26 +25,7 @@ struct StartupAgentHookRefresherTests {
 
     refresher.refreshInstalledHooks()
 
-    #expect(capture.installedAgents() == [.claude])
-    #expect(capture.failedAgents().isEmpty)
-  }
-
-  @Test
-  func skipsWhenNoHooksAreInstalled() {
-    let capture = StartupAgentHookRefreshCapture()
-    let refresher = StartupAgentHookRefresher(
-      operations: [
-        operation(.claude, installed: false, capture: capture),
-        operation(.codex, installed: false, capture: capture),
-      ],
-      logFailure: { agent, _ in
-        capture.recordFailure(agent)
-      }
-    )
-
-    refresher.refreshInstalledHooks()
-
-    #expect(capture.installedAgents().isEmpty)
+    #expect(capture.installedAgents() == [.claude, .codex, .pi])
     #expect(capture.failedAgents().isEmpty)
   }
 
@@ -50,12 +36,12 @@ struct StartupAgentHookRefresherTests {
       operations: [
         Operation(
           agent: .claude,
-          hasSupatermHooks: { true },
+          integrationHealth: { .partial },
           installSupatermHooks: {
             throw StartupAgentHookRefreshError()
           }
         ),
-        operation(.codex, installed: true, capture: capture),
+        operation(.codex, health: .drifted, capture: capture),
       ],
       logFailure: { agent, _ in
         capture.recordFailure(agent)
@@ -68,14 +54,59 @@ struct StartupAgentHookRefresherTests {
     #expect(capture.installedAgents() == [.codex])
   }
 
+  @Test
+  func preservesLocalPiDevelopmentPackage() throws {
+    let homeDirectoryURL = try FileManager.default.url(
+      for: .itemReplacementDirectory,
+      in: .userDomainMask,
+      appropriateFor: FileManager.default.temporaryDirectory,
+      create: true
+    )
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let settingsURL = PiSettingsInstaller.settingsURL(homeDirectoryURL: homeDirectoryURL)
+    try FileManager.default.createDirectory(
+      at: settingsURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data(
+      #"{"packages":["../../code/supaterm/integrations/supaterm-skills"]}"#.utf8
+    ).write(to: settingsURL)
+    let capture = StartupAgentHookRefreshCapture()
+    let refresher = StartupAgentHookRefresher(
+      operations: [
+        Operation(
+          agent: .pi,
+          integrationHealth: {
+            try PiSettingsInstaller(
+              homeDirectoryURL: homeDirectoryURL,
+              checkPiAvailable: { true },
+              runPiCommand: { _ in PiSettingsInstaller.CommandResult(status: 0) }
+            ).integrationHealth()
+          },
+          installSupatermHooks: {
+            capture.recordInstall(.pi)
+          }
+        )
+      ],
+      logFailure: { agent, _ in
+        capture.recordFailure(agent)
+      }
+    )
+
+    refresher.refreshInstalledHooks()
+
+    #expect(capture.installedAgents().isEmpty)
+    #expect(capture.failedAgents().isEmpty)
+  }
+
   private func operation(
     _ agent: SupatermAgentKind,
-    installed: Bool,
+    health: CodingAgentIntegrationHealth,
     capture: StartupAgentHookRefreshCapture
   ) -> Operation {
     Operation(
       agent: agent,
-      hasSupatermHooks: { installed },
+      integrationHealth: { health },
       installSupatermHooks: {
         capture.recordInstall(agent)
       }

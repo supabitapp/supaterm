@@ -6,783 +6,247 @@ enum AgentTurnStatus: Equatable {
   case completed(String?)
   case aborted(String?)
   case failed(String?)
-
-  var isFinal: Bool {
-    switch self {
-    case .started:
-      false
-    case .completed, .aborted, .failed:
-      true
-    }
-  }
 }
 
-enum CodexRolloutRecord: Equatable {
-  case sessionMeta(JSONObject)
-  case turnContext(JSONObject)
-  case eventMessage(type: String, payload: JSONObject)
-  case responseItem(type: String, payload: JSONObject)
-  case compacted(JSONObject)
-  case unknown(type: String, payload: JSONValue)
+private enum CodexTranscriptEvent {
+  case assistantMessage(turnID: String?, text: String, phase: String?)
+  case goalContext(String)
+  case goalUpdated(JSONObject)
+  case turnAborted(String?)
+  case turnCompleted(turnID: String?, message: String?)
+  case turnContext(String)
+  case turnFailed(String?)
+  case turnStarted(String?)
 }
 
-enum CodexConversationTurnState: Equatable {
-  case inProgress
-  case completed
+private enum CodexTranscriptTurnState {
   case aborted
+  case completed
   case failed
-
-  var isFinal: Bool {
-    switch self {
-    case .inProgress:
-      false
-    case .completed, .aborted, .failed:
-      true
-    }
-  }
+  case inProgress
 }
 
-struct CodexConversationMessage: Equatable {
-  let role: String
-  let text: String
-  let phase: String?
-}
-
-struct CodexConversationReasoning: Equatable {
-  var summary: [String]
-  var content: [String]
-}
-
-enum CodexConversationItem: Equatable {
-  case message(CodexConversationMessage)
-  case reasoning(CodexConversationReasoning)
-  case operation(type: String, payload: JSONObject)
-  case event(type: String, payload: JSONObject)
-  case compaction(JSONObject)
-}
-
-struct CodexConversationTurn: Equatable {
+private struct CodexTranscriptTurn {
   let id: String
-  var status: CodexConversationTurnState
-  var error: String?
-  var items: [CodexConversationItem]
-  var durationMs: Int?
-  var lastAssistantDetail: String?
+  var status = CodexTranscriptTurnState.inProgress
+  var detail: String?
   var hoverMessages: [String] = []
-  var progressRows: [PaneAgentProgressRow] = []
-  var goalRow: PaneAgentProgressRow?
+
+  var transcriptStatus: AgentTurnStatus {
+    switch status {
+    case .aborted:
+      .aborted(id)
+    case .completed:
+      .completed(id)
+    case .failed:
+      .failed(id)
+    case .inProgress:
+      .started(id)
+    }
+  }
 }
 
-struct CodexConversationState: Equatable {
-  var sessionID: String?
-  var records: [CodexRolloutRecord]
-  var turns: [CodexConversationTurn]
+private struct CodexTranscriptProjection {
+  private static let maximumHoverMessageCount = 8
+  private static let maximumHoverMessageLength = 16_000
+  private static let maximumTurnCount = 8
 
-  private var nextImplicitTurnIndex: Int
-  private var turnIndexByID: [String: Int]
-  private var activeTurnIndex: Int?
-
-  init(
-    sessionID: String? = nil,
-    records: [CodexRolloutRecord] = [],
-    turns: [CodexConversationTurn] = []
-  ) {
-    let turns = turns.map(Self.withDerivedMessageState)
-    self.sessionID = sessionID
-    self.records = records
-    self.turns = turns
-    nextImplicitTurnIndex = turns.count + 1
-    turnIndexByID = Dictionary(uniqueKeysWithValues: turns.enumerated().map { ($1.id, $0) })
-    activeTurnIndex = turns.lastIndex(where: { !$0.status.isFinal })
-    refreshStructuredProgressState()
-  }
-
-  var activeTurn: CodexConversationTurn? {
-    guard let activeTurnIndex else { return nil }
-    return turns[activeTurnIndex]
-  }
-
-  var latestTurn: CodexConversationTurn? {
-    turns.last
-  }
-
-  var activityStatus: AgentTurnStatus? {
-    if let activeTurn {
-      return .started(activeTurn.id)
-    }
-    guard let latestTurn else { return nil }
-    return latestTurn.transcriptStatus
-  }
-
-  var detail: String? {
-    activeTurn?.lastAssistantDetail
-  }
-
-  var hoverMessages: [String] {
-    let sourceTurn = activeTurn ?? latestTurn
-    return sourceTurn?.hoverMessages ?? []
-  }
-
-  var progressRows: [PaneAgentProgressRow] {
-    (activeTurn ?? latestTurn)?.displayedProgressRows(fallbackGoalRow: activeGoalRow) ?? []
-  }
-
-  private var activeGoalRow: PaneAgentProgressRow? {
-    guard let row = turns.reversed().compactMap(\.goalRow).first else { return nil }
-    return row.status == .completed ? nil : row
-  }
+  private var activeTurnID: String?
+  private var goalRow: PaneAgentProgressRow?
+  private var nextImplicitTurnIndex = 1
+  private var turns: [CodexTranscriptTurn] = []
 
   var sidebarSnapshot: AgentMonitorSnapshot {
     AgentMonitorSnapshot(
       status: activityStatus,
-      detail: detail,
-      hoverMessages: hoverMessages,
+      detail: activeTurn?.detail,
+      hoverMessages: (activeTurn ?? turns.last)?.hoverMessages ?? [],
       progressRows: progressRows
     )
   }
 
-  mutating func absorb(_ records: [CodexRolloutRecord]) {
-    guard !records.isEmpty else { return }
-    for record in records {
-      self.records.append(record)
-      apply(record)
+  mutating func absorb(_ events: [CodexTranscriptEvent]) {
+    for event in events {
+      apply(event)
     }
   }
 
-  private mutating func apply(_ record: CodexRolloutRecord) {
-    switch record {
-    case .sessionMeta(let payload):
-      if let id = payload["id"]?.stringValue {
-        sessionID = id
+  private var activeTurn: CodexTranscriptTurn? {
+    guard let activeTurnID else { return nil }
+    return turns.first { $0.id == activeTurnID }
+  }
+
+  private var activityStatus: AgentTurnStatus? {
+    if let activeTurn {
+      return .started(activeTurn.id)
+    }
+    return turns.last?.transcriptStatus
+  }
+
+  private var progressRows: [PaneAgentProgressRow] {
+    guard let goalRow, goalRow.status != .completed else { return [] }
+    return [goalRow]
+  }
+
+  private mutating func apply(_ event: CodexTranscriptEvent) {
+    switch event {
+    case .assistantMessage(let turnID, let text, let phase):
+      updateAssistantMessage(text, phase: phase, turnID: turnID)
+    case .goalContext(let text):
+      if let row = Self.goalProgressRow(fromGoalContext: text) {
+        goalRow = row
       }
-    case .turnContext(let payload):
-      if let turnID = payload["turn_id"]?.stringValue {
-        activeTurnIndex = ensureTurn(id: turnID)
+    case .goalUpdated(let goal):
+      if let row = Self.goalProgressRow(from: goal) {
+        goalRow = row
       }
-    case .eventMessage(let type, let payload):
-      applyEvent(type: type, payload: payload)
-    case .responseItem(let type, let payload):
-      applyResponseItem(type: type, payload: payload)
-    case .compacted(let payload):
-      appendItem(.compaction(payload), preferredTurnID: nil)
-    case .unknown:
-      break
+    case .turnAborted(let turnID):
+      finishTurn(turnID, status: .aborted)
+    case .turnCompleted(let turnID, let message):
+      completeTurn(turnID, message: message)
+    case .turnContext(let turnID):
+      _ = ensureTurn(id: turnID)
+      activeTurnID = turnID
+    case .turnFailed(let turnID):
+      finishTurn(turnID, status: .failed)
+    case .turnStarted(let turnID):
+      startTurn(turnID)
     }
   }
 
-  private mutating func applyEvent(
-    type: String,
-    payload: JSONObject
-  ) {
-    let preferredTurnID = payload["turn_id"]?.stringValue ?? payload["turnId"]?.stringValue
-    switch type {
-    case "task_started", "turn_started":
-      applyTurnStarted(payload: payload, preferredTurnID: preferredTurnID)
-    case "task_complete", "turn_complete":
-      applyTurnCompleted(payload: payload, preferredTurnID: preferredTurnID)
-    case "turn_aborted":
-      applyTurnAborted(payload: payload, preferredTurnID: preferredTurnID)
-    case "error":
-      applyErrorEvent(payload: payload, preferredTurnID: preferredTurnID)
-    case "thread_goal_updated":
-      applyGoalUpdated(payload: payload, preferredTurnID: preferredTurnID)
-    default:
-      applyContentEvent(type: type, payload: payload, preferredTurnID: preferredTurnID)
-    }
-  }
-
-  private mutating func applyTurnStarted(
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
+  private mutating func startTurn(_ preferredTurnID: String?) {
     let turnID = preferredTurnID ?? makeImplicitTurnID()
     let index = ensureTurn(id: turnID)
     turns[index].status = .inProgress
-    turns[index].error = nil
-    turns[index].durationMs = payload["duration_ms"]?.intValue
-    activeTurnIndex = index
+    activeTurnID = turnID
   }
 
-  private mutating func applyTurnCompleted(
-    payload: JSONObject,
-    preferredTurnID: String?
+  private mutating func completeTurn(_ preferredTurnID: String?, message: String?) {
+    guard let index = turnIndex(preferredTurnID) else { return }
+    if turns[index].status != .failed {
+      turns[index].status = .completed
+    }
+    if let message {
+      updateAssistantMessage(message, phase: "final_answer", at: index)
+    }
+    clearActiveTurnIfMatching(turns[index].id)
+  }
+
+  private mutating func finishTurn(
+    _ preferredTurnID: String?,
+    status: CodexTranscriptTurnState
   ) {
-    guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
-      return
-    }
-    turns[index].status = turns[index].status == .failed ? .failed : .completed
-    turns[index].durationMs = payload["duration_ms"]?.intValue ?? turns[index].durationMs
-    if let message = normalizedMessage(payload["last_agent_message"]?.stringValue) {
-      appendAssistantMessage(
-        message,
-        phase: "final_answer",
-        preferredTurnID: turns[index].id,
-        replacingLastFinalMessage: true
-      )
-    }
-    clearActiveTurnIfMatching(index: index)
+    guard let index = turnIndex(preferredTurnID) else { return }
+    turns[index].status = status
+    clearActiveTurnIfMatching(turns[index].id)
   }
 
-  private mutating func applyTurnAborted(
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
-    guard let index = turnIndex(preferredTurnID: preferredTurnID) else {
-      return
-    }
-    turns[index].status = .aborted
-    turns[index].durationMs = payload["duration_ms"]?.intValue ?? turns[index].durationMs
-    clearActiveTurnIfMatching(index: index)
-  }
-
-  private mutating func applyErrorEvent(
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
-    if let index = turnIndex(preferredTurnID: preferredTurnID) {
-      turns[index].status = .failed
-      turns[index].error = payload["message"]?.stringValue ?? turns[index].error
-      if activeTurnIndex == index {
-        activeTurnIndex = nil
-      }
-    }
-    appendItem(.event(type: "error", payload: payload), preferredTurnID: preferredTurnID)
-  }
-
-  private mutating func applyGoalUpdated(
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
-    guard let row = Self.goalProgressRow(from: payload["goal"]?.objectValue) else {
-      appendItem(.event(type: "thread_goal_updated", payload: payload), preferredTurnID: preferredTurnID)
-      return
-    }
-    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
-    turns[index].items.append(.event(type: "thread_goal_updated", payload: payload))
-    turns[index].goalRow = row
-  }
-
-  private mutating func applyContentEvent(
-    type: String,
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
-    switch type {
-    case "user_message":
-      if let message = normalizedMessage(payload["message"]?.stringValue) {
-        appendItem(
-          .message(CodexConversationMessage(role: "user", text: message, phase: nil)),
-          preferredTurnID: preferredTurnID
-        )
-      }
-    case "agent_message":
-      if let message = normalizedMessage(payload["message"]?.stringValue) {
-        appendAssistantMessage(
-          message,
-          phase: payload["phase"]?.stringValue,
-          preferredTurnID: preferredTurnID,
-          replacingLastFinalMessage: false
-        )
-      }
-    case "agent_reasoning":
-      if let text = normalizedMessage(payload["text"]?.stringValue) {
-        appendReasoning(
-          summary: [text],
-          content: [],
-          preferredTurnID: preferredTurnID
-        )
-      }
-    case "agent_reasoning_raw_content":
-      if let text = normalizedMessage(payload["text"]?.stringValue) {
-        appendReasoning(
-          summary: [],
-          content: [text],
-          preferredTurnID: preferredTurnID
-        )
-      }
-    default:
-      appendItem(.event(type: type, payload: payload), preferredTurnID: preferredTurnID)
-    }
-  }
-
-  private mutating func applyResponseItem(
-    type: String,
-    payload: JSONObject
-  ) {
-    let preferredTurnID = payload["turn_id"]?.stringValue
-    switch type {
-    case "message":
-      let role = payload["role"]?.stringValue ?? "assistant"
-      let text = messageText(from: payload["content"]?.arrayValue)
-      guard let text else { return }
-      if role == "assistant" {
-        appendAssistantMessage(
-          text,
-          phase: payload["phase"]?.stringValue,
-          preferredTurnID: preferredTurnID,
-          replacingLastFinalMessage: false
-        )
-      } else {
-        appendItem(
-          .message(CodexConversationMessage(role: role, text: text, phase: payload["phase"]?.stringValue)),
-          preferredTurnID: preferredTurnID
-        )
-      }
-    case "reasoning":
-      appendReasoning(
-        summary: textArray(in: payload["summary"]?.arrayValue),
-        content: textArray(in: payload["content"]?.arrayValue),
-        preferredTurnID: preferredTurnID
-      )
-    case "compaction":
-      appendItem(.compaction(payload), preferredTurnID: preferredTurnID)
-    default:
-      appendOperation(type: type, payload: payload, preferredTurnID: preferredTurnID)
-    }
-  }
-
-  private mutating func appendAssistantMessage(
+  private mutating func updateAssistantMessage(
     _ text: String,
     phase: String?,
-    preferredTurnID: String?,
-    replacingLastFinalMessage: Bool
+    turnID: String?
   ) {
-    guard let text = normalizedMessage(text) else { return }
-    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
-    if replacingLastFinalMessage,
-      case .message(let existing)? = turns[index].items.last,
-      existing.role == "assistant",
-      existing.phase == "final_answer"
-    {
-      turns[index].items.removeLast()
-      refreshDerivedMessageState(for: index)
-    }
-    let message = CodexConversationMessage(role: "assistant", text: text, phase: phase)
-    turns[index].items.append(.message(message))
-    updateDerivedMessageState(forAppended: message, at: index)
+    let index = ensureTurnForMessage(preferredTurnID: turnID)
+    updateAssistantMessage(text, phase: phase, at: index)
   }
 
-  private mutating func appendReasoning(
-    summary: [String],
-    content: [String],
-    preferredTurnID: String?
+  private mutating func updateAssistantMessage(
+    _ text: String,
+    phase: String?,
+    at index: Int
   ) {
-    let normalizedSummary = summary.compactMap(normalizedMessage)
-    let normalizedContent = content.compactMap(normalizedMessage)
-    guard !normalizedSummary.isEmpty || !normalizedContent.isEmpty else { return }
-    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
-    if case .reasoning(var reasoning)? = turns[index].items.last {
-      reasoning.summary.append(contentsOf: normalizedSummary)
-      reasoning.content.append(contentsOf: normalizedContent)
-      turns[index].items[turns[index].items.count - 1] = .reasoning(reasoning)
+    guard let message = Self.boundedHoverMessage(text) else { return }
+    turns[index].detail = phase == "final_answer" ? nil : normalizedDetail(message)
+    if phase == "final_answer" {
+      turns[index].hoverMessages = [message]
       return
     }
-    turns[index].items.append(
-      .reasoning(CodexConversationReasoning(summary: normalizedSummary, content: normalizedContent))
-    )
+    guard turns[index].hoverMessages.last != message else { return }
+    turns[index].hoverMessages.append(message)
+    if turns[index].hoverMessages.count > Self.maximumHoverMessageCount {
+      turns[index].hoverMessages.removeFirst(
+        turns[index].hoverMessages.count - Self.maximumHoverMessageCount
+      )
+    }
   }
 
-  private mutating func appendItem(
-    _ item: CodexConversationItem,
-    preferredTurnID: String?
-  ) {
-    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
-    turns[index].items.append(item)
-    updateGoalState(forAppended: item, at: index)
-  }
-
-  private mutating func appendOperation(
-    type: String,
-    payload: JSONObject,
-    preferredTurnID: String?
-  ) {
-    let index = ensureTurnForItem(preferredTurnID: preferredTurnID)
-    let operation = CodexConversationItem.operation(type: type, payload: payload)
-    turns[index].items.append(operation)
-    updateStructuredPanelState(forAppended: operation)
-  }
-
-  private mutating func ensureTurnForItem(
-    preferredTurnID: String?
-  ) -> Int {
+  private mutating func ensureTurnForMessage(preferredTurnID: String?) -> Int {
     if let preferredTurnID {
       return ensureTurn(id: preferredTurnID)
     }
-    if let activeTurnIndex {
-      return activeTurnIndex
-    }
-    if let latestTurnIndex = turns.indices.last {
-      return latestTurnIndex
-    }
-    let index = ensureTurn(id: makeImplicitTurnID())
-    activeTurnIndex = index
-    return index
-  }
-
-  @discardableResult
-  private mutating func ensureTurn(
-    id: String
-  ) -> Int {
-    if let index = turnIndexByID[id] {
+    if let activeTurnID,
+      let index = turns.firstIndex(where: { $0.id == activeTurnID })
+    {
       return index
     }
-    let index = turns.count
-    turns.append(
-      CodexConversationTurn(
-        id: id,
-        status: .inProgress,
-        error: nil,
-        items: [],
-        durationMs: nil
-      )
-    )
-    turnIndexByID[id] = index
-    return index
-  }
-
-  private mutating func clearActiveTurnIfMatching(index: Int) {
-    if activeTurnIndex == index {
-      activeTurnIndex = nil
+    if let index = turns.indices.last {
+      return index
     }
+    let turnID = makeImplicitTurnID()
+    activeTurnID = turnID
+    return ensureTurn(id: turnID)
   }
 
-  private func turnIndex(
-    preferredTurnID: String?
-  ) -> Int? {
+  private mutating func ensureTurn(id: String) -> Int {
+    if let index = turns.firstIndex(where: { $0.id == id }) {
+      return index
+    }
+    turns.append(CodexTranscriptTurn(id: id))
+    if turns.count > Self.maximumTurnCount {
+      let removedTurnIDs = Set(
+        turns.prefix(turns.count - Self.maximumTurnCount).map(\.id)
+      )
+      turns.removeFirst(turns.count - Self.maximumTurnCount)
+      if let activeTurnID, removedTurnIDs.contains(activeTurnID) {
+        self.activeTurnID = nil
+      }
+    }
+    return turns.index(before: turns.endIndex)
+  }
+
+  private func turnIndex(_ preferredTurnID: String?) -> Int? {
     if let preferredTurnID,
-      let index = turnIndexByID[preferredTurnID]
+      let index = turns.firstIndex(where: { $0.id == preferredTurnID })
     {
       return index
     }
-    return activeTurnIndex ?? (turns.isEmpty ? nil : turns.count - 1)
-  }
-
-  private mutating func refreshDerivedMessageState(
-    for index: Int
-  ) {
-    let state = Self.assistantMessageState(from: turns[index].items)
-    turns[index].lastAssistantDetail = state.lastAssistantDetail
-    turns[index].hoverMessages = state.hoverMessages
-    turns[index].goalRow = Self.structuredGoalRow(from: turns[index].items)
-  }
-
-  private mutating func updateDerivedMessageState(
-    forAppended message: CodexConversationMessage,
-    at index: Int
-  ) {
-    var state = AssistantMessageState(
-      lastAssistantDetail: turns[index].lastAssistantDetail,
-      hoverMessages: turns[index].hoverMessages
-    )
-    Self.reduceAssistantMessageState(&state, with: message)
-    turns[index].lastAssistantDetail = state.lastAssistantDetail
-    turns[index].hoverMessages = state.hoverMessages
-  }
-
-  private static func withDerivedMessageState(
-    _ turn: CodexConversationTurn
-  ) -> CodexConversationTurn {
-    var turn = turn
-    let state = assistantMessageState(from: turn.items)
-    turn.lastAssistantDetail = state.lastAssistantDetail
-    turn.hoverMessages = state.hoverMessages
-    turn.goalRow = structuredGoalRow(from: turn.items)
-    return turn
-  }
-
-  private static func assistantMessageState(
-    from items: [CodexConversationItem]
-  ) -> AssistantMessageState {
-    var state = AssistantMessageState()
-    for item in items {
-      guard case .message(let message) = item, message.role == "assistant" else { continue }
-      reduceAssistantMessageState(&state, with: message)
-    }
-    return state
-  }
-
-  private static func reduceAssistantMessageState(
-    _ state: inout AssistantMessageState,
-    with message: CodexConversationMessage
-  ) {
-    state.lastAssistantDetail =
-      message.phase == "final_answer"
-      ? nil
-      : normalizedDetail(message.text)
-    guard let normalized = normalizedMessage(message.text) else {
-      return
-    }
-    if message.phase == "final_answer" {
-      state.hoverMessages = [normalized]
-      return
-    }
-    guard state.hoverMessages.last != normalized else {
-      return
-    }
-    state.hoverMessages.append(normalized)
-  }
-
-  private mutating func updateStructuredPanelState(
-    forAppended item: CodexConversationItem
-  ) {
-    guard case .operation(let type, _) = item,
-      ["custom_tool_call", "custom_tool_call_output", "function_call", "function_call_output"]
-        .contains(type)
-    else { return }
-    refreshStructuredProgressState()
-  }
-
-  private mutating func refreshStructuredProgressState() {
-    var state = StructuredProgressState()
-    for index in turns.indices {
-      state.rows = []
-      for item in turns[index].items {
-        guard case .operation(let type, let payload) = item else { continue }
-        Self.reduceStructuredProgress(&state, operationType: type, payload: payload)
-      }
-      turns[index].progressRows = state.rows
-    }
-  }
-
-  private mutating func updateGoalState(
-    forAppended item: CodexConversationItem,
-    at index: Int
-  ) {
-    guard let row = Self.goalProgressRow(from: item) else { return }
-    turns[index].goalRow = row
-  }
-
-  private struct StructuredProgressState {
-    var rows: [PaneAgentProgressRow] = []
-    var codeModePlansByCallID: [String: SequencedPlan] = [:]
-    var codeModePlansByCellID: [String: SequencedPlan] = [:]
-    var waitCellIDsByCallID: [String: String] = [:]
-    var nextPlanSequence = 0
-    var latestAppliedPlanSequence: Int?
-  }
-
-  private struct SequencedPlan {
-    let sequence: Int
-    let rows: [PaneAgentProgressRow]
-  }
-
-  private static func reduceStructuredProgress(
-    _ state: inout StructuredProgressState,
-    operationType: String,
-    payload: JSONObject
-  ) {
-    switch operationType {
-    case "function_call": reduceFunctionCall(&state, payload: payload)
-    case "function_call_output": reduceFunctionCallOutput(&state, payload: payload)
-    case "custom_tool_call": reduceCustomToolCall(&state, payload: payload)
-    case "custom_tool_call_output": reduceCustomToolCallOutput(&state, payload: payload)
-    default: break
-    }
-  }
-
-  private static func reduceFunctionCall(
-    _ state: inout StructuredProgressState,
-    payload: JSONObject
-  ) {
-    if let rows = directProgressRows(from: payload) {
-      let plan = nextPlan(rows: rows, in: &state)
-      apply(plan, to: &state)
-      return
-    }
-    guard let callID = payload["call_id"]?.stringValue,
-      let cellID = waitCellID(from: payload)
-    else { return }
-    state.waitCellIDsByCallID[callID] = cellID
-  }
-
-  private static func reduceFunctionCallOutput(
-    _ state: inout StructuredProgressState,
-    payload: JSONObject
-  ) {
-    guard let callID = payload["call_id"]?.stringValue,
-      let cellID = state.waitCellIDsByCallID.removeValue(forKey: callID)
-    else { return }
-
-    switch codeModeExecutionStatus(payload) {
-    case .completed:
-      if let plan = state.codeModePlansByCellID.removeValue(forKey: cellID) {
-        apply(plan, to: &state)
-      }
-    case .running:
-      break
-    case .failed:
-      state.codeModePlansByCellID.removeValue(forKey: cellID)
-    }
-  }
-
-  private static func reduceCustomToolCall(
-    _ state: inout StructuredProgressState,
-    payload: JSONObject
-  ) {
-    guard let callID = payload["call_id"]?.stringValue,
-      let rows = codeModeProgressRows(from: payload)
-    else { return }
-    let plan = nextPlan(rows: rows, in: &state)
-    state.codeModePlansByCallID[callID] = plan
-  }
-
-  private static func reduceCustomToolCallOutput(
-    _ state: inout StructuredProgressState,
-    payload: JSONObject
-  ) {
-    guard let callID = payload["call_id"]?.stringValue,
-      let plan = state.codeModePlansByCallID.removeValue(forKey: callID)
-    else { return }
-
-    switch codeModeExecutionStatus(payload) {
-    case .completed:
-      apply(plan, to: &state)
-    case .running(let cellID):
-      state.codeModePlansByCellID[cellID] = plan
-    case .failed:
-      break
-    }
-  }
-
-  private static func nextPlan(
-    rows: [PaneAgentProgressRow],
-    in state: inout StructuredProgressState
-  ) -> SequencedPlan {
-    defer { state.nextPlanSequence += 1 }
-    return SequencedPlan(sequence: state.nextPlanSequence, rows: rows)
-  }
-
-  private static func apply(
-    _ plan: SequencedPlan,
-    to state: inout StructuredProgressState
-  ) {
-    if let latestSequence = state.latestAppliedPlanSequence,
-      plan.sequence < latestSequence
+    if let activeTurnID,
+      let index = turns.firstIndex(where: { $0.id == activeTurnID })
     {
-      return
+      return index
     }
-    state.rows = plan.rows
-    state.latestAppliedPlanSequence = plan.sequence
+    return turns.indices.last
   }
 
-  private static func structuredGoalRow(
-    from items: [CodexConversationItem]
-  ) -> PaneAgentProgressRow? {
-    var row: PaneAgentProgressRow?
-    for item in items {
-      if let nextRow = goalProgressRow(from: item) {
-        row = nextRow
-      }
-    }
-    return row
-  }
-
-  private static func directProgressRows(
-    from payload: JSONObject
-  ) -> [PaneAgentProgressRow]? {
-    guard payload["name"]?.stringValue == "update_plan",
-      let arguments = payload["arguments"]?.stringValue,
-      let object = (try? JSONDecoder().decode(JSONValue.self, from: Data(arguments.utf8)))?
-        .objectValue,
-      let plan = object["plan"]?.arrayValue
-    else {
-      return nil
-    }
-    let items = plan.compactMap { value -> CodexPlanSourceParser.Item? in
-      guard let item = value.objectValue,
-        let step = item["step"]?.stringValue,
-        let status = item["status"]?.stringValue
-      else {
-        return nil
-      }
-      return CodexPlanSourceParser.Item(step: step, status: status)
-    }
-    guard items.count == plan.count else { return nil }
-    return progressRows(from: items)
-  }
-
-  private static func codeModeProgressRows(
-    from payload: JSONObject
-  ) -> [PaneAgentProgressRow]? {
-    guard payload["name"]?.stringValue == "exec",
-      let input = payload["input"]?.stringValue,
-      let plan = CodexPlanSourceParser.parse(input)
-    else {
-      return nil
-    }
-    return progressRows(from: plan)
-  }
-
-  private static func progressRows(
-    from plan: [CodexPlanSourceParser.Item]
-  ) -> [PaneAgentProgressRow] {
-    plan.enumerated().compactMap { index, item in
-      guard let title = AgentProgressParsing.normalizedTitle(item.step) else { return nil }
-      return PaneAgentProgressRow(
-        id: "\(index):\(title)",
-        title: title,
-        status: item.status
-      )
+  private mutating func clearActiveTurnIfMatching(_ turnID: String) {
+    if activeTurnID == turnID {
+      activeTurnID = nil
     }
   }
 
-  private enum CodeModeExecutionStatus {
-    case completed
-    case running(String)
-    case failed
+  private mutating func makeImplicitTurnID() -> String {
+    let id = "implicit-turn-\(nextImplicitTurnIndex)"
+    nextImplicitTurnIndex += 1
+    return id
   }
 
-  private static func codeModeExecutionStatus(_ payload: JSONObject) -> CodeModeExecutionStatus {
-    let output = payload["output"]
-    let status = output?.stringValue ?? output?.arrayValue?.first?.objectValue?["text"]?.stringValue
-    guard let status else { return .failed }
-    if status.hasPrefix("Script completed\n") { return .completed }
-    let runningPrefix = "Script running with cell ID "
-    guard status.hasPrefix(runningPrefix) else { return .failed }
-    let cellID = status.dropFirst(runningPrefix.count).prefix { !$0.isNewline }
-    guard !cellID.isEmpty else { return .failed }
-    return .running(String(cellID))
+  private static func boundedHoverMessage(_ text: String) -> String? {
+    guard let message = normalizedMessage(text) else { return nil }
+    guard message.count > maximumHoverMessageLength else { return message }
+    return String(message.prefix(maximumHoverMessageLength - 3)) + "..."
   }
 
-  private static func waitCellID(from payload: JSONObject) -> String? {
-    guard payload["name"]?.stringValue == "wait",
-      let arguments = payload["arguments"]?.stringValue,
-      let object = (try? JSONDecoder().decode(JSONValue.self, from: Data(arguments.utf8)))?
-        .objectValue
-    else {
-      return nil
-    }
-    return object["cell_id"]?.stringValue
-  }
-
-  static func goalProgressRow(
-    from goal: JSONObject?
-  ) -> PaneAgentProgressRow? {
-    guard let goal,
-      let objective = AgentProgressParsing.normalizedTitle(goal["objective"]?.stringValue)
-    else {
+  private static func goalProgressRow(from goal: JSONObject) -> PaneAgentProgressRow? {
+    guard let objective = AgentProgressParsing.normalizedTitle(goal["objective"]?.stringValue) else {
       return nil
     }
     let statusValue = goal["status"]?.stringValue
-    let status = goalStatus(statusValue)
-    let title = goalTitle(statusValue: statusValue, objective: objective)
     return PaneAgentProgressRow(
       id: "goal:\(objective)",
-      title: title,
-      status: status,
+      title: goalTitle(statusValue: statusValue, objective: objective),
+      status: goalStatus(statusValue),
       kind: .goal
     )
-  }
-
-  private static func goalProgressRow(from item: CodexConversationItem) -> PaneAgentProgressRow? {
-    switch item {
-    case .event(let type, let payload) where type == "thread_goal_updated":
-      return goalProgressRow(from: payload["goal"]?.objectValue)
-    case .message(let message) where message.role == "user":
-      return goalProgressRow(fromGoalContext: message.text)
-    default:
-      return nil
-    }
   }
 
   private static func goalProgressRow(fromGoalContext text: String) -> PaneAgentProgressRow? {
@@ -811,208 +275,144 @@ struct CodexConversationState: Equatable {
   private static func goalStatus(_ rawValue: String?) -> PaneAgentProgressRow.Status {
     switch rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
     case "complete", "completed":
-      return .completed
+      .completed
     case "active":
-      return .running
+      .running
     default:
-      return .pending
+      .pending
     }
   }
 
-  private static func goalTitle(
-    statusValue: String?,
-    objective: String
-  ) -> String {
+  private static func goalTitle(statusValue: String?, objective: String) -> String {
     switch statusValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
     case "blocked":
-      return "Goal blocked: \(objective)"
+      "Goal blocked: \(objective)"
     case "budgetlimited", "budget_limited", "budget-limited":
-      return "Goal budget reached: \(objective)"
+      "Goal budget reached: \(objective)"
     case "usagelimited", "usage_limited", "usage-limited":
-      return "Goal usage limited: \(objective)"
+      "Goal usage limited: \(objective)"
     case "paused":
-      return "Goal paused: \(objective)"
+      "Goal paused: \(objective)"
     default:
-      return "Goal: \(objective)"
+      "Goal: \(objective)"
     }
-  }
-
-  private mutating func makeImplicitTurnID() -> String {
-    let id = "implicit-turn-\(nextImplicitTurnIndex)"
-    nextImplicitTurnIndex += 1
-    return id
-  }
-}
-
-private struct AssistantMessageState: Equatable {
-  var lastAssistantDetail: String?
-  var hoverMessages: [String] = []
-}
-
-extension CodexConversationTurn {
-  fileprivate func displayedProgressRows(
-    fallbackGoalRow: PaneAgentProgressRow?
-  ) -> [PaneAgentProgressRow] {
-    switch status {
-    case .completed:
-      return []
-    case .inProgress, .aborted, .failed:
-      if let row = goalRow ?? fallbackGoalRow {
-        return [row] + progressRows
-      }
-      return progressRows
-    }
-  }
-
-  fileprivate var transcriptStatus: AgentTurnStatus {
-    switch status {
-    case .inProgress:
-      return .started(id)
-    case .completed:
-      return .completed(id)
-    case .aborted:
-      return .aborted(id)
-    case .failed:
-      return .failed(id)
-    }
-  }
-}
-
-struct CodexTranscriptBatch {
-  var records: [CodexRolloutRecord]
-
-  var isEmpty: Bool {
-    records.isEmpty
   }
 }
 
 @MainActor
 final class CodexPanelMonitor: AgentPanelMonitor {
-  private let transcriptPath: String
-  private var cursor: AgentTranscriptTailCursor
-  private var conversation = CodexConversationState()
+  private var currentSnapshot: AgentMonitorSnapshot?
+  private var projection = CodexTranscriptProjection()
 
-  init?(transcriptPath: String) {
-    guard let (cursor, batch) = CodexTranscriptMonitor.start(at: transcriptPath) else {
-      return nil
+  func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot? {
+    if update.didReset {
+      projection = CodexTranscriptProjection()
     }
-    self.transcriptPath = transcriptPath
-    self.cursor = cursor
-    if let batch {
-      conversation.absorb(batch.records)
-    }
-  }
-
-  func start() -> AgentPanelMonitorTick? {
-    let snapshot = conversation.sidebarSnapshot
-    guard snapshot.status?.isFinal == false else { return nil }
-    return AgentPanelMonitorTick(snapshot: snapshot, isFinal: false)
-  }
-
-  func poll() -> AgentPanelMonitorTick? {
-    guard let result = CodexTranscriptMonitor.advance(cursor, at: transcriptPath) else {
-      return nil
-    }
-    cursor = result.cursor
-    guard let batch = result.batch, !batch.isEmpty else { return nil }
-    if result.didReset {
-      conversation = CodexConversationState()
-    }
-    conversation.absorb(batch.records)
-    let snapshot = conversation.sidebarSnapshot
-    guard let status = snapshot.status else { return nil }
-    return AgentPanelMonitorTick(snapshot: snapshot, isFinal: status.isFinal)
+    let events = CodexTranscriptParser.events(from: update.objects)
+    guard update.didReset || !events.isEmpty else { return nil }
+    projection.absorb(events)
+    let snapshot = projection.sidebarSnapshot
+    guard snapshot != currentSnapshot else { return nil }
+    currentSnapshot = snapshot
+    return snapshot
   }
 }
 
-enum CodexTranscriptMonitor {
-  struct Advance {
-    let cursor: AgentTranscriptTailCursor
-    let batch: CodexTranscriptBatch?
-    let didReset: Bool
+private enum CodexTranscriptParser {
+  static func events(from objects: [JSONObject]) -> [CodexTranscriptEvent] {
+    objects.compactMap(event(from:))
   }
 
-  static func start(
-    at path: String
-  ) -> (AgentTranscriptTailCursor, CodexTranscriptBatch?)? {
-    guard let tick = AgentTranscriptTailer.start(at: path) else { return nil }
-    return (tick.cursor, batch(from: tick.objects))
-  }
-
-  static func advance(
-    _ cursor: AgentTranscriptTailCursor,
-    at path: String
-  ) -> Advance? {
-    guard let tick = AgentTranscriptTailer.advance(cursor, at: path) else { return nil }
-    return Advance(cursor: tick.cursor, batch: batch(from: tick.objects), didReset: tick.didReset)
-  }
-
-  private static func batch(from objects: [JSONObject]) -> CodexTranscriptBatch? {
-    let records = objects.compactMap(record(from:))
-    return records.isEmpty ? nil : CodexTranscriptBatch(records: records)
-  }
-
-  private static func record(from object: JSONObject) -> CodexRolloutRecord? {
-    guard let lineType = object["type"]?.stringValue else {
+  private static func event(from object: JSONObject) -> CodexTranscriptEvent? {
+    guard let lineType = object["type"]?.stringValue,
+      let payload = object["payload"]?.objectValue
+    else {
       return nil
     }
-    let payload = object["payload"] ?? .null
     switch lineType {
-    case "session_meta":
-      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
-      return .sessionMeta(payload)
     case "turn_context":
-      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
-      return .turnContext(payload)
+      return payload["turn_id"]?.stringValue.map(CodexTranscriptEvent.turnContext)
     case "event_msg":
-      guard
-        let payloadObject = payload.objectValue,
-        let eventType = payloadObject["type"]?.stringValue
-      else {
-        return .unknown(type: lineType, payload: payload)
-      }
-      let eventPayload = payloadObject["payload"]?.objectValue ?? payloadObject
-      return .eventMessage(type: eventType, payload: eventPayload)
+      return eventMessage(from: payload)
     case "response_item":
-      guard
-        let payloadObject = payload.objectValue,
-        let itemType = payloadObject["type"]?.stringValue
-      else {
-        return .unknown(type: lineType, payload: payload)
-      }
-      return .responseItem(type: itemType, payload: payloadObject)
-    case "compacted":
-      guard let payload = payload.objectValue else { return .unknown(type: lineType, payload: payload) }
-      return .compacted(payload)
+      return responseItem(from: payload)
     default:
-      return .unknown(type: lineType, payload: payload)
+      return nil
     }
+  }
+
+  private static func eventMessage(from object: JSONObject) -> CodexTranscriptEvent? {
+    guard let type = object["type"]?.stringValue else { return nil }
+    let payload = object["payload"]?.objectValue ?? object
+    let turnID = payload["turn_id"]?.stringValue ?? payload["turnId"]?.stringValue
+    switch type {
+    case "task_started", "turn_started":
+      return .turnStarted(turnID)
+    case "task_complete", "turn_complete":
+      return .turnCompleted(
+        turnID: turnID,
+        message: payload["last_agent_message"]?.stringValue
+      )
+    case "turn_aborted":
+      return .turnAborted(turnID)
+    case "token_count":
+      guard usageLimitWasReached(payload) else { return nil }
+      return .turnFailed(turnID)
+    case "thread_goal_updated":
+      return payload["goal"]?.objectValue.map(CodexTranscriptEvent.goalUpdated)
+    case "user_message":
+      return payload["message"]?.stringValue.map(CodexTranscriptEvent.goalContext)
+    case "agent_message":
+      guard let text = payload["message"]?.stringValue else { return nil }
+      return .assistantMessage(
+        turnID: turnID,
+        text: text,
+        phase: payload["phase"]?.stringValue
+      )
+    default:
+      return nil
+    }
+  }
+
+  private static func usageLimitWasReached(_ payload: JSONObject) -> Bool {
+    guard payload["info"] == .null,
+      let rateLimits = payload["rate_limits"]?.objectValue
+    else {
+      return false
+    }
+    if let reachedType = rateLimits["rate_limit_reached_type"], reachedType != .null {
+      return true
+    }
+    return ["primary", "secondary"].contains { key in
+      guard let window = rateLimits[key]?.objectValue else { return false }
+      return (window["used_percent"]?.intValue ?? 0) >= 100
+    }
+  }
+
+  private static func responseItem(from payload: JSONObject) -> CodexTranscriptEvent? {
+    guard payload["type"]?.stringValue == "message",
+      let text = messageText(from: payload["content"]?.arrayValue)
+    else {
+      return nil
+    }
+    let role = payload["role"]?.stringValue ?? "assistant"
+    if role == "user" {
+      return .goalContext(text)
+    }
+    guard role == "assistant" else { return nil }
+    return .assistantMessage(
+      turnID: payload["turn_id"]?.stringValue,
+      text: text,
+      phase: payload["phase"]?.stringValue
+    )
   }
 }
 
-private func messageText(
-  from content: [JSONValue]?
-) -> String? {
+private func messageText(from content: [JSONValue]?) -> String? {
   guard let content else { return nil }
   return normalizedMessage(
-    content
-      .compactMap { item in
-        item.objectValue?["text"]?.stringValue
-      }
-      .joined(separator: " ")
+    content.compactMap { $0.objectValue?["text"]?.stringValue }.joined(separator: " ")
   )
-}
-
-private func textArray(
-  in values: [JSONValue]?
-) -> [String] {
-  guard let values else { return [] }
-  return values.compactMap { value in
-    if let text = value.objectValue?["text"]?.stringValue {
-      return normalizedMessage(text)
-    }
-    return normalizedMessage(value.stringValue)
-  }
 }
 
 private func normalizedDetail(_ text: String?) -> String? {

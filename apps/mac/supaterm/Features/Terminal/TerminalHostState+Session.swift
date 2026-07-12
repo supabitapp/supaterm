@@ -256,7 +256,7 @@ extension TerminalHostState {
           id: surface.id,
           workingDirectoryPath: workingDirectoryPath(for: surface),
           titleOverride: surface.bridge.state.titleOverride,
-          agents: agentPresenceStore.snapshot(for: surface.id)
+          agents: agentStateRecords(for: surface.id)
         )
       )
     case .split(let split):
@@ -339,7 +339,7 @@ extension TerminalHostState {
         surfaceID: leaf.id
       )
       surface.bridge.state.titleOverride = leaf.titleOverride
-      restoreAgentPresence(leaf.agents, for: surface.id)
+      restoreAgentState(leaf.agents, for: surface.id)
       return .leaf(view: surface)
 
     case .split(let split):
@@ -378,12 +378,18 @@ extension TerminalHostState {
     lastEmittedFocusSurfaceID = nil
   }
 
-  func restoreAgentPresence(
+  func restoreAgentState(
     _ records: [TerminalPaneAgentRecord],
     for surfaceID: UUID
   ) {
-    let changed = agentPresenceStore.restore(records, surfaceID: surfaceID)
-    if changed {
+    var snapshots: [TerminalAgentStateSnapshot] = []
+    for record in records {
+      let processes = Set(record.processes.filter(TerminalAgentProcessInspector.isCurrent))
+      guard !processes.isEmpty else { continue }
+      snapshots.append(record.snapshot(surfaceID: surfaceID, processes: processes))
+    }
+    if !snapshots.isEmpty {
+      agentStateStore.restore(snapshots)
       agentPanelController?.surfaceAgentStateChanged(surfaceID)
     }
   }

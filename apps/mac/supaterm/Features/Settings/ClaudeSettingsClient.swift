@@ -3,15 +3,15 @@ import Foundation
 import SupatermCLIShared
 
 struct ClaudeSettingsClient: Sendable {
-  var hasSupatermHooks: @Sendable () async throws -> Bool
+  var integrationHealth: @Sendable () async throws -> CodingAgentIntegrationHealth
   var installSupatermHooks: @Sendable () async throws -> Void
   var removeSupatermHooks: @Sendable () async throws -> Void
 }
 
 extension ClaudeSettingsClient: DependencyKey {
   static let liveValue = Self(
-    hasSupatermHooks: {
-      try ClaudeSettingsInstaller().hasSupatermHooks()
+    integrationHealth: {
+      try ClaudeSettingsInstaller().integrationHealth()
     },
     installSupatermHooks: {
       try ClaudeSettingsInstaller().installSupatermHooks()
@@ -22,7 +22,7 @@ extension ClaudeSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    hasSupatermHooks: { false },
+    integrationHealth: { .absent },
     installSupatermHooks: {},
     removeSupatermHooks: {}
   )

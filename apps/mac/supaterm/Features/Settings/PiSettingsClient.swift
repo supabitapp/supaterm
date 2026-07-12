@@ -3,22 +3,18 @@ import Foundation
 import SupatermCLIShared
 
 struct PiSettingsClient: Sendable {
-  var hasSupatermIntegration: @Sendable () async throws -> Bool
+  var integrationHealth: @Sendable () async throws -> CodingAgentIntegrationHealth
   var installSupatermIntegration: @Sendable () async throws -> Void
-  var isPiAvailable: @Sendable () async throws -> Bool
   var removeSupatermIntegration: @Sendable () async throws -> Void
 }
 
 extension PiSettingsClient: DependencyKey {
   static let liveValue = Self(
-    hasSupatermIntegration: {
-      try PiSettingsInstaller().hasSupatermPackageInstalled()
+    integrationHealth: {
+      try PiSettingsInstaller().integrationHealth()
     },
     installSupatermIntegration: {
       try PiSettingsInstaller().installSupatermPackage()
-    },
-    isPiAvailable: {
-      try PiSettingsInstaller().isPiAvailable()
     },
     removeSupatermIntegration: {
       try PiSettingsInstaller().removeSupatermPackage()
@@ -26,9 +22,8 @@ extension PiSettingsClient: DependencyKey {
   )
 
   static let testValue = Self(
-    hasSupatermIntegration: { false },
+    integrationHealth: { .absent },
     installSupatermIntegration: {},
-    isPiAvailable: { true },
     removeSupatermIntegration: {}
   )
 }

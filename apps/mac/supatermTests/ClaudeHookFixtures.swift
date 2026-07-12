@@ -27,7 +27,7 @@ enum ClaudeHookFixtures {
       "hook_event_name": "Notification",
       "message": "Claude needs your attention",
       "title": "Needs input",
-      "notification_type": "request_input"
+      "notification_type": "permission_prompt"
     }
     """
 

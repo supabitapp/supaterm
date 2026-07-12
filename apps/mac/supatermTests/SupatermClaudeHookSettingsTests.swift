@@ -23,7 +23,7 @@ struct SupatermClaudeHookSettingsTests {
     #expect(
       Set(hooks.keys) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "UserPromptSubmit",
       ])
     #expect(try commandHook(in: hooks, event: "Notification")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "PostToolUse")["timeout"] as? Int == 5)
@@ -33,10 +33,23 @@ struct SupatermClaudeHookSettingsTests {
     #expect(try commandHook(in: hooks, event: "SessionEnd")["timeout"] as? Int == 1)
     #expect(try commandHook(in: hooks, event: "SessionStart")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "Stop")["timeout"] as? Int == 10)
+    #expect(try commandHook(in: hooks, event: "SubagentStart")["timeout"] as? Int == 10)
+    #expect(try commandHook(in: hooks, event: "SubagentStop")["timeout"] as? Int == 10)
     #expect(try commandHook(in: hooks, event: "UserPromptSubmit")["timeout"] as? Int == 10)
+    #expect(
+      try group(in: hooks, event: "Notification")["matcher"] as? String
+        == "permission_prompt|idle_prompt|elicitation_dialog"
+    )
     #expect(
       try commandHook(in: hooks, event: "Notification")["command"] as? String == SupatermClaudeHookSettings.command)
   }
+}
+
+private func group(
+  in hooks: [String: [[String: Any]]],
+  event: String
+) throws -> [String: Any] {
+  try #require(hooks[event]?.first)
 }
 
 private func commandHook(

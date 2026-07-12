@@ -8,29 +8,29 @@ import SupatermTerminalCore
 
 @MainActor
 final class TerminalCommandExecutor {
-  let agentSessionStore: TerminalAgentSessionStore
+  let agentMonitorStore: TerminalAgentMonitorStore
   unowned let registry: TerminalWindowRegistry
   var onQuitRequested: (() -> Void)?
 
   init<C: Clock<Duration>>(
     registry: TerminalWindowRegistry,
     agentRunningTimeout: Duration = .seconds(30),
-    transcriptPollInterval: Duration = .seconds(1),
+    transcriptEventDelay: Duration = .zero,
     clock: C = ContinuousClock()
   ) {
     self.registry = registry
     let sleep = { (duration: Duration) in
       try await clock.sleep(for: duration)
     }
-    agentSessionStore = TerminalAgentSessionStore(
+    agentMonitorStore = TerminalAgentMonitorStore(
       agentRunningTimeout: agentRunningTimeout,
-      transcriptPollInterval: transcriptPollInterval,
+      transcriptEventDelay: transcriptEventDelay,
       sleep: sleep
     )
-    agentSessionStore.onMonitorSnapshot = { [weak self] snapshot, agent, sessionID, context in
+    agentMonitorStore.onMonitorSnapshot = { [weak self] snapshot, agent, sessionID, context in
       self?.handleMonitorSnapshot(snapshot, agent: agent, sessionID: sessionID, context: context)
     }
-    agentSessionStore.onRunningTimeoutExpired = { [weak self] agent, sessionID, context in
+    agentMonitorStore.onRunningTimeoutExpired = { [weak self] agent, sessionID, context in
       self?.handleRunningTimeoutExpired(agent: agent, sessionID: sessionID, context: context)
     }
   }

@@ -150,12 +150,6 @@ final class TerminalHostState {
     case muted
   }
 
-  enum AgentActivityPhase: Equatable, Sendable {
-    case needsInput
-    case running
-    case idle
-  }
-
   struct AgentActivity: Equatable, Sendable {
     let kind: SupatermAgentKind
     let phase: AgentActivityPhase
@@ -207,22 +201,21 @@ final class TerminalHostState {
   }
 
   struct PaneAgentMetadata: Equatable, Sendable {
-    var agentHoverMessages: [String] = []
-    var progressRows: [PaneAgentProgressRow] = []
     var branchDetails: PaneAgentBranchDetails?
     var artifacts: [PaneAgentArtifact] = []
 
     var isEmpty: Bool {
-      agentHoverMessages.isEmpty && panelPresentation().isEmpty
+      branchDetails == nil && artifacts.isEmpty
     }
 
-    var hasStructuredPanelContent: Bool {
-      !progressRows.isEmpty
-    }
-
-    func panelPresentation(session: PaneAgentPanelSession? = nil) -> PaneAgentPanelPresentation {
+    func panelPresentation(
+      progressRows: [PaneAgentProgressRow] = [],
+      activeChildren: [TerminalAgentActiveChild] = [],
+      session: PaneAgentPanelSession? = nil
+    ) -> PaneAgentPanelPresentation {
       PaneAgentPanelPresentation(
         progressRows: progressRows,
+        activeChildren: activeChildren,
         branchDetails: branchDetails,
         artifacts: artifacts,
         session: session
@@ -236,6 +229,20 @@ final class TerminalHostState {
     let badgeActivityIsFocused: Bool
     let detailActivity: AgentActivity?
     let hoverMarkdown: String?
+  }
+
+  struct AgentStateInstance: Equatable, Sendable {
+    let presentation: TerminalAgentStatePresentation
+    let revision: Int
+    let surfaceID: UUID
+
+    var activity: AgentActivity {
+      AgentActivity(
+        kind: presentation.agent,
+        phase: presentation.phase,
+        detail: presentation.detail
+      )
+    }
   }
 
   struct FocusHistory: Equatable {
@@ -293,6 +300,8 @@ final class TerminalHostState {
   @ObservationIgnored
   var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
+  var onSurfaceRemoved: @MainActor (UUID) -> Void = { _ in }
+  @ObservationIgnored
   var agentPanelController: TerminalAgentPanelController?
   let spaceManager = TerminalSpaceManager()
 
@@ -302,7 +311,7 @@ final class TerminalHostState {
   var focusHistoryByTab: [TerminalTabID: FocusHistory] = [:]
   var notificationStore = TerminalNotificationStore()
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
-  var agentPresenceStore = TerminalAgentPresenceStore()
+  var agentStateStore = TerminalAgentStateStore()
   var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
   var previousSelectedSpaceID: TerminalSpaceID?
   var lastEmittedFocusSurfaceID: UUID?
@@ -931,12 +940,12 @@ final class TerminalHostState {
     #if SUPATERM_DEMO
       guard !DemoSeed.preservesSeededAgentState(surfaceID) else { return }
     #endif
-    let removedAgentPresence = clearAgentPresence(for: surfaceID)
+    let removedAgentState = clearAgentState(for: surfaceID)
     let hadAgentMetadata = paneAgentMetadataBySurfaceID[surfaceID]?.isEmpty == false
     _ = clearAgentPanelMetadata(for: surfaceID)
     agentPanelController?.surfaceCommandFinished(surfaceID)
     onSurfaceCommandFinished(surfaceID)
-    if hadAgentMetadata || removedAgentPresence {
+    if hadAgentMetadata || removedAgentState {
       sessionDidChange()
     }
   }

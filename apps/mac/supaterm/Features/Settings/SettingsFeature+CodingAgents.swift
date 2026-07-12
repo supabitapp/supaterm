@@ -10,50 +10,27 @@ extension SettingsFeature {
       guard !state[keyPath: keyPath].isPending else {
         return .none
       }
-      state[keyPath: keyPath].isPending = true
-      let checkAvailability = loadAgentAvailabilityOperation(for: agent)
-      let loadStatus = loadSupatermIntegrationOperation(for: agent)
+      state[keyPath: keyPath].isRefreshing = true
+      let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
       return .run { send in
         do {
-          guard try await checkAvailability() else {
-            await send(
-              .agentIntegrationStatusRefreshed(
-                agent,
-                .unavailable(unavailableMessage(for: agent))
-              )
-            )
-            return
-          }
-          await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadStatus())))
+          await send(.agentIntegrationStatusRefreshed(agent, .success(try await loadHealth())))
         } catch {
           await send(.agentIntegrationStatusRefreshed(agent, .failure(error.localizedDescription)))
         }
       }
 
-    case .agentIntegrationStatusRefreshed(let agent, .success(let isEnabled)):
+    case .agentIntegrationStatusRefreshed(let agent, .success(let health)):
       let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].confirmedEnabled = isEnabled
       state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].isAvailable = true
-      state[keyPath: keyPath].isEnabled = isEnabled
-      state[keyPath: keyPath].isPending = false
-      return .none
-
-    case .agentIntegrationStatusRefreshed(let agent, .unavailable(let message)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].confirmedEnabled = false
-      state[keyPath: keyPath].errorMessage = message
-      state[keyPath: keyPath].isAvailable = false
-      state[keyPath: keyPath].isEnabled = false
-      state[keyPath: keyPath].isPending = false
+      state[keyPath: keyPath].health = health
+      state[keyPath: keyPath].isRefreshing = false
       return .none
 
     case .agentIntegrationStatusRefreshed(let agent, .failure(let message)):
       let keyPath = agentIntegrationKeyPath(for: agent)
       state[keyPath: keyPath].errorMessage = message
-      state[keyPath: keyPath].isAvailable = true
-      state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
-      state[keyPath: keyPath].isPending = false
+      state[keyPath: keyPath].isRefreshing = false
       return .none
 
     case .agentIntegrationToggled(let agent, let isEnabled):
@@ -63,43 +40,26 @@ extension SettingsFeature {
       }
       state.agentIntegrationInstallFailure = nil
       state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].isEnabled = isEnabled
-      state[keyPath: keyPath].isPending = true
-      let checkAvailability = loadAgentAvailabilityOperation(for: agent)
-      let updateStatus = updateSupatermIntegrationOperation(for: agent, isEnabled: isEnabled)
+      state[keyPath: keyPath].pendingEnabled = isEnabled
+      let loadHealth = loadAgentIntegrationHealthOperation(for: agent)
+      let updateHealth = updateSupatermIntegrationOperation(for: agent, isEnabled: isEnabled)
       return .run { send in
         do {
-          guard try await checkAvailability() else {
-            await send(
-              .agentIntegrationToggleFinished(
-                agent,
-                .unavailable(unavailableMessage(for: agent))
-              )
-            )
+          if isEnabled, [.unavailable, .unavailableInstalled].contains(try await loadHealth()) {
+            await send(.agentIntegrationToggleFinished(agent, .success(.unavailable)))
             return
           }
-          await send(.agentIntegrationToggleFinished(agent, .success(try await updateStatus())))
+          await send(.agentIntegrationToggleFinished(agent, .success(try await updateHealth())))
         } catch {
           await send(.agentIntegrationToggleFinished(agent, .failure(error.localizedDescription)))
         }
       }
 
-    case .agentIntegrationToggleFinished(let agent, .success(let isEnabled)):
+    case .agentIntegrationToggleFinished(let agent, .success(let health)):
       let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].confirmedEnabled = isEnabled
       state[keyPath: keyPath].errorMessage = nil
-      state[keyPath: keyPath].isAvailable = true
-      state[keyPath: keyPath].isEnabled = isEnabled
-      state[keyPath: keyPath].isPending = false
-      return .none
-
-    case .agentIntegrationToggleFinished(let agent, .unavailable(let message)):
-      let keyPath = agentIntegrationKeyPath(for: agent)
-      state[keyPath: keyPath].confirmedEnabled = false
-      state[keyPath: keyPath].errorMessage = message
-      state[keyPath: keyPath].isAvailable = false
-      state[keyPath: keyPath].isEnabled = false
-      state[keyPath: keyPath].isPending = false
+      state[keyPath: keyPath].health = health
+      state[keyPath: keyPath].pendingEnabled = nil
       return .none
 
     case .agentIntegrationToggleFinished(let agent, .failure(let message)):
@@ -116,11 +76,11 @@ extension SettingsFeature {
     message: String
   ) -> Effect<Action> {
     let keyPath = agentIntegrationKeyPath(for: agent)
-    let isInstallFailure = state[keyPath: keyPath].isEnabled
+    let isInstallFailure =
+      state[keyPath: keyPath].pendingEnabled
+      ?? (state[keyPath: keyPath].health == .healthy)
     state[keyPath: keyPath].errorMessage = message
-    state[keyPath: keyPath].isAvailable = true
-    state[keyPath: keyPath].isEnabled = state[keyPath: keyPath].confirmedEnabled
-    state[keyPath: keyPath].isPending = false
+    state[keyPath: keyPath].pendingEnabled = nil
     if isInstallFailure {
       state.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: agent, log: message)
     }
@@ -140,38 +100,26 @@ extension SettingsFeature {
     }
   }
 
-  func loadAgentAvailabilityOperation(
+  func loadAgentIntegrationHealthOperation(
     for agent: SupatermAgentKind
-  ) -> @Sendable () async throws -> Bool {
-    switch agent {
-    case .claude, .codex:
-      return { true }
-    case .pi:
-      let client = piSettingsClient
-      return { try await client.isPiAvailable() }
-    }
-  }
-
-  func loadSupatermIntegrationOperation(
-    for agent: SupatermAgentKind
-  ) -> @Sendable () async throws -> Bool {
+  ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
     case .claude:
       let client = claudeSettingsClient
-      return { try await client.hasSupatermHooks() }
+      return { try await client.integrationHealth() }
     case .codex:
       let client = codexSettingsClient
-      return { try await client.hasSupatermHooks() }
+      return { try await client.integrationHealth() }
     case .pi:
       let client = piSettingsClient
-      return { try await client.hasSupatermIntegration() }
+      return { try await client.integrationHealth() }
     }
   }
 
   func updateSupatermIntegrationOperation(
     for agent: SupatermAgentKind,
     isEnabled: Bool
-  ) -> @Sendable () async throws -> Bool {
+  ) -> @Sendable () async throws -> CodingAgentIntegrationHealth {
     switch agent {
     case .claude:
       let client = claudeSettingsClient
@@ -183,7 +131,7 @@ extension SettingsFeature {
         } else {
           try await client.removeSupatermHooks()
         }
-        return try await client.hasSupatermHooks()
+        return try await client.integrationHealth()
       }
     case .codex:
       let client = codexSettingsClient
@@ -195,7 +143,7 @@ extension SettingsFeature {
         } else {
           try await client.removeSupatermHooks()
         }
-        return try await client.hasSupatermHooks()
+        return try await client.integrationHealth()
       }
     case .pi:
       let client = piSettingsClient
@@ -207,19 +155,9 @@ extension SettingsFeature {
         } else {
           try await client.removeSupatermIntegration()
         }
-        return try await client.hasSupatermIntegration()
+        return try await client.integrationHealth()
       }
     }
   }
 
-  func unavailableMessage(
-    for agent: SupatermAgentKind
-  ) -> String {
-    switch agent {
-    case .claude, .codex:
-      return "\(agent.notificationTitle) is unavailable."
-    case .pi:
-      return PiSettingsInstallerError.piUnavailable.localizedDescription
-    }
-  }
 }

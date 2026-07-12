@@ -29,7 +29,7 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
-  func catalogDecodesVersion3LeafSessions() throws {
+  func catalogRejectsPreviousVersion() {
     let data = Data(
       #"""
       {
@@ -63,25 +63,9 @@ struct TerminalSessionCatalogTests {
       """#.utf8
     )
 
-    let catalog = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
-    let decodedAgain = try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
-    let root = try #require(catalog.windows.first?.spaces.first?.tabs.first?.root)
-    let rootAgain = try #require(decodedAgain.windows.first?.spaces.first?.tabs.first?.root)
-    guard case .leaf(let leaf) = root else {
-      Issue.record("Expected leaf root")
-      return
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(TerminalSessionCatalog.self, from: data)
     }
-    guard case .leaf(let leafAgain) = rootAgain else {
-      Issue.record("Expected leaf root")
-      return
-    }
-
-    #expect(catalog.version == TerminalSessionCatalog.currentVersion)
-    #expect(leaf.workingDirectoryPath == "/tmp")
-    #expect(leaf.titleOverride == "Pane")
-    #expect(leaf.agents.isEmpty)
-    #expect(leaf.id == leafAgain.id)
-    #expect(catalog.surfaceIDs == [leaf.id])
   }
 
   @Test
@@ -187,9 +171,24 @@ struct TerminalSessionCatalogTests {
             agents: [
               TerminalPaneAgentRecord(
                 agent: .codex,
-                sessionIDs: ["session-1"],
-                processIDs: [123],
-                activityPhase: .running
+                sessionID: "session-1",
+                processes: [
+                  TerminalAgentProcessIdentity(
+                    processID: 123,
+                    startTimeMicroseconds: 456
+                  )
+                ],
+                turnLifecycle: .active("turn-1"),
+                phase: .running,
+                nativePlanRows: [
+                  PaneAgentProgressRow(
+                    id: "plan-1",
+                    title: "Implement native hooks",
+                    status: .running
+                  )
+                ],
+                isForeground: true,
+                revision: 7
               )
             ]
           )
@@ -221,12 +220,56 @@ struct TerminalSessionCatalogTests {
     #expect(json.contains(#""selectedTabIndex":1"#))
     #expect(json.contains(#""id":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB""#))
     #expect(json.contains(#""agent":"codex""#))
-    #expect(json.contains(#""activityPhase":"running""#))
+    #expect(json.contains(#""sessionID":"session-1""#))
+    #expect(json.contains(#""processID":123"#))
+    #expect(json.contains(#""startTimeMicroseconds":456"#))
+    #expect(json.contains(#""title":"Implement native hooks""#))
     #expect(json.contains(#""lockedTitle":"Pinned""#))
     #expect(json.contains(#""titleOverride":"Pane""#))
-    #expect(!json.contains(#""title":"#))
+    #expect(!json.contains(#""title":"Pane""#))
     #expect(!json.contains(#""isTitleLocked":"#))
     #expect(!json.contains(#""selectedTabID":"#))
     #expect(!json.contains(#""focusedPaneID":"#))
+  }
+
+  @Test
+  func agentRecordRoundTripsCanonicalState() throws {
+    let record = TerminalPaneAgentRecord(
+      agent: .codex,
+      sessionID: "session-1",
+      processes: [
+        TerminalAgentProcessIdentity(processID: 123, startTimeMicroseconds: 456)
+      ],
+      transcriptPath: "/tmp/session.jsonl",
+      turnLifecycle: .active("turn-1"),
+      phase: .needsInput,
+      detail: "Approve tests",
+      hoverMessages: ["Inspecting", "Testing"],
+      nativePlanRows: [
+        PaneAgentProgressRow(id: "plan-1", title: "Implement", status: .running)
+      ],
+      transcriptRows: [
+        PaneAgentProgressRow(id: "goal-1", title: "Ship", status: .running, kind: .goal)
+      ],
+      activeChildren: [
+        TerminalAgentActiveChild(
+          id: TerminalAgentActiveChild.Identity(
+            subagentID: "reviewer-1",
+            sessionID: "session-1",
+            turnID: "turn-1"
+          ),
+          type: "reviewer",
+          phase: .running,
+          detail: "Reviewing"
+        )
+      ],
+      isForeground: true,
+      revision: 7
+    )
+
+    let data = try JSONEncoder().encode(record)
+    let decoded = try JSONDecoder().decode(TerminalPaneAgentRecord.self, from: data)
+
+    #expect(decoded == record)
   }
 }

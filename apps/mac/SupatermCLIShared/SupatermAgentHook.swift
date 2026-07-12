@@ -17,56 +17,26 @@ public enum SupatermAgentKind: String, CaseIterable, Codable, Equatable, Sendabl
   }
 }
 
-public enum SupatermAgentHookEventName: Equatable, Sendable {
-  case notification
-  case postToolUse
-  case preToolUse
-  case sessionEnd
-  case sessionStart
-  case stop
-  case unsupported(String)
-  case userPromptSubmit
+public struct SupatermAgentHookEventName: Equatable, Hashable, RawRepresentable, Sendable {
+  public static let agentEnd = Self(rawValue: "agent_end")
+  public static let agentStart = Self(rawValue: "agent_start")
+  public static let nativeSessionStart = Self(rawValue: "session_start")
+  public static let notification = Self(rawValue: "Notification")
+  public static let permissionRequest = Self(rawValue: "PermissionRequest")
+  public static let postToolUse = Self(rawValue: "PostToolUse")
+  public static let preToolUse = Self(rawValue: "PreToolUse")
+  public static let sessionEnd = Self(rawValue: "SessionEnd")
+  public static let sessionShutdown = Self(rawValue: "session_shutdown")
+  public static let sessionStart = Self(rawValue: "SessionStart")
+  public static let stop = Self(rawValue: "Stop")
+  public static let subagentStart = Self(rawValue: "SubagentStart")
+  public static let subagentStop = Self(rawValue: "SubagentStop")
+  public static let userPromptSubmit = Self(rawValue: "UserPromptSubmit")
+
+  public let rawValue: String
 
   public init(rawValue: String) {
-    switch rawValue {
-    case "Notification":
-      self = .notification
-    case "PostToolUse":
-      self = .postToolUse
-    case "PreToolUse":
-      self = .preToolUse
-    case "SessionEnd":
-      self = .sessionEnd
-    case "SessionStart":
-      self = .sessionStart
-    case "Stop":
-      self = .stop
-    case "UserPromptSubmit":
-      self = .userPromptSubmit
-    default:
-      self = .unsupported(rawValue)
-    }
-  }
-
-  public var rawValue: String {
-    switch self {
-    case .notification:
-      return "Notification"
-    case .postToolUse:
-      return "PostToolUse"
-    case .preToolUse:
-      return "PreToolUse"
-    case .sessionEnd:
-      return "SessionEnd"
-    case .sessionStart:
-      return "SessionStart"
-    case .stop:
-      return "Stop"
-    case .unsupported(let rawValue):
-      return rawValue
-    case .userPromptSubmit:
-      return "UserPromptSubmit"
-    }
+    self.rawValue = rawValue
   }
 }
 
@@ -86,26 +56,19 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
   public let payload: JSONObject
 
   public var agentID: String? { string("agent_id") }
-  public var agentTranscriptPath: String? { string("agent_transcript_path") }
   public var agentType: String? { string("agent_type") }
-  public var cwd: String? { string("cwd") }
   public var hookEventName: SupatermAgentHookEventName {
     SupatermAgentHookEventName(rawValue: payload["hook_event_name"]?.stringValue ?? "")
   }
   public var lastAssistantMessage: String? { string("last_assistant_message") }
   public var message: String? { string("message") }
-  public var model: String? { string("model") }
   public var notificationType: String? { string("notification_type") }
-  public var permissionMode: String? { string("permission_mode") }
-  public var prompt: String? { string("prompt") }
-  public var reason: String? { string("reason") }
   public var sessionID: String? { string("session_id") }
   public var source: String? { string("source") }
-  public var stopHookActive: Bool? { payload["stop_hook_active"]?.boolValue }
+  public var stopReason: String? { string("stop_reason") }
   public var title: String? { string("title") }
   public var toolInput: JSONValue? { payload["tool_input"] }
   public var toolName: String? { string("tool_name") }
-  public var toolResponse: JSONValue? { payload["tool_response"] }
   public var toolUseID: String? { string("tool_use_id") }
   public var transcriptPath: String? { string("transcript_path") }
   public var turnID: String? { string("turn_id") }
@@ -118,49 +81,35 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
     message: String? = nil,
     model: String? = nil,
     notificationType: String? = nil,
-    permissionMode: String? = nil,
-    prompt: String? = nil,
-    reason: String? = nil,
     sessionID: String? = nil,
     source: String? = nil,
-    stopHookActive: Bool? = nil,
+    stopReason: String? = nil,
     title: String? = nil,
     toolInput: JSONValue? = nil,
     toolName: String? = nil,
-    toolResponse: JSONValue? = nil,
     toolUseID: String? = nil,
     transcriptPath: String? = nil,
     turnID: String? = nil,
-    agentID: String? = nil,
-    agentTranscriptPath: String? = nil
+    agentID: String? = nil
   ) {
     var payload: JSONObject = ["hook_event_name": .string(hookEventName.rawValue)]
     Self.insert(agentID, key: "agent_id", into: &payload)
-    Self.insert(agentTranscriptPath, key: "agent_transcript_path", into: &payload)
     Self.insert(agentType, key: "agent_type", into: &payload)
     Self.insert(cwd, key: "cwd", into: &payload)
     Self.insert(lastAssistantMessage, key: "last_assistant_message", into: &payload)
     Self.insert(message, key: "message", into: &payload)
     Self.insert(model, key: "model", into: &payload)
     Self.insert(notificationType, key: "notification_type", into: &payload)
-    Self.insert(permissionMode, key: "permission_mode", into: &payload)
-    Self.insert(prompt, key: "prompt", into: &payload)
-    Self.insert(reason, key: "reason", into: &payload)
     Self.insert(sessionID, key: "session_id", into: &payload)
     Self.insert(source, key: "source", into: &payload)
+    Self.insert(stopReason, key: "stop_reason", into: &payload)
     Self.insert(title, key: "title", into: &payload)
     Self.insert(toolName, key: "tool_name", into: &payload)
     Self.insert(toolUseID, key: "tool_use_id", into: &payload)
     Self.insert(transcriptPath, key: "transcript_path", into: &payload)
     Self.insert(turnID, key: "turn_id", into: &payload)
-    if let stopHookActive {
-      payload["stop_hook_active"] = .bool(stopHookActive)
-    }
     if let toolInput {
       payload["tool_input"] = toolInput
-    }
-    if let toolResponse {
-      payload["tool_response"] = toolResponse
     }
     self.payload = payload
   }

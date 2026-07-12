@@ -9,6 +9,12 @@ import Testing
 @testable import SupatermCLIShared
 @testable import supaterm
 
+private struct TestAgentTarget {
+  let scope: TerminalAgentEvent.Scope
+  let context: SupatermCLIContext
+  let hoverMessages: [String]
+}
+
 func makeWindow() -> NSWindow {
   NSWindow(
     contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
@@ -22,6 +28,22 @@ func flushEffects() async {
   for _ in 0..<5 {
     await Task.yield()
   }
+}
+
+@MainActor
+func waitUntil(
+  timeout: Duration = .seconds(1),
+  _ condition: () -> Bool
+) async -> Bool {
+  let clock = ContinuousClock()
+  let deadline = clock.now.advanced(by: timeout)
+  while clock.now < deadline {
+    if condition() {
+      return true
+    }
+    try? await clock.sleep(for: .milliseconds(5))
+  }
+  return condition()
 }
 
 func waitForUpdateMenuActions(
@@ -82,7 +104,7 @@ func agentHookRequest(
 
 func makeClaudeHookHarness<C: Clock<Duration>>(
   agentRunningTimeout: Duration = .seconds(15),
-  transcriptPollInterval: Duration = .seconds(1),
+  transcriptEventDelay: Duration = .zero,
   clock: C = ContinuousClock(),
   windowActivity: WindowActivityState = WindowActivityState(isKeyWindow: true, isVisible: true)
 ) throws -> ClaudeHookHarness {
@@ -92,7 +114,7 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
   let commandExecutor = makeCommandExecutor(
     registry: registry,
     agentRunningTimeout: agentRunningTimeout,
-    transcriptPollInterval: transcriptPollInterval,
+    transcriptEventDelay: transcriptEventDelay,
     clock: clock
   )
   let host = TerminalHostState()
@@ -148,13 +170,13 @@ func makeCommandExecutor(registry: TerminalWindowRegistry) -> TerminalCommandExe
 func makeCommandExecutor<C: Clock<Duration>>(
   registry: TerminalWindowRegistry,
   agentRunningTimeout: Duration,
-  transcriptPollInterval: Duration,
+  transcriptEventDelay: Duration,
   clock: C
 ) -> TerminalCommandExecutor {
   let commandExecutor = TerminalCommandExecutor(
     registry: registry,
     agentRunningTimeout: agentRunningTimeout,
-    transcriptPollInterval: transcriptPollInterval,
+    transcriptEventDelay: transcriptEventDelay,
     clock: clock
   )
   registry.commandExecutor = commandExecutor
@@ -170,5 +192,133 @@ actor UpdateMenuActionRecorder {
 
   func record(_ action: UpdateUserAction) {
     recordedActions.append(action)
+  }
+}
+
+extension TerminalHostState {
+  @discardableResult
+  func startTestAgentSession(
+    agent: SupatermAgentKind,
+    for surfaceID: UUID,
+    sessionID: String?,
+    processID: Int32?
+  ) -> Bool {
+    guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
+    return applyAgentEvent(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
+        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        processID: processID,
+        action: .sessionResumed(transcriptPath: nil)
+      )
+    ).changed
+  }
+
+  @discardableResult
+  func applyTestAgentActivity(
+    _ activity: AgentActivity,
+    for surfaceID: UUID,
+    sessionID: String?,
+    processID: Int32?
+  ) -> Bool {
+    guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
+    if !hasAgentSession(agent: activity.kind, sessionID: sessionID) {
+      _ = startTestAgentSession(
+        agent: activity.kind,
+        for: surfaceID,
+        sessionID: sessionID,
+        processID: processID
+      )
+    }
+    let action: TerminalAgentEvent.Action =
+      switch activity.phase {
+      case .idle: .turnCompleted(message: nil)
+      case .needsInput: .attentionRequested(requestID: nil, message: activity.detail)
+      case .running: .turnRunning(detail: activity.detail)
+      }
+    return applyAgentEvent(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: activity.kind, sessionID: sessionID),
+        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        processID: processID,
+        action: action
+      )
+    ).changed
+  }
+
+  @discardableResult
+  func makeTestAgentSessionActionable(
+    agent: SupatermAgentKind,
+    for surfaceID: UUID,
+    sessionID: String?,
+    processID: Int32?
+  ) -> Bool {
+    guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
+    if !hasAgentSession(agent: agent, sessionID: sessionID) {
+      _ = startTestAgentSession(
+        agent: agent,
+        for: surfaceID,
+        sessionID: sessionID,
+        processID: processID
+      )
+    }
+    return applyAgentEvent(
+      TerminalAgentEvent(
+        scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
+        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        processID: processID,
+        action: .turnCompleted(message: nil)
+      )
+    ).changed
+  }
+
+  @discardableResult
+  func setTestAgentHoverMessages(
+    _ messages: [String],
+    replacing: Bool,
+    for surfaceID: UUID
+  ) -> Bool {
+    guard let target = testAgentTarget(for: surfaceID) else { return false }
+    var nextMessages = replacing ? [] : target.hoverMessages
+    for message in messages.compactMap(normalizedTerminalAgentDetail) where nextMessages.last != message {
+      nextMessages.append(message)
+    }
+    return applyAgentEvent(
+      TerminalAgentEvent(
+        scope: target.scope,
+        context: target.context,
+        action: .hoverMessagesUpdated(nextMessages)
+      )
+    ).changed
+  }
+
+  @discardableResult
+  func setTestAgentProgressRows(
+    progressRows: [PaneAgentProgressRow],
+    for surfaceID: UUID
+  ) -> Bool {
+    guard let target = testAgentTarget(for: surfaceID) else { return false }
+    return applyAgentEvent(
+      TerminalAgentEvent(
+        scope: target.scope,
+        context: target.context,
+        action: .progressUpdated(progressRows, source: .transcript)
+      )
+    ).changed
+  }
+
+  private func testAgentTarget(for surfaceID: UUID) -> TestAgentTarget? {
+    guard let tabID = tabID(containing: surfaceID),
+      let snapshot = agentStateStore.snapshots(for: surfaceID)
+        .filter(\.isForeground)
+        .max(by: { $0.revision < $1.revision })
+    else {
+      return nil
+    }
+    return TestAgentTarget(
+      scope: TerminalAgentEvent.Scope(agent: snapshot.agent, sessionID: snapshot.sessionID),
+      context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+      hoverMessages: snapshot.hoverMessages
+    )
   }
 }

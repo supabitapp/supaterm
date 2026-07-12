@@ -57,7 +57,14 @@ final class TerminalWindowRegistry {
     let session: PaneAgentPanelSession?
   }
 
-  var commandExecutor: TerminalCommandExecutor?
+  var commandExecutor: TerminalCommandExecutor? {
+    didSet {
+      guard let commandExecutor else { return }
+      for entry in activeEntries() {
+        commandExecutor.resumeAgentMonitoring(in: entry.terminal)
+      }
+    }
+  }
 
   private var entries: [Entry] = []
   private let zmxClient: ZmxClient
@@ -95,6 +102,9 @@ final class TerminalWindowRegistry {
     terminal.onSurfaceCommandFinished = { [weak self] surfaceID in
       self?.commandExecutor?.handleCommandFinished(for: surfaceID)
     }
+    terminal.onSurfaceRemoved = { [weak self] surfaceID in
+      self?.commandExecutor?.handleSurfaceRemoved(surfaceID)
+    }
     let entry = Entry(
       keyboardShortcutForAction: keyboardShortcutForAction,
       requestConfirmedWindowClose: requestConfirmedWindowClose,
@@ -109,6 +119,11 @@ final class TerminalWindowRegistry {
   }
 
   func unregister(windowControllerID: UUID) {
+    if let entry = entries.first(where: { $0.windowControllerID == windowControllerID }) {
+      for surfaceID in entry.terminal.liveSurfaceIDs() {
+        commandExecutor?.handleSurfaceRemoved(surfaceID)
+      }
+    }
     entries.removeAll { $0.windowControllerID == windowControllerID }
     onChange()
   }
@@ -117,6 +132,13 @@ final class TerminalWindowRegistry {
     guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID })
     else { return }
     entries[index].windowReference.value = window
+    if window != nil {
+      commandExecutor?.resumeAgentMonitoring(in: entries[index].terminal)
+    } else {
+      for surfaceID in entries[index].terminal.liveSurfaceIDs() {
+        commandExecutor?.handleSurfaceRemoved(surfaceID)
+      }
+    }
     onChange()
   }
 

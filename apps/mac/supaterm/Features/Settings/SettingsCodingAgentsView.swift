@@ -62,7 +62,7 @@ struct SettingsCodingAgentsView: View {
           let integration = integration(for: agent)
           SettingsAgentListRow(
             agent: agent,
-            errorMessage: integration.errorMessage,
+            errorMessage: integration.message(for: agent),
             isAvailable: integration.isAvailable,
             isOn: integrationToggle(for: agent),
             isPending: integration.isPending

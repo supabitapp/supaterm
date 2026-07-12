@@ -7,15 +7,24 @@ struct AgentMonitorSnapshot: Equatable {
   var progressRows: [PaneAgentProgressRow] = []
 }
 
-struct AgentPanelMonitorTick {
-  let snapshot: AgentMonitorSnapshot
-  let isFinal: Bool
+nonisolated struct AgentTranscriptUpdate: Sendable {
+  let objects: [JSONObject]
+  let didReset: Bool
+
+  init(_ tick: AgentTranscriptTailer.Tick) {
+    objects = tick.objects
+    didReset = tick.didReset
+  }
+
+  init(objects: [JSONObject], didReset: Bool = false) {
+    self.objects = objects
+    self.didReset = didReset
+  }
 }
 
 @MainActor
 protocol AgentPanelMonitor {
-  func start() -> AgentPanelMonitorTick?
-  func poll() -> AgentPanelMonitorTick?
+  func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot?
 }
 
 enum AgentProgressParsing {

@@ -176,7 +176,6 @@ final class TerminalWindowController: NSWindowController {
         self?.terminatesTerminalSessionsOnClose = terminates
       }
     )
-    registry.commandExecutor?.restoreAgentSessions(from: terminal.agentPresenceSnapshotsBySurfaceID())
     registry.updateWindow(window, for: windowControllerID)
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
   }

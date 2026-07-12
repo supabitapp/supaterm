@@ -5,6 +5,82 @@ import Testing
 
 struct ClaudeSettingsInstallerTests {
   @Test
+  func integrationHealthIsAbsentWithoutManagedHooks() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+
+    #expect(
+      try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).integrationHealth()
+        == .absent
+    )
+  }
+
+  @Test
+  func integrationHealthIsUnavailableWithoutClaude() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let installer = ClaudeSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runAvailabilityCommand: {
+        CodingAgentCommandResult(status: 127, standardError: "command not found")
+      }
+    )
+
+    #expect(try installer.integrationHealth() == .unavailable)
+  }
+
+  @Test
+  func integrationHealthKeepsInstalledHooksRemovableWithoutClaude() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    try writeSettings(
+      try SupatermClaudeHookSettings.jsonString(),
+      homeDirectoryURL: homeDirectoryURL
+    )
+    let installer = ClaudeSettingsInstaller(
+      homeDirectoryURL: homeDirectoryURL,
+      runAvailabilityCommand: { CodingAgentCommandResult(status: 127) }
+    )
+
+    #expect(try installer.integrationHealth() == .unavailableInstalled)
+  }
+
+  @Test
+  func integrationHealthDistinguishesPartialDriftedAndHealthyHooks() throws {
+    let homeDirectoryURL = try temporaryHomeDirectory()
+    defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
+    let command = SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\"")
+    let installer = availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL)
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [{"hooks": [{"command": "\(command)", "timeout": 10, "type": "command"}]}]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    #expect(try installer.integrationHealth() == .partial)
+
+    try writeSettings(
+      """
+      {
+        "hooks": {
+          "Stop": [{"hooks": [{"command": "\(command)", "timeout": 99, "type": "command"}]}]
+        }
+      }
+      """,
+      homeDirectoryURL: homeDirectoryURL
+    )
+    #expect(try installer.integrationHealth() == .drifted)
+
+    try installer.installSupatermHooks()
+    #expect(try installer.integrationHealth() == .healthy)
+  }
+
+  @Test
   func installCreatesMissingSettingsFile() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
@@ -16,7 +92,7 @@ struct ClaudeSettingsInstallerTests {
     #expect(
       Set(hooks.keys) == [
         "Notification", "PostToolUse", "PreToolUse", "SessionEnd", "SessionStart", "Stop",
-        "UserPromptSubmit",
+        "SubagentStart", "SubagentStop", "UserPromptSubmit",
       ])
   }
 
@@ -194,7 +270,7 @@ struct ClaudeSettingsInstallerTests {
   }
 
   @Test
-  func installRemovesSupatermCommandsFromOtherEvents() throws {
+  func installPreservesUnownedCommandsContainingSupaterm() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
@@ -223,11 +299,11 @@ struct ClaudeSettingsInstallerTests {
 
     let object = try settingsObject(homeDirectoryURL: homeDirectoryURL)
     let hooks = try #require(object["hooks"] as? [String: Any])
-    #expect(hooks["CustomEvent"] == nil)
+    #expect(hooks["CustomEvent"] != nil)
   }
 
   @Test
-  func hasSupatermHooksMatchesAnySupatermSubstring() throws {
+  func integrationHealthIgnoresUnownedSupatermSubstring() throws {
     let homeDirectoryURL = try temporaryHomeDirectory()
     defer { try? FileManager.default.removeItem(at: homeDirectoryURL) }
 
@@ -252,9 +328,9 @@ struct ClaudeSettingsInstallerTests {
       homeDirectoryURL: homeDirectoryURL
     )
 
-    let installer = ClaudeSettingsInstaller(homeDirectoryURL: homeDirectoryURL)
+    let installer = availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL)
 
-    #expect(try installer.hasSupatermHooks())
+    #expect(try installer.integrationHealth() == .absent)
   }
 
   @Test
@@ -271,7 +347,7 @@ struct ClaudeSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "echo supaterm bridge",
+                  "command": "\(SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
                   "timeout": 10,
                   "type": "command"
                 },
@@ -300,7 +376,7 @@ struct ClaudeSettingsInstallerTests {
       .compactMap { $0["command"] as? String }
 
     #expect(commands == ["echo keep"])
-    #expect(try installer.hasSupatermHooks() == false)
+    #expect(try availableClaudeInstaller(homeDirectoryURL: homeDirectoryURL).integrationHealth() == .absent)
   }
 
   @Test
@@ -316,7 +392,7 @@ struct ClaudeSettingsInstallerTests {
             {
               "hooks": [
                 {
-                  "command": "echo supaterm bridge",
+                  "command": "\(SupatermClaudeHookSettings.command.replacingOccurrences(of: "\"", with: "\\\""))",
                   "timeout": 10,
                   "type": "command"
                 }
@@ -369,6 +445,13 @@ private func temporaryHomeDirectory() throws -> URL {
     .appendingPathComponent(UUID().uuidString, isDirectory: true)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
+}
+
+private func availableClaudeInstaller(homeDirectoryURL: URL) -> ClaudeSettingsInstaller {
+  ClaudeSettingsInstaller(
+    homeDirectoryURL: homeDirectoryURL,
+    runAvailabilityCommand: { CodingAgentCommandResult(status: 0) }
+  )
 }
 
 private func writeSettings(_ contents: String, homeDirectoryURL: URL) throws {

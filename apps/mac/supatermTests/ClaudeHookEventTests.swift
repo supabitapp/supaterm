@@ -13,7 +13,7 @@ struct ClaudeHookEventTests {
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == ClaudeHookFixtures.sessionID)
     #expect(event.transcriptPath == ClaudeHookFixtures.transcriptPath)
-    #expect(event.cwd == ClaudeHookFixtures.cwd)
+    #expect(event.payload["cwd"]?.stringValue == ClaudeHookFixtures.cwd)
   }
 
   @Test
@@ -23,7 +23,7 @@ struct ClaudeHookEventTests {
     #expect(event.hookEventName == .notification)
     #expect(event.notificationMessage() == "Claude needs your attention")
     #expect(event.title == "Needs input")
-    #expect(event.notificationType == "request_input")
+    #expect(event.notificationType == "permission_prompt")
   }
 
   @Test
@@ -56,7 +56,7 @@ struct ClaudeHookEventTests {
     let event = try ClaudeHookFixtures.event(ClaudeHookFixtures.sessionEnd)
 
     #expect(event.hookEventName == .sessionEnd)
-    #expect(event.reason == "exit")
+    #expect(event.payload["reason"]?.stringValue == "exit")
   }
 
   @Test
