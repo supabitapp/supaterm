@@ -355,11 +355,10 @@ struct GhosttyClipboardConfirmationTests {
     #expect(buttonTitles(in: sheet).isSuperset(of: ["Deny", "Allow"]))
     #expect(textPreview(in: sheet).contains("secret"))
     try button(titled: "Deny", in: sheet).performClick(nil)
-    let contents = try await capturedText(
+    _ = try await capturedText(
       from: fixture.surface,
-      containing: "SUPATERM_RESPONSE_"
+      containing: "SUPATERM_RESPONSE_1b5d35323b733b1b5c"
     )
-    #expect(contents.contains("SUPATERM_RESPONSE_1b5d35323b733b1b5c"))
   }
 
   @Test
@@ -379,11 +378,10 @@ struct GhosttyClipboardConfirmationTests {
 
     let sheet = try await attachedSheet(of: fixture.window)
     try button(titled: "Allow", in: sheet).performClick(nil)
-    let contents = try await capturedText(
+    _ = try await capturedText(
       from: fixture.surface,
-      containing: "SUPATERM_RESPONSE_"
+      containing: "SUPATERM_RESPONSE_1b5d35323b733b6332566a636d56301b5c"
     )
-    #expect(contents.contains("SUPATERM_RESPONSE_1b5d35323b733b6332566a636d56301b5c"))
   }
 
   @Test
