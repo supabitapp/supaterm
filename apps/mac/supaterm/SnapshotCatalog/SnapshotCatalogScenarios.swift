@@ -660,13 +660,18 @@ private struct SidebarRowSnapshotFixture: View {
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(fill)
+    .background(
+      rowAppearance.fill(
+        isSelected: item.isSelected,
+        isPressed: item.isPressed,
+        isHovering: item.isRowHovering
+      )
+    )
     .modifier(
       SelectableRowChrome(
-        palette: palette,
         isSelected: item.isSelected,
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        appearance: .sidebar,
+        appearance: rowAppearance,
         showsSelectionEdge: true
       )
     )
@@ -674,17 +679,8 @@ private struct SidebarRowSnapshotFixture: View {
     .background(palette.detailBackground)
   }
 
-  private var fill: Color {
-    if item.isSelected {
-      return palette.sidebarSelectedFill
-    }
-    if item.isPressed {
-      return palette.sidebarItemPressedFill
-    }
-    if item.isRowHovering {
-      return palette.sidebarItemHoverFill
-    }
-    return .clear
+  private var rowAppearance: SelectableRowButtonStyle.ResolvedAppearance {
+    SelectableRowButtonStyle.Appearance.sidebar.resolve(palette: palette)
   }
 }
 

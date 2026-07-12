@@ -239,6 +239,12 @@ struct ChromePaletteTests {
     let tintStartValue = ThemeColor(hex: 0xFFFFD7)
     let tintStopValue = ThemeColor(hex: 0xFFD9FB)
     let tintOpacity = 0.3
+    expectSameColor(palette.chromeBackgroundBaseStart, palette.backgroundTop, "chromeBackgroundBaseStart")
+    expectSameColor(
+      palette.chromeBackgroundBaseStop,
+      isDark ? palette.backgroundBottom : palette.backgroundTop,
+      "chromeBackgroundBaseStop"
+    )
     expectSameColor(
       palette.backgroundIlluminationStart,
       isDark ? .clear : illuminationValue.color.opacity(illuminationStartOpacity),
@@ -286,16 +292,27 @@ struct ChromePaletteTests {
   }
 
   private func expectSidebarTokens(_ palette: Palette, isDark: Bool) {
+    let selectedFillValue = isDark ? ThemeColor.black : .white
+    let selectedFillOpacity = isDark ? 0.2 : 0.85
     expectSameColor(
       palette.sidebarTabTitle,
       (isDark ? Color.white : .black).opacity(isDark ? 0.78 : 0.68),
       "sidebarTabTitle"
     )
-    expectSameColor(palette.sidebarSelectedFill, Color.white.opacity(isDark ? 0.2 : 0.85), "sidebarSelectedFill")
+    expectSameColor(
+      palette.sidebarSelectedFill,
+      selectedFillValue.color.opacity(selectedFillOpacity),
+      "sidebarSelectedFill"
+    )
     expectSameColor(palette.sidebarSelectedStroke, Color.white.opacity(isDark ? 0.2 : 0.98), "sidebarSelectedStroke")
+    expectSameColor(
+      palette.sidebarSelectedShadow,
+      Color.black.opacity(isDark ? 0.25 : 0.12),
+      "sidebarSelectedShadow"
+    )
     expectSameThemeColor(
       palette.sidebarSelectedSurface(over: palette.backgroundTopValue),
-      ColorMath.composited(.white, opacity: isDark ? 0.2 : 0.85, over: palette.backgroundTopValue),
+      ColorMath.composited(selectedFillValue, opacity: selectedFillOpacity, over: palette.backgroundTopValue),
       "sidebarSelectedSurface"
     )
     expectSameColor(

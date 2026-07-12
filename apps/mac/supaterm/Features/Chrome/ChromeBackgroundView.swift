@@ -10,12 +10,12 @@ struct ChromeBackgroundView: View {
       height: 3,
       points: Self.compressedRampPoints,
       colors: [
-        palette.backgroundTop,
-        palette.backgroundTop,
-        baseStop,
-        baseStop,
-        baseStop,
-        baseStop,
+        palette.chromeBackgroundBaseStart,
+        palette.chromeBackgroundBaseStart,
+        palette.chromeBackgroundBaseStop,
+        palette.chromeBackgroundBaseStop,
+        palette.chromeBackgroundBaseStop,
+        palette.chromeBackgroundBaseStop,
       ],
       colorSpace: .perceptual
     )
@@ -50,10 +50,6 @@ struct ChromeBackgroundView: View {
       )
     }
     .overlay(GrainOverlay())
-  }
-
-  private var baseStop: Color {
-    palette.colorScheme == .dark ? palette.backgroundBottom : palette.backgroundTop
   }
 
   private static let compressedRampPoints: [SIMD2<Float>] = [

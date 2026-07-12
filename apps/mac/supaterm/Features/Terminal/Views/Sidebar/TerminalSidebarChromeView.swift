@@ -491,7 +491,7 @@ private struct TerminalSidebarRegularSectionHeader: View {
 
         Text("New Tab")
           .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(palette.primaryText)
+          .foregroundStyle(palette.secondaryText)
 
         Spacer(minLength: 0)
       }

@@ -5,6 +5,55 @@ struct SelectableRowButtonStyle: ButtonStyle {
   enum Appearance {
     case standard(restFill: Color)
     case sidebar
+
+    func resolve(palette: Palette) -> ResolvedAppearance {
+      switch self {
+      case .standard(let restFill):
+        ResolvedAppearance(
+          selectedFill: palette.selectedFill,
+          pressedFill: palette.pressedFill,
+          hoverFill: palette.hoverFill,
+          restFill: restFill,
+          selectedStroke: AnyShapeStyle(palette.selectedStroke),
+          selectedShadow: palette.selectedShadow
+        )
+      case .sidebar:
+        ResolvedAppearance(
+          selectedFill: palette.sidebarSelectedFill,
+          pressedFill: palette.sidebarItemPressedFill,
+          hoverFill: palette.sidebarItemHoverFill,
+          restFill: .clear,
+          selectedStroke: AnyShapeStyle(palette.sidebarSelectedStroke),
+          selectedShadow: palette.sidebarSelectedShadow
+        )
+      }
+    }
+  }
+
+  struct ResolvedAppearance {
+    let selectedFill: Color
+    let pressedFill: Color
+    let hoverFill: Color
+    let restFill: Color
+    let selectedStroke: AnyShapeStyle
+    let selectedShadow: Color
+
+    func fill(
+      isSelected: Bool,
+      isPressed: Bool,
+      isHovering: Bool
+    ) -> Color {
+      if isSelected {
+        return selectedFill
+      }
+      if isPressed {
+        return pressedFill
+      }
+      if isHovering {
+        return hoverFill
+      }
+      return restFill
+    }
   }
 
   let palette: Palette
@@ -31,65 +80,30 @@ struct SelectableRowButtonStyle: ButtonStyle {
   }
 
   func makeBody(configuration: Configuration) -> some View {
+    let resolvedAppearance = appearance.resolve(palette: palette)
     configuration.label
-      .background(fill(isPressed: configuration.isPressed))
+      .background(
+        resolvedAppearance.fill(
+          isSelected: isSelected,
+          isPressed: configuration.isPressed,
+          isHovering: isHovering
+        )
+      )
       .modifier(
         SelectableRowChrome(
-          palette: palette,
           isSelected: isSelected,
           cornerRadius: cornerRadius,
-          appearance: appearance,
+          appearance: resolvedAppearance,
           showsSelectionEdge: showsSelectionEdge
         )
       )
   }
-
-  private func fill(isPressed: Bool) -> Color {
-    let fills = fills
-    if isSelected {
-      return fills.selected
-    }
-    if isPressed {
-      return fills.pressed
-    }
-    if isHovering {
-      return fills.hover
-    }
-    return fills.rest
-  }
-
-  private var fills: Fills {
-    switch appearance {
-    case .standard(let restFill):
-      Fills(
-        selected: palette.selectedFill,
-        pressed: palette.pressedFill,
-        hover: palette.hoverFill,
-        rest: restFill
-      )
-    case .sidebar:
-      Fills(
-        selected: palette.sidebarSelectedFill,
-        pressed: palette.sidebarItemPressedFill,
-        hover: palette.sidebarItemHoverFill,
-        rest: .clear
-      )
-    }
-  }
-
-  private struct Fills {
-    let selected: Color
-    let pressed: Color
-    let hover: Color
-    let rest: Color
-  }
 }
 
 struct SelectableRowChrome: ViewModifier {
-  let palette: Palette
   let isSelected: Bool
   let cornerRadius: CGFloat
-  let appearance: SelectableRowButtonStyle.Appearance
+  let appearance: SelectableRowButtonStyle.ResolvedAppearance
   let showsSelectionEdge: Bool
 
   func body(content: Content) -> some View {
@@ -100,7 +114,7 @@ struct SelectableRowChrome: ViewModifier {
       .clipShape(shape)
       .overlay { selectionEdge(shape: shape, isVisible: hasEdge) }
       .shadow(
-        color: hasEdge ? palette.selectedShadow : .clear,
+        color: hasEdge ? appearance.selectedShadow : .clear,
         radius: hasEdge ? 4 : 0,
         y: hasEdge ? 1 : 0
       )
@@ -110,12 +124,7 @@ struct SelectableRowChrome: ViewModifier {
   @ViewBuilder
   private func selectionEdge(shape: RoundedRectangle, isVisible: Bool) -> some View {
     if isVisible {
-      switch appearance {
-      case .standard:
-        shape.strokeBorder(palette.selectedStroke, lineWidth: 1)
-      case .sidebar:
-        shape.strokeBorder(palette.sidebarSelectedStroke, lineWidth: 1)
-      }
+      shape.strokeBorder(appearance.selectedStroke, lineWidth: 1)
     }
   }
 }
