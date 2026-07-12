@@ -258,7 +258,7 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
-    func agentInstallersAndInternalHookCommandsStayHermetic() async throws {
+    func agentSettingsAndInternalHookCommandsStayHermetic() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
         let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
@@ -284,18 +284,6 @@ extension SupatermE2ESuite {
         )
         let claudeURL = ClaudeSettingsInstaller.settingsURL(homeDirectoryURL: app.cliHome)
         #expect(try String(contentsOf: claudeURL, encoding: .utf8).contains("receive-agent-hook --agent claude"))
-
-        _ = try requireSuccessfulSPResult(
-          try runner.run(["agent", "install-hook", "codex"], cwd: space.directory)
-        )
-        let codexURL = CodexSettingsInstaller.settingsURL(homeDirectoryURL: app.cliHome)
-        let codexConfigURL = CodexSettingsInstaller.configURL(homeDirectoryURL: app.cliHome)
-        #expect(try String(contentsOf: codexURL, encoding: .utf8).contains("receive-agent-hook --agent codex"))
-        #expect(FileManager.default.fileExists(atPath: codexConfigURL.path))
-
-        _ = try requireSuccessfulSPResult(
-          try runner.run(["agent", "install-hooks"], cwd: space.directory)
-        )
 
         let event = SupatermAgentHookEvent(
           cwd: space.directory.path,
@@ -326,11 +314,6 @@ extension SupatermE2ESuite {
         )
         #expect(!fileContents(at: claudeURL).contains("receive-agent-hook --agent claude"))
 
-        _ = try requireSuccessfulSPResult(
-          try runner.run(["agent", "remove-hook", "codex"], cwd: space.directory)
-        )
-        #expect(!fileContents(at: codexURL).contains("receive-agent-hook --agent codex"))
-        #expect(codexURL.path.hasPrefix(app.cliHome.path))
         #expect(claudeURL.path.hasPrefix(app.cliHome.path))
       }
     }
