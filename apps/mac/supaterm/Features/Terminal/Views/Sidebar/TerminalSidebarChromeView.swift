@@ -37,6 +37,7 @@ struct TerminalSidebarChromeView: View {
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Shared(.supatermSettings) private var supatermSettings = .default
   @State private var collapsedProjectIDs: Set<TerminalProjectID> = []
 
@@ -52,7 +53,8 @@ struct TerminalSidebarChromeView: View {
         shortcutHintsByTabID: shortcutHintsByTabID,
         showsShortcutHints: commandHoldObserver.isPressed,
         showsAgentMarks: supatermSettings.codingAgentsShowIcons,
-        showsAgentSpinner: supatermSettings.codingAgentsShowSpinner
+        showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
+        reduceMotion: reduceMotion
       )
       .frame(minHeight: 0, maxHeight: .infinity)
       .layoutPriority(-1)
@@ -108,6 +110,7 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
   let showsShortcutHints: Bool
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
+  let reduceMotion: Bool
 
   func makeCoordinator() -> Coordinator {
     Coordinator(parent: self)
@@ -135,7 +138,7 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
     weak var controller: TerminalSidebarCollectionViewController?
     var dataSource: NSCollectionViewDiffableDataSource<TerminalSidebarSectionID, TerminalSidebarItemID>?
     private var itemByID: [TerminalSidebarItemID: AnyView] = [:]
-    private var measuredHeights: [TerminalSidebarItemID: CGFloat] = [:]
+    private var measuredSizes: [TerminalSidebarItemID: NSSize] = [:]
     private var pendingExpansion: Task<Void, Never>?
 
     init(parent: TerminalSidebarProjectList) {
@@ -155,16 +158,19 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
           for: indexPath
         )
         guard let item = item as? TerminalSidebarCollectionItem else { return nil }
-        item.host(self.itemByID[itemID] ?? AnyView(EmptyView()))
+        item.host(
+          self.itemByID[itemID] ?? AnyView(EmptyView()),
+          dragValue: self.dragValue(for: itemID)
+        )
         return item
       }
       applySnapshot()
     }
 
     func applySnapshot() {
-      guard let controller, let dataSource else { return }
+      guard controller != nil, let dataSource else { return }
       itemByID.removeAll()
-      measuredHeights.removeAll()
+      measuredSizes.removeAll()
       var snapshot = NSDiffableDataSourceSnapshot<TerminalSidebarSectionID, TerminalSidebarItemID>()
 
       for project in parent.projects {
@@ -185,8 +191,12 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       snapshot.appendSections([.newProject])
       snapshot.appendItems([.newProject], toSection: .newProject)
       itemByID[.newProject] = AnyView(newProjectRow)
-      dataSource.apply(snapshot, animatingDifferences: false)
-      controller.collectionView.collectionViewLayout?.invalidateLayout()
+      refreshVisibleItems()
+      dataSource.apply(snapshot, animatingDifferences: !parent.reduceMotion) { [weak self] in
+        guard let self else { return }
+        self.refreshVisibleItems()
+        self.controller?.invalidateLayoutMetrics()
+      }
     }
 
     func collectionView(
@@ -194,12 +204,17 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       layout collectionViewLayout: NSCollectionViewLayout,
       sizeForItemAt indexPath: IndexPath
     ) -> NSSize {
-      let width = max(1, collectionView.bounds.width - 16)
+      let sectionInset =
+        (collectionViewLayout as? NSCollectionViewFlowLayout)?.sectionInset ?? NSEdgeInsets()
+      let width = max(
+        1,
+        collectionView.bounds.width - sectionInset.left - sectionInset.right - 1
+      )
       guard let itemID = dataSource?.itemIdentifier(for: indexPath) else {
         return NSSize(width: width, height: 36)
       }
-      if let height = measuredHeights[itemID] {
-        return NSSize(width: width, height: height)
+      if let size = measuredSizes[itemID], size.width == width {
+        return size
       }
       let height: CGFloat
       switch itemID {
@@ -210,27 +225,9 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
         host.frame.size.width = width
         height = max(TerminalSidebarLayout.tabRowMinHeight, host.fittingSize.height)
       }
-      measuredHeights[itemID] = height
-      return NSSize(width: width, height: height)
-    }
-
-    func collectionView(
-      _ collectionView: NSCollectionView,
-      pasteboardWriterForItemAt indexPath: IndexPath
-    ) -> NSPasteboardWriting? {
-      guard let itemID = dataSource?.itemIdentifier(for: indexPath) else { return nil }
-      let value: String
-      switch itemID {
-      case .project(let projectID):
-        value = "project:\(projectID.rawValue.uuidString)"
-      case .tab(let tabID):
-        value = "tab:\(tabID.rawValue.uuidString)"
-      case .newProject:
-        return nil
-      }
-      let item = NSPasteboardItem()
-      item.setString(value, forType: Self.dragType)
-      return item
+      let size = NSSize(width: width, height: height)
+      measuredSizes[itemID] = size
+      return size
     }
 
     func collectionView(
@@ -257,21 +254,28 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       pendingExpansion?.cancel()
       guard let dragged = draggedValue(from: draggingInfo) else { return false }
       let sections = dataSource?.snapshot().sectionIdentifiers ?? []
-      guard case .project(let targetProjectID)? = sections[safe: indexPath.section] else { return false }
 
       switch dragged {
       case .project(let projectID):
-        let pinnedCount = parent.projects.filter(\.isPinned).count
-        let isPinned = indexPath.section <= pinnedCount
-        let destinationIndex = isPinned ? indexPath.section : indexPath.section - pinnedCount
+        guard let draggedProject = parent.projects.first(where: { $0.id == projectID }) else {
+          return false
+        }
+        let targetOffset = min(indexPath.section, parent.projects.count)
+        let isPinned = parent.projects[safe: targetOffset]?.isPinned ?? draggedProject.isPinned
+        let destinationIndex = parent.projects.prefix(targetOffset).count { $0.isPinned == isPinned }
         parent.terminal.moveProject(projectID, isPinned: isPinned, at: destinationIndex)
 
       case .tab(let tabID):
+        guard case .project(let targetProjectID)? = sections[safe: indexPath.section] else {
+          return false
+        }
         let targetTabs = parent.groups.first(where: { $0.projectID == targetProjectID })?.tabs ?? []
-        let pinnedCount = targetTabs.filter(\.isPinned).count
-        let insertionIndex = max(0, indexPath.item - 1)
-        let isPinned = insertionIndex <= pinnedCount
-        let destinationIndex = isPinned ? insertionIndex : insertionIndex - pinnedCount
+        guard
+          let draggedTab = parent.groups.lazy.flatMap(\.tabs).first(where: { $0.id == tabID })
+        else { return false }
+        let targetOffset = min(max(0, indexPath.item - 1), targetTabs.count)
+        let isPinned = targetTabs[safe: targetOffset]?.isPinned ?? draggedTab.isPinned
+        let destinationIndex = targetTabs.prefix(targetOffset).count { $0.isPinned == isPinned }
         parent.terminal.moveTab(
           tabID,
           to: targetProjectID,
@@ -291,6 +295,30 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       return components[0] == "project"
         ? .project(TerminalProjectID(rawValue: uuid))
         : .tab(TerminalTabID(rawValue: uuid))
+    }
+
+    private func refreshVisibleItems() {
+      guard let controller, let dataSource else { return }
+      for item in controller.collectionView.visibleItems() {
+        guard
+          let item = item as? TerminalSidebarCollectionItem,
+          let indexPath = controller.collectionView.indexPath(for: item),
+          let itemID = dataSource.itemIdentifier(for: indexPath),
+          let view = itemByID[itemID]
+        else { continue }
+        item.host(view, dragValue: dragValue(for: itemID))
+      }
+    }
+
+    private func dragValue(for itemID: TerminalSidebarItemID) -> String? {
+      switch itemID {
+      case .project(let projectID):
+        "project:\(projectID.rawValue.uuidString)"
+      case .tab(let tabID):
+        "tab:\(tabID.rawValue.uuidString)"
+      case .newProject:
+        nil
+      }
     }
 
     private func scheduleExpansion(_ projectID: TerminalProjectID) {
@@ -432,6 +460,7 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
 @MainActor
 private final class TerminalSidebarCollectionViewController: NSViewController {
   let collectionView = NSCollectionView()
+  private var lastLayoutWidth: CGFloat = 0
 
   override func loadView() {
     let layout = NSCollectionViewFlowLayout()
@@ -453,18 +482,48 @@ private final class TerminalSidebarCollectionViewController: NSViewController {
     )
     view = scrollView
   }
+
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    let width = collectionView.bounds.width
+    guard width > 0, width != lastLayoutWidth else { return }
+    lastLayoutWidth = width
+    invalidateLayoutMetrics()
+  }
+
+  func invalidateLayoutMetrics() {
+    guard let layout = collectionView.collectionViewLayout as? NSCollectionViewFlowLayout else { return }
+    let context = NSCollectionViewFlowLayoutInvalidationContext()
+    context.invalidateFlowLayoutDelegateMetrics = true
+    layout.invalidateLayout(with: context)
+  }
 }
 
 @MainActor
-private final class TerminalSidebarCollectionItem: NSCollectionViewItem {
+private final class TerminalSidebarCollectionItem: NSCollectionViewItem,
+  NSDraggingSource,
+  NSGestureRecognizerDelegate
+{
   static let identifier = NSUserInterfaceItemIdentifier("TerminalSidebarCollectionItem")
+
+  private var hostingView: NSHostingView<AnyView>?
+  private var dragValue: String?
 
   override func loadView() {
     view = NSView()
+    let recognizer = NSPanGestureRecognizer(target: self, action: #selector(handleDrag(_:)))
+    recognizer.buttonMask = 1
+    recognizer.delaysPrimaryMouseButtonEvents = false
+    recognizer.delegate = self
+    view.addGestureRecognizer(recognizer)
   }
 
-  func host(_ view: AnyView) {
-    self.view.subviews.forEach { $0.removeFromSuperview() }
+  func host(_ view: AnyView, dragValue: String?) {
+    self.dragValue = dragValue
+    if let hostingView {
+      hostingView.rootView = view
+      return
+    }
     let hostingView = NSHostingView(rootView: view)
     hostingView.translatesAutoresizingMaskIntoConstraints = false
     self.view.addSubview(hostingView)
@@ -474,6 +533,44 @@ private final class TerminalSidebarCollectionItem: NSCollectionViewItem {
       hostingView.topAnchor.constraint(equalTo: self.view.topAnchor),
       hostingView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
     ])
+    self.hostingView = hostingView
+  }
+
+  func draggingSession(
+    _ session: NSDraggingSession,
+    sourceOperationMaskFor context: NSDraggingContext
+  ) -> NSDragOperation {
+    .move
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: NSGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer
+  ) -> Bool {
+    true
+  }
+
+  @objc private func handleDrag(_ recognizer: NSPanGestureRecognizer) {
+    guard
+      recognizer.state == .began,
+      let dragValue,
+      let event = NSApp.currentEvent
+    else { return }
+    let pasteboardItem = NSPasteboardItem()
+    pasteboardItem.setString(dragValue, forType: TerminalSidebarProjectList.Coordinator.dragType)
+    let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+    draggingItem.setDraggingFrame(view.bounds, contents: draggingImage())
+    view.beginDraggingSession(with: [draggingItem], event: event, source: self)
+  }
+
+  private func draggingImage() -> NSImage {
+    let image = NSImage(size: view.bounds.size)
+    guard let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+      return image
+    }
+    view.cacheDisplay(in: view.bounds, to: representation)
+    image.addRepresentation(representation)
+    return image
   }
 }
 
