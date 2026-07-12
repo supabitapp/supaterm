@@ -263,7 +263,8 @@ struct TerminalSidebarDragSessionTests {
     session.insertionIndex[.pinned] = 1
 
     #expect(session.reorderOffset(for: .pinned, tabID: pinned[0].id) == 0)
-    #expect(session.reorderOffset(for: .pinned, tabID: pinned[1].id) == 38)
+    let expected = TerminalSidebarLayout.tabRowMinHeight + TerminalSidebarLayout.tabRowSpacing
+    #expect(session.reorderOffset(for: .pinned, tabID: pinned[1].id) == expected)
   }
 
   @Test

@@ -50,19 +50,19 @@ struct ReleaseAnnouncementCardView: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.cardVerticalPadding)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(
       RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
         style: .continuous
       )
       .fill(palette.unselectedFill)
     )
     .contentShape(
       RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
         style: .continuous
       )
     )

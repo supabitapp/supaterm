@@ -658,38 +658,31 @@ private struct SidebarRowSnapshotFixture: View {
       isRowHovering: item.isRowHovering
     )
     .lineLimit(10)
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(fill)
-    .clipShape(.rect(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius))
-    .overlay(
-      RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        style: .continuous
+    .background(
+      rowAppearance.fill(
+        isSelected: item.isSelected,
+        isPressed: item.isPressed,
+        isHovering: item.isRowHovering
       )
-      .strokeBorder(palette.selectedStroke.opacity(item.isSelected ? 1 : 0), lineWidth: 1)
     )
-    .shadow(
-      color: item.isSelected ? palette.selectedShadow : .clear,
-      radius: item.isSelected ? 5 : 0
+    .modifier(
+      SelectableRowChrome(
+        isSelected: item.isSelected,
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        appearance: rowAppearance,
+        showsSelectionEdge: true
+      )
     )
     .padding(10)
     .background(palette.detailBackground)
   }
 
-  private var fill: Color {
-    if item.isSelected {
-      return palette.selectedFill
-    }
-    if item.isPressed {
-      return palette.pressedFill
-    }
-    if item.isRowHovering {
-      return palette.hoverFill
-    }
-    return .clear
+  private var rowAppearance: SelectableRowButtonStyle.ResolvedAppearance {
+    SelectableRowButtonStyle.Appearance.sidebar.resolve(palette: palette)
   }
 }
 

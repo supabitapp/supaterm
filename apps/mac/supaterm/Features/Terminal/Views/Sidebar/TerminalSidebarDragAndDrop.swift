@@ -551,11 +551,11 @@ private struct TerminalSidebarMorphingPreview: View {
       isRowHovering: false
     )
     .lineLimit(10)
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(width: rowWidth)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-    .background(palette.selectedFill)
+    .background(palette.sidebarDragPreviewFill)
     .clipShape(
       RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
     )

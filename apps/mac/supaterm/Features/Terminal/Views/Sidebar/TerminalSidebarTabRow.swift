@@ -171,7 +171,7 @@ struct TerminalSidebarTabRow: View {
           Button(action: close) {
             Image(systemName: "xmark")
               .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.primaryText)
+              .foregroundStyle(isSelected ? palette.selectedText : palette.sidebarTabTitle)
               .frame(width: 24, height: 24)
               .accessibilityHidden(true)
               .background(
@@ -186,7 +186,7 @@ struct TerminalSidebarTabRow: View {
           .onHover { isCloseHovering = $0 }
         }
       }
-      .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+      .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
       .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
       .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
       .frame(maxWidth: .infinity)
@@ -196,7 +196,8 @@ struct TerminalSidebarTabRow: View {
         palette: palette,
         isSelected: isSelected,
         isHovering: isHovering,
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        appearance: .sidebar
       )
     )
     .terminalAnimation(
