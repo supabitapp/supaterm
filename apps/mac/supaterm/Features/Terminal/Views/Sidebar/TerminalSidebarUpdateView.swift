@@ -93,20 +93,20 @@ struct TerminalSidebarUpdateSection: View {
 
       content
     }
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
-    .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
-    .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight, alignment: .topLeading)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+    .padding(.vertical, TerminalSidebarLayout.cardVerticalPadding)
+    .frame(minHeight: TerminalSidebarLayout.cardMinHeight, alignment: .topLeading)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(
       RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
         style: .continuous
       )
       .fill(backgroundColor)
     )
     .overlay(
       RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
         style: .continuous
       )
       .strokeBorder(
@@ -120,7 +120,7 @@ struct TerminalSidebarUpdateSection: View {
     )
     .contentShape(
       RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        cornerRadius: TerminalSidebarLayout.cardCornerRadius,
         style: .continuous
       )
     )

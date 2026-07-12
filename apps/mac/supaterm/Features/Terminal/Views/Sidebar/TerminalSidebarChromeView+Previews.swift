@@ -293,19 +293,24 @@ private struct TerminalSidebarTabPreviewRow: View {
       isRowHovering: false
     )
     .lineLimit(10)
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(backgroundColor)
-    .clipShape(
-      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    .modifier(
+      SelectableRowChrome(
+        palette: palette,
+        isSelected: item.isSelected,
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        appearance: .sidebar,
+        showsSelectionEdge: true
+      )
     )
-    .shadow(color: item.isSelected ? palette.shadow : .clear, radius: item.isSelected ? 2 : 0, y: 1.5)
   }
 
   private var backgroundColor: Color {
-    item.isSelected ? palette.selectedFill : .clear
+    item.isSelected ? palette.sidebarSelectedFill : .clear
   }
 }
 

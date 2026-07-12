@@ -1,3 +1,4 @@
+import SupaTheme
 import SwiftUI
 
 struct TerminalSidebarButtonStyle: ButtonStyle {
@@ -7,10 +8,10 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
     case space
   }
 
+  let palette: Palette
   let layout: Layout
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.colorScheme) private var colorScheme
   @Environment(\.isEnabled) private var isEnabled
   @Environment(\.controlSize) private var controlSize
   @State private var isHovering = false
@@ -56,8 +57,8 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
   }
 
   private func fill(isPressed: Bool) -> some View {
-    RoundedRectangle(cornerRadius: layout == .rect ? 12 : 8, style: .continuous)
-      .fill(Color.primary.opacity(backgroundOpacity(isPressed: isPressed)))
+    RoundedRectangle(cornerRadius: 8, style: .continuous)
+      .fill(background(isPressed: isPressed))
   }
 
   private var size: CGFloat {
@@ -71,10 +72,13 @@ struct TerminalSidebarButtonStyle: ButtonStyle {
     }
   }
 
-  private func backgroundOpacity(isPressed: Bool) -> Double {
-    if (isHovering || isPressed) && isEnabled {
-      return colorScheme == .dark ? 0.2 : 0.1
+  private func background(isPressed: Bool) -> Color {
+    if isPressed && isEnabled {
+      return palette.sidebarItemPressedFill
     }
-    return 0
+    if isHovering && isEnabled {
+      return palette.sidebarItemHoverFill
+    }
+    return .clear
   }
 }

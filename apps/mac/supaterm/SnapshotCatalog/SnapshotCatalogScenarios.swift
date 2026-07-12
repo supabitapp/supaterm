@@ -656,22 +656,19 @@ private struct SidebarRowSnapshotFixture: View {
       isRowHovering: item.isRowHovering
     )
     .lineLimit(10)
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(fill)
-    .clipShape(.rect(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius))
-    .overlay(
-      RoundedRectangle(
+    .modifier(
+      SelectableRowChrome(
+        palette: palette,
+        isSelected: item.isSelected,
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        style: .continuous
+        appearance: .sidebar,
+        showsSelectionEdge: true
       )
-      .strokeBorder(palette.selectedStroke.opacity(item.isSelected ? 1 : 0), lineWidth: 1)
-    )
-    .shadow(
-      color: item.isSelected ? palette.selectedShadow : .clear,
-      radius: item.isSelected ? 5 : 0
     )
     .padding(10)
     .background(palette.detailBackground)
@@ -679,13 +676,13 @@ private struct SidebarRowSnapshotFixture: View {
 
   private var fill: Color {
     if item.isSelected {
-      return palette.selectedFill
+      return palette.sidebarSelectedFill
     }
     if item.isPressed {
-      return palette.pressedFill
+      return palette.sidebarItemPressedFill
     }
     if item.isRowHovering {
-      return palette.hoverFill
+      return palette.sidebarItemHoverFill
     }
     return .clear
   }

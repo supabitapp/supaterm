@@ -180,7 +180,7 @@ struct TerminalSidebarChromeView: View {
                 )
               }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 4)
             .padding(.bottom, 8)
           }
           .coordinateSpace(name: terminalSidebarScrollSpace)
@@ -471,7 +471,7 @@ private struct TerminalSidebarSectionDivider: View {
 
   var body: some View {
     RoundedRectangle(cornerRadius: 100, style: .continuous)
-      .fill(palette.divider)
+      .fill(palette.sidebarSeparator)
       .frame(height: 1)
   }
 }
@@ -495,10 +495,10 @@ private struct TerminalSidebarRegularSectionHeader: View {
 
         Spacer(minLength: 0)
       }
-      .padding(.horizontal, 10)
-      .frame(height: 36)
+      .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+      .frame(height: TerminalSidebarLayout.tabRowMinHeight)
     }
-    .buttonStyle(TerminalSidebarButtonStyle(layout: .rect))
+    .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .rect))
   }
 }
 
