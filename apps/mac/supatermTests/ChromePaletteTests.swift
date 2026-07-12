@@ -254,7 +254,7 @@ struct ChromePaletteTests {
     )
     expectSameColor(
       palette.sidebarSelectedShadow,
-      Color.black.opacity(isDark ? 0.25 : 0.12),
+      isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.12),
       "sidebarSelectedShadow"
     )
     expectSameThemeColor(

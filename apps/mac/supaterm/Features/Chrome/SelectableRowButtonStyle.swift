@@ -115,8 +115,7 @@ struct SelectableRowChrome: ViewModifier {
       .overlay { selectionEdge(shape: shape, isVisible: hasEdge) }
       .shadow(
         color: hasEdge ? appearance.selectedShadow : .clear,
-        radius: hasEdge ? 4 : 0,
-        y: hasEdge ? 1 : 0
+        radius: hasEdge ? 5 : 0
       )
       .contentShape(shape)
   }
