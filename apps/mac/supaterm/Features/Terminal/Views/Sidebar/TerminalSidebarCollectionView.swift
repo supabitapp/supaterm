@@ -25,8 +25,22 @@ final class TerminalSidebarCollectionViewController: NSViewController {
     scrollView: scrollView,
     onScroll: { [weak self] pointerY in self?.onAutoscroll?(pointerY) }
   )
+  private let performReorderHaptic: () -> Void
   private var dragSessionSource: TerminalSidebarDragSessionSource?
+  private var lastHapticDestination: TerminalSidebarDropTarget.Destination?
   private var animationsEnabled = true
+
+  init(
+    performReorderHaptic: @escaping () -> Void = {
+      NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }
+  ) {
+    self.performReorderHaptic = performReorderHaptic
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
   override func loadView() {
     scrollView.drawsBackground = false
@@ -115,6 +129,10 @@ final class TerminalSidebarCollectionViewController: NSViewController {
     }
     dragLayoutAnimator.animate(enabled: animationsEnabled) {
       self.collectionLayout.dropTarget = target
+    }
+    if let destination = target?.destination, destination != lastHapticDestination {
+      lastHapticDestination = destination
+      performReorderHaptic()
     }
     if let pointerY {
       autoscrollController.update(pointerY: pointerY)

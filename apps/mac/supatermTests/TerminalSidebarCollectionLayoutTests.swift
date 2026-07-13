@@ -52,6 +52,94 @@ struct TerminalSidebarCollectionLayoutTests {
     #expect(layout.targetPlan.items.map(\.frame.width) == [303, 303, 303])
   }
 
+  @Test @MainActor
+  func hapticFeedbackFollowsDistinctDropTargets() {
+    var hapticCount = 0
+    let controller = hapticController {
+      hapticCount += 1
+    }
+    let firstTarget = TerminalSidebarDropTarget(
+      destination: .project(isPinned: false, laneIndex: 0),
+      insertionEntryIndex: 0
+    )
+    let secondTarget = TerminalSidebarDropTarget(
+      destination: .project(isPinned: false, laneIndex: 1),
+      insertionEntryIndex: 1
+    )
+    let reflowedFirstTarget = TerminalSidebarDropTarget(
+      destination: firstTarget.destination,
+      insertionEntryIndex: 3
+    )
+
+    controller.setDropTarget(firstTarget, pointerY: nil)
+    controller.setDropTarget(firstTarget, pointerY: nil)
+    controller.setDropTarget(reflowedFirstTarget, pointerY: nil)
+    controller.setDropTarget(secondTarget, pointerY: nil)
+    controller.setDropTarget(nil, pointerY: nil)
+
+    #expect(hapticCount == 2)
+  }
+
+  @Test @MainActor
+  func hapticFeedbackDistinguishesProjectsAtTheSameTabLane() {
+    var hapticCount = 0
+    let controller = hapticController {
+      hapticCount += 1
+    }
+
+    controller.setDropTarget(
+      TerminalSidebarDropTarget(
+        destination: .tab(projectID: firstProjectID, isPinned: false, laneIndex: 0),
+        insertionEntryIndex: 1
+      ),
+      pointerY: nil
+    )
+    controller.setDropTarget(
+      TerminalSidebarDropTarget(
+        destination: .tab(projectID: secondProjectID, isPinned: false, laneIndex: 0),
+        insertionEntryIndex: 3
+      ),
+      pointerY: nil
+    )
+
+    #expect(hapticCount == 2)
+  }
+
+  @Test @MainActor
+  func hapticFeedbackRemainsDeduplicatedAfterLeavingTarget() {
+    var hapticCount = 0
+    let controller = hapticController {
+      hapticCount += 1
+    }
+    let target = TerminalSidebarDropTarget(
+      destination: .project(isPinned: false, laneIndex: 0),
+      insertionEntryIndex: 0
+    )
+
+    controller.setDropTarget(target, pointerY: nil)
+    controller.setDropTarget(nil, pointerY: nil)
+    controller.setDropTarget(target, pointerY: nil)
+
+    #expect(hapticCount == 1)
+  }
+
+  @MainActor
+  private func hapticController(
+    performReorderHaptic: @escaping () -> Void
+  ) -> TerminalSidebarCollectionViewController {
+    let controller = TerminalSidebarCollectionViewController(
+      performReorderHaptic: performReorderHaptic
+    )
+    _ = controller.view
+    controller.configure(
+      entries: [],
+      collapsedProjectIDs: [],
+      animated: false,
+      animationsEnabled: false
+    )
+    return controller
+  }
+
   @Test
   func expansionProgressConsumesHeightAndMovesFollowingRows() {
     let entries = singleProjectEntries
