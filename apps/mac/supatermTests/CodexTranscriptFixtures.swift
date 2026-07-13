@@ -10,7 +10,12 @@ enum CodexTranscriptFixtures {
 
   enum Line {
     case sessionMeta(id: String)
-    case subagentSessionMeta(id: String, sessionID: String, nickname: String)
+    case subagentSessionMeta(
+      id: String,
+      sessionID: String,
+      nickname: String,
+      agentPath: String? = nil
+    )
     case taskStarted(turnID: String)
     case turnStarted(turnID: String)
     case taskComplete(turnID: String, lastAgentMessage: String? = nil)
@@ -40,7 +45,11 @@ enum CodexTranscriptFixtures {
           ],
         ]
 
-      case .subagentSessionMeta(let id, let sessionID, let nickname):
+      case .subagentSessionMeta(let id, let sessionID, let nickname, let agentPath):
+        var threadSpawn: [String: Any] = ["agent_nickname": nickname]
+        if let agentPath {
+          threadSpawn["agent_path"] = agentPath
+        }
         object = [
           "timestamp": "2026-04-05T07:00:00.000Z",
           "type": "session_meta",
@@ -50,9 +59,7 @@ enum CodexTranscriptFixtures {
             "agent_nickname": nickname,
             "source": [
               "subagent": [
-                "thread_spawn": [
-                  "agent_nickname": nickname
-                ]
+                "thread_spawn": threadSpawn
               ]
             ],
           ],

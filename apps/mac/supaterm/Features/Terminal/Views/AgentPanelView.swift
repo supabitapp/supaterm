@@ -138,12 +138,10 @@ struct AgentPanelView: View {
         Text(Self.childTitle(child))
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.primaryText)
-        if let detail = child.detail {
-          Text(detail)
-            .font(.system(size: 11))
-            .foregroundStyle(palette.secondaryText)
-            .lineLimit(2)
-        }
+        Text(Self.childDetail(child))
+          .font(.system(size: 11))
+          .foregroundStyle(palette.secondaryText)
+          .lineLimit(2)
       }
       .fixedSize(horizontal: false, vertical: true)
     }
@@ -163,6 +161,10 @@ struct AgentPanelView: View {
     case (nil, nil):
       return "Agent"
     }
+  }
+
+  static func childDetail(_ child: TerminalAgentActiveChild) -> String {
+    child.detail ?? "Working…"
   }
 
   private static func normalizedChildLabel(_ value: String?) -> String? {

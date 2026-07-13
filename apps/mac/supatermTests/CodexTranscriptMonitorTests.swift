@@ -141,6 +141,52 @@ struct CodexTranscriptMonitorTests {
 
   @Test
   @MainActor
+  func subagentTaskProvidesDetailUntilAssistantMessage() throws {
+    let transcriptURL = try CodexTranscriptFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+
+    try CodexTranscriptFixtures.append(
+      .subagentSessionMeta(
+        id: "child-1",
+        sessionID: "session-1",
+        nickname: "Kepler",
+        agentPath: "/root/persistence_guard"
+      ),
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptURL)
+    try CodexTranscriptFixtures.append(
+      .functionCall(name: "exec_command", arguments: ["cmd": "git status --short"]),
+      to: transcriptURL
+    )
+    let start = try #require(readStart(at: transcriptURL.path))
+    let monitor = CodexPanelMonitor()
+    let initialProjection = try #require(
+      monitor.consume(AgentTranscriptUpdate(objects: start.objects))
+    )
+
+    #expect(initialProjection.detail == "Persistence guard")
+    #expect(initialProjection.hoverMessages.isEmpty)
+
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Tracing persistence failure behavior"),
+      to: transcriptURL
+    )
+    try CodexTranscriptFixtures.append(
+      .functionCall(name: "exec_command", arguments: ["cmd": "rg persistence apps/mac"]),
+      to: transcriptURL
+    )
+    let result = try #require(advance(start.cursor, at: transcriptURL.path))
+    let updatedProjection = try #require(
+      monitor.consume(AgentTranscriptUpdate(objects: result.objects))
+    )
+
+    #expect(updatedProjection.detail == "Tracing persistence failure behavior")
+    #expect(updatedProjection.hoverMessages == ["Tracing persistence failure behavior"])
+  }
+
+  @Test
+  @MainActor
   func threadGoalUpdatedAddsGoalProgressRow() throws {
     let projection = try snapshot([
       .taskStarted(turnID: "turn-1"),

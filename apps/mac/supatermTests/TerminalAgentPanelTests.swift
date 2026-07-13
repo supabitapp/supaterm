@@ -20,9 +20,20 @@ struct TerminalAgentPanelTests {
     #expect(AgentPanelView.childTitle(child()) == "Agent")
   }
 
+  @Test
+  @MainActor
+  func childDetailFallsBackWhileWaitingForFirstMessage() {
+    #expect(AgentPanelView.childDetail(child()) == "Working…")
+    #expect(
+      AgentPanelView.childDetail(child(detail: "Tracing persistence failure behavior"))
+        == "Tracing persistence failure behavior"
+    )
+  }
+
   private func child(
     nickname: String? = nil,
-    role: String? = nil
+    role: String? = nil,
+    detail: String? = nil
   ) -> TerminalAgentActiveChild {
     TerminalAgentActiveChild(
       id: TerminalAgentActiveChild.Identity(
@@ -33,7 +44,7 @@ struct TerminalAgentPanelTests {
       nickname: nickname,
       role: role,
       phase: .running,
-      detail: nil
+      detail: detail
     )
   }
 
