@@ -31,6 +31,48 @@ struct TerminalProjectManagerTests {
   }
 
   @Test
+  func movingTabDownUsesPostRemovalLaneIndex() throws {
+    let project = TerminalProjectItem(name: "Shell")
+    let manager = TerminalProjectManager(projects: [project])
+    let first = try #require(manager.createTab(title: "first", in: project.id))
+    let second = try #require(manager.createTab(title: "second", in: project.id))
+    let third = try #require(manager.createTab(title: "third", in: project.id))
+
+    manager.moveTab(first, to: project.id, isPinned: false, at: 2)
+
+    #expect(manager.tabs(in: project.id).map(\.id) == [second, third, first])
+  }
+
+  @Test
+  func movingTabUpPreservesSelection() throws {
+    let project = TerminalProjectItem(name: "Shell")
+    let manager = TerminalProjectManager(projects: [project])
+    let first = try #require(manager.createTab(title: "first", in: project.id))
+    _ = try #require(manager.createTab(title: "second", in: project.id))
+    let third = try #require(manager.createTab(title: "third", in: project.id))
+    manager.selectTab(third)
+
+    manager.moveTab(third, to: project.id, isPinned: false, at: 0)
+
+    #expect(manager.tabs(in: project.id).map(\.id).first == third)
+    #expect(manager.selectedTabId == third)
+    #expect(manager.tab(for: first) != nil)
+  }
+
+  @Test
+  func movingTabAcrossPinLaneKeepsPinnedFirst() throws {
+    let project = TerminalProjectItem(name: "Shell")
+    let manager = TerminalProjectManager(projects: [project])
+    let first = try #require(manager.createTab(title: "first", in: project.id))
+    let second = try #require(manager.createTab(title: "second", in: project.id))
+
+    manager.moveTab(second, to: project.id, isPinned: true, at: 0)
+
+    #expect(manager.tabs(in: project.id).map(\.id) == [second, first])
+    #expect(manager.tabs(in: project.id).map(\.isPinned) == [true, false])
+  }
+
+  @Test
   func closeBelowAndOthersAreProjectLocal() throws {
     let first = TerminalProjectItem(name: "First")
     let second = TerminalProjectItem(name: "Second")

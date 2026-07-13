@@ -43,19 +43,22 @@ struct TerminalSidebarChromeView: View {
 
   var body: some View {
     VStack(spacing: 10) {
-      TerminalSidebarProjectList(
-        store: store,
-        terminal: terminal,
-        palette: palette,
-        projects: terminal.projects,
-        groups: terminal.projectGroups,
-        collapsedProjectIDs: $collapsedProjectIDs,
-        shortcutHintsByTabID: shortcutHintsByTabID,
-        showsShortcutHints: commandHoldObserver.isPressed,
-        showsAgentMarks: supatermSettings.codingAgentsShowIcons,
-        showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
-        reduceMotion: reduceMotion
-      )
+      GeometryReader { geometry in
+        TerminalSidebarProjectList(
+          store: store,
+          terminal: terminal,
+          palette: palette,
+          projects: terminal.projects,
+          groups: terminal.projectGroups,
+          collapsedProjectIDs: $collapsedProjectIDs,
+          shortcutHintsByTabID: shortcutHintsByTabID,
+          showsShortcutHints: commandHoldObserver.isPressed,
+          showsAgentMarks: supatermSettings.codingAgentsShowIcons,
+          showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
+          reduceMotion: reduceMotion
+        )
+        .frame(width: geometry.size.width, height: geometry.size.height)
+      }
       .frame(minHeight: 0, maxHeight: .infinity)
       .layoutPriority(-1)
 
@@ -75,8 +78,8 @@ struct TerminalSidebarChromeView: View {
       .padding(.horizontal, 8)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onChange(of: terminal.selectedProjectID) { _, selectedProjectID in
-      guard let selectedProjectID else { return }
+    .onChange(of: terminal.selectedTabID) { _, _ in
+      guard let selectedProjectID = terminal.selectedProjectID else { return }
       collapsedProjectIDs.remove(selectedProjectID)
     }
   }
@@ -88,18 +91,15 @@ struct TerminalSidebarChromeView: View {
   }
 }
 
-private enum TerminalSidebarSectionID: Hashable {
-  case project(TerminalProjectID)
-  case newProject
+private struct TerminalSidebarAcceptedDrop {
+  let sessionID: UUID
+  let drag: TerminalSidebarDragValue
+  let destination: TerminalSidebarDropTarget.Destination
 }
 
-private enum TerminalSidebarItemID: Hashable {
-  case project(TerminalProjectID)
-  case tab(TerminalTabID)
-  case newProject
-}
+struct TerminalSidebarProjectList: NSViewControllerRepresentable {
+  static let dragType = NSPasteboard.PasteboardType("app.supabit.supaterm.sidebar-item")
 
-private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let palette: Palette
@@ -131,15 +131,19 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
   }
 
   @MainActor
-  final class Coordinator: NSObject, NSCollectionViewDelegateFlowLayout {
-    static let dragType = NSPasteboard.PasteboardType("app.supabit.supaterm.sidebar-item")
-
+  final class Coordinator: NSObject, NSCollectionViewDelegate {
     var parent: TerminalSidebarProjectList
     weak var controller: TerminalSidebarCollectionViewController?
-    var dataSource: NSCollectionViewDiffableDataSource<TerminalSidebarSectionID, TerminalSidebarItemID>?
-    private var itemByID: [TerminalSidebarItemID: AnyView] = [:]
-    private var measuredSizes: [TerminalSidebarItemID: NSSize] = [:]
+    var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>?
+    private var itemByID: [TerminalSidebarEntryID: AnyView] = [:]
+    private var measuredHeights: [TerminalSidebarEntryID: (width: CGFloat, height: CGFloat)] = [:]
+    private var activeDragValue: TerminalSidebarDragValue?
+    private var activeDragSessionID: UUID?
+    private var acceptedDrop: TerminalSidebarAcceptedDrop?
+    private var dragCleanup: Task<Void, Never>?
     private var pendingExpansion: Task<Void, Never>?
+    private var pendingExpansionProjectID: TerminalProjectID?
+    private var hasAppliedSnapshot = false
 
     init(parent: TerminalSidebarProjectList) {
       self.parent = parent
@@ -148,21 +152,44 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
     func connect(to controller: TerminalSidebarCollectionViewController) {
       self.controller = controller
       controller.collectionView.delegate = self
-      controller.collectionView.registerForDraggedTypes([Self.dragType])
+      controller.collectionView.registerForDraggedTypes([TerminalSidebarProjectList.dragType])
       controller.collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
+      controller.collectionView.onDragBegan = { [weak self] indexPath, event in
+        self?.beginDragging(at: indexPath, event: event)
+      }
+      controller.collectionView.onDragEnded = { [weak self] sessionID, _ in
+        guard let self, activeDragSessionID == sessionID else { return }
+        guard acceptedDrop?.sessionID != sessionID else { return }
+        dragCleanup?.cancel()
+        dragCleanup = Task { @MainActor [weak self] in
+          try? await Task.sleep(for: .milliseconds(100))
+          guard let self, !Task.isCancelled, activeDragSessionID == sessionID else { return }
+          clearDragState()
+          dragCleanup = nil
+        }
+      }
+      controller.collectionView.onDragExited = { [weak self] in
+        self?.clearDropTarget()
+      }
+      controller.onAutoscroll = { [weak self] pointerY in
+        self?.updateDropTarget(pointerY: pointerY)
+      }
+      controller.collectionLayout.preferredHeight = { [weak self] entryID, width in
+        self?.preferredHeight(for: entryID, width: width) ?? TerminalSidebarLayout.tabRowMinHeight
+      }
       dataSource = NSCollectionViewDiffableDataSource(collectionView: controller.collectionView) {
-        [weak self] collectionView, indexPath, itemID in
+        [weak self] collectionView, indexPath, entryID in
         guard let self else { return nil }
         let item = collectionView.makeItem(
           withIdentifier: TerminalSidebarCollectionItem.identifier,
           for: indexPath
         )
         guard let item = item as? TerminalSidebarCollectionItem else { return nil }
-        item.host(
-          self.itemByID[itemID] ?? AnyView(EmptyView()),
-          dragValue: self.dragValue(for: itemID)
-        )
+        item.host(self.itemByID[entryID] ?? AnyView(EmptyView()))
         return item
+      }
+      controller.collectionLayout.itemIdentifiers = { [weak self] in
+        self?.dataSource?.snapshot().itemIdentifiers ?? []
       }
       applySnapshot()
     }
@@ -170,64 +197,74 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
     func applySnapshot() {
       guard controller != nil, let dataSource else { return }
       itemByID.removeAll()
-      measuredSizes.removeAll()
-      var snapshot = NSDiffableDataSourceSnapshot<TerminalSidebarSectionID, TerminalSidebarItemID>()
+      measuredHeights.removeAll()
+      var entries: [TerminalSidebarEntry] = []
 
       for project in parent.projects {
-        let sectionID = TerminalSidebarSectionID.project(project.id)
-        snapshot.appendSections([sectionID])
-        let headerID = TerminalSidebarItemID.project(project.id)
-        snapshot.appendItems([headerID], toSection: sectionID)
+        let headerID = TerminalSidebarEntryID.project(project.id)
+        entries.append(
+          TerminalSidebarEntry(
+            kind: .project(id: project.id, isPinned: project.isPinned)
+          )
+        )
         itemByID[headerID] = AnyView(projectHeader(project))
-        guard !parent.collapsedProjectIDs.contains(project.id) else { continue }
         let tabs = parent.groups.first(where: { $0.projectID == project.id })?.tabs ?? []
-        let tabIDs = tabs.map { TerminalSidebarItemID.tab($0.id) }
-        snapshot.appendItems(tabIDs, toSection: sectionID)
         for tab in tabs {
-          itemByID[.tab(tab.id)] = AnyView(tabRow(tab))
+          let tabID = TerminalSidebarEntryID.tab(tab.id)
+          entries.append(
+            TerminalSidebarEntry(
+              kind: .tab(id: tab.id, projectID: project.id, isPinned: tab.isPinned)
+            )
+          )
+          itemByID[tabID] = AnyView(tabRow(tab))
         }
       }
 
-      snapshot.appendSections([.newProject])
-      snapshot.appendItems([.newProject], toSection: .newProject)
+      entries.append(TerminalSidebarEntry(kind: .newProject))
       itemByID[.newProject] = AnyView(newProjectRow)
-      refreshVisibleItems()
-      dataSource.apply(snapshot, animatingDifferences: !parent.reduceMotion) { [weak self] in
-        guard let self else { return }
-        self.refreshVisibleItems()
-        self.controller?.invalidateLayoutMetrics()
+      let targetIdentifiers = entries.map(\.id)
+      let targetIdentifierSet = Set(targetIdentifiers)
+      let currentIdentifiers = dataSource.snapshot().itemIdentifiers
+      let currentIdentifierSet = Set(currentIdentifiers)
+      let snapshotIdentifiers =
+        currentIdentifiers.filter(targetIdentifierSet.contains)
+        + targetIdentifiers.filter { !currentIdentifierSet.contains($0) }
+      var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()
+      snapshot.appendSections([0])
+      snapshot.appendItems(snapshotIdentifiers, toSection: 0)
+      controller?.configure(
+        entries: entries,
+        collapsedProjectIDs: parent.collapsedProjectIDs,
+        animated: hasAppliedSnapshot && !parent.reduceMotion,
+        animationsEnabled: !parent.reduceMotion
+      )
+      if let acceptedDrop,
+        TerminalSidebarDropCommit.isApplied(
+          drag: acceptedDrop.drag,
+          destination: acceptedDrop.destination,
+          entries: entries
+        )
+      {
+        clearDragState()
       }
+      refreshVisibleItems()
+      guard currentIdentifiers != snapshotIdentifiers else {
+        controller?.invalidateLayout()
+        return
+      }
+      applySnapshot(snapshot, to: dataSource)
+      hasAppliedSnapshot = true
     }
 
-    func collectionView(
-      _ collectionView: NSCollectionView,
-      layout collectionViewLayout: NSCollectionViewLayout,
-      sizeForItemAt indexPath: IndexPath
-    ) -> NSSize {
-      let sectionInset =
-        (collectionViewLayout as? NSCollectionViewFlowLayout)?.sectionInset ?? NSEdgeInsets()
-      let width = max(
-        1,
-        collectionView.bounds.width - sectionInset.left - sectionInset.right - 1
-      )
-      guard let itemID = dataSource?.itemIdentifier(for: indexPath) else {
-        return NSSize(width: width, height: 36)
+    private func applySnapshot(
+      _ snapshot: NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>,
+      to dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>
+    ) {
+      dataSource.apply(snapshot, animatingDifferences: false) { [weak self] in
+        guard let self else { return }
+        refreshVisibleItems()
+        controller?.invalidateLayout()
       }
-      if let size = measuredSizes[itemID], size.width == width {
-        return size
-      }
-      let height: CGFloat
-      switch itemID {
-      case .project, .newProject:
-        height = 36
-      case .tab:
-        let host = NSHostingView(rootView: itemByID[itemID] ?? AnyView(EmptyView()))
-        host.frame.size.width = width
-        height = max(TerminalSidebarLayout.tabRowMinHeight, host.fittingSize.height)
-      }
-      let size = NSSize(width: width, height: height)
-      measuredSizes[itemID] = size
-      return size
     }
 
     func collectionView(
@@ -236,12 +273,35 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       proposedIndexPath proposedDropIndexPath: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
       dropOperation proposedDropOperation: UnsafeMutablePointer<NSCollectionView.DropOperation>
     ) -> NSDragOperation {
-      guard draggedValue(from: draggingInfo) != nil else { return [] }
-      proposedDropOperation.pointee = .before
-      let indexPath = proposedDropIndexPath.pointee as IndexPath
-      if case .project(let projectID)? = dataSource?.snapshot().sectionIdentifiers[safe: indexPath.section] {
-        scheduleExpansion(projectID)
+      guard
+        let controller,
+        let dragged = draggedValue(from: draggingInfo)
+      else {
+        clearDropTarget()
+        return []
       }
+      controller.invalidateLayout()
+      let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
+      guard
+        let target = resolvedDropTarget(dragged: dragged, pointerY: location.y)
+      else {
+        clearDropTarget()
+        return []
+      }
+      controller.setDropTarget(target, pointerY: location.y)
+      scheduleExpansion(target.targetProjectID)
+      proposedDropIndexPath.pointee =
+        IndexPath(
+          item: min(target.insertionEntryIndex, max(0, controller.collectionLayout.entries.count - 1)),
+          section: 0
+        ) as NSIndexPath
+      proposedDropOperation.pointee = .before
+      if case .tab = dragged {
+        draggingInfo.animatesToDestination = true
+      } else {
+        draggingInfo.animatesToDestination = false
+      }
+      draggingInfo.numberOfValidItemsForDrop = 1
       return .move
     }
 
@@ -251,50 +311,130 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
       indexPath: IndexPath,
       dropOperation: NSCollectionView.DropOperation
     ) -> Bool {
-      pendingExpansion?.cancel()
-      guard let dragged = draggedValue(from: draggingInfo) else { return false }
-      let sections = dataSource?.snapshot().sectionIdentifiers ?? []
-
-      switch dragged {
-      case .project(let projectID):
-        guard let draggedProject = parent.projects.first(where: { $0.id == projectID }) else {
+      let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
+      guard
+        let dragged = draggedValue(from: draggingInfo),
+        let target = resolvedDropTarget(dragged: dragged, pointerY: location.y)
+      else {
+        clearDragState()
+        return false
+      }
+      if case .tab = dragged,
+        let controller,
+        let indicatorFrame = controller.collectionLayout.plan.dropIndicatorFrame
+      {
+        draggingInfo.enumerateDraggingItems(
+          options: [],
+          for: collectionView,
+          classes: [NSPasteboardItem.self],
+          searchOptions: [:]
+        ) { item, _, _ in
+          let size = item.draggingFrame.size
+          item.draggingFrame = CGRect(
+            x: TerminalSidebarLayoutPlan.horizontalInset,
+            y: indicatorFrame.midY - size.height / 2,
+            width: max(
+              1,
+              collectionView.bounds.width - TerminalSidebarLayoutPlan.horizontalInset * 2
+            ),
+            height: size.height
+          )
+        }
+      }
+      switch (dragged, target.destination) {
+      case (.project(let projectID), .project(let isPinned, let laneIndex)):
+        guard let activeDragSessionID else {
+          clearDragState()
           return false
         }
-        let targetOffset = min(indexPath.section, parent.projects.count)
-        let isPinned = parent.projects[safe: targetOffset]?.isPinned ?? draggedProject.isPinned
-        let destinationIndex = parent.projects.prefix(targetOffset).count { $0.isPinned == isPinned }
-        parent.terminal.moveProject(projectID, isPinned: isPinned, at: destinationIndex)
-
-      case .tab(let tabID):
-        guard case .project(let targetProjectID)? = sections[safe: indexPath.section] else {
+        acceptedDrop = TerminalSidebarAcceptedDrop(
+          sessionID: activeDragSessionID,
+          drag: dragged,
+          destination: target.destination
+        )
+        parent.terminal.moveProject(projectID, isPinned: isPinned, at: laneIndex)
+      case (
+        .tab(let tabID),
+        .tab(let projectID, let isPinned, let laneIndex)
+      ):
+        guard let activeDragSessionID else {
+          clearDragState()
           return false
         }
-        let targetTabs = parent.groups.first(where: { $0.projectID == targetProjectID })?.tabs ?? []
-        guard
-          let draggedTab = parent.groups.lazy.flatMap(\.tabs).first(where: { $0.id == tabID })
-        else { return false }
-        let targetOffset = min(max(0, indexPath.item - 1), targetTabs.count)
-        let isPinned = targetTabs[safe: targetOffset]?.isPinned ?? draggedTab.isPinned
-        let destinationIndex = targetTabs.prefix(targetOffset).count { $0.isPinned == isPinned }
+        acceptedDrop = TerminalSidebarAcceptedDrop(
+          sessionID: activeDragSessionID,
+          drag: dragged,
+          destination: target.destination
+        )
         parent.terminal.moveTab(
           tabID,
-          to: targetProjectID,
+          to: projectID,
           isPinned: isPinned,
-          at: destinationIndex
+          at: laneIndex
         )
-      case .newProject:
+      default:
+        clearDragState()
         return false
       }
       return true
     }
 
-    private func draggedValue(from draggingInfo: NSDraggingInfo) -> TerminalSidebarItemID? {
-      guard let value = draggingInfo.draggingPasteboard.string(forType: Self.dragType) else { return nil }
-      let components = value.split(separator: ":", maxSplits: 1).map(String.init)
-      guard components.count == 2, let uuid = UUID(uuidString: components[1]) else { return nil }
-      return components[0] == "project"
-        ? .project(TerminalProjectID(rawValue: uuid))
-        : .tab(TerminalTabID(rawValue: uuid))
+    private func resolvedDropTarget(
+      dragged: TerminalSidebarDragValue,
+      pointerY: CGFloat
+    ) -> TerminalSidebarDropTarget? {
+      guard let controller else { return nil }
+      return TerminalSidebarDropTargetResolver.resolve(
+        drag: dragged,
+        pointerY: pointerY,
+        entries: controller.collectionLayout.entries,
+        frames: controller.framesByEntryID()
+      )
+    }
+
+    private func updateDropTarget(pointerY: CGFloat) {
+      guard
+        let dragged = activeDragValue,
+        let target = resolvedDropTarget(dragged: dragged, pointerY: pointerY)
+      else {
+        clearDropTarget()
+        return
+      }
+      controller?.setDropTarget(target, pointerY: pointerY)
+      scheduleExpansion(target.targetProjectID)
+    }
+
+    private func beginDragging(at indexPath: IndexPath, event: NSEvent) {
+      guard
+        let controller,
+        let entryID = dataSource?.itemIdentifier(for: indexPath)
+      else { return }
+      let value: TerminalSidebarDragValue
+      switch entryID {
+      case .project(let projectID):
+        value = .project(projectID)
+      case .tab(let tabID):
+        value = .tab(tabID)
+      case .newProject:
+        return
+      }
+      activeDragValue = value
+      dragCleanup?.cancel()
+      dragCleanup = nil
+      let sessionID = UUID()
+      activeDragSessionID = sessionID
+      if !controller.beginDragging(value: value, event: event, sessionID: sessionID) {
+        clearDragState()
+      }
+    }
+
+    private func draggedValue(from draggingInfo: NSDraggingInfo) -> TerminalSidebarDragValue? {
+      guard
+        let value = draggingInfo.draggingPasteboard.string(forType: TerminalSidebarProjectList.dragType),
+        let dragged = TerminalSidebarDragValue(pasteboardValue: value),
+        dragged == activeDragValue
+      else { return nil }
+      return dragged
     }
 
     private func refreshVisibleItems() {
@@ -306,29 +446,66 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
           let itemID = dataSource.itemIdentifier(for: indexPath),
           let view = itemByID[itemID]
         else { continue }
-        item.host(view, dragValue: dragValue(for: itemID))
+        item.host(view)
       }
     }
 
-    private func dragValue(for itemID: TerminalSidebarItemID) -> String? {
-      switch itemID {
-      case .project(let projectID):
-        "project:\(projectID.rawValue.uuidString)"
-      case .tab(let tabID):
-        "tab:\(tabID.rawValue.uuidString)"
-      case .newProject:
-        nil
+    private func preferredHeight(for entryID: TerminalSidebarEntryID, width: CGFloat) -> CGFloat {
+      switch entryID {
+      case .project, .newProject:
+        return TerminalSidebarLayout.tabRowMinHeight
+      case .tab:
+        if let measurement = measuredHeights[entryID], measurement.width == width {
+          return measurement.height
+        }
+        let host = NSHostingView(rootView: itemByID[entryID] ?? AnyView(EmptyView()))
+        host.frame.size.width = width
+        let height = max(TerminalSidebarLayout.tabRowMinHeight, host.fittingSize.height)
+        measuredHeights[entryID] = (width, height)
+        return height
       }
     }
 
-    private func scheduleExpansion(_ projectID: TerminalProjectID) {
-      guard parent.collapsedProjectIDs.contains(projectID) else { return }
+    private func scheduleExpansion(_ projectID: TerminalProjectID?) {
+      guard
+        let projectID,
+        parent.collapsedProjectIDs.contains(projectID)
+      else {
+        cancelPendingExpansion()
+        return
+      }
+      guard pendingExpansionProjectID != projectID else { return }
+      cancelPendingExpansion()
+      pendingExpansionProjectID = projectID
       pendingExpansion?.cancel()
       pendingExpansion = Task { @MainActor [weak self] in
         try? await Task.sleep(for: .milliseconds(600))
-        guard !Task.isCancelled else { return }
-        self?.parent.collapsedProjectIDs.remove(projectID)
+        guard let self, !Task.isCancelled else { return }
+        parent.collapsedProjectIDs.remove(projectID)
+        pendingExpansion = nil
+        pendingExpansionProjectID = nil
       }
+    }
+
+    private func cancelPendingExpansion() {
+      pendingExpansion?.cancel()
+      pendingExpansion = nil
+      pendingExpansionProjectID = nil
+    }
+
+    private func clearDropTarget() {
+      cancelPendingExpansion()
+      controller?.setDropTarget(nil, pointerY: nil)
+    }
+
+    private func clearDragState() {
+      dragCleanup?.cancel()
+      dragCleanup = nil
+      clearDropTarget()
+      activeDragValue = nil
+      activeDragSessionID = nil
+      acceptedDrop = nil
+      controller?.finishDragging()
     }
 
     private func projectHeader(_ project: TerminalProjectItem) -> some View {
@@ -457,123 +634,6 @@ private struct TerminalSidebarProjectList: NSViewControllerRepresentable {
   }
 }
 
-@MainActor
-private final class TerminalSidebarCollectionViewController: NSViewController {
-  let collectionView = NSCollectionView()
-  private var lastLayoutWidth: CGFloat = 0
-
-  override func loadView() {
-    let layout = NSCollectionViewFlowLayout()
-    layout.minimumLineSpacing = TerminalSidebarLayout.tabRowSpacing
-    layout.sectionInset = NSEdgeInsets(top: 0, left: 8, bottom: 8, right: 8)
-    let scrollView = NSScrollView()
-    scrollView.drawsBackground = false
-    scrollView.hasVerticalScroller = false
-    scrollView.contentInsets.top = TerminalSidebarLayout.firstVisibleSectionTopInset
-    collectionView.translatesAutoresizingMaskIntoConstraints = false
-    scrollView.documentView = collectionView
-    collectionView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor).isActive = true
-    collectionView.collectionViewLayout = layout
-    collectionView.backgroundColors = [.clear]
-    collectionView.isSelectable = false
-    collectionView.register(
-      TerminalSidebarCollectionItem.self,
-      forItemWithIdentifier: TerminalSidebarCollectionItem.identifier
-    )
-    view = scrollView
-  }
-
-  override func viewDidLayout() {
-    super.viewDidLayout()
-    let width = collectionView.bounds.width
-    guard width > 0, width != lastLayoutWidth else { return }
-    lastLayoutWidth = width
-    invalidateLayoutMetrics()
-  }
-
-  func invalidateLayoutMetrics() {
-    guard let layout = collectionView.collectionViewLayout as? NSCollectionViewFlowLayout else { return }
-    let context = NSCollectionViewFlowLayoutInvalidationContext()
-    context.invalidateFlowLayoutDelegateMetrics = true
-    layout.invalidateLayout(with: context)
-  }
-}
-
-@MainActor
-private final class TerminalSidebarCollectionItem: NSCollectionViewItem,
-  NSDraggingSource,
-  NSGestureRecognizerDelegate
-{
-  static let identifier = NSUserInterfaceItemIdentifier("TerminalSidebarCollectionItem")
-
-  private var hostingView: NSHostingView<AnyView>?
-  private var dragValue: String?
-
-  override func loadView() {
-    view = NSView()
-    let recognizer = NSPanGestureRecognizer(target: self, action: #selector(handleDrag(_:)))
-    recognizer.buttonMask = 1
-    recognizer.delaysPrimaryMouseButtonEvents = false
-    recognizer.delegate = self
-    view.addGestureRecognizer(recognizer)
-  }
-
-  func host(_ view: AnyView, dragValue: String?) {
-    self.dragValue = dragValue
-    if let hostingView {
-      hostingView.rootView = view
-      return
-    }
-    let hostingView = NSHostingView(rootView: view)
-    hostingView.translatesAutoresizingMaskIntoConstraints = false
-    self.view.addSubview(hostingView)
-    NSLayoutConstraint.activate([
-      hostingView.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
-      hostingView.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
-      hostingView.topAnchor.constraint(equalTo: self.view.topAnchor),
-      hostingView.bottomAnchor.constraint(equalTo: self.view.bottomAnchor),
-    ])
-    self.hostingView = hostingView
-  }
-
-  func draggingSession(
-    _ session: NSDraggingSession,
-    sourceOperationMaskFor context: NSDraggingContext
-  ) -> NSDragOperation {
-    .move
-  }
-
-  func gestureRecognizer(
-    _ gestureRecognizer: NSGestureRecognizer,
-    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer
-  ) -> Bool {
-    true
-  }
-
-  @objc private func handleDrag(_ recognizer: NSPanGestureRecognizer) {
-    guard
-      recognizer.state == .began,
-      let dragValue,
-      let event = NSApp.currentEvent
-    else { return }
-    let pasteboardItem = NSPasteboardItem()
-    pasteboardItem.setString(dragValue, forType: TerminalSidebarProjectList.Coordinator.dragType)
-    let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    draggingItem.setDraggingFrame(view.bounds, contents: draggingImage())
-    view.beginDraggingSession(with: [draggingItem], event: event, source: self)
-  }
-
-  private func draggingImage() -> NSImage {
-    let image = NSImage(size: view.bounds.size)
-    guard let representation = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-      return image
-    }
-    view.cacheDisplay(in: view.bounds, to: representation)
-    image.addRepresentation(representation)
-    return image
-  }
-}
-
 private struct TerminalSidebarProjectHeader: View {
   let project: TerminalProjectItem
   let palette: Palette
@@ -627,11 +687,5 @@ private struct TerminalSidebarProjectHeader: View {
       Button("Delete Project", role: .destructive, action: delete)
         .disabled(!canDelete)
     }
-  }
-}
-
-extension Array {
-  fileprivate subscript(safe index: Index) -> Element? {
-    indices.contains(index) ? self[index] : nil
   }
 }
