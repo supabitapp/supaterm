@@ -82,7 +82,7 @@ enum TerminalSidebarAutoscrollBehavior {
 }
 
 @MainActor
-private final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
+final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
     let location: CGPoint
@@ -158,6 +158,11 @@ private final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
     super.reset()
     pendingDrag = nil
     dragState = .idle
+  }
+
+  override func shouldBeRequiredToFail(by otherGestureRecognizer: NSGestureRecognizer) -> Bool {
+    _ = super.shouldBeRequiredToFail(by: otherGestureRecognizer)
+    return true
   }
 
   func finish() {

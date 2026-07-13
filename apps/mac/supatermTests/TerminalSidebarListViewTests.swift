@@ -64,6 +64,14 @@ struct TerminalSidebarListViewTests {
     #expect(TerminalSidebarDragActivation.shouldBegin(from: origin, to: CGPoint(x: 6, y: 6)))
   }
 
+  @Test @MainActor
+  func dragGestureTakesPrecedenceOverHostedControls() {
+    let collectionView = TerminalSidebarCollectionView()
+    let recognizer = TerminalSidebarDragGestureRecognizer(collectionView: collectionView)
+
+    #expect(recognizer.shouldBeRequiredToFail(by: NSClickGestureRecognizer()))
+  }
+
   @Test
   func hapticTargetsDeduplicateUntilTheSessionResets() {
     let first: TerminalSidebarDropTarget.Destination = .tab(
