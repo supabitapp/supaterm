@@ -23,6 +23,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   let id: Identity
   let nickname: String?
   let role: String?
+  let transcriptPath: String?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
@@ -31,6 +32,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     id: Identity,
     nickname: String?,
     role: String?,
+    transcriptPath: String? = nil,
     phase: AgentActivityPhase,
     detail: String?,
     attentionRequestID: String? = nil
@@ -38,6 +40,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     self.id = id
     self.nickname = nickname
     self.role = role
+    self.transcriptPath = transcriptPath
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -306,20 +309,22 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
-    case .subagentStarted(let nickname, let role):
+    case .subagentStarted(let nickname, let role, let transcriptPath):
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
       if let child = state.activeChildren[childKey] {
         state.activeChildren[childKey] = child.updating(
           nickname: nickname,
-          role: role
+          role: role,
+          transcriptPath: transcriptPath
         )
       } else {
         state.activeChildren[childKey] = TerminalAgentActiveChild(
           id: childKey,
           nickname: nickname,
           role: role,
+          transcriptPath: transcriptPath,
           phase: .running,
           detail: nil
         )
@@ -738,12 +743,14 @@ nonisolated struct TerminalAgentStateStore {
 extension TerminalAgentActiveChild {
   fileprivate nonisolated func updating(
     nickname: String?,
-    role: String?
+    role: String?,
+    transcriptPath: String?
   ) -> Self {
     Self(
       id: id,
       nickname: nickname ?? self.nickname,
       role: role ?? self.role,
+      transcriptPath: transcriptPath ?? self.transcriptPath,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID
@@ -759,6 +766,7 @@ extension TerminalAgentActiveChild {
       id: id,
       nickname: nickname,
       role: role,
+      transcriptPath: transcriptPath,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID

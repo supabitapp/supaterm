@@ -8,10 +8,24 @@ final class TerminalAgentMonitorStore {
   private struct Key: Hashable {
     let agent: SupatermAgentKind
     let sessionID: String
+    let subagentID: String?
 
     func hash(into hasher: inout Hasher) {
       hasher.combine(agent.rawValue)
       hasher.combine(sessionID)
+      hasher.combine(subagentID)
+    }
+
+    init(_ scope: TerminalAgentEvent.Scope) {
+      agent = scope.agent
+      sessionID = scope.sessionID
+      subagentID = scope.subagentID
+    }
+
+    init(agent: SupatermAgentKind, sessionID: String) {
+      self.agent = agent
+      self.sessionID = sessionID
+      subagentID = nil
     }
   }
 
@@ -19,21 +33,22 @@ final class TerminalAgentMonitorStore {
     let generation: UUID
     let path: String
     let surfaceID: UUID?
+    let turnID: String?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
       lhs.generation == rhs.generation
         && lhs.path == rhs.path
         && lhs.surfaceID == rhs.surfaceID
+        && lhs.turnID == rhs.turnID
     }
   }
 
   var onMonitorSnapshot:
     @MainActor (
       AgentMonitorSnapshot,
-      SupatermAgentKind,
-      String,
+      TerminalAgentEvent.Scope,
       SupatermCLIContext?
-    ) -> Void = { _, _, _, _ in }
+    ) -> Void = { _, _, _ in }
   var onRunningTimeoutExpired:
     @MainActor (
       SupatermAgentKind,
@@ -85,24 +100,26 @@ final class TerminalAgentMonitorStore {
 
   @discardableResult
   func track(
-    agent: SupatermAgentKind,
-    sessionID: String,
+    scope: TerminalAgentEvent.Scope,
     transcriptPath: String,
     context: SupatermCLIContext?
   ) -> Bool {
-    guard let monitor = makeMonitor(agent: agent) else { return false }
-    let key = Key(agent: agent, sessionID: sessionID)
+    guard let monitor = makeMonitor(agent: scope.agent) else { return false }
+    let key = Key(scope)
+    let turnID = scope.subagentID == nil ? nil : scope.turnID
     if entries[key]?.path == transcriptPath,
       entries[key]?.surfaceID == context?.surfaceID,
+      entries[key]?.turnID == turnID,
       monitorTasks[key] != nil
     {
       return true
     }
-    cancelTracking(agent: agent, sessionID: sessionID)
+    cancelTracking(scope: scope)
     let entry = Entry(
       generation: UUID(),
       path: transcriptPath,
-      surfaceID: context?.surfaceID
+      surfaceID: context?.surfaceID,
+      turnID: turnID
     )
     entries[key] = entry
     let updates = updates(transcriptPath)
@@ -121,46 +138,57 @@ final class TerminalAgentMonitorStore {
           try? await sleep(eventDelay)
         }
         guard !Task.isCancelled, let self, self.entries[key] == entry else { return }
-        self.extendRunningTimeoutIfArmed(
-          agent: agent,
-          sessionID: sessionID,
-          context: context
-        )
+        if scope.subagentID == nil {
+          self.extendRunningTimeoutIfArmed(
+            agent: scope.agent,
+            sessionID: scope.sessionID,
+            context: context
+          )
+        }
         if let snapshot = monitor.consume(update) {
-          self.onMonitorSnapshot(snapshot, agent, sessionID, context)
+          self.onMonitorSnapshot(snapshot, scope, context)
         }
       }
     }
     return true
   }
 
-  func cancelTracking(agent: SupatermAgentKind, sessionID: String) {
-    let key = Key(agent: agent, sessionID: sessionID)
+  func cancelTracking(scope: TerminalAgentEvent.Scope) {
+    let key = Key(scope)
     monitorTasks.removeValue(forKey: key)?.cancel()
     entries.removeValue(forKey: key)
   }
 
   func clearSession(agent: SupatermAgentKind, sessionID: String) {
-    cancelTracking(agent: agent, sessionID: sessionID)
+    let keys = entries.keys.filter {
+      $0.agent == agent && $0.sessionID == sessionID
+    }
+    for key in keys {
+      monitorTasks.removeValue(forKey: key)?.cancel()
+      entries.removeValue(forKey: key)
+    }
     cancelRunningTimeout(agent: agent, sessionID: sessionID)
   }
 
   func clearSessions(for surfaceID: UUID) {
-    let keys = Set(
-      entries.compactMap { key, entry in
-        entry.surfaceID == surfaceID ? key : nil
-      }
-        + timeoutSurfaceIDs.compactMap { key, timeoutSurfaceID in
-          timeoutSurfaceID == surfaceID ? key : nil
-        }
-    )
-    for key in keys {
-      clearSession(agent: key.agent, sessionID: key.sessionID)
+    let entryKeys = entries.compactMap { key, entry in
+      entry.surfaceID == surfaceID ? key : nil
+    }
+    for key in entryKeys {
+      monitorTasks.removeValue(forKey: key)?.cancel()
+      entries.removeValue(forKey: key)
+    }
+    let timeoutKeys = timeoutSurfaceIDs.compactMap { key, timeoutSurfaceID in
+      timeoutSurfaceID == surfaceID ? key : nil
+    }
+    for key in timeoutKeys {
+      runningTimeoutTasks.removeValue(forKey: key)?.cancel()
+      timeoutSurfaceIDs.removeValue(forKey: key)
     }
   }
 
-  func isTracking(agent: SupatermAgentKind, sessionID: String) -> Bool {
-    monitorTasks[Key(agent: agent, sessionID: sessionID)] != nil
+  func isTracking(scope: TerminalAgentEvent.Scope) -> Bool {
+    monitorTasks[Key(scope)] != nil
   }
 
   func armRunningTimeout(

@@ -144,7 +144,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
   was missed, and clears structured completion suppression without supplying Codex detail on its own.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
 - `PermissionRequest` and `request_user_input` mark the foreground session as needing input; only completion of the matching tool resolves that attention state.
-- `SubagentStart` and `SubagentStop` maintain scoped child-agent rows. Reused child IDs and late stop events cannot remove a newer child lifetime.
+- `SubagentStart` and `SubagentStop` maintain scoped child-agent rows. Each child rollout is tailed independently, so its latest non-final assistant message supplies the row detail without replacing parent transcript monitoring. Tool completion never replaces that message with a tool name. Reused child IDs and late stop events cannot remove a newer child lifetime.
 - A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the native plan rows immediately. Supaterm never reconstructs plans from transcript text.
 - Transcript lifecycle remains authoritative for live Codex detail and corroborates final `idle` transitions.
 - `task_started` and `turn_started` mark the tab as `running`.

@@ -333,7 +333,11 @@ struct TerminalAgentEventTranslatorTests {
 
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .subagentStarted(nickname: "Mendel", role: nil)
+        .subagentStarted(
+          nickname: "Mendel",
+          role: nil,
+          transcriptPath: transcript.path
+        )
       ]
     )
   }

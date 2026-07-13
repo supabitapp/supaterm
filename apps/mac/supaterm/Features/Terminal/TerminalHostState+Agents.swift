@@ -2,8 +2,7 @@ import Foundation
 import SupatermCLIShared
 
 struct TerminalAgentTranscriptTarget {
-  let agent: SupatermAgentKind
-  let sessionID: String
+  let scope: TerminalAgentEvent.Scope
   let transcriptPath: String
   let context: SupatermCLIContext
 }
@@ -333,14 +332,36 @@ extension TerminalHostState {
   func agentTranscriptTargets() -> [TerminalAgentTranscriptTarget] {
     liveSurfaceIDs().flatMap { surfaceID -> [TerminalAgentTranscriptTarget] in
       guard let context = agentContext(for: surfaceID) else { return [] }
-      return agentStateStore.snapshots(for: surfaceID).compactMap { snapshot in
-        guard let transcriptPath = snapshot.transcriptPath else { return nil }
-        return TerminalAgentTranscriptTarget(
-          agent: snapshot.agent,
-          sessionID: snapshot.sessionID,
-          transcriptPath: transcriptPath,
-          context: context
+      return agentStateStore.snapshots(for: surfaceID).flatMap { snapshot in
+        var targets: [TerminalAgentTranscriptTarget] = []
+        if let transcriptPath = snapshot.transcriptPath {
+          targets.append(
+            TerminalAgentTranscriptTarget(
+              scope: TerminalAgentEvent.Scope(
+                agent: snapshot.agent,
+                sessionID: snapshot.sessionID
+              ),
+              transcriptPath: transcriptPath,
+              context: context
+            )
+          )
+        }
+        targets.append(
+          contentsOf: snapshot.activeChildren.compactMap { child in
+            guard let transcriptPath = child.transcriptPath else { return nil }
+            return TerminalAgentTranscriptTarget(
+              scope: TerminalAgentEvent.Scope(
+                agent: snapshot.agent,
+                sessionID: child.sessionID,
+                turnID: child.turnID,
+                subagentID: child.subagentID
+              ),
+              transcriptPath: transcriptPath,
+              context: context
+            )
+          }
         )
+        return targets
       }
     }
   }
