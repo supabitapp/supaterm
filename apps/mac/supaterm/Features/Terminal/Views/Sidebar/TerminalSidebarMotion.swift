@@ -1,6 +1,17 @@
 import AppKit
 import QuartzCore
 
+enum TerminalSidebarScrollGeometry {
+  static func constrainedY(_ proposedY: CGFloat, in clipView: NSClipView) -> CGFloat {
+    let minimumY = clipView.documentRect.minY - clipView.contentInsets.top
+    let maximumY = max(
+      minimumY,
+      clipView.documentRect.maxY - clipView.bounds.height + clipView.contentInsets.bottom
+    )
+    return max(minimumY, min(proposedY, maximumY))
+  }
+}
+
 @MainActor
 final class TerminalSidebarDisplayLinkDriver: NSObject {
   private weak var collectionView: NSCollectionView?
@@ -276,9 +287,11 @@ final class TerminalSidebarDragAutoscrollController {
     }
     let step = TerminalSidebarAutoscrollBehavior.step(penetration: penetration)
     let clipView = scrollView.contentView
-    let maximumY = max(0, collectionView.bounds.height - clipView.bounds.height)
     let previousY = clipView.bounds.origin.y
-    let nextY = max(0, min(previousY + sign * step, maximumY))
+    let nextY = TerminalSidebarScrollGeometry.constrainedY(
+      previousY + sign * step,
+      in: clipView
+    )
     guard nextY != previousY else {
       stop()
       return false

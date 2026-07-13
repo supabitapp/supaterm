@@ -736,8 +736,10 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
       let frame = collectionLayout.plan.items.first(where: { $0.id == anchor.entryID })?.frame
     else { return }
     let clipView = scrollView.contentView
-    let maximumY = max(0, collectionView.bounds.height - clipView.bounds.height)
-    let targetY = max(0, min(frame.minY + anchor.offset, maximumY))
+    let targetY = TerminalSidebarScrollGeometry.constrainedY(
+      frame.minY + anchor.offset,
+      in: clipView
+    )
     guard targetY != clipView.bounds.origin.y else { return }
     clipView.scroll(to: CGPoint(x: clipView.bounds.origin.x, y: targetY))
     scrollView.reflectScrolledClipView(clipView)

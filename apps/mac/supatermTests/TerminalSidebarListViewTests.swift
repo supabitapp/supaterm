@@ -72,6 +72,25 @@ struct TerminalSidebarListViewTests {
     #expect(recognizer.shouldBeRequiredToFail(by: NSClickGestureRecognizer()))
   }
 
+  @Test @MainActor
+  func scrollConstraintPreservesTrafficLightInset() {
+    let scrollView = NSScrollView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
+    let collectionView = TerminalSidebarCollectionView(
+      frame: CGRect(x: 0, y: 0, width: 240, height: 800)
+    )
+    scrollView.contentInsets.top = TerminalSidebarLayout.firstVisibleSectionTopInset
+    scrollView.documentView = collectionView
+    scrollView.tile()
+    scrollView.contentView.contentInsets.top = TerminalSidebarLayout.firstVisibleSectionTopInset
+
+    let constrainedY = TerminalSidebarScrollGeometry.constrainedY(
+      -.greatestFiniteMagnitude,
+      in: scrollView.contentView
+    )
+
+    #expect(constrainedY == -TerminalSidebarLayout.firstVisibleSectionTopInset)
+  }
+
   @Test
   func hapticTargetsDeduplicateUntilTheSessionResets() {
     let first: TerminalSidebarDropTarget.Destination = .tab(
