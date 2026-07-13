@@ -267,10 +267,8 @@ private struct TerminalSurfacePaneView: View {
       unreadSurfaceIDs: terminal.unreadNotifiedSurfaceIDs(in: tabID)
     ) { operation in
       switch operation {
-      case .agentPanelCopyBranchName(let branchName):
-        _ = store.send(.agentPanelCopyBranchName(branchName))
-      case .agentPanelCopySessionID(let sessionID):
-        _ = store.send(.agentPanelCopySessionID(sessionID))
+      case .agentPanelCopyText(let text):
+        _ = store.send(.agentPanelCopyText(text))
       case .agentPanelForkSessionRequested(let surfaceID, let direction, let session):
         _ = store.send(
           .agentPanelForkSessionRequested(

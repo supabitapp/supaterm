@@ -103,7 +103,11 @@ extension TerminalHostState {
     }
     let metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
     let instances = agentStateInstances(for: surfaceID)
-    let current = instances.max { $0.revision < $1.revision }
+    let current = currentAgentStateInstance(in: instances)
+    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+      for: surfaceID,
+      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
+    )
     let actionableSessions: [PaneAgentPanelSession] = instances.compactMap { instance in
       guard instance.presentation.isActionable else { return nil }
       return PaneAgentPanelSession.supported(
@@ -115,6 +119,7 @@ extension TerminalHostState {
     let presentation = metadata.panelPresentation(
       progressRows: current?.presentation.progressRows ?? [],
       activeChildren: current?.presentation.activeChildren ?? [],
+      workingDirectoryPath: workingDirectoryPath,
       session: session
     )
     if !presentation.isEmpty {
@@ -132,7 +137,8 @@ extension TerminalHostState {
             title: current.activity.detail ?? "Starting session",
             status: .running
           )
-        ]
+        ],
+        workingDirectoryPath: workingDirectoryPath
       )
     case .needsInput:
       return PaneAgentPanelPresentation(
@@ -142,7 +148,8 @@ extension TerminalHostState {
             title: current.activity.detail ?? "Needs input",
             status: .pending
           )
-        ]
+        ],
+        workingDirectoryPath: workingDirectoryPath
       )
     case .idle:
       return nil
@@ -153,7 +160,7 @@ extension TerminalHostState {
     guard agentPanelIsEnabled else {
       return nil
     }
-    guard let surface = surfaces[surfaceID] else {
+    guard surfaces[surfaceID] != nil else {
       return nil
     }
     guard tabID(containing: surfaceID) != nil else {
@@ -162,12 +169,16 @@ extension TerminalHostState {
     guard agentPanelIsActive(for: surfaceID) else {
       return nil
     }
-    let pwd = surface.bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let current = currentAgentStateInstance(in: agentStateInstances(for: surfaceID))
+    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+      for: surfaceID,
+      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
+    )
     let processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
       $0.formUnion($1.processIDs)
     }
     return TerminalAgentPanelRefreshContext(
-      workingDirectoryPath: pwd,
+      workingDirectoryPath: workingDirectoryPath,
       processIDs: processIDs
     )
   }
@@ -386,6 +397,21 @@ extension TerminalHostState {
       )
     }
     .sorted { $0.activity.kind.rawValue < $1.activity.kind.rawValue }
+  }
+
+  private func currentAgentStateInstance(
+    in instances: [AgentStateInstance]
+  ) -> AgentStateInstance? {
+    instances.max { $0.revision < $1.revision }
+  }
+
+  private func agentPanelWorkingDirectoryPath(
+    for surfaceID: UUID,
+    agentWorkingDirectoryPath: String?
+  ) -> String? {
+    TerminalAgentPanelWorkspaceKey(
+      workingDirectoryPath: agentWorkingDirectoryPath ?? surfaces[surfaceID]?.bridge.state.pwd
+    )?.workingDirectoryPath
   }
 
   static func codexHoverMarkdown(_ messages: [String]) -> String? {

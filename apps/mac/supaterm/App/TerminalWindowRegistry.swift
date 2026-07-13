@@ -254,7 +254,7 @@ final class TerminalWindowRegistry {
       let entry = preferredActiveEntry(),
       let session = selectedAgentPanel(in: entry)?.session
     else { return }
-    entry.store.send(.terminal(.agentPanelCopySessionID(session.sessionID)))
+    entry.store.send(.terminal(.agentPanelCopyText(session.sessionID)))
   }
 
   func requestToggleCommandPaletteInKeyWindow() {

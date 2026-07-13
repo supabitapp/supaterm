@@ -57,6 +57,7 @@ public struct SupatermAgentHookEvent: Equatable, Sendable, Codable {
 
   public var agentID: String? { string("agent_id") }
   public var agentType: String? { string("agent_type") }
+  public var cwd: String? { string("cwd") }
   public var hookEventName: SupatermAgentHookEventName {
     SupatermAgentHookEventName(rawValue: payload["hook_event_name"]?.stringValue ?? "")
   }

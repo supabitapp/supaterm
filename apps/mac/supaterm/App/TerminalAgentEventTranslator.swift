@@ -211,6 +211,7 @@ nonisolated enum TerminalAgentEventTranslator {
       scope: scope,
       context: request.context,
       processID: request.processID,
+      workingDirectoryPath: request.event.cwd,
       action: action
     )
   }

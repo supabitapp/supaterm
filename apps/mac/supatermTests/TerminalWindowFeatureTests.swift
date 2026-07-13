@@ -1037,24 +1037,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func agentPanelCopySessionIDWritesClipboard() async {
-    var copiedSessionIDs: [String] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.clipboardClient.copyString = { sessionID in
-        copiedSessionIDs.append(sessionID)
-      }
-    }
-
-    await store.send(.agentPanelCopySessionID("session-1"))
-
-    #expect(copiedSessionIDs == ["session-1"])
-  }
-
-  @Test
-  func agentPanelCopyBranchNameWritesClipboard() async {
+  func agentPanelCopyTextWritesClipboard() async {
     var copiedValues: [String] = []
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -1065,9 +1048,9 @@ struct TerminalWindowFeatureTests {
       }
     }
 
-    await store.send(.agentPanelCopyBranchName("khoi/branch"))
+    await store.send(.agentPanelCopyText("/Users/Developer/code/supaterm"))
 
-    #expect(copiedValues == ["khoi/branch"])
+    #expect(copiedValues == ["/Users/Developer/code/supaterm"])
   }
 
   @Test

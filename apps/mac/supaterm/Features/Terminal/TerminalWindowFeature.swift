@@ -150,8 +150,7 @@ struct TerminalWindowFeature {
     case closeTabsBelowRequested(TerminalTabID)
     case collapseSidebarButtonTapped
     case floatingSidebarVisibilityChanged(Bool)
-    case agentPanelCopyBranchName(String)
-    case agentPanelCopySessionID(String)
+    case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
@@ -334,7 +333,7 @@ struct TerminalWindowFeature {
         state.isFloatingSidebarVisible = isVisible
         return .none
 
-      case .agentPanelCopyBranchName(let value), .agentPanelCopySessionID(let value):
+      case .agentPanelCopyText(let value):
         return .run { [clipboardClient] _ in
           await clipboardClient.copyString(value)
         }
