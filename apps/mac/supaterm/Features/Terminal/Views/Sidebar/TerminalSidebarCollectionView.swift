@@ -9,6 +9,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   let collectionLayout = TerminalSidebarCollectionLayout()
 
   var onDrop: ((TerminalSidebarDragValue, TerminalSidebarDropTarget.Destination) -> Void)?
+  var onFolderDrop: (([URL]) -> Bool)?
 
   private struct ModelUpdate: Equatable {
     let model: TerminalSidebarPresentationModel
@@ -188,7 +189,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
       TerminalSidebarCollectionItem.self,
       forItemWithIdentifier: TerminalSidebarCollectionItem.identifier
     )
-    collectionView.registerForDraggedTypes([TerminalSidebarProjectList.dragType])
+    collectionView.registerForDraggedTypes([TerminalSidebarProjectList.dragType, .fileURL])
     collectionView.setDraggingSourceOperationMask(.move, forLocal: true)
     collectionView.addSubview(dropIndicatorView)
     collectionView.delegate = self
@@ -533,6 +534,22 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     proposedIndexPath proposedDropIndexPath: AutoreleasingUnsafeMutablePointer<NSIndexPath>,
     dropOperation proposedDropOperation: UnsafeMutablePointer<NSCollectionView.DropOperation>
   ) -> NSDragOperation {
+    let folderURLs = TerminalSidebarFolderDrop.directoryURLs(from: draggingInfo.draggingPasteboard)
+    if !folderURLs.isEmpty,
+      let target = TerminalSidebarFolderDrop.target(in: appliedModel.entries)
+    {
+      let layoutTarget = layoutDropTarget(for: target)
+      setDropTarget(target, pointerY: nil)
+      proposedDropIndexPath.pointee =
+        IndexPath(
+          item: min(layoutTarget.insertionEntryIndex, appliedModel.visibleEntries.count),
+          section: 0
+        ) as NSIndexPath
+      proposedDropOperation.pointee = .before
+      draggingInfo.animatesToDestination = false
+      draggingInfo.numberOfValidItemsForDrop = folderURLs.count
+      return .copy
+    }
     guard let dragged = draggedValue(from: draggingInfo) else {
       setDropTarget(nil, pointerY: nil)
       return []
@@ -561,6 +578,11 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     indexPath: IndexPath,
     dropOperation: NSCollectionView.DropOperation
   ) -> Bool {
+    let folderURLs = TerminalSidebarFolderDrop.directoryURLs(from: draggingInfo.draggingPasteboard)
+    if !folderURLs.isEmpty {
+      setDropTarget(nil, pointerY: nil)
+      return onFolderDrop?(folderURLs) == true
+    }
     let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
     guard
       let dragged = draggedValue(from: draggingInfo),

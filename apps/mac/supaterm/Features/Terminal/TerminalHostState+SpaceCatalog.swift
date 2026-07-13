@@ -68,7 +68,8 @@ extension TerminalHostState {
   func createProject(
     named name: String,
     in spaceID: TerminalSpaceID? = nil,
-    focusing: Bool = true
+    focusing: Bool = true,
+    workingDirectory: URL? = nil
   ) throws -> TerminalProjectID {
     guard let normalizedName = Self.trimmedNonEmpty(name) else {
       throw TerminalControlError.invalidProjectName
@@ -87,7 +88,12 @@ extension TerminalHostState {
     var updatedSpaceCatalog = spaceCatalog
     updatedSpaceCatalog.spaces[spaceIndex].projects.append(project)
     _ = writeSpaceCatalog(updatedSpaceCatalog)
-    _ = createTab(in: spaceID, projectID: project.id, focusing: focusing)
+    _ = createTab(
+      in: spaceID,
+      projectID: project.id,
+      focusing: focusing,
+      workingDirectory: workingDirectory
+    )
     return project.id
   }
 

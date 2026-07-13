@@ -137,6 +137,9 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
       listView.onDrop = { [weak self] drag, destination in
         self?.commit(drag: drag, destination: destination)
       }
+      listView.onFolderDrop = { [weak self] folderURLs in
+        self?.createProjects(for: folderURLs) ?? false
+      }
       applyModel()
     }
 
@@ -223,6 +226,25 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
         },
         delete: { [weak self] in self?.confirmDelete(project) }
       )
+    }
+
+    private func createProjects(for folderURLs: [URL]) -> Bool {
+      guard let spaceID = parent.terminal.selectedSpaceID else { return false }
+      var didCreateProject = false
+      for folderURL in folderURLs {
+        let name = folderURL.path(percentEncoded: false)
+        guard parent.terminal.isProjectNameAvailable(name, in: spaceID) else { continue }
+        guard
+          (try? parent.terminal.createProject(
+            named: name,
+            in: spaceID,
+            workingDirectory: folderURL
+          )) != nil
+        else { continue }
+        didCreateProject = true
+      }
+      if !didCreateProject { NSSound.beep() }
+      return didCreateProject
     }
 
     private func tabRow(_ tab: TerminalTabItem) -> some View {

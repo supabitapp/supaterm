@@ -91,6 +91,39 @@ struct TerminalSidebarListViewTests {
     #expect(constrainedY == -TerminalSidebarLayout.firstVisibleSectionTopInset)
   }
 
+  @Test @MainActor
+  func folderDropKeepsUniqueDirectoriesOnly() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let directory = root.appendingPathComponent("project", isDirectory: true)
+    let file = root.appendingPathComponent("notes.txt")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try Data().write(to: file)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let pasteboard = NSPasteboard.withUniqueName()
+    pasteboard.clearContents()
+    #expect(pasteboard.writeObjects([directory as NSURL, directory as NSURL, file as NSURL]))
+
+    #expect(
+      TerminalSidebarFolderDrop.directoryURLs(from: pasteboard)
+        == [directory.standardizedFileURL]
+    )
+  }
+
+  @Test @MainActor
+  func folderDropAppendsAnUnpinnedProject() throws {
+    let entries = [
+      TerminalSidebarEntry(kind: .project(id: firstProjectID, isPinned: true)),
+      TerminalSidebarEntry(kind: .project(id: secondProjectID, isPinned: false)),
+      TerminalSidebarEntry(kind: .newProject),
+    ]
+    let target = try #require(TerminalSidebarFolderDrop.target(in: entries))
+
+    #expect(target.destination == .project(isPinned: false, laneIndex: 1))
+    #expect(target.insertionEntryIndex == 2)
+  }
+
   @Test
   func hapticTargetsDeduplicateUntilTheSessionResets() {
     let first: TerminalSidebarDropTarget.Destination = .tab(

@@ -1,5 +1,41 @@
 import AppKit
 
+@MainActor
+enum TerminalSidebarFolderDrop {
+  static func directoryURLs(from pasteboard: NSPasteboard) -> [URL] {
+    guard
+      let urls = pasteboard.readObjects(
+        forClasses: [NSURL.self],
+        options: [.urlReadingFileURLsOnly: true]
+      ) as? [URL]
+    else { return [] }
+
+    var seen: Set<URL> = []
+    return urls.compactMap { url in
+      let url = url.standardizedFileURL
+      guard
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true,
+        seen.insert(url).inserted
+      else { return nil }
+      return url
+    }
+  }
+
+  static func target(in entries: [TerminalSidebarEntry]) -> TerminalSidebarDropTarget? {
+    guard let insertionEntryIndex = entries.firstIndex(where: { $0.id == .newProject }) else {
+      return nil
+    }
+    let laneIndex = entries.count { entry in
+      guard case .project(_, let isPinned) = entry.kind else { return false }
+      return !isPinned
+    }
+    return TerminalSidebarDropTarget(
+      destination: .project(isPinned: false, laneIndex: laneIndex),
+      insertionEntryIndex: insertionEntryIndex
+    )
+  }
+}
+
 enum TerminalSidebarDragState: Equatable {
   case idle
   case pending

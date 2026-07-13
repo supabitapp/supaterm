@@ -147,6 +147,34 @@ struct TerminalHostStateSessionRestoreTests {
   }
 
   @Test
+  func createProjectUsesRequestedWorkingDirectory() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      defer { try? FileManager.default.removeItem(at: directory) }
+      let path = GhosttySurfaceView.normalizedWorkingDirectoryPath(
+        directory.path(percentEncoded: false)
+      )
+      let host = TerminalHostState()
+      let spaceID = try #require(host.selectedSpaceID)
+
+      let projectID = try host.createProject(
+        named: path,
+        in: spaceID,
+        workingDirectory: directory
+      )
+
+      #expect(host.selectedProjectID == projectID)
+      #expect(host.selectedSurfaceState?.pwd == path)
+    }
+  }
+
+  @Test
   func restorationSnapshotRoundTripsTabsSplitsAndSelections() async throws {
     try await withDependencies {
       $0.defaultFileStorage = .inMemory
