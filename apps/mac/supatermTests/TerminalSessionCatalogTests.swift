@@ -260,6 +260,7 @@ struct TerminalSessionCatalogTests {
           ),
           nickname: "Mendel",
           role: "reviewer",
+          transcriptPath: "/tmp/child.jsonl",
           phase: .running,
           detail: "Reviewing"
         )

@@ -27,8 +27,8 @@ final class TerminalCommandExecutor {
       transcriptEventDelay: transcriptEventDelay,
       sleep: sleep
     )
-    agentMonitorStore.onMonitorSnapshot = { [weak self] snapshot, agent, sessionID, context in
-      self?.handleMonitorSnapshot(snapshot, agent: agent, sessionID: sessionID, context: context)
+    agentMonitorStore.onMonitorSnapshot = { [weak self] snapshot, scope, context in
+      self?.handleMonitorSnapshot(snapshot, scope: scope, context: context)
     }
     agentMonitorStore.onRunningTimeoutExpired = { [weak self] agent, sessionID, context in
       self?.handleRunningTimeoutExpired(agent: agent, sessionID: sessionID, context: context)

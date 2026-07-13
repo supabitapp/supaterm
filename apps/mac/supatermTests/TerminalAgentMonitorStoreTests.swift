@@ -18,8 +18,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       !store.track(
-        agent: .pi,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -42,8 +41,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -72,8 +70,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -81,7 +78,11 @@ struct TerminalAgentMonitorStoreTests {
     continuation.finish()
     await flushEffects()
 
-    #expect(!store.isTracking(agent: .codex, sessionID: "session-1"))
+    #expect(
+      !store.isTracking(
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1")
+      )
+    )
   }
 
   @Test
@@ -121,8 +122,7 @@ struct TerminalAgentMonitorStoreTests {
     let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: context
       )
@@ -188,7 +188,7 @@ private final class MonitorStoreEventsSpy {
   var snapshots: [AgentMonitorSnapshot] = []
 
   func bind(to store: TerminalAgentMonitorStore) {
-    store.onMonitorSnapshot = { [weak self] snapshot, _, _, _ in
+    store.onMonitorSnapshot = { [weak self] snapshot, _, _ in
       self?.snapshots.append(snapshot)
     }
     store.onRunningTimeoutExpired = { [weak self] agent, sessionID, _ in
