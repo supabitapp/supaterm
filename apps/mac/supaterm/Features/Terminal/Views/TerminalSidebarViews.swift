@@ -10,6 +10,7 @@ struct TerminalSplitView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  @Binding var collapsedProjectIDs: Set<TerminalProjectID>
   let totalWidth: CGFloat
   let isSidebarCollapsed: Bool
   @Binding var sidebarFraction: CGFloat
@@ -54,6 +55,7 @@ struct TerminalSplitView: View {
           releaseAnnouncement: releaseAnnouncement,
           palette: palette,
           terminal: terminal,
+          collapsedProjectIDs: $collapsedProjectIDs,
           dismissReleaseAnnouncement: dismissReleaseAnnouncement
         )
         .frame(width: currentSidebarWidth)
@@ -99,6 +101,7 @@ struct TerminalSidebarView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  @Binding var collapsedProjectIDs: Set<TerminalProjectID>
   let dismissReleaseAnnouncement: () -> Void
 
   var body: some View {
@@ -109,6 +112,7 @@ struct TerminalSidebarView: View {
         releaseAnnouncement: releaseAnnouncement,
         palette: palette,
         terminal: terminal,
+        collapsedProjectIDs: $collapsedProjectIDs,
         dismissReleaseAnnouncement: dismissReleaseAnnouncement
       )
       WindowTrafficLights()
@@ -125,6 +129,7 @@ struct FloatingSidebarOverlay: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  @Binding var collapsedProjectIDs: Set<TerminalProjectID>
   let totalWidth: CGFloat
   @Binding var sidebarFraction: CGFloat
   @Binding var isVisible: Bool
@@ -154,6 +159,7 @@ struct FloatingSidebarOverlay: View {
           releaseAnnouncement: releaseAnnouncement,
           palette: palette,
           terminal: terminal,
+          collapsedProjectIDs: $collapsedProjectIDs,
           width: floatingWidth,
           dismissReleaseAnnouncement: dismissReleaseAnnouncement
         )
@@ -330,6 +336,7 @@ private struct FloatingSidebarView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  @Binding var collapsedProjectIDs: Set<TerminalProjectID>
   let width: CGFloat
   let dismissReleaseAnnouncement: () -> Void
 
@@ -340,6 +347,7 @@ private struct FloatingSidebarView: View {
       releaseAnnouncement: releaseAnnouncement,
       palette: palette,
       terminal: terminal,
+      collapsedProjectIDs: $collapsedProjectIDs,
       dismissReleaseAnnouncement: dismissReleaseAnnouncement
     )
     .frame(width: width)

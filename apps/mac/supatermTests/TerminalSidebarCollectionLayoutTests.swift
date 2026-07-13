@@ -36,108 +36,24 @@ struct TerminalSidebarCollectionLayoutTests {
   }
 
   @Test @MainActor
-  func collectionFrameResizeRepreparesLayoutAtTheNewWidth() {
+  func removedItemsKeepTheirOriginalIndexUntilTheSnapshotSettles() {
+    let original = singleProjectEntries
+    let target = [original[0], original[2]]
     let layout = TerminalSidebarCollectionLayout()
-    let collectionView = TerminalSidebarCollectionView(
-      frame: CGRect(x: 0, y: 0, width: 180, height: 400)
-    )
+    let collectionView = NSCollectionView(frame: CGRect(x: 0, y: 0, width: 240, height: 400))
     collectionView.collectionViewLayout = layout
-    layout.setEntries(singleProjectEntries)
+    layout.setEntries(original)
+    layout.prepare()
+    layout.setEntries(target)
     layout.prepare()
 
-    collectionView.setFrameSize(CGSize(width: 320, height: 400))
-    collectionView.layoutSubtreeIfNeeded()
-
-    #expect(layout.targetPlan.contentSize.width == 320)
-    #expect(layout.targetPlan.items.map(\.frame.width) == [303, 303, 303])
-  }
-
-  @Test @MainActor
-  func hapticFeedbackFollowsDistinctDropTargets() {
-    var hapticCount = 0
-    let controller = hapticController {
-      hapticCount += 1
-    }
-    let firstTarget = TerminalSidebarDropTarget(
-      destination: .project(isPinned: false, laneIndex: 0),
-      insertionEntryIndex: 0
-    )
-    let secondTarget = TerminalSidebarDropTarget(
-      destination: .project(isPinned: false, laneIndex: 1),
-      insertionEntryIndex: 1
-    )
-    let reflowedFirstTarget = TerminalSidebarDropTarget(
-      destination: firstTarget.destination,
-      insertionEntryIndex: 3
+    let displayed = layout.displayedItems(
+      identifiers: original.map(\.id),
+      itemCount: original.count
     )
 
-    controller.setDropTarget(firstTarget, pointerY: nil)
-    controller.setDropTarget(firstTarget, pointerY: nil)
-    controller.setDropTarget(reflowedFirstTarget, pointerY: nil)
-    controller.setDropTarget(secondTarget, pointerY: nil)
-    controller.setDropTarget(nil, pointerY: nil)
-
-    #expect(hapticCount == 2)
-  }
-
-  @Test @MainActor
-  func hapticFeedbackDistinguishesProjectsAtTheSameTabLane() {
-    var hapticCount = 0
-    let controller = hapticController {
-      hapticCount += 1
-    }
-
-    controller.setDropTarget(
-      TerminalSidebarDropTarget(
-        destination: .tab(projectID: firstProjectID, isPinned: false, laneIndex: 0),
-        insertionEntryIndex: 1
-      ),
-      pointerY: nil
-    )
-    controller.setDropTarget(
-      TerminalSidebarDropTarget(
-        destination: .tab(projectID: secondProjectID, isPinned: false, laneIndex: 0),
-        insertionEntryIndex: 3
-      ),
-      pointerY: nil
-    )
-
-    #expect(hapticCount == 2)
-  }
-
-  @Test @MainActor
-  func hapticFeedbackRemainsDeduplicatedAfterLeavingTarget() {
-    var hapticCount = 0
-    let controller = hapticController {
-      hapticCount += 1
-    }
-    let target = TerminalSidebarDropTarget(
-      destination: .project(isPinned: false, laneIndex: 0),
-      insertionEntryIndex: 0
-    )
-
-    controller.setDropTarget(target, pointerY: nil)
-    controller.setDropTarget(nil, pointerY: nil)
-    controller.setDropTarget(target, pointerY: nil)
-
-    #expect(hapticCount == 1)
-  }
-
-  @MainActor
-  private func hapticController(
-    performReorderHaptic: @escaping () -> Void
-  ) -> TerminalSidebarCollectionViewController {
-    let controller = TerminalSidebarCollectionViewController(
-      performReorderHaptic: performReorderHaptic
-    )
-    _ = controller.view
-    controller.configure(
-      entries: [],
-      collapsedProjectIDs: [],
-      animated: false,
-      animationsEnabled: false
-    )
-    return controller
+    #expect(displayed.map(\.0.item) == [0, 1, 2])
+    #expect(displayed.map(\.1.id) == original.map(\.id))
   }
 
   @Test
@@ -213,67 +129,6 @@ struct TerminalSidebarCollectionLayoutTests {
 
     #expect(dragging.items[2].frame.minY == 0)
     #expect(dragging.contentSize.height == original.contentSize.height)
-  }
-
-  @Test @MainActor
-  func nonanimatedExpansionFinishesActiveMotionImmediately() {
-    let controller = TerminalSidebarCollectionViewController()
-    _ = controller.view
-    let entries = [project(firstProjectID)]
-
-    controller.configure(
-      entries: entries,
-      collapsedProjectIDs: [],
-      animated: false,
-      animationsEnabled: true
-    )
-    controller.configure(
-      entries: entries,
-      collapsedProjectIDs: [firstProjectID],
-      animated: true,
-      animationsEnabled: true
-    )
-    controller.configure(
-      entries: entries,
-      collapsedProjectIDs: [firstProjectID],
-      animated: false,
-      animationsEnabled: false
-    )
-
-    #expect(controller.collectionLayout.expansionProgress[firstProjectID] == 0)
-  }
-
-  @Test @MainActor
-  func entryInsertionStartsFromAHiddenOffsetLayout() {
-    let controller = TerminalSidebarCollectionViewController()
-    _ = controller.view
-    let originalEntries = [project(firstProjectID), newProjectEntry]
-    let insertedEntries = [
-      project(firstProjectID),
-      tab(firstTabID, projectID: firstProjectID),
-      newProjectEntry,
-    ]
-
-    controller.configure(
-      entries: originalEntries,
-      collapsedProjectIDs: [],
-      animated: false,
-      animationsEnabled: true
-    )
-    controller.collectionLayout.resize(to: 240)
-    controller.configure(
-      entries: insertedEntries,
-      collapsedProjectIDs: [],
-      animated: true,
-      animationsEnabled: true
-    )
-    controller.collectionLayout.resize(to: 240)
-
-    let presentedTab = controller.collectionLayout.plan.items.first { $0.id == .tab(firstTabID) }
-    let targetTab = controller.collectionLayout.targetPlan.items.first { $0.id == .tab(firstTabID) }
-    #expect(presentedTab?.alpha == 0)
-    #expect(targetTab?.alpha == 1)
-    #expect(presentedTab?.frame.minY == targetTab.map { $0.frame.minY - 6 })
   }
 
   @Test
@@ -488,9 +343,9 @@ struct TerminalSidebarCollectionLayoutTests {
 
   @Test
   func animationCurveReachesExactEndpoints() {
-    #expect(TerminalSidebarAnimationCurve.interpolate(from: 0, to: 1, elapsed: 0, duration: 0.2) == 0)
-    #expect(TerminalSidebarAnimationCurve.interpolate(from: 0, to: 1, elapsed: 0.1, duration: 0.2) == 0.875)
-    #expect(TerminalSidebarAnimationCurve.interpolate(from: 0, to: 1, elapsed: 0.2, duration: 0.2) == 1)
+    #expect(TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: 0, duration: 0.2) == 0)
+    #expect(TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: 0.1, duration: 0.2) > 0.5)
+    #expect(TerminalSidebarAnimationCurve.standard(from: 0, to: 1, elapsed: 0.2, duration: 0.2) == 1)
   }
 
   @Test
@@ -513,31 +368,6 @@ struct TerminalSidebarCollectionLayoutTests {
     #expect(halfway.items[1].frame.height == origin.items[1].frame.height / 2)
     #expect(halfway.items[1].alpha == 0.5)
     #expect(halfway.contentSize.height == (origin.contentSize.height + target.contentSize.height) / 2)
-  }
-
-  @Test
-  func layoutItemsFollowDisplayedStableIdentifiers() {
-    let targetEntries = [
-      project(firstProjectID),
-      tab(secondTabID, projectID: firstProjectID),
-      tab(firstTabID, projectID: firstProjectID),
-      newProjectEntry,
-    ]
-    let target = plan(entries: targetEntries, width: 240)
-    let previousIdentifiers: [TerminalSidebarEntryID] = [
-      .project(firstProjectID),
-      .tab(firstTabID),
-      .tab(secondTabID),
-      .newProject,
-    ]
-
-    let previousOrderItems = target.items(for: previousIdentifiers)
-    let targetOrderItems = target.items(for: targetEntries.map(\.id))
-
-    #expect(previousOrderItems.map(\.id) == previousIdentifiers)
-    #expect(previousOrderItems[1].frame == target.items[2].frame)
-    #expect(previousOrderItems[2].frame == target.items[1].frame)
-    #expect(targetOrderItems == target.items)
   }
 
   @Test

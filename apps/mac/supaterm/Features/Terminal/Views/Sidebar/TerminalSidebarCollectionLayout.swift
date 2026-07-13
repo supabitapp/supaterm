@@ -63,11 +63,6 @@ struct TerminalSidebarDropTarget: Equatable {
   let destination: Destination
   let insertionEntryIndex: Int
 
-  var targetProjectID: TerminalProjectID? {
-    guard case .tab(let projectID, _, _) = destination else { return nil }
-    return projectID
-  }
-
   var isTab: Bool {
     if case .tab = destination { return true }
     return false
@@ -123,6 +118,13 @@ enum TerminalSidebarDropCommit {
 }
 
 struct TerminalSidebarLayoutPlan: Equatable {
+  struct Visibility: Equatable {
+    let height: CGFloat
+    let alpha: CGFloat
+
+    static let visible = Self(height: 1, alpha: 1)
+  }
+
   struct Item: Equatable {
     let id: TerminalSidebarEntryID
     let frame: CGRect
@@ -150,6 +152,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     entries: [TerminalSidebarEntry],
     preferredHeights: [TerminalSidebarEntryID: CGFloat],
     expansionProgress: [TerminalProjectID: CGFloat],
+    visibilityByEntryID: [TerminalSidebarEntryID: Visibility] = [:],
     draggedEntryIDs: Set<TerminalSidebarEntryID>,
     dropTarget: TerminalSidebarDropTarget?,
     width: CGFloat
@@ -177,25 +180,23 @@ struct TerminalSidebarLayoutPlan: Equatable {
       }
 
       let isDragged = dropTarget != nil && draggedEntryIDs.contains(entry.id)
+      let visibility = Self.visibility(
+        for: entry,
+        expansionProgress: expansionProgress,
+        visibilityByEntryID: visibilityByEntryID
+      )
       if y > 0, !isDragged {
         switch entry.kind {
         case .project, .newProject:
           y += Self.projectSpacing
-        case .tab(_, let projectID, _):
-          y += TerminalSidebarLayout.tabRowSpacing * (expansionProgress[projectID] ?? 1)
+        case .tab:
+          y += TerminalSidebarLayout.tabRowSpacing * visibility.height
         }
       }
 
       let preferredHeight = preferredHeights[entry.id] ?? TerminalSidebarLayout.tabRowMinHeight
-      let visibility: CGFloat
-      switch entry.kind {
-      case .tab(_, let projectID, _):
-        visibility = max(0, min(expansionProgress[projectID] ?? 1, 1))
-      case .project, .newProject:
-        visibility = 1
-      }
-      let height = isDragged ? 0 : preferredHeight * visibility
-      let alpha = isDragged ? 0 : visibility
+      let height = isDragged ? 0 : preferredHeight * visibility.height
+      let alpha = isDragged ? 0 : visibility.alpha
       items.append(
         Item(
           id: entry.id,
@@ -251,11 +252,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
     )
   }
 
-  func items(for identifiers: [TerminalSidebarEntryID]) -> [Item] {
-    let itemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-    return identifiers.compactMap { itemsByID[$0] }
-  }
-
   private static func indicatorFrame(y: CGFloat, width: CGFloat, isTab: Bool) -> CGRect {
     let indentation: CGFloat = isTab ? 12 : 0
     return CGRect(
@@ -264,6 +260,20 @@ struct TerminalSidebarLayoutPlan: Equatable {
       width: max(1, width - indentation),
       height: 2
     )
+  }
+
+  private static func visibility(
+    for entry: TerminalSidebarEntry,
+    expansionProgress: [TerminalProjectID: CGFloat],
+    visibilityByEntryID: [TerminalSidebarEntryID: Visibility]
+  ) -> Visibility {
+    switch entry.kind {
+    case .tab(_, let projectID, _):
+      let progress = max(0, min(expansionProgress[projectID] ?? 1, 1))
+      return visibilityByEntryID[entry.id] ?? Visibility(height: progress, alpha: progress)
+    case .project, .newProject:
+      return .visible
+    }
   }
 
   private static func dropGapHeight(
@@ -546,7 +556,7 @@ enum TerminalSidebarDropTargetResolver {
 }
 
 enum TerminalSidebarAnimationCurve {
-  static func interpolate(
+  static func standard(
     from: CGFloat,
     to: CGFloat,
     elapsed: TimeInterval,
@@ -554,14 +564,52 @@ enum TerminalSidebarAnimationCurve {
   ) -> CGFloat {
     guard duration > 0 else { return to }
     let linear = max(0, min(elapsed / duration, 1))
-    let eased = 1 - pow(1 - linear, 3)
+    let eased = cubicBezierProgress(
+      linear,
+      x1: 0.25,
+      y1: 0.46,
+      x2: 0.45,
+      y2: 0.94
+    )
     return from + (to - from) * eased
+  }
+
+  private static func cubicBezierProgress(
+    _ progress: Double,
+    x1: Double,
+    y1: Double,
+    x2: Double,
+    y2: Double
+  ) -> Double {
+    var parameter = progress
+    for _ in 0..<6 {
+      let x = cubic(parameter, first: x1, second: x2)
+      let derivative = cubicDerivative(parameter, first: x1, second: x2)
+      guard abs(derivative) > 0.000_001 else { break }
+      parameter = max(0, min(parameter - (x - progress) / derivative, 1))
+    }
+    return cubic(parameter, first: y1, second: y2)
+  }
+
+  private static func cubic(_ value: Double, first: Double, second: Double) -> Double {
+    let inverse = 1 - value
+    return 3 * inverse * inverse * value * first
+      + 3 * inverse * value * value * second
+      + value * value * value
+  }
+
+  private static func cubicDerivative(_ value: Double, first: Double, second: Double) -> Double {
+    let inverse = 1 - value
+    return 3 * inverse * inverse * first
+      + 6 * inverse * value * (second - first)
+      + 3 * value * value * (1 - second)
   }
 }
 
 final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private(set) var entries: [TerminalSidebarEntry] = []
   var expansionProgress: [TerminalProjectID: CGFloat] = [:]
+  var visibilityByEntryID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Visibility] = [:]
   var draggedEntryIDs: Set<TerminalSidebarEntryID> = []
   var dropTarget: TerminalSidebarDropTarget?
   var preferredHeight: ((TerminalSidebarEntryID, CGFloat) -> CGFloat)?
@@ -586,9 +634,18 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private var transitionOrigin: TerminalSidebarLayoutPlan?
   private var transitionProgress: CGFloat = 1
   private var attributesByIndexPath: [IndexPath: NSCollectionViewLayoutAttributes] = [:]
+  private var fallbackItemsByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item] = [:]
+  private var preparedBoundsSize: CGSize = .zero
 
   func setEntries(_ entries: [TerminalSidebarEntry]) {
+    if self.entries.map(\.id) != entries.map(\.id) {
+      fallbackItemsByID = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) })
+    }
     self.entries = entries
+  }
+
+  func finishStructuralUpdate() {
+    fallbackItemsByID = [:]
   }
 
   func beginTransition() {
@@ -608,12 +665,8 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   override func prepare() {
     super.prepare()
     guard let collectionView else { return }
+    preparedBoundsSize = collectionView.bounds.size
     rebuild(width: collectionView.bounds.width)
-  }
-
-  func resize(to width: CGFloat) {
-    invalidateLayout()
-    rebuild(width: width)
   }
 
   private func rebuild(width: CGFloat) {
@@ -627,6 +680,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
       entries: entries,
       preferredHeights: heights,
       expansionProgress: expansionProgress,
+      visibilityByEntryID: visibilityByEntryID,
       draggedEntryIDs: draggedEntryIDs,
       dropTarget: dropTarget,
       width: width
@@ -641,15 +695,28 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     let currentIdentifiers = itemIdentifiers?() ?? entries.map(\.id)
     let displayedIdentifiers =
       currentIdentifiers.count == itemCount ? currentIdentifiers : entries.map(\.id)
-    let displayedItems = plan.items(for: Array(displayedIdentifiers.prefix(itemCount)))
     attributesByIndexPath = Dictionary(
-      uniqueKeysWithValues: displayedItems.enumerated().map { index, item in
-        let indexPath = IndexPath(item: index, section: 0)
+      uniqueKeysWithValues: displayedItems(
+        identifiers: displayedIdentifiers,
+        itemCount: itemCount
+      ).map { indexPath, item in
         let attributes = NSCollectionViewLayoutAttributes(forItemWith: indexPath)
         attributes.frame = item.frame
         attributes.alpha = item.alpha
         return (indexPath, attributes)
-      })
+      }
+    )
+  }
+
+  func displayedItems(
+    identifiers: [TerminalSidebarEntryID],
+    itemCount: Int
+  ) -> [(IndexPath, TerminalSidebarLayoutPlan.Item)] {
+    let targetItemsByID = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) })
+    return identifiers.prefix(itemCount).enumerated().compactMap { index, entryID in
+      guard let item = targetItemsByID[entryID] ?? fallbackItemsByID[entryID] else { return nil }
+      return (IndexPath(item: index, section: 0), item)
+    }
   }
 
   override var collectionViewContentSize: NSSize {
@@ -700,7 +767,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   }
 
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
-    newBounds.width != plan.contentSize.width
+    newBounds.size != preparedBoundsSize
   }
 
 }

@@ -750,6 +750,7 @@ private enum SidebarChromeSnapshotContext {
 
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
+  @State private var collapsedProjectIDs: Set<TerminalProjectID> = []
 
   private var palette: Palette {
     Palette(colorScheme: appearance.colorScheme)
@@ -770,6 +771,7 @@ private struct SidebarChromeSnapshotFixture: View {
       releaseAnnouncement: nil,
       palette: palette,
       terminal: SidebarChromeSnapshotContext.terminal,
+      collapsedProjectIDs: $collapsedProjectIDs,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)
