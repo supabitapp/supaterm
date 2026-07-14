@@ -341,6 +341,7 @@ struct TerminalSplitTreeView: View {
     @State private var notificationPulseOpacity = 0.0
 
     private static let agentPanelEdgePadding: CGFloat = 12
+    private static let agentPanelCursorClearance: CGFloat = 12
 
     private var unreadGlowShape: UnevenRoundedRectangle {
       UnevenRoundedRectangle(
@@ -439,6 +440,7 @@ struct TerminalSplitTreeView: View {
     @ViewBuilder
     private func agentPanelOverlay(size: CGSize) -> some View {
       let searchIsVisible = surfaceView.bridge.state.searchNeedle != nil
+      let topPadding = Self.agentPanelTopPadding(searchIsVisible: searchIsVisible)
       let overlayState = Self.agentPanelOverlayState(
         presentation: agentPanelPresentation,
         focusedSurfaceID: focusedSurfaceID,
@@ -454,11 +456,15 @@ struct TerminalSplitTreeView: View {
         )
         AgentPanelSurface(
           isCollapsed: overlayState == .collapsedIcon,
+          isFocused: focusedSurfaceID == surfaceView.id,
           presentation: agentPanelPresentation,
           palette: palette,
           forksDown: agentPanelForksDown,
           reduceMotion: reduceMotion,
           shortcutHint: shortcutHint,
+          surfaceSize: size,
+          surfaceView: surfaceView,
+          topPadding: topPadding,
           copyText: { text in
             action(.agentPanelCopyText(text))
           },
@@ -476,7 +482,7 @@ struct TerminalSplitTreeView: View {
             action(.agentPanelURLTapped(url))
           }
         )
-        .padding(.top, Self.agentPanelTopPadding(searchIsVisible: searchIsVisible))
+        .padding(.top, topPadding)
         .padding([.leading, .trailing, .bottom], Self.agentPanelEdgePadding)
       }
     }
@@ -647,6 +653,29 @@ struct TerminalSplitTreeView: View {
       focusedSurfaceID == surfaceID ? shortcutHint : nil
     }
 
+    static func shouldTemporarilyHideAgentPanel(
+      cursorRect: CGRect?,
+      surfaceSize: CGSize,
+      panelHeight: CGFloat?,
+      topPadding: CGFloat
+    ) -> Bool {
+      guard
+        let cursorRect,
+        let panelHeight,
+        panelHeight > 0
+      else { return false }
+      let panelFrame = CGRect(
+        x: surfaceSize.width - agentPanelEdgePadding - AgentPanelMetrics.expandedWidth,
+        y: surfaceSize.height - topPadding - panelHeight,
+        width: AgentPanelMetrics.expandedWidth,
+        height: panelHeight
+      )
+      return
+        panelFrame
+        .insetBy(dx: -agentPanelCursorClearance, dy: -agentPanelCursorClearance)
+        .intersects(cursorRect)
+    }
+
     static func shouldTriggerNotificationPulse(
       from oldValue: Bool,
       to newValue: Bool,
@@ -709,17 +738,25 @@ struct TerminalSplitTreeView: View {
 
   private struct AgentPanelSurface: View {
     let isCollapsed: Bool
+    let isFocused: Bool
     let presentation: PaneAgentPanelPresentation
     let palette: Palette
     let forksDown: Bool
     let reduceMotion: Bool
     let shortcutHint: String?
+    let surfaceSize: CGSize
+    let surfaceView: GhosttySurfaceView
+    let topPadding: CGFloat
     let copyText: (String) -> Void
     let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
     let toggle: () -> Void
     let openURL: (URL) -> Void
 
     @State private var expandedHeight: CGFloat?
+    @State private var terminalCursorRect: CGRect?
+
+    private static let cursorMonitoringInterval = Duration.milliseconds(50)
+    private static let cursorMonitoringWindow = Duration.seconds(1)
 
     var body: some View {
       ZStack(alignment: .topTrailing) {
@@ -765,10 +802,61 @@ struct TerminalSplitTreeView: View {
         value: isCollapsed,
         reduceMotion: reduceMotion
       )
+      .opacity(temporarilyHidesPanel ? 0 : 1)
+      .allowsHitTesting(!temporarilyHidesPanel)
       .accessibilityElement(children: .contain)
+      .accessibilityHidden(temporarilyHidesPanel)
+      .terminalAnimation(
+        .easeOut(duration: 0.12),
+        value: temporarilyHidesPanel,
+        reduceMotion: reduceMotion
+      )
       .onPreferenceChange(AgentPanelHeightPreferenceKey.self) { height in
         guard height > 0 else { return }
         expandedHeight = max(height, AgentPanelMetrics.collapsedLength)
+      }
+      .task(id: activeInputGeneration) {
+        await monitorCursor(activeInputGeneration)
+      }
+    }
+
+    private var activeInputGeneration: Int? {
+      guard isFocused, !isCollapsed else { return nil }
+      let inputGeneration = surfaceView.bridge.state.userInputGeneration
+      return inputGeneration > 0 ? inputGeneration : nil
+    }
+
+    private var temporarilyHidesPanel: Bool {
+      guard activeInputGeneration != nil else { return false }
+      return TerminalSplitTreeView.LeafView.shouldTemporarilyHideAgentPanel(
+        cursorRect: terminalCursorRect,
+        surfaceSize: surfaceSize,
+        panelHeight: expandedHeight,
+        topPadding: topPadding
+      )
+    }
+
+    private func monitorCursor(_ inputGeneration: Int?) async {
+      guard inputGeneration != nil else {
+        terminalCursorRect = nil
+        return
+      }
+      let clock = ContinuousClock()
+      let deadline = clock.now.advanced(by: Self.cursorMonitoringWindow)
+      while !Task.isCancelled {
+        let cursorRect = surfaceView.terminalCursorRectInScrollWrapper()
+        if terminalCursorRect != cursorRect {
+          terminalCursorRect = cursorRect
+        }
+        if clock.now >= deadline, !temporarilyHidesPanel {
+          terminalCursorRect = nil
+          return
+        }
+        do {
+          try await clock.sleep(for: Self.cursorMonitoringInterval)
+        } catch {
+          return
+        }
       }
     }
 

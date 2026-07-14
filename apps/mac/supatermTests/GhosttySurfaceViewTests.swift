@@ -92,6 +92,39 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func focusedKeyInputAdvancesUserInputGeneration() throws {
+    initializeGhosttyForTests()
+
+    let surfaceView = GhosttySurfaceView(
+      runtime: GhosttyRuntime(),
+      tabID: UUID(),
+      workingDirectory: nil,
+      context: GHOSTTY_SURFACE_CONTEXT_TAB
+    )
+    defer { surfaceView.closeSurface() }
+    surfaceView.focusDidChange(true)
+    let event = try #require(
+      NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        characters: "a",
+        charactersIgnoringModifiers: "a",
+        isARepeat: false,
+        keyCode: 0
+      )
+    )
+
+    surfaceView.keyDown(with: event)
+
+    #expect(surfaceView.bridge.state.userInputGeneration == 1)
+  }
+
+  @Test
+  @MainActor
   func surfaceCreationReceivesUnbackedView() {
     initializeGhosttyForTests()
 

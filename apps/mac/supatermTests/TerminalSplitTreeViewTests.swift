@@ -9,6 +9,19 @@ struct TerminalSplitTreeViewTests {
     let id = UUID()
   }
 
+  private func agentPanelObscuresCursor(
+    _ cursorRect: CGRect?,
+    panelHeight: CGFloat? = 180,
+    topPadding: CGFloat = 12
+  ) -> Bool {
+    TerminalSplitTreeView.LeafView.shouldTemporarilyHideAgentPanel(
+      cursorRect: cursorRect,
+      surfaceSize: CGSize(width: 800, height: 600),
+      panelHeight: panelHeight,
+      topPadding: topPadding
+    )
+  }
+
   @Test
   func notificationPulsePatternMatchesThreeFixedSizePulses() {
     #expect(TerminalNotificationPulsePattern.initialOpacity == 1)
@@ -234,6 +247,27 @@ struct TerminalSplitTreeViewTests {
   func collapsedAgentPanelKeepsOnlyToggleWidth() {
     #expect(TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: false) == 306)
     #expect(TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: true) == 30)
+  }
+
+  @Test
+  func caretNearExpandedAgentPanelTemporarilyHidesIt() {
+    #expect(agentPanelObscuresCursor(CGRect(x: 470, y: 400, width: 10, height: 20)))
+  }
+
+  @Test
+  func agentPanelRemainsVisibleWhenCaretCannotObscureIt() {
+    #expect(!agentPanelObscuresCursor(CGRect(x: 450, y: 400, width: 8, height: 20)))
+    #expect(!agentPanelObscuresCursor(CGRect(x: 500, y: 370, width: 10, height: 8)))
+    #expect(!agentPanelObscuresCursor(nil))
+    #expect(!agentPanelObscuresCursor(CGRect(x: 470, y: 400, width: 10, height: 20), panelHeight: nil))
+  }
+
+  @Test
+  func searchOffsetMovesAgentPanelCursorAvoidanceRegion() {
+    let cursorRect = CGRect(x: 500, y: 570, width: 10, height: 10)
+
+    #expect(agentPanelObscuresCursor(cursorRect))
+    #expect(!agentPanelObscuresCursor(cursorRect, topPadding: GhosttySurfaceSearchOverlay.topReservedHeight))
   }
 
   @Test

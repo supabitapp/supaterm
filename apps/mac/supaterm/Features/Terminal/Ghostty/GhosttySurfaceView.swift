@@ -748,6 +748,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
       interpretKeyEvents([event])
       return
     }
+    defer { recordUserInput() }
     if focused {
       onDirectInteraction?()
     }
@@ -789,6 +790,11 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   override func keyUp(with event: NSEvent) {
     sendKey(action: GHOSTTY_ACTION_RELEASE, event: event)
+  }
+
+  private func recordUserInput() {
+    guard focused else { return }
+    bridge.state.userInputGeneration &+= 1
   }
 
   override func flagsChanged(with event: NSEvent) {
@@ -1035,6 +1041,36 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   func currentCellSize() -> CGSize {
     cellSize
+  }
+
+  func terminalCursorRectInScrollWrapper() -> CGRect? {
+    guard let surface, let scrollWrapper else { return nil }
+    if let lastScrollbar {
+      let bottomOffset = lastScrollbar.total - min(lastScrollbar.length, lastScrollbar.total)
+      guard lastScrollbar.offset >= bottomOffset else { return nil }
+    }
+
+    let logicalCellSize = convertFromBacking(cellSize)
+    guard logicalCellSize.width > 0, logicalCellSize.height > 0 else { return nil }
+
+    var x = 0.0
+    var y = 0.0
+    var width = 0.0
+    var height = 0.0
+    ghostty_surface_ime_point(surface, &x, &y, &width, &height)
+    let cursorHeight = max(height, logicalCellSize.height)
+    guard x.isFinite, y.isFinite, cursorHeight.isFinite, cursorHeight > 0 else { return nil }
+
+    let rect = convert(
+      CGRect(
+        x: x - logicalCellSize.width / 2,
+        y: bounds.height - y,
+        width: logicalCellSize.width,
+        height: cursorHeight
+      ),
+      to: scrollWrapper
+    )
+    return scrollWrapper.bounds.intersects(rect) ? rect : nil
   }
 
   func currentFontSizePoints() -> Double? {
@@ -1477,10 +1513,12 @@ final class GhosttySurfaceView: NSView, Identifiable {
 
   @IBAction func paste(_ sender: Any?) {
     performBindingAction("paste_from_clipboard")
+    recordUserInput()
   }
 
   @IBAction func pasteSelection(_ sender: Any?) {
     performBindingAction("paste_from_selection")
+    recordUserInput()
   }
 
   @IBAction override func selectAll(_ sender: Any?) {
@@ -1752,6 +1790,7 @@ extension GhosttySurfaceView: NSTextInputClient {
     }
     if keyTextAccumulator == nil {
       syncPreedit()
+      recordUserInput()
     }
   }
 
@@ -1841,6 +1880,7 @@ extension GhosttySurfaceView: NSTextInputClient {
       keyTextAccumulator = acc
       return
     }
+    defer { recordUserInput() }
     let len = chars.utf8CString.count
     if len == 0 { return }
     chars.withCString { ptr in
@@ -1888,6 +1928,7 @@ extension GhosttySurfaceView: NSServicesMenuRequestor {
     str.withCString { ptr in
       ghostty_surface_text(surface, ptr, UInt(len - 1))
     }
+    recordUserInput()
     return true
   }
 }
