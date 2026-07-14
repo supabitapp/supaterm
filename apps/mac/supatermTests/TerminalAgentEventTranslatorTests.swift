@@ -410,7 +410,7 @@ struct TerminalAgentEventTranslatorTests {
   }
 
   @Test
-  func scopedChildActivityDoesNotSynthesizeLifecycle() throws {
+  func claudeChildToolActivityDoesNotReplaceTask() throws {
     let request = try request(
       agent: .claude,
       json: #"""
@@ -426,9 +426,7 @@ struct TerminalAgentEventTranslatorTests {
 
     let events = TerminalAgentEventTranslator.events(for: request)
 
-    #expect(events.map(\.scope.sessionID) == ["root-1"])
-    #expect(events.map(\.scope.subagentID) == ["child-1"])
-    #expect(events.map(\.action) == [.turnRunning(detail: "Bash")])
+    #expect(events.isEmpty)
   }
 
   private func request(

@@ -281,21 +281,44 @@ private struct ClaudeTranscriptTaskState: Equatable {
   }
 }
 
+private struct ClaudeTranscriptChildState: Equatable {
+  var tasks: [String: String] = [:]
+
+  mutating func apply(_ objects: [JSONObject]) {
+    for object in objects {
+      guard object["type"]?.stringValue == "user",
+        let result = object["toolUseResult"]?.objectValue,
+        let agentID = AgentProgressParsing.normalizedTitle(result["agentId"]?.stringValue),
+        let task = AgentProgressParsing.normalizedTitle(result["description"]?.stringValue)
+      else {
+        continue
+      }
+      tasks[agentID] = task
+    }
+  }
+}
+
 @MainActor
 final class ClaudePanelMonitor: AgentPanelMonitor {
+  private var childState = ClaudeTranscriptChildState()
   private var transcriptState = ClaudeTranscriptTaskState()
   private var transcriptRows: [PaneAgentProgressRow] = []
   private var currentSnapshot: AgentMonitorSnapshot?
 
   func consume(_ update: AgentTranscriptUpdate) -> AgentMonitorSnapshot? {
     if update.didReset {
+      childState = ClaudeTranscriptChildState()
       transcriptState = ClaudeTranscriptTaskState()
       transcriptRows = []
     }
+    childState.apply(update.objects)
     if let rows = apply(update.objects) {
       transcriptRows = rows
     }
-    let nextSnapshot = AgentMonitorSnapshot(progressRows: transcriptRows)
+    let nextSnapshot = AgentMonitorSnapshot(
+      progressRows: transcriptRows,
+      childTasks: childState.tasks
+    )
     guard nextSnapshot != currentSnapshot else { return nil }
     currentSnapshot = nextSnapshot
     return nextSnapshot

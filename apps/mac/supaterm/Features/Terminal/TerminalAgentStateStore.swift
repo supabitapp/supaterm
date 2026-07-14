@@ -24,6 +24,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   let nickname: String?
   let role: String?
   let transcriptPath: String?
+  let task: String?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
@@ -33,6 +34,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     nickname: String?,
     role: String?,
     transcriptPath: String? = nil,
+    task: String? = nil,
     phase: AgentActivityPhase,
     detail: String?,
     attentionRequestID: String? = nil
@@ -41,6 +43,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     self.nickname = nickname
     self.role = role
     self.transcriptPath = transcriptPath
+    self.task = task
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -49,6 +52,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   var subagentID: String { id.subagentID }
   var sessionID: String { id.sessionID }
   var turnID: String? { id.turnID }
+  var displayDetail: String? { detail ?? task }
 }
 
 nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
@@ -197,7 +201,7 @@ nonisolated struct TerminalAgentStateStore {
         && (state.attentionRequestID == nil || state.attentionRequestID == requestID)
     case .hoverMessagesUpdated, .progressUpdated(_, source: .transcript):
       return acceptsTranscriptProjection(turnID: event.scope.turnID, state: state)
-    case .subagentStarted, .subagentStopped:
+    case .subagentStarted, .subagentStopped, .subagentTaskUpdated:
       return false
     }
   }
@@ -210,7 +214,7 @@ nonisolated struct TerminalAgentStateStore {
     if case .subagentStarted = event.action { return true }
     guard let child = state.activeChildren[key] else { return false }
     switch event.action {
-    case .subagentStopped, .attentionRequested, .turnStarted, .turnCompleted:
+    case .subagentStopped, .subagentTaskUpdated, .attentionRequested, .turnStarted, .turnCompleted:
       return true
     case .attentionResolved(let requestID):
       return child.phase == .needsInput
@@ -306,7 +310,7 @@ nonisolated struct TerminalAgentStateStore {
       updateHoverMessages(messages, turnID: event.scope.turnID, state: &state)
     case .progressUpdated(let rows, let source):
       updateProgress(rows, source: source, turnID: event.scope.turnID, state: &state)
-    case .sessionEnded, .subagentStarted, .subagentStopped:
+    case .sessionEnded, .subagentStarted, .subagentStopped, .subagentTaskUpdated:
       break
     }
   }
@@ -333,12 +337,16 @@ nonisolated struct TerminalAgentStateStore {
           nickname: nickname,
           role: role,
           transcriptPath: transcriptPath,
+          task: nil,
           phase: .running,
           detail: nil
         )
       }
     case .subagentStopped:
       state.activeChildren.removeValue(forKey: childKey)
+    case .subagentTaskUpdated(let task):
+      guard let child = state.activeChildren[childKey] else { return }
+      state.activeChildren[childKey] = child.updating(task: task)
     default:
       updateChild(event.action, key: childKey, state: &state)
     }
@@ -541,7 +549,7 @@ nonisolated struct TerminalAgentStateStore {
     let detail =
       state.phase == phase
       ? state.detail
-      : activeChildren.first(where: { $0.phase == phase })?.detail
+      : activeChildren.first(where: { $0.phase == phase })?.displayDetail
     return TerminalAgentStatePresentation(
       agent: agent,
       sessionID: sessionID,
@@ -766,6 +774,20 @@ extension TerminalAgentActiveChild {
       nickname: nickname ?? self.nickname,
       role: role ?? self.role,
       transcriptPath: transcriptPath ?? self.transcriptPath,
+      task: task,
+      phase: phase,
+      detail: detail,
+      attentionRequestID: attentionRequestID
+    )
+  }
+
+  fileprivate nonisolated func updating(task: String) -> Self {
+    Self(
+      id: id,
+      nickname: nickname,
+      role: role,
+      transcriptPath: transcriptPath,
+      task: task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID
@@ -782,6 +804,7 @@ extension TerminalAgentActiveChild {
       nickname: nickname,
       role: role,
       transcriptPath: transcriptPath,
+      task: task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID

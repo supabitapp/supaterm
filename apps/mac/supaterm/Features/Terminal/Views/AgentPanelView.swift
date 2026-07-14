@@ -168,7 +168,7 @@ struct AgentPanelView: View {
   }
 
   static func childDetail(_ child: TerminalAgentActiveChild) -> String {
-    child.detail ?? "Working…"
+    child.displayDetail ?? "Working…"
   }
 
   private static func normalizedChildLabel(_ value: String?) -> String? {

@@ -266,6 +266,38 @@ extension TerminalAgentStateStoreTests {
   }
 
   @Test
+  func resolvedChildAttentionFallsBackToTask() throws {
+    let fixture = startedStore()
+    let surfaceID = fixture.surfaceID
+    let context = fixture.context
+    var store = fixture.store
+
+    for action in [
+      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "Explore"),
+      .subagentTaskUpdated("Explore UI test infrastructure"),
+      .attentionRequested(requestID: "tool:Bash", message: "Approve command"),
+      .attentionResolved(requestID: "tool:Bash"),
+    ] {
+      store.apply(
+        event(
+          sessionID: "session-1",
+          turnID: "turn-1",
+          subagentID: "child-1",
+          context: context,
+          action: action
+        )
+      )
+    }
+
+    let child = try #require(
+      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first
+    )
+    #expect(child.phase == .running)
+    #expect(child.detail == nil)
+    #expect(child.displayDetail == "Explore UI test infrastructure")
+  }
+
+  @Test
   func staleChildStopCannotRemoveNewerChildScope() throws {
     let fixture = startedStore()
     let surfaceID = fixture.surfaceID
