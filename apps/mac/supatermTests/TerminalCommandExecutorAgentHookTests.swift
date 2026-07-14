@@ -131,6 +131,50 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(didLoadProgress)
   }
   @Test
+  func claudeStopWithActiveGoalDoesNotMarkPaneUnread() async throws {
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    try ClaudeProgressFixtures.appendGoalStatus(
+      condition: "CI passes, tests are valid",
+      met: false,
+      to: transcriptURL
+    )
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          cwd: ClaudeHookFixtures.cwd,
+          hookEventName: .sessionStart,
+          sessionID: ClaudeHookFixtures.sessionID,
+          transcriptPath: transcriptURL.path
+        )
+      )
+    )
+    let didLoadGoal = await waitUntil {
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(
+          id: "claude-goal:CI passes, tests are valid",
+          title: "Goal: CI passes, tests are valid",
+          status: .running,
+          kind: .goal
+        )
+      ]
+    }
+    #expect(didLoadGoal)
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.preToolUse, context: harness.context)
+    )
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      ClaudeHookFixtures.request(ClaudeHookFixtures.stop)
+    )
+
+    #expect(harness.host.unreadNotificationCount(for: harness.tabID) == 0)
+  }
+  @Test
   func claudePreToolUseMarksTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 

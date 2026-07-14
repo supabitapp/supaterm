@@ -41,6 +41,12 @@ extension TerminalCommandExecutor {
     else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
+    let suppressesCompletionNotification =
+      request.agent == .claude
+      && terminal.agentSessionHasActiveGoal(
+        agent: request.agent,
+        sessionID: events[0].scope.sessionID
+      )
 
     var didChange = false
     var didAccept = false
@@ -61,7 +67,11 @@ extension TerminalCommandExecutor {
       else {
         continue
       }
-      if let notification = notification(for: event, request: request) {
+      if let notification = notification(
+        for: event,
+        request: request,
+        suppressesCompletion: suppressesCompletionNotification
+      ) {
         result = try handleAgentEventNotification(
           event.scope.agent,
           event: request.event,
@@ -207,7 +217,8 @@ extension TerminalCommandExecutor {
 
   private func notification(
     for event: TerminalAgentEvent,
-    request: SupatermAgentHookRequest
+    request: SupatermAgentHookRequest,
+    suppressesCompletion: Bool
   ) -> AgentHookNotification? {
     let body: String?
     let semantic: TerminalHostState.NotificationSemantic
@@ -217,6 +228,8 @@ extension TerminalCommandExecutor {
       body = message ?? request.event.notificationMessage()
       semantic = .attention
       subtitle = request.event.title ?? "Attention"
+    case .turnCompleted where suppressesCompletion:
+      return nil
     case .turnCompleted(let message):
       body = message
       semantic = .completion

@@ -354,6 +354,18 @@ extension TerminalHostState {
     agentStateStore.isForeground(agent: agent, sessionID: sessionID)
   }
 
+  func agentSessionHasActiveGoal(agent: SupatermAgentKind, sessionID: String) -> Bool {
+    guard let surfaceID = agentStateStore.surfaceID(agent: agent, sessionID: sessionID),
+      let presentation = agentStateStore.presentation(for: surfaceID, agent: agent),
+      presentation.sessionID == sessionID
+    else {
+      return false
+    }
+    return presentation.progressRows.contains {
+      $0.kind == .goal && $0.status == .running
+    }
+  }
+
   func agentTranscriptTargets() -> [TerminalAgentTranscriptTarget] {
     liveSurfaceIDs().flatMap { surfaceID -> [TerminalAgentTranscriptTarget] in
       guard let context = agentContext(for: surfaceID) else { return [] }
