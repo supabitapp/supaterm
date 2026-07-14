@@ -204,8 +204,7 @@ struct TerminalSplitTreeView: View {
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
-      session: PaneAgentPanelSession,
-      workingDirectoryPath: String?
+      session: PaneAgentPanelSession
     )
     case agentPanelVisibilityToggled(UUID)
     case agentPanelURLTapped(URL)
@@ -463,8 +462,7 @@ struct TerminalSplitTreeView: View {
               .agentPanelForkSessionRequested(
                 surfaceID: surfaceView.id,
                 direction: direction,
-                session: session,
-                workingDirectoryPath: agentPanelPresentation.workingDirectoryPath
+                session: session
               )
             )
           },

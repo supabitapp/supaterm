@@ -112,7 +112,11 @@ extension TerminalHostState {
       guard instance.presentation.isActionable else { return nil }
       return PaneAgentPanelSession.supported(
         agent: instance.presentation.agent,
-        sessionID: instance.presentation.sessionID
+        sessionID: instance.presentation.sessionID,
+        workingDirectoryPath: agentPanelWorkingDirectoryPath(
+          for: surfaceID,
+          agentWorkingDirectoryPath: instance.presentation.workingDirectoryPath
+        )
       )
     }
     let session = actionableSessions.count == 1 ? actionableSessions[0] : nil
@@ -122,11 +126,11 @@ extension TerminalHostState {
       workingDirectoryPath: workingDirectoryPath,
       session: session
     )
-    if !presentation.isEmpty {
-      return presentation
-    }
-    guard let current, current.presentation.hasActivity else {
-      return nil
+    guard !presentation.hasContentBesidesWorkspace,
+      let current,
+      current.presentation.hasActivity
+    else {
+      return presentation.isEmpty ? nil : presentation
     }
     switch current.activity.phase {
     case .running:
@@ -152,7 +156,7 @@ extension TerminalHostState {
         workingDirectoryPath: workingDirectoryPath
       )
     case .idle:
-      return nil
+      return presentation.isEmpty ? nil : presentation
     }
   }
 

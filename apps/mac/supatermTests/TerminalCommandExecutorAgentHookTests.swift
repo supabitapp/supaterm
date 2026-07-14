@@ -1153,7 +1153,11 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
     let expectedSession = try #require(
-      PaneAgentPanelSession.supported(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: CodexHookFixtures.sessionID,
+        workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+      )
     )
     #expect(session == expectedSession)
   }
@@ -1578,7 +1582,14 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
-    #expect(session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "child-session"))
+    #expect(
+      session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "child-session",
+          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+        )
+    )
     #expect(session.forkStartupCommand.contains("codex fork child-session"))
   }
   @Test

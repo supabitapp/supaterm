@@ -231,6 +231,83 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
+  func workspaceDoesNotHideRunningFallbackRow() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
+    let surfaceID = try #require(
+      restoreSplitHost(host, workingDirectoryPath: workingDirectoryPath).first
+    )
+
+    let tabID = try #require(host.tabID(containing: surfaceID))
+    #expect(
+      host.applyAgentEvent(
+        TerminalAgentEvent(
+          scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
+          context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+          action: .turnRunning(detail: "Inspecting"),
+          origin: .transcript
+        )
+      ).changed
+    )
+    #expect(
+      host.agentPanelPresentation(for: surfaceID)
+        == PaneAgentPanelPresentation(
+          progressRows: [
+            PaneAgentProgressRow(
+              id: "agent-session-running",
+              title: "Inspecting",
+              status: .running
+            )
+          ],
+          workingDirectoryPath: workingDirectoryPath
+        )
+    )
+  }
+
+  @Test
+  @MainActor
+  func actionableSessionKeepsItsOwnWorkspaceWhenAnotherAgentIsCurrent() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(host, workingDirectoryPath: "/tmp/pane-workspace").first
+    )
+    #expect(
+      host.makeTestAgentSessionActionable(
+        agent: .codex,
+        for: surfaceID,
+        sessionID: "session-1",
+        processID: nil,
+        workingDirectoryPath: "/tmp/codex-workspace"
+      )
+    )
+    #expect(
+      host.applyTestAgentActivity(
+        TerminalHostState.AgentActivity(kind: .pi, phase: .running),
+        for: surfaceID,
+        sessionID: "session-2",
+        processID: nil,
+        workingDirectoryPath: "/tmp/pi-workspace"
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: "/tmp/codex-workspace/"
+        )
+    )
+  }
+
+  @Test
+  @MainActor
   func runningStateWithoutSessionIsRejected() throws {
     initializeGhosttyForTests()
 
@@ -290,7 +367,11 @@ struct TerminalAgentPanelTests {
     let tabID = try #require(host.selectedTabID)
     #expect(
       presentation.session
-        == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        )
     )
     #expect(
       host.agentActivity(for: tabID)
@@ -322,7 +403,14 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        )
+    )
     #expect(presentation.progressRows.isEmpty)
   }
 

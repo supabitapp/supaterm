@@ -1085,8 +1085,13 @@ struct TerminalWindowFeatureTests {
       .agentPanelForkSessionRequested(
         surfaceID: surfaceID,
         direction: .down,
-        session: try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")),
-        workingDirectoryPath: "/tmp/agent-workspace/"
+        session: try #require(
+          PaneAgentPanelSession.supported(
+            agent: .codex,
+            sessionID: "session-1",
+            workingDirectoryPath: "/tmp/agent-workspace/"
+          )
+        )
       )
     )
 

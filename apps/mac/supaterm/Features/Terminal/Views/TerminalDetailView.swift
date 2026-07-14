@@ -272,15 +272,13 @@ private struct TerminalSurfacePaneView: View {
       case .agentPanelForkSessionRequested(
         let surfaceID,
         let direction,
-        let session,
-        let workingDirectoryPath
+        let session
       ):
         _ = store.send(
           .agentPanelForkSessionRequested(
             surfaceID: surfaceID,
             direction: direction,
-            session: session,
-            workingDirectoryPath: workingDirectoryPath
+            session: session
           ))
       case .agentPanelVisibilityToggled(let surfaceID):
         _ = store.send(.agentPanelVisibilityToggled(surfaceID))
