@@ -272,12 +272,28 @@ extension TerminalAgentStateStoreTests {
     let context = fixture.context
     var store = fixture.store
 
-    for action in [
-      TerminalAgentEvent.Action.subagentStarted(nickname: nil, role: "Explore"),
-      .subagentTaskUpdated("Explore UI test infrastructure"),
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        subagentID: "child-1",
+        context: context,
+        action: .subagentStarted(nickname: nil, role: "Explore")
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        context: context,
+        action: .subagentTasksUpdated(["child-1": "Explore UI test infrastructure"])
+      )
+    )
+    let attentionActions: [TerminalAgentEvent.Action] = [
       .attentionRequested(requestID: "tool:Bash", message: "Approve command"),
       .attentionResolved(requestID: "tool:Bash"),
-    ] {
+    ]
+    for action in attentionActions {
       store.apply(
         event(
           sessionID: "session-1",
@@ -295,6 +311,48 @@ extension TerminalAgentStateStoreTests {
     #expect(child.phase == .running)
     #expect(child.detail == nil)
     #expect(child.displayDetail == "Explore UI test infrastructure")
+  }
+
+  @Test
+  func childTaskProjectionWaitsForChildAndClearsMissingTasks() throws {
+    let fixture = startedStore()
+    let surfaceID = fixture.surfaceID
+    let context = fixture.context
+    var store = fixture.store
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        context: context,
+        action: .subagentTasksUpdated(["child-1": "Explore UI test infrastructure"])
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        subagentID: "child-1",
+        context: context,
+        action: .subagentStarted(nickname: nil, role: "Explore")
+      )
+    )
+
+    #expect(
+      store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first?.task
+        == "Explore UI test infrastructure"
+    )
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        context: context,
+        action: .subagentTasksUpdated([:])
+      )
+    )
+
+    #expect(store.presentation(for: surfaceID, agent: .codex)?.activeChildren.first?.task == nil)
   }
 
   @Test

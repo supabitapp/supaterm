@@ -48,7 +48,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     case sessionStarted(transcriptPath: String?)
     case subagentStarted(nickname: String?, role: String?, transcriptPath: String? = nil)
     case subagentStopped
-    case subagentTaskUpdated(String)
+    case subagentTasksUpdated([String: String])
     case turnCompleted(message: String?)
     case turnRunning(detail: String?)
     case turnStarted

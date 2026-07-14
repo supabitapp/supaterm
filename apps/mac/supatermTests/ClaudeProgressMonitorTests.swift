@@ -174,6 +174,26 @@ struct ClaudeProgressMonitorTests {
   }
 
   @Test
+  func transcriptResetClearsChildTasks() throws {
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    try ClaudeProgressFixtures.appendAsyncAgentResult(
+      agentID: "child-1",
+      description: "Explore UI test infrastructure",
+      to: transcriptURL
+    )
+    let monitor = ClaudePanelMonitor()
+    let tick = try #require(AgentTranscriptTailer.start(at: transcriptURL.path))
+    _ = try #require(monitor.consume(AgentTranscriptUpdate(tick)))
+
+    let snapshot = try #require(
+      monitor.consume(AgentTranscriptUpdate(objects: [], didReset: true))
+    )
+
+    #expect(snapshot.childTasks.isEmpty)
+  }
+
+  @Test
   func taskCreateAndUpdateTranscriptProducesProgressRows() throws {
     let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
     defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }

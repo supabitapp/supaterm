@@ -117,6 +117,7 @@ extension TerminalCommandExecutor {
     if scope.subagentID == nil {
       actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
       actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
+      actions.append(.subagentTasksUpdated(snapshot.childTasks))
     }
     var didChange = false
     for action in actions {
@@ -132,22 +133,6 @@ extension TerminalCommandExecutor {
         origin: .transcript
       )
       didChange = terminal.applyAgentEvent(event).changed || didChange
-    }
-    if scope.subagentID == nil {
-      for (subagentID, task) in snapshot.childTasks.sorted(by: { $0.key < $1.key }) {
-        let event = TerminalAgentEvent(
-          scope: TerminalAgentEvent.Scope(
-            agent: scope.agent,
-            sessionID: scope.sessionID,
-            turnID: turnID,
-            subagentID: subagentID
-          ),
-          context: context,
-          action: .subagentTaskUpdated(task),
-          origin: .transcript
-        )
-        didChange = terminal.applyAgentEvent(event).changed || didChange
-      }
     }
     if didChange {
       terminal.sessionDidChange()
