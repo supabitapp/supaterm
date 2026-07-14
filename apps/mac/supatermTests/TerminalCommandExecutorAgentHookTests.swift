@@ -784,6 +784,17 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.userPromptSubmit,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
     await advanceClock(clock)
 
