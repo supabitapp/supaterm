@@ -340,6 +340,16 @@ extension TerminalHostState {
     agentStateStore.hasSession(agent: agent, sessionID: sessionID)
   }
 
+  func hasForegroundAgentSession(
+    agent: SupatermAgentKind,
+    processID: Int32,
+    for surfaceID: UUID
+  ) -> Bool {
+    agentStateStore.snapshots(for: surfaceID).contains {
+      $0.agent == agent && $0.isForeground && $0.processIDs.contains(processID)
+    }
+  }
+
   func agentSessionIsForeground(agent: SupatermAgentKind, sessionID: String) -> Bool {
     agentStateStore.isForeground(agent: agent, sessionID: sessionID)
   }

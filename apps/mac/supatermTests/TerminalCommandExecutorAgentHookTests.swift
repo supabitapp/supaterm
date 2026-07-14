@@ -1048,6 +1048,34 @@ struct TerminalCommandExecutorAgentHookTests {
     )
   }
   @Test
+  func codexTranscriptlessPostToolUseRecoversMissingSession() throws {
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: CodexHookFixtures.planUpdate([
+          ("Recovered session", "in_progress")
+        ]),
+        processID: getpid()
+      )
+    )
+
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
+        PaneAgentProgressRow(
+          id: "0:Recovered session",
+          title: "Recovered session",
+          status: .running
+        )
+      ]
+    )
+    #expect(
+      harness.host.hasAgentSession(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+    )
+  }
+  @Test
   func codexPreToolUseRecoversMissingSessionAndStartsPanelTracking() throws {
     let harness = try makeClaudeHookHarness()
     let transcriptPath = try CodexTranscriptFixtures.makeTranscript()
@@ -1606,6 +1634,7 @@ struct TerminalCommandExecutorAgentHookTests {
   @Test
   func codexTranscriptlessSessionCannotReplaceForegroundSession() throws {
     let harness = try makeClaudeHookHarness()
+    let processID = getpid()
 
     for hookEventName in [
       SupatermAgentHookEventName.sessionStart,
@@ -1616,7 +1645,8 @@ struct TerminalCommandExecutorAgentHookTests {
           agent: .codex,
           sessionID: "foreground-session",
           hookEventName: hookEventName,
-          context: harness.context
+          context: harness.context,
+          processID: processID
         )
       )
     }
@@ -1650,7 +1680,8 @@ struct TerminalCommandExecutorAgentHookTests {
         SupatermAgentHookRequest(
           agent: .codex,
           context: harness.context,
-          event: event
+          event: event,
+          processID: processID
         )
       )
       #expect(result.desktopNotification == nil)

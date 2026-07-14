@@ -326,11 +326,18 @@ extension TerminalCommandExecutor {
   ) -> Bool {
     guard request.agent == .codex,
       request.event.transcriptPath == nil,
-      let sessionID = request.event.sessionID
+      let sessionID = request.event.sessionID,
+      !terminal.hasAgentSession(agent: .codex, sessionID: sessionID),
+      let surfaceID = request.context?.surfaceID,
+      let processID = request.processID
     else {
       return true
     }
-    return terminal.hasAgentSession(agent: .codex, sessionID: sessionID)
+    return !terminal.hasForegroundAgentSession(
+      agent: .codex,
+      processID: processID,
+      for: surfaceID
+    )
   }
 
   private func agentTerminal(
