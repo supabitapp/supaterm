@@ -25,9 +25,11 @@ TUIST_CACHE_CONFIGURATION ?= Debug
 XCODEBUILD_FLAGS ?=
 E2E_RESULT_BUNDLE_PATH ?=
 E2E_RESULT_BUNDLE_FLAGS := $(if $(strip $(E2E_RESULT_BUNDLE_PATH)),-resultBundlePath "$(E2E_RESULT_BUNDLE_PATH)",)
+UI_RESULT_BUNDLE_PATH ?=
+UI_RESULT_BUNDLE_FLAGS := $(if $(strip $(UI_RESULT_BUNDLE_PATH)),-resultBundlePath "$(UI_RESULT_BUNDLE_PATH)",)
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
+.PHONY: tuist-install tuist-generate tuist-generate-sources tuist-generate-release tuist-generate-release-cached build-ghostty build-zmx build-app build-app-demo build-snapshot-catalog run-app run-app-demo run-snapshot-catalog generate-lightning-logo-svg install-tip archive archive-xcodebuild export-archive format lint check test test-xcodebuild test-e2e test-e2e-xcodebuild test-ui test-ui-xcodebuild test-snapshots record-snapshots scan-dead-code inspect-dependencies warm-cache
 
 ifdef CI
 TUIST_INSTALL_FLAGS := --force-resolved-versions
@@ -179,9 +181,19 @@ test-e2e: tuist-generate build-ghostty build-zmx test-e2e-xcodebuild # Run end-t
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
 	@if [ -t 1 ]; then \
-		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) 2>&1 | mise exec -- xcbeautify --disable-logging'; \
+		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'; \
 	else \
-		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS); \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
+	fi
+
+test-ui: tuist-generate build-ghostty build-zmx test-ui-xcodebuild
+
+test-ui-xcodebuild:
+	@if [ -n "$(strip $(UI_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(UI_RESULT_BUNDLE_PATH)"; fi
+	@if [ -t 1 ]; then \
+		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermUITests" -destination "platform=macOS" $(UI_RESULT_BUNDLE_FLAGS) 2>&1 | mise exec -- xcbeautify --disable-logging'; \
+	else \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermUITests" -destination "platform=macOS" $(UI_RESULT_BUNDLE_FLAGS); \
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.

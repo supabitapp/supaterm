@@ -1,0 +1,35 @@
+name: mac-test-ui
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  MISE_HTTP_TIMEOUT: 120
+  MISE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  mac-test-ui:
+    name: mac-test-ui
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-macos
+      - run: make mac-test-ui UI_RESULT_BUNDLE_PATH="$RUNNER_TEMP/supatermUITests.xcresult"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-test-ui-xcresult
+          path: ${{ runner.temp }}/supatermUITests.xcresult
+          if-no-files-found: ignore

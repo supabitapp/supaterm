@@ -731,12 +731,27 @@ let project = Project(
         targets: [
           .target("supaterm"),
           .target("supatermE2E"),
-          .target("supatermUITests"),
         ]
       ),
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermE2E")),
+        ],
+        configuration: .debug,
+        expandVariableFromTarget: .target("supaterm")
+      ),
+      analyzeAction: .analyzeAction(configuration: .debug)
+    ),
+    .scheme(
+      name: "supatermUITests",
+      buildAction: .buildAction(
+        targets: [
+          .target("supaterm"),
+          .target("supatermUITests"),
+        ]
+      ),
+      testAction: .targets(
+        [
           .testableTarget(target: .target("supatermUITests")),
         ],
         configuration: .debug,
