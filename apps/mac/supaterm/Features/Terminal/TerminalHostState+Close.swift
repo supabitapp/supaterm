@@ -51,7 +51,19 @@ extension TerminalHostState {
   }
 
   func requestCloseTab(_ tabID: TerminalTabID) {
-    guard let resolvedCloseRequest = resolvedCloseRequest(for: .tab(tabID)) else { return }
+    guard let tree = trees[tabID] else { return }
+    let isZoomed = tree.zoomed != nil
+    guard
+      let resolvedCloseRequest = resolvedCloseRequest(
+        for: .tab(tabID),
+        needsConfirmationOverride: isZoomed ? true : nil
+      )
+    else {
+      return
+    }
+    if isZoomed {
+      trees[tabID] = tree.settingZoomed(nil)
+    }
     emit(resolvedCloseRequest)
   }
 
