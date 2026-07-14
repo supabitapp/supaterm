@@ -118,7 +118,7 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didLoadProgress = await waitUntil {
       harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.progressRows == [
         PaneAgentProgressRow(
           id: "claude-goal:Ship session goal progress",
@@ -127,7 +127,8 @@ struct TerminalCommandExecutorAgentHookTests {
           kind: .goal
         )
       ]
-    )
+    }
+    #expect(didLoadProgress)
   }
   @Test
   func claudePreToolUseMarksTabRunning() throws {
@@ -814,14 +815,13 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didUpdateDetail = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Updating the registry and sidebar")
-    )
-    #expect(
-      harness.host.codexHoverMarkdown(for: harness.tabID)
-        == "Updating the registry and sidebar"
-    )
+        && harness.host.codexHoverMarkdown(for: harness.tabID)
+          == "Updating the registry and sidebar"
+    }
+    #expect(didUpdateDetail)
 
     try CodexTranscriptFixtures.append(
       .assistantMessage(
@@ -832,14 +832,12 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
-      harness.host.agentActivity(for: harness.tabID)
-        == .codex(.running)
-    )
-    #expect(
-      harness.host.codexHoverMarkdown(for: harness.tabID)
-        == "Final answer should stay out of the running subtitle"
-    )
+    let didLoadFinalAnswer = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
+        && harness.host.codexHoverMarkdown(for: harness.tabID)
+          == "Final answer should stay out of the running subtitle"
+    }
+    #expect(didLoadFinalAnswer)
 
     try CodexTranscriptFixtures.append(
       .taskComplete(turnID: "turn-1", lastAgentMessage: "Done."),
@@ -847,7 +845,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    let didComplete = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
+    }
+    #expect(didComplete)
   }
   @Test
   func codexSessionStartShowsAlreadyRunningTranscriptSnapshot() async throws {
@@ -1128,11 +1129,12 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didLoadDetail = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Tracking before command finished")
-    )
-    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == "Tracking before command finished")
+        && harness.host.codexHoverMarkdown(for: harness.tabID) == "Tracking before command finished"
+    }
+    #expect(didLoadDetail)
 
     let surface = try #require(harness.host.selectedSurfaceView)
     surface.bridge.onCommandFinished?()
@@ -1206,10 +1208,11 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didKeepAssistantDetail = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Inspecting the transcript path")
-    )
+    }
+    #expect(didKeepAssistantDetail)
   }
   @Test
   func codexTranscriptIgnoresReasoningAfterAssistantMessageAcrossPolls() async throws {
@@ -1236,10 +1239,11 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didLoadAssistantDetail = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Inspecting the transcript path")
-    )
+    }
+    #expect(didLoadAssistantDetail)
 
     try CodexTranscriptFixtures.append(
       .reasoning("Planning the next step"),
@@ -1281,13 +1285,14 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didAccumulateMessages = await waitUntil {
       harness.host.codexHoverMarkdown(for: harness.tabID) == """
         Inspecting the transcript path
 
         Updating the registry and sidebar
         """
-    )
+    }
+    #expect(didAccumulateMessages)
   }
   @Test
   func codexTranscriptKeepsFullHoverMessageWhenRunningDetailIsTruncated() async throws {
@@ -1316,11 +1321,12 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didLoadLongMessage = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: truncatedMessage)
-    )
-    #expect(harness.host.codexHoverMarkdown(for: harness.tabID) == longMessage)
+        && harness.host.codexHoverMarkdown(for: harness.tabID) == longMessage
+    }
+    #expect(didLoadLongMessage)
   }
   @Test
   func codexTranscriptIgnoresExecCommandRunningDetail() async throws {
@@ -1352,7 +1358,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    let didRemainRunning = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
+    }
+    #expect(didRemainRunning)
   }
   @Test
   func codexTranscriptEventFallbackUpdatesDetailAndAbortedTurnClearsRunning() async throws {
@@ -1373,7 +1382,10 @@ struct TerminalCommandExecutorAgentHookTests {
     try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    let didStart = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
+    }
+    #expect(didStart)
 
     try CodexTranscriptFixtures.append(
       .agentReasoning("Inspecting transcript activity"),
@@ -1389,10 +1401,11 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(
+    let didLoadMessage = await waitUntil {
       harness.host.agentActivity(for: harness.tabID)
         == .codex(.running, detail: "Need approval?")
-    )
+    }
+    #expect(didLoadMessage)
 
     try CodexTranscriptFixtures.append(
       .turnAborted(turnID: "turn-1"),
@@ -1400,7 +1413,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    let didAbort = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
+    }
+    #expect(didAbort)
   }
   @Test
   func codexTurnCompleteMarksTabIdle() async throws {
@@ -1422,12 +1438,18 @@ struct TerminalCommandExecutorAgentHookTests {
     try CodexTranscriptFixtures.append(.turnStarted(turnID: "turn-1"), to: transcriptPath)
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+    let didStart = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.running)
+    }
+    #expect(didStart)
 
     try CodexTranscriptFixtures.append(.turnComplete(turnID: "turn-1"), to: transcriptPath)
     await advanceClock(clock)
 
-    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
+    let didComplete = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID) == .codex(.idle)
+    }
+    #expect(didComplete)
   }
   @Test
   func codexChildTranscriptMessageReplacesToolDetailWithoutReplacingRootMonitor() async throws {
@@ -1792,6 +1814,15 @@ struct TerminalCommandExecutorAgentHookTests {
     try CodexTranscriptFixtures.append(.assistantMessage("Inspecting the transcript path"), to: transcriptPath)
     try CodexTranscriptFixtures.append(.assistantMessage("Updating the registry and sidebar"), to: transcriptPath)
     await advanceClock(clock)
+
+    let didLoadHistory = await waitUntil {
+      harness.host.codexHoverMarkdown(for: harness.tabID) == """
+        Inspecting the transcript path
+
+        Updating the registry and sidebar
+        """
+    }
+    #expect(didLoadHistory)
 
     _ = try harness.commandExecutor.handleAgentHook(
       CodexHookFixtures.request(CodexHookFixtures.stop, context: harness.context)
