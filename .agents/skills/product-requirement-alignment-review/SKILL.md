@@ -12,9 +12,9 @@ Run this as a read-only review lane before PR submission.
 Read only the sources relevant to the changed files:
 
 - `AGENTS.md`
-- `apps/docs.supaterm.com/docs/contributing/development.md`
-- `apps/docs.supaterm.com/docs/contributing/coding-agents-integration.md`
-- `apps/docs.supaterm.com/docs/contributing/how-socket-works.md`
+- `docs/development.md`
+- `docs/coding-agents-integration.md`
+- `docs/how-socket-works.md`
 - `integrations/supaterm-skills/skills/supaterm`
 - `apps/supaterm.com/src`
 - `apps/supaterm.com/public/changelog`

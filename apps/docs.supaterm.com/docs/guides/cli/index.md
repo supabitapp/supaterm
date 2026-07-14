@@ -24,7 +24,7 @@ pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
 sp pane split --in "$pane_id" right -- npm test
 ```
 
-Inside Supaterm, unscoped commands use the caller pane's original context. Changing UI focus does not change that context, so chained commands should retain IDs and pass explicit [targets](/cli/targeting). These examples use `jq` to extract typed IDs from JSON output.
+Inside Supaterm, unscoped commands use the caller pane's original context. Changing UI focus does not change that context, so chained commands should retain IDs and pass explicit [targets](/guides/cli/targeting). These examples use `jq` to extract typed IDs from JSON output.
 
 ## Control a pane
 
@@ -56,4 +56,4 @@ Most commands support:
 
 Use exit status, not output text, to decide whether a command succeeded.
 
-Continue with [targeting](/cli/targeting) and [automation recipes](/cli/recipes).
+Continue with [targeting](/guides/cli/targeting) and [automation recipes](/guides/cli/recipes).

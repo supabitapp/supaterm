@@ -32,7 +32,7 @@ export const makeCliReferenceSource = (
     exclude: [],
     include: ["**/*.md"],
     name: "cli-reference",
-    prefix: "cli/reference",
+    prefix: "guides/cli/reference",
     projectRoot: repositoryRoot,
     root: "integrations/supaterm-skills/skill-data/core/references",
   });

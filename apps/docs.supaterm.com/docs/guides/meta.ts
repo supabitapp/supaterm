@@ -8,6 +8,7 @@ export default defineMeta({
     "index",
     "get-started",
     "terminal-workflow",
+    "cli",
     "coding-agents",
     "customize",
     "security-and-privacy",

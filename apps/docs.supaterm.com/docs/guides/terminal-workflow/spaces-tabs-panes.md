@@ -60,4 +60,4 @@ sp ls
 sp ls --json
 ```
 
-Use the UUIDs in durable scripts. See [targeting](/cli/targeting) for selector rules.
+Use the UUIDs in durable scripts. See [targeting](/guides/cli/targeting) for selector rules.

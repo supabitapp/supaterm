@@ -40,11 +40,7 @@ export default defineConfig({
   feedback: false,
   lastModified: true,
   navigation: {
-    tabs: [
-      { label: "Guides", path: "/guides", icon: "book-open" },
-      { label: "CLI", path: "/cli", icon: "terminal" },
-      { label: "Contributing", path: "/contributing", icon: "code-2" },
-    ],
+    tabs: [{ label: "Guides", path: "/guides", icon: "book-open" }],
     featured: [
       {
         label: "Download Supaterm",

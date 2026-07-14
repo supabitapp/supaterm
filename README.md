@@ -5,10 +5,10 @@ A terminal for ur coding agents.
 
 ## Development
 
-- [Development](./apps/docs.supaterm.com/docs/contributing/development.md)
-- [Chrome styling](./apps/docs.supaterm.com/docs/contributing/theming.md)
-- [Coding agents integration](./apps/docs.supaterm.com/docs/contributing/coding-agents-integration.md)
-- [Socket control](./apps/docs.supaterm.com/docs/contributing/how-socket-works.md)
+- [Development](./docs/development.md)
+- [Chrome styling](./docs/theming.md)
+- [Coding agents integration](./docs/coding-agents-integration.md)
+- [Socket control](./docs/how-socket-works.md)
 
 ## Thank you
 

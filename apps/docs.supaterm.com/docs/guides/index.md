@@ -20,6 +20,13 @@ Choose the path that matches what you want to accomplish. If Supaterm is new to 
 - [Set up coding-agent integrations](/guides/coding-agents/setup).
 - [Read agent status and branch checks](/guides/coding-agents/status-and-agent-panel).
 
+## Automate with the CLI
+
+- [Start with the CLI quickstart](/guides/cli).
+- [Target instances, spaces, tabs, and panes](/guides/cli/targeting).
+- [Compose repeatable automation recipes](/guides/cli/recipes).
+- [Look up individual commands](/guides/cli/reference/connection-and-diagnostics).
+
 ## Make Supaterm yours
 
 - [Configure settings](/guides/customize/settings).

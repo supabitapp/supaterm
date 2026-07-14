@@ -36,7 +36,7 @@ Inspect the live hierarchy:
 sp ls --json
 ```
 
-Pass the resulting UUID, or a 1-based selector such as `1/2/3`, rather than relying on ambient pane context. See [targeting](/cli/targeting).
+Pass the resulting UUID, or a 1-based selector such as `1/2/3`, rather than relying on ambient pane context. See [targeting](/guides/cli/targeting).
 
 ## Terminal configuration is invalid
 

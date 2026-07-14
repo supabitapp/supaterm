@@ -1,7 +1,4 @@
----
-title: Development
-description: Bootstrap, build, test, run, and release Supaterm from its source repository.
----
+# Development
 
 ## Bootstrap
 
