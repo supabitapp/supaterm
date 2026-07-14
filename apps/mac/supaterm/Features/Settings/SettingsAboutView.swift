@@ -91,6 +91,7 @@ struct SettingsAboutView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+                .accessibilityLabel(versionText)
                 .accessibilityIdentifier("settings.about.version")
 
               HStack(spacing: 12) {
