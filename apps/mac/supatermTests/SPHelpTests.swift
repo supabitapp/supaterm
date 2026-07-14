@@ -18,6 +18,7 @@ struct SPHelpTests {
     #expect(help.contains("sp ls"))
     #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
     #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
+    #expect(help.contains("sp skills"))
     #expect(help.contains("sp diagnostic"))
     #expect(help.contains("sp instance ls"))
     #expect(!help.contains("install-agent-hooks"))
@@ -56,9 +57,12 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.RenameTab.self, columns: 100),
       SP.helpMessage(for: SP.Run.self, columns: 100),
       SP.helpMessage(for: SP.Tmux.self, columns: 100),
+      SP.helpMessage(for: SP.Skills.self, columns: 100),
+      SP.helpMessage(for: SP.ListSkills.self, columns: 100),
+      SP.helpMessage(for: SP.GetSkill.self, columns: 100),
+      SP.helpMessage(for: SP.InstallSkill.self, columns: 100),
       SP.helpMessage(for: SP.Agent.self, columns: 100),
       SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100),
-      SP.helpMessage(for: SP.InstallAgentSkill.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100),
       SP.helpMessage(for: SP.InstallAgentHook.Claude.self, columns: 100),
@@ -102,6 +106,13 @@ struct SPHelpTests {
     #expect(paneHelp.contains("sp pane wait-ready <pane-uuid> --timeout 5"))
     #expect(healthHelp.contains("sp pane health <pane-uuid> --json"))
     #expect(waitHelp.contains("sp pane wait-ready <pane-uuid> --timeout 5"))
+  }
+
+  @Test
+  func paneSendHelpShowsPasteAwareSubmission() {
+    let help = SP.helpMessage(for: SP.SendText.self, columns: 100)
+
+    #expect(help.contains("sp pane send --submit <pane-uuid> - < prompt.md"))
   }
 
   @Test
@@ -163,7 +174,7 @@ struct SPHelpTests {
     let help = SP.helpMessage(for: SP.ReceiveAgentHook.self, columns: 100)
 
     #expect(help.contains("Settings > Coding Agents"))
-    #expect(help.contains("sp agent install-skill"))
+    #expect(help.contains("sp skills install"))
     #expect(help.contains("sp agent install-hooks"))
     #expect(help.contains("sp agent install-hook"))
     #expect(help.contains("sp agent remove-hook"))
@@ -181,12 +192,23 @@ struct SPHelpTests {
   }
 
   @Test
+  func skillsHelpShowsCatalogAndInstallExamples() {
+    let skillsHelp = SP.helpMessage(for: SP.Skills.self, columns: 100)
+    let listHelp = SP.helpMessage(for: SP.ListSkills.self, columns: 100)
+    let getHelp = SP.helpMessage(for: SP.GetSkill.self, columns: 100)
+    let installHelp = SP.helpMessage(for: SP.InstallSkill.self, columns: 100)
+
+    #expect(skillsHelp.contains("sp skills get coding-agents"))
+    #expect(listHelp.contains("sp skills list --json"))
+    #expect(getHelp.contains("sp skills get core --full"))
+    #expect(installHelp.contains("sp skills install --json"))
+  }
+
+  @Test
   func installAgentHooksHelpShowsExamples() {
-    let skillHelp = SP.helpMessage(for: SP.InstallAgentSkill.self, columns: 100)
     let aggregateHelp = SP.helpMessage(for: SP.InstallAgentHooks.self, columns: 100)
     let help = SP.helpMessage(for: SP.InstallAgentHook.self, columns: 100)
 
-    #expect(skillHelp.contains("sp agent install-skill"))
     #expect(aggregateHelp.contains("sp agent install-hooks"))
     #expect(help.contains("sp agent install-hook claude"))
     #expect(help.contains("sp agent install-hook codex"))

@@ -16,6 +16,7 @@ enum SPHelp {
       sp ls
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
+      sp skills
       sp diagnostic
       sp instance ls
     """
@@ -177,6 +178,7 @@ enum SPHelp {
 
     Example:
       sp pane send --newline 'echo hello'
+      sp pane send --submit <pane-uuid> - < prompt.md
       sp pane send 1/2/3 'pwd'
       sp pane send <pane-uuid> 'clear'
       printf 'pwd' | sp pane send
@@ -285,24 +287,17 @@ enum SPHelp {
     Reads one agent hook event JSON object from stdin and forwards it to Supaterm.
 
     Manage coding-agent integrations from Supaterm Settings > Coding Agents.
-    Use `sp agent install-skill` to install Supaterm's bundled skill.
+    Use `sp skills install` to install Supaterm's bundled discovery skill.
     Use `sp agent install-hooks` to install every supported hook bridge.
     Use `sp agent install-hook` and `sp agent remove-hook` for one agent.
 
     Example:
-      sp agent install-skill
+      sp skills install
       sp agent install-hooks
       sp agent install-hook claude
       sp agent remove-hook claude
       printf '{"hook_event_name":"Notification","message":"Claude needs your attention"}' | sp agent receive-agent-hook --agent claude
       \(SupatermClaudeHookSettings.command)
-    """
-
-  static let installAgentSkillDiscussion = """
-    Install Supaterm's bundled agent skill into ~/.agents/skills/supaterm.
-
-    Example:
-      sp agent install-skill
     """
 
   static let installAgentHookDiscussion = """
@@ -503,10 +498,44 @@ enum SPHelp {
 
   static let agentDiscussion = """
     Example:
-      sp agent install-skill
       sp agent install-hooks
       sp agent install-hook claude
       sp agent install-hook codex
+    """
+
+  static let skillsDiscussion = """
+    List version-matched skill content bundled with Supaterm.
+
+    Example:
+      sp skills
+      sp skills --json
+      sp skills get core
+      sp skills get coding-agents
+      sp skills install
+    """
+
+  static let listSkillsDiscussion = """
+    Example:
+      sp skills
+      sp skills list
+      sp skills list --json
+    """
+
+  static let getSkillDiscussion = """
+    Print a bundled skill. Use --full to include its references.
+
+    Example:
+      sp skills get core
+      sp skills get core --full
+      sp skills get coding-agents --json
+    """
+
+  static let installSkillDiscussion = """
+    Copy Supaterm's stable discovery skill to ~/.agents/skills/supaterm.
+
+    Example:
+      sp skills install
+      sp skills install --json
     """
 
   static let internalDiscussion = """

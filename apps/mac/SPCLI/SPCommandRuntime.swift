@@ -354,7 +354,7 @@ enum SPOnboardingRenderer {
     lines.append("")
     lines.append("Install the Supaterm skill:")
     lines.append("")
-    lines.append(SupatermSkillInstaller.manualInstallCommand)
+    lines.append(SupatermSkills.manualInstallCommand)
     lines.append("")
     lines.append("Run the commands that match your setup:")
     lines.append("")

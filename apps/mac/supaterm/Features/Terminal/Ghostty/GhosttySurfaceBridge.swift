@@ -195,6 +195,15 @@ final class GhosttySurfaceBridge {
     sendKey(key, surface: surface)
   }
 
+  func submitText(_ text: String) {
+    guard let surface else { return }
+    let length = text.utf8.count
+    text.withCString { pointer in
+      ghostty_surface_text(surface, pointer, UInt(length))
+    }
+    sendKey(.enter, surface: surface)
+  }
+
   private func sendText(_ text: String, surface: ghostty_surface_t) {
     sendKeyEvent(surface: surface, keycode: 0, text: text)
   }

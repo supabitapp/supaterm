@@ -28,89 +28,28 @@ struct SupatermSkillExamplesTests {
     }
   }
 
-  @Test
-  func startTabDryRunPreservesMultilineStdinLauncher() throws {
-    let scriptURL = skillRootURL().appendingPathComponent("scripts/start_tab.py")
-    let cwd = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: cwd, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: cwd) }
-
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-    process.arguments = [scriptURL.path, "--cwd", cwd.path, "--dry-run", "--stdin"]
-
-    let stdin = Pipe()
-    let stdout = Pipe()
-    let stderr = Pipe()
-    process.standardInput = stdin
-    process.standardOutput = stdout
-    process.standardError = stderr
-
-    try process.run()
-    try stdin.fileHandleForWriting.write(contentsOf: Data("echo one\necho two\n".utf8))
-    try stdin.fileHandleForWriting.close()
-    process.waitUntilExit()
-
-    let output = try #require(
-      String(bytes: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-    )
-    if process.terminationStatus != 0 {
-      let error = try #require(
-        String(bytes: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-      )
-      Issue.record("start_tab.py failed: \(error)")
-    }
-
-    let data = try #require(output.data(using: .utf8))
-    let object = try #require(
-      JSONSerialization.jsonObject(with: data) as? [String: Any]
-    )
-    let launcher = try #require(object["launcher"] as? String)
-    let launcherPath = try #require(object["launcherPath"] as? String)
-    let helper = try String(contentsOf: scriptURL, encoding: .utf8)
-    let tabCommand = try #require(object["tabCommand"] as? [String])
-    let sendText = try #require(object["sendText"] as? String)
-    let outputCwd = try #require(object["cwd"] as? String)
-    let outputLaunchCwd = try #require(object["launchCwd"] as? String)
-    defer { try? FileManager.default.removeItem(atPath: launcherPath) }
-
-    #expect(process.terminationStatus == 0)
-    #expect(launcher.contains("echo one\necho two\n"))
-    #expect(launcher.contains("launcher_status=$?"))
-    #expect(!launcher.contains("\nstatus=$?"))
-    #expect(helper.contains("pane\", \"wait-ready\""))
-    #expect(sendText == launcherPath)
-    #expect(!tabCommand.contains("--"))
-    #expect(outputCwd == outputLaunchCwd)
-    #expect(outputCwd.hasSuffix("/\(cwd.lastPathComponent)"))
-  }
-
   private func skillMarkdownFiles(filePath: StaticString = #filePath) -> [URL] {
-    let root = skillRootURL(filePath: filePath)
-
-    guard
-      let enumerator = FileManager.default.enumerator(
-        at: root,
-        includingPropertiesForKeys: nil
-      )
-    else {
-      return []
-    }
-
     return
-      enumerator
-      .compactMap { $0 as? URL }
+      skillRootURLs(filePath: filePath)
+      .flatMap { root in
+        FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+          .compactMap { $0 as? URL } ?? []
+      }
       .filter { $0.pathExtension == "md" }
       .sorted { $0.path < $1.path }
   }
 
-  private func skillRootURL(filePath: StaticString = #filePath) -> URL {
-    URL(fileURLWithPath: "\(filePath)")
+  private func skillRootURLs(filePath: StaticString = #filePath) -> [URL] {
+    let root = URL(fileURLWithPath: "\(filePath)")
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("integrations/supaterm-skills/skills/supaterm")
+      .appendingPathComponent("integrations/supaterm-skills")
+    return [
+      root.appendingPathComponent("skills/supaterm"),
+      root.appendingPathComponent("skill-data"),
+    ]
   }
 
   private func documentedCommands(in fileURL: URL) throws -> [String] {
@@ -166,8 +105,12 @@ struct SupatermSkillExamplesTests {
       rewrittenCommand = command
     }
 
+    let cliCommand =
+      rewrittenCommand.range(of: " < ").map { String(rewrittenCommand[..<$0.lowerBound]) }
+      ?? rewrittenCommand
+
     return
-      rewrittenCommand
+      cliCommand
       .replacingOccurrences(of: "<space-uuid>", with: "11111111-1111-4111-8111-111111111111")
       .replacingOccurrences(of: "<tab-uuid>", with: "22222222-2222-4222-8222-222222222222")
       .replacingOccurrences(of: "<pane-uuid>", with: "33333333-3333-4333-8333-333333333333")

@@ -397,6 +397,67 @@ struct SocketControlFeatureTerminalControlTests {
     #expect(records.first?.handle == handle)
     #expect(try records.first?.response.decodeResult(SupatermPaneTarget.self) == result)
   }
+
+  @Test
+  func submitTextRequestRepliesWithResolvedTarget() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "AF2EAB5B-F467-47ED-9762-CCB118E705C4")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .sendText(
+        SupatermSendTextRequest(
+          mode: .submit,
+          target: SupatermPaneTargetRequest(
+            targetWindowIndex: 1,
+            targetSpaceIndex: 2,
+            targetTabIndex: 3,
+            targetPaneIndex: 4
+          ),
+          text: "first\nsecond"
+        ),
+        id: "submit-text-1"
+      )
+    )
+    let result = SupatermPaneTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+      tabIndex: 3,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+      paneIndex: 4,
+      paneID: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
+    )
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.sendText = { request in
+        #expect(
+          request
+            == TerminalSendTextRequest(
+              mode: .submit,
+              target: .pane(
+                windowIndex: 1,
+                spaceIndex: 2,
+                tabIndex: 3,
+                paneIndex: 4
+              ),
+              text: "first\nsecond"
+            )
+        )
+        return result
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.handle == handle)
+    #expect(try records.first?.response.decodeResult(SupatermPaneTarget.self) == result)
+  }
+
   @Test
   func sendKeyRequestRepliesWithResolvedTarget() async throws {
     let recorder = SocketReplyRecorder()

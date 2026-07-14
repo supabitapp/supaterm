@@ -379,7 +379,7 @@ struct SPCommandTests {
 
         Install the Supaterm skill:
 
-        sp agent install-skill
+        sp skills install
 
         Run the commands that match your setup:
 
@@ -487,6 +487,39 @@ struct SPCommandTests {
   }
 
   @Test
+  func skillsParserAcceptsCatalogGetAndInstallCommands() throws {
+    let defaultCommand = try #require(
+      try SP.parseAsRoot(["skills"]) as? SP.ListSkills
+    )
+    let listCommand = try #require(
+      try SP.parseAsRoot(["skills", "list", "--json"]) as? SP.ListSkills
+    )
+    let getCommand = try #require(
+      try SP.parseAsRoot(["skills", "get", "core", "--full", "--json"]) as? SP.GetSkill
+    )
+    let installCommand = try #require(
+      try SP.parseAsRoot(["skills", "install", "--json"]) as? SP.InstallSkill
+    )
+
+    #expect(!defaultCommand.json)
+    #expect(listCommand.json)
+    #expect(getCommand.name == "core")
+    #expect(getCommand.full)
+    #expect(getCommand.json)
+    #expect(installCommand.json)
+  }
+
+  @Test
+  func agentInstallSkillCommandIsRemoved() {
+    do {
+      _ = try SP.parseAsRoot(["agent", "install-skill"])
+      Issue.record("Expected agent install-skill to be removed.")
+    } catch {
+      #expect(String(describing: error).contains("install-skill"))
+    }
+  }
+
+  @Test
   func agentParserAcceptsInstallRemoveHookAndReceiveAgentHookSubcommands() throws {
     let installAllCommand = try #require(
       try SP.parseAsRoot(["agent", "install-hooks"]) as? SP.InstallAgentHooks
@@ -566,9 +599,25 @@ struct SPCommandTests {
     let sendCommand = try #require(
       try SP.parseAsRoot(["pane", "send", "1/2/3", "pwd"]) as? SP.SendText
     )
+    let submitCommand = try #require(
+      try SP.parseAsRoot(["pane", "send", "--submit", "1/2/3", "first\nsecond"])
+        as? SP.SendText
+    )
 
     #expect(focusCommand.tab == .path(spaceIndex: 1, tabIndex: 2))
     #expect(sendCommand.arguments == ["1/2/3", "pwd"])
+    #expect(submitCommand.submit)
+    #expect(submitCommand.arguments == ["1/2/3", "first\nsecond"])
+  }
+
+  @Test
+  func paneSendRejectsNewlineWithSubmit() {
+    do {
+      _ = try SP.parseAsRoot(["pane", "send", "--newline", "--submit", "prompt"])
+      Issue.record("Expected pane send to reject --newline with --submit.")
+    } catch {
+      #expect(String(describing: error).contains("--newline and --submit cannot be used together."))
+    }
   }
 
   @Test(arguments: [

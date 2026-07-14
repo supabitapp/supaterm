@@ -59,12 +59,19 @@ Supaterm ships its agent skill from `supaterm-skills` inside the app bundle.
 Install it with:
 
 ```bash
-sp agent install-skill
+sp skills install
 ```
 
-The install command links `~/.agents/skills/supaterm` to the bundled skill directory.
-If that path already exists as a symlink or directory, Supaterm replaces it with a symlink to the current bundled skill.
-On app launch, Supaterm silently refreshes existing Supaterm skill installs to the current bundle path.
+The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any existing path.
+The discovery skill directs agents to version-matched content served by `sp skills get` from the app bundle.
+
+Inspect the bundled catalog with:
+
+```bash
+sp skills
+sp skills get core
+sp skills get coding-agents
+```
 
 Install every supported hook bridge with:
 

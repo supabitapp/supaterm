@@ -163,14 +163,22 @@ public struct SupatermPaneTargetRequest: Equatable, Sendable, Codable {
   }
 }
 
+public enum SupatermSendTextMode: String, Equatable, Sendable, Codable {
+  case submit
+  case type
+}
+
 public struct SupatermSendTextRequest: Equatable, Sendable, Codable {
+  public let mode: SupatermSendTextMode
   public let target: SupatermPaneTargetRequest
   public let text: String
 
   public init(
+    mode: SupatermSendTextMode = .type,
     target: SupatermPaneTargetRequest,
     text: String
   ) {
+    self.mode = mode
     self.target = target
     self.text = text
   }

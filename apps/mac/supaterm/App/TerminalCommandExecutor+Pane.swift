@@ -129,6 +129,7 @@ extension TerminalCommandExecutor {
     case .pane(let windowIndex, let spaceIndex, let tabIndex, let paneIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalSendTextRequest(
+        mode: request.mode,
         target: .pane(
           windowIndex: 1,
           spaceIndex: spaceIndex,

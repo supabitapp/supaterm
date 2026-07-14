@@ -523,6 +523,9 @@ extension SP {
     @Flag(name: .long, help: "Append a newline after the provided text.")
     var newline = false
 
+    @Flag(name: .long, help: "Paste the provided text and press Enter.")
+    var submit = false
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -530,6 +533,7 @@ extension SP {
     var arguments: [String] = []
 
     mutating func run() throws {
+      try validate()
       let resolvedInput = try resolveInput()
       try runControlCommand(
         options: options,
@@ -544,6 +548,12 @@ extension SP {
         },
         human: { render($0) }
       )
+    }
+
+    func validate() throws {
+      if newline && submit {
+        throw ValidationError("--newline and --submit cannot be used together.")
+      }
     }
 
     private func resolveInput() throws -> SendTextInput {
@@ -584,6 +594,7 @@ extension SP {
     ) throws -> SupatermSendTextRequest {
       let text = newline ? resolvedInput.text + "\n" : resolvedInput.text
       return .init(
+        mode: submit ? .submit : .type,
         target: paneTargetRequest(
           try resolvePublicPaneTarget(
             resolvedInput.target,

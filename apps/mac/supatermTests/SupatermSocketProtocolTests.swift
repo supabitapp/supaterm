@@ -948,18 +948,6 @@ struct SupatermSocketProtocolTests {
         target: paneTarget
       )
     )
-    let sendTextRequest = try SupatermSocketRequest.sendText(
-      SupatermSendTextRequest(
-        target: SupatermPaneTargetRequest(
-          targetWindowIndex: 1,
-          targetSpaceIndex: 2,
-          targetTabIndex: 3,
-          targetPaneIndex: 4
-        ),
-        text: "echo hello\n"
-      ),
-      id: "send-text-1"
-    )
     let setPaneSizeRequest = try SupatermSocketRequest.setPaneSize(
       SupatermSetPaneSizeRequest(
         amount: 30,
@@ -986,19 +974,6 @@ struct SupatermSocketProtocolTests {
         )
     )
     #expect(try focusResponse.decodeResult(SupatermFocusPaneResult.self).target == paneTarget)
-    #expect(sendTextRequest.method == SupatermSocketMethod.terminalSendText)
-    #expect(
-      try sendTextRequest.decodeParams(SupatermSendTextRequest.self)
-        == SupatermSendTextRequest(
-          target: SupatermPaneTargetRequest(
-            targetWindowIndex: 1,
-            targetSpaceIndex: 2,
-            targetTabIndex: 3,
-            targetPaneIndex: 4
-          ),
-          text: "echo hello\n"
-        )
-    )
     #expect(setPaneSizeRequest.method == SupatermSocketMethod.terminalSetPaneSize)
     #expect(
       try setPaneSizeRequest.decodeParams(SupatermSetPaneSizeRequest.self)
@@ -1014,6 +989,27 @@ struct SupatermSocketProtocolTests {
           unit: .percent
         )
     )
+  }
+
+  @Test
+  func sendTextModesRoundTripThroughTypedHelper() throws {
+    let target = SupatermPaneTargetRequest(
+      targetWindowIndex: 1,
+      targetSpaceIndex: 2,
+      targetTabIndex: 3,
+      targetPaneIndex: 4
+    )
+    let payloads = [
+      SupatermSendTextRequest(mode: .type, target: target, text: "echo hello\n"),
+      SupatermSendTextRequest(mode: .submit, target: target, text: "first\nsecond"),
+    ]
+
+    for payload in payloads {
+      let request = try SupatermSocketRequest.sendText(payload, id: payload.mode.rawValue)
+
+      #expect(request.method == SupatermSocketMethod.terminalSendText)
+      #expect(try request.decodeParams(SupatermSendTextRequest.self) == payload)
+    }
   }
 
   @Test

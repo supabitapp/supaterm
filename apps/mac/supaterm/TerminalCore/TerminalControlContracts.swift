@@ -125,13 +125,16 @@ public struct TerminalMainVerticalPanesRequest: Equatable, Sendable {
 }
 
 public struct TerminalSendTextRequest: Equatable, Sendable {
+  public let mode: SupatermSendTextMode
   public let target: TerminalPaneTarget
   public let text: String
 
   public init(
+    mode: SupatermSendTextMode = .type,
     target: TerminalPaneTarget,
     text: String
   ) {
+    self.mode = mode
     self.target = target
     self.text = text
   }

@@ -9,6 +9,28 @@ import Testing
 @MainActor
 struct GhosttyClipboardConfirmationTests {
   @Test
+  func submittingMultilineTextUsesBracketedPasteBeforeEnter() async throws {
+    let text = "alpha\nβeta"
+    let expectedInput = "\u{1B}[200~\(text)\u{1B}[201~\r"
+    let expectedHex = expectedInput.utf8.map { String(format: "%02x", $0) }.joined()
+    let script = try TemporaryExecutableScript.bracketedPasteProbe(
+      byteCount: expectedInput.utf8.count
+    )
+    defer { script.remove() }
+    let fixture = try ClipboardSurfaceFixture(command: script.path)
+    defer { fixture.close() }
+    _ = try await capturedText(from: fixture.surface, containing: "SUPATERM_READY")
+
+    fixture.surface.bridge.submitText(text)
+
+    let contents = try await capturedText(
+      from: fixture.surface,
+      containing: "SUPATERM_INPUT_\(expectedHex)"
+    )
+    #expect(contents.contains("SUPATERM_INPUT_\(expectedHex)"))
+  }
+
+  @Test
   func unsafeSelectionPasteShowsConfirmationOnOriginatingWindow() async throws {
     let fixture = try ClipboardSurfaceFixture()
     defer { fixture.close() }
@@ -423,6 +445,21 @@ private struct TemporaryExecutableScript {
       .appendingPathExtension("sh")
     try contents.write(to: url, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: path)
+  }
+
+  static func bracketedPasteProbe(byteCount: Int) throws -> Self {
+    try Self(
+      #"""
+      #!/bin/bash
+      terminal_state=$(stty -g)
+      stty raw -echo
+      printf '\033[?2004hSUPATERM_READY'
+      response=$(dd bs=1 count=\#(byteCount) 2>/dev/null | od -An -tx1 | tr -d ' \n')
+      stty "$terminal_state"
+      printf '\033[?2004lSUPATERM_INPUT_%s\n' "$response"
+      cat
+      """#
+    )
   }
 
   static func osc52Write() throws -> Self {

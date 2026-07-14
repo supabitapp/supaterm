@@ -392,6 +392,7 @@ extension TerminalHostState {
     TerminalControlTrace.write(
       event: "send_text",
       fields: [
+        "mode": request.mode.rawValue,
         "space_id": resolvedTarget.spaceID.rawValue.uuidString.lowercased(),
         "tab_id": resolvedTarget.tabID.rawValue.uuidString.lowercased(),
         "surface_id": resolvedTarget.anchorSurface.id.uuidString.lowercased(),
@@ -401,7 +402,12 @@ extension TerminalHostState {
         "text_preview": TerminalControlTrace.preview(request.text),
       ]
     )
-    resolvedTarget.anchorSurface.bridge.sendText(request.text)
+    switch request.mode {
+    case .submit:
+      resolvedTarget.anchorSurface.bridge.submitText(request.text)
+    case .type:
+      resolvedTarget.anchorSurface.bridge.sendText(request.text)
+    }
     return try paneTarget(
       spaceID: resolvedTarget.spaceID,
       tabID: resolvedTarget.tabID,

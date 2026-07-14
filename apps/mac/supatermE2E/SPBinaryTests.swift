@@ -258,6 +258,82 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
+    func bundledSkillsCatalogAndInstallRoundTripThroughEmbeddedBinary() async throws {
+      try await withTestSpace { app, space in
+        try await app.waitForShellPrompt(space.pane)
+        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+
+        let list = try requireSuccessfulSPResult(
+          try runner.run(["skills", "--json"], cwd: space.directory)
+        )
+        let listResponse = try decodeSPJSON(
+          SkillsResponse<SupatermSkillSummary>.self,
+          from: list
+        )
+        #expect(listResponse.success)
+        #expect(listResponse.data.map(\.name) == ["coding-agents", "core"])
+
+        let core = try requireSuccessfulSPResult(
+          try runner.run(["skills", "get", "core", "--json"], cwd: space.directory)
+        )
+        let coreResponse = try decodeSPJSON(
+          SkillsResponse<SupatermSkillContent>.self,
+          from: core
+        )
+        let coreSkill = try #require(coreResponse.data.first)
+        #expect(coreSkill.content.contains("# Supaterm core"))
+        #expect(coreSkill.files == nil)
+
+        let codingAgents = try requireSuccessfulSPResult(
+          try runner.run(
+            ["skills", "get", "coding-agents", "--full", "--json"], cwd: space.directory)
+        )
+        let codingAgentResponse = try decodeSPJSON(
+          SkillsResponse<SupatermSkillContent>.self,
+          from: codingAgents
+        )
+        let codingAgentSkill = try #require(codingAgentResponse.data.first)
+        #expect(codingAgentSkill.content.contains("sp pane send --submit"))
+        let codingAgentFiles = try #require(codingAgentSkill.files)
+        #expect(codingAgentFiles.isEmpty)
+
+        let missing = try requireFailedSPResult(
+          try runner.run(
+            ["skills", "get", "missing", "--json"], cwd: space.directory)
+        )
+        let missingResponse = try decodeSPJSON(SkillsErrorResponse.self, from: missing)
+        #expect(!missingResponse.success)
+        #expect(missingResponse.error.contains("Skill not found: missing"))
+        #expect(missing.stderr.isEmpty)
+
+        let install = try requireSuccessfulSPResult(
+          try runner.run(["skills", "install", "--json"], cwd: space.directory)
+        )
+        let installResponse = try decodeSPJSON(
+          SkillsResponse<SupatermSkillInstallResult>.self,
+          from: install
+        )
+        let installResult = try #require(installResponse.data.first)
+        let skillDirectoryURL = SupatermSkills.skillDirectoryURL(homeDirectoryURL: app.cliHome)
+        #expect(installResult.path == skillDirectoryURL.path)
+        #expect(
+          FileManager.default.fileExists(
+            atPath: SupatermSkills.skillDefinitionURL(skillDirectoryURL: skillDirectoryURL).path
+          )
+        )
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: skillDirectoryURL.path)) == nil)
+        #expect(
+          try String(
+            contentsOf: SupatermSkills.skillDefinitionURL(
+              skillDirectoryURL: skillDirectoryURL
+            ),
+            encoding: .utf8
+          ).contains("sp skills get core")
+        )
+      }
+    }
+
+    @Test(.timeLimit(.minutes(5)))
     func agentSettingsAndInternalHookCommandsStayHermetic() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
@@ -272,12 +348,6 @@ extension SupatermE2ESuite {
           try runner.run(["internal", "agent-settings", "codex"], cwd: space.directory)
         )
         #expect(try jsonObject(from: codexSettings.stdout)["hooks"] != nil)
-
-        _ = try requireSuccessfulSPResult(
-          try runner.run(["agent", "install-skill"], cwd: space.directory)
-        )
-        let skillURL = SupatermSkillInstaller.skillDefinitionURL(homeDirectoryURL: app.cliHome)
-        #expect(FileManager.default.fileExists(atPath: skillURL.path))
 
         _ = try requireSuccessfulSPResult(
           try runner.run(["agent", "install-hook", "claude"], cwd: space.directory)
@@ -555,19 +625,37 @@ private func exercisePaneIO(
   )
   try await app.waitForCapture(SupatermPaneTargetRequest(contextPaneID: created.paneID), contains: marker)
 
+  let submittedMarker = "pane-submit-\(space.token)"
+  _ = try requireSuccessfulSPResult(
+    try cliTab.runner.run(
+      [
+        "pane", "send", "--socket", app.socketPath, "--submit", "--plain",
+        created.paneID.uuidString, "-",
+      ],
+      cwd: space.directory,
+      stdin: Data("printf '\(submittedMarker)-one\\n'\nprintf '\(submittedMarker)-two\\n'".utf8)
+    )
+  )
+  try await app.waitForCapture(
+    SupatermPaneTargetRequest(contextPaneID: created.paneID),
+    contains: "\(submittedMarker)-two"
+  )
+
   let capture = try decodeSPJSON(
     SupatermCapturePaneResult.self,
     from: try requireSuccessfulSPResult(
       try cliTab.runner.run(
         [
           "pane", "capture", "--socket", app.socketPath, "--json",
-          "--scope", "scrollback", "--lines", "5", created.paneID.uuidString,
+          "--scope", "scrollback", "--lines", "12", created.paneID.uuidString,
         ],
         cwd: space.directory
       )
     )
   )
   #expect(capture.text.contains(marker))
+  #expect(capture.text.contains("\(submittedMarker)-one"))
+  #expect(capture.text.contains("\(submittedMarker)-two"))
   try exercisePaneStatusAndActions(app: app, space: space, cliTab: cliTab)
 }
 
@@ -835,6 +923,16 @@ private let tmuxNoopCommands = [
 
 private struct PingResult: Decodable {
   let pong: Bool
+}
+
+private struct SkillsResponse<Value: Decodable>: Decodable {
+  let success: Bool
+  let data: [Value]
+}
+
+private struct SkillsErrorResponse: Decodable {
+  let success: Bool
+  let error: String
 }
 
 private struct DiagnosticReport: Decodable {

@@ -18,6 +18,7 @@ struct SP: ParsableCommand {
     Space.self,
     Tab.self,
     Pane.self,
+    Skills.self,
     Agent.self,
     Tmux.self,
     Internal.self,

@@ -10,7 +10,8 @@
 - `./docs/theming.md` - how Supaterm default chrome styling works
 - `./docs/coding-agents-integration.md` - how coding agents integration features work
 - `./docs/how-socket-works.md` - how the `sp` CLI and the macOS app talk through socket IPC
-- `integrations/supaterm-skills/skills/supaterm` - user-facing `sp` skill and command references
+- `integrations/supaterm-skills/skills/supaterm` - stable user-facing discovery skill
+- `integrations/supaterm-skills/skill-data` - version-matched `sp` guides and command references
 - Keep `integrations/supaterm-skills` in sync when CLI behavior or coding-agent integrations change; we maintain the user-facing `supaterm` skill there
 - Read `apps/supaterm.com/AGENTS.md` before working in the web app
 
