@@ -128,9 +128,7 @@ final class PanesSplitsUITests: SupatermUITestCase {
 
     try clickMenuItem(.closeSurface)
 
-    let cancelButton = app.buttons[
-      SupatermUITestIdentifier.Accessibility.dialogCancel
-    ]
+    let cancelButton = app.buttons["Cancel"]
     guard cancelButton.waitForExistence(timeout: 10) else {
       XCTFail("Close confirmation did not appear")
       return
@@ -142,9 +140,7 @@ final class PanesSplitsUITests: SupatermUITestCase {
     try await requireFocus(on: rightPane)
     try clickMenuItem(.closeSurface)
 
-    let confirmButton = app.buttons[
-      SupatermUITestIdentifier.Accessibility.dialogConfirm
-    ]
+    let confirmButton = app.buttons["Close"]
     guard confirmButton.waitForExistence(timeout: 10) else {
       XCTFail("Close confirmation did not reappear")
       return
