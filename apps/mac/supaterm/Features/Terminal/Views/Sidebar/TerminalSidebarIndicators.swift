@@ -283,18 +283,22 @@ enum TerminalSidebarWarningBadgeStyle {
     foregroundValue(isSelected: isSelected, palette: palette).color
   }
 
-  static func selectedBackgroundValue(palette: Palette) -> ThemeColor {
-    ColorMath.composited(
-      palette.warningFillValue,
-      opacity: backgroundOpacity(isSelected: true),
-      over: palette.selectedFillValue
-    )
+  static func selectedBackgroundValues(palette: Palette) -> [ThemeColor] {
+    [palette.chromeBackgroundStartValue, palette.chromeBackgroundStopValue].map { background in
+      ColorMath.composited(
+        palette.warningFillValue,
+        opacity: backgroundOpacity(isSelected: true),
+        over: palette.sidebarSelectedSurface(over: background)
+      )
+    }
   }
 
   static func foregroundValue(isSelected: Bool, palette: Palette) -> ThemeColor {
-    isSelected
-      ? ColorMath.readableForeground(on: selectedBackgroundValue(palette: palette))
-      : palette.onWarningFillValue
+    guard isSelected else { return palette.onWarningFillValue }
+    let backgrounds = selectedBackgroundValues(palette: palette)
+    let blackContrast = backgrounds.map { ColorMath.contrastRatio(.black, $0) }.min() ?? 0
+    let whiteContrast = backgrounds.map { ColorMath.contrastRatio(.white, $0) }.min() ?? 0
+    return whiteContrast >= blackContrast ? .white : .black
   }
 
   private static func backgroundOpacity(isSelected: Bool) -> Double {

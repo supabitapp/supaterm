@@ -139,7 +139,7 @@ Panes inherit Supaterm context from the running app:
 
 The app also prepends the bundled CLI directory to pane `PATH`.
 
-## Website
+## Marketing website
 
 Web targets run through `vp`; `mise install` installs it via the postinstall hook.
 
@@ -173,6 +173,35 @@ Deploy the Worker:
 
 ```bash
 make web-deploy
+```
+
+## Documentation website
+
+Install dependencies:
+
+```bash
+make docs-install
+```
+
+Run the Blume development server:
+
+```bash
+make docs-dev
+```
+
+Run strict content checks, link validation, and a production build:
+
+```bash
+make docs-check
+make docs-validate
+make docs-build
+```
+
+Preview or deploy the static site:
+
+```bash
+make docs-preview
+make docs-deploy
 ```
 
 ## Testing

@@ -133,7 +133,7 @@ struct TerminalSidebarChromeView: View {
         }
         TerminalSidebarSpaceBar(store: store, palette: palette, terminal: terminal)
       }
-      .padding(.horizontal, 8)
+      .padding(.horizontal, 4)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onChange(of: terminal.selectedTabID) { _, _ in
@@ -382,14 +382,14 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
               .accessibilityHidden(true)
             Text("New Project")
               .font(.system(size: 13, weight: .medium))
-              .foregroundStyle(parent.palette.primaryText)
+              .foregroundStyle(parent.palette.secondaryText)
             Spacer(minLength: 0)
           }
-          .padding(.horizontal, 10)
-          .frame(height: 36)
+          .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+          .frame(height: TerminalSidebarLayout.tabRowMinHeight)
         }
       )
-      .buttonStyle(TerminalSidebarButtonStyle(layout: .rect))
+      .buttonStyle(TerminalSidebarButtonStyle(palette: parent.palette, layout: .rect))
     }
 
     private func promptNewProject() {

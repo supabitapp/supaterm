@@ -200,8 +200,7 @@ struct TerminalSplitTreeView: View {
     case resize(node: SplitTree<GhosttySurfaceView>.Node, ratio: Double)
     case drop(payloadId: UUID, destinationId: UUID, zone: DropZone)
     case equalize
-    case agentPanelCopyBranchName(String)
-    case agentPanelCopySessionID(String)
+    case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
@@ -448,18 +447,20 @@ struct TerminalSplitTreeView: View {
         isCollapsed: isAgentPanelCollapsed
       )
       if let agentPanelPresentation, overlayState != .hidden {
+        let shortcutHint = Self.visibleShortcutHint(
+          agentPanelShortcutHint,
+          focusedSurfaceID: focusedSurfaceID,
+          surfaceID: surfaceView.id
+        )
         AgentPanelSurface(
           isCollapsed: overlayState == .collapsedIcon,
           presentation: agentPanelPresentation,
           palette: palette,
           forksDown: agentPanelForksDown,
           reduceMotion: reduceMotion,
-          shortcutHint: agentPanelShortcutHint,
-          copyBranchName: { branchName in
-            action(.agentPanelCopyBranchName(branchName))
-          },
-          copySessionID: { sessionID in
-            action(.agentPanelCopySessionID(sessionID))
+          shortcutHint: shortcutHint,
+          copyText: { text in
+            action(.agentPanelCopyText(text))
           },
           forkSession: { direction, session in
             action(
@@ -638,6 +639,14 @@ struct TerminalSplitTreeView: View {
       isCollapsed ? AgentPanelMetrics.collapsedLength : AgentPanelMetrics.expandedWidth
     }
 
+    static func visibleShortcutHint(
+      _ shortcutHint: String?,
+      focusedSurfaceID: UUID?,
+      surfaceID: UUID
+    ) -> String? {
+      focusedSurfaceID == surfaceID ? shortcutHint : nil
+    }
+
     static func shouldTriggerNotificationPulse(
       from oldValue: Bool,
       to newValue: Bool,
@@ -705,8 +714,7 @@ struct TerminalSplitTreeView: View {
     let forksDown: Bool
     let reduceMotion: Bool
     let shortcutHint: String?
-    let copyBranchName: (String) -> Void
-    let copySessionID: (String) -> Void
+    let copyText: (String) -> Void
     let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
     let toggle: () -> Void
     let openURL: (URL) -> Void
@@ -720,8 +728,7 @@ struct TerminalSplitTreeView: View {
           palette: palette,
           forksDown: forksDown,
           showsShortcutHints: shortcutHint != nil,
-          copyBranchName: copyBranchName,
-          copySessionID: copySessionID,
+          copyText: copyText,
           forkSession: forkSession,
           openURL: openURL
         )

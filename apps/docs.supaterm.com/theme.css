@@ -1,0 +1,12 @@
+:root {
+  --blume-accent-foreground: #ffffff;
+  --blume-action: #b45309;
+  --blume-code-background: #f7f5f0;
+}
+
+:root[data-theme="dark"] {
+  --blume-accent-foreground: #17130c;
+  --blume-action: #ffa82d;
+  --blume-background: #12100b;
+  --blume-code-background: #191711;
+}

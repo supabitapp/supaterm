@@ -97,6 +97,52 @@ struct TerminalAgentStateStoreTests {
   }
 
   @Test
+  func rootWorkingDirectoryTracksLatestReportedPath() throws {
+    let surfaceID = UUID()
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
+    var store = TerminalAgentStateStore()
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        context: context,
+        workingDirectoryPath: "/tmp/first/child/..",
+        action: .sessionStarted(transcriptPath: nil)
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        context: context,
+        action: .turnStarted
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        turnID: "turn-1",
+        subagentID: "child-1",
+        context: context,
+        workingDirectoryPath: "/tmp/child",
+        action: .subagentStarted(nickname: nil, role: "reviewer")
+      )
+    )
+
+    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/first/")
+
+    store.apply(
+      event(
+        sessionID: "session-1",
+        context: context,
+        workingDirectoryPath: "/tmp/second",
+        action: .turnRunning(detail: nil)
+      )
+    )
+
+    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/second/")
+  }
+
+  @Test
   func staleTurnCompletionCannotClearNewerTurn() throws {
     let surfaceID = UUID()
     let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
@@ -309,6 +355,7 @@ struct TerminalAgentStateStoreTests {
     subagentID: String? = nil,
     context: SupatermCLIContext? = nil,
     processID: Int32? = nil,
+    workingDirectoryPath: String? = nil,
     action: TerminalAgentEvent.Action
   ) -> TerminalAgentEvent {
     TerminalAgentEvent(
@@ -320,6 +367,7 @@ struct TerminalAgentStateStoreTests {
       ),
       context: context,
       processID: processID,
+      workingDirectoryPath: workingDirectoryPath,
       action: action
     )
   }

@@ -152,22 +152,7 @@ extension TerminalHostState {
   }
 
   func setProjectPinned(_ projectID: TerminalProjectID, isPinned: Bool) {
-    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
-    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
-    guard let projectIndex = spaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { $0.id == projectID }) else {
-      return
-    }
-
-    var updatedSpaceCatalog = spaceCatalog
-    var project = updatedSpaceCatalog.spaces[spaceIndex].projects.remove(at: projectIndex)
-    project.isPinned = isPinned
-    let insertionIndex =
-      isPinned
-      ? updatedSpaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { !$0.isPinned })
-        ?? updatedSpaceCatalog.spaces[spaceIndex].projects.endIndex
-      : updatedSpaceCatalog.spaces[spaceIndex].projects.endIndex
-    updatedSpaceCatalog.spaces[spaceIndex].projects.insert(project, at: insertionIndex)
-    _ = writeSpaceCatalog(updatedSpaceCatalog)
+    moveProject(projectID, isPinned: isPinned, at: .max)
   }
 
   func moveProject(_ projectID: TerminalProjectID, isPinned: Bool, at destinationIndex: Int) {

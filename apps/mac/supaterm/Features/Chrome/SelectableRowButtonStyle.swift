@@ -2,53 +2,128 @@ import SupaTheme
 import SwiftUI
 
 struct SelectableRowButtonStyle: ButtonStyle {
+  enum Appearance {
+    case standard(restFill: Color)
+    case sidebar
+
+    func resolve(palette: Palette) -> ResolvedAppearance {
+      switch self {
+      case .standard(let restFill):
+        ResolvedAppearance(
+          selectedFill: palette.selectedFill,
+          pressedFill: palette.pressedFill,
+          hoverFill: palette.hoverFill,
+          restFill: restFill,
+          selectedStroke: AnyShapeStyle(palette.selectedStroke),
+          selectedShadow: palette.selectedShadow
+        )
+      case .sidebar:
+        ResolvedAppearance(
+          selectedFill: palette.sidebarSelectedFill,
+          pressedFill: palette.sidebarItemPressedFill,
+          hoverFill: palette.sidebarItemHoverFill,
+          restFill: .clear,
+          selectedStroke: AnyShapeStyle(palette.sidebarSelectedStroke),
+          selectedShadow: palette.sidebarSelectedShadow
+        )
+      }
+    }
+  }
+
+  struct ResolvedAppearance {
+    let selectedFill: Color
+    let pressedFill: Color
+    let hoverFill: Color
+    let restFill: Color
+    let selectedStroke: AnyShapeStyle
+    let selectedShadow: Color
+
+    func fill(
+      isSelected: Bool,
+      isPressed: Bool,
+      isHovering: Bool
+    ) -> Color {
+      if isSelected {
+        return selectedFill
+      }
+      if isPressed {
+        return pressedFill
+      }
+      if isHovering {
+        return hoverFill
+      }
+      return restFill
+    }
+  }
+
   let palette: Palette
   let isSelected: Bool
   let isHovering: Bool
   let cornerRadius: CGFloat
+  let appearance: Appearance
   let showsSelectionEdge: Bool
-  let restFill: Color
 
   init(
     palette: Palette,
     isSelected: Bool,
     isHovering: Bool,
     cornerRadius: CGFloat,
-    showsSelectionEdge: Bool = true,
-    restFill: Color = .clear
+    appearance: Appearance = .standard(restFill: .clear),
+    showsSelectionEdge: Bool = true
   ) {
     self.palette = palette
     self.isSelected = isSelected
     self.isHovering = isHovering
     self.cornerRadius = cornerRadius
+    self.appearance = appearance
     self.showsSelectionEdge = showsSelectionEdge
-    self.restFill = restFill
   }
 
   func makeBody(configuration: Configuration) -> some View {
+    let resolvedAppearance = appearance.resolve(palette: palette)
+    configuration.label
+      .background(
+        resolvedAppearance.fill(
+          isSelected: isSelected,
+          isPressed: configuration.isPressed,
+          isHovering: isHovering
+        )
+      )
+      .modifier(
+        SelectableRowChrome(
+          isSelected: isSelected,
+          cornerRadius: cornerRadius,
+          appearance: resolvedAppearance,
+          showsSelectionEdge: showsSelectionEdge
+        )
+      )
+  }
+}
+
+struct SelectableRowChrome: ViewModifier {
+  let isSelected: Bool
+  let cornerRadius: CGFloat
+  let appearance: SelectableRowButtonStyle.ResolvedAppearance
+  let showsSelectionEdge: Bool
+
+  func body(content: Content) -> some View {
     let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     let hasEdge = isSelected && showsSelectionEdge
-    configuration.label
-      .background(fill(isPressed: configuration.isPressed))
+    content
+      .compositingGroup()
       .clipShape(shape)
-      .overlay(shape.strokeBorder(palette.selectedStroke.opacity(hasEdge ? 1 : 0), lineWidth: 1))
+      .overlay { selectionEdge(shape: shape, isVisible: hasEdge) }
       .shadow(
-        color: hasEdge ? palette.selectedShadow : .clear,
+        color: hasEdge ? appearance.selectedShadow : .clear,
         radius: hasEdge ? 5 : 0
       )
       .contentShape(shape)
   }
 
-  private func fill(isPressed: Bool) -> Color {
-    if isSelected {
-      return palette.selectedFill
+  @ViewBuilder
+  private func selectionEdge(shape: RoundedRectangle, isVisible: Bool) -> some View {
+    if isVisible {
+      shape.strokeBorder(appearance.selectedStroke, lineWidth: 1)
     }
-    if isPressed {
-      return palette.pressedFill
-    }
-    if isHovering {
-      return palette.hoverFill
-    }
-    return restFill
   }
 }

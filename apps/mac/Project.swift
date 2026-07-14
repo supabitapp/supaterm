@@ -432,25 +432,38 @@ let project = Project(
           script: """
             set -euo pipefail
 
-            source_dir="${SRCROOT}/../../integrations/supaterm-skills/skills/supaterm"
-            destination_root="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/skills"
-            destination_dir="${destination_root}/supaterm"
+            stub_source_dir="${SRCROOT}/../../integrations/supaterm-skills/skills/supaterm"
+            data_source_dir="${SRCROOT}/../../integrations/supaterm-skills/skill-data"
+            resources_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+            stub_destination_dir="${resources_dir}/skills/supaterm"
+            data_destination_dir="${resources_dir}/skill-data"
 
-            if [ ! -f "${source_dir}/SKILL.md" ]; then
-              echo "error: missing Supaterm skill" >&2
+            if [ ! -f "${stub_source_dir}/SKILL.md" ]; then
+              echo "error: missing Supaterm skill stub" >&2
               exit 1
             fi
 
-            mkdir -p "${destination_root}"
-            rsync -a --delete "${source_dir}/" "${destination_dir}/"
+            if [ ! -f "${data_source_dir}/core/SKILL.md" ] || [ ! -f "${data_source_dir}/coding-agents/SKILL.md" ]; then
+              echo "error: missing Supaterm skill data" >&2
+              exit 1
+            fi
+
+            mkdir -p "${resources_dir}/skills"
+            rsync -a --delete "${stub_source_dir}/" "${stub_destination_dir}/"
+            rsync -a --delete "${data_source_dir}/" "${data_destination_dir}/"
             """,
-          name: "Embed Supaterm Skill",
+          name: "Embed Supaterm Skills",
           inputPaths: [
             "$(SRCROOT)/../../integrations/supaterm-skills/skills/supaterm/SKILL.md",
+            "$(SRCROOT)/../../integrations/supaterm-skills/skill-data/core/SKILL.md",
+            "$(SRCROOT)/../../integrations/supaterm-skills/skill-data/coding-agents/SKILL.md",
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skills/supaterm/SKILL.md",
-          ]
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skill-data/core/SKILL.md",
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/skill-data/coding-agents/SKILL.md",
+          ],
+          basedOnDependencyAnalysis: false
         ),
       ],
       dependencies: [

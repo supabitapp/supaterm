@@ -15,7 +15,7 @@ extension SnapshotCatalog {
       "palette-tokens",
       group: "Chrome",
       title: "Palette token sheet",
-      size: CGSize(width: 760, height: 520)
+      size: CGSize(width: 760, height: 920)
     ) { appearance in
       AnyView(PaletteTokenSheetSnapshotFixture(appearance: appearance))
     },
@@ -43,7 +43,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
         ForEach(tokens(for: palette), id: \.name) { token in
           VStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .fill(token.color)
+              .fill(token.style)
               .frame(height: 34)
               .overlay {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -62,11 +62,20 @@ private struct PaletteTokenSheetSnapshotFixture: View {
 
   private struct TokenSwatch {
     let name: String
-    let color: Color
+    let style: AnyShapeStyle
+
+    init<Style: ShapeStyle>(name: String, color: Style) {
+      self.name = name
+      style = AnyShapeStyle(color)
+    }
   }
 
   private func tokens(for palette: Palette) -> [TokenSwatch] {
     let semanticTokens = [
+      TokenSwatch(name: "backgroundIlluminationStart", color: palette.backgroundIlluminationStart),
+      TokenSwatch(name: "backgroundIlluminationStop", color: palette.backgroundIlluminationStop),
+      TokenSwatch(name: "chromeBackgroundStart", color: palette.chromeBackgroundStartValue.color),
+      TokenSwatch(name: "chromeBackgroundStop", color: palette.chromeBackgroundStopValue.color),
       TokenSwatch(name: "windowBackgroundTint", color: palette.windowBackgroundTint),
       TokenSwatch(name: "detailBackground", color: palette.detailBackground),
       TokenSwatch(name: "agentPanelBackground", color: palette.agentPanelBackground),
@@ -84,6 +93,12 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "selectedShadow", color: palette.selectedShadow),
       TokenSwatch(name: "primaryText", color: palette.primaryText),
       TokenSwatch(name: "secondaryText", color: palette.secondaryText),
+      TokenSwatch(name: "sidebarTabTitle", color: palette.sidebarTabTitle),
+      TokenSwatch(name: "sidebarSelectedFill", color: palette.sidebarSelectedFill),
+      TokenSwatch(name: "sidebarSelectedStroke", color: palette.sidebarSelectedStroke),
+      TokenSwatch(name: "sidebarItemHoverFill", color: palette.sidebarItemHoverFill),
+      TokenSwatch(name: "sidebarItemPressedFill", color: palette.sidebarItemPressedFill),
+      TokenSwatch(name: "sidebarSeparator", color: palette.sidebarSeparator),
       TokenSwatch(name: "shadow", color: palette.shadow),
       TokenSwatch(name: "scrim", color: palette.scrim),
       TokenSwatch(name: "overlayShadow", color: palette.overlayShadow),

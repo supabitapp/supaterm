@@ -64,11 +64,13 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
 
 @Reducer
 struct TerminalWindowFeature {
-  static let closeWindowWarningMessage =
-    "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
-    + "zmx persistence is for Supaterm restarts."
   static let closeAllWindowsWarningMessage =
     "Closing all windows terminates their terminal sessions. Reopening Supaterm starts new sessions. "
+    + "zmx persistence is for Supaterm restarts."
+  static let closeTabWarningMessage =
+    "Closing this tab closes all its panes and terminates any running processes. Close it anyway?"
+  static let closeWindowWarningMessage =
+    "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
     + "zmx persistence is for Supaterm restarts."
 
   @ObservableState
@@ -152,8 +154,7 @@ struct TerminalWindowFeature {
     case collapseSidebarButtonTapped
     case collapsedProjectIDsChanged(Set<TerminalProjectID>)
     case floatingSidebarVisibilityChanged(Bool)
-    case agentPanelCopyBranchName(String)
-    case agentPanelCopySessionID(String)
+    case agentPanelCopyText(String)
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
@@ -340,17 +341,21 @@ struct TerminalWindowFeature {
         state.isFloatingSidebarVisible = isVisible
         return .none
 
-      case .agentPanelCopyBranchName(let value), .agentPanelCopySessionID(let value):
+      case .agentPanelCopyText(let value):
         return .run { [clipboardClient] _ in
           await clipboardClient.copyString(value)
         }
 
-      case .agentPanelForkSessionRequested(let surfaceID, let direction, let session):
+      case .agentPanelForkSessionRequested(
+        let surfaceID,
+        let direction,
+        let session
+      ):
         return .run { [terminalClient] _ in
           _ = try? await terminalClient.createPane(
             TerminalCreatePaneRequest(
               startupCommand: session.forkStartupCommand,
-              cwd: nil,
+              cwd: session.workingDirectoryPath,
               direction: direction,
               focus: true,
               equalize: false,
@@ -699,7 +704,7 @@ struct TerminalWindowFeature {
       return PendingCloseRequest(
         target: .tab(tabID),
         title: "Close Tab?",
-        message: "A process is still running in this tab. Close it anyway?"
+        message: Self.closeTabWarningMessage
       )
     case .tabs(let tabIDs):
       return PendingCloseRequest(

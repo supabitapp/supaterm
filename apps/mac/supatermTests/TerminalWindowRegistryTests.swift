@@ -891,7 +891,8 @@ struct TerminalWindowRegistryTests {
           agent: .codex,
           for: surfaceID,
           sessionID: "session-1",
-          processID: nil
+          processID: nil,
+          workingDirectoryPath: "/tmp/agent-workspace"
         )
       )
       var requests: [TerminalCreatePaneRequest] = []
@@ -940,7 +941,7 @@ struct TerminalWindowRegistryTests {
             startupCommand: SupatermShellCommand.interactiveStartupCommand(
               for: "codex fork session-1"
             ),
-            cwd: nil,
+            cwd: "/tmp/agent-workspace/",
             direction: .right,
             focus: true,
             equalize: false,

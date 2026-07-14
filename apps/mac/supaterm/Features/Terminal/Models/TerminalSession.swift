@@ -387,6 +387,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
   let activeChildren: [TerminalAgentActiveChild]
   let isForeground: Bool
   let revision: Int
+  let workingDirectoryPath: String?
 
   init(
     agent: SupatermAgentKind,
@@ -402,7 +403,8 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     transcriptRows: [PaneAgentProgressRow] = [],
     activeChildren: [TerminalAgentActiveChild] = [],
     isForeground: Bool = false,
-    revision: Int = 0
+    revision: Int = 0,
+    workingDirectoryPath: String? = nil
   ) {
     self.agent = agent
     self.sessionID = sessionID
@@ -418,6 +420,7 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
     self.activeChildren = activeChildren
     self.isForeground = isForeground
     self.revision = revision
+    self.workingDirectoryPath = workingDirectoryPath
   }
 
   init(snapshot: TerminalAgentStateSnapshot) {
@@ -435,7 +438,8 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       transcriptRows: snapshot.progressRowsBySource[.transcript] ?? [],
       activeChildren: snapshot.activeChildren,
       isForeground: snapshot.isForeground,
-      revision: snapshot.revision
+      revision: snapshot.revision,
+      workingDirectoryPath: snapshot.workingDirectoryPath
     )
   }
 
@@ -465,7 +469,8 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       progressRowsBySource: progressRowsBySource,
       activeChildren: activeChildren,
       isForeground: isForeground,
-      revision: revision
+      revision: revision,
+      workingDirectoryPath: workingDirectoryPath
     )
   }
 
@@ -489,7 +494,8 @@ nonisolated struct TerminalPaneAgentRecord: Equatable, Codable, Sendable {
       transcriptRows: transcriptRows,
       activeChildren: activeChildren,
       isForeground: isForeground,
-      revision: max(0, revision)
+      revision: max(0, revision),
+      workingDirectoryPath: workingDirectoryPath
     )
   }
 }

@@ -12,6 +12,7 @@ private enum CodexTranscriptEvent {
   case assistantMessage(turnID: String?, text: String, phase: String?)
   case goalContext(String)
   case goalUpdated(JSONObject)
+  case subagentTask(String)
   case turnAborted(String?)
   case turnCompleted(turnID: String?, message: String?)
   case turnContext(String)
@@ -54,12 +55,13 @@ private struct CodexTranscriptProjection {
   private var activeTurnID: String?
   private var goalRow: PaneAgentProgressRow?
   private var nextImplicitTurnIndex = 1
+  private var subagentTask: String?
   private var turns: [CodexTranscriptTurn] = []
 
   var sidebarSnapshot: AgentMonitorSnapshot {
     AgentMonitorSnapshot(
       status: activityStatus,
-      detail: activeTurn?.detail,
+      detail: activeTurn?.detail ?? subagentTask,
       hoverMessages: (activeTurn ?? turns.last)?.hoverMessages ?? [],
       progressRows: progressRows
     )
@@ -100,6 +102,8 @@ private struct CodexTranscriptProjection {
       if let row = Self.goalProgressRow(from: goal) {
         goalRow = row
       }
+    case .subagentTask(let task):
+      subagentTask = task
     case .turnAborted(let turnID):
       finishTurn(turnID, status: .aborted)
     case .turnCompleted(let turnID, let message):
@@ -330,6 +334,10 @@ private enum CodexTranscriptParser {
       return nil
     }
     switch lineType {
+    case "session_meta":
+      return CodexTranscriptMetadataParser.subagentTask(from: payload).map(
+        CodexTranscriptEvent.subagentTask
+      )
     case "turn_context":
       return payload["turn_id"]?.stringValue.map(CodexTranscriptEvent.turnContext)
     case "event_msg":

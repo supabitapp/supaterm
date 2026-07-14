@@ -269,7 +269,7 @@ final class TerminalWindowRegistry {
       let entry = preferredActiveEntry(),
       let session = selectedAgentPanel(in: entry)?.session
     else { return }
-    entry.store.send(.terminal(.agentPanelCopySessionID(session.sessionID)))
+    entry.store.send(.terminal(.agentPanelCopyText(session.sessionID)))
   }
 
   func requestToggleCommandPaletteInKeyWindow() {
@@ -678,6 +678,21 @@ final class TerminalWindowRegistry {
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,
       name: result.name
+    )
+  }
+
+  static func rewrite(
+    _ result: SupatermProjectTarget,
+    windowIndex: Int
+  ) -> SupatermProjectTarget {
+    SupatermProjectTarget(
+      windowIndex: windowIndex,
+      spaceIndex: result.spaceIndex,
+      spaceID: result.spaceID,
+      projectIndex: result.projectIndex,
+      projectID: result.projectID,
+      directoryURL: result.directoryURL,
+      isPinned: result.isPinned
     )
   }
 

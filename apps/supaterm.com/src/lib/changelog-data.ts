@@ -17,6 +17,61 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v26.3.1",
+    date: "2026-07-13",
+    title: "💙 Final Beta Hotfix",
+    description:
+      "This hotfix sharpens Codex subagent updates, restores neutral light chrome, and keeps the final Beta message available until you dismiss it.",
+    sections: [
+      {
+        category: "improvements",
+        items: [
+          "Codex subagent rows now show their assigned task immediately, then switch to their latest response as work progresses",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Codex parent and child activity no longer overwrite one another in the agent panel",
+          "Light mode chrome no longer carries a colored tint",
+          "The final Beta announcement now remains visible across relaunches and hotfix updates until dismissed",
+        ],
+      },
+    ],
+  },
+  {
+    version: "v26.3.0",
+    date: "2026-07-12",
+    title: "💙 Final Beta Release",
+    description:
+      "The final Supaterm Beta release brings a more reliable terminal, accurate coding-agent activity, and refined sidebar polish before the app’s next chapter.",
+    sections: [
+      {
+        category: "new",
+        items: [
+          "Codex subagents now appear by their assigned nicknames in the agent panel",
+          "Terminal configuration, renderer, and surface failures now show actionable recovery UI",
+        ],
+      },
+      {
+        category: "improvements",
+        items: [
+          "Normal quits now consistently offer choices for handling running terminal sessions",
+          "Refined sidebar colors, selection states, indicators, and notification previews",
+          "Clipboard reads, writes, and unsafe pastes now require confirmation from the originating terminal",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Agent plans now remain visible and usage-limit failures stop showing as working",
+          "Restored agent sessions no longer attach to reused processes or accept stale lifecycle events",
+          "Terminal focus, shortcuts, and split interactions now stay aligned across windows",
+        ],
+      },
+    ],
+  },
+  {
     version: "v26.2.0",
     date: "2026-07-08",
     title: "🌈 Space Themes",

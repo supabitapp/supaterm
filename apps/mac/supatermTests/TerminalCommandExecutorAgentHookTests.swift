@@ -30,7 +30,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
   @Test
-  func claudeSessionStartDoesNotMarkTabRunning() throws {
+  func claudeSessionStartShowsWorkspaceWithoutMarkingTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.commandExecutor.handleAgentHook(
@@ -38,7 +38,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(harness.host.agentPanelPresentation(for: harness.context.surfaceID) == nil)
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.workingDirectoryPath
+        == "\(ClaudeHookFixtures.cwd)/"
+    )
   }
   @Test
   func claudeSessionStartStoresTaskProgressRows() async throws {
@@ -179,8 +182,10 @@ struct TerminalCommandExecutorAgentHookTests {
 
     harness.commandExecutor.handleMonitorSnapshot(
       AgentMonitorSnapshot(status: .started("turn-late"), detail: "Late transcript update"),
-      agent: .codex,
-      sessionID: CodexHookFixtures.sessionID,
+      scope: TerminalAgentEvent.Scope(
+        agent: .codex,
+        sessionID: CodexHookFixtures.sessionID
+      ),
       context: harness.context
     )
 
@@ -214,8 +219,10 @@ struct TerminalCommandExecutorAgentHookTests {
           PaneAgentProgressRow(id: "stale", title: "Stale progress", status: .running)
         ]
       ),
-      agent: .codex,
-      sessionID: CodexHookFixtures.sessionID,
+      scope: TerminalAgentEvent.Scope(
+        agent: .codex,
+        sessionID: CodexHookFixtures.sessionID
+      ),
       context: harness.context
     )
 
@@ -319,8 +326,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(
       harness.commandExecutor.agentMonitorStore.isTracking(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
+        scope: TerminalAgentEvent.Scope(
+          agent: .codex,
+          sessionID: CodexHookFixtures.sessionID
+        )
       )
     )
 
@@ -328,8 +337,10 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(
       !harness.commandExecutor.agentMonitorStore.isTracking(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
+        scope: TerminalAgentEvent.Scope(
+          agent: .codex,
+          sessionID: CodexHookFixtures.sessionID
+        )
       )
     )
   }
@@ -350,8 +361,10 @@ struct TerminalCommandExecutorAgentHookTests {
 
     #expect(
       !harness.commandExecutor.agentMonitorStore.isTracking(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
+        scope: TerminalAgentEvent.Scope(
+          agent: .codex,
+          sessionID: CodexHookFixtures.sessionID
+        )
       )
     )
   }
@@ -774,6 +787,17 @@ struct TerminalCommandExecutorAgentHookTests {
     )
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
 
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.userPromptSubmit,
+        transcriptPath: transcriptPath,
+        context: harness.context
+      )
+    )
+    await advanceClock(clock)
+
+    #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
+
     try CodexTranscriptFixtures.append(.taskStarted(turnID: "turn-1"), to: transcriptPath)
     await advanceClock(clock)
 
@@ -1043,8 +1067,10 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running, detail: "Bash"))
     #expect(
       harness.commandExecutor.agentMonitorStore.isTracking(
-        agent: .codex,
-        sessionID: CodexHookFixtures.sessionID
+        scope: TerminalAgentEvent.Scope(
+          agent: .codex,
+          sessionID: CodexHookFixtures.sessionID
+        )
       )
     )
   }
@@ -1141,7 +1167,11 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
     let expectedSession = try #require(
-      PaneAgentPanelSession.supported(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: CodexHookFixtures.sessionID,
+        workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+      )
     )
     #expect(session == expectedSession)
   }
@@ -1403,6 +1433,106 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.idle))
   }
   @Test
+  func codexChildTranscriptMessageReplacesToolDetailWithoutReplacingRootMonitor() async throws {
+    let harness = try makeClaudeHookHarness()
+    let rootTranscript = try CodexTranscriptFixtures.makeTranscript()
+    let childTranscript = try CodexTranscriptFixtures.makeTranscript()
+    defer {
+      try? FileManager.default.removeItem(at: rootTranscript.deletingLastPathComponent())
+      try? FileManager.default.removeItem(at: childTranscript.deletingLastPathComponent())
+    }
+    let childScope = TerminalAgentEvent.Scope(
+      agent: .codex,
+      sessionID: CodexHookFixtures.sessionID,
+      turnID: "root-turn",
+      subagentID: "child-1"
+    )
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      codexHook(
+        CodexHookFixtures.sessionStart,
+        transcriptPath: rootTranscript,
+        context: harness.context
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          hookEventName: .userPromptSubmit,
+          sessionID: CodexHookFixtures.sessionID,
+          transcriptPath: rootTranscript.path,
+          turnID: "root-turn"
+        )
+      )
+    )
+    try CodexTranscriptFixtures.append(
+      .subagentSessionMeta(
+        id: "child-1",
+        sessionID: CodexHookFixtures.sessionID,
+        nickname: "Mendel"
+      ),
+      to: childTranscript
+    )
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "child-turn"), to: childTranscript)
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Tracing native haptic calls"),
+      to: childTranscript
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          agentType: "default",
+          hookEventName: .subagentStart,
+          sessionID: CodexHookFixtures.sessionID,
+          transcriptPath: childTranscript.path,
+          turnID: "root-turn",
+          agentID: "child-1"
+        )
+      )
+    )
+
+    let didLoadChildMessage = await waitUntil {
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
+        .activeChildren.first?.detail == "Tracing native haptic calls"
+    }
+    #expect(didLoadChildMessage)
+    #expect(harness.commandExecutor.agentMonitorStore.isTracking(scope: childScope))
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .codex,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          hookEventName: .postToolUse,
+          sessionID: CodexHookFixtures.sessionID,
+          toolName: "Bash",
+          transcriptPath: childTranscript.path,
+          turnID: "root-turn",
+          agentID: "child-1"
+        )
+      )
+    )
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
+        .activeChildren.first?.detail == "Tracing native haptic calls"
+    )
+
+    try CodexTranscriptFixtures.append(.taskStarted(turnID: "root-turn"), to: rootTranscript)
+    try CodexTranscriptFixtures.append(
+      .assistantMessage("Coordinating child results"),
+      to: rootTranscript
+    )
+    let didKeepRootMonitor = await waitUntil {
+      harness.host.agentActivity(for: harness.tabID)
+        == .codex(.running, detail: "Coordinating child results")
+    }
+    #expect(didKeepRootMonitor)
+  }
+  @Test
   func codexStopDeliversDesktopNotificationWhenWindowIsInactive() throws {
     let harness = try makeClaudeHookHarness(windowActivity: .inactive)
 
@@ -1467,7 +1597,14 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
-    #expect(session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "child-session"))
+    #expect(
+      session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "child-session",
+          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+        )
+    )
     #expect(session.forkStartupCommand.contains("codex fork child-session"))
   }
   @Test

@@ -9,7 +9,6 @@ extension SP {
       abstract: "Manage Supaterm coding-agent integrations.",
       discussion: SPHelp.agentDiscussion,
       subcommands: [
-        InstallAgentSkill.self,
         InstallAgentHooks.self,
         InstallAgentHook.self,
         RemoveAgentHook.self,
@@ -41,23 +40,6 @@ extension SP {
 
       guard failures.isEmpty else {
         FileHandle.standardError.write(Data((failures.joined(separator: "\n") + "\n").utf8))
-        throw ExitCode.failure
-      }
-    }
-  }
-
-  struct InstallAgentSkill: ParsableCommand {
-    static let configuration = CommandConfiguration(
-      commandName: "install-skill",
-      abstract: "Install Supaterm's bundled agent skill.",
-      discussion: SPHelp.installAgentSkillDiscussion
-    )
-
-    mutating func run() throws {
-      do {
-        try SupatermSkillInstaller(homeDirectoryURL: cliHomeDirectoryURL()).installSupatermSkill()
-      } catch {
-        FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         throw ExitCode.failure
       }
     }

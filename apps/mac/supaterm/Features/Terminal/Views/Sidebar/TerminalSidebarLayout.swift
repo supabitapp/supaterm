@@ -2,11 +2,14 @@ import CoreGraphics
 import Foundation
 
 enum TerminalSidebarLayout {
-  static let tabRowCornerRadius: CGFloat = 12
-  static let tabRowMinHeight: CGFloat = 36
-  static let tabRowHorizontalPadding: CGFloat = 10
-  static let tabRowVerticalPadding: CGFloat = 8
+  static let tabRowCornerRadius: CGFloat = 8
+  static let tabRowMinHeight: CGFloat = 30
+  static let rowHorizontalPadding: CGFloat = 10
+  static let tabRowVerticalPadding: CGFloat = 5
   static let tabRowSpacing: CGFloat = 2
+  static let cardCornerRadius: CGFloat = 12
+  static let cardMinHeight: CGFloat = 36
+  static let cardVerticalPadding: CGFloat = 8
   static let trafficLightTopPadding: CGFloat = 6
 
   static var firstVisibleSectionTopInset: CGFloat {

@@ -23,7 +23,7 @@ struct TerminalSidebarSpaceBar: View {
           .font(.system(size: 12, weight: .semibold))
           .frame(width: 32, height: 32)
       }
-      .buttonStyle(TerminalSidebarButtonStyle(layout: .icon))
+      .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .icon))
       .foregroundStyle(palette.primaryText)
       .accessibilityLabel("Create Space")
       .help("Create Space")
@@ -146,7 +146,7 @@ private struct TerminalSidebarSpaceItemView: View {
         .foregroundStyle(palette.primaryText)
         .opacity(isSelected ? 1 : 0.7)
     }
-    .buttonStyle(TerminalSidebarButtonStyle(layout: .space))
+    .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .space))
     .onHover { hovering in
       isHovering = hovering
       onHoverChange(hovering)

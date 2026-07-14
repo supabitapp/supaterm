@@ -2,8 +2,7 @@ import Foundation
 import SupatermCLIShared
 
 struct TerminalAgentTranscriptTarget {
-  let agent: SupatermAgentKind
-  let sessionID: String
+  let scope: TerminalAgentEvent.Scope
   let transcriptPath: String
   let context: SupatermCLIContext
 }
@@ -104,25 +103,34 @@ extension TerminalHostState {
     }
     let metadata = paneAgentMetadataBySurfaceID[surfaceID] ?? PaneAgentMetadata()
     let instances = agentStateInstances(for: surfaceID)
-    let current = instances.max { $0.revision < $1.revision }
+    let current = currentAgentStateInstance(in: instances)
+    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+      for: surfaceID,
+      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
+    )
     let actionableSessions: [PaneAgentPanelSession] = instances.compactMap { instance in
       guard instance.presentation.isActionable else { return nil }
       return PaneAgentPanelSession.supported(
         agent: instance.presentation.agent,
-        sessionID: instance.presentation.sessionID
+        sessionID: instance.presentation.sessionID,
+        workingDirectoryPath: agentPanelWorkingDirectoryPath(
+          for: surfaceID,
+          agentWorkingDirectoryPath: instance.presentation.workingDirectoryPath
+        )
       )
     }
     let session = actionableSessions.count == 1 ? actionableSessions[0] : nil
     let presentation = metadata.panelPresentation(
       progressRows: current?.presentation.progressRows ?? [],
       activeChildren: current?.presentation.activeChildren ?? [],
+      workingDirectoryPath: workingDirectoryPath,
       session: session
     )
-    if !presentation.isEmpty {
-      return presentation
-    }
-    guard let current, current.presentation.hasActivity else {
-      return nil
+    guard !presentation.hasContentBesidesWorkspace,
+      let current,
+      current.presentation.hasActivity
+    else {
+      return presentation.isEmpty ? nil : presentation
     }
     switch current.activity.phase {
     case .running:
@@ -133,7 +141,8 @@ extension TerminalHostState {
             title: current.activity.detail ?? "Starting session",
             status: .running
           )
-        ]
+        ],
+        workingDirectoryPath: workingDirectoryPath
       )
     case .needsInput:
       return PaneAgentPanelPresentation(
@@ -143,10 +152,11 @@ extension TerminalHostState {
             title: current.activity.detail ?? "Needs input",
             status: .pending
           )
-        ]
+        ],
+        workingDirectoryPath: workingDirectoryPath
       )
     case .idle:
-      return nil
+      return presentation.isEmpty ? nil : presentation
     }
   }
 
@@ -154,7 +164,7 @@ extension TerminalHostState {
     guard agentPanelIsEnabled else {
       return nil
     }
-    guard let surface = surfaces[surfaceID] else {
+    guard surfaces[surfaceID] != nil else {
       return nil
     }
     guard tabID(containing: surfaceID) != nil else {
@@ -163,12 +173,16 @@ extension TerminalHostState {
     guard agentPanelIsActive(for: surfaceID) else {
       return nil
     }
-    let pwd = surface.bridge.state.pwd?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let current = currentAgentStateInstance(in: agentStateInstances(for: surfaceID))
+    let workingDirectoryPath = agentPanelWorkingDirectoryPath(
+      for: surfaceID,
+      agentWorkingDirectoryPath: current?.presentation.workingDirectoryPath
+    )
     let processIDs = agentStateStore.snapshots(for: surfaceID).reduce(into: Set<Int32>()) {
       $0.formUnion($1.processIDs)
     }
     return TerminalAgentPanelRefreshContext(
-      workingDirectoryPath: pwd,
+      workingDirectoryPath: workingDirectoryPath,
       processIDs: processIDs
     )
   }
@@ -333,14 +347,36 @@ extension TerminalHostState {
   func agentTranscriptTargets() -> [TerminalAgentTranscriptTarget] {
     liveSurfaceIDs().flatMap { surfaceID -> [TerminalAgentTranscriptTarget] in
       guard let context = agentContext(for: surfaceID) else { return [] }
-      return agentStateStore.snapshots(for: surfaceID).compactMap { snapshot in
-        guard let transcriptPath = snapshot.transcriptPath else { return nil }
-        return TerminalAgentTranscriptTarget(
-          agent: snapshot.agent,
-          sessionID: snapshot.sessionID,
-          transcriptPath: transcriptPath,
-          context: context
+      return agentStateStore.snapshots(for: surfaceID).flatMap { snapshot in
+        var targets: [TerminalAgentTranscriptTarget] = []
+        if let transcriptPath = snapshot.transcriptPath {
+          targets.append(
+            TerminalAgentTranscriptTarget(
+              scope: TerminalAgentEvent.Scope(
+                agent: snapshot.agent,
+                sessionID: snapshot.sessionID
+              ),
+              transcriptPath: transcriptPath,
+              context: context
+            )
+          )
+        }
+        targets.append(
+          contentsOf: snapshot.activeChildren.compactMap { child in
+            guard let transcriptPath = child.transcriptPath else { return nil }
+            return TerminalAgentTranscriptTarget(
+              scope: TerminalAgentEvent.Scope(
+                agent: snapshot.agent,
+                sessionID: child.sessionID,
+                turnID: child.turnID,
+                subagentID: child.subagentID
+              ),
+              transcriptPath: transcriptPath,
+              context: context
+            )
+          }
         )
+        return targets
       }
     }
   }
@@ -369,6 +405,21 @@ extension TerminalHostState {
       )
     }
     .sorted { $0.activity.kind.rawValue < $1.activity.kind.rawValue }
+  }
+
+  private func currentAgentStateInstance(
+    in instances: [AgentStateInstance]
+  ) -> AgentStateInstance? {
+    instances.max { $0.revision < $1.revision }
+  }
+
+  private func agentPanelWorkingDirectoryPath(
+    for surfaceID: UUID,
+    agentWorkingDirectoryPath: String?
+  ) -> String? {
+    TerminalAgentPanelWorkspaceKey(
+      workingDirectoryPath: agentWorkingDirectoryPath ?? surfaces[surfaceID]?.bridge.state.pwd
+    )?.workingDirectoryPath
   }
 
   static func codexHoverMarkdown(_ messages: [String]) -> String? {

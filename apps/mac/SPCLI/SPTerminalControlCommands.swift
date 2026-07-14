@@ -318,10 +318,7 @@ extension SP {
     }
 
     private func destroyPromptTarget(_ target: SPResolvedSpaceTarget) -> String {
-      switch target {
-      case .space(_, let spaceIndex):
-        return "space \(spaceIndex)"
-      }
+      "space \(target.spaceIndex)"
     }
   }
 
@@ -615,6 +612,9 @@ extension SP {
     @Flag(name: .long, help: "Append a newline after the provided text.")
     var newline = false
 
+    @Flag(name: .long, help: "Paste the provided text and press Enter.")
+    var submit = false
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -622,6 +622,7 @@ extension SP {
     var arguments: [String] = []
 
     mutating func run() throws {
+      try validate()
       let resolvedInput = try resolveInput()
       try runControlCommand(
         options: options,
@@ -636,6 +637,12 @@ extension SP {
         },
         human: { render($0) }
       )
+    }
+
+    func validate() throws {
+      if newline && submit {
+        throw ValidationError("--newline and --submit cannot be used together.")
+      }
     }
 
     private func resolveInput() throws -> SendTextInput {
@@ -676,6 +683,7 @@ extension SP {
     ) throws -> SupatermSendTextRequest {
       let text = newline ? resolvedInput.text + "\n" : resolvedInput.text
       return .init(
+        mode: submit ? .submit : .type,
         target: paneTargetRequest(
           try resolvePublicPaneTarget(
             resolvedInput.target,
@@ -1134,38 +1142,29 @@ private func readStandardInput() -> String {
 }
 
 private func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpaceTargetRequest {
-  switch target {
-  case .space(let windowIndex, let spaceIndex):
-    return .init(
-      targetWindowIndex: windowIndex,
-      targetSpaceIndex: spaceIndex
-    )
-  }
+  .init(
+    targetWindowIndex: target.windowIndex,
+    targetSpaceIndex: target.spaceIndex
+  )
 }
 
 private func tabTargetRequest(_ target: SPResolvedTabTarget) -> SupatermTabTargetRequest {
-  switch target {
-  case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
-    return .init(
-      targetWindowIndex: windowIndex,
-      targetSpaceIndex: spaceIndex,
-      targetProjectIndex: projectIndex,
-      targetTabIndex: tabIndex
-    )
-  }
+  .init(
+    targetWindowIndex: target.windowIndex,
+    targetSpaceIndex: target.spaceIndex,
+    targetProjectIndex: target.projectIndex,
+    targetTabIndex: target.tabIndex
+  )
 }
 
 private func paneTargetRequest(_ target: SPResolvedPaneOnlyTarget) -> SupatermPaneTargetRequest {
-  switch target {
-  case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
-    return .init(
-      targetWindowIndex: windowIndex,
-      targetSpaceIndex: spaceIndex,
-      targetProjectIndex: projectIndex,
-      targetTabIndex: tabIndex,
-      targetPaneIndex: paneIndex
-    )
-  }
+  .init(
+    targetWindowIndex: target.windowIndex,
+    targetSpaceIndex: target.spaceIndex,
+    targetProjectIndex: target.projectIndex,
+    targetTabIndex: target.tabIndex,
+    targetPaneIndex: target.paneIndex
+  )
 }
 
 private func resolvedProjectTarget(
@@ -1180,14 +1179,11 @@ private func resolvedProjectTarget(
 }
 
 private func projectTargetRequest(_ target: SPResolvedProjectTarget) -> SupatermProjectTargetRequest {
-  switch target {
-  case .project(let windowIndex, let spaceIndex, let projectIndex):
-    return .init(
-      targetWindowIndex: windowIndex,
-      targetSpaceIndex: spaceIndex,
-      targetProjectIndex: projectIndex
-    )
-  }
+  .init(
+    targetWindowIndex: target.windowIndex,
+    targetSpaceIndex: target.spaceIndex,
+    targetProjectIndex: target.projectIndex
+  )
 }
 
 private func runProjectPinning(

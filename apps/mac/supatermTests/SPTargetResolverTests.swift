@@ -32,15 +32,15 @@ struct SPTargetResolverTests {
     let snapshot = treeSnapshot()
     #expect(
       try resolvePublicProjectTarget(.id(projectID), context: nil, snapshot: snapshot)
-        == .project(windowIndex: 2, spaceIndex: 1, projectIndex: 1)
+        == SPResolvedProjectTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1)
     )
     #expect(
       try resolvePublicTabTarget(.id(tabID), context: nil, snapshot: snapshot)
-        == .tab(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
+        == SPResolvedTabTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
     )
     #expect(
       try resolvePublicPaneTarget(.id(paneID), context: nil, snapshot: snapshot)
-        == .pane(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1, paneIndex: 1)
+        == SPResolvedPaneOnlyTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1, paneIndex: 1)
     )
   }
 
@@ -49,7 +49,7 @@ struct SPTargetResolverTests {
     let context = SupatermCLIContext(windowID: windowID, surfaceID: paneID, tabID: tabID)
     #expect(
       try resolvePublicNewTabTarget(nil, context: context, snapshot: treeSnapshot())
-        == .project(
+        == SPResolvedNewTabTarget(
           windowIndex: 2,
           spaceIndex: 1,
           projectIndex: 1,
@@ -68,7 +68,7 @@ struct SPTargetResolverTests {
         context: context,
         snapshot: treeSnapshot()
       )
-        == .project(
+        == SPResolvedNewTabTarget(
           windowIndex: 2,
           spaceIndex: 1,
           projectIndex: 1,
@@ -84,19 +84,19 @@ struct SPTargetResolverTests {
 
     #expect(
       try resolvePublicSpaceTarget(nil, context: context, snapshot: snapshot)
-        == .space(windowIndex: 2, spaceIndex: 1)
+        == SPResolvedSpaceTarget(windowIndex: 2, spaceIndex: 1)
     )
     #expect(
       try resolvePublicProjectTarget(nil, context: context, snapshot: snapshot)
-        == .project(windowIndex: 2, spaceIndex: 1, projectIndex: 1)
+        == SPResolvedProjectTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1)
     )
     #expect(
       try resolvePublicTabTarget(nil, context: context, snapshot: snapshot)
-        == .tab(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
+        == SPResolvedTabTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1)
     )
     #expect(
       try resolvePublicPaneTarget(nil, context: context, snapshot: snapshot)
-        == .pane(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1, paneIndex: 1)
+        == SPResolvedPaneOnlyTarget(windowIndex: 2, spaceIndex: 1, projectIndex: 1, tabIndex: 1, paneIndex: 1)
     )
     #expect(
       try resolvePublicSplitTarget(nil, context: context, snapshot: snapshot)
@@ -126,7 +126,7 @@ struct SPTargetResolverTests {
 
     #expect(
       try resolvePublicProjectTarget(.id(projectID), context: context, snapshot: snapshot)
-        == .project(windowIndex: 1, spaceIndex: 1, projectIndex: 1)
+        == SPResolvedProjectTarget(windowIndex: 1, spaceIndex: 1, projectIndex: 1)
     )
   }
 

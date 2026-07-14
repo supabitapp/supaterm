@@ -57,23 +57,6 @@ struct TerminalSidebarCollectionLayoutTests {
   }
 
   @Test
-  func expansionProgressConsumesHeightAndMovesFollowingRows() {
-    let entries = singleProjectEntries
-    let expanded = plan(entries: entries, width: 240, progress: 1)
-    let halfway = plan(entries: entries, width: 240, progress: 0.5)
-    let collapsed = plan(entries: entries, width: 240, progress: 0)
-
-    #expect(expanded.items[1].frame.height == 36)
-    #expect(halfway.items[1].frame.height == 18)
-    #expect(collapsed.items[1].frame.height == 0)
-    #expect(expanded.items[1].alpha == 1)
-    #expect(halfway.items[1].alpha == 0.5)
-    #expect(collapsed.items[1].alpha == 0)
-    #expect(expanded.items[2].frame.minY > halfway.items[2].frame.minY)
-    #expect(halfway.items[2].frame.minY > collapsed.items[2].frame.minY)
-  }
-
-  @Test
   func draggingProjectReservesItsWholeBlockAtTheDestination() {
     let entries = [
       project(firstProjectID),
@@ -91,7 +74,6 @@ struct TerminalSidebarCollectionLayoutTests {
     let result = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 1],
       draggedEntryIDs: dragged,
       dropTarget: TerminalSidebarDropTarget(
         destination: .project(isPinned: false, laneIndex: 0),
@@ -118,7 +100,6 @@ struct TerminalSidebarCollectionLayoutTests {
     let dragging = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 1],
       draggedEntryIDs: [.project(firstProjectID), .tab(firstTabID)],
       dropTarget: TerminalSidebarDropTarget(
         destination: .project(isPinned: false, laneIndex: 1),
@@ -142,7 +123,6 @@ struct TerminalSidebarCollectionLayoutTests {
     let layout = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 1],
       draggedEntryIDs: [.tab(firstTabID)],
       dropTarget: nil,
       width: 240
@@ -181,7 +161,6 @@ struct TerminalSidebarCollectionLayoutTests {
     let dragging = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 1],
       draggedEntryIDs: [.tab(firstTabID)],
       dropTarget: target,
       width: 240
@@ -244,10 +223,13 @@ struct TerminalSidebarCollectionLayoutTests {
       tab(secondTabID, projectID: secondProjectID, isPinned: true),
       newProjectEntry,
     ]
-    let layout = TerminalSidebarLayoutPlan(
+    let visibleEntries = TerminalSidebarPresentationModel(
       entries: entries,
-      preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 0],
+      collapsedProjectIDs: [secondProjectID]
+    ).visibleEntries
+    let layout = TerminalSidebarLayoutPlan(
+      entries: visibleEntries,
+      preferredHeights: heights(for: visibleEntries),
       draggedEntryIDs: [],
       dropTarget: nil,
       width: 240
@@ -274,10 +256,13 @@ struct TerminalSidebarCollectionLayoutTests {
       tab(secondTabID, projectID: secondProjectID, isPinned: true),
       newProjectEntry,
     ]
-    let layout = TerminalSidebarLayoutPlan(
+    let visibleEntries = TerminalSidebarPresentationModel(
       entries: entries,
-      preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1, secondProjectID: 0],
+      collapsedProjectIDs: [secondProjectID]
+    ).visibleEntries
+    let layout = TerminalSidebarLayoutPlan(
+      entries: visibleEntries,
+      preferredHeights: heights(for: visibleEntries),
       draggedEntryIDs: [],
       dropTarget: nil,
       width: 240
@@ -355,7 +340,6 @@ struct TerminalSidebarCollectionLayoutTests {
     let target = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: [firstProjectID: 1],
       draggedEntryIDs: [.tab(firstTabID)],
       dropTarget: TerminalSidebarDropTarget(
         destination: .tab(projectID: firstProjectID, isPinned: false, laneIndex: 0),
@@ -458,17 +442,11 @@ struct TerminalSidebarCollectionLayoutTests {
 
   private func plan(
     entries: [TerminalSidebarEntry],
-    width: CGFloat,
-    progress: CGFloat = 1
+    width: CGFloat
   ) -> TerminalSidebarLayoutPlan {
     TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights(for: entries),
-      expansionProgress: Dictionary(
-        uniqueKeysWithValues: entries.compactMap { entry in
-          guard case .project(let projectID, _) = entry.kind else { return nil }
-          return (projectID, progress)
-        }),
       draggedEntryIDs: [],
       dropTarget: nil,
       width: width

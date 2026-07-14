@@ -226,7 +226,7 @@ extension SnapshotCatalog {
       "branch-pr-checks",
       group: "Agent Panel",
       title: "Branch with failing checks",
-      size: CGSize(width: 338, height: 292)
+      size: CGSize(width: 338, height: 312)
     ) { appearance in
       AnyView(
         AgentPanelSnapshotFixture(
@@ -235,6 +235,9 @@ extension SnapshotCatalog {
             progressRows: [
               PaneAgentProgressRow(id: "task-1", title: "Waiting for review", status: .running)
             ],
+            workingDirectoryPath: FileManager.default.homeDirectoryForCurrentUser
+              .appending(path: "code/github.com/supabitapp/supaterm/apps/mac")
+              .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
               branchName: "feature/snapshot-catalog",
               addedLineCount: 1482,
@@ -318,12 +321,15 @@ extension SnapshotCatalog {
       "merged-pr",
       group: "Agent Panel",
       title: "Merged pull request",
-      size: CGSize(width: 338, height: 238)
+      size: CGSize(width: 338, height: 258)
     ) { appearance in
       AnyView(
         AgentPanelSnapshotFixture(
           appearance: appearance,
           presentation: PaneAgentPanelPresentation(
+            workingDirectoryPath: FileManager.default.homeDirectoryForCurrentUser
+              .appending(path: "code/github.com/supabitapp/supaterm")
+              .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
               branchName: "feature/sidebar-polish",
               addedLineCount: 82,
@@ -415,12 +421,12 @@ extension SnapshotCatalog {
       "release-short",
       group: "Update Cards",
       title: "Release announcement",
-      size: CGSize(width: 320, height: 154)
+      size: CGSize(width: 320, height: 460)
     ) { appearance in
       AnyView(
         SidebarCardSnapshotFixture(appearance: appearance) { palette in
           ReleaseAnnouncementCardView(
-            announcement: .agentForking,
+            announcement: .finalBeta,
             palette: palette,
             dismiss: {}
           )
@@ -658,38 +664,31 @@ private struct SidebarRowSnapshotFixture: View {
       isRowHovering: item.isRowHovering
     )
     .lineLimit(10)
-    .padding(.horizontal, TerminalSidebarLayout.tabRowHorizontalPadding)
+    .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(fill)
-    .clipShape(.rect(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius))
-    .overlay(
-      RoundedRectangle(
-        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        style: .continuous
+    .background(
+      rowAppearance.fill(
+        isSelected: item.isSelected,
+        isPressed: item.isPressed,
+        isHovering: item.isRowHovering
       )
-      .strokeBorder(palette.selectedStroke.opacity(item.isSelected ? 1 : 0), lineWidth: 1)
     )
-    .shadow(
-      color: item.isSelected ? palette.selectedShadow : .clear,
-      radius: item.isSelected ? 5 : 0
+    .modifier(
+      SelectableRowChrome(
+        isSelected: item.isSelected,
+        cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+        appearance: rowAppearance,
+        showsSelectionEdge: true
+      )
     )
     .padding(10)
     .background(palette.detailBackground)
   }
 
-  private var fill: Color {
-    if item.isSelected {
-      return palette.selectedFill
-    }
-    if item.isPressed {
-      return palette.pressedFill
-    }
-    if item.isRowHovering {
-      return palette.hoverFill
-    }
-    return .clear
+  private var rowAppearance: SelectableRowButtonStyle.ResolvedAppearance {
+    SelectableRowButtonStyle.Appearance.sidebar.resolve(palette: palette)
   }
 }
 
@@ -801,8 +800,7 @@ private struct AgentPanelSnapshotFixture: View {
       palette: palette,
       forksDown: forksDown,
       showsShortcutHints: showsShortcutHints,
-      copyBranchName: { _ in },
-      copySessionID: { _ in },
+      copyText: { _ in },
       forkSession: { _, _ in },
       openURL: { _ in }
     )

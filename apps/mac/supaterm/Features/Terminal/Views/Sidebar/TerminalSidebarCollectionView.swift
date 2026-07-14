@@ -367,12 +367,6 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   private func applySnapshot(_ update: ModelUpdate, animated: Bool) {
     updatePhase = .applyingSnapshot(update)
     collectionLayout.visibilityByEntryID = [:]
-    collectionLayout.expansionProgress = Dictionary(
-      uniqueKeysWithValues: update.model.entries.compactMap { entry in
-        guard case .project(let projectID, _) = entry.kind else { return nil }
-        return (projectID, 1)
-      }
-    )
     collectionLayout.setEntries(update.model.visibleEntries)
 
     var snapshot = NSDiffableDataSourceSnapshot<Int, TerminalSidebarEntryID>()

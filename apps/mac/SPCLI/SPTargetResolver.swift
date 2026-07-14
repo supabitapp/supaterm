@@ -2,29 +2,37 @@ import ArgumentParser
 import Foundation
 import SupatermCLIShared
 
-enum SPResolvedNewTabTarget: Equatable {
-  case project(
-    windowIndex: Int,
-    spaceIndex: Int,
-    projectIndex: Int,
-    inheritingFromPaneID: UUID?
-  )
+struct SPResolvedNewTabTarget: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let projectIndex: Int
+  let inheritingFromPaneID: UUID?
 }
 
-enum SPResolvedSpaceTarget: Equatable {
-  case space(windowIndex: Int, spaceIndex: Int)
+struct SPResolvedSpaceTarget: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
 }
 
-enum SPResolvedProjectTarget: Equatable {
-  case project(windowIndex: Int, spaceIndex: Int, projectIndex: Int)
+struct SPResolvedProjectTarget: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let projectIndex: Int
 }
 
-enum SPResolvedTabTarget: Equatable {
-  case tab(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int)
+struct SPResolvedTabTarget: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let projectIndex: Int
+  let tabIndex: Int
 }
 
-enum SPResolvedPaneOnlyTarget: Equatable {
-  case pane(windowIndex: Int, spaceIndex: Int, projectIndex: Int, tabIndex: Int, paneIndex: Int)
+struct SPResolvedPaneOnlyTarget: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let projectIndex: Int
+  let tabIndex: Int
+  let paneIndex: Int
 }
 
 enum SPResolvedPaneTarget: Equatable {
@@ -499,7 +507,7 @@ func resolvePublicNewTabTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     let location = try index.ambientTabLocation(context: context)
-    return .project(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -509,7 +517,7 @@ func resolvePublicNewTabTarget(
 
   switch reference {
   case .path(let spaceIndex, let projectIndex):
-    return .project(
+    return .init(
       windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       projectIndex: projectIndex,
@@ -517,7 +525,7 @@ func resolvePublicNewTabTarget(
     )
   case .id(let projectID):
     let location = try index.requireProjectLocation(id: projectID, windowID: context?.windowID)
-    return .project(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -534,7 +542,7 @@ func resolvePublicProjectTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     let location = try index.ambientTabLocation(context: context)
-    return .project(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex
@@ -542,14 +550,14 @@ func resolvePublicProjectTarget(
   }
   switch reference {
   case .path(let spaceIndex, let projectIndex):
-    return .project(
+    return .init(
       windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       projectIndex: projectIndex
     )
   case .id(let id):
     let location = try index.requireProjectLocation(id: id, windowID: context?.windowID)
-    return .project(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex
@@ -565,18 +573,18 @@ func resolvePublicSpaceTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     let location = try index.ambientSpaceLocation(context: context)
-    return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
+    return .init(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 
   switch reference {
   case .index(let spaceIndex):
-    return .space(
+    return .init(
       windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex
     )
   case .id(let spaceID):
     let location = try index.requireSpaceLocation(id: spaceID, windowID: context?.windowID)
-    return .space(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
+    return .init(windowIndex: location.windowIndex, spaceIndex: location.spaceIndex)
   }
 }
 
@@ -588,7 +596,7 @@ func resolvePublicTabTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     let location = try index.ambientTabLocation(context: context)
-    return .tab(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -598,7 +606,7 @@ func resolvePublicTabTarget(
 
   switch reference {
   case .path(let spaceIndex, let projectIndex, let tabIndex):
-    return .tab(
+    return .init(
       windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       projectIndex: projectIndex,
@@ -606,7 +614,7 @@ func resolvePublicTabTarget(
     )
   case .id(let tabID):
     let location = try index.requireTabLocation(id: tabID, windowID: context?.windowID)
-    return .tab(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -623,7 +631,7 @@ func resolvePublicPaneTarget(
   let index = SPTreeIndex(snapshot: snapshot)
   guard let reference else {
     let location = try index.ambientPaneLocation(context: context)
-    return .pane(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -634,7 +642,7 @@ func resolvePublicPaneTarget(
 
   switch reference {
   case .path(let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
-    return .pane(
+    return .init(
       windowIndex: try index.defaultWindowIndex(context: context),
       spaceIndex: spaceIndex,
       projectIndex: projectIndex,
@@ -643,7 +651,7 @@ func resolvePublicPaneTarget(
     )
   case .id(let paneID):
     let location = try index.requirePaneLocation(id: paneID, windowID: context?.windowID)
-    return .pane(
+    return .init(
       windowIndex: location.windowIndex,
       spaceIndex: location.spaceIndex,
       projectIndex: location.projectIndex,
@@ -672,27 +680,23 @@ func resolvePublicSplitTarget(
 
   switch reference {
   case .tab(let tab):
-    switch try resolvePublicTabTarget(tab, context: context, snapshot: snapshot) {
-    case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
-      return .tab(
-        windowIndex: windowIndex,
-        spaceIndex: spaceIndex,
-        projectIndex: projectIndex,
-        tabIndex: tabIndex
-      )
-    }
+    let target = try resolvePublicTabTarget(tab, context: context, snapshot: snapshot)
+    return .tab(
+      windowIndex: target.windowIndex,
+      spaceIndex: target.spaceIndex,
+      projectIndex: target.projectIndex,
+      tabIndex: target.tabIndex
+    )
 
   case .pane(let pane):
-    switch try resolvePublicPaneTarget(pane, context: context, snapshot: snapshot) {
-    case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
-      return .pane(
-        windowIndex: windowIndex,
-        spaceIndex: spaceIndex,
-        projectIndex: projectIndex,
-        tabIndex: tabIndex,
-        paneIndex: paneIndex
-      )
-    }
+    let target = try resolvePublicPaneTarget(pane, context: context, snapshot: snapshot)
+    return .pane(
+      windowIndex: target.windowIndex,
+      spaceIndex: target.spaceIndex,
+      projectIndex: target.projectIndex,
+      tabIndex: target.tabIndex,
+      paneIndex: target.paneIndex
+    )
 
   case .id(let id):
     if let location = index.paneLocation(id: id, windowID: context?.windowID) {

@@ -151,7 +151,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
   init(
     entries: [TerminalSidebarEntry],
     preferredHeights: [TerminalSidebarEntryID: CGFloat],
-    expansionProgress: [TerminalProjectID: CGFloat],
     visibilityByEntryID: [TerminalSidebarEntryID: Visibility] = [:],
     draggedEntryIDs: Set<TerminalSidebarEntryID>,
     dropTarget: TerminalSidebarDropTarget?,
@@ -164,7 +163,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let dropGapHeight = Self.dropGapHeight(
       entries: entries,
       preferredHeights: preferredHeights,
-      expansionProgress: expansionProgress,
       draggedEntryIDs: draggedEntryIDs,
       dropTarget: dropTarget
     )
@@ -182,7 +180,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
       let isDragged = dropTarget != nil && draggedEntryIDs.contains(entry.id)
       let visibility = Self.visibility(
         for: entry,
-        expansionProgress: expansionProgress,
         visibilityByEntryID: visibilityByEntryID
       )
       if y > 0, !isDragged {
@@ -264,13 +261,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   private static func visibility(
     for entry: TerminalSidebarEntry,
-    expansionProgress: [TerminalProjectID: CGFloat],
     visibilityByEntryID: [TerminalSidebarEntryID: Visibility]
   ) -> Visibility {
     switch entry.kind {
-    case .tab(_, let projectID, _):
-      let progress = max(0, min(expansionProgress[projectID] ?? 1, 1))
-      return visibilityByEntryID[entry.id] ?? Visibility(height: progress, alpha: progress)
+    case .tab:
+      return visibilityByEntryID[entry.id] ?? .visible
     case .project, .newProject:
       return .visible
     }
@@ -279,18 +274,16 @@ struct TerminalSidebarLayoutPlan: Equatable {
   private static func dropGapHeight(
     entries: [TerminalSidebarEntry],
     preferredHeights: [TerminalSidebarEntryID: CGFloat],
-    expansionProgress: [TerminalProjectID: CGFloat],
     draggedEntryIDs: Set<TerminalSidebarEntryID>,
     dropTarget: TerminalSidebarDropTarget?
   ) -> CGFloat {
     guard let dropTarget else { return 0 }
     switch dropTarget.destination {
-    case .tab(let projectID, _, _):
+    case .tab:
       guard let entry = entries.first(where: { draggedEntryIDs.contains($0.id) }) else { return 0 }
-      let visibility = max(0, min(expansionProgress[projectID] ?? 1, 1))
       return
         ((preferredHeights[entry.id] ?? TerminalSidebarLayout.tabRowMinHeight)
-        + TerminalSidebarLayout.tabRowSpacing) * visibility
+        + TerminalSidebarLayout.tabRowSpacing)
     case .project:
       let draggedEntries = entries.filter { draggedEntryIDs.contains($0.id) }
       guard !draggedEntries.isEmpty else { return 0 }
@@ -298,19 +291,16 @@ struct TerminalSidebarLayoutPlan: Equatable {
         dropTarget.insertionEntryIndex > 0 ? Self.projectSpacing : 0
       ) { height, element in
         let (index, entry) = element
-        let visibility: CGFloat
         let spacing: CGFloat
         switch entry.kind {
         case .project, .newProject:
-          visibility = 1
           spacing = 0
-        case .tab(_, let projectID, _):
-          visibility = max(0, min(expansionProgress[projectID] ?? 1, 1))
-          spacing = index > 0 ? TerminalSidebarLayout.tabRowSpacing * visibility : 0
+        case .tab:
+          spacing = index > 0 ? TerminalSidebarLayout.tabRowSpacing : 0
         }
         return height
           + spacing
-          + (preferredHeights[entry.id] ?? TerminalSidebarLayout.tabRowMinHeight) * visibility
+          + (preferredHeights[entry.id] ?? TerminalSidebarLayout.tabRowMinHeight)
       }
     }
   }
@@ -608,7 +598,6 @@ enum TerminalSidebarAnimationCurve {
 
 final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private(set) var entries: [TerminalSidebarEntry] = []
-  var expansionProgress: [TerminalProjectID: CGFloat] = [:]
   var visibilityByEntryID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Visibility] = [:]
   var draggedEntryIDs: Set<TerminalSidebarEntryID> = []
   var dropTarget: TerminalSidebarDropTarget?
@@ -618,7 +607,6 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private(set) var plan = TerminalSidebarLayoutPlan(
     entries: [],
     preferredHeights: [:],
-    expansionProgress: [:],
     draggedEntryIDs: [],
     dropTarget: nil,
     width: 0
@@ -626,7 +614,6 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
   private(set) var targetPlan = TerminalSidebarLayoutPlan(
     entries: [],
     preferredHeights: [:],
-    expansionProgress: [:],
     draggedEntryIDs: [],
     dropTarget: nil,
     width: 0
@@ -679,7 +666,6 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     targetPlan = TerminalSidebarLayoutPlan(
       entries: entries,
       preferredHeights: heights,
-      expansionProgress: expansionProgress,
       visibilityByEntryID: visibilityByEntryID,
       draggedEntryIDs: draggedEntryIDs,
       dropTarget: dropTarget,

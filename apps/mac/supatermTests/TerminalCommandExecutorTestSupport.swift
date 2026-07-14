@@ -204,7 +204,8 @@ extension TerminalHostState {
     agent: SupatermAgentKind,
     for surfaceID: UUID,
     sessionID: String?,
-    processID: Int32?
+    processID: Int32?,
+    workingDirectoryPath: String? = nil
   ) -> Bool {
     guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
     return applyAgentEvent(
@@ -216,6 +217,7 @@ extension TerminalHostState {
           tabID: tabID.rawValue
         ),
         processID: processID,
+        workingDirectoryPath: workingDirectoryPath,
         action: .sessionResumed(transcriptPath: nil)
       )
     ).changed
@@ -226,7 +228,8 @@ extension TerminalHostState {
     _ activity: AgentActivity,
     for surfaceID: UUID,
     sessionID: String?,
-    processID: Int32?
+    processID: Int32?,
+    workingDirectoryPath: String? = nil
   ) -> Bool {
     guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
     if !hasAgentSession(agent: activity.kind, sessionID: sessionID) {
@@ -252,6 +255,7 @@ extension TerminalHostState {
           tabID: tabID.rawValue
         ),
         processID: processID,
+        workingDirectoryPath: workingDirectoryPath,
         action: action
       )
     ).changed
@@ -262,7 +266,8 @@ extension TerminalHostState {
     agent: SupatermAgentKind,
     for surfaceID: UUID,
     sessionID: String?,
-    processID: Int32?
+    processID: Int32?,
+    workingDirectoryPath: String? = nil
   ) -> Bool {
     guard let sessionID, let tabID = tabID(containing: surfaceID) else { return false }
     if !hasAgentSession(agent: agent, sessionID: sessionID) {
@@ -270,7 +275,8 @@ extension TerminalHostState {
         agent: agent,
         for: surfaceID,
         sessionID: sessionID,
-        processID: processID
+        processID: processID,
+        workingDirectoryPath: workingDirectoryPath
       )
     }
     return applyAgentEvent(
@@ -282,6 +288,7 @@ extension TerminalHostState {
           tabID: tabID.rawValue
         ),
         processID: processID,
+        workingDirectoryPath: workingDirectoryPath,
         action: .turnCompleted(message: nil)
       )
     ).changed

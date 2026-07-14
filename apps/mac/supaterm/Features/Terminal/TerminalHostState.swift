@@ -211,11 +211,13 @@ final class TerminalHostState {
     func panelPresentation(
       progressRows: [PaneAgentProgressRow] = [],
       activeChildren: [TerminalAgentActiveChild] = [],
+      workingDirectoryPath: String? = nil,
       session: PaneAgentPanelSession? = nil
     ) -> PaneAgentPanelPresentation {
       PaneAgentPanelPresentation(
         progressRows: progressRows,
         activeChildren: activeChildren,
+        workingDirectoryPath: workingDirectoryPath,
         branchDetails: branchDetails,
         artifacts: artifacts,
         session: session
@@ -793,8 +795,7 @@ final class TerminalHostState {
       trees[tabID] = tree.equalized()
       sessionDidChange()
 
-    case .agentPanelCopyBranchName,
-      .agentPanelCopySessionID,
+    case .agentPanelCopyText,
       .agentPanelForkSessionRequested,
       .agentPanelVisibilityToggled,
       .agentPanelURLTapped:

@@ -52,27 +52,20 @@ extension SP {
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
-      switch try resolvePublicNewTabTarget(
+      let target = try resolvePublicNewTabTarget(
         project,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
-      ) {
-      case .project(
-        let windowIndex,
-        let spaceIndex,
-        let projectIndex,
-        let inheritingFromPaneID
-      ):
-        return SupatermNewTabRequest(
-          startupCommand: command,
-          inheritingFromPaneID: inheritingFromPaneID,
-          cwd: cwd,
-          focus: focus,
-          targetWindowIndex: windowIndex,
-          targetSpaceIndex: spaceIndex,
-          targetProjectIndex: projectIndex
-        )
-      }
+      )
+      return SupatermNewTabRequest(
+        startupCommand: command,
+        inheritingFromPaneID: target.inheritingFromPaneID,
+        cwd: cwd,
+        focus: focus,
+        targetWindowIndex: target.windowIndex,
+        targetSpaceIndex: target.spaceIndex,
+        targetProjectIndex: target.projectIndex
+      )
     }
   }
 
@@ -231,24 +224,21 @@ extension SP {
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNotifyRequest {
       let body = body ?? ""
-      switch try resolvePublicPaneTarget(
+      let target = try resolvePublicPaneTarget(
         pane,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
-      ) {
-      case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
-        return .init(
-          body: body,
-          subtitle: subtitle,
-          targetPaneIndex: paneIndex,
-          targetProjectIndex: projectIndex,
-          targetSpaceIndex: spaceIndex,
-          targetTabIndex: tabIndex,
-          targetWindowIndex: windowIndex,
-          title: title
-        )
-
-      }
+      )
+      return .init(
+        body: body,
+        subtitle: subtitle,
+        targetPaneIndex: target.paneIndex,
+        targetProjectIndex: target.projectIndex,
+        targetSpaceIndex: target.spaceIndex,
+        targetTabIndex: target.tabIndex,
+        targetWindowIndex: target.windowIndex,
+        title: title
+      )
     }
   }
 }

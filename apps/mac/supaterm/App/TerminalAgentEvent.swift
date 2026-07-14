@@ -46,7 +46,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     case sessionEnded
     case sessionResumed(transcriptPath: String?)
     case sessionStarted(transcriptPath: String?)
-    case subagentStarted(nickname: String?, role: String?)
+    case subagentStarted(nickname: String?, role: String?, transcriptPath: String? = nil)
     case subagentStopped
     case turnCompleted(message: String?)
     case turnRunning(detail: String?)
@@ -56,6 +56,7 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
   let scope: Scope
   let context: SupatermCLIContext?
   let processID: Int32?
+  let workingDirectoryPath: String?
   let action: Action
   let origin: Origin
 
@@ -63,12 +64,14 @@ nonisolated struct TerminalAgentEvent: Equatable, Sendable {
     scope: Scope,
     context: SupatermCLIContext? = nil,
     processID: Int32? = nil,
+    workingDirectoryPath: String? = nil,
     action: Action,
     origin: Origin = .native
   ) {
     self.scope = scope
     self.context = context
     self.processID = processID
+    self.workingDirectoryPath = workingDirectoryPath
     self.action = action
     self.origin = origin
   }

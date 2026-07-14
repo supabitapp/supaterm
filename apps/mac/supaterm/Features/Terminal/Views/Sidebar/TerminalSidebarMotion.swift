@@ -165,9 +165,6 @@ final class TerminalSidebarLayoutAnimator {
         duration: duration
       )
     )
-    layout.invalidateLayout()
-    collectionView?.needsLayout = true
-    collectionView?.layoutSubtreeIfNeeded()
     onFrame()
     guard elapsed < duration else {
       layout.finishTransition()

@@ -43,7 +43,11 @@ nonisolated enum TerminalAgentEventTranslator {
   ) -> TerminalAgentEvent.Action {
     let role = normalized(request.event.agentType)
     guard request.agent == .codex else {
-      return .subagentStarted(nickname: nil, role: role)
+      return .subagentStarted(
+        nickname: nil,
+        role: role,
+        transcriptPath: request.event.transcriptPath
+      )
     }
     let nickname = CodexTranscriptMetadataParser.subagentNickname(
       at: request.event.transcriptPath,
@@ -52,7 +56,8 @@ nonisolated enum TerminalAgentEventTranslator {
     )
     return .subagentStarted(
       nickname: nickname,
-      role: role?.lowercased() == "default" ? nil : role
+      role: role?.lowercased() == "default" ? nil : role,
+      transcriptPath: request.event.transcriptPath
     )
   }
 
@@ -138,7 +143,9 @@ nonisolated enum TerminalAgentEventTranslator {
       return [event(request, scope: scope, action: .progressUpdated(rows))]
     }
     if request.event.hookEventName == .postToolUse {
-      return attentionResolutionEvents(for: request, scope: scope) + [
+      let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
+      guard scope.subagentID == nil else { return resolutionEvents }
+      return resolutionEvents + [
         event(
           request,
           scope: scope,
@@ -154,6 +161,7 @@ nonisolated enum TerminalAgentEventTranslator {
         message: request.event.message
       )
     case .preToolUse:
+      guard scope.subagentID == nil else { return [] }
       action = .turnRunning(detail: request.event.toolName)
     case .sessionEnd:
       action = .sessionEnded
@@ -203,6 +211,7 @@ nonisolated enum TerminalAgentEventTranslator {
       scope: scope,
       context: request.context,
       processID: request.processID,
+      workingDirectoryPath: request.event.cwd,
       action: action
     )
   }

@@ -8,7 +8,10 @@ extension TerminalCommandExecutor {
     case .contextPane:
       for (offset, entry) in registry.activeEntries().enumerated() {
         do {
-          return rewrite(try entry.terminal.createProject(request), windowIndex: offset + 1)
+          return TerminalWindowRegistry.rewrite(
+            try entry.terminal.createProject(request),
+            windowIndex: offset + 1
+          )
         } catch TerminalControlError.contextPaneNotFound {
           continue
         }
@@ -21,7 +24,10 @@ extension TerminalCommandExecutor {
         focus: request.focus,
         target: .space(windowIndex: 1, spaceIndex: spaceIndex)
       )
-      return rewrite(try entry.terminal.createProject(localRequest), windowIndex: windowIndex)
+      return TerminalWindowRegistry.rewrite(
+        try entry.terminal.createProject(localRequest),
+        windowIndex: windowIndex
+      )
     }
   }
 
@@ -48,7 +54,10 @@ extension TerminalCommandExecutor {
     case .contextPane:
       for (offset, entry) in registry.activeEntries().enumerated() {
         do {
-          return rewrite(try operation(entry.terminal, target), windowIndex: offset + 1)
+          return TerminalWindowRegistry.rewrite(
+            try operation(entry.terminal, target),
+            windowIndex: offset + 1
+          )
         } catch TerminalControlError.contextPaneNotFound {
           continue
         }
@@ -60,23 +69,8 @@ extension TerminalCommandExecutor {
         entry.terminal,
         .project(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex)
       )
-      return rewrite(result, windowIndex: windowIndex)
+      return TerminalWindowRegistry.rewrite(result, windowIndex: windowIndex)
     }
-  }
-
-  private func rewrite(
-    _ target: SupatermProjectTarget,
-    windowIndex: Int
-  ) -> SupatermProjectTarget {
-    SupatermProjectTarget(
-      windowIndex: windowIndex,
-      spaceIndex: target.spaceIndex,
-      spaceID: target.spaceID,
-      projectIndex: target.projectIndex,
-      projectID: target.projectID,
-      directoryURL: target.directoryURL,
-      isPinned: target.isPinned
-    )
   }
 
   func createSpace(_ request: TerminalCreateSpaceRequest) throws -> SupatermCreateSpaceResult {

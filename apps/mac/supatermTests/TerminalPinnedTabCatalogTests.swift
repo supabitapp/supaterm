@@ -42,7 +42,7 @@ struct TerminalPinnedTabCatalogTests {
     )
 
     #expect(sanitized.projects(in: spaceID).map(\.id) == [projectID])
-    #expect(sanitized.tabs(in: projectID, spaceID: spaceID).map(\.id) == [tabID])
+    #expect(sanitized.projects(in: spaceID).flatMap(\.tabs).map(\.id) == [tabID])
   }
 
   @Test

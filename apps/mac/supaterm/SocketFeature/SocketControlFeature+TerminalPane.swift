@@ -69,6 +69,7 @@ extension SocketControlFeature {
       let execution = try await socketRequestExecutor.executeTerminalPane(
         .sendText(
           TerminalSendTextRequest(
+            mode: payload.mode,
             target: try createPaneTarget(from: payload.target),
             text: payload.text
           )

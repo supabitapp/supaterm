@@ -71,10 +71,6 @@ nonisolated struct TerminalPinnedTabCatalog: Equatable, Codable, Sendable {
     projects(in: spaceID).flatMap(\.tabs)
   }
 
-  func tabs(in projectID: TerminalProjectID, spaceID: TerminalSpaceID) -> [PersistedTerminalTab] {
-    projects(in: spaceID).first(where: { $0.id == projectID })?.tabs ?? []
-  }
-
   var surfaceIDs: Set<UUID> {
     spaces.reduce(into: Set<UUID>()) { result, space in
       for tab in space.projects.flatMap(\.tabs) {

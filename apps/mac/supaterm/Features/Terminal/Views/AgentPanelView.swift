@@ -26,8 +26,7 @@ struct AgentPanelView: View {
   let palette: Palette
   let forksDown: Bool
   let showsShortcutHints: Bool
-  let copyBranchName: (String) -> Void
-  let copySessionID: (String) -> Void
+  let copyText: (String) -> Void
   let forkSession: (SupatermPaneDirection, PaneAgentPanelSession) -> Void
   let openURL: (URL) -> Void
 
@@ -62,18 +61,23 @@ struct AgentPanelView: View {
         }
       }
 
-      if let branchDetails = presentation.branchDetails {
-        section("Branch details") {
+      if presentation.workingDirectoryPath != nil || presentation.branchDetails != nil {
+        section("Workspace") {
           VStack(alignment: .leading, spacing: AgentPanelMetrics.sectionContentSpacing) {
-            branchRow(branchDetails.branchName)
-            changesRow(
-              addedLineCount: branchDetails.addedLineCount,
-              removedLineCount: branchDetails.removedLineCount
-            )
-            if let pullRequestStatus = branchDetails.displayedPullRequestStatus {
-              pullRequestRow(pullRequestStatus)
-              if let checks = pullRequestStatus.checks, !checks.isEmpty {
-                pullRequestChecksRows(checks)
+            if let workingDirectoryPath = presentation.workingDirectoryPath {
+              workingDirectoryRow(workingDirectoryPath)
+            }
+            if let branchDetails = presentation.branchDetails {
+              branchRow(branchDetails.branchName)
+              changesRow(
+                addedLineCount: branchDetails.addedLineCount,
+                removedLineCount: branchDetails.removedLineCount
+              )
+              if let pullRequestStatus = branchDetails.displayedPullRequestStatus {
+                pullRequestRow(pullRequestStatus)
+                if let checks = pullRequestStatus.checks, !checks.isEmpty {
+                  pullRequestChecksRows(checks)
+                }
               }
             }
           }
@@ -138,12 +142,10 @@ struct AgentPanelView: View {
         Text(Self.childTitle(child))
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.primaryText)
-        if let detail = child.detail {
-          Text(detail)
-            .font(.system(size: 11))
-            .foregroundStyle(palette.secondaryText)
-            .lineLimit(2)
-        }
+        Text(Self.childDetail(child))
+          .font(.system(size: 11))
+          .foregroundStyle(palette.secondaryText)
+          .lineLimit(2)
       }
       .fixedSize(horizontal: false, vertical: true)
     }
@@ -163,6 +165,10 @@ struct AgentPanelView: View {
     case (nil, nil):
       return "Agent"
     }
+  }
+
+  static func childDetail(_ child: TerminalAgentActiveChild) -> String {
+    child.detail ?? "Working…"
   }
 
   private static func normalizedChildLabel(_ value: String?) -> String? {
@@ -202,7 +208,7 @@ struct AgentPanelView: View {
           shortcutHint: shortcutHint(AgentPanelShortcut.copySessionID),
           helpText: "Copy session ID",
           action: {
-            copySessionID(session.sessionID)
+            copyText(session.sessionID)
           }
         )
       }
@@ -230,14 +236,33 @@ struct AgentPanelView: View {
 
   private func branchRow(_ branchName: String) -> some View {
     Button {
-      copyBranchName(branchName)
+      copyText(branchName)
     } label: {
       valueRow(icon: .asset("git-branch"), title: branchName)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .help("Copy branch name")
     .accessibilityLabel("Copy branch name")
     .accessibilityValue(branchName)
+  }
+
+  private func workingDirectoryRow(_ path: String) -> some View {
+    let displayPath = (path as NSString).abbreviatingWithTildeInPath
+    return Button {
+      copyText(path)
+    } label: {
+      AgentPanelRowContent(
+        icon: .system("folder"),
+        title: displayPath,
+        palette: palette,
+        iconColor: palette.secondaryText,
+        truncationMode: .middle
+      )
+    }
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
+    .help("Copy \(path)")
+    .accessibilityLabel("Copy working directory")
+    .accessibilityValue(path)
   }
 
   private func valueRow(
@@ -303,7 +328,7 @@ struct AgentPanelView: View {
           .foregroundStyle(palette.secondaryText)
       }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .accessibilityLabel(title)
   }
 
@@ -314,7 +339,7 @@ struct AgentPanelView: View {
       } label: {
         pullRequestChecksSummaryRow(checks)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
       .accessibilityLabel(checks.title)
       .accessibilityValue(checksAreExpanded ? "Expanded" : "Collapsed")
 
@@ -353,7 +378,7 @@ struct AgentPanelView: View {
       } label: {
         checkRowContent(item, showsLink: true)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
       .accessibilityLabel("\(item.title), \(item.detailText())")
     } else {
       checkRowContent(item, showsLink: false)
@@ -479,6 +504,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
   let leading: Leading
   let title: String
   let titleColor: Color
+  let truncationMode: Text.TruncationMode
   let trailingSpacing: CGFloat?
   let trailing: Trailing
 
@@ -487,12 +513,14 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
     title: String,
     palette: Palette,
     titleColor: Color? = nil,
+    truncationMode: Text.TruncationMode = .tail,
     trailingSpacing: CGFloat? = AgentPanelMetrics.rowTrailingSpacing,
     @ViewBuilder trailing: () -> Trailing
   ) {
     self.leading = leading()
     self.title = title
     self.titleColor = titleColor ?? palette.primaryText
+    self.truncationMode = truncationMode
     self.trailingSpacing = trailingSpacing
     self.trailing = trailing()
   }
@@ -502,6 +530,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
     title: String,
     palette: Palette,
     iconColor: Color,
+    truncationMode: Text.TruncationMode = .tail,
     @ViewBuilder trailing: () -> Trailing
   ) where Leading == AgentPanelIconView {
     self.init(
@@ -510,6 +539,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
       },
       title: title,
       palette: palette,
+      truncationMode: truncationMode,
       trailing: trailing
     )
   }
@@ -521,7 +551,7 @@ private struct AgentPanelRowContent<Leading: View, Trailing: View>: View {
         .font(.system(size: 12, weight: .medium))
         .foregroundStyle(titleColor)
         .lineLimit(1)
-        .truncationMode(.tail)
+        .truncationMode(truncationMode)
       if let trailingSpacing {
         Spacer(minLength: trailingSpacing)
       }
@@ -537,13 +567,15 @@ extension AgentPanelRowContent where Trailing == EmptyView {
     @ViewBuilder leading: () -> Leading,
     title: String,
     palette: Palette,
-    titleColor: Color? = nil
+    titleColor: Color? = nil,
+    truncationMode: Text.TruncationMode = .tail
   ) {
     self.init(
       leading: leading,
       title: title,
       palette: palette,
       titleColor: titleColor,
+      truncationMode: truncationMode,
       trailingSpacing: nil,
       trailing: {
         EmptyView()
@@ -555,7 +587,8 @@ extension AgentPanelRowContent where Trailing == EmptyView {
     icon: AgentPanelIcon,
     title: String,
     palette: Palette,
-    iconColor: Color
+    iconColor: Color,
+    truncationMode: Text.TruncationMode = .tail
   ) where Leading == AgentPanelIconView {
     self.init(
       leading: {
@@ -563,6 +596,7 @@ extension AgentPanelRowContent where Trailing == EmptyView {
       },
       title: title,
       palette: palette,
+      truncationMode: truncationMode,
       trailingSpacing: nil,
       trailing: {
         EmptyView()
@@ -579,26 +613,13 @@ private struct AgentPanelActionRow: View {
   let helpText: String
   let action: () -> Void
 
-  @State private var isHovering = false
-
   var body: some View {
     Button(action: action) {
       rowContent
-        .background {
-          RoundedRectangle(cornerRadius: 5)
-            .fill(rowBackground)
-            .padding(.vertical, -4)
-            .padding(.horizontal, -5)
-        }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .help(helpText)
     .accessibilityLabel(title)
-    .onHover { isHovering = $0 }
-  }
-
-  private var rowBackground: Color {
-    isHovering ? palette.secondaryText.opacity(0.12) : .clear
   }
 
   @ViewBuilder
@@ -624,6 +645,32 @@ private struct AgentPanelActionRow: View {
         iconColor: palette.secondaryText
       )
     }
+  }
+}
+
+private struct AgentPanelRowButtonStyle: ButtonStyle {
+  let palette: Palette
+
+  func makeBody(configuration: Configuration) -> some View {
+    AgentPanelRowButtonStyleBody(configuration: configuration, palette: palette)
+  }
+}
+
+private struct AgentPanelRowButtonStyleBody: View {
+  let configuration: ButtonStyle.Configuration
+  let palette: Palette
+
+  @State private var isHovering = false
+
+  var body: some View {
+    configuration.label
+      .background {
+        RoundedRectangle(cornerRadius: 5)
+          .fill(isHovering ? palette.secondaryText.opacity(0.12) : .clear)
+          .padding(.vertical, -4)
+          .padding(.horizontal, -5)
+      }
+      .onHover { isHovering = $0 }
   }
 }
 

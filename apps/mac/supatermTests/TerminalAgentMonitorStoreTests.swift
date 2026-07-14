@@ -18,8 +18,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       !store.track(
-        agent: .pi,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .pi, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -42,8 +41,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -72,8 +70,7 @@ struct TerminalAgentMonitorStoreTests {
 
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: nil
       )
@@ -81,7 +78,11 @@ struct TerminalAgentMonitorStoreTests {
     continuation.finish()
     await flushEffects()
 
-    #expect(!store.isTracking(agent: .codex, sessionID: "session-1"))
+    #expect(
+      !store.isTracking(
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1")
+      )
+    )
   }
 
   @Test
@@ -126,23 +127,23 @@ struct TerminalAgentMonitorStoreTests {
       surfaceID: surfaceID,
       tabID: UUID()
     )
+    let firstScope = TerminalAgentEvent.Scope(agent: .codex, sessionID: "first")
+    let secondScope = TerminalAgentEvent.Scope(agent: .codex, sessionID: "second")
     _ = store.track(
-      agent: .codex,
-      sessionID: "first",
+      scope: firstScope,
       transcriptPath: "/tmp/first.jsonl",
       context: firstContext
     )
     _ = store.track(
-      agent: .codex,
-      sessionID: "second",
+      scope: secondScope,
       transcriptPath: "/tmp/second.jsonl",
       context: secondContext
     )
 
     store.clearSessions(for: surfaceID, in: firstContext.windowID)
 
-    #expect(!store.isTracking(agent: .codex, sessionID: "first"))
-    #expect(store.isTracking(agent: .codex, sessionID: "second"))
+    #expect(!store.isTracking(scope: firstScope))
+    #expect(store.isTracking(scope: secondScope))
     continuation.finish()
     await flushEffects()
   }
@@ -162,8 +163,7 @@ struct TerminalAgentMonitorStoreTests {
     let context = SupatermCLIContext(windowID: UUID(), surfaceID: UUID(), tabID: UUID())
     #expect(
       store.track(
-        agent: .codex,
-        sessionID: "session-1",
+        scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
         transcriptPath: "/tmp/transcript.jsonl",
         context: context
       )
@@ -229,7 +229,7 @@ private final class MonitorStoreEventsSpy {
   var snapshots: [AgentMonitorSnapshot] = []
 
   func bind(to store: TerminalAgentMonitorStore) {
-    store.onMonitorSnapshot = { [weak self] snapshot, _, _, _ in
+    store.onMonitorSnapshot = { [weak self] snapshot, _, _ in
       self?.snapshots.append(snapshot)
     }
     store.onRunningTimeoutExpired = { [weak self] agent, sessionID, _ in

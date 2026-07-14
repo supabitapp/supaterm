@@ -1,0 +1,81 @@
+name: deploy-docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/docs.supaterm.com/**"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.agent-panel-branch-pr-checks-dark.png"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.settings-coding-agents-enabled-dark.png"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png"
+      - "apps/supaterm.com/public/logo-mark.svg"
+      - "integrations/supaterm-skills"
+      - ".github/workflows/deploy-docs.yml"
+      - ".gitmodules"
+      - "Makefile"
+      - "mise.toml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/docs.supaterm.com/**"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.agent-panel-branch-pr-checks-dark.png"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.settings-coding-agents-enabled-dark.png"
+      - "apps/mac/supatermSnapshotTests/__Snapshots__/SupatermSnapshotTests/catalogScenarios.sidebar-full-dark.png"
+      - "apps/supaterm.com/public/logo-mark.svg"
+      - "integrations/supaterm-skills"
+      - ".github/workflows/deploy-docs.yml"
+      - ".gitmodules"
+      - "Makefile"
+      - "mise.toml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-docs-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Initialize documentation content
+        run: git -c 'url.https://github.com/.insteadOf=git@github.com:' submodule update --init integrations/supaterm-skills
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.3.0
+          cache: true
+          install: false
+      - name: Install pnpm with mise
+        run: mise install pnpm
+      - name: Resolve Vite+ version
+        id: vite_plus
+        shell: bash
+        run: |
+          VERSION=$(node -e 'const fs = require("fs"); const lock = fs.readFileSync("apps/docs.supaterm.com/pnpm-lock.yaml", "utf8"); const match = lock.match(/\n  vite-plus@([0-9][^:]+):/); if (!match) throw new Error("Unable to resolve vite-plus version from apps/docs.supaterm.com/pnpm-lock.yaml"); process.stdout.write(match[1]);')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Install Vite+
+        run: npm install --global "vite-plus@${{ steps.vite_plus.outputs.version }}"
+      - run: make docs-install
+      - run: make docs-check
+      - run: make docs-validate
+      - name: Audit production dependencies
+        run: cd apps/docs.supaterm.com && vp pm audit --production --level high
+      - run: make docs-build
+      - name: Deploy Worker
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/docs.supaterm.com
+          command: deploy

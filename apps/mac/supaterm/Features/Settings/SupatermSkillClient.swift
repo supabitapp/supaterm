@@ -9,7 +9,7 @@ struct SupatermSkillClient: Sendable {
 extension SupatermSkillClient: DependencyKey {
   static let liveValue = Self(
     installSupatermSkill: {
-      try SupatermSkillInstaller().installSupatermSkill()
+      try SupatermSkills().install()
     }
   )
 

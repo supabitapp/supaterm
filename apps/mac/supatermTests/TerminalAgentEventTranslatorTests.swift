@@ -6,6 +6,19 @@ import Testing
 
 struct TerminalAgentEventTranslatorTests {
   @Test
+  func nativeEventCarriesWorkingDirectory() throws {
+    let request = try request(
+      agent: .codex,
+      json: #"{"session_id":"session-1","cwd":"/tmp/workspace","hook_event_name":"SessionStart"}"#
+    )
+
+    #expect(
+      TerminalAgentEventTranslator.events(for: request).first?.workingDirectoryPath
+        == "/tmp/workspace"
+    )
+  }
+
+  @Test
   func codexPlanUpdateBecomesScopedProgress() throws {
     let request = try request(
       agent: .codex,
@@ -333,7 +346,11 @@ struct TerminalAgentEventTranslatorTests {
 
     #expect(
       TerminalAgentEventTranslator.events(for: request).map(\.action) == [
-        .subagentStarted(nickname: "Mendel", role: nil)
+        .subagentStarted(
+          nickname: "Mendel",
+          role: nil,
+          transcriptPath: transcript.path
+        )
       ]
     )
   }

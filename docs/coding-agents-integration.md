@@ -18,6 +18,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.
 - Foreground session routing prevents restored or background sessions from stealing the panel, fork, copy, and tab activity surface.
+- The foreground root agent's hook `cwd` is the panel workspace source. The pane working directory is the fallback until a root hook reports one, and child-agent directories cannot replace it.
 - Every adapter event is translated into the same session, turn, attention, progress, and child-agent domain before it reaches UI state.
 - Restored sessions retain their lifecycle and panel state only while their recorded process ID and process start time still identify the same process. Restored sessions remain non-actionable until a fresh native event arrives.
 - The same shared state powers every agent, and desktop notification titles derive from the explicit agent kind.
@@ -58,12 +59,19 @@ Supaterm ships its agent skill from `supaterm-skills` inside the app bundle.
 Install it with:
 
 ```bash
-sp agent install-skill
+sp skills install
 ```
 
-The install command links `~/.agents/skills/supaterm` to the bundled skill directory.
-If that path already exists as a symlink or directory, Supaterm replaces it with a symlink to the current bundled skill.
-On app launch, Supaterm silently refreshes existing Supaterm skill installs to the current bundle path.
+The install command copies a stable discovery skill to `~/.agents/skills/supaterm`, replacing any existing path.
+The discovery skill directs agents to version-matched content served by `sp skills get` from the app bundle.
+
+Inspect the bundled catalog with:
+
+```bash
+sp skills
+sp skills get core
+sp skills get coding-agents
+```
 
 Install every supported hook bridge with:
 
@@ -95,6 +103,7 @@ Installed hooks invoke `sp agent receive-agent-hook --agent <agent>`:
 - It reads one agent hook event JSON object from stdin; the caller must declare the agent explicitly with `--agent`.
 - It forwards that payload to the app over the socket method `terminal.agent_hook`.
 - The forwarded request carries the decoded event, the explicit agent kind, and the ambient `SupatermCLIContext` from the current pane.
+- Root hook payloads should include the agent's absolute `cwd`. Supaterm uses it for the Workspace row, Git status, and forked session working directory.
 
 ## Claude
 
@@ -144,7 +153,7 @@ The app binds Codex sessions to pane surfaces and turns Codex hook events into t
   was missed, and clears structured completion suppression without supplying Codex detail on its own.
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
 - `PermissionRequest` and `request_user_input` mark the foreground session as needing input; only completion of the matching tool resolves that attention state.
-- `SubagentStart` and `SubagentStop` maintain scoped child-agent rows. Reused child IDs and late stop events cannot remove a newer child lifetime.
+- `SubagentStart` and `SubagentStop` maintain scoped child-agent rows. Each child rollout is tailed independently, so its latest non-final assistant message supplies the row detail without replacing parent transcript monitoring. Before the first message, the row shows the task derived from the child transcript metadata or `Working…` when no task is available. Tool completion never replaces that detail with a tool name. Reused child IDs and late stop events cannot remove a newer child lifetime.
 - A native `PostToolUse` for `update_plan` reads `tool_input.plan` directly and replaces the native plan rows immediately. Supaterm never reconstructs plans from transcript text.
 - Transcript lifecycle remains authoritative for live Codex detail and corroborates final `idle` transitions.
 - `task_started` and `turn_started` mark the tab as `running`.

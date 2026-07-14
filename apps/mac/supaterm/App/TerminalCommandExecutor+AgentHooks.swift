@@ -35,8 +35,7 @@ extension TerminalCommandExecutor {
   func resumeAgentMonitoring(in terminal: TerminalHostState) {
     for target in terminal.agentTranscriptTargets() {
       _ = agentMonitorStore.track(
-        agent: target.agent,
-        sessionID: target.sessionID,
+        scope: target.scope,
         transcriptPath: target.transcriptPath,
         context: target.context
       )
@@ -93,19 +92,24 @@ extension TerminalCommandExecutor {
 
   func handleMonitorSnapshot(
     _ snapshot: AgentMonitorSnapshot,
-    agent: SupatermAgentKind,
-    sessionID: String,
+    scope: TerminalAgentEvent.Scope,
     context: SupatermCLIContext?
   ) {
-    guard let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: context) else {
-      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+    guard
+      let terminal = agentTerminal(
+        agent: scope.agent,
+        sessionID: scope.sessionID,
+        context: context
+      )
+    else {
+      clearMonitoring(scope)
       return
     }
-    guard terminal.hasAgentSession(agent: agent, sessionID: sessionID) else {
-      agentMonitorStore.clearSession(agent: agent, sessionID: sessionID)
+    guard terminal.hasAgentSession(agent: scope.agent, sessionID: scope.sessionID) else {
+      clearMonitoring(scope)
       return
     }
-    let turnID = snapshot.status?.turnID
+    let turnID = scope.subagentID == nil ? snapshot.status?.turnID : scope.turnID
     var actions: [TerminalAgentEvent.Action] = []
     switch snapshot.status {
     case .started:
@@ -117,15 +121,18 @@ extension TerminalCommandExecutor {
         actions.append(.turnRunning(detail: snapshot.detail))
       }
     }
-    actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
-    actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
+    if scope.subagentID == nil {
+      actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
+      actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
+    }
     var didChange = false
     for action in actions {
       let event = TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(
-          agent: agent,
-          sessionID: sessionID,
-          turnID: turnID
+          agent: scope.agent,
+          sessionID: scope.sessionID,
+          turnID: turnID,
+          subagentID: scope.subagentID
         ),
         context: context,
         action: action,
@@ -241,20 +248,25 @@ extension TerminalCommandExecutor {
   ) {
     guard accepted else { return }
     guard let sessionID = request.event.sessionID else { return }
+    guard let scope = events.first?.scope else { return }
     if request.event.hookEventName == .sessionEnd
       || request.event.hookEventName == .sessionShutdown
     {
       agentMonitorStore.clearSession(agent: request.agent, sessionID: sessionID)
       return
     }
-    if let transcriptPath = request.event.transcriptPath {
+    if request.event.hookEventName == .subagentStop
+      || request.event.hookEventName == .stop
+    {
+      agentMonitorStore.cancelTracking(scope: scope)
+    } else if let transcriptPath = request.event.transcriptPath {
       _ = agentMonitorStore.track(
-        agent: request.agent,
-        sessionID: sessionID,
+        scope: scope,
         transcriptPath: transcriptPath,
         context: request.context
       )
     }
+    guard scope.subagentID == nil else { return }
     guard terminal.agentSessionIsForeground(agent: request.agent, sessionID: sessionID) else {
       return
     }
@@ -266,21 +278,32 @@ extension TerminalCommandExecutor {
       return
     }
     switch request.event.hookEventName {
-    case .postToolUse,
-      .userPromptSubmit,
-      .preToolUse where !request.agent.drivesActivityFromTranscript:
+    case .postToolUse, .userPromptSubmit, .preToolUse:
+      if request.agent.drivesActivityFromTranscript,
+        agentMonitorStore.isTracking(scope: scope)
+      {
+        agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
+        return
+      }
       agentMonitorStore.armRunningTimeout(
         agent: request.agent,
         sessionID: sessionID,
         context: request.context
       )
     case .stop:
-      agentMonitorStore.cancelTracking(agent: request.agent, sessionID: sessionID)
       agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
     case .sessionEnd, .sessionShutdown:
       agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
     default:
       break
+    }
+  }
+
+  private func clearMonitoring(_ scope: TerminalAgentEvent.Scope) {
+    if scope.subagentID == nil {
+      agentMonitorStore.clearSession(agent: scope.agent, sessionID: scope.sessionID)
+    } else {
+      agentMonitorStore.cancelTracking(scope: scope)
     }
   }
 
