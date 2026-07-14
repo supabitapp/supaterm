@@ -12,7 +12,7 @@ Click the **+** button at the bottom of the sidebar, or open the command palette
 You can also create and focus one from a terminal. These examples use `jq` to retain the IDs returned by `sp`:
 
 ```bash
-space_id="$(sp space new --json --focus Supaterm | jq -r '.spaceID')"
+space_id="$(sp space new --json --focus Supaterm | jq -r '.target.spaceID')"
 ```
 
 `--focus` changes the visible space, but the current shell keeps its original pane context. Retain the new ID for the next commands.

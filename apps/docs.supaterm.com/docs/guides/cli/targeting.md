@@ -55,7 +55,7 @@ sp tab new --json -- git status
 sp pane split --json right
 ```
 
-Read `spaceID`, `tabID`, and `paneID` from the result and pass the relevant UUID to later commands.
+Space creation returns `spaceID` under `target`. Tab and pane creation return their typed IDs at the top level. Pass the relevant UUID to later commands.
 
 ## Target creation with `--in`
 

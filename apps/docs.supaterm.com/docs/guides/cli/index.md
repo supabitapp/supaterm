@@ -18,7 +18,7 @@ sp instance ls
 ## Create terminal surfaces
 
 ```bash
-space_id="$(sp space new --json --focus Work | jq -r '.spaceID')"
+space_id="$(sp space new --json --focus Work | jq -r '.target.spaceID')"
 tab="$(sp tab new --json --in "$space_id" --focus --cwd ~/code/project -- git status)"
 pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
 sp pane split --in "$pane_id" right -- npm test

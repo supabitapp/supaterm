@@ -10,7 +10,7 @@ These recipes run inside Supaterm. Examples that extract IDs use `jq`.
 ```bash
 workspace="$HOME/code/project"
 
-space_id="$(sp space new --json --focus Project | jq -r '.spaceID')"
+space_id="$(sp space new --json --focus Project | jq -r '.target.spaceID')"
 tab="$(sp tab new --json --in "$space_id" --focus --cwd "$workspace" -- npm run dev)"
 pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
 sp pane split --in "$pane_id" --no-focus right --cwd "$workspace" -- npm test -- --watch
