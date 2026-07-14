@@ -1,4 +1,7 @@
-# Chrome Styling
+---
+title: Chrome styling
+description: Understand Supaterm's semantic chrome palette, rendering boundaries, and snapshot coverage.
+---
 
 Supaterm chrome has one default look. `SupaTheme` owns the palette reference anchors, color math, and computed semantic tokens. The mac app keeps window background rendering, blurred card styling, selectable row style, and grain texture in `apps/mac/supaterm/Features/Chrome`.
 

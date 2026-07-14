@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "supaterm-docs",
+  "compatibility_date": "2026-07-14",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "docs.supaterm.com",
+      "custom_domain": true,
+    },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+}

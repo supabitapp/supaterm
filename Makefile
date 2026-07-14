@@ -9,11 +9,14 @@ MAC_APP_DIR := apps/mac
 WEB_APP_DIR := apps/supaterm.com
 WEB_INSTALL_PREREQS := $(WEB_APP_DIR)/package.json $(WEB_APP_DIR)/pnpm-lock.yaml
 WEB_NODE_MODULES_STAMP := $(WEB_APP_DIR)/node_modules/.modules.yaml
+DOCS_APP_DIR := apps/docs.supaterm.com
+DOCS_INSTALL_PREREQS := $(DOCS_APP_DIR)/package.json $(DOCS_APP_DIR)/pnpm-lock.yaml $(DOCS_APP_DIR)/.npmrc
+DOCS_NODE_MODULES_STAMP := $(DOCS_APP_DIR)/node_modules/.modules.yaml
 WT_INSTALL_URL := https://raw.githubusercontent.com/khoi/git-wt/main/install.sh
 WORKTREE ?=
 LOGO_OUTPUT ?= /tmp/supaterm-lightning-logo.svg
 .DEFAULT_GOAL := help
-.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy
+.PHONY: help install-git-hooks bump-and-release worktree-create mac-tuist-install mac-generate mac-tuist-generate mac-generate-sources mac-tuist-generate-release mac-tuist-generate-release-cached mac-build-ghostty mac-build-zmx mac-build mac-build-snapshot-catalog mac-run mac-run-demo mac-run-snapshot-catalog mac-generate-lightning-logo-svg mac-xcode-open mac-install-tip mac-archive mac-archive-xcodebuild mac-export-archive mac-format swiftlint mac-check mac-test mac-test-xcodebuild mac-test-e2e mac-test-snapshots mac-record-snapshots mac-scan-dead-code mac-inspect-dependencies mac-warm-cache web-help web-install web-dev web-worker-dev web-check web-lint web-fmt web-test web-build web-preview web-deploy docs-install docs-dev docs-check docs-validate docs-build docs-preview docs-deploy
 
 help:  # Display this help.
 	@-+echo "Run make with one of the following targets:"
@@ -173,3 +176,31 @@ web-preview: $(WEB_NODE_MODULES_STAMP)  # Preview the built web app.
 
 web-deploy: $(WEB_NODE_MODULES_STAMP)  # Deploy the web app to Cloudflare Workers.
 	@cd "$(WEB_APP_DIR)" && vp exec wrangler deploy
+
+$(DOCS_NODE_MODULES_STAMP): $(DOCS_INSTALL_PREREQS)
+	@cd "$(DOCS_APP_DIR)" && vp install
+
+docs-install: $(DOCS_NODE_MODULES_STAMP)  # Install documentation site dependencies.
+	@:
+
+define run-docs
+@cd "$(DOCS_APP_DIR)" && vp run $(1)
+endef
+
+docs-dev: $(DOCS_NODE_MODULES_STAMP)  # Run the documentation development server.
+	$(call run-docs,dev)
+
+docs-check: $(DOCS_NODE_MODULES_STAMP)  # Type-check the documentation site.
+	$(call run-docs,check)
+
+docs-validate: $(DOCS_NODE_MODULES_STAMP)  # Validate documentation links.
+	$(call run-docs,validate)
+
+docs-build: $(DOCS_NODE_MODULES_STAMP)  # Build the documentation site for production.
+	$(call run-docs,build)
+
+docs-preview: docs-build  # Build and preview the documentation site.
+	$(call run-docs,preview)
+
+docs-deploy: docs-build  # Build and deploy the documentation site to Cloudflare Workers.
+	$(call run-docs,deploy)

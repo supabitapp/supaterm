@@ -1,4 +1,7 @@
-# Socket Control
+---
+title: Socket control
+description: Understand Supaterm instance discovery, local IPC, targeting, and request handling.
+---
 
 This document captures the stable rules of Supaterm's socket IPC. The source remains authoritative for concrete APIs and current command surfaces.
 

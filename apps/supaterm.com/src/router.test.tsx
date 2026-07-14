@@ -3,6 +3,7 @@
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { docsHref } from "@/components/layout";
 import { downloadHref } from "@/lib/downloads";
 import { homebrewInstallCommand } from "@/routes/home";
 import { routeTree } from "./router";
@@ -119,6 +120,15 @@ describe("router", () => {
 
     expect(brandMark?.getAttribute("src")).toBe("/logo-mark.svg");
     expect(brandMark?.getAttribute("alt")).toBe("");
+  });
+
+  it("links to the documentation site", async () => {
+    await renderRoute("/");
+
+    const docsLink = screen.getByRole("link", { name: "Docs" });
+
+    expect(docsLink.getAttribute("href")).toBe(docsHref);
+    expect(screen.queryByText("WIP")).toBeNull();
   });
 
   it("renders a copyable Homebrew install command", async () => {

@@ -1,0 +1,24 @@
+{
+  "name": "docs.supaterm.com",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "blume dev",
+    "check": "vp check && blume check --strict",
+    "validate": "blume validate --strict",
+    "build": "blume build --strict",
+    "preview": "blume preview",
+    "deploy": "vp exec wrangler deploy"
+  },
+  "dependencies": {
+    "blume": "1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "~5.9.3",
+    "vite-plus": "0.1.24",
+    "wrangler": "^4.76.0"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

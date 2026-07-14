@@ -63,6 +63,26 @@ hooks {
         stdin = "{{ hook_stdin }}"
         depends = "web-install"
       }
+      ["docs-install"] {
+        check = "\(prePushBranchCheck)\nmake docs-install"
+        stdin = "{{ hook_stdin }}"
+        depends = "validate-release-tags"
+      }
+      ["docs-check"] {
+        check = "\(prePushBranchCheck)\nmake docs-check"
+        stdin = "{{ hook_stdin }}"
+        depends = "docs-install"
+      }
+      ["docs-validate"] {
+        check = "\(prePushBranchCheck)\nmake docs-validate"
+        stdin = "{{ hook_stdin }}"
+        depends = "docs-check"
+      }
+      ["docs-build"] {
+        check = "\(prePushBranchCheck)\nmake docs-build"
+        stdin = "{{ hook_stdin }}"
+        depends = "docs-validate"
+      }
       ["mac-scan-dead-code"] {
         check = "\(prePushBranchCheck)\nmake mac-scan-dead-code"
         stdin = "{{ hook_stdin }}"

@@ -124,7 +124,9 @@ struct CodexTranscriptMonitorTests {
     try CodexTranscriptFixtures.append(
       .functionCall(
         name: "exec_command",
-        arguments: ["cmd": "sed -n '1,40p' docs/coding-agents-integration.md"]
+        arguments: [
+          "cmd": "sed -n '1,40p' apps/docs.supaterm.com/docs/contributing/coding-agents-integration.md"
+        ]
       ),
       to: transcriptURL
     )

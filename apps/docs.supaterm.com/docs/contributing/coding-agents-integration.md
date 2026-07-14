@@ -1,4 +1,7 @@
-# Coding Agents Integration
+---
+title: Coding-agent integration
+description: Understand Supaterm's agent lifecycle model, native adapters, hooks, and transcript monitors.
+---
 
 This document captures how coding agent integrations work inside Supaterm.
 

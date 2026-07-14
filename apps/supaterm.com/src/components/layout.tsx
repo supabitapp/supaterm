@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 const githubHref = "https://github.com/supabitapp/supaterm";
 const releasesHref = "https://github.com/supabitapp/supaterm/releases";
+const docsHref = "https://docs.supaterm.com";
 
 const ctaIcons = {
   download: AppleIcon,
@@ -72,12 +73,12 @@ function Layout() {
             <span>Supaterm</span>
           </Link>
           <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
-            <span className="flex items-center gap-1.5 text-sm text-white/50">
+            <a
+              href={docsHref}
+              className="text-sm text-white/50 transition-colors hover:text-white/80"
+            >
               Docs
-              <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[0.6rem] leading-none text-white/40">
-                WIP
-              </span>
-            </span>
+            </a>
             <Link
               to="/changelog"
               className="text-sm text-white/50 transition-colors hover:text-white/80"
@@ -141,5 +142,5 @@ function Layout() {
   );
 }
 
-export { CtaLink, Layout, downloadHref, githubHref };
+export { CtaLink, Layout, docsHref, downloadHref, githubHref };
 export type { CtaLinkProps };
