@@ -560,6 +560,27 @@ let project = Project(
       )
     ),
     .target(
+      name: "supatermUITests",
+      destinations: .macOS,
+      product: .uiTests,
+      bundleId: "app.supabit.supatermUITests",
+      deploymentTargets: .macOS("26.0"),
+      infoPlist: .default,
+      buildableFolders: [
+        "supatermUITests",
+      ],
+      dependencies: [
+        .target(name: "supaterm"),
+      ],
+      settings: .settings(
+        base: [
+          "SWIFT_DEFAULT_ACTOR_ISOLATION": "nonisolated",
+          "SWIFT_STRICT_CONCURRENCY": "complete",
+        ],
+        defaultSettings: .essential
+      )
+    ),
+    .target(
       name: "supatermSnapshotCatalog",
       destinations: .macOS,
       product: .app,
@@ -710,11 +731,13 @@ let project = Project(
         targets: [
           .target("supaterm"),
           .target("supatermE2E"),
+          .target("supatermUITests"),
         ]
       ),
       testAction: .targets(
         [
           .testableTarget(target: .target("supatermE2E")),
+          .testableTarget(target: .target("supatermUITests")),
         ],
         configuration: .debug,
         expandVariableFromTarget: .target("supaterm")

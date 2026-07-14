@@ -179,9 +179,9 @@ test-e2e: tuist-generate build-ghostty build-zmx test-e2e-xcodebuild # Run end-t
 test-e2e-xcodebuild:
 	@if [ -n "$(strip $(E2E_RESULT_BUNDLE_PATH))" ]; then rm -rf "$(E2E_RESULT_BUNDLE_PATH)"; fi
 	@if [ -t 1 ]; then \
-		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | mise exec -- xcbeautify --disable-logging'; \
+		bash -o pipefail -c 'xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) 2>&1 | mise exec -- xcbeautify --disable-logging'; \
 	else \
-		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS) CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""; \
+		xcodebuild test -workspace "$(PROJECT_WORKSPACE)" -scheme "supatermE2E" -destination "platform=macOS" $(E2E_RESULT_BUNDLE_FLAGS); \
 	fi
 
 record-snapshots: tuist-generate build-ghostty # Record snapshot references.
@@ -191,7 +191,7 @@ scan-dead-code: tuist-generate build-ghostty build-zmx
 	mise exec -- periphery scan
 
 format: # Format code with swift format (local only)
-	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E
+	swift format -p --in-place --recursive --configuration ./.swift-format.json SupaTheme SupaThemeLogoGenerator SupatermCLIShared SPCLI sp supaterm supatermTests supatermSnapshotTests supatermE2E supatermUITests
 
 lint: # Lint code with swiftlint
 	mise exec -- swiftlint lint --quiet --config .swiftlint.yml

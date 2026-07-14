@@ -87,6 +87,8 @@ final class SupatermMenuController: NSObject {
 
   private let registry: TerminalWindowRegistry
   private var observers: [NSObjectProtocol] = []
+  private var keyWindowObservation: NSKeyValueObservation?
+  private var firstResponderObservation: NSKeyValueObservation?
   private var requestNewWindow: @MainActor () -> Bool = { false }
   private var requestShowSettings: @MainActor (SettingsFeature.Tab) -> Bool = { _ in false }
   private var requestSubmitGitHubIssue: @MainActor () -> Bool = {
@@ -1103,6 +1105,16 @@ final class SupatermMenuController: NSObject {
   }
 
   private func syncShortcut(command: SupatermCommand, item: NSMenuItem?) {
+    guard let item else { return }
+    if !(NSApp.keyWindow?.firstResponder is GhosttySurfaceView) {
+      switch command {
+      case .copyToClipboard, .pasteFromClipboard, .selectAll:
+        SupatermMenuShortcut.apply(command.defaultKeyboardShortcut, to: item)
+        return
+      default:
+        break
+      }
+    }
     syncShortcut(
       action: command.ghosttyBindingAction,
       item: item,
@@ -1141,29 +1153,12 @@ final class SupatermMenuController: NSObject {
 
   private func installObservers() {
     guard observers.isEmpty else { return }
+    keyWindowObservation = NSApp.observe(\.keyWindow, options: [.initial, .new]) { [weak self] app, _ in
+      MainActor.assumeIsolated {
+        self?.observeFirstResponder(in: app.keyWindow)
+      }
+    }
     let center = NotificationCenter.default
-    observers.append(
-      center.addObserver(
-        forName: NSWindow.didBecomeKeyNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.refresh()
-        }
-      }
-    )
-    observers.append(
-      center.addObserver(
-        forName: NSWindow.didResignKeyNotification,
-        object: nil,
-        queue: .main
-      ) { [weak self] _ in
-        Task { @MainActor [weak self] in
-          self?.refresh()
-        }
-      }
-    )
     observers.append(
       center.addObserver(
         forName: .ghosttyRuntimeConfigDidChange,
@@ -1175,6 +1170,15 @@ final class SupatermMenuController: NSObject {
         }
       }
     )
+  }
+
+  private func observeFirstResponder(in window: NSWindow?) {
+    firstResponderObservation = window?.observe(\.firstResponder) { [weak self] _, _ in
+      MainActor.assumeIsolated {
+        self?.refresh()
+      }
+    }
+    refresh()
   }
 
   private func topLevelMenuItem(title: String, submenu: NSMenu) -> NSMenuItem {

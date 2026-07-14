@@ -983,6 +983,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   private func localEventKeyUp(_ event: NSEvent) -> NSEvent? {
     if !event.modifierFlags.contains(.command) { return event }
     guard focused else { return event }
+    guard window?.firstResponder === self else { return event }
     keyUp(with: event)
     return nil
   }
@@ -1239,6 +1240,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     guard event.type == .keyDown else { return false }
     guard let surface else { return false }
     guard focused else { return false }
+    guard window?.firstResponder === self else { return false }
 
     if let bindingFlags = bindingFlags(for: event, surface: surface) {
       if shouldAttemptMenu(for: bindingFlags),
