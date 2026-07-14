@@ -265,6 +265,7 @@ private struct CommandPaletteRowButton: View {
       )
     )
     .accessibilityIdentifier("palette.result-row")
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .help(row.description ?? "")
   }
 
