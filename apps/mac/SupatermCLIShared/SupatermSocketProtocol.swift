@@ -36,7 +36,6 @@ public enum SupatermSocketMethod {
   public static let terminalPreviousSpace = "terminal.previous_space"
   public static let terminalPreviousTab = "terminal.previous_tab"
   public static let terminalRenameSpace = "terminal.rename_space"
-  public static let terminalRenameProject = "terminal.rename_project"
   public static let terminalRenameTab = "terminal.rename_tab"
   public static let terminalResizePane = "terminal.resize_pane"
   public static let terminalSelectSpace = "terminal.select_space"
@@ -202,13 +201,6 @@ public struct SupatermSocketRequest: Equatable, Sendable, Codable {
     id: String = UUID().uuidString
   ) throws -> Self {
     try make(SupatermSocketMethod.terminalCloseProject, payload, id: id)
-  }
-
-  public static func renameProject(
-    _ payload: SupatermRenameProjectRequest,
-    id: String = UUID().uuidString
-  ) throws -> Self {
-    try make(SupatermSocketMethod.terminalRenameProject, payload, id: id)
   }
 
   public static func pinProject(

@@ -558,7 +558,7 @@ struct TerminalHostStateNotificationTests {
 
     #expect(host.setTestAgentActivity(.codex(.needsInput), for: firstSurface.id))
 
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
 
     let presentation = host.tabAgentPresentation(for: firstTabID)
     #expect(presentation.badgeActivity == .codex(.needsInput))
@@ -787,7 +787,7 @@ struct TerminalHostStateNotificationTests {
     #expect(host.selectedSurfaceView?.id == firstSurface.id)
     #expect(host.unreadNotifiedSurfaceIDs(in: firstTabID) == Set([secondSurface.paneID]))
 
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
 
     let secondTabID = try #require(host.selectedTabID)
     #expect(secondTabID != firstTabID)

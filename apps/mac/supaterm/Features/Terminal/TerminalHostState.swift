@@ -275,6 +275,10 @@ final class TerminalHostState {
   @ObservationIgnored
   let zmxSessionsEnabled: Bool
   @ObservationIgnored
+  let windowControllerID: UUID
+  @ObservationIgnored
+  let projectDirectoryMonitor: TerminalProjectDirectoryMonitor
+  @ObservationIgnored
   @Shared(.supatermSettings)
   var supatermSettings = .default
   @ObservationIgnored
@@ -297,6 +301,8 @@ final class TerminalHostState {
   var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
   @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
+  @ObservationIgnored
+  var onProjectDirectoryPickerRequest: @MainActor () -> Void = {}
   @ObservationIgnored
   var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
   @ObservationIgnored
@@ -324,12 +330,16 @@ final class TerminalHostState {
     runtime: GhosttyRuntime? = nil,
     managesTerminalSurfaces: Bool = true,
     zmxClient: ZmxClient = .live,
-    zmxSessionsEnabled: Bool = true
+    zmxSessionsEnabled: Bool = true,
+    windowControllerID: UUID = UUID(),
+    projectDirectoryMonitor: TerminalProjectDirectoryMonitor = .shared
   ) {
     self.managesTerminalSurfaces = managesTerminalSurfaces
     self.runtime = managesTerminalSurfaces ? (runtime ?? GhosttyRuntime()) : runtime
     self.zmxClient = zmxClient
     self.zmxSessionsEnabled = zmxSessionsEnabled
+    self.windowControllerID = windowControllerID
+    self.projectDirectoryMonitor = projectDirectoryMonitor
 
     let initialSpaceCatalog = TerminalSpaceCatalog.sanitized(spaceCatalog)
     if initialSpaceCatalog != spaceCatalog {
@@ -339,6 +349,9 @@ final class TerminalHostState {
     spaceManager.bootstrap(
       from: initialSpaceCatalog,
       initialSelectedSpaceID: initialSpaceCatalog.defaultSelectedSpaceID
+    )
+    projectDirectoryMonitor.update(
+      urls: Set(initialSpaceCatalog.spaces.flatMap { $0.projects.map(\.directoryURL) })
     )
     let initialPinnedTabCatalog = sanitizedPinnedTabCatalog(pinnedTabCatalog)
     if initialPinnedTabCatalog != pinnedTabCatalog {
@@ -422,6 +435,7 @@ final class TerminalHostState {
       .selectSpace,
       .togglePinned,
       .updateWindowActivity,
+      .windowSessionStateChanged,
       .deleteSpace:
       handleSelectionCommand(command)
     }
@@ -450,8 +464,23 @@ final class TerminalHostState {
 
   func handleCreationCommand(_ command: TerminalClient.Command) {
     switch command {
-    case .createTab(let inheritingFromSurfaceID):
-      _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    case .createTab(let projectID, let inheritingFromSurfaceID):
+      if projectID == nil,
+        let selectedSpaceID,
+        spaceManager.projects(in: selectedSpaceID).isEmpty
+      {
+        onProjectDirectoryPickerRequest()
+        return
+      }
+      guard
+        createTab(
+          projectID: projectID,
+          inheritingFromSurfaceID: inheritingFromSurfaceID
+        ) != nil
+      else {
+        NSSound.beep()
+        return
+      }
     case .ensureInitialTab(let focusing, let startupCommand, let workingDirectoryPath):
       ensureInitialTab(
         focusing: focusing,
@@ -508,6 +537,8 @@ final class TerminalHostState {
       deleteSpace(spaceID)
     case .updateWindowActivity(let activity):
       updateWindowActivity(activity)
+    case .windowSessionStateChanged:
+      sessionDidChange()
     default:
       return
     }

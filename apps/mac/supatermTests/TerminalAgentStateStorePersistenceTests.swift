@@ -8,7 +8,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func snapshotRestorePreservesForegroundStateAndRouting() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore(processIdentity: testProcessIdentity)
 
     store.apply(
@@ -162,7 +162,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func clearingSurfaceDropsEveryBoundSession() {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     for sessionID in ["older", "foreground"] {

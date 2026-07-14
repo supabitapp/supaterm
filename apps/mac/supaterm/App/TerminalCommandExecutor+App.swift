@@ -11,6 +11,7 @@ extension TerminalCommandExecutor {
       let snapshot = entry.terminal.treeSnapshot()
       return SupatermTreeSnapshot.Window(
         index: offset + 1,
+        id: entry.windowControllerID,
         isKey: entry.terminal.windowActivity.isKeyWindow,
         spaces: snapshot.windows.first?.spaces ?? []
       )
@@ -121,24 +122,6 @@ extension TerminalCommandExecutor {
     for (offset, entry) in registry.activeEntries().enumerated() {
       do {
         let result = try entry.terminal.notify(request)
-        return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
-      } catch let error as TerminalCreatePaneError {
-        if case .contextPaneNotFound = error {
-          continue
-        }
-        throw error
-      }
-    }
-    throw TerminalCreatePaneError.contextPaneNotFound
-  }
-
-  func notifyStructuredAgent(
-    _ request: TerminalNotifyRequest,
-    semantic: TerminalHostState.NotificationSemantic
-  ) throws -> SupatermNotifyResult {
-    for (offset, entry) in registry.activeEntries().enumerated() {
-      do {
-        let result = try entry.terminal.notifyStructuredAgent(request, semantic: semantic)
         return TerminalWindowRegistry.rewrite(result, windowIndex: offset + 1)
       } catch let error as TerminalCreatePaneError {
         if case .contextPaneNotFound = error {

@@ -74,6 +74,7 @@ struct TerminalWindowFeature {
   @ObservableState
   struct State: Equatable {
     var commandPalette: TerminalCommandPaletteState?
+    var collapsedProjectIDs: Set<TerminalProjectID> = []
     var confirmationRequest: ConfirmationRequest?
     var startupCommand: String?
     var isFloatingSidebarVisible = false
@@ -149,6 +150,7 @@ struct TerminalWindowFeature {
     case closeTabRequested(TerminalTabID)
     case closeTabsBelowRequested(TerminalTabID)
     case collapseSidebarButtonTapped
+    case collapsedProjectIDsChanged(Set<TerminalProjectID>)
     case floatingSidebarVisibilityChanged(Bool)
     case agentPanelCopyBranchName(String)
     case agentPanelCopySessionID(String)
@@ -160,7 +162,7 @@ struct TerminalWindowFeature {
     case agentPanelURLTapped(URL)
     case agentPanelVisibilityToggled(UUID)
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
-    case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
+    case newTabButtonTapped(projectID: TerminalProjectID?, inheritingFromSurfaceID: UUID?)
     case nextSpaceRequested
     case nextTabMenuItemSelected
     case previousSpaceRequested
@@ -227,7 +229,12 @@ struct TerminalWindowFeature {
           }
 
         case .newTabRequested(let inheritingFromSurfaceID):
-          return .send(.newTabButtonTapped(inheritingFromSurfaceID: inheritingFromSurfaceID))
+          return .send(
+            .newTabButtonTapped(
+              projectID: nil,
+              inheritingFromSurfaceID: inheritingFromSurfaceID
+            )
+          )
 
         case .notificationReceived(let event):
           @Shared(.supatermSettings) var supatermSettings = .default
@@ -239,6 +246,7 @@ struct TerminalWindowFeature {
                 body: event.body,
                 subtitle: event.subtitle,
                 title: event.resolvedTitle,
+                sourceWindowID: event.sourceWindowID,
                 sourceSurfaceID: event.sourceSurfaceID
               )
             )
@@ -323,6 +331,11 @@ struct TerminalWindowFeature {
         state.isSidebarCollapsed = true
         return .none
 
+      case .collapsedProjectIDsChanged(let projectIDs):
+        guard state.collapsedProjectIDs != projectIDs else { return .none }
+        state.collapsedProjectIDs = projectIDs
+        return sendCommand(.windowSessionStateChanged)
+
       case .floatingSidebarVisibilityChanged(let isVisible):
         state.isFloatingSidebarVisible = isVisible
         return .none
@@ -362,9 +375,14 @@ struct TerminalWindowFeature {
       case .navigateSearchMenuItemSelected(let direction):
         return sendCommand(.navigateSearch(direction))
 
-      case .newTabButtonTapped(let inheritingFromSurfaceID):
+      case .newTabButtonTapped(let projectID, let inheritingFromSurfaceID):
         analyticsClient.capture("terminal_tab_created")
-        return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
+        return sendCommand(
+          .createTab(
+            projectID: projectID,
+            inheritingFromSurfaceID: inheritingFromSurfaceID
+          )
+        )
 
       case .nextSpaceRequested:
         return sendCommand(.nextSpace)

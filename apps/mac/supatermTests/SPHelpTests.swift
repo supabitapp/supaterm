@@ -12,6 +12,7 @@ struct SPHelpTests {
     #expect(help.contains("SUPATERM_CLI_PATH"))
     #expect(help.contains("SUPATERM_SOCKET_PATH"))
     #expect(help.contains("SUPATERM_STATE_HOME"))
+    #expect(help.contains("SUPATERM_WINDOW_ID"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
@@ -37,6 +38,8 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.Space.self, columns: 100),
       SP.helpMessage(for: SP.SpaceNew.self, columns: 100),
       SP.helpMessage(for: SP.SpaceDestroy.self, columns: 100),
+      SP.helpMessage(for: SP.Project.self, columns: 100),
+      SP.helpMessage(for: SP.ProjectNew.self, columns: 100),
       SP.helpMessage(for: SP.Tab.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
       SP.helpMessage(for: SP.Pane.self, columns: 100),
@@ -85,10 +88,11 @@ struct SPHelpTests {
     #expect(help.contains("tab selector, a pane selector, or a UUID"))
     #expect(help.contains("SUPATERM_SURFACE_ID"))
     #expect(help.contains("SUPATERM_TAB_ID"))
+    #expect(help.contains("SUPATERM_WINDOW_ID"))
     #expect(help.contains("sp pane split down -- htop"))
     #expect(help.contains("sp pane split right --cwd ~/tmp"))
     #expect(help.contains("sp pane split --layout keep right"))
-    #expect(help.contains("sp pane split --in 1/2 left"))
+    #expect(help.contains("sp pane split --in 1/1/2 left"))
     #expect(help.contains("sp pane split --in <tab-uuid> left"))
   }
 
@@ -117,12 +121,12 @@ struct SPHelpTests {
     let newTabHelp = SP.helpMessage(for: SP.NewTab.self, columns: 100)
     let notifyHelp = SP.helpMessage(for: SP.Notify.self, columns: 100)
 
-    #expect(newTabHelp.contains("space selector or UUID"))
+    #expect(newTabHelp.contains("project selector or UUID"))
     #expect(newTabHelp.contains("Trailing arguments after `--` are treated as a terminal startup command."))
     #expect(newTabHelp.contains("`--script` runs shell script text as the terminal startup command."))
     #expect(newTabHelp.contains("sp tab new --script 'echo hi; pwd'"))
-    #expect(newTabHelp.contains("sp tab new --in <space-uuid>"))
-    #expect(notifyHelp.contains("space/tab/pane"))
+    #expect(newTabHelp.contains("sp tab new --in <project-uuid>"))
+    #expect(notifyHelp.contains("space/project/tab/pane"))
     #expect(notifyHelp.contains("sp pane notify <pane-uuid>"))
   }
 
@@ -150,12 +154,23 @@ struct SPHelpTests {
     let pinHelp = SP.helpMessage(for: SP.PinTab.self, columns: 100)
     let unpinHelp = SP.helpMessage(for: SP.UnpinTab.self, columns: 100)
 
-    #expect(tabHelp.contains("sp tab pin 1/2"))
-    #expect(tabHelp.contains("sp tab unpin 1/2"))
+    #expect(tabHelp.contains("sp tab pin 1/1/2"))
+    #expect(tabHelp.contains("sp tab unpin 1/1/2"))
     #expect(pinHelp.contains("sp tab pin"))
     #expect(pinHelp.contains("sp tab pin <tab-uuid>"))
     #expect(unpinHelp.contains("sp tab unpin"))
     #expect(unpinHelp.contains("sp tab unpin <tab-uuid>"))
+  }
+
+  @Test
+  func projectHelpRequiresAnExistingDirectoryAndOmitsRename() {
+    let projectHelp = SP.helpMessage(for: SP.Project.self, columns: 100)
+    let newHelp = SP.helpMessage(for: SP.ProjectNew.self, columns: 100)
+
+    #expect(projectHelp.contains("sp project new ."))
+    #expect(!projectHelp.contains("rename"))
+    #expect(newHelp.contains("Existing directory for the new project."))
+    #expect(newHelp.contains("Relative paths resolve against the current working directory."))
   }
 
   @Test

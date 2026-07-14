@@ -495,6 +495,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Claude needs your attention",
           subtitle: "Needs input",
           title: "Claude Code",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )
@@ -580,6 +581,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Forked turn done.",
           subtitle: "Turn complete",
           title: "Claude Code",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )
@@ -656,6 +658,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Done.",
           subtitle: "Turn complete",
           title: "Claude Code",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )
@@ -884,7 +887,8 @@ struct TerminalCommandExecutorAgentHookTests {
 
     let registry = TerminalWindowRegistry()
     _ = makeCommandExecutor(registry: registry)
-    let host = TerminalHostState()
+    let windowControllerID = UUID()
+    let host = TerminalHostState(windowControllerID: windowControllerID)
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
     let surfaceID = try #require(host.selectedSurfaceView?.id)
     let tabID = try #require(host.selectedTabID)
@@ -910,7 +914,6 @@ struct TerminalCommandExecutorAgentHookTests {
       for: surfaceID
     )
     let store = Store(initialState: AppFeature.State()) { AppFeature() }
-    let windowControllerID = UUID()
     registry.register(
       keyboardShortcutForAction: { _ in nil },
       windowControllerID: windowControllerID,
@@ -1417,6 +1420,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Done.",
           subtitle: "Turn complete",
           title: "Codex",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )
@@ -1502,6 +1506,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Child done.",
           subtitle: "Turn complete",
           title: "Codex",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )
@@ -1628,6 +1633,7 @@ struct TerminalCommandExecutorAgentHookTests {
           body: "Child done.",
           subtitle: "Turn complete",
           title: "Codex",
+          sourceWindowID: harness.context.windowID,
           sourceSurfaceID: harness.context.surfaceID
         )
     )

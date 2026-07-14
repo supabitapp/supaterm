@@ -8,7 +8,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func childActivityNeverReplacesForegroundRoot() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -58,7 +58,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func backgroundChildCannotMutateForegroundRoot() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     for sessionID in ["background", "foreground"] {
@@ -93,7 +93,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func unknownChildCannotCreateOrPromoteRootState() {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(

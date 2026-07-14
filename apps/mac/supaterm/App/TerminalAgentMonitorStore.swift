@@ -16,14 +16,14 @@ final class TerminalAgentMonitorStore {
   }
 
   private struct Entry: Equatable {
+    let context: SupatermCLIContext?
     let generation: UUID
     let path: String
-    let surfaceID: UUID?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-      lhs.generation == rhs.generation
+      lhs.context == rhs.context
+        && lhs.generation == rhs.generation
         && lhs.path == rhs.path
-        && lhs.surfaceID == rhs.surfaceID
     }
   }
 
@@ -48,7 +48,7 @@ final class TerminalAgentMonitorStore {
   private var entries: [Key: Entry] = [:]
   private var monitorTasks: [Key: Task<Void, Never>] = [:]
   private var runningTimeoutTasks: [Key: Task<Void, Never>] = [:]
-  private var timeoutSurfaceIDs: [Key: UUID] = [:]
+  private var timeoutContexts: [Key: SupatermCLIContext] = [:]
 
   init(
     agentRunningTimeout: Duration,
@@ -93,16 +93,16 @@ final class TerminalAgentMonitorStore {
     guard let monitor = makeMonitor(agent: agent) else { return false }
     let key = Key(agent: agent, sessionID: sessionID)
     if entries[key]?.path == transcriptPath,
-      entries[key]?.surfaceID == context?.surfaceID,
+      entries[key]?.context == context,
       monitorTasks[key] != nil
     {
       return true
     }
     cancelTracking(agent: agent, sessionID: sessionID)
     let entry = Entry(
+      context: context,
       generation: UUID(),
-      path: transcriptPath,
-      surfaceID: context?.surfaceID
+      path: transcriptPath
     )
     entries[key] = entry
     let updates = updates(transcriptPath)
@@ -145,13 +145,16 @@ final class TerminalAgentMonitorStore {
     cancelRunningTimeout(agent: agent, sessionID: sessionID)
   }
 
-  func clearSessions(for surfaceID: UUID) {
+  func clearSessions(
+    for surfaceID: UUID,
+    in windowID: UUID
+  ) {
     let keys = Set(
       entries.compactMap { key, entry in
-        entry.surfaceID == surfaceID ? key : nil
+        entry.context?.windowID == windowID && entry.context?.surfaceID == surfaceID ? key : nil
       }
-        + timeoutSurfaceIDs.compactMap { key, timeoutSurfaceID in
-          timeoutSurfaceID == surfaceID ? key : nil
+        + timeoutContexts.compactMap { key, context in
+          context.windowID == windowID && context.surfaceID == surfaceID ? key : nil
         }
     )
     for key in keys {
@@ -170,16 +173,14 @@ final class TerminalAgentMonitorStore {
   ) {
     let key = Key(agent: agent, sessionID: sessionID)
     runningTimeoutTasks.removeValue(forKey: key)?.cancel()
-    if let surfaceID = context?.surfaceID {
-      timeoutSurfaceIDs[key] = surfaceID
-    }
+    timeoutContexts[key] = context
     let timeout = agentRunningTimeout
     let sleep = sleep
     runningTimeoutTasks[key] = Task { [weak self] in
       try? await sleep(timeout)
       guard !Task.isCancelled, let self else { return }
       self.runningTimeoutTasks.removeValue(forKey: key)
-      self.timeoutSurfaceIDs.removeValue(forKey: key)
+      self.timeoutContexts.removeValue(forKey: key)
       self.onRunningTimeoutExpired(agent, sessionID, context)
     }
   }
@@ -187,7 +188,7 @@ final class TerminalAgentMonitorStore {
   func cancelRunningTimeout(agent: SupatermAgentKind, sessionID: String) {
     let key = Key(agent: agent, sessionID: sessionID)
     runningTimeoutTasks.removeValue(forKey: key)?.cancel()
-    timeoutSurfaceIDs.removeValue(forKey: key)
+    timeoutContexts.removeValue(forKey: key)
   }
 
   private func extendRunningTimeoutIfArmed(

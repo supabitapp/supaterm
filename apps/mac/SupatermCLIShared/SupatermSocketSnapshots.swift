@@ -73,7 +73,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let spaceName: String
     public let projectIndex: Int
     public let projectID: UUID
-    public let projectName: String
+    public let projectDirectoryURL: URL
     public let tabIndex: Int
     public let tabID: UUID
     public let tabTitle: String
@@ -87,7 +87,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       spaceName: String,
       projectIndex: Int,
       projectID: UUID,
-      projectName: String,
+      projectDirectoryURL: URL,
       tabIndex: Int,
       tabID: UUID,
       tabTitle: String,
@@ -100,7 +100,7 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       self.spaceName = spaceName
       self.projectIndex = projectIndex
       self.projectID = projectID
-      self.projectName = projectName
+      self.projectDirectoryURL = projectDirectoryURL
       self.tabIndex = tabIndex
       self.tabID = tabID
       self.tabTitle = tabTitle
@@ -111,17 +111,20 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
 
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
+    public let id: UUID
     public let isKey: Bool
     public let isVisible: Bool
     public let spaces: [Space]
 
     public init(
       index: Int,
+      id: UUID,
       isKey: Bool,
       isVisible: Bool,
       spaces: [Space]
     ) {
       self.index = index
+      self.id = id
       self.isKey = isKey
       self.isVisible = isVisible
       self.spaces = spaces
@@ -155,14 +158,14 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
   public struct Project: Equatable, Sendable, Codable {
     public let index: Int
     public let id: UUID
-    public let name: String
+    public let directoryURL: URL
     public let isPinned: Bool
     public let tabs: [Tab]
 
-    public init(index: Int, id: UUID, name: String, isPinned: Bool, tabs: [Tab]) {
+    public init(index: Int, id: UUID, directoryURL: URL, isPinned: Bool, tabs: [Tab]) {
       self.index = index
       self.id = id
-      self.name = name
+      self.directoryURL = directoryURL
       self.isPinned = isPinned
       self.tabs = tabs
     }
@@ -293,11 +296,13 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
 public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
+    public let id: UUID
     public let isKey: Bool
     public let spaces: [Space]
 
-    public init(index: Int, isKey: Bool, spaces: [Space]) {
+    public init(index: Int, id: UUID, isKey: Bool, spaces: [Space]) {
       self.index = index
+      self.id = id
       self.isKey = isKey
       self.spaces = spaces
     }
@@ -330,14 +335,14 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
   public struct Project: Equatable, Sendable, Codable {
     public let index: Int
     public let id: UUID
-    public let name: String
+    public let directoryURL: URL
     public let isPinned: Bool
     public let tabs: [Tab]
 
-    public init(index: Int, id: UUID, name: String, isPinned: Bool, tabs: [Tab]) {
+    public init(index: Int, id: UUID, directoryURL: URL, isPinned: Bool, tabs: [Tab]) {
       self.index = index
       self.id = id
-      self.name = name
+      self.directoryURL = directoryURL
       self.isPinned = isPinned
       self.tabs = tabs
     }

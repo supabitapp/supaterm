@@ -17,7 +17,6 @@ struct TerminalView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var window: NSWindow?
-  @State private var collapsedProjectIDs: Set<TerminalProjectID> = []
 
   private let minSidebarFraction: CGFloat = 0.10
   private let maxSidebarFraction: CGFloat = 0.30
@@ -82,6 +81,13 @@ struct TerminalView: View {
     Binding(
       get: { store.isFloatingSidebarVisible },
       set: { _ = store.send(.floatingSidebarVisibilityChanged($0)) }
+    )
+  }
+
+  private var collapsedProjectIDsBinding: Binding<Set<TerminalProjectID>> {
+    Binding(
+      get: { store.collapsedProjectIDs },
+      set: { _ = store.send(.collapsedProjectIDsChanged($0)) }
     )
   }
 
@@ -272,7 +278,7 @@ struct TerminalView: View {
         releaseAnnouncement: releaseAnnouncement,
         palette: palette,
         terminal: terminal,
-        collapsedProjectIDs: $collapsedProjectIDs,
+        collapsedProjectIDs: collapsedProjectIDsBinding,
         totalWidth: geometry.size.width,
         isSidebarCollapsed: store.isSidebarCollapsed,
         sidebarFraction: sidebarFractionBinding,
@@ -290,7 +296,7 @@ struct TerminalView: View {
           releaseAnnouncement: releaseAnnouncement,
           palette: palette,
           terminal: terminal,
-          collapsedProjectIDs: $collapsedProjectIDs,
+          collapsedProjectIDs: collapsedProjectIDsBinding,
           totalWidth: geometry.size.width,
           sidebarFraction: sidebarFractionBinding,
           isVisible: floatingSidebarVisibilityBinding,

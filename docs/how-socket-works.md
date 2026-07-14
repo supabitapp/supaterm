@@ -31,7 +31,9 @@ Socket selection order:
 
 Terminal object targeting happens after socket selection:
 
-- Pane context comes from `SUPATERM_SURFACE_ID` and `SUPATERM_TAB_ID`.
+- Pane context comes from `SUPATERM_WINDOW_ID`, `SUPATERM_SURFACE_ID`, and `SUPATERM_TAB_ID`.
+- The CLI resolves ambient context against the tree and sends explicit hierarchical indexes.
+- Ambient `sp tab new` requests carry the source pane separately so the new tab inherits its working directory inside the resolved project.
 - Inside Supaterm, commands can omit targets such as `sp tab new`, `sp pane split`, `sp tab focus`, and `sp pane focus`.
 - Outside Supaterm, pass selectors, UUIDs, or `--in` targets.
 
@@ -56,6 +58,7 @@ Discovery rules:
 ## Terminal Topology
 
 - Socket operations target the live terminal model exposed by the app.
+- Projects are identified by directory URLs and shared across windows.
 - Explicit hierarchical targeting resolves in window, then space, then project, then tab, then pane order.
 - Pane-context targeting is available when the CLI is launched from inside Supaterm.
 - Public selectors are 1-based:
@@ -90,7 +93,7 @@ Terminal control:
 
 ```bash
 sp space new --focus Work
-sp project new --in 1 --focus Build
+sp project new --in 1 --focus ~/code/Build
 sp tab new --in 1/1 --cwd ~/tmp -- ping 1.1.1.1
 sp pane split --in 1/1/2 right
 sp pane send --newline 'echo hello'

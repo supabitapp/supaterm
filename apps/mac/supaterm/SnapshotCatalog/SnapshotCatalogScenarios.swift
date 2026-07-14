@@ -700,6 +700,9 @@ private enum SidebarChromeSnapshotContext {
 
   static let terminal: TerminalHostState = {
     let terminal = TerminalHostState(managesTerminalSurfaces: false)
+    let workspaceURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Workspace", isDirectory: true)
+    try? FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
     let spaces = ["supaterm", "research", "ops"].enumerated().map { index, name in
       PersistedTerminalSpace(
         id: TerminalSpaceID(
@@ -711,7 +714,7 @@ private enum SidebarChromeSnapshotContext {
             id: TerminalProjectID(
               rawValue: SnapshotFixtureValues.uuid("31000000-0000-0000-0000-00000000000\(index + 1)")
             ),
-            name: "Workspace"
+            directoryURL: workspaceURL
           )
         ]
       )

@@ -53,12 +53,28 @@ struct SPTmuxTopology {
 
   init(
     snapshot: SupatermAppDebugSnapshot,
-    contextPaneID: UUID?
+    context: SupatermCLIContext?
   ) throws {
     self.snapshot = snapshot
-    if let contextPaneID, let located = Self.locatePane(id: contextPaneID, in: snapshot) {
-      self.current = located
-      return
+    if let context,
+      let window = snapshot.windows.first(where: { $0.id == context.windowID })
+    {
+      if let located = Self.locatePane(id: context.surfaceID, in: window) {
+        self.current = located
+        return
+      }
+      if let located = Self.locateTab(id: context.tabID, in: window),
+        let pane = located.tab.panes.first(where: \.isFocused) ?? located.tab.panes.first
+      {
+        self.current = .init(
+          window: window,
+          space: located.space,
+          project: located.project,
+          tab: located.tab,
+          pane: pane
+        )
+        return
+      }
     }
     if let paneID = snapshot.currentTarget?.paneID,
       let located = Self.locatePane(id: paneID, in: snapshot)
@@ -388,13 +404,37 @@ struct SPTmuxTopology {
 
   private static func locateTab(
     id: UUID,
+    in window: Window
+  ) -> TabLocation? {
+    for space in window.spaces {
+      for project in space.projects {
+        for tab in project.tabs where tab.id == id {
+          return .init(window: window, space: space, project: project, tab: tab)
+        }
+      }
+    }
+    return nil
+  }
+
+  private static func locateTab(
+    id: UUID,
     in snapshot: SupatermAppDebugSnapshot
   ) -> TabLocation? {
     for window in snapshot.windows {
-      for space in window.spaces {
-        for project in space.projects {
-          for tab in project.tabs where tab.id == id {
-            return .init(window: window, space: space, project: project, tab: tab)
+      if let location = locateTab(id: id, in: window) { return location }
+    }
+    return nil
+  }
+
+  private static func locatePane(
+    id: UUID,
+    in window: Window
+  ) -> PaneLocation? {
+    for space in window.spaces {
+      for project in space.projects {
+        for tab in project.tabs {
+          for pane in tab.panes where pane.id == id {
+            return .init(window: window, space: space, project: project, tab: tab, pane: pane)
           }
         }
       }
@@ -407,15 +447,7 @@ struct SPTmuxTopology {
     in snapshot: SupatermAppDebugSnapshot
   ) -> PaneLocation? {
     for window in snapshot.windows {
-      for space in window.spaces {
-        for project in space.projects {
-          for tab in project.tabs {
-            for pane in tab.panes where pane.id == id {
-              return .init(window: window, space: space, project: project, tab: tab, pane: pane)
-            }
-          }
-        }
-      }
+      if let location = locatePane(id: id, in: window) { return location }
     }
     return nil
   }

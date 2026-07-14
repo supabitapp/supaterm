@@ -11,17 +11,20 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
   public let startupCommand: String?
   public let cwd: String?
   public let focus: Bool
+  public let inheritingFromSurfaceID: UUID?
   public let target: Target
 
   public init(
     startupCommand: String?,
     cwd: String?,
     focus: Bool,
+    inheritingFromSurfaceID: UUID? = nil,
     target: Target
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.inheritingFromSurfaceID = inheritingFromSurfaceID
     self.target = target
   }
 }
@@ -96,23 +99,13 @@ public enum TerminalProjectTarget: Equatable, Sendable {
 }
 
 public struct TerminalCreateProjectRequest: Equatable, Sendable {
-  public let name: String
+  public let directoryURL: URL
   public let focus: Bool
   public let target: TerminalSpaceTarget
 
-  public init(name: String, focus: Bool, target: TerminalSpaceTarget) {
-    self.name = name
+  public init(directoryURL: URL, focus: Bool, target: TerminalSpaceTarget) {
+    self.directoryURL = directoryURL
     self.focus = focus
-    self.target = target
-  }
-}
-
-public struct TerminalRenameProjectRequest: Equatable, Sendable {
-  public let name: String
-  public let target: TerminalProjectTarget
-
-  public init(name: String, target: TerminalProjectTarget) {
-    self.name = name
     self.target = target
   }
 }
@@ -324,6 +317,7 @@ public enum TerminalCreatePaneError: Error, Equatable {
 public enum TerminalCreateTabError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
+  case projectDirectoryUnavailable(URL)
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case windowNotFound(Int)
 }
@@ -331,16 +325,16 @@ public enum TerminalCreateTabError: Error, Equatable {
 public enum TerminalControlError: Error, Equatable {
   case captureFailed
   case contextPaneNotFound
-  case invalidProjectName
+  case invalidProjectDirectory
   case invalidSpaceName
   case lastPaneNotFound
   case lastSpaceNotFound
   case lastTabNotFound
   case onlyRemainingSpace
-  case onlyRemainingProject
   case paneNotFound(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+  case projectAlreadyExists
+  case projectDirectoryUnavailable
   case projectNotFound(windowIndex: Int, spaceIndex: Int, projectIndex: Int)
-  case projectNameUnavailable
   case resizeFailed
   case spaceNameUnavailable
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)

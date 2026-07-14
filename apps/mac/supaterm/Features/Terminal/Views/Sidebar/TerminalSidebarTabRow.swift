@@ -232,7 +232,10 @@ struct TerminalSidebarTabRow: View {
         case .newTab:
           Button {
             _ = store.send(
-              .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
+              .newTabButtonTapped(
+                projectID: terminal.projectID(for: tab.id),
+                inheritingFromSurfaceID: contextSurfaceID
+              )
             )
           } label: {
             Label("New Tab", systemImage: "plus")

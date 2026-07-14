@@ -8,7 +8,7 @@ extension SupatermE2ESuite {
     func parentReadOnlyAndConfigCommandsRoundTripThroughEmbeddedBinary() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
 
         for arguments in parentHelpCommands {
           let result = try requireSuccessfulSPResult(try runner.run(arguments, cwd: space.directory))
@@ -97,7 +97,7 @@ extension SupatermE2ESuite {
     func runInjectsSupatermAndTmuxEnvironment() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let result = try requireSuccessfulSPResult(
           try runner.run(
             ["run", "--socket", app.socketPath, "--", "/usr/bin/env"],
@@ -120,7 +120,7 @@ extension SupatermE2ESuite {
     func spaceTabAndPaneCommandsMutateLiveAppState() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let cliSpace = try await exerciseSpaceCommands(app: app, space: space, runner: runner)
         try exerciseProjectCommands(app: app, space: space, cliSpace: cliSpace)
         let cliTab = try await exerciseTabCommands(app: app, space: space, cliSpace: cliSpace)
@@ -132,7 +132,7 @@ extension SupatermE2ESuite {
     func tmuxCompatibilityCommandsUseTheLiveSocketTree() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let split = try requireSuccessfulSPResult(
           try runner.run(
             [
@@ -192,7 +192,7 @@ extension SupatermE2ESuite {
     func paneWaitReadyReturnsExpectedExitCodes() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let ready = try requireSuccessfulSPResult(
           try runner.run(
             [
@@ -220,7 +220,7 @@ extension SupatermE2ESuite {
     func jsonTreeMatchesSocketSnapshot() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let result = try requireSuccessfulSPResult(
           try runner.run(["ls", "--socket", app.socketPath, "--json"], cwd: space.directory)
         )
@@ -234,7 +234,7 @@ extension SupatermE2ESuite {
     func developmentHookRoundTripsThroughEmbeddedBinary() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         let sessionID = "e2e-\(space.token)"
         for command in [
           "session-start",
@@ -262,7 +262,7 @@ extension SupatermE2ESuite {
     func agentSettingsAndInternalHookCommandsStayHermetic() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
 
         let claudeSettings = try requireSuccessfulSPResult(
           try runner.run(["internal", "agent-settings", "claude"], cwd: space.directory)
@@ -323,17 +323,24 @@ extension SupatermE2ESuite {
     func tmuxCompatibilityCoversEveryDispatcherFamily() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
-        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        let runner = spRunner(app, space: space, tabID: space.tab.tabID, paneID: space.tab.paneID)
         try await exerciseTmuxCompatibility(app: app, space: space, runner: runner)
       }
     }
   }
 }
 
-private func spRunner(_ app: SupatermE2EApp, tabID: UUID, paneID: UUID) -> SPBinaryRunner {
+private func spRunner(
+  _ app: SupatermE2EApp,
+  space: TestSpace,
+  tabID: UUID,
+  paneID: UUID
+) -> SPBinaryRunner {
   SPBinaryRunner(
     executable: app.spExecutable,
-    environment: app.cliEnvironment(context: app.context(tabID: tabID, paneID: paneID))
+    environment: app.cliEnvironment(
+      context: app.context(windowID: space.windowID, tabID: tabID, paneID: paneID)
+    )
   )
 }
 
@@ -376,7 +383,7 @@ private func exerciseSpaceCommands(
       )
     )
   )
-  let createdRunner = spRunner(app, tabID: created.tabID, paneID: created.paneID)
+  let createdRunner = spRunner(app, space: space, tabID: created.tabID, paneID: created.paneID)
   try await app.waitForShellPrompt(SupatermPaneTargetRequest(contextPaneID: created.paneID))
 
   let renamed = try decodeSPJSON(
@@ -435,7 +442,7 @@ private func exerciseTabCommands(
     )
   )
   try await app.waitForShellPrompt(SupatermPaneTargetRequest(contextPaneID: created.paneID))
-  let runner = spRunner(app, tabID: created.tabID, paneID: created.paneID)
+  let runner = spRunner(app, space: space, tabID: created.tabID, paneID: created.paneID)
 
   let renamed = try decodeSPJSON(
     SupatermRenameTabResult.self,

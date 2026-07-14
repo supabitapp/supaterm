@@ -20,7 +20,7 @@
             PersistedTerminalSpace(
               id: IDs.space,
               name: "Supaterm",
-              projects: [TerminalProjectItem(id: IDs.project, name: "supaterm")]
+              projects: [TerminalProjectItem(id: IDs.project, directoryURL: workspaceRoot)]
             )
           ]
         )

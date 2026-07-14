@@ -9,6 +9,7 @@ enum SPHelp {
       \(SupatermCLIEnvironment.cliPathKey)  Auto-set in Supaterm panes. Path to the bundled sp CLI.
       \(SupatermCLIEnvironment.socketPathKey)  Auto-set in Supaterm panes. Default --socket.
       \(SupatermCLIEnvironment.stateHomeKey)  Optional root for Supaterm state.
+      \(SupatermCLIEnvironment.windowIDKey)  Auto-set in Supaterm panes. Current window ID.
       \(SupatermCLIEnvironment.surfaceIDKey)  Auto-set in Supaterm panes. Current pane ID.
       \(SupatermCLIEnvironment.tabIDKey)  Auto-set in Supaterm panes. Current tab ID.
 
@@ -21,7 +22,7 @@ enum SPHelp {
     """
 
   static let treeDiscussion = """
-    `sp ls --json` includes UUIDs for spaces, tabs, and panes.
+    `sp ls --json` includes UUIDs for windows, spaces, projects, tabs, and panes.
 
     Example:
       sp ls
@@ -56,7 +57,7 @@ enum SPHelp {
   static let newPaneDiscussion = """
     If you omit --in inside Supaterm, this command splits the current pane.
 
-    That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
+    That ambient pane target comes from \(SupatermCLIEnvironment.windowIDKey), \(SupatermCLIEnvironment.surfaceIDKey), and \(SupatermCLIEnvironment.tabIDKey).
 
     `--in` accepts a tab selector, a pane selector, or a UUID.
 
@@ -70,17 +71,17 @@ enum SPHelp {
       sp pane split down -- htop
       sp pane split down --script 'echo hi; pwd'
       sp pane split --layout keep right
-      sp pane split --in 1/2 left
+      sp pane split --in 1/1/2 left
       sp pane split --in <tab-uuid> left
-      sp pane split --in 1/2/3 down -- tail -f /tmp/server.log
+      sp pane split --in 1/1/2/3 down -- tail -f /tmp/server.log
     """
 
   static let newTabDiscussion = """
-    If you omit --in inside Supaterm, this command creates the tab in the current space.
+    If you omit --in inside Supaterm, this command creates the tab in the current project and inherits the current pane's working directory unless --cwd is provided.
 
-    That ambient pane target comes from \(SupatermCLIEnvironment.surfaceIDKey) and \(SupatermCLIEnvironment.tabIDKey).
+    That ambient pane target comes from \(SupatermCLIEnvironment.windowIDKey), \(SupatermCLIEnvironment.surfaceIDKey), and \(SupatermCLIEnvironment.tabIDKey).
 
-    `--in` accepts a space selector or UUID.
+    `--in` accepts a project selector or UUID.
 
     Trailing arguments after `--` are treated as a terminal startup command.
 
@@ -90,94 +91,94 @@ enum SPHelp {
       sp tab new -- ping 1.1.1.1
       sp tab new --script 'echo hi; pwd'
       sp tab new --focus -- ping 1.1.1.1
-      sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
-      sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
+      sp tab new --in 1/2 --cwd ~/tmp -- ping 1.1.1.1
+      sp tab new --in <project-uuid> --cwd ~/tmp -- ping 1.1.1.1
     """
 
   static let notifyDiscussion = """
     If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane notify --body "All tests passed"
       sp pane notify --title "Deploy complete"
-      sp pane notify 1/2/3 --body "Deploy complete"
+      sp pane notify 1/1/2/3 --body "Deploy complete"
       sp pane notify <pane-uuid> --body "Deploy complete"
     """
 
   static let focusPaneDiscussion = """
     If you omit the pane target inside Supaterm, this command focuses the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
-      sp pane focus 1/2/3
+      sp pane focus 1/1/2/3
       sp pane focus <pane-uuid>
     """
 
   static let closePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command closes the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane close
-      sp pane close 1/2/3
+      sp pane close 1/1/2/3
       sp pane close <pane-uuid>
     """
 
   static let selectTabDiscussion = """
     If you omit the tab target inside Supaterm, this command focuses the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept either a `space/project/tab` selector or a UUID.
 
     Example:
-      sp tab focus 1/2
+      sp tab focus 1/1/2
       sp tab focus <tab-uuid>
     """
 
   static let pinTabDiscussion = """
     If you omit the tab target inside Supaterm, this command pins the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept either a `space/project/tab` selector or a UUID.
 
     Example:
       sp tab pin
-      sp tab pin 1/2
+      sp tab pin 1/1/2
       sp tab pin <tab-uuid>
     """
 
   static let unpinTabDiscussion = """
     If you omit the tab target inside Supaterm, this command unpins the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept either a `space/project/tab` selector or a UUID.
 
     Example:
       sp tab unpin
-      sp tab unpin 1/2
+      sp tab unpin 1/1/2
       sp tab unpin <tab-uuid>
     """
 
   static let closeTabDiscussion = """
     If you omit the tab target inside Supaterm, this command closes the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept either a `space/project/tab` selector or a UUID.
 
     Example:
       sp tab close
-      sp tab close 1/2
+      sp tab close 1/1/2
       sp tab close <tab-uuid>
     """
 
   static let sendTextDiscussion = """
     If you omit the pane target inside Supaterm, this command targets the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane send --newline 'echo hello'
-      sp pane send 1/2/3 'pwd'
+      sp pane send 1/1/2/3 'pwd'
       sp pane send <pane-uuid> 'clear'
       printf 'pwd' | sp pane send
     """
@@ -185,7 +186,7 @@ enum SPHelp {
   static let capturePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command captures the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane capture
@@ -196,7 +197,7 @@ enum SPHelp {
   static let paneHealthDiscussion = """
     If you omit the pane target inside Supaterm, this command inspects the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane health
@@ -206,7 +207,7 @@ enum SPHelp {
   static let paneWaitReadyDiscussion = """
     If you omit the pane target inside Supaterm, this command waits for the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane wait-ready
@@ -216,22 +217,22 @@ enum SPHelp {
   static let resizePaneDiscussion = """
     If you omit the pane target inside Supaterm, this command resizes the current pane.
 
-    Pane targets accept either a `space/tab/pane` selector or a UUID.
+    Pane targets accept either a `space/project/tab/pane` selector or a UUID.
 
     Example:
       sp pane resize right 10
-      sp pane resize down 5 1/2/3
+      sp pane resize down 5 1/1/2/3
       sp pane resize left 8 <pane-uuid>
     """
 
   static let renameTabDiscussion = """
     If you omit the tab target inside Supaterm, this command renames the current tab.
 
-    Tab targets accept either a `space/tab` selector or a UUID.
+    Tab targets accept either a `space/project/tab` selector or a UUID.
 
     Example:
       sp tab rename Build
-      sp tab rename Logs 1/2
+      sp tab rename Logs 1/1/2
       sp tab rename Deploy <tab-uuid>
     """
 
@@ -433,24 +434,41 @@ enum SPHelp {
       sp space next
     """
 
+  static let projectDiscussion = """
+    Example:
+      sp project new .
+      sp project new --in 2 --focus ~/code/supaterm
+      sp project pin 1/2
+      sp project destroy -y 1/2
+    """
+
+  static let projectNewDiscussion = """
+    The directory must exist. Relative paths resolve against the current working directory.
+
+    Example:
+      sp project new .
+      sp project new --focus ~/code/supaterm
+      sp project new --in 2 ../api
+    """
+
   static let tabDiscussion = """
     Example:
       sp tab new --focus -- ping 1.1.1.1
-      sp tab focus 1/2
-      sp tab pin 1/2
-      sp tab unpin 1/2
-      sp tab rename Logs 1/2
+      sp tab focus 1/1/2
+      sp tab pin 1/1/2
+      sp tab unpin 1/1/2
+      sp tab rename Logs 1/1/2
       sp tab next 1
     """
 
   static let paneDiscussion = """
     Example:
       sp pane split down -- htop
-      sp pane focus 1/2/3
+      sp pane focus 1/1/2/3
       sp pane send --newline 'echo hello'
       sp pane health <pane-uuid> --json
       sp pane wait-ready <pane-uuid> --timeout 5
-      sp pane layout equalize 1/2
+      sp pane layout equalize 1/1/2
     """
 
   static let spaceNewDiscussion = """
@@ -497,7 +515,7 @@ enum SPHelp {
   static let paneLayoutDiscussion = """
     Example:
       sp pane layout equalize
-      sp pane layout tile 1/2
+      sp pane layout tile 1/1/2
       sp pane layout main-vertical <tab-uuid>
     """
 

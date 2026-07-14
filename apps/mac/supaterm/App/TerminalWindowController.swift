@@ -85,16 +85,63 @@ final class TerminalWindowController: NSWindowController {
     let terminal = TerminalHostState(
       runtime: runtime,
       zmxClient: zmxClient,
-      zmxSessionsEnabled: zmxSessionsEnabled
+      zmxSessionsEnabled: zmxSessionsEnabled,
+      windowControllerID: windowControllerID
     )
     terminal.onSessionChange = onSessionChange
     if let session {
       _ = terminal.restore(from: session)
     }
     let commandPaletteClient = TerminalCommandPaletteClient.live(registry: registry)
-    let store = Store(
+    let store = Self.makeStore(
+      commandPaletteClient: commandPaletteClient,
+      registry: registry,
+      session: session,
+      startupCommand: startupCommand,
+      terminal: terminal
+    )
+    let ghosttyShortcuts = GhosttyShortcutManager(runtime: runtime)
+    let commandHoldObserver = CommandHoldObserver()
+
+    self.commandHoldObserver = commandHoldObserver
+    self.terminal = terminal
+    self.store = store
+
+    let contentViewController = NSHostingController(
+      rootView: AppAppearanceView {
+        GhosttyColorSchemeSyncView(ghostty: runtime) {
+          ContentView(
+            commandHoldObserver: commandHoldObserver,
+            ghosttyShortcuts: ghosttyShortcuts,
+            commandPaletteClient: commandPaletteClient,
+            store: store,
+            terminal: terminal
+          )
+        }
+      }
+    )
+    let window = Self.makeWindow(
+      contentViewController: contentViewController,
+      frame: session?.frame,
+      windowControllerID: windowControllerID
+    )
+
+    super.init(window: window)
+
+    configure(window, ghosttyShortcuts: ghosttyShortcuts)
+  }
+
+  private static func makeStore(
+    commandPaletteClient: TerminalCommandPaletteClient,
+    registry: TerminalWindowRegistry,
+    session: TerminalWindowSession?,
+    startupCommand: String?,
+    terminal: TerminalHostState
+  ) -> StoreOf<AppFeature> {
+    Store(
       initialState: AppFeature.State(
         terminal: TerminalWindowFeature.State(
+          collapsedProjectIDs: session?.collapsedProjectIDs ?? [],
           startupCommand: startupCommand
         )
       )
@@ -111,34 +158,20 @@ final class TerminalWindowController: NSWindowController {
       $0.terminalClient = .live(host: terminal)
       $0.windowCloseClient = .live(registry: registry)
     }
-    let ghosttyShortcuts = GhosttyShortcutManager(runtime: runtime)
-    let commandHoldObserver = CommandHoldObserver()
+  }
 
-    self.commandHoldObserver = commandHoldObserver
-    self.terminal = terminal
-    self.store = store
-
-    let hostingController = NSHostingController(
-      rootView: AppAppearanceView {
-        GhosttyColorSchemeSyncView(ghostty: runtime) {
-          ContentView(
-            commandHoldObserver: commandHoldObserver,
-            ghosttyShortcuts: ghosttyShortcuts,
-            commandPaletteClient: commandPaletteClient,
-            store: store,
-            terminal: terminal
-          )
-        }
-      }
-    )
-
+  private static func makeWindow(
+    contentViewController: NSViewController,
+    frame: TerminalWindowFrame?,
+    windowControllerID: UUID
+  ) -> TerminalGestureWindow {
     let window = TerminalGestureWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
-    window.contentViewController = hostingController
+    window.contentViewController = contentViewController
     window.contentMinSize = NSSize(width: 1_080, height: 720)
     window.identifier = NSUserInterfaceItemIdentifier(
       "\(Bundle.main.bundleIdentifier ?? "app.supabit.supaterm").window.\(windowControllerID.uuidString)")
@@ -147,7 +180,14 @@ final class TerminalWindowController: NSWindowController {
     window.title = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Supaterm"
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    Self.applyRestoredFrame(session?.frame, to: window)
+    applyRestoredFrame(frame, to: window)
+    return window
+  }
+
+  private func configure(
+    _ window: TerminalGestureWindow,
+    ghosttyShortcuts: GhosttyShortcutManager
+  ) {
     window.onModifierFlagsChanged = { [commandHoldObserver] modifierFlags in
       commandHoldObserver.update(modifierFlags: modifierFlags)
     }
@@ -162,9 +202,6 @@ final class TerminalWindowController: NSWindowController {
     window.onSwipeRight = { [store] in
       _ = store.send(.terminal(.previousSpaceRequested))
     }
-
-    super.init(window: window)
-
     window.delegate = self
     registry.register(
       keyboardShortcutForAction: { [ghosttyShortcuts] action in
@@ -181,6 +218,17 @@ final class TerminalWindowController: NSWindowController {
       }
     )
     registry.updateWindow(window, for: windowControllerID)
+    terminal.onProjectDirectoryPickerRequest = { [weak self, weak terminal] in
+      guard let terminal, let spaceID = terminal.selectedSpaceID else { return }
+      TerminalProjectDirectoryPicker.chooseDirectories(for: self?.window) { [weak terminal] urls in
+        guard let terminal, !urls.isEmpty else { return }
+        do {
+          _ = try terminal.createProjects(directoryURLs: urls, in: spaceID)
+        } catch {
+          TerminalProjectDirectoryPicker.present(error, for: self?.window)
+        }
+      }
+    }
     _ = store.send(.terminal(.windowIdentifierChanged(ObjectIdentifier(window))))
   }
 

@@ -12,17 +12,22 @@ import Testing
 @MainActor
 struct TerminalWindowFeatureTests {
   @Test
-  func desktopNotificationRequestEncodesSourceSurfaceIDInUserInfo() {
+  func desktopNotificationRequestEncodesSourceInUserInfo() {
+    let windowID = UUID()
     let surfaceID = UUID()
     let request = DesktopNotificationRequest(
       body: "Build finished",
       subtitle: "CI",
       title: "Deploy complete",
+      sourceWindowID: windowID,
       sourceSurfaceID: surfaceID
     )
 
-    #expect(DesktopNotificationRequest.sourceSurfaceID(from: request.userInfo) == surfaceID)
-    #expect(DesktopNotificationRequest.sourceSurfaceID(from: [:]) == nil)
+    #expect(
+      DesktopNotificationRequest.source(from: request.userInfo)
+        == DesktopNotificationRequest.Source(windowID: windowID, surfaceID: surfaceID)
+    )
+    #expect(DesktopNotificationRequest.source(from: [:]) == nil)
   }
 
   @Test
@@ -49,7 +54,7 @@ struct TerminalWindowFeatureTests {
     #expect(
       recorder.commands == [
         .ensureInitialTab(focusing: false, startupCommand: nil),
-        .createTab(inheritingFromSurfaceID: surfaceID),
+        .createTab(projectID: nil, inheritingFromSurfaceID: surfaceID),
       ])
 
     continuation.finish()
@@ -131,6 +136,23 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func collapsedProjectsPersistWithWindowSession() async {
+    let recorder = TerminalCommandRecorder()
+    let projectIDs: Set<TerminalProjectID> = [TerminalProjectID(), TerminalProjectID()]
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.collapsedProjectIDsChanged(projectIDs)) {
+      $0.collapsedProjectIDs = projectIDs
+    }
+
+    #expect(recorder.commands == [.windowSessionStateChanged])
+  }
+
+  @Test
   func closeOtherTabsRequestedAsksHostToResolveClose() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
@@ -161,10 +183,10 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.newTabButtonTapped(inheritingFromSurfaceID: surfaceID))
+    await store.send(.newTabButtonTapped(projectID: nil, inheritingFromSurfaceID: surfaceID))
 
     #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
-    #expect(recorder.commands == [.createTab(inheritingFromSurfaceID: surfaceID)])
+    #expect(recorder.commands == [.createTab(projectID: nil, inheritingFromSurfaceID: surfaceID)])
   }
 
   @Test
@@ -384,6 +406,7 @@ struct TerminalWindowFeatureTests {
   @Test
   func notificationReceivedDeliversDesktopNotificationWhenRequested() async throws {
     let recorder = TerminalDesktopNotificationRecorder()
+    let sourceWindowID = UUID()
     let sourceSurfaceID = UUID()
     let event = TerminalNotificationEvent(
       attentionState: .unread,
@@ -391,6 +414,7 @@ struct TerminalWindowFeatureTests {
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       sourceSurfaceID: sourceSurfaceID,
+      sourceWindowID: sourceWindowID,
       subtitle: "CI"
     )
 
@@ -419,6 +443,7 @@ struct TerminalWindowFeatureTests {
               body: "Build finished",
               subtitle: "CI",
               title: "Deploy complete",
+              sourceWindowID: sourceWindowID,
               sourceSurfaceID: sourceSurfaceID
             )
           ]
@@ -435,6 +460,7 @@ struct TerminalWindowFeatureTests {
       desktopNotificationDisposition: .suppressFocused,
       resolvedTitle: "Deploy complete",
       sourceSurfaceID: UUID(),
+      sourceWindowID: UUID(),
       subtitle: ""
     )
 
@@ -469,6 +495,7 @@ struct TerminalWindowFeatureTests {
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
       sourceSurfaceID: UUID(),
+      sourceWindowID: UUID(),
       subtitle: "CI"
     )
 

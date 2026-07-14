@@ -27,6 +27,7 @@ extension SocketControlFeature {
             body: payload.body,
             subtitle: payload.subtitle,
             title: result.resolvedTitle,
+            sourceWindowID: result.windowID,
             sourceSurfaceID: result.paneID
           )
         )

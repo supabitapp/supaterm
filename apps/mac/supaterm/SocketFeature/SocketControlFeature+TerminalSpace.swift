@@ -119,7 +119,7 @@ extension SocketControlFeature {
       let execution = try await socketRequestExecutor.executeTerminalSpace(
         .createProject(
           TerminalCreateProjectRequest(
-            name: payload.name,
+            directoryURL: payload.directoryURL,
             focus: payload.focus,
             target: try createSpaceTarget(from: payload.target)
           )
@@ -136,21 +136,6 @@ extension SocketControlFeature {
         .closeProject(try createProjectTarget(from: payload))
       )
       guard case .closeProject(let result) = execution else {
-        throw SocketExecutorError.unexpectedResult
-      }
-      return try .ok(id: request.id, encodableResult: result)
-
-    case SupatermSocketMethod.terminalRenameProject:
-      let payload = try request.decodeParams(SupatermRenameProjectRequest.self)
-      let execution = try await socketRequestExecutor.executeTerminalSpace(
-        .renameProject(
-          TerminalRenameProjectRequest(
-            name: payload.name,
-            target: try createProjectTarget(from: payload.target)
-          )
-        )
-      )
-      guard case .renameProject(let result) = execution else {
         throw SocketExecutorError.unexpectedResult
       }
       return try .ok(id: request.id, encodableResult: result)

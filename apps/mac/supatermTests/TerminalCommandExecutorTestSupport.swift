@@ -117,13 +117,12 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
     transcriptEventDelay: transcriptEventDelay,
     clock: clock
   )
-  let host = TerminalHostState()
+  let windowControllerID = UUID()
+  let host = TerminalHostState(windowControllerID: windowControllerID)
   host.windowActivity = windowActivity
   let store = Store(initialState: AppFeature.State()) {
     AppFeature()
   }
-  let windowControllerID = UUID()
-
   registry.register(
     keyboardShortcutForAction: { _ in nil },
     windowControllerID: windowControllerID,
@@ -138,7 +137,11 @@ func makeClaudeHookHarness<C: Clock<Duration>>(
   let tabID = try #require(host.selectedTabID)
   let harness = ClaudeHookHarness(
     commandExecutor: commandExecutor,
-    context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+    context: SupatermCLIContext(
+      windowID: windowControllerID,
+      surfaceID: surfaceID,
+      tabID: tabID.rawValue
+    ),
     host: host,
     registry: registry,
     store: store,
@@ -207,7 +210,11 @@ extension TerminalHostState {
     return applyAgentEvent(
       TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
-        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        context: SupatermCLIContext(
+          windowID: windowControllerID,
+          surfaceID: surfaceID,
+          tabID: tabID.rawValue
+        ),
         processID: processID,
         action: .sessionResumed(transcriptPath: nil)
       )
@@ -239,7 +246,11 @@ extension TerminalHostState {
     return applyAgentEvent(
       TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(agent: activity.kind, sessionID: sessionID),
-        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        context: SupatermCLIContext(
+          windowID: windowControllerID,
+          surfaceID: surfaceID,
+          tabID: tabID.rawValue
+        ),
         processID: processID,
         action: action
       )
@@ -265,7 +276,11 @@ extension TerminalHostState {
     return applyAgentEvent(
       TerminalAgentEvent(
         scope: TerminalAgentEvent.Scope(agent: agent, sessionID: sessionID),
-        context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+        context: SupatermCLIContext(
+          windowID: windowControllerID,
+          surfaceID: surfaceID,
+          tabID: tabID.rawValue
+        ),
         processID: processID,
         action: .turnCompleted(message: nil)
       )
@@ -317,7 +332,11 @@ extension TerminalHostState {
     }
     return TestAgentTarget(
       scope: TerminalAgentEvent.Scope(agent: snapshot.agent, sessionID: snapshot.sessionID),
-      context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+      context: SupatermCLIContext(
+        windowID: windowControllerID,
+        surfaceID: surfaceID,
+        tabID: tabID.rawValue
+      ),
       hoverMessages: snapshot.hoverMessages
     )
   }

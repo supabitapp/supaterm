@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import supaterm
@@ -6,8 +7,8 @@ import Testing
 struct TerminalProjectManagerTests {
   @Test
   func tabsFlattenInProjectOrderAndPinnedFirst() throws {
-    let first = TerminalProjectItem(name: "First")
-    let second = TerminalProjectItem(name: "Second")
+    let first = project("First")
+    let second = project("Second")
     let manager = TerminalProjectManager(projects: [first, second])
     let regular = try #require(manager.createTab(title: "regular", in: first.id))
     let pinned = try #require(manager.createTab(title: "pinned", in: first.id, isPinned: true))
@@ -18,8 +19,8 @@ struct TerminalProjectManagerTests {
 
   @Test
   func movingTabChangesProjectAndPinLane() throws {
-    let first = TerminalProjectItem(name: "First")
-    let second = TerminalProjectItem(name: "Second")
+    let first = project("First")
+    let second = project("Second")
     let manager = TerminalProjectManager(projects: [first, second])
     let tabID = try #require(manager.createTab(title: "tab", in: first.id))
 
@@ -32,7 +33,7 @@ struct TerminalProjectManagerTests {
 
   @Test
   func movingTabDownUsesPostRemovalLaneIndex() throws {
-    let project = TerminalProjectItem(name: "Shell")
+    let project = project("Shell")
     let manager = TerminalProjectManager(projects: [project])
     let first = try #require(manager.createTab(title: "first", in: project.id))
     let second = try #require(manager.createTab(title: "second", in: project.id))
@@ -45,7 +46,7 @@ struct TerminalProjectManagerTests {
 
   @Test
   func movingTabUpPreservesSelection() throws {
-    let project = TerminalProjectItem(name: "Shell")
+    let project = project("Shell")
     let manager = TerminalProjectManager(projects: [project])
     let first = try #require(manager.createTab(title: "first", in: project.id))
     _ = try #require(manager.createTab(title: "second", in: project.id))
@@ -61,7 +62,7 @@ struct TerminalProjectManagerTests {
 
   @Test
   func movingTabAcrossPinLaneKeepsPinnedFirst() throws {
-    let project = TerminalProjectItem(name: "Shell")
+    let project = project("Shell")
     let manager = TerminalProjectManager(projects: [project])
     let first = try #require(manager.createTab(title: "first", in: project.id))
     let second = try #require(manager.createTab(title: "second", in: project.id))
@@ -74,8 +75,8 @@ struct TerminalProjectManagerTests {
 
   @Test
   func closeBelowAndOthersAreProjectLocal() throws {
-    let first = TerminalProjectItem(name: "First")
-    let second = TerminalProjectItem(name: "Second")
+    let first = project("First")
+    let second = project("Second")
     let manager = TerminalProjectManager(projects: [first, second])
     let firstTab = try #require(manager.createTab(title: "first", in: first.id))
     let secondTab = try #require(manager.createTab(title: "second", in: first.id))
@@ -87,12 +88,44 @@ struct TerminalProjectManagerTests {
 
   @Test
   func backgroundTabPreservesSelection() throws {
-    let project = TerminalProjectItem(name: "Shell")
+    let project = project("Shell")
     let manager = TerminalProjectManager(projects: [project])
     let selected = try #require(manager.createTab(title: "Selected", in: project.id))
 
     _ = try #require(manager.createTab(title: "Background", in: project.id, selecting: false))
 
     #expect(manager.selectedTabId == selected)
+  }
+
+  @Test
+  func applyingProjectsReordersWholeGroupsAndReportsRemovedTabs() throws {
+    let first = project("First")
+    let second = project("Second")
+    let manager = TerminalProjectManager(projects: [first, second])
+    let firstTab = try #require(manager.createTab(title: "first", in: first.id))
+    let secondTab = try #require(manager.createTab(title: "second", in: second.id))
+    let pinnedFirst = TerminalProjectItem(
+      id: first.id,
+      directoryURL: first.directoryURL,
+      isPinned: true
+    )
+
+    let reorderedRemovedTabs = manager.applyProjects([second, pinnedFirst])
+
+    #expect(reorderedRemovedTabs.isEmpty)
+    #expect(manager.projects == [second, pinnedFirst])
+    #expect(manager.tabs.map(\.id) == [secondTab, firstTab])
+
+    let removedTabs = manager.applyProjects([pinnedFirst])
+
+    #expect(removedTabs == [secondTab])
+    #expect(manager.tabs.map(\.id) == [firstTab])
+    #expect(manager.selectedTabId == firstTab)
+  }
+
+  private func project(_ name: String) -> TerminalProjectItem {
+    TerminalProjectItem(
+      directoryURL: URL(fileURLWithPath: "/tmp/supaterm-project-manager-tests/\(name)", isDirectory: true)
+    )
   }
 }

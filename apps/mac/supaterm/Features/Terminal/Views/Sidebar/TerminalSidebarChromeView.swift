@@ -27,6 +27,65 @@ enum TerminalSidebarTabShortcutHints {
   }
 }
 
+private struct TerminalSidebarPalettePresentation: Equatable {
+  let colorScheme: ColorScheme
+  let referencePalette: ReferencePalette
+
+  init(_ palette: Palette) {
+    colorScheme = palette.colorScheme
+    referencePalette = palette.referencePalette
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.colorScheme == rhs.colorScheme && lhs.referencePalette == rhs.referencePalette
+  }
+}
+
+private struct TerminalSidebarProjectRowPresentation: Equatable {
+  let project: TerminalProjectItem
+  let isExpanded: Bool
+  let isDirectoryAvailable: Bool
+  let palette: TerminalSidebarPalettePresentation
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.project == rhs.project && lhs.isExpanded == rhs.isExpanded
+      && lhs.isDirectoryAvailable == rhs.isDirectoryAvailable && lhs.palette == rhs.palette
+  }
+}
+
+private struct TerminalSidebarTabRowPresentation: Equatable {
+  let storeIdentity: ObjectIdentifier
+  let terminalIdentity: ObjectIdentifier
+  let tab: TerminalTabItem
+  let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
+  let paneWorkingDirectories: [String]
+  let unreadCount: Int
+  let terminalProgress: TerminalSidebarTerminalProgress?
+  let hasTerminalBell: Bool
+  let agentPresentation: TerminalHostState.TabAgentPresentation
+  let palette: TerminalSidebarPalettePresentation
+  let showsAgentMarks: Bool
+  let showsAgentSpinner: Bool
+  let shortcutHint: String?
+  let showsShortcutHint: Bool
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.storeIdentity == rhs.storeIdentity && lhs.terminalIdentity == rhs.terminalIdentity
+      && lhs.tab == rhs.tab
+      && lhs.notificationPresentation == rhs.notificationPresentation
+      && lhs.paneWorkingDirectories == rhs.paneWorkingDirectories
+      && lhs.unreadCount == rhs.unreadCount
+      && lhs.terminalProgress == rhs.terminalProgress
+      && lhs.hasTerminalBell == rhs.hasTerminalBell
+      && lhs.agentPresentation == rhs.agentPresentation
+      && lhs.palette == rhs.palette
+      && lhs.showsAgentMarks == rhs.showsAgentMarks
+      && lhs.showsAgentSpinner == rhs.showsAgentSpinner
+      && lhs.shortcutHint == rhs.shortcutHint
+      && lhs.showsShortcutHint == rhs.showsShortcutHint
+  }
+}
+
 struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
@@ -77,7 +136,7 @@ struct TerminalSidebarChromeView: View {
       .padding(.horizontal, 8)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onChange(of: terminal.selectedProjectID) { _, _ in
+    .onChange(of: terminal.selectedTabID) { _, _ in
       guard let selectedProjectID = terminal.selectedProjectID else { return }
       collapsedProjectIDs.remove(selectedProjectID)
     }
@@ -146,36 +205,46 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
     func applyModel() {
       guard let listView else { return }
       var itemByID: [TerminalSidebarEntryID: AnyView] = [:]
+      var presentationKeyByID: [TerminalSidebarEntryID: TerminalSidebarRowPresentationKey] = [:]
       var entries: [TerminalSidebarEntry] = []
 
       for project in parent.projects {
         let headerID = TerminalSidebarEntryID.project(project.id)
+        let projectPresentation = projectRowPresentation(project)
         entries.append(
           TerminalSidebarEntry(
             kind: .project(id: project.id, isPinned: project.isPinned)
           )
         )
-        itemByID[headerID] = AnyView(projectHeader(project))
+        itemByID[headerID] = AnyView(projectHeader(projectPresentation))
+        presentationKeyByID[headerID] = TerminalSidebarRowPresentationKey(projectPresentation)
         let tabs = parent.groups.first(where: { $0.projectID == project.id })?.tabs ?? []
         for tab in tabs {
           let tabID = TerminalSidebarEntryID.tab(tab.id)
+          let tabPresentation = tabRowPresentation(tab)
           entries.append(
             TerminalSidebarEntry(
               kind: .tab(id: tab.id, projectID: project.id, isPinned: tab.isPinned)
             )
           )
-          itemByID[tabID] = AnyView(tabRow(tab))
+          itemByID[tabID] = AnyView(tabRow(tabPresentation))
+          presentationKeyByID[tabID] = TerminalSidebarRowPresentationKey(tabPresentation)
         }
       }
 
       entries.append(TerminalSidebarEntry(kind: .newProject))
       itemByID[.newProject] = AnyView(newProjectRow)
+      presentationKeyByID[.newProject] = TerminalSidebarRowPresentationKey(
+        TerminalSidebarPalettePresentation(parent.palette)
+      )
       listView.apply(
         model: TerminalSidebarPresentationModel(
           entries: entries,
           collapsedProjectIDs: parent.collapsedProjectIDs
         ),
         itemByID: itemByID,
+        presentationKeyByID: presentationKeyByID,
+        selectedTabID: parent.terminal.selectedTabID,
         reduceMotion: parent.reduceMotion
       )
     }
@@ -202,12 +271,28 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
       }
     }
 
-    private func projectHeader(_ project: TerminalProjectItem) -> some View {
-      TerminalSidebarProjectHeader(
+    private func projectRowPresentation(
+      _ project: TerminalProjectItem
+    ) -> TerminalSidebarProjectRowPresentation {
+      TerminalSidebarProjectRowPresentation(
+        project: project,
+        isExpanded: !parent.collapsedProjectIDs.contains(project.id),
+        isDirectoryAvailable: parent.terminal.projectDirectoryMonitor.isAvailable(
+          project.directoryURL
+        ),
+        palette: TerminalSidebarPalettePresentation(parent.palette)
+      )
+    }
+
+    private func projectHeader(
+      _ presentation: TerminalSidebarProjectRowPresentation
+    ) -> some View {
+      let project = presentation.project
+      return TerminalSidebarProjectHeader(
         project: project,
         palette: parent.palette,
-        isExpanded: !parent.collapsedProjectIDs.contains(project.id),
-        canDelete: parent.projects.count > 1,
+        isExpanded: presentation.isExpanded,
+        isDirectoryAvailable: presentation.isDirectoryAvailable,
         toggleExpanded: { [weak self] in
           guard let self else { return }
           if parent.collapsedProjectIDs.contains(project.id) {
@@ -218,9 +303,11 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
         },
         newTab: { [weak self] in
           guard let self, let spaceID = parent.terminal.selectedSpaceID else { return }
-          _ = parent.terminal.createTab(in: spaceID, projectID: project.id)
+          guard parent.terminal.createTab(in: spaceID, projectID: project.id) != nil else {
+            NSSound.beep()
+            return
+          }
         },
-        rename: { [weak self] in self?.promptRename(project) },
         togglePinned: { [weak self] in
           self?.parent.terminal.setProjectPinned(project.id, isPinned: !project.isPinned)
         },
@@ -230,38 +317,55 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
 
     private func createProjects(for folderURLs: [URL]) -> Bool {
       guard let spaceID = parent.terminal.selectedSpaceID else { return false }
-      var didCreateProject = false
-      for folderURL in folderURLs {
-        let name = folderURL.path(percentEncoded: false)
-        guard parent.terminal.isProjectNameAvailable(name, in: spaceID) else { continue }
-        guard
-          (try? parent.terminal.createProject(
-            named: name,
-            in: spaceID,
-            workingDirectory: folderURL
-          )) != nil
-        else { continue }
-        didCreateProject = true
+      do {
+        return try !parent.terminal.createProjects(
+          directoryURLs: folderURLs,
+          in: spaceID
+        ).isEmpty
+      } catch {
+        TerminalProjectDirectoryPicker.present(error, for: listView?.window)
+        return false
       }
-      if !didCreateProject { NSSound.beep() }
-      return didCreateProject
     }
 
-    private func tabRow(_ tab: TerminalTabItem) -> some View {
-      TerminalSidebarTabRow(
-        store: parent.store,
-        terminal: parent.terminal,
+    private func tabRowPresentation(
+      _ tab: TerminalTabItem
+    ) -> TerminalSidebarTabRowPresentation {
+      TerminalSidebarTabRowPresentation(
+        storeIdentity: ObjectIdentifier(parent.store),
+        terminalIdentity: ObjectIdentifier(parent.terminal),
         tab: tab,
-        notificationPresentation: parent.terminal.latestSidebarNotificationPresentation(for: tab.id),
+        notificationPresentation: parent.terminal.latestSidebarNotificationPresentation(
+          for: tab.id
+        ),
         paneWorkingDirectories: parent.terminal.paneWorkingDirectories(for: tab.id),
         unreadCount: parent.terminal.unreadNotificationCount(for: tab.id),
         terminalProgress: parent.terminal.sidebarTerminalProgress(for: tab.id),
         hasTerminalBell: parent.terminal.tabHasBell(for: tab.id),
-        palette: parent.palette,
+        agentPresentation: parent.terminal.tabAgentPresentation(for: tab.id),
+        palette: TerminalSidebarPalettePresentation(parent.palette),
         showsAgentMarks: parent.showsAgentMarks,
         showsAgentSpinner: parent.showsAgentSpinner,
         shortcutHint: parent.shortcutHintsByTabID[tab.id],
         showsShortcutHint: parent.showsShortcutHints
+      )
+    }
+
+    private func tabRow(_ presentation: TerminalSidebarTabRowPresentation) -> some View {
+      TerminalSidebarTabRow(
+        store: parent.store,
+        terminal: parent.terminal,
+        tab: presentation.tab,
+        notificationPresentation: presentation.notificationPresentation,
+        paneWorkingDirectories: presentation.paneWorkingDirectories,
+        unreadCount: presentation.unreadCount,
+        terminalProgress: presentation.terminalProgress,
+        hasTerminalBell: presentation.hasTerminalBell,
+        palette: parent.palette,
+        showsAgentMarks: presentation.showsAgentMarks,
+        showsAgentSpinner: presentation.showsAgentSpinner,
+        shortcutHint: presentation.shortcutHint,
+        showsShortcutHint: presentation.showsShortcutHint
       )
       .padding(.leading, 12)
     }
@@ -289,60 +393,34 @@ struct TerminalSidebarProjectList: NSViewRepresentable {
     }
 
     private func promptNewProject() {
-      guard let spaceID = parent.terminal.selectedSpaceID else { return }
-      promptName(title: "Create Project", confirmTitle: "Create", initialValue: "") { [weak self] name in
-        guard let self else { return false }
-        guard parent.terminal.isProjectNameAvailable(name, in: spaceID) else { return false }
-        return (try? parent.terminal.createProject(named: name, in: spaceID)) != nil
-      }
-    }
-
-    private func promptRename(_ project: TerminalProjectItem) {
-      guard let spaceID = parent.terminal.selectedSpaceID else { return }
-      promptName(title: "Rename Project", confirmTitle: "Save", initialValue: project.name) {
-        [weak self] name in
-        guard let self else { return false }
-        guard parent.terminal.isProjectNameAvailable(name, in: spaceID, excluding: project.id) else {
-          return false
-        }
-        parent.terminal.renameProject(project.id, to: name)
-        return true
-      }
-    }
-
-    private func promptName(
-      title: String,
-      confirmTitle: String,
-      initialValue: String,
-      save: (String) -> Bool
-    ) {
-      while true {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.addButton(withTitle: confirmTitle)
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(string: initialValue)
-        field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
-        alert.accessoryView = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        if save(field.stringValue) { return }
-        NSSound.beep()
+      TerminalProjectDirectoryPicker.chooseDirectories(for: listView?.window) { [weak self] urls in
+        guard let self, !urls.isEmpty else { return }
+        _ = createProjects(for: urls)
       }
     }
 
     private func confirmDelete(_ project: TerminalProjectItem) {
       let tabCount = parent.groups.first(where: { $0.projectID == project.id })?.tabs.count ?? 0
       let alert = NSAlert()
-      alert.messageText = "Delete \(project.name)?"
+      alert.messageText = "Remove \(project.displayName)?"
+      let path = project.directoryURL.path(percentEncoded: false)
+      let tabDescription = "\(tabCount) tab\(tabCount == 1 ? "" : "s")"
       alert.informativeText =
         tabCount == 0
-        ? "This project will be removed from every window."
-        : "This closes its \(tabCount) tab\(tabCount == 1 ? "" : "s") and removes the project from every window."
-      alert.addButton(withTitle: "Delete")
+        ? "\(path) will be removed from Supaterm. The folder will stay on disk."
+        : "This closes its \(tabDescription) in every window and removes \(path) from Supaterm. "
+          + "The folder will stay on disk."
+      alert.addButton(withTitle: "Remove")
       alert.addButton(withTitle: "Cancel")
       alert.buttons.first?.hasDestructiveAction = true
-      guard alert.runModal() == .alertFirstButtonReturn else { return }
-      parent.terminal.deleteProject(project.id)
+      if let window = listView?.window {
+        alert.beginSheetModal(for: window) { [weak self] response in
+          guard response == .alertFirstButtonReturn else { return }
+          self?.parent.terminal.deleteProject(project.id)
+        }
+      } else if alert.runModal() == .alertFirstButtonReturn {
+        parent.terminal.deleteProject(project.id)
+      }
     }
   }
 }
@@ -351,10 +429,9 @@ private struct TerminalSidebarProjectHeader: View {
   let project: TerminalProjectItem
   let palette: Palette
   let isExpanded: Bool
-  let canDelete: Bool
+  let isDirectoryAvailable: Bool
   let toggleExpanded: () -> Void
   let newTab: () -> Void
-  let rename: () -> Void
   let togglePinned: () -> Void
   let delete: () -> Void
 
@@ -369,7 +446,7 @@ private struct TerminalSidebarProjectHeader: View {
           Image(systemName: project.isPinned ? "folder.fill.badge.minus" : "folder")
             .font(.system(size: 13, weight: .medium))
             .accessibilityHidden(true)
-          Text(project.name)
+          Text(project.displayName)
             .font(.system(size: 12, weight: .semibold))
             .lineLimit(1)
           Spacer(minLength: 0)
@@ -378,6 +455,20 @@ private struct TerminalSidebarProjectHeader: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
+      .help(project.directoryURL.path(percentEncoded: false))
+
+      if !isDirectoryAvailable {
+        Button(action: delete) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.yellow)
+            .frame(width: 24, height: 24)
+            .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .help("Folder unavailable. Remove project…")
+        .accessibilityLabel("Folder unavailable. Remove project")
+      }
 
       Button(action: newTab) {
         Image(systemName: "plus")
@@ -387,18 +478,18 @@ private struct TerminalSidebarProjectHeader: View {
           .accessibilityHidden(true)
       }
       .buttonStyle(.plain)
+      .disabled(!isDirectoryAvailable)
       .help("New Tab")
     }
     .padding(.leading, 2)
     .frame(height: 36)
     .contextMenu {
       Button("New Tab", action: newTab)
+        .disabled(!isDirectoryAvailable)
       Divider()
-      Button("Rename Project…", action: rename)
       Button(project.isPinned ? "Unpin Project" : "Pin Project", action: togglePinned)
       Divider()
-      Button("Delete Project", role: .destructive, action: delete)
-        .disabled(!canDelete)
+      Button("Remove Project", role: .destructive, action: delete)
     }
   }
 }

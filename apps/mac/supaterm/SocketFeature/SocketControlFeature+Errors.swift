@@ -22,6 +22,13 @@ extension SocketControlFeature {
         message: "Failed to create a new tab."
       )
 
+    case .projectDirectoryUnavailable(let directoryURL):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Project directory is not reachable: \(directoryURL.path(percentEncoded: false))"
+      )
+
     case .spaceNotFound(let windowIndex, let spaceIndex):
       return .error(
         id: requestID,
@@ -107,7 +114,7 @@ extension SocketControlFeature {
         message: "The current pane could not be resolved."
       )
 
-    case .invalidProjectName, .onlyRemainingProject, .projectNameUnavailable:
+    case .invalidProjectDirectory, .projectAlreadyExists, .projectDirectoryUnavailable:
       return projectControlErrorResponse(error, requestID: requestID)
 
     case .invalidSpaceName:
@@ -203,12 +210,12 @@ extension SocketControlFeature {
   ) -> SupatermSocketResponse {
     let message =
       switch error {
-      case .invalidProjectName:
-        "Project name must not be empty."
-      case .onlyRemainingProject:
-        "Cannot close the only remaining project."
-      case .projectNameUnavailable:
-        "Project name is already in use."
+      case .invalidProjectDirectory:
+        "Project directory must be an absolute file URL."
+      case .projectAlreadyExists:
+        "That directory is already a project in this space."
+      case .projectDirectoryUnavailable:
+        "Project directory is not reachable."
       default:
         preconditionFailure()
       }

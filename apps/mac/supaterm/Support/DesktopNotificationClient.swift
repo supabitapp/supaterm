@@ -10,9 +10,21 @@ private func configuredNotificationCenter() -> UNUserNotificationCenter {
 
 public struct DesktopNotificationRequest: Equatable, Sendable {
   public nonisolated static let sourceSurfaceIDUserInfoKey = "supatermSourceSurfaceID"
+  public nonisolated static let sourceWindowIDUserInfoKey = "supatermSourceWindowID"
+
+  public struct Source: Equatable, Sendable {
+    public let surfaceID: UUID
+    public let windowID: UUID
+
+    public nonisolated init(windowID: UUID, surfaceID: UUID) {
+      self.surfaceID = surfaceID
+      self.windowID = windowID
+    }
+  }
 
   public let body: String
   public let sourceSurfaceID: UUID?
+  public let sourceWindowID: UUID?
   public let subtitle: String
   public let title: String
 
@@ -20,24 +32,34 @@ public struct DesktopNotificationRequest: Equatable, Sendable {
     body: String,
     subtitle: String,
     title: String,
+    sourceWindowID: UUID? = nil,
     sourceSurfaceID: UUID? = nil
   ) {
     self.body = body
     self.sourceSurfaceID = sourceSurfaceID
+    self.sourceWindowID = sourceWindowID
     self.subtitle = subtitle
     self.title = title
   }
 
   public nonisolated var userInfo: [AnyHashable: Any] {
-    guard let sourceSurfaceID else { return [:] }
-    return [Self.sourceSurfaceIDUserInfoKey: sourceSurfaceID.uuidString]
+    guard let sourceWindowID, let sourceSurfaceID else { return [:] }
+    return [
+      Self.sourceWindowIDUserInfoKey: sourceWindowID.uuidString,
+      Self.sourceSurfaceIDUserInfoKey: sourceSurfaceID.uuidString,
+    ]
   }
 
-  public nonisolated static func sourceSurfaceID(from userInfo: [AnyHashable: Any]) -> UUID? {
-    guard let value = userInfo[sourceSurfaceIDUserInfoKey] as? String else {
+  public nonisolated static func source(from userInfo: [AnyHashable: Any]) -> Source? {
+    guard
+      let windowValue = userInfo[sourceWindowIDUserInfoKey] as? String,
+      let windowID = UUID(uuidString: windowValue),
+      let surfaceValue = userInfo[sourceSurfaceIDUserInfoKey] as? String,
+      let surfaceID = UUID(uuidString: surfaceValue)
+    else {
       return nil
     }
-    return UUID(uuidString: value)
+    return Source(windowID: windowID, surfaceID: surfaceID)
   }
 }
 

@@ -521,7 +521,12 @@ struct TerminalWindowRegistryTests {
 
       #expect(host.selectedTabID == firstTabID)
 
-      #expect(registry.focusNotificationSurface(targetSurfaceID))
+      #expect(
+        registry.focusNotificationSurface(
+          windowControllerID: windowControllerID,
+          surfaceID: targetSurfaceID
+        )
+      )
 
       #expect(host.selectedTabID == secondTabID)
       #expect(host.selectedSurfaceView?.id == targetSurfaceID)
@@ -578,7 +583,7 @@ struct TerminalWindowRegistryTests {
 
       let secondHost = TerminalHostState()
       secondHost.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
-      secondHost.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      secondHost.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
 
       let firstStore = Store(initialState: AppFeature.State()) {
         AppFeature()
@@ -684,7 +689,7 @@ struct TerminalWindowRegistryTests {
       registry.requestNewTabInKeyWindow()
       await flushEffects()
 
-      #expect(recorder.commands == [.createTab(inheritingFromSurfaceID: nil)])
+      #expect(recorder.commands == [.createTab(projectID: nil, inheritingFromSurfaceID: nil)])
     }
   }
   @Test

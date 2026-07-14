@@ -6,6 +6,29 @@ import Testing
 
 struct TerminalSpaceCatalogTests {
   @Test
+  func decoderRejectsPreviousSchema() throws {
+    let data = Data("{\"version\":1}".utf8)
+
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(TerminalSpaceCatalog.self, from: data)
+    }
+  }
+
+  @Test
+  func directoryURLsRoundTripThroughCurrentSchema() throws {
+    let project = TerminalProjectItem(
+      directoryURL: URL(fileURLWithPath: "/tmp/Workspace", isDirectory: true)
+    )
+    let space = PersistedTerminalSpace(name: "A", projects: [project])
+    let catalog = TerminalSpaceCatalog(defaultSelectedSpaceID: space.id, spaces: [space])
+
+    let data = try TerminalSpaceCatalog.fileStorageEncoder().encode(catalog)
+    let decoded = try JSONDecoder().decode(TerminalSpaceCatalog.self, from: data)
+
+    #expect(decoded == catalog)
+  }
+
+  @Test
   func defaultURLUsesConfigDirectoryUnderProvidedHomeDirectory() {
     let homeDirectory = "/tmp/SupatermTests/Home"
 

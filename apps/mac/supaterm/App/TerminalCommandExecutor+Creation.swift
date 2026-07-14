@@ -14,6 +14,7 @@ extension TerminalCommandExecutor {
         startupCommand: request.startupCommand,
         cwd: request.cwd,
         focus: request.focus,
+        inheritingFromSurfaceID: request.inheritingFromSurfaceID,
         target: .project(windowIndex: 1, spaceIndex: spaceIndex, projectIndex: projectIndex)
       )
       do {

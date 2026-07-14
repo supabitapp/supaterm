@@ -15,7 +15,7 @@ enum SupatermDebugSnapshotResolver {
       return Resolution(currentTarget: nil, problems: [])
     }
 
-    for window in windows {
+    for window in windows where window.id == context.windowID {
       for space in window.spaces {
         for project in space.projects {
           for tab in project.tabs where tab.id == context.tabID {
@@ -33,7 +33,7 @@ enum SupatermDebugSnapshotResolver {
                 spaceName: space.name,
                 projectIndex: project.index,
                 projectID: project.id,
-                projectName: project.name,
+                projectDirectoryURL: project.directoryURL,
                 tabIndex: tab.index,
                 tabID: tab.id,
                 tabTitle: tab.title,
@@ -49,7 +49,9 @@ enum SupatermDebugSnapshotResolver {
 
     return Resolution(
       currentTarget: nil,
-      problems: ["Context tab \(context.tabID.uuidString) was not found."]
+      problems: [
+        "Context tab \(context.tabID.uuidString) was not found in window \(context.windowID.uuidString)."
+      ]
     )
   }
 }

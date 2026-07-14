@@ -11,6 +11,7 @@ struct SPTmuxCompatSequenceTests {
     let runner = SPTmuxCommandRunner(
       transport: transport,
       environment: [
+        SupatermCLIEnvironment.windowIDKey: transport.windowID.uuidString,
         SupatermCLIEnvironment.surfaceIDKey: transport.leaderPaneID.uuidString,
         SupatermCLIEnvironment.tabIDKey: transport.tabID.uuidString,
         "TMUX": "/tmp/tmux-123/default,123,0",
@@ -96,6 +97,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
 
   struct State {
     let windowIndex = 1
+    let windowID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
     let spaceIndex = 1
     let spaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
     let spaceName = "main"
@@ -221,7 +223,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
           SupatermAppDebugSnapshot.Project(
             index: 1,
             id: projectID,
-            name: "Project",
+            directoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
             isPinned: false,
             tabs: [debugTab]
           )
@@ -229,6 +231,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
       )
       let debugWindow = SupatermAppDebugSnapshot.Window(
         index: windowIndex,
+        id: windowID,
         isKey: true,
         isVisible: true,
         spaces: [debugSpace]
@@ -259,7 +262,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
           spaceName: spaceName,
           projectIndex: 1,
           projectID: projectID,
-          projectName: "Project",
+          projectDirectoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
           tabIndex: tabIndex,
           tabID: tabID,
           tabTitle: tabTitle,
@@ -274,6 +277,10 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
 
   var leaderPaneID: UUID {
     state.leaderPaneID
+  }
+
+  var windowID: UUID {
+    state.windowID
   }
 
   var paneIDs: [UUID] {

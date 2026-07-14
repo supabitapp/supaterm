@@ -224,14 +224,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   ) async {
     guard response.actionIdentifier != UNNotificationDismissActionIdentifier else { return }
     guard
-      let surfaceID = DesktopNotificationRequest.sourceSurfaceID(
+      let source = DesktopNotificationRequest.source(
         from: response.notification.request.content.userInfo
       )
     else {
       return
     }
     await MainActor.run {
-      _ = self.terminalWindowRegistry.focusNotificationSurface(surfaceID)
+      _ = self.terminalWindowRegistry.focusNotificationSurface(
+        windowControllerID: source.windowID,
+        surfaceID: source.surfaceID
+      )
     }
   }
 

@@ -2,18 +2,26 @@ import Observation
 
 struct TerminalProjectTabs: Equatable {
   let projectID: TerminalProjectID
-  var tabs: [TerminalTabItem]
+  let tabs: [TerminalTabItem]
 }
 
 @MainActor
 @Observable
 final class TerminalProjectManager {
-  private(set) var projects: [TerminalProjectItem] = []
-  private var tabsByProjectID: [TerminalProjectID: [TerminalTabItem]] = [:]
+  private struct ProjectGroup {
+    let project: TerminalProjectItem
+    var tabs: [TerminalTabItem]
+  }
+
+  private var projectGroups: [ProjectGroup] = []
   var selectedTabId: TerminalTabID?
 
+  var projects: [TerminalProjectItem] {
+    projectGroups.map(\.project)
+  }
+
   var tabs: [TerminalTabItem] {
-    projects.flatMap { tabsByProjectID[$0.id] ?? [] }
+    projectGroups.flatMap(\.tabs)
   }
 
   var regularTabs: [TerminalTabItem] {
@@ -25,10 +33,10 @@ final class TerminalProjectManager {
   }
 
   var groups: [TerminalProjectTabs] {
-    projects.map { project in
+    projectGroups.map { group in
       TerminalProjectTabs(
-        projectID: project.id,
-        tabs: tabsByProjectID[project.id] ?? []
+        projectID: group.project.id,
+        tabs: group.tabs
       )
     }
   }
@@ -41,16 +49,15 @@ final class TerminalProjectManager {
   func applyProjects(_ projects: [TerminalProjectItem]) -> [TerminalTabID] {
     let nextIDs = Set(projects.map(\.id))
     let removedTabIDs =
-      tabsByProjectID
-      .filter { !nextIDs.contains($0.key) }
-      .flatMap { $0.value.map(\.id) }
-
-    self.projects = projects
-    tabsByProjectID = Dictionary(
-      uniqueKeysWithValues: projects.map { project in
-        (project.id, tabsByProjectID[project.id] ?? [])
-      }
+      projectGroups
+      .filter { !nextIDs.contains($0.project.id) }
+      .flatMap { $0.tabs.map(\.id) }
+    let previousGroups = Dictionary(
+      uniqueKeysWithValues: projectGroups.map { ($0.project.id, $0) }
     )
+    projectGroups = projects.map { project in
+      ProjectGroup(project: project, tabs: previousGroups[project.id]?.tabs ?? [])
+    }
     repairSelection()
     return removedTabIDs
   }
@@ -64,20 +71,21 @@ final class TerminalProjectManager {
     isTitleLocked: Bool = false,
     selecting: Bool = true
   ) -> TerminalTabID? {
-    guard tabsByProjectID[projectID] != nil else { return nil }
+    guard let projectIndex = projectGroups.firstIndex(where: { $0.project.id == projectID }) else {
+      return nil
+    }
     let tab = TerminalTabItem(
       id: id,
       title: title,
       isPinned: isPinned,
       isTitleLocked: isTitleLocked
     )
-    var projectTabs = tabsByProjectID[projectID] ?? []
     let insertionIndex =
       isPinned
-      ? projectTabs.firstIndex(where: { !$0.isPinned }) ?? projectTabs.endIndex
-      : projectTabs.endIndex
-    projectTabs.insert(tab, at: insertionIndex)
-    tabsByProjectID[projectID] = projectTabs
+      ? projectGroups[projectIndex].tabs.firstIndex(where: { !$0.isPinned })
+        ?? projectGroups[projectIndex].tabs.endIndex
+      : projectGroups[projectIndex].tabs.endIndex
+    projectGroups[projectIndex].tabs.insert(tab, at: insertionIndex)
     if selecting || selectedTabId == nil {
       selectedTabId = tab.id
     }
@@ -119,18 +127,17 @@ final class TerminalProjectManager {
     isPinned: Bool,
     at destinationIndex: Int
   ) {
-    guard tabsByProjectID[projectID] != nil else { return }
-    guard let sourceProjectID = self.projectID(for: id) else { return }
-    guard var tab = removeTab(id, from: sourceProjectID) else { return }
+    guard let destinationProjectIndex = projectGroupIndex(for: projectID) else { return }
+    guard let source = tabLocation(for: id) else { return }
+    var tab = projectGroups[source.projectIndex].tabs.remove(at: source.tabIndex)
     tab.isPinned = isPinned
 
-    var destinationTabs = tabsByProjectID[projectID] ?? []
+    let destinationTabs = projectGroups[destinationProjectIndex].tabs
     let laneIndices = destinationTabs.indices.filter { destinationTabs[$0].isPinned == isPinned }
     let laneStart = laneIndices.first ?? (isPinned ? 0 : destinationTabs.count)
     let laneCount = laneIndices.count
     let resolvedIndex = laneStart + max(0, min(destinationIndex, laneCount))
-    destinationTabs.insert(tab, at: resolvedIndex)
-    tabsByProjectID[projectID] = destinationTabs
+    projectGroups[destinationProjectIndex].tabs.insert(tab, at: resolvedIndex)
   }
 
   func togglePinned(_ id: TerminalTabID) {
@@ -148,11 +155,11 @@ final class TerminalProjectManager {
   }
 
   func closeTab(_ id: TerminalTabID) {
-    guard let projectID = projectID(for: id) else { return }
+    guard let location = tabLocation(for: id) else { return }
     let previousTabs = tabs
     guard let previousIndex = previousTabs.firstIndex(where: { $0.id == id }) else { return }
     let wasSelected = selectedTabId == id
-    _ = removeTab(id, from: projectID)
+    projectGroups[location.projectIndex].tabs.remove(at: location.tabIndex)
     guard wasSelected else { return }
 
     let remainingTabs = tabs
@@ -164,19 +171,16 @@ final class TerminalProjectManager {
   }
 
   func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
-    guard
-      let projectID = projectID(for: id),
-      let projectTabs = tabsByProjectID[projectID],
-      let index = projectTabs.firstIndex(where: { $0.id == id })
-    else { return [] }
-    let nextIndex = projectTabs.index(after: index)
+    guard let location = tabLocation(for: id) else { return [] }
+    let projectTabs = projectGroups[location.projectIndex].tabs
+    let nextIndex = projectTabs.index(after: location.tabIndex)
     guard nextIndex < projectTabs.endIndex else { return [] }
     return projectTabs[nextIndex...].map(\.id)
   }
 
   func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
-    guard let projectID = projectID(for: id) else { return [] }
-    return (tabsByProjectID[projectID] ?? []).map(\.id).filter { $0 != id }
+    guard let location = tabLocation(for: id) else { return [] }
+    return projectGroups[location.projectIndex].tabs.map(\.id).filter { $0 != id }
   }
 
   func restoreTabs(
@@ -184,65 +188,68 @@ final class TerminalProjectManager {
     selectedTabID: TerminalTabID?
   ) {
     let restoredByProjectID = Dictionary(uniqueKeysWithValues: groups.map { ($0.projectID, $0.tabs) })
-    tabsByProjectID = Dictionary(
-      uniqueKeysWithValues: projects.map { project in
-        (project.id, ordered(restoredByProjectID[project.id] ?? []))
-      }
-    )
+    for index in projectGroups.indices {
+      let projectID = projectGroups[index].project.id
+      projectGroups[index].tabs = ordered(restoredByProjectID[projectID] ?? [])
+    }
     selectedTabId = selectedTabID.flatMap { tab(for: $0) == nil ? nil : $0 } ?? tabs.first?.id
   }
 
   func tab(for id: TerminalTabID) -> TerminalTabItem? {
-    guard let projectID = projectID(for: id) else { return nil }
-    return tabsByProjectID[projectID]?.first(where: { $0.id == id })
+    guard let location = tabLocation(for: id) else { return nil }
+    return projectGroups[location.projectIndex].tabs[location.tabIndex]
   }
 
   func projectID(for tabID: TerminalTabID) -> TerminalProjectID? {
-    projects.first { project in
-      tabsByProjectID[project.id]?.contains(where: { $0.id == tabID }) == true
-    }?.id
+    guard let location = tabLocation(for: tabID) else { return nil }
+    return projectGroups[location.projectIndex].project.id
   }
 
   func project(for tabID: TerminalTabID) -> TerminalProjectItem? {
-    guard let projectID = projectID(for: tabID) else { return nil }
-    return projects.first(where: { $0.id == projectID })
+    guard let location = tabLocation(for: tabID) else { return nil }
+    return projectGroups[location.projectIndex].project
   }
 
   func project(at index: Int) -> TerminalProjectItem? {
     let offset = index - 1
-    guard projects.indices.contains(offset) else { return nil }
-    return projects[offset]
+    guard projectGroups.indices.contains(offset) else { return nil }
+    return projectGroups[offset].project
   }
 
   func projectIndex(for projectID: TerminalProjectID) -> Int? {
-    projects.firstIndex(where: { $0.id == projectID }).map { $0 + 1 }
+    projectGroupIndex(for: projectID).map { $0 + 1 }
   }
 
   func tabs(in projectID: TerminalProjectID) -> [TerminalTabItem] {
-    tabsByProjectID[projectID] ?? []
+    guard let projectIndex = projectGroupIndex(for: projectID) else { return [] }
+    return projectGroups[projectIndex].tabs
   }
 
   func tabs(in projectID: TerminalProjectID, isPinned: Bool) -> [TerminalTabItem] {
-    (tabsByProjectID[projectID] ?? []).filter { $0.isPinned == isPinned }
+    tabs(in: projectID).filter { $0.isPinned == isPinned }
   }
 
   private func updateTab(
     _ id: TerminalTabID,
     update: (inout TerminalTabItem) -> Void
   ) {
-    guard let projectID = projectID(for: id) else { return }
-    guard let index = tabsByProjectID[projectID]?.firstIndex(where: { $0.id == id }) else { return }
-    update(&tabsByProjectID[projectID]![index])
+    guard let location = tabLocation(for: id) else { return }
+    update(&projectGroups[location.projectIndex].tabs[location.tabIndex])
   }
 
-  private func removeTab(
-    _ id: TerminalTabID,
-    from projectID: TerminalProjectID
-  ) -> TerminalTabItem? {
-    guard let index = tabsByProjectID[projectID]?.firstIndex(where: { $0.id == id }) else {
-      return nil
+  private func projectGroupIndex(for projectID: TerminalProjectID) -> Int? {
+    projectGroups.firstIndex { $0.project.id == projectID }
+  }
+
+  private func tabLocation(
+    for tabID: TerminalTabID
+  ) -> (projectIndex: Int, tabIndex: Int)? {
+    for projectIndex in projectGroups.indices {
+      if let tabIndex = projectGroups[projectIndex].tabs.firstIndex(where: { $0.id == tabID }) {
+        return (projectIndex, tabIndex)
+      }
     }
-    return tabsByProjectID[projectID]?.remove(at: index)
+    return nil
   }
 
   private func ordered(_ tabs: [TerminalTabItem]) -> [TerminalTabItem] {

@@ -10,6 +10,7 @@ public enum SupatermPaneDirection: String, CaseIterable, Sendable, Codable {
 public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let startupCommand: String?
   public let contextPaneID: UUID?
+  public let inheritingFromPaneID: UUID?
   public let cwd: String?
   public let focus: Bool
   public let targetWindowIndex: Int?
@@ -19,6 +20,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public init(
     startupCommand: String? = nil,
     contextPaneID: UUID? = nil,
+    inheritingFromPaneID: UUID? = nil,
     cwd: String? = nil,
     focus: Bool,
     targetWindowIndex: Int? = nil,
@@ -27,6 +29,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   ) {
     self.startupCommand = startupCommand
     self.contextPaneID = contextPaneID
+    self.inheritingFromPaneID = inheritingFromPaneID
     self.cwd = cwd
     self.focus = focus
     self.targetWindowIndex = targetWindowIndex
@@ -345,23 +348,13 @@ public struct SupatermProjectTargetRequest: Equatable, Sendable, Codable {
 }
 
 public struct SupatermCreateProjectRequest: Equatable, Sendable, Codable {
-  public let name: String
+  public let directoryURL: URL
   public let focus: Bool
   public let target: SupatermSpaceTargetRequest
 
-  public init(name: String, focus: Bool, target: SupatermSpaceTargetRequest) {
-    self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+  public init(directoryURL: URL, focus: Bool, target: SupatermSpaceTargetRequest) {
+    self.directoryURL = directoryURL
     self.focus = focus
-    self.target = target
-  }
-}
-
-public struct SupatermRenameProjectRequest: Equatable, Sendable, Codable {
-  public let name: String
-  public let target: SupatermProjectTargetRequest
-
-  public init(name: String, target: SupatermProjectTargetRequest) {
-    self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
     self.target = target
   }
 }
@@ -372,7 +365,7 @@ public struct SupatermProjectTarget: Equatable, Sendable, Codable {
   public let spaceID: UUID
   public let projectIndex: Int
   public let projectID: UUID
-  public let name: String
+  public let directoryURL: URL
   public let isPinned: Bool
 
   public init(
@@ -381,7 +374,7 @@ public struct SupatermProjectTarget: Equatable, Sendable, Codable {
     spaceID: UUID,
     projectIndex: Int,
     projectID: UUID,
-    name: String,
+    directoryURL: URL,
     isPinned: Bool
   ) {
     self.windowIndex = windowIndex
@@ -389,7 +382,7 @@ public struct SupatermProjectTarget: Equatable, Sendable, Codable {
     self.spaceID = spaceID
     self.projectIndex = projectIndex
     self.projectID = projectID
-    self.name = name
+    self.directoryURL = directoryURL
     self.isPinned = isPinned
   }
 }

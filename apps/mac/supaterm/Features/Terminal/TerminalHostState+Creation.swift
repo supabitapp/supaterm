@@ -24,13 +24,18 @@ extension TerminalHostState {
 
   @discardableResult
   func createTab(
+    projectID: TerminalProjectID? = nil,
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
-    guard let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    guard
+      let target = resolveLocalCreateTabTarget(
+        projectID: projectID,
+        inheritingFromSurfaceID: inheritingFromSurfaceID
+      )
     else {
       return nil
     }
@@ -58,6 +63,18 @@ extension TerminalHostState {
   ) -> TerminalTabID? {
     guard let projectManager = spaceManager.projectManager(for: spaceID) else { return nil }
     guard let projectID = projectID ?? resolvedProjectIDForNewTab(in: spaceID) else { return nil }
+    guard let project = projectManager.projects.first(where: { $0.id == projectID }) else { return nil }
+    guard TerminalProjectDirectoryMonitor.isReachableDirectory(project.directoryURL) else {
+      projectDirectoryMonitor.refreshAll()
+      return nil
+    }
+    let inheritedSurfaceID = inheritingFromSurfaceID.flatMap { surfaceID -> UUID? in
+      guard
+        let sourceTabID = tabID(containing: surfaceID),
+        spaceManager.projectID(for: sourceTabID) == projectID
+      else { return nil }
+      return surfaceID
+    }
     let context: ghostty_surface_context_e =
       projectManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
@@ -69,11 +86,15 @@ extension TerminalHostState {
         selecting: focusing
       )
     else { return nil }
+    let inheritedWorkingDirectory = inheritedSurfaceConfig(
+      fromSurfaceID: inheritedSurfaceID,
+      context: context
+    ).workingDirectory
     let tree = splitTree(
       for: tabID,
-      inheritingFromSurfaceID: inheritingFromSurfaceID,
+      inheritingFromSurfaceID: inheritedSurfaceID,
       startupCommand: startupCommand,
-      workingDirectory: workingDirectory,
+      workingDirectory: workingDirectory ?? inheritedWorkingDirectory ?? project.directoryURL,
       context: context
     )
     updateRunningState(for: tabID)
@@ -123,6 +144,7 @@ extension TerminalHostState {
     let view = GhosttySurfaceView(
       id: surfaceID,
       runtime: runtime,
+      windowID: windowControllerID,
       tabID: tabID.rawValue,
       workingDirectory: workingDirectory ?? inherited.workingDirectory,
       command: launchCommand.command,
@@ -218,30 +240,6 @@ extension TerminalHostState {
     return focusHistoryByTab[selectedTabID]?.current
   }
 
-  func inheritedSurfaceID(in spaceID: TerminalSpaceID) -> UUID? {
-    if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
-      if let focusedSurfaceID = focusHistoryByTab[selectedTabID]?.current,
-        surfaces[focusedSurfaceID] != nil
-      {
-        return focusedSurfaceID
-      }
-      if let surfaceID = trees[selectedTabID]?.root?.leftmostLeaf().id {
-        return surfaceID
-      }
-    }
-
-    for tab in spaceManager.tabs(in: spaceID) {
-      if let focusedSurfaceID = focusHistoryByTab[tab.id]?.current, surfaces[focusedSurfaceID] != nil {
-        return focusedSurfaceID
-      }
-      if let surfaceID = trees[tab.id]?.root?.leftmostLeaf().id {
-        return surfaceID
-      }
-    }
-
-    return nil
-  }
-
   func resolveCreateTabTarget(
     _ target: TerminalCreateTabRequest.Target
   ) throws -> ResolvedCreateTabTarget {
@@ -272,7 +270,7 @@ extension TerminalHostState {
         throw TerminalCreateTabError.creationFailed
       }
       return ResolvedCreateTabTarget(
-        inheritedSurfaceID: inheritedSurfaceID(in: space.id),
+        inheritedSurfaceID: nil,
         project: project,
         space: space
       )
@@ -280,8 +278,24 @@ extension TerminalHostState {
   }
 
   func resolveLocalCreateTabTarget(
+    projectID: TerminalProjectID?,
     inheritingFromSurfaceID: UUID?
   ) -> ResolvedLocalCreateTabTarget? {
+    if let projectID, let space = spaceManager.space(for: projectID) {
+      let inheritedSurfaceID = inheritingFromSurfaceID.flatMap { surfaceID -> UUID? in
+        guard
+          let sourceTabID = tabID(containing: surfaceID),
+          spaceManager.projectID(for: sourceTabID) == projectID
+        else { return nil }
+        return surfaceID
+      }
+      return ResolvedLocalCreateTabTarget(
+        inheritedSurfaceID: inheritedSurfaceID,
+        projectID: projectID,
+        spaceID: space.id
+      )
+    }
+
     if let inheritingFromSurfaceID,
       let anchorTabID = tabID(containing: inheritingFromSurfaceID),
       let space = spaceManager.space(for: anchorTabID),

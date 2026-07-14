@@ -7,6 +7,10 @@ import SupatermCLIShared
 import SwiftUI
 
 extension TerminalHostState {
+  func projectID(for tabID: TerminalTabID) -> TerminalProjectID? {
+    spaceManager.projectID(for: tabID)
+  }
+
   var spaces: [TerminalSpaceItem] {
     spaceManager.spaces
   }

@@ -15,6 +15,7 @@ struct SocketControlFeatureAppTests {
   func treeRequestRepliesWithSnapshot() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "92B503AB-CC76-4D91-A024-FD4D400F0446")!
+    let windowID = UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!
     let pane = SupatermTreeSnapshot.Pane(
       index: 1,
       id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
@@ -36,7 +37,7 @@ struct SocketControlFeatureAppTests {
         SupatermTreeSnapshot.Project(
           index: 1,
           id: UUID(),
-          name: "Project",
+          directoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
           isPinned: false,
           tabs: [tab]
         )
@@ -44,6 +45,7 @@ struct SocketControlFeatureAppTests {
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
+      id: windowID,
       isKey: true,
       spaces: [space]
     )
@@ -103,6 +105,7 @@ struct SocketControlFeatureAppTests {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "E8ECEDC8-C9D7-4127-9D7D-7C58A42C0F35")!
     let context = SupatermCLIContext(
+      windowID: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
       surfaceID: UUID(uuidString: "BEB80BB0-902E-4E56-AF34-A57A613F977A")!,
       tabID: UUID(uuidString: "3B9FB2DD-0C6E-4AE0-BE47-328F70A5A315")!
     )

@@ -84,6 +84,7 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
   public let attentionState: SupatermNotificationAttentionState
   public let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
   public let resolvedTitle: String
+  public let windowID: UUID
   public let windowIndex: Int
   public let spaceIndex: Int
   public let spaceID: UUID
@@ -96,6 +97,7 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
     attentionState: SupatermNotificationAttentionState,
     desktopNotificationDisposition: SupatermDesktopNotificationDisposition,
     resolvedTitle: String,
+    windowID: UUID,
     windowIndex: Int,
     spaceIndex: Int,
     spaceID: UUID,
@@ -107,6 +109,7 @@ public struct SupatermNotifyResult: Equatable, Sendable, Codable {
     self.attentionState = attentionState
     self.desktopNotificationDisposition = desktopNotificationDisposition
     self.resolvedTitle = resolvedTitle
+    self.windowID = windowID
     self.windowIndex = windowIndex
     self.spaceIndex = spaceIndex
     self.spaceID = spaceID

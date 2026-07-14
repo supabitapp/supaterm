@@ -14,7 +14,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func foregroundSessionEndClearsPresentation() {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -38,7 +38,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func staleSessionEndCannotClearNewerForeground() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     for sessionID in ["older", "foreground"] {
@@ -65,7 +65,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func foregroundTurnCompletionBecomesIdle() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -99,7 +99,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func staleTurnCompletionCannotClearNewerTurn() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -174,7 +174,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func completedNilIDTurnRejectsLateNilIDActivity() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -217,7 +217,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func latestNativeRootActivityBecomesForeground() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -244,7 +244,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func rootTurnStartBecomesForeground() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -264,7 +264,7 @@ struct TerminalAgentStateStoreTests {
   @Test
   func unscopedNativeTurnAdoptsTranscriptTurnID() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
 
     store.apply(
@@ -334,7 +334,7 @@ struct TerminalAgentStateStoreTests {
 
   func startedStore() -> StartedStore {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
     store.apply(
       event(

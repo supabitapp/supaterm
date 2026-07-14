@@ -72,6 +72,27 @@ struct SPCommandRuntimeTests {
   }
 
   @Test
+  func projectDirectoryMustResolveToAnExistingDirectory() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let file = root.appendingPathComponent("file")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data().write(to: file)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    #expect(try resolvedProjectDirectoryURL(root.path) == root.standardizedFileURL)
+
+    for path in [file.path, root.appendingPathComponent("missing").path, "  "] {
+      do {
+        _ = try resolvedProjectDirectoryURL(path)
+        Issue.record("Expected project directory validation to fail for \(path).")
+      } catch {
+        #expect(String(describing: error).contains("Project directory"))
+      }
+    }
+  }
+
+  @Test
   func outputOptionsModeAndValidation() throws {
     guard case .human = try SPOutputOptions.parse([]).mode else {
       Issue.record("Expected default output mode to be human.")

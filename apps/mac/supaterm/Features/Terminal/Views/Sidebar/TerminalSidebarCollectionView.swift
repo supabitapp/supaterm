@@ -2,6 +2,42 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
+struct TerminalSidebarRowPresentationKey: Equatable {
+  private let value: Any
+  private let valueType: ObjectIdentifier
+  private let isEqual: (Any, Any) -> Bool
+
+  init<Value: Equatable>(_ value: Value) {
+    self.value = value
+    valueType = ObjectIdentifier(Value.self)
+    isEqual = { ($0 as? Value) == ($1 as? Value) }
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.valueType == rhs.valueType && lhs.isEqual(lhs.value, rhs.value)
+  }
+}
+
+enum TerminalSidebarRowRefresh {
+  static func entryIDs(
+    in entryIDs: Set<TerminalSidebarEntryID>,
+    previousKeyByID: [TerminalSidebarEntryID: TerminalSidebarRowPresentationKey],
+    keyByID: [TerminalSidebarEntryID: TerminalSidebarRowPresentationKey],
+    previousSelectedTabID: TerminalTabID?,
+    selectedTabID: TerminalTabID?
+  ) -> Set<TerminalSidebarEntryID> {
+    var result = Set(
+      entryIDs.filter { previousKeyByID[$0] != keyByID[$0] }
+    )
+    if previousSelectedTabID != selectedTabID {
+      if let previousSelectedTabID { result.insert(.tab(previousSelectedTabID)) }
+      if let selectedTabID { result.insert(.tab(selectedTabID)) }
+    }
+    result.formIntersection(entryIDs)
+    return result
+  }
+}
+
 @MainActor
 final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   let scrollView = NSScrollView()
@@ -17,9 +53,29 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   }
 
   private struct AcceptedDrop {
-    let sessionID: UUID
     let drag: TerminalSidebarDragValue
     let destination: TerminalSidebarDropTarget.Destination
+  }
+
+  private struct ActiveDrag {
+    let id: UUID
+    let value: TerminalSidebarDragValue
+    let previewImage: NSImage
+    let previewRect: CGRect
+    let previewHotspot: CGPoint
+    var acceptedDrop: AcceptedDrop?
+    var source: TerminalSidebarDragSessionSource?
+    var cleanup: Task<Void, Never>?
+  }
+
+  private enum UpdatePhase: Equatable {
+    case idle
+    case collapsing(ModelUpdate)
+    case applyingSnapshot(ModelUpdate)
+
+    var isIdle: Bool {
+      self == .idle
+    }
   }
 
   private struct ScrollAnchor {
@@ -28,25 +84,22 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   }
 
   private let dropIndicatorView = TerminalSidebarDropIndicatorView()
-  private let performReorderHaptic: () -> Void
+  private let performAlignmentHaptic: () -> Void
+  private let performDropHaptic: () -> Void
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var itemByID: [TerminalSidebarEntryID: AnyView] = [:]
+  private var presentationKeyByID: [TerminalSidebarEntryID: TerminalSidebarRowPresentationKey] = [:]
   private var measuredHeights: [TerminalSidebarEntryID: (width: CGFloat, height: CGFloat)] = [:]
+  private var heightRefreshEntryIDs: Set<TerminalSidebarEntryID> = []
   private var appliedModel = TerminalSidebarPresentationModel(entries: [], collapsedProjectIDs: [])
   private var pendingUpdate: ModelUpdate?
-  private var activeCollapseUpdate: ModelUpdate?
-  private var activeSnapshotUpdate: ModelUpdate?
-  private var isApplyingModelUpdate = false
+  private var updatePhase = UpdatePhase.idle
+  private var selectedTabID: TerminalTabID?
+  private var pendingRevealTabID: TerminalTabID?
   private var hasAppliedSnapshot = false
   private var isLayingOutHierarchy = false
-  private var activeDragValue: TerminalSidebarDragValue?
-  private var activeDragSessionID: UUID?
-  private var acceptedDrop: AcceptedDrop?
-  private var dragSessionSource: TerminalSidebarDragSessionSource?
-  private var activePreviewImage: NSImage?
-  private var activePreviewRect: CGRect?
-  private var activePreviewHotspot: CGPoint?
-  private var dragCleanup: Task<Void, Never>?
+  private var activeDrag: ActiveDrag?
+  private var externalDragSession = TerminalSidebarExternalDragTracker()
   private var hapticTracker = TerminalSidebarHapticTargetTracker()
   private var animationsEnabled = true
   private lazy var collapseAnimator = TerminalSidebarCollapseAnimator(
@@ -68,15 +121,19 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   private lazy var autoscrollController = TerminalSidebarDragAutoscrollController(
     collectionView: collectionView,
     scrollView: scrollView,
-    onScroll: { [weak self] pointerY in self?.updateDropTarget(pointerY: pointerY) }
+    onScroll: { [weak self] pointerY in self?.updateDropTargetAfterAutoscroll(pointerY: pointerY) }
   )
 
   init(
-    performReorderHaptic: @escaping () -> Void = {
+    performAlignmentHaptic: @escaping () -> Void = {
+      NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    },
+    performDropHaptic: @escaping () -> Void = {
       NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
     }
   ) {
-    self.performReorderHaptic = performReorderHaptic
+    self.performAlignmentHaptic = performAlignmentHaptic
+    self.performDropHaptic = performDropHaptic
     super.init(frame: .zero)
     configureHierarchy()
   }
@@ -93,17 +150,54 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     layoutHierarchy()
   }
 
+  override func setFrameSize(_ newSize: NSSize) {
+    let sizeChanged = frame.size != newSize
+    super.setFrameSize(newSize)
+    if sizeChanged { layoutHierarchy() }
+  }
+
   func apply(
     model: TerminalSidebarPresentationModel,
     itemByID: [TerminalSidebarEntryID: AnyView],
+    presentationKeyByID: [TerminalSidebarEntryID: TerminalSidebarRowPresentationKey],
+    selectedTabID: TerminalTabID?,
     reduceMotion: Bool
   ) {
+    let selectionChanged = selectedTabID != self.selectedTabID
+    let previousSelectedTabID = self.selectedTabID
+    if selectionChanged {
+      self.selectedTabID = selectedTabID
+      pendingRevealTabID = selectedTabID
+    }
+    let entryIDs = Set(model.entries.map(\.id))
+    precondition(Set(itemByID.keys) == entryIDs)
+    precondition(Set(presentationKeyByID.keys) == entryIDs)
+    let refreshEntryIDs = TerminalSidebarRowRefresh.entryIDs(
+      in: entryIDs,
+      previousKeyByID: self.presentationKeyByID,
+      keyByID: presentationKeyByID,
+      previousSelectedTabID: previousSelectedTabID,
+      selectedTabID: selectedTabID
+    )
+    measuredHeights = measuredHeights.filter { entryIDs.contains($0.key) }
+    heightRefreshEntryIDs.formIntersection(entryIDs)
+    heightRefreshEntryIDs.formUnion(
+      refreshEntryIDs.filter { entryID in
+        if case .tab = entryID { return true }
+        return false
+      }
+    )
     self.itemByID = itemByID
-    measuredHeights.removeAll()
-    refreshVisibleItems()
+    self.presentationKeyByID = presentationKeyByID
+    let visibleRefreshEntryIDs = refreshEntryIDs.intersection(visibleEntryIDs())
+    for entryID in visibleRefreshEntryIDs {
+      measuredHeights[entryID] = nil
+      heightRefreshEntryIDs.remove(entryID)
+    }
+    refreshVisibleItems(entryIDs: visibleRefreshEntryIDs)
     let update = ModelUpdate(model: model, reduceMotion: reduceMotion)
 
-    if let acceptedDrop,
+    if let acceptedDrop = activeDrag?.acceptedDrop,
       TerminalSidebarDropCommit.isApplied(
         drag: acceptedDrop.drag,
         destination: acceptedDrop.destination,
@@ -115,23 +209,24 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
       return
     }
 
-    if let activeCollapseUpdate {
+    if case .collapsing(let activeCollapseUpdate) = updatePhase {
       if activeCollapseUpdate == update {
         pendingUpdate = nil
         return
       }
       collapseAnimator.cancel()
-      self.activeCollapseUpdate = nil
-      isApplyingModelUpdate = false
+      updatePhase = .idle
       collectionLayout.visibilityByEntryID = [:]
     }
 
-    if activeSnapshotUpdate == update {
+    if case .applyingSnapshot(let activeSnapshotUpdate) = updatePhase,
+      activeSnapshotUpdate == update
+    {
       pendingUpdate = nil
       return
     }
 
-    guard !isApplyingModelUpdate else {
+    guard updatePhase.isIdle else {
       pendingUpdate = update
       return
     }
@@ -140,10 +235,11 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
       pendingUpdate = nil
       animationsEnabled = !reduceMotion
       invalidateLayout()
+      revealSelectedTabIfNeeded()
       return
     }
 
-    guard activeDragValue == nil else {
+    guard activeDrag == nil else {
       pendingUpdate = update
       return
     }
@@ -152,20 +248,21 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
 
   func setDropTarget(_ target: TerminalSidebarDropTarget?, pointerY: CGFloat?) {
     let layoutTarget = target.map(layoutDropTarget(for:))
-    if collectionLayout.dropTarget != layoutTarget {
+    let targetChanged = collectionLayout.dropTarget != layoutTarget
+    if targetChanged {
       layoutAnimator.animate(enabled: animationsEnabled) {
         self.collectionLayout.dropTarget = layoutTarget
       }
     }
     if hapticTracker.shouldPerform(for: target?.destination) {
-      performReorderHaptic()
+      performAlignmentHaptic()
     }
     if let pointerY {
       autoscrollController.update(pointerY: pointerY)
     } else {
       autoscrollController.stop()
     }
-    invalidateLayout()
+    if targetChanged { invalidateLayout() }
   }
 
   func invalidateLayout() {
@@ -196,8 +293,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     collectionView.canBeginDrag = { [weak self] indexPath in
       guard
         let self,
-        !isApplyingModelUpdate,
-        activeCollapseUpdate == nil,
+        updatePhase.isIdle,
         let entryID = dataSource.itemIdentifier(for: indexPath),
         entryID != .newProject
       else { return nil }
@@ -212,6 +308,9 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     }
     collectionView.onDragExited = { [weak self] in
       self?.setDropTarget(nil, pointerY: nil)
+    }
+    collectionView.onDragEnded = { [weak self] sequenceNumber in
+      self?.finishExternalDragging(sequenceNumber: sequenceNumber)
     }
 
     dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) {
@@ -258,8 +357,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     }
 
     if hasAppliedSnapshot, !update.reduceMotion, !collapsingRowIDs.isEmpty {
-      isApplyingModelUpdate = true
-      activeCollapseUpdate = update
+      updatePhase = .collapsing(update)
       collapseAnimator.start(rowIDs: collapsingRowIDs)
       return
     }
@@ -267,8 +365,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   }
 
   private func applySnapshot(_ update: ModelUpdate, animated: Bool) {
-    isApplyingModelUpdate = true
-    activeSnapshotUpdate = update
+    updatePhase = .applyingSnapshot(update)
     collectionLayout.visibilityByEntryID = [:]
     collectionLayout.expansionProgress = Dictionary(
       uniqueKeysWithValues: update.model.entries.compactMap { entry in
@@ -284,12 +381,11 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     let completion = { [weak self] in
       guard let self else { return }
       appliedModel = update.model
-      activeSnapshotUpdate = nil
+      updatePhase = .idle
       collectionLayout.finishStructuralUpdate()
       hasAppliedSnapshot = true
-      isApplyingModelUpdate = false
-      refreshVisibleItems()
       invalidateLayout()
+      revealSelectedTabIfNeeded()
       consumePendingUpdate()
     }
 
@@ -310,14 +406,14 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   }
 
   private func completeCollapse() {
-    guard let update = activeCollapseUpdate else { return }
-    activeCollapseUpdate = nil
+    guard case .collapsing(let update) = updatePhase else { return }
+    updatePhase = .idle
     collectionLayout.visibilityByEntryID = [:]
     applySnapshot(update, animated: false)
   }
 
   private func consumePendingUpdate() {
-    guard activeDragValue == nil, let pendingUpdate else { return }
+    guard activeDrag == nil, let pendingUpdate else { return }
     self.pendingUpdate = nil
     process(pendingUpdate)
   }
@@ -329,8 +425,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   ) -> Bool {
     guard
       mouseDownEvent.window === dragEvent.window,
-      !isApplyingModelUpdate,
-      activeCollapseUpdate == nil,
+      updatePhase.isIdle,
       dataSource.snapshot().itemIdentifiers.contains(entryID),
       appliedModel.visibleEntries.contains(where: { $0.id == entryID })
     else { return false }
@@ -356,24 +451,26 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
     draggingItem.setDraggingFrame(previewRect, contents: preview)
 
-    activeDragValue = value
-    activePreviewImage = preview
-    activePreviewRect = previewRect
     let pointer = collectionView.convert(dragEvent.locationInWindow, from: nil)
-    activePreviewHotspot = CGPoint(
+    let previewHotspot = CGPoint(
       x: pointer.x - previewRect.minX,
       y: pointer.y - previewRect.minY
     )
     let sessionID = UUID()
-    activeDragSessionID = sessionID
-    acceptedDrop = nil
+    activeDrag = ActiveDrag(
+      id: sessionID,
+      value: value,
+      previewImage: preview,
+      previewRect: previewRect,
+      previewHotspot: previewHotspot
+    )
     hapticTracker.reset()
     collectionLayout.draggedEntryIDs = draggedEntryIDs
     invalidateLayout()
 
     let source = TerminalSidebarDragSessionSource { [weak self] source, screenPoint, operation in
-      guard let self, dragSessionSource === source else { return }
-      dragSessionSource = nil
+      guard let self, activeDrag?.source === source else { return }
+      activeDrag?.source = nil
       collectionView.finishDragGesture()
       draggingSessionEnded(
         sessionID: sessionID,
@@ -381,7 +478,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
         operation: operation
       )
     }
-    dragSessionSource = source
+    activeDrag?.source = source
     let session = collectionView.beginDraggingSession(
       with: [draggingItem],
       event: dragEvent,
@@ -397,37 +494,32 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     screenPoint: NSPoint,
     operation: NSDragOperation
   ) {
-    guard activeDragSessionID == sessionID else { return }
-    guard acceptedDrop?.sessionID == sessionID, operation == .move else {
-      animatePreviewFromScreenPoint(screenPoint, to: activePreviewRect)
+    guard let activeDrag, activeDrag.id == sessionID else { return }
+    guard activeDrag.acceptedDrop != nil, operation == .move else {
+      animatePreviewFromScreenPoint(screenPoint, to: activeDrag.previewRect)
       finishDragging()
       return
     }
-    dragCleanup?.cancel()
-    dragCleanup = Task { @MainActor [weak self] in
+    self.activeDrag?.cleanup?.cancel()
+    self.activeDrag?.cleanup = Task { @MainActor [weak self] in
       try? await Task.sleep(for: .milliseconds(250))
-      guard let self, !Task.isCancelled, activeDragSessionID == sessionID else { return }
+      guard let self, !Task.isCancelled, self.activeDrag?.id == sessionID else { return }
       finishDragging()
     }
   }
 
   private func finishDragging() {
-    dragCleanup?.cancel()
-    dragCleanup = nil
+    activeDrag?.cleanup?.cancel()
     autoscrollController.stop()
     layoutAnimator.finish()
     collectionLayout.draggedEntryIDs = []
     collectionLayout.dropTarget = nil
-    activeDragValue = nil
-    activeDragSessionID = nil
-    acceptedDrop = nil
-    activePreviewImage = nil
-    activePreviewRect = nil
-    activePreviewHotspot = nil
+    activeDrag = nil
     hapticTracker.reset()
     collectionView.finishDragGesture()
     invalidateLayout()
-    guard !isApplyingModelUpdate, let pendingUpdate else { return }
+    revealSelectedTabIfNeeded()
+    guard updatePhase.isIdle, let pendingUpdate else { return }
     self.pendingUpdate = nil
     process(pendingUpdate)
   }
@@ -483,7 +575,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     guard
       let value = draggingInfo.draggingPasteboard.string(forType: TerminalSidebarProjectList.dragType),
       let dragged = TerminalSidebarDragValue(pasteboardValue: value),
-      dragged == activeDragValue
+      dragged == activeDrag?.value
     else { return nil }
     return dragged
   }
@@ -502,13 +594,34 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
 
   private func updateDropTarget(pointerY: CGFloat) {
     guard
-      let dragged = activeDragValue,
+      let dragged = activeDrag?.value,
       let target = resolvedDropTarget(dragged: dragged, pointerY: pointerY)
     else {
       setDropTarget(nil, pointerY: nil)
       return
     }
     setDropTarget(target, pointerY: pointerY)
+  }
+
+  private func updateDropTargetAfterAutoscroll(pointerY: CGFloat) {
+    if activeDrag != nil {
+      updateDropTarget(pointerY: pointerY)
+      return
+    }
+    guard
+      externalDragSession.sequenceNumber != nil,
+      let target = TerminalSidebarFolderDrop.target(in: appliedModel.entries)
+    else {
+      setDropTarget(nil, pointerY: nil)
+      return
+    }
+    setDropTarget(target, pointerY: pointerY)
+  }
+
+  private func finishExternalDragging(sequenceNumber: Int) {
+    guard externalDragSession.end(sequenceNumber: sequenceNumber) else { return }
+    setDropTarget(nil, pointerY: nil)
+    hapticTracker.reset()
   }
 
   private func layoutDropTarget(
@@ -538,8 +651,12 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     if !folderURLs.isEmpty,
       let target = TerminalSidebarFolderDrop.target(in: appliedModel.entries)
     {
+      if externalDragSession.begin(sequenceNumber: draggingInfo.draggingSequenceNumber) {
+        hapticTracker.reset()
+      }
+      let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
       let layoutTarget = layoutDropTarget(for: target)
-      setDropTarget(target, pointerY: nil)
+      setDropTarget(target, pointerY: location.y)
       proposedDropIndexPath.pointee =
         IndexPath(
           item: min(layoutTarget.insertionEntryIndex, appliedModel.visibleEntries.count),
@@ -580,26 +697,29 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   ) -> Bool {
     let folderURLs = TerminalSidebarFolderDrop.directoryURLs(from: draggingInfo.draggingPasteboard)
     if !folderURLs.isEmpty {
-      setDropTarget(nil, pointerY: nil)
-      return onFolderDrop?(folderURLs) == true
+      let didAccept = onFolderDrop?(folderURLs) == true
+      finishExternalDragging(sequenceNumber: draggingInfo.draggingSequenceNumber)
+      if didAccept { performDropHaptic() }
+      return didAccept
     }
     let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
     guard
       let dragged = draggedValue(from: draggingInfo),
       let target = resolvedDropTarget(dragged: dragged, pointerY: location.y),
-      let activeDragSessionID
+      var activeDrag,
+      let onDrop
     else {
       finishDragging()
       return false
     }
-    acceptedDrop = AcceptedDrop(
-      sessionID: activeDragSessionID,
+    activeDrag.acceptedDrop = AcceptedDrop(
       drag: dragged,
       destination: target.destination
     )
+    self.activeDrag = activeDrag
     if let indicatorFrame = collectionLayout.plan.dropIndicatorFrame,
-      let previewRect = activePreviewRect,
-      let hotspot = activePreviewHotspot
+      let previewRect = self.activeDrag?.previewRect,
+      let hotspot = self.activeDrag?.previewHotspot
     {
       animatePreview(
         from: CGRect(
@@ -616,15 +736,29 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
         )
       )
     }
-    onDrop?(dragged, target.destination)
+    onDrop(dragged, target.destination)
+    performDropHaptic()
     return true
+  }
+
+  func collectionView(
+    _ collectionView: NSCollectionView,
+    willDisplay item: NSCollectionViewItem,
+    forRepresentedObjectAt indexPath: IndexPath
+  ) {
+    guard
+      let entryID = dataSource.itemIdentifier(for: indexPath),
+      let frame = collectionLayout.targetPlan.items.first(where: { $0.id == entryID })?.frame,
+      refreshHeightIfNeeded(for: entryID, width: frame.width)
+    else { return }
+    invalidateLayout()
   }
 
   private func animatePreviewFromScreenPoint(
     _ screenPoint: NSPoint,
     to targetFrame: CGRect?
   ) {
-    guard let window, let targetFrame, let hotspot = activePreviewHotspot else { return }
+    guard let window, let targetFrame, let hotspot = activeDrag?.previewHotspot else { return }
     let windowPoint = window.convertPoint(fromScreen: screenPoint)
     let collectionPoint = collectionView.convert(windowPoint, from: nil)
     animatePreview(
@@ -639,9 +773,9 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
   }
 
   private func animatePreview(from startFrame: CGRect, to targetFrame: CGRect) {
-    guard animationsEnabled, let activePreviewImage else { return }
+    guard animationsEnabled, let previewImage = activeDrag?.previewImage else { return }
     let imageView = NSImageView(frame: startFrame)
-    imageView.image = activePreviewImage
+    imageView.image = previewImage
     imageView.imageScaling = .scaleAxesIndependently
     imageView.alphaValue = 0.92
     collectionView.addSubview(imageView, positioned: .above, relativeTo: nil)
@@ -673,30 +807,96 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
       if let measurement = measuredHeights[entryID], measurement.width == width {
         return measurement.height
       }
-      let controller = NSHostingController(
-        rootView: itemByID[entryID] ?? AnyView(EmptyView())
-      )
-      let size = controller.sizeThatFits(
-        in: CGSize(
-          width: width,
-          height: max(
-            TerminalSidebarLayout.tabRowMinHeight,
-            scrollView.contentView.bounds.height
-          )
-        )
-      )
-      let height = max(TerminalSidebarLayout.tabRowMinHeight, ceil(size.height))
+      let height = measureHeight(for: entryID, width: width)
       measuredHeights[entryID] = (width, height)
+      heightRefreshEntryIDs.remove(entryID)
       return height
     }
   }
 
-  private func refreshVisibleItems() {
+  private func measureHeight(
+    for entryID: TerminalSidebarEntryID,
+    width: CGFloat
+  ) -> CGFloat {
+    let controller = NSHostingController(
+      rootView: itemByID[entryID] ?? AnyView(EmptyView())
+    )
+    let size = controller.sizeThatFits(
+      in: CGSize(
+        width: width,
+        height: max(
+          TerminalSidebarLayout.tabRowMinHeight,
+          scrollView.contentView.bounds.height
+        )
+      )
+    )
+    return max(TerminalSidebarLayout.tabRowMinHeight, ceil(size.height))
+  }
+
+  private func visibleEntryIDs() -> Set<TerminalSidebarEntryID> {
+    Set(
+      collectionView.visibleItems().compactMap { item in
+        guard let indexPath = collectionView.indexPath(for: item) else { return nil }
+        return dataSource?.itemIdentifier(for: indexPath)
+      }
+    )
+  }
+
+  private func refreshHeightIfNeeded(
+    for entryID: TerminalSidebarEntryID,
+    width: CGFloat
+  ) -> Bool {
+    guard case .tab = entryID, heightRefreshEntryIDs.remove(entryID) != nil else { return false }
+    let previousMeasurement = measuredHeights[entryID]
+    let height = measureHeight(for: entryID, width: width)
+    measuredHeights[entryID] = (width, height)
+    return previousMeasurement?.width != width || previousMeasurement?.height != height
+  }
+
+  private func revealSelectedTabIfNeeded() {
+    guard
+      updatePhase.isIdle,
+      activeDrag == nil,
+      pendingUpdate == nil,
+      let tabID = pendingRevealTabID
+    else { return }
+    let entryID = TerminalSidebarEntryID.tab(tabID)
+    guard dataSource.snapshot().itemIdentifiers.contains(entryID) else {
+      return
+    }
+    if let width = collectionLayout.targetPlan.items.first(where: { $0.id == entryID })?.frame.width,
+      refreshHeightIfNeeded(for: entryID, width: width)
+    {
+      invalidateLayout()
+    }
+    collectionView.layoutSubtreeIfNeeded()
+    guard let frame = collectionLayout.targetPlan.items.first(where: { $0.id == entryID })?.frame
+    else { return }
+    let visibleRect = collectionView.visibleRect
+    let proposedY: CGFloat
+    if frame.height > visibleRect.height || frame.minY < visibleRect.minY {
+      proposedY = frame.minY
+    } else if frame.maxY > visibleRect.maxY {
+      proposedY = frame.maxY - visibleRect.height
+    } else {
+      proposedY = visibleRect.minY
+    }
+    let clipView = scrollView.contentView
+    let targetY = TerminalSidebarScrollGeometry.constrainedY(proposedY, in: clipView)
+    if targetY != clipView.bounds.origin.y {
+      clipView.scroll(to: CGPoint(x: clipView.bounds.origin.x, y: targetY))
+      scrollView.reflectScrolledClipView(clipView)
+    }
+    pendingRevealTabID = nil
+  }
+
+  private func refreshVisibleItems(entryIDs: Set<TerminalSidebarEntryID>) {
     for item in collectionView.visibleItems() {
       guard
         let item = item as? TerminalSidebarCollectionItem,
         let indexPath = collectionView.indexPath(for: item),
         let entryID = dataSource?.itemIdentifier(for: indexPath),
+        entryIDs.contains(entryID),
         let view = itemByID[entryID]
       else { continue }
       item.host(view)
@@ -711,6 +911,7 @@ final class TerminalSidebarListView: NSView, NSCollectionViewDelegate {
     let anchor = scrollAnchor()
     scrollView.frame = bounds
     scrollView.tile()
+    scrollView.layoutSubtreeIfNeeded()
     let documentWidth = max(1, scrollView.contentView.bounds.width)
     let viewportHeight = max(1, scrollView.contentView.bounds.height)
     let startingHeight = max(viewportHeight, collectionView.frame.height)

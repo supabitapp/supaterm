@@ -66,57 +66,83 @@ extension TerminalHostState {
 
   @discardableResult
   func createProject(
-    named name: String,
+    directoryURL: URL,
     in spaceID: TerminalSpaceID? = nil,
-    focusing: Bool = true,
-    workingDirectory: URL? = nil
+    focusing: Bool = true
   ) throws -> TerminalProjectID {
-    guard let normalizedName = Self.trimmedNonEmpty(name) else {
-      throw TerminalControlError.invalidProjectName
-    }
+    try createProjects(
+      directoryURLs: [directoryURL],
+      in: spaceID,
+      focusing: focusing
+    )[0]
+  }
+
+  @discardableResult
+  func createProjects(
+    directoryURLs: [URL],
+    in spaceID: TerminalSpaceID? = nil,
+    focusing: Bool = true
+  ) throws -> [TerminalProjectID] {
+    guard !directoryURLs.isEmpty else { return [] }
     guard let spaceID = spaceID ?? selectedSpaceID else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
-    }
-    guard spaceManager.isProjectNameAvailable(normalizedName, in: spaceID) else {
-      throw TerminalControlError.projectNameUnavailable
     }
     guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
       throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
     }
 
-    let project = TerminalProjectItem(name: normalizedName)
-    var updatedSpaceCatalog = spaceCatalog
-    updatedSpaceCatalog.spaces[spaceIndex].projects.append(project)
-    _ = writeSpaceCatalog(updatedSpaceCatalog)
-    _ = createTab(
-      in: spaceID,
-      projectID: project.id,
-      focusing: focusing,
-      workingDirectory: workingDirectory
+    var knownDirectoryURLs = Set(
+      spaceCatalog.spaces[spaceIndex].projects.compactMap {
+        TerminalProjectItem.canonicalDirectoryURL($0.directoryURL)
+      }
     )
-    return project.id
-  }
-
-  func renameProject(_ projectID: TerminalProjectID, to name: String) {
-    guard let normalizedName = Self.trimmedNonEmpty(name) else { return }
-    guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
-    guard spaceManager.isProjectNameAvailable(normalizedName, in: spaceID, excluding: projectID) else {
-      return
+    let canonicalDirectoryURLs = try directoryURLs.map { directoryURL in
+      guard directoryURL.isFileURL else {
+        throw TerminalControlError.invalidProjectDirectory
+      }
+      guard let directoryURL = TerminalProjectItem.reachableDirectoryURL(directoryURL) else {
+        throw TerminalControlError.projectDirectoryUnavailable
+      }
+      guard knownDirectoryURLs.insert(directoryURL).inserted else {
+        throw TerminalControlError.projectAlreadyExists
+      }
+      return directoryURL
     }
-    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
-    guard let projectIndex = spaceCatalog.spaces[spaceIndex].projects.firstIndex(where: { $0.id == projectID }) else {
-      return
-    }
-
+    let projects = canonicalDirectoryURLs.map { TerminalProjectItem(directoryURL: $0) }
     var updatedSpaceCatalog = spaceCatalog
-    updatedSpaceCatalog.spaces[spaceIndex].projects[projectIndex].name = normalizedName
+    updatedSpaceCatalog.spaces[spaceIndex].projects.append(contentsOf: projects)
+    if focusing {
+      updatedSpaceCatalog.defaultSelectedSpaceID = spaceID
+    }
     _ = writeSpaceCatalog(updatedSpaceCatalog)
+    if focusing {
+      _ = applySelectedSpace(spaceID)
+    }
+    let createdTabIDs = projects.compactMap { project in
+      createTab(
+        in: spaceID,
+        projectID: project.id,
+        focusing: false,
+        workingDirectory: project.directoryURL,
+        sessionChangesEnabled: false,
+        synchronizesFocus: false
+      )
+    }
+    if focusing {
+      if let selectedTabID = createdTabIDs.last {
+        applySelectedTab(selectedTabID, in: spaceID)
+      }
+      finalizeSpaceSelectionChange()
+    } else {
+      syncFocus(windowActivity)
+    }
+    sessionDidChange()
+    return projects.map(\.id)
   }
 
   func deleteProject(_ projectID: TerminalProjectID) {
     guard let spaceID = spaceManager.space(for: projectID)?.id else { return }
     guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else { return }
-    guard spaceCatalog.spaces[spaceIndex].projects.count > 1 else { return }
 
     var updatedSpaceCatalog = spaceCatalog
     updatedSpaceCatalog.spaces[spaceIndex].projects.removeAll { $0.id == projectID }
@@ -181,18 +207,6 @@ extension TerminalHostState {
     sessionDidChange()
   }
 
-  func isProjectNameAvailable(
-    _ proposedName: String,
-    in spaceID: TerminalSpaceID,
-    excluding excludedProjectID: TerminalProjectID? = nil
-  ) -> Bool {
-    spaceManager.isProjectNameAvailable(
-      proposedName,
-      in: spaceID,
-      excluding: excludedProjectID
-    )
-  }
-
   func isSpaceNameAvailable(
     _ proposedName: String,
     excluding excludedSpaceID: TerminalSpaceID? = nil
@@ -220,6 +234,9 @@ extension TerminalHostState {
     let previousSelectedSpaceID = selectedSpaceID
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
+    projectDirectoryMonitor.update(
+      urls: resolvedSpaceCatalog.spaces.flatMap { $0.projects.map(\.directoryURL) }
+    )
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogObserved)
     synchronizePinnedTabCatalogWithSpaces()
 
@@ -241,6 +258,9 @@ extension TerminalHostState {
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
 
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
+    projectDirectoryMonitor.update(
+      urls: resolvedSpaceCatalog.spaces.flatMap { $0.projects.map(\.directoryURL) }
+    )
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogWrite)
     synchronizePinnedTabCatalogWithSpaces()
     return diff

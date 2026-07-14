@@ -40,15 +40,51 @@ nonisolated struct PersistedTerminalSpace: Equatable, Codable, Sendable {
   ) {
     self.id = id
     self.name = name
-    self.projects = projects ?? [TerminalProjectItem(name: NSHomeDirectory())]
+    self.projects =
+      projects ?? [
+        TerminalProjectItem(
+          directoryURL: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        )
+      ]
   }
 }
 
 nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
+  static let currentVersion = 2
+
+  let version: Int
   var defaultSelectedSpaceID: TerminalSpaceID
   var spaces: [PersistedTerminalSpace]
 
   static let `default` = Self.makeDefault()
+
+  init(
+    version: Int = Self.currentVersion,
+    defaultSelectedSpaceID: TerminalSpaceID,
+    spaces: [PersistedTerminalSpace]
+  ) {
+    self.version = version
+    self.defaultSelectedSpaceID = defaultSelectedSpaceID
+    self.spaces = spaces
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let version = try container.decode(Int.self, forKey: .version)
+    guard version == Self.currentVersion else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .version,
+        in: container,
+        debugDescription: "Unsupported space catalog version: \(version)"
+      )
+    }
+    self.version = Self.currentVersion
+    defaultSelectedSpaceID = try container.decode(
+      TerminalSpaceID.self,
+      forKey: .defaultSelectedSpaceID
+    )
+    spaces = try container.decode([PersistedTerminalSpace].self, forKey: .spaces)
+  }
 
   static func defaultURL(
     homeDirectoryPath: String = NSHomeDirectory(),
@@ -110,20 +146,19 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
     _ projects: [TerminalProjectItem]
   ) -> [TerminalProjectItem] {
     var seenIDs: Set<TerminalProjectID> = []
-    var seenNames: Set<String> = []
+    var seenDirectoryURLs: Set<URL> = []
     let projects = projects.compactMap { project -> TerminalProjectItem? in
-      let name = project.name.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !name.isEmpty else { return nil }
+      guard let directoryURL = TerminalProjectItem.canonicalDirectoryURL(project.directoryURL) else {
+        return nil
+      }
       guard seenIDs.insert(project.id).inserted else { return nil }
-      guard seenNames.insert(name.folding(options: [.caseInsensitive], locale: .current)).inserted
-      else { return nil }
+      guard seenDirectoryURLs.insert(directoryURL).inserted else { return nil }
       return TerminalProjectItem(
         id: project.id,
-        name: name,
+        directoryURL: directoryURL,
         isPinned: project.isPinned
       )
     }
-    let resolved = projects.isEmpty ? [TerminalProjectItem(name: NSHomeDirectory())] : projects
-    return resolved.filter(\.isPinned) + resolved.filter { !$0.isPinned }
+    return projects.filter(\.isPinned) + projects.filter { !$0.isPinned }
   }
 }

@@ -162,7 +162,7 @@ extension SocketRequestExecutor {
     terminalWindowsClient: TerminalWindowsClient
   ) async throws -> TerminalSpaceResult {
     switch request {
-    case .createProject, .closeProject, .renameProject, .pinProject, .unpinProject:
+    case .createProject, .closeProject, .pinProject, .unpinProject:
       throw TerminalControlError.contextPaneNotFound
     case .createSpace(let createSpaceRequest):
       return .createSpace(try await terminalWindowsClient.createSpace(createSpaceRequest))

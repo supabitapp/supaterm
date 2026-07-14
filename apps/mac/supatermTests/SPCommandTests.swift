@@ -40,12 +40,8 @@ struct SPCommandTests {
   @Test
   func projectParsersAcceptCreationAndManagementTargets() throws {
     let create = try #require(
-      try SP.parseAsRoot(["project", "new", "--in", "2", "--focus", "Build"])
+      try SP.parseAsRoot(["project", "new", "--in", "2", "--focus", "."])
         as? SP.ProjectNew
-    )
-    let rename = try #require(
-      try SP.parseAsRoot(["project", "rename", "Logs", "1/2"])
-        as? SP.ProjectRename
     )
     let destroy = try #require(
       try SP.parseAsRoot(["project", "destroy", "-y", "1/2"])
@@ -54,10 +50,16 @@ struct SPCommandTests {
 
     #expect(create.space == .index(2))
     #expect(create.focus)
-    #expect(create.name == "Build")
-    #expect(rename.project == .path(spaceIndex: 1, projectIndex: 2))
+    #expect(create.directory == ".")
     #expect(destroy.project == .path(spaceIndex: 1, projectIndex: 2))
     #expect(destroy.yes)
+  }
+
+  @Test
+  func projectRenameCommandIsRemoved() {
+    #expect(throws: (any Error).self) {
+      _ = try SP.parseAsRoot(["project", "rename", "Logs", "1/2"])
+    }
   }
 
   @Test
@@ -440,6 +442,7 @@ struct SPCommandTests {
       windows: [
         SupatermAppDebugSnapshot.Window(
           index: 1,
+          id: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
           isKey: true,
           isVisible: true,
           spaces: [
@@ -452,7 +455,7 @@ struct SPCommandTests {
                 SupatermAppDebugSnapshot.Project(
                   index: 1,
                   id: UUID(),
-                  name: "Project",
+                  directoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
                   isPinned: false,
                   tabs: [
                     SupatermAppDebugSnapshot.Tab(
@@ -503,7 +506,7 @@ struct SPCommandTests {
         == """
         window 1 [key]
         └─ space 1 "A" [selected]
-           └─ project 1 "Project"
+           └─ project 1 "/code/Project"
               └─ tab 1 "fish" [selected]
                  └─ pane 1 "build" [focused]
         """
@@ -512,7 +515,7 @@ struct SPCommandTests {
       SPTreeRenderer.renderPlain(snapshot)
         == """
         1\tspace\tA\tselected
-        1/1\tproject\tProject
+        1/1\tproject\t/code/Project
         1/1/1\ttab\tfish\tselected
         1/1/1/1\tpane\tbuild\tfocused
         """

@@ -516,6 +516,7 @@ private final class ClipboardSurfaceFixture {
     )
     surface = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       command: command,
@@ -560,6 +561,7 @@ private final class SplitClipboardSurfaceFixture {
     let tabID = UUID()
     focusedSurface = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: tabID,
       workingDirectory: nil,
       command: "/bin/sh -c 'stty -echo; cat'",
@@ -567,6 +569,7 @@ private final class SplitClipboardSurfaceFixture {
     )
     unfocusedSurface = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: tabID,
       workingDirectory: nil,
       command: "/bin/sh -c 'stty -echo; cat'",

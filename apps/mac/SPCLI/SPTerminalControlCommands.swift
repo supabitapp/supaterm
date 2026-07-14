@@ -6,8 +6,9 @@ extension SP {
   struct Project: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "project",
-      abstract: "Create and manage projects.",
-      subcommands: [ProjectNew.self, ProjectDestroy.self, ProjectRename.self, ProjectPin.self, ProjectUnpin.self]
+      abstract: "Create and manage directory-backed projects.",
+      discussion: SPHelp.projectDiscussion,
+      subcommands: [ProjectNew.self, ProjectDestroy.self, ProjectPin.self, ProjectUnpin.self]
     )
 
     mutating func run() throws { print(Self.helpMessage()) }
@@ -84,7 +85,11 @@ extension SP {
 
 extension SP {
   struct ProjectNew: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "new", abstract: "Create a project.")
+    static let configuration = CommandConfiguration(
+      commandName: "new",
+      abstract: "Create a project for a directory.",
+      discussion: SPHelp.projectNewDiscussion
+    )
 
     @Flag(name: .long, help: "Focus the first tab in the new project.")
     var focus = false
@@ -92,12 +97,13 @@ extension SP {
     @Option(name: .customLong("in"), help: "Space that will contain the project.", transform: parseSpaceReference)
     var space: SPSpaceReference?
 
-    @Argument(help: "Name for the new project.")
-    var name: String
+    @Argument(help: "Existing directory for the new project.")
+    var directory: String
 
     @OptionGroup var options: SPCommandOptions
 
     mutating func run() throws {
+      let directoryURL = try resolvedProjectDirectoryURL(directory)
       let client = try socketClient(
         path: options.connection.explicitSocketPath,
         instance: options.connection.instance
@@ -108,7 +114,13 @@ extension SP {
         snapshot: try treeSnapshot(client)
       )
       let response = try client.send(
-        .createProject(.init(name: name, focus: focus, target: spaceTargetRequest(target)))
+        .createProject(
+          .init(
+            directoryURL: directoryURL,
+            focus: focus,
+            target: spaceTargetRequest(target)
+          )
+        )
       )
       guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
       try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
@@ -134,29 +146,6 @@ extension SP {
       let target = try resolvedProjectTarget(project, client: client)
       if !yes { try confirmDestructiveAction(prompt: "Destroy project? [y/N] ") }
       let response = try client.send(.closeProject(projectTargetRequest(target)))
-      guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
-      try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
-    }
-  }
-
-  struct ProjectRename: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "rename", abstract: "Rename a project.")
-
-    @Argument(help: "New project name.")
-    var name: String
-
-    @Argument(help: "Optional project target.", transform: parseProjectReference)
-    var project: SPProjectReference?
-
-    @OptionGroup var options: SPCommandOptions
-
-    mutating func run() throws {
-      let client = try socketClient(
-        path: options.connection.explicitSocketPath,
-        instance: options.connection.instance
-      )
-      let target = try resolvedProjectTarget(project, client: client)
-      let response = try client.send(.renameProject(.init(name: name, target: projectTargetRequest(target))))
       guard response.ok else { throw ValidationError(response.error?.message ?? "Supaterm socket request failed.") }
       try emitProjectResult(try response.decodeResult(SupatermProjectTarget.self), options: options.output)
     }
@@ -330,8 +319,6 @@ extension SP {
 
     private func destroyPromptTarget(_ target: SPResolvedSpaceTarget) -> String {
       switch target {
-      case .context:
-        return "the current space"
       case .space(_, let spaceIndex):
         return "space \(spaceIndex)"
       }
@@ -1148,8 +1135,6 @@ private func readStandardInput() -> String {
 
 private func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpaceTargetRequest {
   switch target {
-  case .context(let contextPaneID):
-    return .init(contextPaneID: contextPaneID)
   case .space(let windowIndex, let spaceIndex):
     return .init(
       targetWindowIndex: windowIndex,
@@ -1160,8 +1145,6 @@ private func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpac
 
 private func tabTargetRequest(_ target: SPResolvedTabTarget) -> SupatermTabTargetRequest {
   switch target {
-  case .context(let contextPaneID):
-    return .init(contextPaneID: contextPaneID)
   case .tab(let windowIndex, let spaceIndex, let projectIndex, let tabIndex):
     return .init(
       targetWindowIndex: windowIndex,
@@ -1174,8 +1157,6 @@ private func tabTargetRequest(_ target: SPResolvedTabTarget) -> SupatermTabTarge
 
 private func paneTargetRequest(_ target: SPResolvedPaneOnlyTarget) -> SupatermPaneTargetRequest {
   switch target {
-  case .context(let contextPaneID):
-    return .init(contextPaneID: contextPaneID)
   case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
     return .init(
       targetWindowIndex: windowIndex,
@@ -1200,8 +1181,6 @@ private func resolvedProjectTarget(
 
 private func projectTargetRequest(_ target: SPResolvedProjectTarget) -> SupatermProjectTargetRequest {
   switch target {
-  case .context(let paneID):
-    return .init(contextPaneID: paneID)
   case .project(let windowIndex, let spaceIndex, let projectIndex):
     return .init(
       targetWindowIndex: windowIndex,
@@ -1234,7 +1213,8 @@ private func emitProjectResult(
     result,
     options: options,
     plain: "\(result.spaceIndex)/\(result.projectIndex)",
-    human: "window \(result.windowIndex) space \(result.spaceIndex) project \(result.projectIndex) \(result.name)"
+    human:
+      "window \(result.windowIndex) space \(result.spaceIndex) project \(result.projectIndex) \(result.directoryURL.path(percentEncoded: false))"
   )
 }
 

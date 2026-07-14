@@ -34,6 +34,7 @@ struct SocketControlFeatureNotificationsTests {
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -86,6 +87,7 @@ struct SocketControlFeatureNotificationsTests {
               body: "Build finished",
               subtitle: "CI",
               title: "Deploy complete",
+              sourceWindowID: expectedResult.windowID,
               sourceSurfaceID: expectedResult.paneID
             )
           ]
@@ -116,6 +118,7 @@ struct SocketControlFeatureNotificationsTests {
       attentionState: .unread,
       desktopNotificationDisposition: .suppressFocused,
       resolvedTitle: "Deploy complete",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 1,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -177,6 +180,7 @@ struct SocketControlFeatureNotificationsTests {
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -266,6 +270,7 @@ struct SocketControlFeatureNotificationsTests {
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Build",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 1,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -318,6 +323,7 @@ struct SocketControlFeatureNotificationsTests {
               body: "Build finished",
               subtitle: "",
               title: "Build",
+              sourceWindowID: expectedResult.windowID,
               sourceSurfaceID: expectedResult.paneID
             )
           ]
@@ -332,6 +338,7 @@ struct SocketControlFeatureNotificationsTests {
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
       context: SupatermCLIContext(
+        windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
         surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
         tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
       )
@@ -363,6 +370,7 @@ struct SocketControlFeatureNotificationsTests {
               body: "Claude needs your attention",
               subtitle: "Needs input",
               title: "Claude Code",
+              sourceWindowID: requestPayload.context?.windowID,
               sourceSurfaceID: requestPayload.context?.surfaceID
             )
           )
@@ -376,6 +384,7 @@ struct SocketControlFeatureNotificationsTests {
         body: "Claude needs your attention",
         subtitle: "Needs input",
         title: "Claude Code",
+        sourceWindowID: requestPayload.context?.windowID,
         sourceSurfaceID: requestPayload.context?.surfaceID
       )
       #expect(records.count == 1)
@@ -392,6 +401,7 @@ struct SocketControlFeatureNotificationsTests {
     let requestPayload = try ClaudeHookFixtures.request(
       ClaudeHookFixtures.notification,
       context: SupatermCLIContext(
+        windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
         surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
         tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
       )

@@ -7,6 +7,7 @@ import Testing
 
 struct SPDevelopmentClaudeTests {
   private let context = SupatermCLIContext(
+    windowID: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
     surfaceID: UUID(uuidString: "44B71943-17BA-4D8B-B595-0EB650F8D762")!,
     tabID: UUID(uuidString: "BB4F5340-2947-4A4F-AD94-CF699B9C495A")!
   )

@@ -183,23 +183,33 @@ func startupCommand(script: String?, tokens: [String]) throws -> String? {
 
 func resolvedWorkingDirectory(_ path: String?) throws -> String? {
   guard let path else { return nil }
+  return try resolvedDirectoryURL(path, emptyMessage: "--cwd must not be empty.")
+    .path
+}
 
-  let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-  guard !trimmed.isEmpty else {
-    throw ValidationError("--cwd must not be empty.")
+func resolvedProjectDirectoryURL(
+  _ path: String,
+  fileManager: FileManager = .default
+) throws -> URL {
+  let url = try resolvedDirectoryURL(path, emptyMessage: "Project directory must not be empty.")
+  var isDirectory: ObjCBool = false
+  guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+    throw ValidationError("Project directory must be an existing directory: \(url.path(percentEncoded: false))")
   }
+  return url
+}
+
+private func resolvedDirectoryURL(_ path: String, emptyMessage: String) throws -> URL {
+  let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !trimmed.isEmpty else { throw ValidationError(emptyMessage) }
 
   let expandedPath = NSString(string: trimmed).expandingTildeInPath
-  let url: URL
-
   if expandedPath.hasPrefix("/") {
-    url = URL(fileURLWithPath: expandedPath, isDirectory: true)
-  } else {
-    url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
-      .appendingPathComponent(expandedPath, isDirectory: true)
+    return URL(fileURLWithPath: expandedPath, isDirectory: true).standardizedFileURL
   }
-
-  return url.standardizedFileURL.path
+  return URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
+    .appendingPathComponent(expandedPath, isDirectory: true)
+    .standardizedFileURL
 }
 
 func cliHomeDirectoryURL(

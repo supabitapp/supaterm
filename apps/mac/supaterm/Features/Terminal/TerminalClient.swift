@@ -9,6 +9,7 @@ struct TerminalNotificationEvent: Equatable, Sendable {
   let desktopNotificationDisposition: SupatermDesktopNotificationDisposition
   let resolvedTitle: String
   let sourceSurfaceID: UUID
+  let sourceWindowID: UUID
   let subtitle: String
 }
 
@@ -33,7 +34,7 @@ struct TerminalClient: Sendable {
     case closeTab(TerminalTabID)
     case closeTabs([TerminalTabID])
     case createSpace(name: String)
-    case createTab(inheritingFromSurfaceID: UUID?)
+    case createTab(projectID: TerminalProjectID?, inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
     case navigateSearch(GhosttySearchDirection)
@@ -56,6 +57,7 @@ struct TerminalClient: Sendable {
     case selectSpace(TerminalSpaceID)
     case togglePinned(TerminalTabID)
     case updateWindowActivity(WindowActivityState)
+    case windowSessionStateChanged
   }
 
   enum Event: Equatable, Sendable {

@@ -15,8 +15,10 @@ struct SocketControlCreationTests {
   func newTabRequestRepliesWithCreatedTab() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "52A01791-C69B-423B-B58E-021239595B1D")!
+    let inheritingFromPaneID = UUID(uuidString: "941568B2-10CA-4D2C-8F25-F71B76C4F8A8")!
     let requestPayload = SupatermNewTabRequest(
       startupCommand: "pwd",
+      inheritingFromPaneID: inheritingFromPaneID,
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
@@ -53,6 +55,7 @@ struct SocketControlCreationTests {
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
+              inheritingFromSurfaceID: inheritingFromPaneID,
               target: .project(windowIndex: 1, spaceIndex: 2, projectIndex: 1)
             )
         )

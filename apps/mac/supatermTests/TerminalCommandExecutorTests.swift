@@ -231,7 +231,7 @@ struct TerminalCommandExecutorTests {
     let host = TerminalHostState()
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
     let firstTabID = try #require(host.selectedTabID)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
     let secondTabID = try #require(host.selectedTabID)
     host.handleCommand(.selectTab(firstTabID))
 
@@ -276,7 +276,7 @@ struct TerminalCommandExecutorTests {
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
     let firstTabID = try #require(host.selectedTabID)
     let firstPaneID = try #require(host.selectedSurfaceView?.id)
-    host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+    host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
     let secondTabID = try #require(host.selectedTabID)
 
     let store = Store(initialState: AppFeature.State()) {
@@ -398,6 +398,7 @@ struct TerminalCommandExecutorTests {
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 3,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -413,6 +414,7 @@ struct TerminalCommandExecutorTests {
           attentionState: .unread,
           desktopNotificationDisposition: .deliver,
           resolvedTitle: "Deploy complete",
+          windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
           windowIndex: 2,
           spaceIndex: 3,
           spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -450,7 +452,7 @@ struct TerminalCommandExecutorTests {
       let host = TerminalHostState()
       host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
       let firstTabID = try #require(host.selectedTabID)
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       let secondTabID = try #require(host.selectedTabID)
       let secondPaneID = try #require(host.selectedSurfaceView?.id)
 

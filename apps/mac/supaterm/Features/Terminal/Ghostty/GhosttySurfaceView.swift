@@ -194,6 +194,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   static func supatermEnvironmentVariables(
+    windowID: UUID,
     surfaceID: UUID,
     tabID: UUID,
     socketPath: String?,
@@ -202,6 +203,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     zmxSessionsEnabled: Bool = true
   ) -> [SupatermCLIEnvironmentVariable] {
     var environmentVariables = SupatermCLIContext(
+      windowID: windowID,
       surfaceID: surfaceID,
       tabID: tabID
     ).environmentVariables
@@ -269,6 +271,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
   init(
     id: UUID = UUID(),
     runtime: GhosttyRuntime,
+    windowID: UUID,
     tabID: UUID,
     workingDirectory: URL?,
     command: String? = nil,
@@ -288,6 +291,7 @@ final class GhosttySurfaceView: NSView, Identifiable {
     self.id = id
     self.bridge = GhosttySurfaceBridge()
     self.environmentVariables = Self.supatermEnvironmentVariables(
+      windowID: windowID,
       surfaceID: id,
       tabID: tabID,
       socketPath: SupatermProcessSocketEndpoint.current()?.path,

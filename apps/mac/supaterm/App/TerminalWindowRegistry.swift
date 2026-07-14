@@ -92,10 +92,16 @@ final class TerminalWindowRegistry {
   ) {
     guard !entries.contains(where: { $0.windowControllerID == windowControllerID }) else { return }
     terminal.onSurfaceCommandFinished = { [weak self] surfaceID in
-      self?.commandExecutor?.handleCommandFinished(for: surfaceID)
+      self?.commandExecutor?.handleCommandFinished(
+        for: surfaceID,
+        in: windowControllerID
+      )
     }
     terminal.onSurfaceRemoved = { [weak self] surfaceID in
-      self?.commandExecutor?.handleSurfaceRemoved(surfaceID)
+      self?.commandExecutor?.handleSurfaceRemoved(
+        surfaceID,
+        in: windowControllerID
+      )
     }
     let entry = Entry(
       keyboardShortcutForAction: keyboardShortcutForAction,
@@ -113,7 +119,10 @@ final class TerminalWindowRegistry {
   func unregister(windowControllerID: UUID) {
     if let entry = entries.first(where: { $0.windowControllerID == windowControllerID }) {
       for surfaceID in entry.terminal.liveSurfaceIDs() {
-        commandExecutor?.handleSurfaceRemoved(surfaceID)
+        commandExecutor?.handleSurfaceRemoved(
+          surfaceID,
+          in: windowControllerID
+        )
       }
     }
     entries.removeAll { $0.windowControllerID == windowControllerID }
@@ -128,7 +137,10 @@ final class TerminalWindowRegistry {
       commandExecutor?.resumeAgentMonitoring(in: entries[index].terminal)
     } else {
       for surfaceID in entries[index].terminal.liveSurfaceIDs() {
-        commandExecutor?.handleSurfaceRemoved(surfaceID)
+        commandExecutor?.handleSurfaceRemoved(
+          surfaceID,
+          in: windowControllerID
+        )
       }
     }
     onChange()
@@ -179,7 +191,10 @@ final class TerminalWindowRegistry {
     guard let entry = preferredActiveEntry() else { return }
     entry.store.send(
       .terminal(
-        .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
+        .newTabButtonTapped(
+          projectID: nil,
+          inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
+        )
       )
     )
   }
@@ -401,6 +416,13 @@ final class TerminalWindowRegistry {
     TerminalSessionCatalog(
       windows: activeEntries().map { entry in
         var snapshot = entry.terminal.restorationSnapshot()
+        let validProjectIDs = Set(
+          entry.terminal.spaces.flatMap { space in
+            entry.terminal.spaceManager.projects(in: space.id).map(\.id)
+          }
+        )
+        snapshot.collapsedProjectIDs = entry.store.terminal.collapsedProjectIDs
+          .intersection(validProjectIDs)
         snapshot.frame = entry.windowReference.value.map { TerminalWindowFrame($0.frame) }
         return snapshot
       }
@@ -452,29 +474,25 @@ final class TerminalWindowRegistry {
   }
 
   @discardableResult
-  func focusNotificationSurface(_ surfaceID: UUID) -> Bool {
-    for entry in activeEntries() {
-      guard entry.terminal.tabID(containing: surfaceID) != nil else { continue }
-      do {
-        guard let window = entry.windowReference.value else { continue }
-        NSApp.activate(ignoringOtherApps: true)
-        if window.isMiniaturized {
-          window.deminiaturize(nil)
-        }
-        window.makeKeyAndOrderFront(nil)
-        entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
-        _ = try entry.terminal.focusPane(.contextPane(surfaceID))
-        return true
-      } catch let error as TerminalControlError {
-        if case .contextPaneNotFound = error {
-          continue
-        }
-        return false
-      } catch {
-        return false
+  func focusNotificationSurface(
+    windowControllerID: UUID,
+    surfaceID: UUID
+  ) -> Bool {
+    guard let entry = entry(forWindowControllerID: windowControllerID) else { return false }
+    guard entry.terminal.tabID(containing: surfaceID) != nil else { return false }
+    guard let window = entry.windowReference.value else { return false }
+    do {
+      NSApp.activate(ignoringOtherApps: true)
+      if window.isMiniaturized {
+        window.deminiaturize(nil)
       }
+      window.makeKeyAndOrderFront(nil)
+      entry.terminal.updateWindowActivity(WindowActivityState(isKeyWindow: true, isVisible: true))
+      _ = try entry.terminal.focusPane(.contextPane(surfaceID))
+      return true
+    } catch {
+      return false
     }
-    return false
   }
 
   func performCommandPaletteUpdateAction(
@@ -590,7 +608,17 @@ final class TerminalWindowRegistry {
     }
   }
 
-  private func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
+  func indexedEntry(
+    forWindowControllerID windowControllerID: UUID
+  ) -> (windowIndex: Int, entry: Entry)? {
+    let entries = activeEntries()
+    guard let index = entries.firstIndex(where: { $0.windowControllerID == windowControllerID }) else {
+      return nil
+    }
+    return (index + 1, entries[index])
+  }
+
+  func entry(forWindowControllerID windowControllerID: UUID) -> Entry? {
     activeEntries().first { $0.windowControllerID == windowControllerID }
   }
 
@@ -804,6 +832,8 @@ final class TerminalWindowRegistry {
       return .contextPaneNotFound
     case .creationFailed:
       return .creationFailed
+    case .projectDirectoryUnavailable(let directoryURL):
+      return .projectDirectoryUnavailable(directoryURL)
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .windowNotFound:
@@ -816,22 +846,6 @@ final class TerminalWindowRegistry {
     windowIndex: Int
   ) -> TerminalControlError {
     switch error {
-    case .captureFailed:
-      return .captureFailed
-    case .contextPaneNotFound:
-      return .contextPaneNotFound
-    case .invalidProjectName, .onlyRemainingProject, .projectNameUnavailable:
-      return rewriteProjectCatalogError(error)
-    case .invalidSpaceName:
-      return .invalidSpaceName
-    case .lastPaneNotFound:
-      return .lastPaneNotFound
-    case .lastSpaceNotFound:
-      return .lastSpaceNotFound
-    case .lastTabNotFound:
-      return .lastTabNotFound
-    case .onlyRemainingSpace:
-      return .onlyRemainingSpace
     case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
       return .paneNotFound(
         windowIndex: windowIndex,
@@ -845,10 +859,6 @@ final class TerminalWindowRegistry {
         spaceIndex: spaceIndex,
         projectIndex: projectIndex
       )
-    case .resizeFailed:
-      return .resizeFailed
-    case .spaceNameUnavailable:
-      return .spaceNameUnavailable
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .tabNotFound(_, let spaceIndex, let tabIndex):
@@ -859,21 +869,8 @@ final class TerminalWindowRegistry {
       )
     case .windowNotFound:
       return .windowNotFound(windowIndex)
-    }
-  }
-
-  private static func rewriteProjectCatalogError(
-    _ error: TerminalControlError
-  ) -> TerminalControlError {
-    switch error {
-    case .invalidProjectName:
-      return .invalidProjectName
-    case .onlyRemainingProject:
-      return .onlyRemainingProject
-    case .projectNameUnavailable:
-      return .projectNameUnavailable
     default:
-      preconditionFailure()
+      return error
     }
   }
 
@@ -885,6 +882,7 @@ final class TerminalWindowRegistry {
       attentionState: result.attentionState,
       desktopNotificationDisposition: result.desktopNotificationDisposition,
       resolvedTitle: result.resolvedTitle,
+      windowID: result.windowID,
       windowIndex: windowIndex,
       spaceIndex: result.spaceIndex,
       spaceID: result.spaceID,

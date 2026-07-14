@@ -22,6 +22,7 @@ struct SPTmuxCommandRunner {
       fields: [
         "command": command,
         "arguments": rawArguments.joined(separator: "\u{1f}"),
+        "context_window_id": context?.windowID.uuidString.lowercased(),
         "context_surface_id": context?.surfaceID.uuidString.lowercased(),
         "tmux": environment["TMUX"],
         "tmux_pane": environment["TMUX_PANE"],
@@ -122,6 +123,7 @@ struct SPTmuxCommandRunner {
   func focusedContext() throws -> SPRunLauncher.FocusedContext {
     let current = try topology().current
     return .init(
+      windowID: current.window.id,
       spaceID: current.space.id,
       tabID: current.tab.id,
       paneID: current.pane.id
@@ -884,7 +886,7 @@ struct SPTmuxCommandRunner {
       .debug(.init(context: context)),
       as: SupatermAppDebugSnapshot.self
     )
-    return try .init(snapshot: snapshot, contextPaneID: context?.surfaceID)
+    return try .init(snapshot: snapshot, context: context)
   }
 
   private func formatContext(for pane: SPTmuxTopology.PaneLocation) -> [String: String] {

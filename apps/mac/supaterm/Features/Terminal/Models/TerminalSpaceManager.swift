@@ -114,17 +114,6 @@ final class TerminalSpaceManager {
     }
   }
 
-  func isProjectNameAvailable(
-    _ proposedName: String,
-    in spaceID: TerminalSpaceID,
-    excluding excludedID: TerminalProjectID? = nil
-  ) -> Bool {
-    guard let normalizedName = normalizedName(proposedName) else { return false }
-    return !(projectManagers[spaceID]?.projects ?? []).contains {
-      $0.id != excludedID && $0.name.localizedCaseInsensitiveCompare(normalizedName) == .orderedSame
-    }
-  }
-
   func projectManager(for spaceID: TerminalSpaceID) -> TerminalProjectManager? {
     projectManagers[spaceID]
   }

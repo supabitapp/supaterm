@@ -18,7 +18,7 @@ enum SPTreeRenderer {
 
     struct Project {
       let index: Int
-      let name: String
+      let directoryPath: String
       let isPinned: Bool
       let tabs: [Tab]
     }
@@ -72,7 +72,7 @@ enum SPTreeRenderer {
         let projectLines = space.projects.flatMap { project -> [String] in
           let projectSelector = "\(space.index)/\(project.index)"
           let projectFlags = project.isPinned ? "\tpinned" : ""
-          let projectLine = "\(projectSelector)\tproject\t\(project.name)\(projectFlags)"
+          let projectLine = "\(projectSelector)\tproject\t\(project.directoryPath)\(projectFlags)"
           let tabLines = project.tabs.flatMap { tab -> [String] in
             let tabSelector = "\(space.index)/\(project.index)/\(tab.index)"
             let tabFlags = tab.isSelected ? "\tselected" : ""
@@ -108,7 +108,7 @@ enum SPTreeRenderer {
               projects: space.projects.map { project in
                 .init(
                   index: project.index,
-                  name: project.name,
+                  directoryPath: project.directoryURL.path,
                   isPinned: project.isPinned,
                   tabs: project.tabs.map { tab in
                     .init(
@@ -154,7 +154,7 @@ enum SPTreeRenderer {
       let projectBranch = isLastProject ? "└─ " : "├─ "
       let projectPrefix = prefix + (isLastProject ? "   " : "│  ")
       let labels = project.isPinned ? " [pinned]" : ""
-      let line = "\(prefix)\(projectBranch)project \(project.index) \"\(project.name)\"\(labels)"
+      let line = "\(prefix)\(projectBranch)project \(project.index) \"\(project.directoryPath)\"\(labels)"
       return [line] + renderTabs(project.tabs, prefix: projectPrefix)
     }
   }

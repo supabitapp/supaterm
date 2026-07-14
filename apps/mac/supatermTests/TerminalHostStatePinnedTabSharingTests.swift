@@ -168,7 +168,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       let regularTabID = try #require(host.selectedTabID)
       host.handleCommand(.selectTab(pinnedTabID))
 
@@ -196,7 +196,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       let selectedSpaceID = try #require(host.selectedSpaceID)
       let regularTabID = try #require(host.selectedTabID)
       host.handleCommand(.selectTab(pinnedTabID))
@@ -238,7 +238,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       let selectedSpaceID = try #require(host.selectedSpaceID)
       let regularTabID = try #require(host.selectedTabID)
       host.handleCommand(.selectTab(pinnedTabID))
@@ -283,7 +283,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
       let surfaceID = try #require(host.currentFocusedSurfaceID())
@@ -333,7 +333,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       let regularTabID = try #require(host.selectedTabID)
       host.handleCommand(.selectTab(pinnedTabID))
       let surfaceID = try #require(host.currentFocusedSurfaceID())
@@ -376,7 +376,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
 
@@ -423,7 +423,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
 
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.selectedSurfaceView?.bridge.state.pwd = restoredPathString
 
@@ -647,7 +647,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let pinnedTabID = try #require(host.selectedTabID)
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.suspendPinnedTab(pinnedTabID)
 
@@ -697,7 +697,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let selectedSpaceID = try #require(host.selectedSpaceID)
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.suspendPinnedTab(pinnedTabID)
 
@@ -733,7 +733,7 @@ struct TerminalHostStatePinnedTabSharingTests {
       let selectedSpaceID = try #require(host.selectedSpaceID)
       host.handleCommand(.togglePinned(pinnedTabID))
       await flushPinnedTabCatalogObservation()
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
       host.suspendPinnedTab(pinnedTabID)
 
@@ -871,7 +871,7 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       let pinnedTabID = try #require(host.selectedTabID)
       host.handleCommand(.togglePinned(pinnedTabID))
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
 
       let selectedSpaceID = try #require(host.selectedSpaceID)
       let snapshot = host.restorationSnapshot()
@@ -898,7 +898,7 @@ struct TerminalHostStatePinnedTabSharingTests {
 
       let pinnedTabID = try #require(host.selectedTabID)
       host.handleCommand(.togglePinned(pinnedTabID))
-      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      host.handleCommand(.createTab(projectID: nil, inheritingFromSurfaceID: nil))
       host.handleCommand(.selectTab(pinnedTabID))
 
       let selectedSpaceID = try #require(host.selectedSpaceID)

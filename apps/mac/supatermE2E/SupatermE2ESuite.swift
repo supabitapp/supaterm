@@ -26,6 +26,7 @@ enum SharedApp {
 struct TestSpace {
   let token: String
   let directory: URL
+  let windowID: UUID
   let spaceID: UUID
   let tab: SupatermNewTabResult
 
@@ -78,6 +79,7 @@ private func makeTestSpace(_ app: SupatermE2EApp) throws -> TestSpace {
   return TestSpace(
     token: token,
     directory: directory,
+    windowID: window.id,
     spaceID: created.target.spaceID,
     tab: tab
   )

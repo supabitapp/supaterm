@@ -17,6 +17,7 @@ struct TerminalSessionCatalogTests {
     let spaceID = TerminalSpaceID()
     let projectID = TerminalProjectID()
     let tabID = TerminalTabID()
+    let removedProjectID = TerminalProjectID()
     let session = TerminalWindowSession(
       selectedSpaceID: spaceID,
       spaces: [
@@ -39,12 +40,14 @@ struct TerminalSessionCatalogTests {
             )
           ]
         )
-      ]
+      ],
+      collapsedProjectIDs: [projectID, removedProjectID]
     )
 
     let pruned = try #require(session.pruned(validSpaceIDs: [spaceID]))
     #expect(pruned.spaces[0].projects[0].tabs.map(\.id) == [tabID])
     #expect(pruned.spaces[0].selectedTabID == tabID)
+    #expect(pruned.collapsedProjectIDs == [projectID])
   }
 
   @Test

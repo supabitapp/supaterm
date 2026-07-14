@@ -137,12 +137,6 @@ extension TerminalHostState {
   }
 
   func finalizeRestoredSession(_ session: TerminalWindowSession) -> Bool {
-    guard spaces.contains(where: { !spaceManager.tabs(in: $0.id).isEmpty }) else {
-      logRestoreFailed(reason: "noRestoredTabs")
-      clearSessionState()
-      return false
-    }
-
     let selectedSpaceID =
       spaces.contains(where: { $0.id == session.selectedSpaceID })
       ? session.selectedSpaceID

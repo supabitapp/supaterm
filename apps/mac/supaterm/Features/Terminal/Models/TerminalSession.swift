@@ -3,7 +3,7 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 6
+  static let currentVersion = 7
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -58,15 +58,18 @@ nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
 nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
   var selectedSpaceID: TerminalSpaceID
   var spaces: [TerminalWindowSpaceSession]
+  var collapsedProjectIDs: Set<TerminalProjectID>
   var frame: TerminalWindowFrame?
 
   init(
     selectedSpaceID: TerminalSpaceID,
     spaces: [TerminalWindowSpaceSession],
+    collapsedProjectIDs: Set<TerminalProjectID> = [],
     frame: TerminalWindowFrame? = nil
   ) {
     self.selectedSpaceID = selectedSpaceID
     self.spaces = spaces
+    self.collapsedProjectIDs = collapsedProjectIDs
     self.frame = frame
   }
 
@@ -82,9 +85,11 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
       spaces.contains(where: { $0.id == self.selectedSpaceID })
       ? self.selectedSpaceID
       : spaces[0].id
+    let validProjectIDs = Set(spaces.flatMap { $0.projects.map(\.id) })
     return TerminalWindowSession(
       selectedSpaceID: resolvedSelectedSpaceID,
       spaces: spaces,
+      collapsedProjectIDs: collapsedProjectIDs.intersection(validProjectIDs),
       frame: frame
     )
   }

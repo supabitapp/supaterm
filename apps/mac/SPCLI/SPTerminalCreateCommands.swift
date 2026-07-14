@@ -6,7 +6,7 @@ extension SP {
   struct NewTab: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "new",
-      abstract: "Create a new tab inside a Supaterm space.",
+      abstract: "Create a new tab inside a Supaterm project.",
       discussion: SPHelp.newTabDiscussion
     )
 
@@ -57,17 +57,15 @@ extension SP {
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
-      case .context(let contextPaneID):
+      case .project(
+        let windowIndex,
+        let spaceIndex,
+        let projectIndex,
+        let inheritingFromPaneID
+      ):
         return SupatermNewTabRequest(
           startupCommand: command,
-          contextPaneID: contextPaneID,
-          cwd: cwd,
-          focus: focus
-        )
-
-      case .project(let windowIndex, let spaceIndex, let projectIndex):
-        return SupatermNewTabRequest(
-          startupCommand: command,
+          inheritingFromPaneID: inheritingFromPaneID,
           cwd: cwd,
           focus: focus,
           targetWindowIndex: windowIndex,
@@ -165,16 +163,6 @@ extension SP {
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
-      case .context(let contextPaneID):
-        return SupatermNewPaneRequest(
-          startupCommand: command,
-          contextPaneID: contextPaneID,
-          cwd: cwd,
-          direction: direction.direction,
-          focus: focus,
-          equalize: layout == .equalize
-        )
-
       case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
         return SupatermNewPaneRequest(
           startupCommand: command,
@@ -248,14 +236,6 @@ extension SP {
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
       ) {
-      case .context(let contextPaneID):
-        return .init(
-          body: body,
-          contextPaneID: contextPaneID,
-          subtitle: subtitle,
-          title: title
-        )
-
       case .pane(let windowIndex, let spaceIndex, let projectIndex, let tabIndex, let paneIndex):
         return .init(
           body: body,

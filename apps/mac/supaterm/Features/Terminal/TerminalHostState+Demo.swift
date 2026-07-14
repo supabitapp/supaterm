@@ -48,7 +48,11 @@
             agent: snapshot.agent,
             sessionID: snapshot.sessionID
           ),
-          context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+          context: SupatermCLIContext(
+            windowID: windowControllerID,
+            surfaceID: surfaceID,
+            tabID: tabID.rawValue
+          ),
           action: .progressUpdated(Self.demoProgressRows, source: .transcript)
         )
       )
@@ -60,7 +64,11 @@
               sessionID: snapshot.sessionID,
               subagentID: "demo-\(nickname.lowercased())"
             ),
-            context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+            context: SupatermCLIContext(
+              windowID: windowControllerID,
+              surfaceID: surfaceID,
+              tabID: tabID.rawValue
+            ),
             action: .subagentStarted(nickname: nickname, role: nil)
           )
         )
@@ -89,7 +97,11 @@
       sessionID: String
     ) {
       guard let tabID = tabID(containing: surfaceID) else { return }
-      let context = SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue)
+      let context = SupatermCLIContext(
+        windowID: windowControllerID,
+        surfaceID: surfaceID,
+        tabID: tabID.rawValue
+      )
       let scope = TerminalAgentEvent.Scope(agent: kind, sessionID: sessionID)
       _ = applyAgentEvent(
         TerminalAgentEvent(

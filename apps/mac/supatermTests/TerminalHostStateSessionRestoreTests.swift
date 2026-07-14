@@ -164,12 +164,15 @@ struct TerminalHostStateSessionRestoreTests {
       let spaceID = try #require(host.selectedSpaceID)
 
       let projectID = try host.createProject(
-        named: path,
-        in: spaceID,
-        workingDirectory: directory
+        directoryURL: directory,
+        in: spaceID
       )
 
       #expect(host.selectedProjectID == projectID)
+      #expect(host.selectedSurfaceState?.pwd == path)
+
+      _ = host.createTab(in: spaceID, projectID: projectID)
+
       #expect(host.selectedSurfaceState?.pwd == path)
     }
   }

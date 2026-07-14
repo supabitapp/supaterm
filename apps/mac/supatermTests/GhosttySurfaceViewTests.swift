@@ -56,6 +56,7 @@ struct GhosttySurfaceViewTests {
 
     let surfaceView = GhosttySurfaceView(
       runtime: GhosttyRuntime(),
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB
@@ -76,6 +77,7 @@ struct GhosttySurfaceViewTests {
     var creationCount = 0
     let surfaceView = GhosttySurfaceView(
       runtime: GhosttyRuntime(),
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB,
@@ -99,6 +101,7 @@ struct GhosttySurfaceViewTests {
     var hasLayerAtCreation: Bool?
     _ = GhosttySurfaceView(
       runtime: GhosttyRuntime(),
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB,
@@ -234,12 +237,14 @@ struct GhosttySurfaceViewTests {
     let runtime = try makeGhosttyRuntime("", applicationIsActive: { false })
     let firstSurface = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB
     )
     let secondSurface = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB,

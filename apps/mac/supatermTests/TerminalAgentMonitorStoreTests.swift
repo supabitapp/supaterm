@@ -95,15 +95,56 @@ struct TerminalAgentMonitorStoreTests {
       updates: { _ in AsyncStream { $0.finish() } }
     )
     events.bind(to: store)
-    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: UUID(), tabID: UUID())
 
     store.armRunningTimeout(agent: .claude, sessionID: "session-1", context: context)
     await flushEffects()
-    store.clearSessions(for: context.surfaceID)
+    store.clearSessions(for: context.surfaceID, in: context.windowID)
     await clock.advance(by: .seconds(5))
     await flushEffects()
 
     #expect(events.expirations.isEmpty)
+  }
+
+  @Test
+  func clearSessionsUsesWindowBeforeSharedSurfaceID() async {
+    let (updates, continuation) = AsyncStream<AgentTranscriptUpdate>.makeStream()
+    let store = TerminalAgentMonitorStore(
+      agentRunningTimeout: .seconds(5),
+      transcriptEventDelay: .zero,
+      sleep: { _ in },
+      updates: { _ in updates }
+    )
+    let surfaceID = UUID()
+    let firstContext = SupatermCLIContext(
+      windowID: UUID(),
+      surfaceID: surfaceID,
+      tabID: UUID()
+    )
+    let secondContext = SupatermCLIContext(
+      windowID: UUID(),
+      surfaceID: surfaceID,
+      tabID: UUID()
+    )
+    _ = store.track(
+      agent: .codex,
+      sessionID: "first",
+      transcriptPath: "/tmp/first.jsonl",
+      context: firstContext
+    )
+    _ = store.track(
+      agent: .codex,
+      sessionID: "second",
+      transcriptPath: "/tmp/second.jsonl",
+      context: secondContext
+    )
+
+    store.clearSessions(for: surfaceID, in: firstContext.windowID)
+
+    #expect(!store.isTracking(agent: .codex, sessionID: "first"))
+    #expect(store.isTracking(agent: .codex, sessionID: "second"))
+    continuation.finish()
+    await flushEffects()
   }
 
   @Test
@@ -118,7 +159,7 @@ struct TerminalAgentMonitorStoreTests {
       updates: { _ in updates }
     )
     events.bind(to: store)
-    let context = SupatermCLIContext(surfaceID: UUID(), tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: UUID(), tabID: UUID())
     #expect(
       store.track(
         agent: .codex,

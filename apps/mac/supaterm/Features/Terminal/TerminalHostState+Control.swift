@@ -23,6 +23,7 @@ extension TerminalHostState {
   func treeSnapshot() -> SupatermTreeSnapshot {
     let window = SupatermTreeSnapshot.Window(
       index: 1,
+      id: windowControllerID,
       isKey: windowActivity.isKeyWindow,
       spaces: spaces.enumerated().map { spaceOffset, space in
         let projects = spaceManager.projects(in: space.id).enumerated().map { projectOffset, project in
@@ -48,7 +49,7 @@ extension TerminalHostState {
           return SupatermTreeSnapshot.Project(
             index: projectOffset + 1,
             id: project.id.rawValue,
-            name: project.name,
+            directoryURL: project.directoryURL,
             isPinned: project.isPinned,
             tabs: tabs
           )
@@ -69,6 +70,7 @@ extension TerminalHostState {
   func debugWindowSnapshot(index: Int) -> SupatermAppDebugSnapshot.Window {
     SupatermAppDebugSnapshot.Window(
       index: index,
+      id: windowControllerID,
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
       spaces: spaces.enumerated().map { spaceOffset, space in
@@ -102,7 +104,7 @@ extension TerminalHostState {
           return SupatermAppDebugSnapshot.Project(
             index: projectOffset + 1,
             id: project.id.rawValue,
-            name: project.name,
+            directoryURL: project.directoryURL,
             isPinned: project.isPinned,
             tabs: tabs
           )
@@ -201,6 +203,10 @@ extension TerminalHostState {
 
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
+    guard TerminalProjectDirectoryMonitor.isReachableDirectory(resolvedTarget.project.directoryURL) else {
+      projectDirectoryMonitor.refreshAll()
+      throw TerminalCreateTabError.projectDirectoryUnavailable(resolvedTarget.project.directoryURL)
+    }
     let currentSelectedSpaceID = spaceManager.selectedSpaceID
     let currentSelectedTabID = spaceManager.selectedTabID
     var createdTabID: TerminalTabID?
@@ -213,7 +219,7 @@ extension TerminalHostState {
           focusing: false,
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
-          inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
+          inheritingFromSurfaceID: request.inheritingFromSurfaceID ?? resolvedTarget.inheritedSurfaceID,
           sessionChangesEnabled: false,
           synchronizesFocus: Self.shouldSyncFocusDuringTabCreation(
             targetSpaceID: resolvedTarget.space.id,
@@ -293,18 +299,18 @@ extension TerminalHostState {
         paneID: surfaceID
       )
     } catch let error as TerminalCreateTabError {
-      if let createdTabID {
-        removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.projectManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
-      }
+      cleanupFailedTabCreation(createdTabID, in: resolvedTarget.space.id)
       throw error
     } catch {
-      if let createdTabID {
-        removeTree(for: createdTabID, source: .controlCleanup)
-        spaceManager.projectManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
-      }
+      cleanupFailedTabCreation(createdTabID, in: resolvedTarget.space.id)
       throw TerminalCreateTabError.creationFailed
     }
+  }
+
+  private func cleanupFailedTabCreation(_ tabID: TerminalTabID?, in spaceID: TerminalSpaceID) {
+    guard let tabID else { return }
+    removeTree(for: tabID, source: .controlCleanup)
+    spaceManager.projectManager(for: spaceID)?.closeTab(tabID)
   }
 
   func notify(_ request: TerminalNotifyRequest) throws -> SupatermNotifyResult {
@@ -627,7 +633,7 @@ extension TerminalHostState {
   func createProject(_ request: TerminalCreateProjectRequest) throws -> SupatermProjectTarget {
     let resolvedSpace = try resolveSpaceTarget(request.target)
     let projectID = try createProject(
-      named: request.name,
+      directoryURL: request.directoryURL,
       in: resolvedSpace.space.id,
       focusing: request.focus
     )
@@ -636,24 +642,9 @@ extension TerminalHostState {
 
   func closeProject(_ target: TerminalProjectTarget) throws -> SupatermProjectTarget {
     let project = try resolveProjectTarget(target)
-    guard spaceManager.projects(in: project.spaceID).count > 1 else {
-      throw TerminalControlError.onlyRemainingProject
-    }
     let result = try projectTarget(for: project.projectID)
     deleteProject(project.projectID)
     return result
-  }
-
-  func renameProject(_ request: TerminalRenameProjectRequest) throws -> SupatermProjectTarget {
-    let project = try resolveProjectTarget(request.target)
-    guard let normalizedName = Self.trimmedNonEmpty(request.name) else {
-      throw TerminalControlError.invalidProjectName
-    }
-    guard isProjectNameAvailable(normalizedName, in: project.spaceID, excluding: project.projectID) else {
-      throw TerminalControlError.projectNameUnavailable
-    }
-    renameProject(project.projectID, to: normalizedName)
-    return try projectTarget(for: project.projectID)
   }
 
   func setProjectPinned(
@@ -838,7 +829,7 @@ extension TerminalHostState {
       spaceID: space.id.rawValue,
       projectIndex: projectIndex,
       projectID: project.id.rawValue,
-      name: project.name,
+      directoryURL: project.directoryURL,
       isPinned: project.isPinned
     )
   }
@@ -1313,6 +1304,7 @@ extension TerminalHostState {
       attentionState: attentionState,
       desktopNotificationDisposition: desktopNotificationDisposition,
       resolvedTitle: resolvedTitle,
+      windowID: windowControllerID,
       windowIndex: 1,
       spaceIndex: paneLocation.spaceIndex,
       spaceID: resolvedTarget.spaceID.rawValue,
@@ -1353,6 +1345,7 @@ extension TerminalHostState {
           desktopNotificationDisposition: result.desktopNotificationDisposition,
           resolvedTitle: result.resolvedTitle,
           sourceSurfaceID: surfaceID,
+          sourceWindowID: windowControllerID,
           subtitle: subtitle
         )
       )

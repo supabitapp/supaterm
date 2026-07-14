@@ -134,8 +134,6 @@ final class TerminalCommandExecutor {
       return .createProject(try createProject(request))
     case .closeProject(let target):
       return .closeProject(try closeProject(target))
-    case .renameProject(let request):
-      return .renameProject(try renameProject(request))
     case .pinProject(let target):
       return .pinProject(try setProjectPinned(target, isPinned: true))
     case .unpinProject(let target):

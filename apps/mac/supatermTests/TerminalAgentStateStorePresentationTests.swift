@@ -205,7 +205,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func hoverAndActionabilityBelongToSessionState() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore()
     store.apply(
       event(
@@ -240,7 +240,7 @@ extension TerminalAgentStateStoreTests {
   @Test
   func invalidProcessIDsAreIgnoredAndStaleProcessIdentitiesArePruned() throws {
     let surfaceID = UUID()
-    let context = SupatermCLIContext(surfaceID: surfaceID, tabID: UUID())
+    let context = SupatermCLIContext(windowID: UUID(), surfaceID: surfaceID, tabID: UUID())
     var store = TerminalAgentStateStore(processIdentity: testProcessIdentity)
 
     for processID in [Int32(-1), 0, 42, 43] {

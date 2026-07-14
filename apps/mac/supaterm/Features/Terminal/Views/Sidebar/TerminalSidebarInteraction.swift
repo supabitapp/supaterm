@@ -65,6 +65,22 @@ struct TerminalSidebarHapticTargetTracker {
   }
 }
 
+struct TerminalSidebarExternalDragTracker {
+  private(set) var sequenceNumber: Int?
+
+  mutating func begin(sequenceNumber: Int) -> Bool {
+    guard self.sequenceNumber != sequenceNumber else { return false }
+    self.sequenceNumber = sequenceNumber
+    return true
+  }
+
+  mutating func end(sequenceNumber: Int) -> Bool {
+    guard self.sequenceNumber == sequenceNumber else { return false }
+    self.sequenceNumber = nil
+    return true
+  }
+}
+
 enum TerminalSidebarCollapseMotion {
   static let rowDuration: TimeInterval = 0.18
   static let firstInterval: TimeInterval = 0.024
@@ -222,6 +238,7 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   var canBeginDrag: ((IndexPath) -> TerminalSidebarEntryID?)?
   var onDragBegan: ((TerminalSidebarEntryID, NSEvent, NSEvent) -> Bool)?
   var onDragExited: (() -> Void)?
+  var onDragEnded: ((Int) -> Void)?
   private var dragRecognizer: TerminalSidebarDragGestureRecognizer!
 
   override init(frame frameRect: NSRect) {
@@ -236,6 +253,11 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   override func draggingExited(_ sender: (any NSDraggingInfo)?) {
     super.draggingExited(sender)
     onDragExited?()
+  }
+
+  override func draggingEnded(_ sender: any NSDraggingInfo) {
+    super.draggingEnded(sender)
+    onDragEnded?(sender.draggingSequenceNumber)
   }
 
   func finishDragGesture() {

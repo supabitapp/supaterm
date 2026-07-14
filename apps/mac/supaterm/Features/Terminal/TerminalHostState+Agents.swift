@@ -347,7 +347,11 @@ extension TerminalHostState {
 
   private func agentContext(for surfaceID: UUID) -> SupatermCLIContext? {
     tabID(containing: surfaceID).map {
-      SupatermCLIContext(surfaceID: surfaceID, tabID: $0.rawValue)
+      SupatermCLIContext(
+        windowID: windowControllerID,
+        surfaceID: surfaceID,
+        tabID: $0.rawValue
+      )
     }
   }
 

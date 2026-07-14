@@ -84,14 +84,15 @@ final class SupatermE2EApp: @unchecked Sendable {
     result[SupatermCLIEnvironment.testCodexEnableHooksKey] = "1"
     result[SupatermCLIEnvironment.testHomeKey] = cliHome.path
     if let context {
+      result[SupatermCLIEnvironment.windowIDKey] = context.windowID.uuidString
       result[SupatermCLIEnvironment.surfaceIDKey] = context.surfaceID.uuidString
       result[SupatermCLIEnvironment.tabIDKey] = context.tabID.uuidString
     }
     return result
   }
 
-  func context(tabID: UUID, paneID: UUID) -> SupatermCLIContext {
-    SupatermCLIContext(surfaceID: paneID, tabID: tabID)
+  func context(windowID: UUID, tabID: UUID, paneID: UUID) -> SupatermCLIContext {
+    SupatermCLIContext(windowID: windowID, surfaceID: paneID, tabID: tabID)
   }
 
   private var zmxSessionPrefix: String {

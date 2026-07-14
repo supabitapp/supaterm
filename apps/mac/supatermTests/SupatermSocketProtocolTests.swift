@@ -621,7 +621,7 @@ struct SupatermSocketProtocolTests {
         SupatermTreeSnapshot.Project(
           index: 1,
           id: UUID(),
-          name: "Project",
+          directoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
           isPinned: false,
           tabs: [tab]
         )
@@ -629,6 +629,7 @@ struct SupatermSocketProtocolTests {
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
+      id: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
       isKey: true,
       spaces: [space]
     )
@@ -662,6 +663,7 @@ struct SupatermSocketProtocolTests {
   @Test
   func debugRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
     let context = SupatermCLIContext(
+      windowID: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
       surfaceID: UUID(uuidString: "20D1A721-EA1E-44FB-B46D-29FBF240D4CB")!,
       tabID: UUID(uuidString: "9C643643-2288-42E1-88C1-79AFEF4D40CA")!
     )
@@ -700,7 +702,7 @@ struct SupatermSocketProtocolTests {
     let project = SupatermAppDebugSnapshot.Project(
       index: 1,
       id: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
-      name: "Project",
+      directoryURL: URL(fileURLWithPath: "/code/Project", isDirectory: true),
       isPinned: false,
       tabs: [tab]
     )
@@ -713,6 +715,7 @@ struct SupatermSocketProtocolTests {
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
+      id: context.windowID,
       isKey: true,
       isVisible: true,
       spaces: [space]
@@ -743,7 +746,7 @@ struct SupatermSocketProtocolTests {
         spaceName: space.name,
         projectIndex: 1,
         projectID: project.id,
-        projectName: "Project",
+        projectDirectoryURL: project.directoryURL,
         tabIndex: 1,
         tabID: context.tabID,
         tabTitle: tab.title,
@@ -754,10 +757,7 @@ struct SupatermSocketProtocolTests {
       problems: []
     )
 
-    let request = try SupatermSocketRequest.debug(
-      SupatermDebugRequest(context: context),
-      id: "debug-1"
-    )
+    let request = try SupatermSocketRequest.debug(SupatermDebugRequest(context: context), id: "debug-1")
     let response = try SupatermSocketResponse.ok(id: "debug-1", encodableResult: snapshot)
 
     #expect(request.method == SupatermSocketMethod.appDebug)
@@ -803,8 +803,10 @@ struct SupatermSocketProtocolTests {
 
   @Test
   func newTabRequestAndResponseRoundTripThroughTypedHelpers() throws {
+    let inheritingFromPaneID = UUID(uuidString: "941568B2-10CA-4D2C-8F25-F71B76C4F8A8")!
     let requestPayload = SupatermNewTabRequest(
       startupCommand: "pwd",
+      inheritingFromPaneID: inheritingFromPaneID,
       cwd: "/tmp/example",
       focus: false,
       targetWindowIndex: 1,
@@ -886,6 +888,7 @@ struct SupatermSocketProtocolTests {
       attentionState: .unread,
       desktopNotificationDisposition: .deliver,
       resolvedTitle: "Deploy complete",
+      windowID: UUID(uuidString: "13C53B79-C194-4EAF-B627-2064091B64E8")!,
       windowIndex: 1,
       spaceIndex: 2,
       spaceID: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
@@ -931,6 +934,7 @@ struct SupatermSocketProtocolTests {
     let requestPayload = SupatermAgentHookRequest(
       agent: .claude,
       context: SupatermCLIContext(
+        windowID: UUID(uuidString: "83926489-14C6-4D6E-9404-D4DF1D0FB841")!,
         surfaceID: UUID(uuidString: "BA864E81-56B8-4610-B8E1-9E3D0F16DEEF")!,
         tabID: UUID(uuidString: "0FEF397C-128B-4BC7-A31B-1129AFB6B8EE")!
       ),
@@ -1172,6 +1176,34 @@ struct SupatermSocketProtocolTests {
           targetTabIndex: 9
         )
     )
+  }
+
+  @Test
+  func projectRequestAndResultRoundTripDirectoryURL() throws {
+    let directoryURL = URL(fileURLWithPath: "/code/Project Folder", isDirectory: true)
+    let payload = SupatermCreateProjectRequest(
+      directoryURL: directoryURL,
+      focus: true,
+      target: SupatermSpaceTargetRequest(targetWindowIndex: 1, targetSpaceIndex: 2)
+    )
+    let request = try SupatermSocketRequest.createProject(payload, id: "create-project-1")
+    let result = SupatermProjectTarget(
+      windowIndex: 1,
+      spaceIndex: 2,
+      spaceID: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
+      projectIndex: 3,
+      projectID: UUID(uuidString: "54C5083A-1091-4126-8499-F44A70B321F0")!,
+      directoryURL: directoryURL,
+      isPinned: false
+    )
+    let response = try SupatermSocketResponse.ok(
+      id: "create-project-1",
+      encodableResult: result
+    )
+
+    #expect(request.method == SupatermSocketMethod.terminalCreateProject)
+    #expect(try request.decodeParams(SupatermCreateProjectRequest.self) == payload)
+    #expect(try response.decodeResult(SupatermProjectTarget.self) == result)
   }
 
   @Test

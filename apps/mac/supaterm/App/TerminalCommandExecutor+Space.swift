@@ -17,7 +17,7 @@ extension TerminalCommandExecutor {
     case .space(let windowIndex, let spaceIndex):
       let entry = try registry.entry(for: windowIndex)
       let localRequest = TerminalCreateProjectRequest(
-        name: request.name,
+        directoryURL: request.directoryURL,
         focus: request.focus,
         target: .space(windowIndex: 1, spaceIndex: spaceIndex)
       )
@@ -28,12 +28,6 @@ extension TerminalCommandExecutor {
   func closeProject(_ target: TerminalProjectTarget) throws -> SupatermProjectTarget {
     try executeProjectTarget(target) { terminal, localTarget in
       try terminal.closeProject(localTarget)
-    }
-  }
-
-  func renameProject(_ request: TerminalRenameProjectRequest) throws -> SupatermProjectTarget {
-    try executeProjectTarget(request.target) { terminal, localTarget in
-      try terminal.renameProject(TerminalRenameProjectRequest(name: request.name, target: localTarget))
     }
   }
 
@@ -80,7 +74,7 @@ extension TerminalCommandExecutor {
       spaceID: target.spaceID,
       projectIndex: target.projectIndex,
       projectID: target.projectID,
-      name: target.name,
+      directoryURL: target.directoryURL,
       isPinned: target.isPinned
     )
   }

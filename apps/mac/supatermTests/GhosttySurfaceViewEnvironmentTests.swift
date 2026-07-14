@@ -10,6 +10,7 @@ import Testing
 struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesIncludePaneSocketCliAndPrependedPath() {
+    let windowID = UUID(uuidString: "BF6EB768-604E-47C8-B08D-6D5EBEE9F26A")!
     let surfaceID = UUID(uuidString: "A72F7A7D-B5E8-497E-A5D5-D26A77A0A4C7")!
     let tabID = UUID(uuidString: "9F4EB4BE-9216-4DCA-A866-C8276D9EF2AA")!
     let path = [
@@ -19,6 +20,7 @@ struct GhosttySurfaceViewEnvironmentTests {
       "/bin",
     ].joined(separator: ":")
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      windowID: windowID,
       surfaceID: surfaceID,
       tabID: tabID,
       socketPath: "/tmp/supaterm.sock",
@@ -28,6 +30,7 @@ struct GhosttySurfaceViewEnvironmentTests {
 
     #expect(
       environmentVariables == [
+        SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.windowIDKey, value: windowID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.surfaceIDKey, value: surfaceID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.tabIDKey, value: tabID.uuidString),
         SupatermCLIEnvironmentVariable(key: SupatermCLIEnvironment.socketPathKey, value: "/tmp/supaterm.sock"),
@@ -46,6 +49,7 @@ struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesUseShortZmxDirectory() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      windowID: UUID(),
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
@@ -67,6 +71,7 @@ struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesClearInheritedZmxSessionContext() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      windowID: UUID(),
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
@@ -86,6 +91,7 @@ struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesOmitZmxDirectoryWhenZmxSessionsAreDisabled() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      windowID: UUID(),
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
@@ -111,6 +117,7 @@ struct GhosttySurfaceViewEnvironmentTests {
   @Test
   func supatermEnvironmentVariablesIncludeStateHomeWhenPresent() {
     let environmentVariables = GhosttySurfaceView.supatermEnvironmentVariables(
+      windowID: UUID(),
       surfaceID: UUID(),
       tabID: UUID(),
       socketPath: nil,
@@ -151,6 +158,7 @@ struct GhosttySurfaceViewEnvironmentTests {
     let runtime = GhosttyRuntime()
     let view = GhosttySurfaceView(
       runtime: runtime,
+      windowID: UUID(),
       tabID: UUID(),
       workingDirectory: nil,
       context: GHOSTTY_SURFACE_CONTEXT_TAB

@@ -132,6 +132,7 @@ Panes inherit Supaterm context from the running app:
 - `SUPATERM_SOCKET_PATH`
 - `SUPATERM_CLI_PATH`
 - `SUPATERM_STATE_HOME` when an app state root is configured
+- `SUPATERM_WINDOW_ID`
 - `SUPATERM_SURFACE_ID`
 - `SUPATERM_TAB_ID`
 - `ZMX_DIR`, `ZMX_SESSION`, and `ZMX_SESSION_PREFIX` when zmx sessions are enabled (the default)

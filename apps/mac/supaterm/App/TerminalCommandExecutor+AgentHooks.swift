@@ -9,17 +9,27 @@ extension TerminalCommandExecutor {
     let subtitle: String
   }
 
-  func handleCommandFinished(for surfaceID: UUID) {
-    agentMonitorStore.clearSessions(for: surfaceID)
-    for entry in registry.activeEntries() {
-      guard entry.terminal.clearAgentState(for: surfaceID) else { continue }
-      entry.terminal.sessionDidChange()
-      return
-    }
+  private struct AgentNotificationTarget {
+    let entry: TerminalWindowRegistry.Entry
+    let surfaceID: UUID
+    let windowIndex: Int
   }
 
-  func handleSurfaceRemoved(_ surfaceID: UUID) {
-    agentMonitorStore.clearSessions(for: surfaceID)
+  func handleCommandFinished(
+    for surfaceID: UUID,
+    in windowControllerID: UUID
+  ) {
+    agentMonitorStore.clearSessions(for: surfaceID, in: windowControllerID)
+    guard let entry = registry.entry(forWindowControllerID: windowControllerID) else { return }
+    guard entry.terminal.clearAgentState(for: surfaceID) else { return }
+    entry.terminal.sessionDidChange()
+  }
+
+  func handleSurfaceRemoved(
+    _ surfaceID: UUID,
+    in windowControllerID: UUID
+  ) {
+    agentMonitorStore.clearSessions(for: surfaceID, in: windowControllerID)
   }
 
   func resumeAgentMonitoring(in terminal: TerminalHostState) {
@@ -162,21 +172,25 @@ extension TerminalCommandExecutor {
     context: SupatermCLIContext?,
     notification: AgentHookNotification
   ) throws -> TerminalAgentHookResult {
-    for surfaceID in agentCandidateSurfaceIDs(
+    for target in agentNotificationTargets(
       agent: agent,
       sessionID: event.sessionID,
       context: context
     ) {
       do {
-        let result = try notifyStructuredAgent(
-          TerminalNotifyRequest(
-            body: notification.body,
-            subtitle: notification.subtitle,
-            target: .contextPane(surfaceID),
-            title: agent.notificationTitle,
-            allowDesktopNotificationWhenAgentActive: true
+        let request = TerminalNotifyRequest(
+          body: notification.body,
+          subtitle: notification.subtitle,
+          target: .contextPane(target.surfaceID),
+          title: agent.notificationTitle,
+          allowDesktopNotificationWhenAgentActive: true
+        )
+        let result = TerminalWindowRegistry.rewrite(
+          try target.entry.terminal.notifyStructuredAgent(
+            request,
+            semantic: notification.semantic
           ),
-          semantic: notification.semantic
+          windowIndex: target.windowIndex
         )
         return TerminalAgentHookResult(
           desktopNotification: result.desktopNotificationDisposition.shouldDeliver
@@ -184,6 +198,7 @@ extension TerminalCommandExecutor {
               body: notification.body,
               subtitle: notification.subtitle,
               title: result.resolvedTitle,
+              sourceWindowID: target.entry.windowControllerID,
               sourceSurfaceID: result.paneID
             )
             : nil
@@ -300,10 +315,8 @@ extension TerminalCommandExecutor {
     context: SupatermCLIContext?
   ) -> TerminalHostState? {
     let entries = registry.activeEntries()
-    if let surfaceID = context?.surfaceID,
-      let terminal = entries.first(where: { $0.terminal.tabID(containing: surfaceID) != nil })?.terminal
-    {
-      return terminal
+    if let context {
+      return indexedEntry(for: context)?.entry.terminal
     }
     guard let sessionID else { return nil }
     return entries.first {
@@ -311,23 +324,66 @@ extension TerminalCommandExecutor {
     }?.terminal
   }
 
-  private func agentCandidateSurfaceIDs(
+  private func agentNotificationTargets(
     agent: SupatermAgentKind,
     sessionID: String?,
     context: SupatermCLIContext?
-  ) -> [UUID] {
-    var surfaceIDs: [UUID] = []
-    if let surfaceID = context?.surfaceID {
-      surfaceIDs.append(surfaceID)
+  ) -> [AgentNotificationTarget] {
+    if let context {
+      guard let indexedEntry = indexedEntry(for: context) else { return [] }
+      var targets = [
+        AgentNotificationTarget(
+          entry: indexedEntry.entry,
+          surfaceID: context.surfaceID,
+          windowIndex: indexedEntry.windowIndex
+        )
+      ]
+      if let sessionID,
+        let surfaceID = indexedEntry.entry.terminal.agentStateSurfaceID(
+          agent: agent,
+          sessionID: sessionID
+        ),
+        surfaceID != context.surfaceID
+      {
+        targets.append(
+          AgentNotificationTarget(
+            entry: indexedEntry.entry,
+            surfaceID: surfaceID,
+            windowIndex: indexedEntry.windowIndex
+          )
+        )
+      }
+      return targets
     }
-    if let sessionID,
-      let terminal = agentTerminal(agent: agent, sessionID: sessionID, context: nil),
-      let surfaceID = terminal.agentStateSurfaceID(agent: agent, sessionID: sessionID),
-      !surfaceIDs.contains(surfaceID)
-    {
-      surfaceIDs.append(surfaceID)
+
+    guard let sessionID else { return [] }
+    for (offset, entry) in registry.activeEntries().enumerated() {
+      guard let surfaceID = entry.terminal.agentStateSurfaceID(agent: agent, sessionID: sessionID) else {
+        continue
+      }
+      return [
+        AgentNotificationTarget(
+          entry: entry,
+          surfaceID: surfaceID,
+          windowIndex: offset + 1
+        )
+      ]
     }
-    return surfaceIDs
+    return []
+  }
+
+  private func indexedEntry(
+    for context: SupatermCLIContext
+  ) -> (windowIndex: Int, entry: TerminalWindowRegistry.Entry)? {
+    guard let indexedEntry = registry.indexedEntry(forWindowControllerID: context.windowID) else {
+      return nil
+    }
+    guard
+      indexedEntry.entry.terminal.tabID(containing: context.surfaceID)?.rawValue == context.tabID
+    else {
+      return nil
+    }
+    return indexedEntry
   }
 
   private func pruneDeadAgentProcesses() {

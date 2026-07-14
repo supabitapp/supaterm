@@ -45,7 +45,10 @@ struct ActionLoggingTests {
 
   @Test
   func categorizesActionLabels() {
-    #expect(terminalEvent(for: .newTabButtonTapped(inheritingFromSurfaceID: nil)).category == .terminal)
+    #expect(
+      terminalEvent(for: .newTabButtonTapped(projectID: nil, inheritingFromSurfaceID: nil)).category
+        == .terminal
+    )
     #expect(
       appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)).category == .settings
     )
@@ -61,7 +64,7 @@ struct ActionLoggingTests {
   @Test
   func allowlistedActionLabelsCreateExceptionSteps() {
     let events = [
-      terminalEvent(for: .newTabButtonTapped(inheritingFromSurfaceID: nil)),
+      terminalEvent(for: .newTabButtonTapped(projectID: nil, inheritingFromSurfaceID: nil)),
       terminalEvent(for: .closeTabRequested(TerminalTabID())),
       appLogEvent(for: SettingsFeature.Action.zmxSessionsEnabledChanged(true)),
       appLogEvent(for: SocketControlFeature.Action.startFailed("boom")),

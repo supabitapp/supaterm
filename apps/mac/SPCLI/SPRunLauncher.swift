@@ -5,6 +5,7 @@ import SupatermCLIShared
 
 enum SPRunLauncher {
   struct FocusedContext: Equatable {
+    let windowID: UUID
     let spaceID: UUID
     let tabID: UUID
     let paneID: UUID
@@ -59,6 +60,7 @@ enum SPRunLauncher {
 
     var processEnvironment = environment
     processEnvironment[SupatermCLIEnvironment.socketPathKey] = socketPath
+    processEnvironment[SupatermCLIEnvironment.windowIDKey] = focusedContext.windowID.uuidString
     processEnvironment[SupatermCLIEnvironment.surfaceIDKey] = focusedContext.paneID.uuidString
     processEnvironment[SupatermCLIEnvironment.tabIDKey] = focusedContext.tabID.uuidString
     processEnvironment["TERM"] = trimmedNonEmpty(environment["TERM"]) ?? "xterm-256color"
@@ -82,6 +84,7 @@ enum SPRunLauncher {
         "cli_path": resolvedCLIExecutablePath,
         "shim_directory": shimDirectory.path,
         "socket_path": socketPath,
+        "focused_window_id": focusedContext.windowID.uuidString.lowercased(),
         "focused_space_id": focusedContext.spaceID.uuidString.lowercased(),
         "focused_tab_id": focusedContext.tabID.uuidString.lowercased(),
         "focused_pane_id": focusedContext.paneID.uuidString.lowercased(),

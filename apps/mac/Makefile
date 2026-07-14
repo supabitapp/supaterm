@@ -102,7 +102,7 @@ run-app: build-app # Build then launch (Debug) with log streaming
 	state_home="$${SUPATERM_RUN_STATE_HOME:-$(CURRENT_MAKEFILE_DIR)/.build/run-state/$$run_id}"; \
 	zmx_dir="$${SUPATERM_RUN_ZMX_DIR:-$$state_home/zmx}"; \
 	mkdir -p "$$state_home" "$$zmx_dir"; \
-	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
+	env -u SUPATERM_SOCKET_PATH -u SUPATERM_WINDOW_ID -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \
 		SUPATERM_STATE_HOME="$$state_home" \
@@ -134,7 +134,7 @@ run-app-demo: build-app-demo # Build then launch seeded demo mode (Debug)
 	zmx_dir="$$state_home/zmx"; \
 	rm -rf "$$state_home"; \
 	mkdir -p "$$state_home" "$$zmx_dir"; \
-	env -u SUPATERM_SOCKET_PATH -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
+	env -u SUPATERM_SOCKET_PATH -u SUPATERM_WINDOW_ID -u SUPATERM_SURFACE_ID -u SUPATERM_TAB_ID -u SUPATERM_CLI_PATH -u SUPATERM_INSTANCE_NAME -u SUPATERM_STATE_HOME -u ZMX_DIR \
 		SUPATERM_PRINT_SOCKET=1 \
 		SUPATERM_INSTANCE_NAME="$$instance_name" \
 		SUPATERM_STATE_HOME="$$state_home" \
