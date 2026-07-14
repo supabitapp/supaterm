@@ -2,6 +2,7 @@
 
 - `apps/mac` — macOS app, CLI, Tuist project, resources, and the Ghostty dependency
 - `apps/supaterm.com` — Marketing website (Vite+, Cloudflare Workers)
+- `apps/docs.supaterm.com` — Documentation website (Blume, Cloudflare Workers)
 - `integrations/supaterm-skills` — User-facing skill submodule for Supaterm integrations and agent workflows
 
 ## Documentation
@@ -13,7 +14,8 @@
 - `integrations/supaterm-skills/skills/supaterm` - stable user-facing discovery skill
 - `integrations/supaterm-skills/skill-data` - version-matched `sp` guides and command references
 - Keep `integrations/supaterm-skills` in sync when CLI behavior or coding-agent integrations change; we maintain the user-facing `supaterm` skill there
-- Read `apps/supaterm.com/AGENTS.md` before working in the web app
+- Read `apps/supaterm.com/AGENTS.md` before working in the marketing website
+- Read `apps/docs.supaterm.com/AGENTS.md` before working in the documentation website and run its commands through the root `make docs-*` targets
 
 ## Terminology
 
