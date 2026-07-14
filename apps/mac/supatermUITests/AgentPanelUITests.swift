@@ -8,20 +8,16 @@ final class AgentPanelUITests: SupatermUITestCase {
     _ = mainWindow
     try await sendClaudeEvent("session-start")
 
-    await assertEventually(copySessionButton, timeout: .seconds(30)) { $0.exists }
-    await assertEventually(hideAgentPanelButton) { $0.exists }
+    await assertEventually(agentPanel, timeout: .seconds(30)) { $0.exists }
 
     app.typeKey("i", modifierFlags: .command)
-    await assertEventually(copySessionButton) { !$0.exists }
-    await assertEventually(showAgentPanelButton) { $0.exists }
+    await assertEventually(agentPanel) { !$0.exists }
 
     app.typeKey("i", modifierFlags: .command)
-    await assertEventually(copySessionButton) { $0.exists }
-    await assertEventually(hideAgentPanelButton) { $0.exists }
+    await assertEventually(agentPanel) { $0.exists }
 
     try clickMenuItem(.toggleAgentPanel)
-    await assertEventually(copySessionButton) { !$0.exists }
-    await assertEventually(showAgentPanelButton) { $0.exists }
+    await assertEventually(agentPanel) { !$0.exists }
   }
 
   @MainActor
@@ -49,34 +45,26 @@ final class AgentPanelUITests: SupatermUITestCase {
 
     let secondTab = tabRows.element(boundBy: 1)
     await assertEventually(secondTab, timeout: .seconds(30)) { $0.exists }
+    firstTab.click()
+    secondTab.click()
     await assertEventually(firstTab, timeout: .seconds(30)) {
       $0.label.contains("Agent activity: Needs input")
     }
 
     firstTab.click()
-    await assertEventually(copySessionButton, timeout: .seconds(30)) { $0.exists }
+    await assertEventually(agentPanel, timeout: .seconds(30)) { $0.exists }
     try await sendClaudeEvent("stop")
 
     await assertEventually(firstTab, timeout: .seconds(30)) {
       $0.label.contains("Done.") && !$0.label.contains("Agent activity:")
     }
     try await sendClaudeEvent("session-end")
-    await assertEventually(copySessionButton, timeout: .seconds(30)) { !$0.exists }
+    await assertEventually(agentPanel, timeout: .seconds(30)) { !$0.exists }
   }
 
   @MainActor
-  private var copySessionButton: XCUIElement {
-    app.buttons["Copy session ID"]
-  }
-
-  @MainActor
-  private var hideAgentPanelButton: XCUIElement {
-    app.buttons["Hide agent panel"]
-  }
-
-  @MainActor
-  private var showAgentPanelButton: XCUIElement {
-    app.buttons["Show agent panel"]
+  private var agentPanel: XCUIElement {
+    app.descendants(matching: .any)["agent-panel"]
   }
 
   @MainActor

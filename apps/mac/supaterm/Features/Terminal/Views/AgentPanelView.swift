@@ -37,6 +37,8 @@ struct AgentPanelView: View {
       .padding(AgentPanelMetrics.contentPadding)
       .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
       .accessibilityElement(children: .contain)
+      .accessibilityLabel("Agent panel")
+      .accessibilityIdentifier("agent-panel")
   }
 
   private var content: some View {
