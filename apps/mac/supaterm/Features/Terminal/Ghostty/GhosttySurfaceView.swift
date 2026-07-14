@@ -793,8 +793,19 @@ final class GhosttySurfaceView: NSView, Identifiable {
   }
 
   private func recordUserInput() {
-    guard focused else { return }
-    bridge.state.userInputGeneration &+= 1
+    if focused {
+      bridge.state.userInputGeneration &+= 1
+    }
+    guard !passwordInput else { return }
+    SupatermLog.debug(
+      SupatermLog.terminal,
+      "agentPanel.cursorAvoidance.input",
+      fields: [
+        "surfaceID=\(SupatermLog.uuid(id))",
+        "focused=\(focused)",
+        "generation=\(bridge.state.userInputGeneration)",
+      ]
+    )
   }
 
   override func flagsChanged(with event: NSEvent) {

@@ -661,19 +661,30 @@ struct TerminalSplitTreeView: View {
     ) -> Bool {
       guard
         let cursorRect,
-        let panelHeight,
-        panelHeight > 0
+        let panelFrame = agentPanelFrame(
+          surfaceSize: surfaceSize,
+          panelHeight: panelHeight,
+          topPadding: topPadding
+        )
       else { return false }
-      let panelFrame = CGRect(
+      return
+        panelFrame
+        .insetBy(dx: -agentPanelCursorClearance, dy: -agentPanelCursorClearance)
+        .intersects(cursorRect)
+    }
+
+    static func agentPanelFrame(
+      surfaceSize: CGSize,
+      panelHeight: CGFloat?,
+      topPadding: CGFloat
+    ) -> CGRect? {
+      guard let panelHeight, panelHeight > 0 else { return nil }
+      return CGRect(
         x: surfaceSize.width - agentPanelEdgePadding - AgentPanelMetrics.expandedWidth,
         y: surfaceSize.height - topPadding - panelHeight,
         width: AgentPanelMetrics.expandedWidth,
         height: panelHeight
       )
-      return
-        panelFrame
-        .insetBy(dx: -agentPanelCursorClearance, dy: -agentPanelCursorClearance)
-        .intersects(cursorRect)
     }
 
     static func shouldTriggerNotificationPulse(
@@ -828,8 +839,12 @@ struct TerminalSplitTreeView: View {
 
     private var temporarilyHidesPanel: Bool {
       guard activeInputGeneration != nil else { return false }
+      return cursorOverlapsAgentPanel(terminalCursorRect)
+    }
+
+    private func cursorOverlapsAgentPanel(_ cursorRect: CGRect?) -> Bool {
       return TerminalSplitTreeView.LeafView.shouldTemporarilyHideAgentPanel(
-        cursorRect: terminalCursorRect,
+        cursorRect: cursorRect,
         surfaceSize: surfaceSize,
         panelHeight: expandedHeight,
         topPadding: topPadding
@@ -837,16 +852,26 @@ struct TerminalSplitTreeView: View {
     }
 
     private func monitorCursor(_ inputGeneration: Int?) async {
-      guard inputGeneration != nil else {
+      guard let inputGeneration else {
         terminalCursorRect = nil
         return
       }
       let clock = ContinuousClock()
       let deadline = clock.now.advanced(by: Self.cursorMonitoringWindow)
+      var hasLoggedSample = false
       while !Task.isCancelled {
         let cursorRect = surfaceView.terminalCursorRectInScrollWrapper()
         if terminalCursorRect != cursorRect {
           terminalCursorRect = cursorRect
+        }
+        if !hasLoggedSample {
+          hasLoggedSample = true
+          logCursorAvoidance(
+            "agentPanel.cursorAvoidance.sample",
+            inputGeneration: inputGeneration,
+            cursorRect: cursorRect,
+            fields: ["hidden=\(cursorOverlapsAgentPanel(cursorRect))"]
+          )
         }
         if clock.now >= deadline, !temporarilyHidesPanel {
           terminalCursorRect = nil
@@ -858,6 +883,38 @@ struct TerminalSplitTreeView: View {
           return
         }
       }
+    }
+
+    private func logCursorAvoidance(
+      _ event: String,
+      inputGeneration: Int?,
+      cursorRect: CGRect?,
+      fields: [String] = []
+    ) {
+      guard !surfaceView.passwordInput else { return }
+      let panelFrame = TerminalSplitTreeView.LeafView.agentPanelFrame(
+        surfaceSize: surfaceSize,
+        panelHeight: expandedHeight,
+        topPadding: topPadding
+      )
+      SupatermLog.debug(
+        SupatermLog.terminal,
+        event,
+        fields: [
+          "surfaceID=\(SupatermLog.uuid(surfaceView.id))",
+          "generation=\(inputGeneration.map { String($0) } ?? "nil")",
+          "focused=\(isFocused)",
+          "collapsed=\(isCollapsed)",
+          "panel=\(Self.format(panelFrame))",
+          "cursor=\(Self.format(cursorRect))",
+        ]
+          + fields
+      )
+    }
+
+    private static func format(_ rect: CGRect?) -> String {
+      guard let rect else { return "nil" }
+      return NSStringFromRect(rect).replacingOccurrences(of: " ", with: "")
     }
 
     private var toggleButton: some View {
