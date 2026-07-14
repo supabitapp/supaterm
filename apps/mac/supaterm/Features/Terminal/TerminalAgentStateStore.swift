@@ -61,6 +61,7 @@ nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
   let progressRows: [PaneAgentProgressRow]
   let activeChildren: [TerminalAgentActiveChild]
   let turnLifecycle: TerminalAgentTurnLifecycle
+  let workingDirectoryPath: String?
 
   var hasActivity: Bool {
     turnLifecycle != .unseen || !activeChildren.isEmpty
@@ -83,6 +84,7 @@ nonisolated struct TerminalAgentStateSnapshot: Equatable, Sendable {
   let activeChildren: [TerminalAgentActiveChild]
   let isForeground: Bool
   let revision: Int
+  let workingDirectoryPath: String?
 
   var processIDs: Set<Int32> {
     Set(processes.map(\.processID))
@@ -123,6 +125,7 @@ nonisolated struct TerminalAgentStateStore {
     var surfaceID: UUID?
     var transcriptPath: String?
     var turnLifecycle = TerminalAgentTurnLifecycle.unseen
+    var workingDirectoryPath: String?
   }
 
   private var foregroundSessions: [ForegroundKey: String] = [:]
@@ -232,6 +235,11 @@ nonisolated struct TerminalAgentStateStore {
   ) {
     if state.surfaceID == nil, let surfaceID = event.context?.surfaceID {
       state.surfaceID = surfaceID
+    }
+    if event.scope.subagentID == nil,
+      let workingDirectoryPath = Self.normalizedWorkingDirectoryPath(event.workingDirectoryPath)
+    {
+      state.workingDirectoryPath = workingDirectoryPath
     }
     if let processID = event.processID,
       let identity = processIdentity(processID)
@@ -543,7 +551,8 @@ nonisolated struct TerminalAgentStateStore {
       isActionable: state.isActionable,
       progressRows: Self.progressRows(in: state),
       activeChildren: activeChildren,
-      turnLifecycle: state.turnLifecycle
+      turnLifecycle: state.turnLifecycle,
+      workingDirectoryPath: state.workingDirectoryPath
     )
   }
 
@@ -587,7 +596,8 @@ nonisolated struct TerminalAgentStateStore {
         progressRowsBySource: state.progressRowsBySource,
         activeChildren: Self.sortedChildren(state.activeChildren.values),
         isForeground: foregroundSessionID(for: surfaceID, agent: key.agent) == key.sessionID,
-        revision: state.revision
+        revision: state.revision,
+        workingDirectoryPath: state.workingDirectoryPath
       )
     }
     .sorted { lhs, rhs in
@@ -617,7 +627,8 @@ nonisolated struct TerminalAgentStateStore {
         revision: snapshot.revision,
         surfaceID: snapshot.surfaceID,
         transcriptPath: snapshot.transcriptPath,
-        turnLifecycle: snapshot.turnLifecycle
+        turnLifecycle: snapshot.turnLifecycle,
+        workingDirectoryPath: snapshot.workingDirectoryPath
       )
       if snapshot.isForeground {
         foregroundSessions[
@@ -703,6 +714,10 @@ nonisolated struct TerminalAgentStateStore {
       let message = message.trimmingCharacters(in: .whitespacesAndNewlines)
       return message.isEmpty ? nil : message
     }
+  }
+
+  private static func normalizedWorkingDirectoryPath(_ path: String?) -> String? {
+    TerminalAgentPanelWorkspaceKey(workingDirectoryPath: path)?.workingDirectoryPath
   }
 
   private static func highest(

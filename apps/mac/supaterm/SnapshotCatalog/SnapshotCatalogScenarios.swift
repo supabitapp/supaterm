@@ -226,7 +226,7 @@ extension SnapshotCatalog {
       "branch-pr-checks",
       group: "Agent Panel",
       title: "Branch with failing checks",
-      size: CGSize(width: 338, height: 292)
+      size: CGSize(width: 338, height: 312)
     ) { appearance in
       AnyView(
         AgentPanelSnapshotFixture(
@@ -235,6 +235,9 @@ extension SnapshotCatalog {
             progressRows: [
               PaneAgentProgressRow(id: "task-1", title: "Waiting for review", status: .running)
             ],
+            workingDirectoryPath: FileManager.default.homeDirectoryForCurrentUser
+              .appending(path: "code/github.com/supabitapp/supaterm/apps/mac")
+              .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
               branchName: "feature/snapshot-catalog",
               addedLineCount: 1482,
@@ -318,12 +321,15 @@ extension SnapshotCatalog {
       "merged-pr",
       group: "Agent Panel",
       title: "Merged pull request",
-      size: CGSize(width: 338, height: 238)
+      size: CGSize(width: 338, height: 258)
     ) { appearance in
       AnyView(
         AgentPanelSnapshotFixture(
           appearance: appearance,
           presentation: PaneAgentPanelPresentation(
+            workingDirectoryPath: FileManager.default.homeDirectoryForCurrentUser
+              .appending(path: "code/github.com/supabitapp/supaterm")
+              .path(percentEncoded: false),
             branchDetails: PaneAgentBranchDetails(
               branchName: "feature/sidebar-polish",
               addedLineCount: 82,
@@ -781,8 +787,7 @@ private struct AgentPanelSnapshotFixture: View {
       palette: palette,
       forksDown: forksDown,
       showsShortcutHints: showsShortcutHints,
-      copyBranchName: { _ in },
-      copySessionID: { _ in },
+      copyText: { _ in },
       forkSession: { _, _ in },
       openURL: { _ in }
     )

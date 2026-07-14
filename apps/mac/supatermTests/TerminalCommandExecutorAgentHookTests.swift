@@ -30,7 +30,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
   @Test
-  func claudeSessionStartDoesNotMarkTabRunning() throws {
+  func claudeSessionStartShowsWorkspaceWithoutMarkingTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.commandExecutor.handleAgentHook(
@@ -38,7 +38,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(harness.host.agentPanelPresentation(for: harness.context.surfaceID) == nil)
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.workingDirectoryPath
+        == "\(ClaudeHookFixtures.cwd)/"
+    )
   }
   @Test
   func claudeSessionStartStoresTaskProgressRows() async throws {
@@ -1150,7 +1153,11 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .codex(.running))
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
     let expectedSession = try #require(
-      PaneAgentPanelSession.supported(agent: .codex, sessionID: CodexHookFixtures.sessionID)
+      PaneAgentPanelSession.supported(
+        agent: .codex,
+        sessionID: CodexHookFixtures.sessionID,
+        workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+      )
     )
     #expect(session == expectedSession)
   }
@@ -1575,7 +1582,14 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     let session = try #require(harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.session)
-    #expect(session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "child-session"))
+    #expect(
+      session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "child-session",
+          workingDirectoryPath: "\(CodexHookFixtures.cwd)/"
+        )
+    )
     #expect(session.forkStartupCommand.contains("codex fork child-session"))
   }
   @Test

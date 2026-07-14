@@ -202,14 +202,15 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func registeredStateHidesSessionPanelWithoutActivity() throws {
+  func registeredStateShowsWorkspaceWithoutActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
+    let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
     let surfaceID = try #require(
       restoreSplitHost(
         host,
-        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        workingDirectoryPath: workingDirectoryPath
       )
       .first
     )
@@ -223,7 +224,86 @@ struct TerminalAgentPanelTests {
       )
     )
 
-    #expect(host.agentPanelPresentation(for: surfaceID) == nil)
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.workingDirectoryPath == workingDirectoryPath)
+    #expect(presentation.session == nil)
+  }
+
+  @Test
+  @MainActor
+  func workspaceDoesNotHideRunningFallbackRow() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
+    let surfaceID = try #require(
+      restoreSplitHost(host, workingDirectoryPath: workingDirectoryPath).first
+    )
+
+    let tabID = try #require(host.tabID(containing: surfaceID))
+    #expect(
+      host.applyAgentEvent(
+        TerminalAgentEvent(
+          scope: TerminalAgentEvent.Scope(agent: .codex, sessionID: "session-1"),
+          context: SupatermCLIContext(surfaceID: surfaceID, tabID: tabID.rawValue),
+          action: .turnRunning(detail: "Inspecting"),
+          origin: .transcript
+        )
+      ).changed
+    )
+    #expect(
+      host.agentPanelPresentation(for: surfaceID)
+        == PaneAgentPanelPresentation(
+          progressRows: [
+            PaneAgentProgressRow(
+              id: "agent-session-running",
+              title: "Inspecting",
+              status: .running
+            )
+          ],
+          workingDirectoryPath: workingDirectoryPath
+        )
+    )
+  }
+
+  @Test
+  @MainActor
+  func actionableSessionKeepsItsOwnWorkspaceWhenAnotherAgentIsCurrent() throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState()
+    let surfaceID = try #require(
+      restoreSplitHost(host, workingDirectoryPath: "/tmp/pane-workspace").first
+    )
+    #expect(
+      host.makeTestAgentSessionActionable(
+        agent: .codex,
+        for: surfaceID,
+        sessionID: "session-1",
+        processID: nil,
+        workingDirectoryPath: "/tmp/codex-workspace"
+      )
+    )
+    #expect(
+      host.applyTestAgentActivity(
+        TerminalHostState.AgentActivity(kind: .pi, phase: .running),
+        for: surfaceID,
+        sessionID: "session-2",
+        processID: nil,
+        workingDirectoryPath: "/tmp/pi-workspace"
+      )
+    )
+
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.workingDirectoryPath == "/tmp/pi-workspace/")
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: "/tmp/codex-workspace/"
+        )
+    )
   }
 
   @Test
@@ -287,7 +367,11 @@ struct TerminalAgentPanelTests {
     let tabID = try #require(host.selectedTabID)
     #expect(
       presentation.session
-        == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        )
     )
     #expect(
       host.agentActivity(for: tabID)
@@ -319,7 +403,14 @@ struct TerminalAgentPanelTests {
     )
 
     let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
-    #expect(presentation.session == PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
+    #expect(
+      presentation.session
+        == PaneAgentPanelSession.supported(
+          agent: .codex,
+          sessionID: "session-1",
+          workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        )
+    )
     #expect(presentation.progressRows.isEmpty)
   }
 
@@ -499,6 +590,108 @@ struct TerminalAgentPanelTests {
       #expect(firstDetails.removedLineCount == 5)
       #expect(await recorder.gitPaths() == [repoRoot.path(percentEncoded: false)])
       #expect(await recorder.pullRequestBranches() == ["main"])
+    }
+  }
+
+  @Test
+  @MainActor
+  func agentWorkingDirectoryReplacesStalePanePath() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let root = FileManager.default.temporaryDirectory.appending(
+        path: UUID().uuidString,
+        directoryHint: .isDirectory
+      )
+      let paneRoot = root.appending(path: "pane", directoryHint: .isDirectory)
+      let agentRoot = root.appending(path: "agent", directoryHint: .isDirectory)
+      let nextAgentRoot = root.appending(path: "next-agent", directoryHint: .isDirectory)
+      for directory in [paneRoot, agentRoot, nextAgentRoot] {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      }
+      defer { try? FileManager.default.removeItem(at: root) }
+
+      let recorder = AgentPanelRefreshRecorder()
+      let gitClient = TerminalAgentGitClient { workingDirectoryPath in
+        await recorder.recordGit(workingDirectoryPath)
+        let repoRoot = URL(fileURLWithPath: workingDirectoryPath, isDirectory: true)
+        return TerminalAgentGitSnapshot(
+          repoRoot: repoRoot,
+          headURL: nil,
+          branchName: repoRoot.lastPathComponent,
+          addedLineCount: 1,
+          removedLineCount: 0
+        )
+      }
+      let githubClient = TerminalAgentGithubClient { _, _ in .unavailable }
+      let host = TerminalHostState()
+      let surfaceID = try #require(
+        restoreSplitHost(
+          host,
+          workingDirectoryPath: paneRoot.path(percentEncoded: false)
+        )
+        .first
+      )
+      let controller = TerminalAgentPanelController(
+        terminal: host,
+        gitClient: gitClient,
+        githubClient: githubClient
+      )
+      host.agentPanelController = controller
+      defer { controller.stop() }
+
+      #expect(
+        host.startTestAgentSession(
+          agent: .codex,
+          for: surfaceID,
+          sessionID: "session-1",
+          processID: nil,
+          workingDirectoryPath: agentRoot.path(percentEncoded: false)
+        )
+      )
+      controller.surfaceFocused(surfaceID)
+
+      #expect(
+        await waitForBranchDetails(
+          host: host,
+          surfaceIDs: [surfaceID],
+          branchName: agentRoot.lastPathComponent
+        )
+      )
+      #expect(
+        host.agentPanelPresentation(for: surfaceID)?.workingDirectoryPath
+          == agentRoot.path(percentEncoded: false)
+      )
+
+      #expect(
+        host.applyTestAgentActivity(
+          .codex(.running),
+          for: surfaceID,
+          sessionID: "session-1",
+          processID: nil,
+          workingDirectoryPath: nextAgentRoot.path(percentEncoded: false)
+        )
+      )
+      #expect(host.agentPanelPresentation(for: surfaceID)?.branchDetails == nil)
+      #expect(
+        host.agentPanelPresentation(for: surfaceID)?.workingDirectoryPath
+          == nextAgentRoot.path(percentEncoded: false)
+      )
+      #expect(
+        await waitForBranchDetails(
+          host: host,
+          surfaceIDs: [surfaceID],
+          branchName: nextAgentRoot.lastPathComponent
+        )
+      )
+      #expect(
+        await recorder.gitPaths() == [
+          agentRoot.path(percentEncoded: false),
+          nextAgentRoot.path(percentEncoded: false),
+        ]
+      )
     }
   }
 

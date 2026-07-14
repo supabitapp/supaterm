@@ -1037,24 +1037,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func agentPanelCopySessionIDWritesClipboard() async {
-    var copiedSessionIDs: [String] = []
-
-    let store = TestStore(initialState: TerminalWindowFeature.State()) {
-      TerminalWindowFeature()
-    } withDependencies: {
-      $0.clipboardClient.copyString = { sessionID in
-        copiedSessionIDs.append(sessionID)
-      }
-    }
-
-    await store.send(.agentPanelCopySessionID("session-1"))
-
-    #expect(copiedSessionIDs == ["session-1"])
-  }
-
-  @Test
-  func agentPanelCopyBranchNameWritesClipboard() async {
+  func agentPanelCopyTextWritesClipboard() async {
     var copiedValues: [String] = []
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
@@ -1065,9 +1048,9 @@ struct TerminalWindowFeatureTests {
       }
     }
 
-    await store.send(.agentPanelCopyBranchName("khoi/branch"))
+    await store.send(.agentPanelCopyText("/Users/Developer/code/supaterm"))
 
-    #expect(copiedValues == ["khoi/branch"])
+    #expect(copiedValues == ["/Users/Developer/code/supaterm"])
   }
 
   @Test
@@ -1102,7 +1085,13 @@ struct TerminalWindowFeatureTests {
       .agentPanelForkSessionRequested(
         surfaceID: surfaceID,
         direction: .down,
-        session: try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
+        session: try #require(
+          PaneAgentPanelSession.supported(
+            agent: .codex,
+            sessionID: "session-1",
+            workingDirectoryPath: "/tmp/agent-workspace/"
+          )
+        )
       )
     )
 
@@ -1112,7 +1101,7 @@ struct TerminalWindowFeatureTests {
           startupCommand: SupatermShellCommand.interactiveStartupCommand(
             for: "codex fork session-1"
           ),
-          cwd: nil,
+          cwd: "/tmp/agent-workspace/",
           direction: .down,
           focus: true,
           equalize: false,

@@ -16,6 +16,7 @@ extension TerminalAgentStateStoreTests {
         sessionID: "session-1",
         context: context,
         processID: 42,
+        workingDirectoryPath: "/tmp/workspace",
         action: .sessionStarted(transcriptPath: "/tmp/codex.jsonl")
       )
     )
@@ -51,6 +52,7 @@ extension TerminalAgentStateStoreTests {
     restored.restore(snapshots)
 
     #expect(snapshots.first?.processIDs == Set([42, 43]))
+    #expect(restored.snapshots(for: surfaceID).first?.workingDirectoryPath == "/tmp/workspace/")
     #expect(
       restored.presentation(for: surfaceID, agent: .codex)
         == store.presentation(for: surfaceID, agent: .codex)
@@ -73,6 +75,14 @@ extension TerminalAgentStateStoreTests {
         turnID: "turn-1",
         context: context,
         action: .attentionRequested(requestID: nil, message: "Approve")
+      )
+    )
+    store.apply(
+      event(
+        sessionID: "session-1",
+        context: context,
+        workingDirectoryPath: "/tmp/old-workspace",
+        action: .turnRunning(detail: nil)
       )
     )
     store.apply(
@@ -107,6 +117,7 @@ extension TerminalAgentStateStoreTests {
     #expect(presentation.activeChildren.isEmpty)
     #expect(store.snapshots(for: surfaceID).first?.turnLifecycle == .unseen)
     #expect(store.snapshots(for: surfaceID).first?.transcriptPath == "/tmp/new.jsonl")
+    #expect(store.snapshots(for: surfaceID).first?.workingDirectoryPath == nil)
   }
 
   @Test

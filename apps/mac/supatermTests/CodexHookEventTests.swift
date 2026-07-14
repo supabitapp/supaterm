@@ -11,7 +11,7 @@ struct CodexHookEventTests {
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
     #expect(event.transcriptPath == CodexHookFixtures.transcriptPath)
-    #expect(event.payload["cwd"]?.stringValue == CodexHookFixtures.cwd)
+    #expect(event.cwd == CodexHookFixtures.cwd)
   }
 
   @Test
@@ -89,7 +89,7 @@ struct CodexHookEventTests {
 
     #expect(event.hookEventName == .sessionStart)
     #expect(event.sessionID == CodexHookFixtures.sessionID)
-    #expect(event.payload["cwd"]?.stringValue == CodexHookFixtures.cwd)
+    #expect(event.cwd == CodexHookFixtures.cwd)
     #expect(event.transcriptPath == nil)
     #expect(event.source == nil)
   }

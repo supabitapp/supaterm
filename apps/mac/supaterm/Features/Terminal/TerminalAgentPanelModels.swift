@@ -4,29 +4,40 @@ import SupatermCLIShared
 nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var progressRows: [PaneAgentProgressRow] = []
   var activeChildren: [TerminalAgentActiveChild] = []
+  var workingDirectoryPath: String?
   var branchDetails: PaneAgentBranchDetails?
   var artifacts: [PaneAgentArtifact] = []
   var session: PaneAgentPanelSession?
 
   var isEmpty: Bool {
-    progressRows.isEmpty
-      && activeChildren.isEmpty
-      && branchDetails == nil
-      && artifacts.isEmpty
-      && session == nil
+    workingDirectoryPath == nil && !hasContentBesidesWorkspace
+  }
+
+  var hasContentBesidesWorkspace: Bool {
+    !progressRows.isEmpty
+      || !activeChildren.isEmpty
+      || branchDetails != nil
+      || !artifacts.isEmpty
+      || session != nil
   }
 }
 
 nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
   let agent: SupatermAgentKind
   let sessionID: String
+  let workingDirectoryPath: String?
 
-  private init(agent: SupatermAgentKind, sessionID: String) {
+  private init(agent: SupatermAgentKind, sessionID: String, workingDirectoryPath: String?) {
     self.agent = agent
     self.sessionID = sessionID
+    self.workingDirectoryPath = workingDirectoryPath
   }
 
-  static func supported(agent: SupatermAgentKind, sessionID: String) -> Self? {
+  static func supported(
+    agent: SupatermAgentKind,
+    sessionID: String,
+    workingDirectoryPath: String? = nil
+  ) -> Self? {
     switch agent {
     case .claude, .codex:
       break
@@ -37,7 +48,11 @@ nonisolated struct PaneAgentPanelSession: Equatable, Sendable {
     guard !sessionID.isEmpty else {
       return nil
     }
-    return Self(agent: agent, sessionID: sessionID)
+    return Self(
+      agent: agent,
+      sessionID: sessionID,
+      workingDirectoryPath: workingDirectoryPath
+    )
   }
 
   var forkStartupCommand: String {
