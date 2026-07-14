@@ -84,7 +84,6 @@ nonisolated struct ReleaseAnnouncement: Equatable, Identifiable, Sendable {
 }
 
 nonisolated struct ReleaseAnnouncementStorageState: Codable, Equatable, Sendable {
-  var lastInstalledVersion: String?
   var acknowledgedVersion: String?
 }
 
@@ -114,29 +113,22 @@ nonisolated enum ReleaseAnnouncementCatalog {
       )
     }
 
-    var state =
+    let state =
       storedState
       ?? initialStorageState(
         currentVersion: currentVersion,
         hasExistingSupatermState: hasExistingSupatermState
       )
-    let previousInstalledVersion =
-      state.lastInstalledVersion.flatMap(ReleaseAnnouncementVersion.init)
-      ?? state.acknowledgedVersion.flatMap(ReleaseAnnouncementVersion.init)
-      ?? currentVersion
-    let acknowledgedVersion = state.acknowledgedVersion.flatMap(ReleaseAnnouncementVersion.init)
-    let eligibilityFloor =
-      acknowledgedVersion.map {
-        max(previousInstalledVersion, $0)
-      } ?? previousInstalledVersion
-    state.lastInstalledVersion = currentVersion.rawValue
+    let acknowledgedVersion =
+      state.acknowledgedVersion.flatMap(ReleaseAnnouncementVersion.init)
+      ?? firstAnnouncementBaseline
 
     let announcement =
       announcements
       .filter { announcement in
-        announcement.version > eligibilityFloor && announcement.version <= currentVersion
+        announcement.version > acknowledgedVersion && announcement.version <= currentVersion
       }
-      .min { lhs, rhs in
+      .max { lhs, rhs in
         if lhs.version == rhs.version { return lhs.id.rawValue < rhs.id.rawValue }
         return lhs.version < rhs.version
       }
@@ -156,7 +148,6 @@ nonisolated enum ReleaseAnnouncementCatalog {
       ? firstAnnouncementBaseline.rawValue
       : currentVersion.rawValue
     return ReleaseAnnouncementStorageState(
-      lastInstalledVersion: storedVersion,
       acknowledgedVersion: storedVersion
     )
   }

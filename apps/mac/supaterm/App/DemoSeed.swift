@@ -60,7 +60,6 @@
       }
       ReleaseAnnouncementStorage.save(
         ReleaseAnnouncementStorageState(
-          lastInstalledVersion: AppBuild.version,
           acknowledgedVersion: AppBuild.version
         )
       )

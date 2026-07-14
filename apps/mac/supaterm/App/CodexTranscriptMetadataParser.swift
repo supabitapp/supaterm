@@ -55,13 +55,27 @@ nonisolated enum CodexTranscriptMetadataParser {
       else {
         continue
       }
-      let sourceNickname =
-        payload["source"]?.objectValue?["subagent"]?.objectValue?["thread_spawn"]?
-        .objectValue?["agent_nickname"]?.stringValue
+      let sourceNickname = threadSpawn(from: payload)?["agent_nickname"]?.stringValue
       return AgentProgressParsing.normalizedTitle(
         payload["agent_nickname"]?.stringValue ?? sourceNickname
       )
     }
     return nil
+  }
+
+  static func subagentTask(from payload: JSONObject) -> String? {
+    guard let path = threadSpawn(from: payload)?["agent_path"]?.stringValue,
+      let component = path.split(separator: "/").last,
+      let task = AgentProgressParsing.normalizedTitle(
+        String(component).replacingOccurrences(of: "_", with: " ")
+      )
+    else {
+      return nil
+    }
+    return task.prefix(1).uppercased() + String(task.dropFirst())
+  }
+
+  private static func threadSpawn(from payload: JSONObject) -> JSONObject? {
+    payload["source"]?.objectValue?["subagent"]?.objectValue?["thread_spawn"]?.objectValue
   }
 }

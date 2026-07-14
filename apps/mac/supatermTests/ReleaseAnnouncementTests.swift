@@ -34,21 +34,18 @@ struct ReleaseAnnouncementTests {
     let result = ReleaseAnnouncementCatalog.synchronize(
       currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.4",
         acknowledgedVersion: "1.3.4"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.4")
   }
 
   @Test
   func malformedCurrentVersionHidesAnnouncement() {
     let stored = ReleaseAnnouncementStorageState(
-      lastInstalledVersion: "1.3.2",
       acknowledgedVersion: "1.3.2"
     )
     let result = ReleaseAnnouncementCatalog.synchronize(
@@ -70,7 +67,6 @@ struct ReleaseAnnouncementTests {
     )
 
     #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.4")
   }
 
@@ -83,7 +79,6 @@ struct ReleaseAnnouncementTests {
     )
 
     #expect(result.announcement == .agentForking)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
@@ -92,46 +87,24 @@ struct ReleaseAnnouncementTests {
     let result = ReleaseAnnouncementCatalog.synchronize(
       currentVersion: "1.3.4",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.2",
         acknowledgedVersion: "1.3.2"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == .agentForking)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
   @Test
-  func storedLastInstalledVersionDrivesAnnouncementWithoutAcknowledgedVersion() {
+  func newestUnacknowledgedAnnouncementTakesPriority() {
     let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.4",
-      storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.2",
-        acknowledgedVersion: nil
-      ),
+      currentVersion: "26.3.0",
+      storageState: ReleaseAnnouncementStorageState(acknowledgedVersion: "1.3.2"),
       hasExistingSupatermState: true
     )
 
-    #expect(result.announcement == .agentForking)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
-    #expect(result.storageState.acknowledgedVersion == nil)
-  }
-
-  @Test
-  func currentLastInstalledVersionHidesAnnouncementEvenWhenAcknowledgedVersionIsOlder() {
-    let result = ReleaseAnnouncementCatalog.synchronize(
-      currentVersion: "1.3.4",
-      storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "1.3.4",
-        acknowledgedVersion: "1.3.2"
-      ),
-      hasExistingSupatermState: true
-    )
-
-    #expect(result.announcement == nil)
-    #expect(result.storageState.lastInstalledVersion == "1.3.4")
+    #expect(result.announcement == .finalBeta)
     #expect(result.storageState.acknowledgedVersion == "1.3.2")
   }
 
@@ -140,14 +113,12 @@ struct ReleaseAnnouncementTests {
     let result = ReleaseAnnouncementCatalog.synchronize(
       currentVersion: "26.1.0",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "26.0.0",
         acknowledgedVersion: "26.0.0"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == .colorTuning)
-    #expect(result.storageState.lastInstalledVersion == "26.1.0")
     #expect(result.storageState.acknowledgedVersion == "26.0.0")
   }
 
@@ -156,15 +127,55 @@ struct ReleaseAnnouncementTests {
     let result = ReleaseAnnouncementCatalog.synchronize(
       currentVersion: "26.3.0",
       storageState: ReleaseAnnouncementStorageState(
-        lastInstalledVersion: "26.2.0",
         acknowledgedVersion: "26.2.0"
       ),
       hasExistingSupatermState: true
     )
 
     #expect(result.announcement == .finalBeta)
-    #expect(result.storageState.lastInstalledVersion == "26.3.0")
     #expect(result.storageState.acknowledgedVersion == "26.2.0")
+  }
+
+  @Test
+  func finalBetaCardSurvivesRelaunch() {
+    let firstLaunch = ReleaseAnnouncementCatalog.synchronize(
+      currentVersion: "26.3.0",
+      storageState: ReleaseAnnouncementStorageState(acknowledgedVersion: "26.2.0"),
+      hasExistingSupatermState: true
+    )
+    let secondLaunch = ReleaseAnnouncementCatalog.synchronize(
+      currentVersion: "26.3.0",
+      storageState: firstLaunch.storageState,
+      hasExistingSupatermState: true
+    )
+
+    #expect(firstLaunch.announcement == .finalBeta)
+    #expect(secondLaunch.announcement == .finalBeta)
+    #expect(secondLaunch.storageState.acknowledgedVersion == "26.2.0")
+  }
+
+  @Test
+  func finalBetaCardSurvivesHotfixUpgrade() {
+    let result = ReleaseAnnouncementCatalog.synchronize(
+      currentVersion: "26.3.1",
+      storageState: ReleaseAnnouncementStorageState(acknowledgedVersion: "26.2.0"),
+      hasExistingSupatermState: true
+    )
+
+    #expect(result.announcement == .finalBeta)
+    #expect(result.storageState.acknowledgedVersion == "26.2.0")
+  }
+
+  @Test
+  func acknowledgedFinalBetaCardStaysHiddenAfterHotfixUpgrade() {
+    let result = ReleaseAnnouncementCatalog.synchronize(
+      currentVersion: "26.3.1",
+      storageState: ReleaseAnnouncementStorageState(acknowledgedVersion: "26.3.0"),
+      hasExistingSupatermState: true
+    )
+
+    #expect(result.announcement == nil)
+    #expect(result.storageState.acknowledgedVersion == "26.3.0")
   }
 
   @Test

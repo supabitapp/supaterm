@@ -17,6 +17,29 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v26.3.1",
+    date: "2026-07-13",
+    title: "💙 Final Beta Hotfix",
+    description:
+      "This hotfix sharpens Codex subagent updates, restores neutral light chrome, and keeps the final Beta message available until you dismiss it.",
+    sections: [
+      {
+        category: "improvements",
+        items: [
+          "Codex subagent rows now show their assigned task immediately, then switch to their latest response as work progresses",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Codex parent and child activity no longer overwrite one another in the agent panel",
+          "Light mode chrome no longer carries a colored tint",
+          "The final Beta announcement now remains visible across relaunches and hotfix updates until dismissed",
+        ],
+      },
+    ],
+  },
+  {
     version: "v26.3.0",
     date: "2026-07-12",
     title: "💙 Final Beta Release",
