@@ -268,13 +268,13 @@ extension TerminalCommandExecutor {
         agentMonitorStore.isTracking(scope: scope)
       {
         agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
-      } else {
-        agentMonitorStore.armRunningTimeout(
-          agent: request.agent,
-          sessionID: sessionID,
-          context: request.context
-        )
+        return
       }
+      agentMonitorStore.armRunningTimeout(
+        agent: request.agent,
+        sessionID: sessionID,
+        context: request.context
+      )
     case .stop:
       agentMonitorStore.cancelRunningTimeout(agent: request.agent, sessionID: sessionID)
     case .sessionEnd, .sessionShutdown:
