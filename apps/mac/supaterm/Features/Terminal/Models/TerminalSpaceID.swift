@@ -90,7 +90,7 @@ nonisolated struct TerminalSpaceCatalog: Equatable, Codable, Sendable {
 
   private static func makeDefault() -> Self {
     let space = PersistedTerminalSpace(
-      id: TerminalSpaceID(),
+      id: TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!),
       name: "1"
     )
     return Self(

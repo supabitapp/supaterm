@@ -29,6 +29,14 @@ struct TerminalSpaceCatalogTests {
   }
 
   @Test
+  func defaultSpaceIdentityIsStableAcrossLaunches() {
+    #expect(
+      TerminalSpaceCatalog.default.defaultSelectedSpaceID
+        == TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
+    )
+  }
+
+  @Test
   func sanitizedFallsBackToDefaultCatalogWhenCatalogIsMissingOrInvalid() {
     let invalidSpace = PersistedTerminalSpace(name: "   ")
 
