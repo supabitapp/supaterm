@@ -103,12 +103,15 @@ struct GhosttyClipboardConfirmationTests {
     let pasteboard = NSPasteboard.ghosttySelection
     pasteboard.clearContents()
     pasteboard.setString("\(marker)_A\n\(marker)_B", forType: .string)
+    let inputGeneration = fixture.surface.bridge.state.userInputGeneration
 
     fixture.surface.pasteSelection(nil)
 
     let sheet = try await attachedSheet(of: fixture.window)
+    #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
     try button(titled: "Cancel", in: sheet).performClick(nil)
     try await waitForSheetDismissal(from: fixture.window)
+    #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
     pasteboard.clearContents()
     pasteboard.setString("SUPATERM_SAFE_PROBE", forType: .string)
     fixture.surface.pasteSelection(nil)
@@ -131,12 +134,15 @@ struct GhosttyClipboardConfirmationTests {
     let pasteboard = NSPasteboard.ghosttySelection
     pasteboard.clearContents()
     pasteboard.setString("\(firstLine)\n\(secondLine)\n", forType: .string)
+    let inputGeneration = fixture.surface.bridge.state.userInputGeneration
 
     fixture.surface.pasteSelection(nil)
 
     let sheet = try await attachedSheet(of: fixture.window)
+    #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 1)
     try button(titled: "Paste", in: sheet).performClick(nil)
     try await waitForSheetDismissal(from: fixture.window)
+    #expect(fixture.surface.bridge.state.userInputGeneration == inputGeneration + 2)
     let contents = try await capturedText(from: fixture.surface, containing: secondLine)
     #expect(occurrences(of: firstLine, in: contents) == 1)
     #expect(occurrences(of: secondLine, in: contents) == 1)

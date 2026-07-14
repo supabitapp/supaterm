@@ -808,6 +808,10 @@ final class GhosttySurfaceView: NSView, Identifiable {
     )
   }
 
+  func confirmedPasteDidComplete() {
+    recordUserInput()
+  }
+
   override func flagsChanged(with event: NSEvent) {
     let mod: UInt32
     switch event.keyCode {

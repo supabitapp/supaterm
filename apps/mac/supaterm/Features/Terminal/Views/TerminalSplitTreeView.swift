@@ -756,6 +756,7 @@ struct TerminalSplitTreeView: View {
     let openURL: (URL) -> Void
 
     @State private var expandedHeight: CGFloat?
+    @State private var cursorMonitoringGeneration: Int?
     @State private var terminalCursorRect: CGRect?
 
     private static let cursorMonitoringInterval = Duration.milliseconds(50)
@@ -806,19 +807,25 @@ struct TerminalSplitTreeView: View {
         reduceMotion: reduceMotion
       )
       .accessibilityElement(children: .contain)
-      .task(id: activeInputGeneration) {
-        await monitorCursor(activeInputGeneration)
+      .onChange(of: surfaceView.bridge.state.userInputGeneration) { _, inputGeneration in
+        guard cursorMonitoringIsAllowed else { return }
+        cursorMonitoringGeneration = inputGeneration
+      }
+      .onChange(of: cursorMonitoringIsAllowed) { _, isAllowed in
+        guard !isAllowed else { return }
+        cursorMonitoringGeneration = nil
+      }
+      .task(id: cursorMonitoringGeneration) {
+        await monitorCursor(cursorMonitoringGeneration)
       }
     }
 
-    private var activeInputGeneration: Int? {
-      guard isFocused, !isCollapsed else { return nil }
-      let inputGeneration = surfaceView.bridge.state.userInputGeneration
-      return inputGeneration > 0 ? inputGeneration : nil
+    private var cursorMonitoringIsAllowed: Bool {
+      isFocused && !isCollapsed
     }
 
     private var temporarilyCollapsesPanel: Bool {
-      guard activeInputGeneration != nil else { return false }
+      guard cursorMonitoringGeneration != nil else { return false }
       return cursorOverlapsAgentPanel(terminalCursorRect)
     }
 
@@ -859,6 +866,9 @@ struct TerminalSplitTreeView: View {
         }
         if clock.now >= deadline, !temporarilyCollapsesPanel {
           terminalCursorRect = nil
+          if cursorMonitoringGeneration == inputGeneration {
+            cursorMonitoringGeneration = nil
+          }
           return
         }
         do {

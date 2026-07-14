@@ -57,6 +57,9 @@ final class GhosttyClipboard {
     ) { allowed in
       guard surfaceReference.isValid else { return }
       complete(allowed ? value : "")
+      if allowed, case .paste = request {
+        view.confirmedPasteDidComplete()
+      }
     }
   }
 
