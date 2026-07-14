@@ -653,7 +653,7 @@ struct TerminalSplitTreeView: View {
       focusedSurfaceID == surfaceID ? shortcutHint : nil
     }
 
-    static func shouldTemporarilyHideAgentPanel(
+    static func shouldTemporarilyCollapseAgentPanel(
       cursorRect: CGRect?,
       surfaceSize: CGSize,
       panelHeight: CGFloat?,
@@ -778,10 +778,10 @@ struct TerminalSplitTreeView: View {
         } action: { height in
           expandedHeight = max(height, AgentPanelMetrics.collapsedLength)
         }
-        .opacity(isCollapsed ? 0 : 1)
-        .scaleEffect(isCollapsed ? 0.96 : 1, anchor: .topTrailing)
-        .allowsHitTesting(!isCollapsed)
-        .accessibilityHidden(isCollapsed)
+        .opacity(isEffectivelyCollapsed ? 0 : 1)
+        .scaleEffect(isEffectivelyCollapsed ? 0.96 : 1, anchor: .topTrailing)
+        .allowsHitTesting(!isEffectivelyCollapsed)
+        .accessibilityHidden(isEffectivelyCollapsed)
 
         toggleButton
       }
@@ -802,18 +802,10 @@ struct TerminalSplitTreeView: View {
       .shadow(color: palette.shadow, radius: 18, y: 10)
       .terminalAnimation(
         .spring(response: 0.24, dampingFraction: 0.92),
-        value: isCollapsed,
+        value: isEffectivelyCollapsed,
         reduceMotion: reduceMotion
       )
-      .opacity(temporarilyHidesPanel ? 0 : 1)
-      .allowsHitTesting(!temporarilyHidesPanel)
       .accessibilityElement(children: .contain)
-      .accessibilityHidden(temporarilyHidesPanel)
-      .terminalAnimation(
-        .easeOut(duration: 0.12),
-        value: temporarilyHidesPanel,
-        reduceMotion: reduceMotion
-      )
       .task(id: activeInputGeneration) {
         await monitorCursor(activeInputGeneration)
       }
@@ -825,13 +817,17 @@ struct TerminalSplitTreeView: View {
       return inputGeneration > 0 ? inputGeneration : nil
     }
 
-    private var temporarilyHidesPanel: Bool {
+    private var temporarilyCollapsesPanel: Bool {
       guard activeInputGeneration != nil else { return false }
       return cursorOverlapsAgentPanel(terminalCursorRect)
     }
 
+    private var isEffectivelyCollapsed: Bool {
+      isCollapsed || temporarilyCollapsesPanel
+    }
+
     private func cursorOverlapsAgentPanel(_ cursorRect: CGRect?) -> Bool {
-      return TerminalSplitTreeView.LeafView.shouldTemporarilyHideAgentPanel(
+      return TerminalSplitTreeView.LeafView.shouldTemporarilyCollapseAgentPanel(
         cursorRect: cursorRect,
         surfaceSize: surfaceSize,
         panelHeight: expandedHeight,
@@ -858,10 +854,10 @@ struct TerminalSplitTreeView: View {
             "agentPanel.cursorAvoidance.sample",
             inputGeneration: inputGeneration,
             cursorRect: cursorRect,
-            fields: ["hidden=\(cursorOverlapsAgentPanel(cursorRect))"]
+            fields: ["temporarilyCollapsed=\(cursorOverlapsAgentPanel(cursorRect))"]
           )
         }
-        if clock.now >= deadline, !temporarilyHidesPanel {
+        if clock.now >= deadline, !temporarilyCollapsesPanel {
           terminalCursorRect = nil
           return
         }
@@ -915,15 +911,16 @@ struct TerminalSplitTreeView: View {
     }
 
     private var surfaceWidth: CGFloat {
-      TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isCollapsed)
+      TerminalSplitTreeView.LeafView.agentPanelOverlayWidth(isCollapsed: isEffectivelyCollapsed)
     }
 
     private var surfaceHeight: CGFloat? {
-      isCollapsed ? AgentPanelMetrics.collapsedLength : expandedHeight
+      isEffectivelyCollapsed ? AgentPanelMetrics.collapsedLength : expandedHeight
     }
 
     private var cornerRadius: CGFloat {
-      isCollapsed ? AgentPanelMetrics.collapsedCornerRadius : AgentPanelMetrics.expandedCornerRadius
+      isEffectivelyCollapsed
+        ? AgentPanelMetrics.collapsedCornerRadius : AgentPanelMetrics.expandedCornerRadius
     }
   }
 

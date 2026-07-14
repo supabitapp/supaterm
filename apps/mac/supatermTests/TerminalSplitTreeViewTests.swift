@@ -14,7 +14,7 @@ struct TerminalSplitTreeViewTests {
     panelHeight: CGFloat? = 180,
     topPadding: CGFloat = 12
   ) -> Bool {
-    TerminalSplitTreeView.LeafView.shouldTemporarilyHideAgentPanel(
+    TerminalSplitTreeView.LeafView.shouldTemporarilyCollapseAgentPanel(
       cursorRect: cursorRect,
       surfaceSize: CGSize(width: 800, height: 600),
       panelHeight: panelHeight,
@@ -250,7 +250,7 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
-  func caretNearExpandedAgentPanelTemporarilyHidesIt() {
+  func caretNearExpandedAgentPanelTemporarilyCollapsesIt() {
     #expect(agentPanelObscuresCursor(CGRect(x: 470, y: 400, width: 10, height: 20)))
   }
 
