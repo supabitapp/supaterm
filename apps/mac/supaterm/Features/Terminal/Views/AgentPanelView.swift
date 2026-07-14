@@ -240,7 +240,7 @@ struct AgentPanelView: View {
     } label: {
       valueRow(icon: .asset("git-branch"), title: branchName)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .help("Copy branch name")
     .accessibilityLabel("Copy branch name")
     .accessibilityValue(branchName)
@@ -259,7 +259,7 @@ struct AgentPanelView: View {
         truncationMode: .middle
       )
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .help("Copy \(path)")
     .accessibilityLabel("Copy working directory")
     .accessibilityValue(path)
@@ -328,7 +328,7 @@ struct AgentPanelView: View {
           .foregroundStyle(palette.secondaryText)
       }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .accessibilityLabel(title)
   }
 
@@ -339,7 +339,7 @@ struct AgentPanelView: View {
       } label: {
         pullRequestChecksSummaryRow(checks)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
       .accessibilityLabel(checks.title)
       .accessibilityValue(checksAreExpanded ? "Expanded" : "Collapsed")
 
@@ -378,7 +378,7 @@ struct AgentPanelView: View {
       } label: {
         checkRowContent(item, showsLink: true)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
       .accessibilityLabel("\(item.title), \(item.detailText())")
     } else {
       checkRowContent(item, showsLink: false)
@@ -613,26 +613,13 @@ private struct AgentPanelActionRow: View {
   let helpText: String
   let action: () -> Void
 
-  @State private var isHovering = false
-
   var body: some View {
     Button(action: action) {
       rowContent
-        .background {
-          RoundedRectangle(cornerRadius: 5)
-            .fill(rowBackground)
-            .padding(.vertical, -4)
-            .padding(.horizontal, -5)
-        }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(AgentPanelRowButtonStyle(palette: palette))
     .help(helpText)
     .accessibilityLabel(title)
-    .onHover { isHovering = $0 }
-  }
-
-  private var rowBackground: Color {
-    isHovering ? palette.secondaryText.opacity(0.12) : .clear
   }
 
   @ViewBuilder
@@ -658,6 +645,32 @@ private struct AgentPanelActionRow: View {
         iconColor: palette.secondaryText
       )
     }
+  }
+}
+
+private struct AgentPanelRowButtonStyle: ButtonStyle {
+  let palette: Palette
+
+  func makeBody(configuration: Configuration) -> some View {
+    AgentPanelRowButtonStyleBody(configuration: configuration, palette: palette)
+  }
+}
+
+private struct AgentPanelRowButtonStyleBody: View {
+  let configuration: ButtonStyle.Configuration
+  let palette: Palette
+
+  @State private var isHovering = false
+
+  var body: some View {
+    configuration.label
+      .background {
+        RoundedRectangle(cornerRadius: 5)
+          .fill(isHovering ? palette.secondaryText.opacity(0.12) : .clear)
+          .padding(.vertical, -4)
+          .padding(.horizontal, -5)
+      }
+      .onHover { isHovering = $0 }
   }
 }
 
