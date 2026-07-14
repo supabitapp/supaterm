@@ -166,6 +166,7 @@ struct QuitConfirmationOverlay: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(.clear)
+    .accessibilityElement(children: .contain)
     .accessibilityIdentifier("dialog.quit")
   }
 }
