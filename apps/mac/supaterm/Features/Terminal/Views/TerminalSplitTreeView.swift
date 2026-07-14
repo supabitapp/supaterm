@@ -447,13 +447,18 @@ struct TerminalSplitTreeView: View {
         isCollapsed: isAgentPanelCollapsed
       )
       if let agentPanelPresentation, overlayState != .hidden {
+        let shortcutHint = Self.visibleShortcutHint(
+          agentPanelShortcutHint,
+          focusedSurfaceID: focusedSurfaceID,
+          surfaceID: surfaceView.id
+        )
         AgentPanelSurface(
           isCollapsed: overlayState == .collapsedIcon,
           presentation: agentPanelPresentation,
           palette: palette,
           forksDown: agentPanelForksDown,
           reduceMotion: reduceMotion,
-          shortcutHint: agentPanelShortcutHint,
+          shortcutHint: shortcutHint,
           copyText: { text in
             action(.agentPanelCopyText(text))
           },
@@ -632,6 +637,14 @@ struct TerminalSplitTreeView: View {
 
     static func agentPanelOverlayWidth(isCollapsed: Bool) -> CGFloat {
       isCollapsed ? AgentPanelMetrics.collapsedLength : AgentPanelMetrics.expandedWidth
+    }
+
+    static func visibleShortcutHint(
+      _ shortcutHint: String?,
+      focusedSurfaceID: UUID?,
+      surfaceID: UUID
+    ) -> String? {
+      focusedSurfaceID == surfaceID ? shortcutHint : nil
     }
 
     static func shouldTriggerNotificationPulse(

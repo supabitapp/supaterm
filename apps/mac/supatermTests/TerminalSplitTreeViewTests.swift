@@ -244,6 +244,28 @@ struct TerminalSplitTreeViewTests {
   }
 
   @Test
+  func agentPanelShortcutHintsOnlyShowInFocusedPane() {
+    let focusedSurfaceID = UUID()
+    let unfocusedSurfaceID = UUID()
+    let hint = AgentPanelShortcut.toggleVisibility.display
+
+    #expect(
+      TerminalSplitTreeView.LeafView.visibleShortcutHint(
+        hint,
+        focusedSurfaceID: focusedSurfaceID,
+        surfaceID: focusedSurfaceID
+      ) == hint
+    )
+    #expect(
+      TerminalSplitTreeView.LeafView.visibleShortcutHint(
+        hint,
+        focusedSurfaceID: focusedSurfaceID,
+        surfaceID: unfocusedSurfaceID
+      ) == nil
+    )
+  }
+
+  @Test
   func agentPanelForkDirectionFollowsOptionState() {
     #expect(AgentPanelView.forkDirection(forksDown: false) == .right)
     #expect(AgentPanelView.forkDirection(forksDown: true) == .down)
