@@ -739,14 +739,6 @@ struct TerminalSplitTreeView: View {
     }
   }
 
-  private struct AgentPanelHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-      value = nextValue()
-    }
-  }
-
   private struct AgentPanelSurface: View {
     let isCollapsed: Bool
     let isFocused: Bool
@@ -781,15 +773,15 @@ struct TerminalSplitTreeView: View {
           openURL: openURL
         )
         .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.height
+        } action: { height in
+          expandedHeight = max(height, AgentPanelMetrics.collapsedLength)
+        }
         .opacity(isCollapsed ? 0 : 1)
         .scaleEffect(isCollapsed ? 0.96 : 1, anchor: .topTrailing)
         .allowsHitTesting(!isCollapsed)
         .accessibilityHidden(isCollapsed)
-        .background {
-          GeometryReader { proxy in
-            Color.clear.preference(key: AgentPanelHeightPreferenceKey.self, value: proxy.size.height)
-          }
-        }
 
         toggleButton
       }
@@ -822,10 +814,6 @@ struct TerminalSplitTreeView: View {
         value: temporarilyHidesPanel,
         reduceMotion: reduceMotion
       )
-      .onPreferenceChange(AgentPanelHeightPreferenceKey.self) { height in
-        guard height > 0 else { return }
-        expandedHeight = max(height, AgentPanelMetrics.collapsedLength)
-      }
       .task(id: activeInputGeneration) {
         await monitorCursor(activeInputGeneration)
       }
