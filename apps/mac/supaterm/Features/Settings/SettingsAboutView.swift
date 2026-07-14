@@ -91,11 +91,14 @@ struct SettingsAboutView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+                .accessibilityIdentifier("settings.about.version")
+                .accessibilityValue(versionText)
 
               HStack(spacing: 12) {
                 Button("Check for Updates") {
                   _ = store.send(.checkForUpdatesButtonTapped)
                 }
+                .accessibilityIdentifier("settings.about.check-for-updates")
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
 
@@ -104,6 +107,7 @@ struct SettingsAboutView: View {
                     Text(channel.title).tag(channel)
                   }
                 }
+                .accessibilityIdentifier("settings.about.update-channel")
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .frame(width: 150, alignment: .leading)
@@ -115,6 +119,7 @@ struct SettingsAboutView: View {
                   title: "Automatically check for updates",
                   isOn: updatesAutomaticallyCheckForUpdates
                 )
+                .accessibilityIdentifier("settings.about.automatically-check-for-updates")
 
                 SettingsCompactToggleRow(
                   title: "Automatically download and install updates",

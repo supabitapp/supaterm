@@ -30,12 +30,14 @@ struct SettingsNotificationsView: View {
           subtitle: "Show macOS notifications for terminal and coding agent activity.",
           isOn: systemNotificationsEnabled
         )
+        .accessibilityIdentifier("settings.notifications.system")
 
         SettingsToggleRow(
           title: "Glowing Pane Ring",
           subtitle: "Highlight panes with a glowing ring when terminal or coding agent activity needs attention.",
           isOn: glowingPaneRingEnabled
         )
+        .accessibilityIdentifier("settings.notifications.glowing-pane-ring")
       } footer: {
         Text(
           "Turning off system notifications only suppresses macOS delivery. "

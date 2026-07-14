@@ -37,6 +37,7 @@ struct SettingsCodingAgentsView: View {
             set: { _ = store.send(.codingAgentsShowPanelChanged($0)) }
           )
         )
+        .accessibilityIdentifier("settings.coding-agents.show-panel")
 
         SettingsToggleRow(
           title: "Show coding agents icons",

@@ -24,6 +24,7 @@ public struct SettingsView: View {
       List(selection: selection) {
         ForEach(SettingsFeature.Tab.allCases) { tab in
           Label(tab.title, systemImage: tab.symbol)
+            .accessibilityIdentifier("settings.sidebar.\(tab.rawValue)")
             .tag(tab)
         }
       }

@@ -57,6 +57,7 @@ struct SettingsGeneralView: View {
           subtitle: "Reopen tabs, splits, and working directories from your last session.",
           isOn: restoreTerminalLayoutEnabled
         )
+        .accessibilityIdentifier("settings.general.restore-terminal-layout")
 
         SettingsToggleRow(
           title: "Persist Sessions Using zmx",
@@ -64,6 +65,7 @@ struct SettingsGeneralView: View {
             "Use zmx for terminal session persistence across Supaterm restarts.",
           isOn: persistSessionsUsingZmx
         )
+        .accessibilityIdentifier("settings.general.persist-sessions-using-zmx")
       }
     }
     .navigationTitle("General")

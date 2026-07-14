@@ -1,4 +1,5 @@
 import AppKit
+import SupatermCLIShared
 import SwiftUI
 
 struct SettingsToggleRow: View {
@@ -57,6 +58,8 @@ struct AppearanceOptionCardView: View {
       }
     }
     .buttonStyle(.plain)
+    .accessibilityIdentifier("settings.general.appearance.\(mode.rawValue)")
+    .accessibilityValue(isSelected ? "selected" : "not selected")
   }
 }
 

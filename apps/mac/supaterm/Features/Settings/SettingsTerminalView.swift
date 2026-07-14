@@ -129,6 +129,7 @@ struct SettingsTerminalView: View {
             title: "Font"
           )
         }
+        .accessibilityIdentifier("settings.terminal.font")
         .disabled(controlsDisabled)
 
         LabeledContent {
@@ -172,6 +173,7 @@ struct SettingsTerminalView: View {
             .font(.callout.monospaced())
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+            .accessibilityIdentifier("settings.terminal.config-path")
         }
       } footer: {
         VStack(alignment: .leading, spacing: 4) {

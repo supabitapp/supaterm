@@ -21,6 +21,7 @@ struct SettingsAdvancedView: View {
           subtitle: "Emit debug-level diagnostics to local OSLog.",
           isOn: verboseLoggingEnabled
         )
+        .accessibilityIdentifier("settings.advanced.verbose-logging")
       }
     }
     .navigationTitle("Advanced")
