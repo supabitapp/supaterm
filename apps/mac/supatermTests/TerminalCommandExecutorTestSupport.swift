@@ -97,7 +97,8 @@ func agentHookRequest(
       cwd: CodexHookFixtures.cwd,
       hookEventName: hookEventName,
       lastAssistantMessage: lastAssistantMessage,
-      sessionID: sessionID
+      sessionID: sessionID,
+      transcriptPath: agent == .codex ? CodexHookFixtures.transcriptPath : nil
     )
   )
 }

@@ -35,7 +35,10 @@ extension TerminalCommandExecutor {
   func handleAgentHook(_ request: SupatermAgentHookRequest) throws -> TerminalAgentHookResult {
     pruneDeadAgentProcesses()
     let events = TerminalAgentEventTranslator.events(for: request)
-    guard !events.isEmpty, let terminal = agentTerminal(for: request) else {
+    guard !events.isEmpty,
+      let terminal = agentTerminal(for: request),
+      shouldHandleAgentHook(request, in: terminal)
+    else {
       return TerminalAgentHookResult(desktopNotification: nil)
     }
 
@@ -315,6 +318,19 @@ extension TerminalCommandExecutor {
       sessionID: request.event.sessionID,
       context: request.context
     )
+  }
+
+  private func shouldHandleAgentHook(
+    _ request: SupatermAgentHookRequest,
+    in terminal: TerminalHostState
+  ) -> Bool {
+    guard request.agent == .codex,
+      request.event.transcriptPath == nil,
+      let sessionID = request.event.sessionID
+    else {
+      return true
+    }
+    return terminal.hasAgentSession(agent: .codex, sessionID: sessionID)
   }
 
   private func agentTerminal(
