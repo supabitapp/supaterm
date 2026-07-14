@@ -45,6 +45,7 @@ final class GhosttySurfaceState {
   var keyTableTag: ghostty_action_key_table_tag_e?
   var keyTableName: String?
   var keyTableDepth: Int = 0
+  var userInputGeneration = 0
   var secureInput: ghostty_action_secure_input_e?
   var floatWindow: ghostty_action_float_window_e?
   var reloadConfigSoft: Bool?
