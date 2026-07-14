@@ -64,11 +64,13 @@ struct TerminalSpaceEditorState: Equatable, Identifiable {
 
 @Reducer
 struct TerminalWindowFeature {
-  static let closeWindowWarningMessage =
-    "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
-    + "zmx persistence is for Supaterm restarts."
   static let closeAllWindowsWarningMessage =
     "Closing all windows terminates their terminal sessions. Reopening Supaterm starts new sessions. "
+    + "zmx persistence is for Supaterm restarts."
+  static let closeTabWarningMessage =
+    "Closing this tab closes all its panes and terminates any running processes. Close it anyway?"
+  static let closeWindowWarningMessage =
+    "Closing this window terminates its terminal sessions. Reopening the window starts new sessions. "
     + "zmx persistence is for Supaterm restarts."
 
   @ObservableState
@@ -702,7 +704,7 @@ struct TerminalWindowFeature {
       return PendingCloseRequest(
         target: .tab(tabID),
         title: "Close Tab?",
-        message: "A process is still running in this tab. Close it anyway?"
+        message: Self.closeTabWarningMessage
       )
     case .tabs(let tabIDs):
       return PendingCloseRequest(

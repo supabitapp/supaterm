@@ -247,7 +247,7 @@ struct TerminalWindowFeatureTests {
       $0.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
         target: .tab(tabID),
         title: "Close Tab?",
-        message: "A process is still running in this tab. Close it anyway?"
+        message: TerminalWindowFeature.closeTabWarningMessage
       )
     }
   }
@@ -304,7 +304,7 @@ struct TerminalWindowFeatureTests {
     initialState.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
       target: .tab(tabID),
       title: "Close Tab?",
-      message: "A process is still running in this tab. Close it anyway?"
+      message: TerminalWindowFeature.closeTabWarningMessage
     )
 
     let store = TestStore(initialState: initialState) {
@@ -318,6 +318,30 @@ struct TerminalWindowFeatureTests {
     }
 
     #expect(recorder.commands == [.closeTab(tabID)])
+  }
+
+  @Test
+  func closeConfirmationCancelDoesNotClosePendingTab() async {
+    let recorder = TerminalCommandRecorder()
+    let tabID = TerminalTabID()
+    var initialState = TerminalWindowFeature.State()
+    initialState.pendingCloseRequest = TerminalWindowFeature.PendingCloseRequest(
+      target: .tab(tabID),
+      title: "Close Tab?",
+      message: TerminalWindowFeature.closeTabWarningMessage
+    )
+
+    let store = TestStore(initialState: initialState) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.closeConfirmationCancelButtonTapped) {
+      $0.pendingCloseRequest = nil
+    }
+
+    #expect(recorder.commands.isEmpty)
   }
 
   @Test
