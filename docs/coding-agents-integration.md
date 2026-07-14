@@ -119,7 +119,7 @@ The app binds Claude sessions to pane surfaces, tracks the foreground session fo
 - `Notification` marks the tab as `needs input` only for `permission_prompt`, `idle_prompt`, and `elicitation_dialog`.
 - `UserPromptSubmit` marks the tab as `running`.
 - `PreToolUse`, `PostToolUse`, and `UserPromptSubmit` recover the pane binding when `SessionStart` was missed or announced a different session ID, which is what `claude --fork-session --resume` does: its `SessionStart` reports the parent session ID and every later hook carries the forked one.
-- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided.
+- `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided, unless the transcript still reports an active goal.
 - While the tab is `running`, transcript file events re-arm the running timeout, so long tool calls and streaming responses do not flip the tab to `idle` between hooks.
 - `SessionEnd` clears the tab activity and drops the stored session state.
 - `SubagentStart` and `SubagentStop` add and remove scoped child-agent rows without allowing a child to replace the foreground root session.
