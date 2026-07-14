@@ -78,6 +78,7 @@ struct ConfirmationOverlay: View {
             action: onCancel
           )
           .keyboardShortcut(.cancelAction)
+          .accessibilityIdentifier("dialog.cancel")
 
           DialogActionButton(
             palette: palette,
@@ -87,6 +88,7 @@ struct ConfirmationOverlay: View {
             action: onConfirm
           )
           .keyboardShortcut(.defaultAction)
+          .accessibilityIdentifier("dialog.confirm")
         }
         .padding(.top, 28)
       }
@@ -136,6 +138,7 @@ struct QuitConfirmationOverlay: View {
             action: onCancel
           )
           .keyboardShortcut(.cancelAction)
+          .accessibilityIdentifier("dialog.cancel")
 
           DialogActionButton(
             palette: palette,
@@ -144,6 +147,7 @@ struct QuitConfirmationOverlay: View {
             shortcut: content.preservingSessionsTitle == nil ? .symbol("return") : .text("⇧↩"),
             action: onTerminate
           )
+          .accessibilityIdentifier("dialog.quit.terminate")
 
           if let preservingSessionsTitle = content.preservingSessionsTitle {
             DialogActionButton(
@@ -153,6 +157,7 @@ struct QuitConfirmationOverlay: View {
               shortcut: .symbol("return"),
               action: onPreserve
             )
+            .accessibilityIdentifier("dialog.quit.preserve")
           }
         }
         .padding(.top, 28)
@@ -161,6 +166,7 @@ struct QuitConfirmationOverlay: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(.clear)
+    .accessibilityIdentifier("dialog.quit")
   }
 }
 
@@ -311,6 +317,7 @@ struct SpaceEditorOverlay: View {
           .padding(.horizontal, 12)
           .padding(.vertical, 10)
           .background(palette.selectedPillFill, in: .rect(cornerRadius: 10))
+          .accessibilityIdentifier("dialog.space-name")
           .focused($isNameFieldFocused)
           .onSubmit {
             guard isSaveEnabled else { return }
@@ -326,6 +333,7 @@ struct SpaceEditorOverlay: View {
             action: onCancel
           )
           .keyboardShortcut(.cancelAction)
+          .accessibilityIdentifier("dialog.cancel")
 
           Spacer()
 
@@ -337,6 +345,7 @@ struct SpaceEditorOverlay: View {
             action: onSave
           )
           .keyboardShortcut(.defaultAction)
+          .accessibilityIdentifier("dialog.confirm")
           .opacity(isSaveEnabled ? 1 : 0.5)
           .disabled(!isSaveEnabled)
         }

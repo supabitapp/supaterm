@@ -131,6 +131,7 @@ struct TerminalCommandPaletteOverlay: View {
           .font(.system(size: 17, weight: .medium))
           .foregroundStyle(state.query.isEmpty ? palette.secondaryText : palette.primaryText)
           .tint(palette.accent)
+          .accessibilityIdentifier("palette.input")
           .focused($isQueryFocused)
           .onChange(of: isQueryFocused) { _, isFocused in
             if !isFocused {
@@ -263,6 +264,7 @@ private struct CommandPaletteRowButton: View {
         showsSelectionEdge: false
       )
     )
+    .accessibilityIdentifier("palette.result-row")
     .help(row.description ?? "")
   }
 

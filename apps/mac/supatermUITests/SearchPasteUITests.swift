@@ -1,40 +1,16 @@
 import AppKit
 import XCTest
 
-final class SearchPasteUITests: XCTestCase {
-  override func setUp() {
-    continueAfterFailure = false
-  }
-
+final class SearchPasteUITests: SupatermUITestCase {
   @MainActor
   func testUserCanPasteIntoSearchAfterReactivatingApp() async throws {
-    let token = UUID().uuidString
-    let stateHome = FileManager.default.temporaryDirectory
-      .appendingPathComponent("supaterm-ui-\(token)", isDirectory: true)
-    let home = stateHome.appendingPathComponent("home", isDirectory: true)
-    let zmx = stateHome.appendingPathComponent("zmx", isDirectory: true)
     let pasteboardItems = pasteboardSnapshot()
-    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: zmx, withIntermediateDirectories: true)
-
-    let app = XCUIApplication()
-    app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
-    app.launchEnvironment = [
-      "HOME": home.path,
-      "SUPATERM_INSTANCE_NAME": "ui-\(token)",
-      "SUPATERM_STATE_HOME": stateHome.path,
-      "ZMX_DIR": zmx.path,
-    ]
     addTeardownBlock {
-      app.terminate()
       NSPasteboard.general.clearContents()
       _ = NSPasteboard.general.writeObjects(pasteboardItems)
-      try? FileManager.default.removeItem(at: stateHome)
     }
 
-    app.launch()
-    app.activate()
-    XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 30))
+    _ = mainWindow
     let terminal = app.textViews.firstMatch
     XCTAssertTrue(terminal.waitForExistence(timeout: 30))
     terminal.click()

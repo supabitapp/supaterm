@@ -274,6 +274,7 @@ struct TerminalSidebarTabRow: View {
         }
       }
     }
+    .accessibilityIdentifier("sidebar.tab-row")
   }
 
   private var animatedPresentation: AnimatedPresentation {

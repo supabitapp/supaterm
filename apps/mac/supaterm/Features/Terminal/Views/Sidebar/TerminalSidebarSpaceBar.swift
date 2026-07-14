@@ -26,6 +26,7 @@ struct TerminalSidebarSpaceBar: View {
       .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .icon))
       .foregroundStyle(palette.primaryText)
       .accessibilityLabel("Create Space")
+      .accessibilityIdentifier("sidebar.create-space-button")
       .help("Create Space")
     }
     .fixedSize(horizontal: false, vertical: true)
@@ -168,5 +169,6 @@ private struct TerminalSidebarSpaceItemView: View {
       .disabled(spacesCount <= 1)
     }
     .accessibilityLabel("Space \(space.name)")
+    .accessibilityIdentifier("sidebar.space-button")
   }
 }
