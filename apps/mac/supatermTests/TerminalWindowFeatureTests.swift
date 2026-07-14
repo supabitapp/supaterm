@@ -1085,7 +1085,8 @@ struct TerminalWindowFeatureTests {
       .agentPanelForkSessionRequested(
         surfaceID: surfaceID,
         direction: .down,
-        session: try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1"))
+        session: try #require(PaneAgentPanelSession.supported(agent: .codex, sessionID: "session-1")),
+        workingDirectoryPath: "/tmp/agent-workspace/"
       )
     )
 
@@ -1095,7 +1096,7 @@ struct TerminalWindowFeatureTests {
           startupCommand: SupatermShellCommand.interactiveStartupCommand(
             for: "codex fork session-1"
           ),
-          cwd: nil,
+          cwd: "/tmp/agent-workspace/",
           direction: .down,
           focus: true,
           equalize: false,

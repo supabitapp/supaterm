@@ -154,7 +154,8 @@ struct TerminalWindowFeature {
     case agentPanelForkSessionRequested(
       surfaceID: UUID,
       direction: SupatermPaneDirection,
-      session: PaneAgentPanelSession
+      session: PaneAgentPanelSession,
+      workingDirectoryPath: String?
     )
     case agentPanelURLTapped(URL)
     case agentPanelVisibilityToggled(UUID)
@@ -338,12 +339,17 @@ struct TerminalWindowFeature {
           await clipboardClient.copyString(value)
         }
 
-      case .agentPanelForkSessionRequested(let surfaceID, let direction, let session):
+      case .agentPanelForkSessionRequested(
+        let surfaceID,
+        let direction,
+        let session,
+        let workingDirectoryPath
+      ):
         return .run { [terminalClient] _ in
           _ = try? await terminalClient.createPane(
             TerminalCreatePaneRequest(
               startupCommand: session.forkStartupCommand,
-              cwd: nil,
+              cwd: workingDirectoryPath,
               direction: direction,
               focus: true,
               equalize: false,

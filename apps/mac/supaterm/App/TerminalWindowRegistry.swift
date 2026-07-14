@@ -55,6 +55,7 @@ final class TerminalWindowRegistry {
   private struct SelectedAgentPanel {
     let surfaceID: UUID
     let session: PaneAgentPanelSession?
+    let workingDirectoryPath: String?
   }
 
   var commandExecutor: TerminalCommandExecutor? {
@@ -243,7 +244,8 @@ final class TerminalWindowRegistry {
         .agentPanelForkSessionRequested(
           surfaceID: selectedAgentPanel.surfaceID,
           direction: direction,
-          session: session
+          session: session,
+          workingDirectoryPath: selectedAgentPanel.workingDirectoryPath
         )
       )
     )
@@ -513,7 +515,11 @@ final class TerminalWindowRegistry {
   private func selectedAgentPanel(in entry: Entry) -> SelectedAgentPanel? {
     guard let surfaceID = entry.terminal.selectedSurfaceView?.id else { return nil }
     guard let presentation = entry.terminal.agentPanelPresentation(for: surfaceID) else { return nil }
-    return SelectedAgentPanel(surfaceID: surfaceID, session: presentation.session)
+    return SelectedAgentPanel(
+      surfaceID: surfaceID,
+      session: presentation.session,
+      workingDirectoryPath: presentation.workingDirectoryPath
+    )
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {

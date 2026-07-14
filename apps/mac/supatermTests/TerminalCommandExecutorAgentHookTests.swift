@@ -30,7 +30,7 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.latestNotificationText(for: harness.tabID) == "Claude needs your attention")
   }
   @Test
-  func claudeSessionStartDoesNotMarkTabRunning() throws {
+  func claudeSessionStartShowsWorkspaceWithoutMarkingTabRunning() throws {
     let harness = try makeClaudeHookHarness()
 
     _ = try harness.commandExecutor.handleAgentHook(
@@ -38,7 +38,10 @@ struct TerminalCommandExecutorAgentHookTests {
     )
 
     #expect(harness.host.agentActivity(for: harness.tabID) == nil)
-    #expect(harness.host.agentPanelPresentation(for: harness.context.surfaceID) == nil)
+    #expect(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?.workingDirectoryPath
+        == "\(ClaudeHookFixtures.cwd)/"
+    )
   }
   @Test
   func claudeSessionStartStoresTaskProgressRows() async throws {

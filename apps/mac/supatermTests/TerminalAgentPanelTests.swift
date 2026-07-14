@@ -202,14 +202,15 @@ struct TerminalAgentPanelTests {
 
   @Test
   @MainActor
-  func registeredStateHidesSessionPanelWithoutActivity() throws {
+  func registeredStateShowsWorkspaceWithoutActivity() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
+    let workingDirectoryPath = FileManager.default.temporaryDirectory.path(percentEncoded: false)
     let surfaceID = try #require(
       restoreSplitHost(
         host,
-        workingDirectoryPath: FileManager.default.temporaryDirectory.path(percentEncoded: false)
+        workingDirectoryPath: workingDirectoryPath
       )
       .first
     )
@@ -223,7 +224,9 @@ struct TerminalAgentPanelTests {
       )
     )
 
-    #expect(host.agentPanelPresentation(for: surfaceID) == nil)
+    let presentation = try #require(host.agentPanelPresentation(for: surfaceID))
+    #expect(presentation.workingDirectoryPath == workingDirectoryPath)
+    #expect(presentation.session == nil)
   }
 
   @Test

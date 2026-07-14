@@ -12,6 +12,7 @@ nonisolated struct PaneAgentPanelPresentation: Equatable, Sendable {
   var isEmpty: Bool {
     progressRows.isEmpty
       && activeChildren.isEmpty
+      && workingDirectoryPath == nil
       && branchDetails == nil
       && artifacts.isEmpty
       && session == nil
