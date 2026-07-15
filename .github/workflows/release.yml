@@ -10,8 +10,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+      - run: bash .github/scripts/require_green_checks.sh "${{ github.sha }}"
+
   build:
     runs-on: macos-26
+    needs: [gate]
     permissions:
       contents: write
       id-token: write
