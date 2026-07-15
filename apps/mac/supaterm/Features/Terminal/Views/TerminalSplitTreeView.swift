@@ -1467,6 +1467,7 @@ final class TerminalSplitAXContainerView: NSView {
     panesLabel = "Terminal split: \(panes.count) pane" + (panes.count == 1 ? "" : "s")
 
     for (index, pane) in panes.enumerated() {
+      pane.setAccessibilityIdentifier("terminal.pane.\(pane.id.uuidString)")
       pane.setAccessibilityPaneIndex(index: index + 1, total: panes.count)
       pane.setAccessibilityParent(self)
     }
