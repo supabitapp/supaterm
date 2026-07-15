@@ -166,10 +166,10 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let terminal = try readyTerminal()
     terminal.click()
 
-    let pinnedSection = accessibilityElement(
+    let pinnedSection = element(
       SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
     )
-    let regularSection = accessibilityElement(
+    let regularSection = element(
       SupatermUITestIdentifier.Accessibility.sidebarRegularSection
     )
     XCTAssertTrue(pinnedSection.waitForExistence(timeout: 10))
@@ -218,16 +218,10 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let sidebarRow = app.buttons.matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     ).firstMatch
-    _ = try XCTUnwrap(
-      sidebarRow.waitForExistence(timeout: 30) ? sidebarRow : nil,
-      "Initial sidebar tab row did not appear"
-    )
+    try require(sidebarRow, timeout: 30, "Initial sidebar tab row did not appear")
 
     let terminal = app.textViews.firstMatch
-    return try XCTUnwrap(
-      terminal.waitForExistence(timeout: 30) ? terminal : nil,
-      "Terminal did not appear"
-    )
+    return try require(terminal, timeout: 30, "Terminal did not appear")
   }
 
   @MainActor
@@ -237,10 +231,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let input = app.textFields[
       SupatermUITestIdentifier.Accessibility.paletteInput
     ]
-    let existingInput = try XCTUnwrap(
-      input.waitForExistence(timeout: 10) ? input : nil,
-      "Command palette input did not appear"
-    )
+    let existingInput = try require(input, "Command palette input did not appear")
     let didFocus = await wait(for: focusedPaletteInput) { $0.exists }
     return try XCTUnwrap(
       didFocus ? existingInput : nil,
@@ -264,10 +255,5 @@ final class CommandPaletteUITests: SupatermUITestCase {
 
     let didDismiss = await wait(for: input) { !$0.exists }
     XCTAssertTrue(didDismiss)
-  }
-
-  @MainActor
-  private func accessibilityElement(_ identifier: String) -> XCUIElement {
-    app.descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
 }

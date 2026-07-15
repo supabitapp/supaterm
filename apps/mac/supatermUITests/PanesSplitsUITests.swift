@@ -63,7 +63,7 @@ final class PanesSplitsUITests: SupatermUITestCase {
     let originalIdentifier = originalPane.identifier
 
     app.typeKey("f", modifierFlags: .command)
-    let searchField = app.textFields["terminal.search.field"]
+    let searchField = app.textFields[SupatermUITestIdentifier.Accessibility.searchField]
     XCTAssertTrue(searchField.waitForExistence(timeout: 10))
     searchField.typeText("SPLITFOCUSNEEDLE")
     XCTAssertEqual(searchField.value as? String, "SPLITFOCUSNEEDLE")
@@ -72,7 +72,9 @@ final class PanesSplitsUITests: SupatermUITestCase {
     let panes = try await requireVisiblePanes(count: 2)
     let newPane = try XCTUnwrap(panes.first { $0.identifier != originalIdentifier })
 
-    let remountedSearchField = app.textFields["terminal.search.field"]
+    let remountedSearchField = app.textFields[
+      SupatermUITestIdentifier.Accessibility.searchField
+    ]
     XCTAssertTrue(remountedSearchField.waitForExistence(timeout: 10))
     try await requireFocus(on: newPane)
 

@@ -6,8 +6,8 @@ final class SettingsUITests: SupatermUITestCase {
   func testCommandCommaOpensSettingsAndEveryTabShowsItsControls() async throws {
     let settingsWindow = try openSettings()
 
-    for identifier in SettingsIdentifier.sidebarTabs {
-      XCTAssertTrue(element(identifier, in: settingsWindow).waitForExistence(timeout: 10))
+    for tab in SettingsTab.allCases {
+      XCTAssertTrue(element(tab.sidebarIdentifier, in: settingsWindow).waitForExistence(timeout: 10))
     }
 
     for tab in SettingsTab.allCases {
@@ -25,7 +25,10 @@ final class SettingsUITests: SupatermUITestCase {
     let settingsWindow = try openSettings()
     try await select(.general, in: settingsWindow)
 
-    let toggle = element(SettingsIdentifier.restoreTerminalLayout, in: settingsWindow)
+    let toggle = element(
+      SupatermUITestIdentifier.Settings.restoreTerminalLayout,
+      in: settingsWindow
+    )
     let didLoadEnabledToggle = await wait(for: toggle) { self.toggleState($0) == true }
     XCTAssertTrue(didLoadEnabledToggle)
     toggle.click()
@@ -39,7 +42,7 @@ final class SettingsUITests: SupatermUITestCase {
     let relaunchedSettingsWindow = try openSettings()
     try await select(.general, in: relaunchedSettingsWindow)
     let persistedToggle = element(
-      SettingsIdentifier.restoreTerminalLayout,
+      SupatermUITestIdentifier.Settings.restoreTerminalLayout,
       in: relaunchedSettingsWindow
     )
     let didRestoreDisabledToggle = await wait(for: persistedToggle) {
@@ -53,9 +56,9 @@ final class SettingsUITests: SupatermUITestCase {
     let settingsWindow = try openSettings()
     try await select(.general, in: settingsWindow)
 
-    let light = element(SettingsIdentifier.appearanceLight, in: settingsWindow)
-    let dark = element(SettingsIdentifier.appearanceDark, in: settingsWindow)
-    let auto = element(SettingsIdentifier.appearanceAuto, in: settingsWindow)
+    let light = element(SupatermUITestIdentifier.Settings.appearanceLight, in: settingsWindow)
+    let dark = element(SupatermUITestIdentifier.Settings.appearanceDark, in: settingsWindow)
+    let auto = element(SupatermUITestIdentifier.Settings.appearanceAuto, in: settingsWindow)
     for option in [light, dark, auto] {
       XCTAssertTrue(option.waitForExistence(timeout: 10))
     }
@@ -76,7 +79,10 @@ final class SettingsUITests: SupatermUITestCase {
 
     let relaunchedSettingsWindow = try openSettings()
     try await select(.general, in: relaunchedSettingsWindow)
-    let persistedAuto = element(SettingsIdentifier.appearanceAuto, in: relaunchedSettingsWindow)
+    let persistedAuto = element(
+      SupatermUITestIdentifier.Settings.appearanceAuto,
+      in: relaunchedSettingsWindow
+    )
     let didRestoreAuto = await waitForSelection(persistedAuto)
     XCTAssertTrue(didRestoreAuto)
   }
@@ -86,22 +92,25 @@ final class SettingsUITests: SupatermUITestCase {
     let settingsWindow = try openSettings()
     try await select(.about, in: settingsWindow)
 
-    let version = element(SettingsIdentifier.aboutVersion, in: settingsWindow)
+    let version = element(SupatermUITestIdentifier.Settings.aboutVersion, in: settingsWindow)
     XCTAssertTrue(version.waitForExistence(timeout: 10))
     let versionValue = version.value as? String
     XCTAssertFalse(versionValue?.isEmpty ?? true)
     XCTAssertNotEqual(versionValue, "Unknown Version")
     XCTAssertTrue(
-      element(SettingsIdentifier.checkForUpdates, in: settingsWindow)
+      element(SupatermUITestIdentifier.Settings.checkForUpdates, in: settingsWindow)
         .waitForExistence(timeout: 10)
     )
     XCTAssertTrue(
-      element(SettingsIdentifier.updateChannel, in: settingsWindow)
+      element(SupatermUITestIdentifier.Settings.updateChannel, in: settingsWindow)
         .waitForExistence(timeout: 10)
     )
     XCTAssertTrue(
-      element(SettingsIdentifier.automaticallyCheckForUpdates, in: settingsWindow)
-        .waitForExistence(timeout: 10)
+      element(
+        SupatermUITestIdentifier.Settings.automaticallyCheckForUpdates,
+        in: settingsWindow
+      )
+      .waitForExistence(timeout: 10)
     )
   }
 
@@ -111,11 +120,9 @@ final class SettingsUITests: SupatermUITestCase {
     app.typeKey(",", modifierFlags: .command)
 
     let settingsWindow = app.windows.matching(
-      identifier: SettingsIdentifier.window
+      identifier: SupatermUITestIdentifier.Settings.window
     ).firstMatch
-    return try XCTUnwrap(
-      settingsWindow.waitForExistence(timeout: 10) ? settingsWindow : nil
-    )
+    return try require(settingsWindow)
   }
 
   @MainActor
@@ -124,22 +131,12 @@ final class SettingsUITests: SupatermUITestCase {
     in settingsWindow: XCUIElement
   ) async throws {
     let sidebarTab = element(tab.sidebarIdentifier, in: settingsWindow)
-    try XCTUnwrap(sidebarTab.waitForExistence(timeout: 10) ? sidebarTab : nil)
+    try require(sidebarTab)
     sidebarTab.click()
 
     let keyControl = element(tab.keyControlIdentifier, in: settingsWindow)
     let didShowKeyControl = await wait(for: keyControl) { $0.exists }
     try XCTUnwrap(didShowKeyControl ? keyControl : nil)
-  }
-
-  @MainActor
-  private func element(
-    _ identifier: String,
-    in settingsWindow: XCUIElement
-  ) -> XCUIElement {
-    settingsWindow.descendants(matching: .any)
-      .matching(identifier: identifier)
-      .firstMatch
   }
 
   @MainActor
@@ -170,15 +167,9 @@ final class SettingsUITests: SupatermUITestCase {
     containing expectedText: String,
     timeout: Duration = .seconds(10)
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
-      if settingsFile(at: settingsURL, contains: expectedText) {
-        return true
-      }
-      try? await Task.sleep(for: .milliseconds(100))
+    await wait(timeout: timeout) {
+      self.settingsFile(at: self.settingsURL, contains: expectedText)
     }
-    return settingsFile(at: settingsURL, contains: expectedText)
   }
 
   @MainActor
@@ -197,19 +188,6 @@ final class SettingsUITests: SupatermUITestCase {
 
 }
 
-private enum SettingsIdentifier {
-  static let window = "app.supabit.supaterm.window.settings"
-  static let restoreTerminalLayout = "settings.general.restore-terminal-layout"
-  static let appearanceAuto = "settings.general.appearance.system"
-  static let appearanceLight = "settings.general.appearance.light"
-  static let appearanceDark = "settings.general.appearance.dark"
-  static let aboutVersion = "settings.about.version"
-  static let checkForUpdates = "settings.about.check-for-updates"
-  static let updateChannel = "settings.about.update-channel"
-  static let automaticallyCheckForUpdates = "settings.about.automatically-check-for-updates"
-  static let sidebarTabs = SettingsTab.allCases.map(\.sidebarIdentifier)
-}
-
 private enum SettingsTab: String, CaseIterable {
   case general
   case terminal
@@ -219,23 +197,23 @@ private enum SettingsTab: String, CaseIterable {
   case about
 
   var sidebarIdentifier: String {
-    "settings.sidebar.\(rawValue)"
+    SupatermUITestIdentifier.Settings.sidebar(rawValue)
   }
 
   var keyControlIdentifier: String {
     switch self {
     case .general:
-      SettingsIdentifier.restoreTerminalLayout
+      SupatermUITestIdentifier.Settings.restoreTerminalLayout
     case .terminal:
-      "settings.terminal.font"
+      SupatermUITestIdentifier.Settings.terminalFont
     case .notifications:
-      "settings.notifications.system"
+      SupatermUITestIdentifier.Settings.notificationsSystem
     case .codingAgents:
-      "settings.coding-agents.show-panel"
+      SupatermUITestIdentifier.Settings.codingAgentsShowPanel
     case .advanced:
-      "settings.advanced.verbose-logging"
+      SupatermUITestIdentifier.Settings.advancedVerboseLogging
     case .about:
-      SettingsIdentifier.aboutVersion
+      SupatermUITestIdentifier.Settings.aboutVersion
     }
   }
 }

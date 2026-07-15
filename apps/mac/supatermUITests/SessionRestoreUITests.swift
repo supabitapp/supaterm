@@ -8,12 +8,8 @@ final class SessionRestoreUITests: SupatermUITestCase {
     let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
-    let pinnedSection = app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
-    ).firstMatch
-    let regularSection = app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarRegularSection
-    ).firstMatch
+    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
+    let regularSection = element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
     let pinnedRows = pinnedSection.descendants(matching: .button).matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     )
@@ -181,29 +177,29 @@ final class SessionRestoreUITests: SupatermUITestCase {
   private func waitForPaneCount(
     _ app: XCUIApplication,
     _ expected: Int,
-    timeout: TimeInterval = 30
+    timeout: Duration = .seconds(30)
   ) async throws {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-      if app.textViews.count == expected { return }
-      try await Task.sleep(for: .milliseconds(200))
+    let didReachCount = await wait(timeout: timeout, pollInterval: .milliseconds(200)) {
+      app.textViews.count == expected
     }
-    XCTAssertEqual(app.textViews.count, expected)
+    if !didReachCount {
+      XCTAssertEqual(app.textViews.count, expected)
+    }
   }
 
   @MainActor
   private func waitForPaneValue(
     _ app: XCUIApplication,
     containing marker: String,
-    timeout: TimeInterval = 30
+    timeout: Duration = .seconds(30)
   ) async throws {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
+    let didFindPane = await wait(timeout: timeout, pollInterval: .milliseconds(200)) {
       let values = app.textViews.allElementsBoundByIndex.compactMap { $0.value as? String }
-      if values.contains(where: { $0.contains(marker) }) { return }
-      try await Task.sleep(for: .milliseconds(200))
+      return values.contains(where: { $0.contains(marker) })
     }
-    XCTFail("No pane shows \(marker)")
+    if !didFindPane {
+      XCTFail("No pane shows \(marker)")
+    }
   }
 
   @MainActor
@@ -219,15 +215,11 @@ final class SessionRestoreUITests: SupatermUITestCase {
     on element: XCUIElement,
     timeout: TimeInterval = 10
   ) throws {
-    let foundElement = try XCTUnwrap(
-      element.waitForExistence(timeout: timeout) ? element : nil
-    )
+    let foundElement = try require(element, timeout: timeout)
     foundElement.rightClick()
 
     let itemCandidate = app.menuItems[title]
-    let item = try XCTUnwrap(
-      itemCandidate.waitForExistence(timeout: timeout) ? itemCandidate : nil
-    )
+    let item = try require(itemCandidate, timeout: timeout)
     item.click()
   }
 
@@ -259,15 +251,9 @@ final class SessionRestoreUITests: SupatermUITestCase {
     equals expectedCount: Int,
     timeout: Duration = .seconds(10)
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
-      if query.count == expectedCount {
-        return true
-      }
-      try? await Task.sleep(for: .milliseconds(100))
+    await wait(timeout: timeout) {
+      query.count == expectedCount
     }
-    return query.count == expectedCount
   }
 
   @MainActor
@@ -277,22 +263,21 @@ final class SessionRestoreUITests: SupatermUITestCase {
     }
   }
 
+  @MainActor
   private func waitForFile(
     at url: URL,
     timeout: Duration = .seconds(30),
     matching predicate: (Data) -> Bool
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
+    await wait(timeout: timeout) {
       if let data = try? Data(contentsOf: url), predicate(data) {
         return true
       }
-      try? await Task.sleep(for: .milliseconds(100))
+      return false
     }
-    return (try? Data(contentsOf: url)).map(predicate) == true
   }
 
+  @MainActor
   private func waitForSessionCatalog(
     at url: URL,
     matching predicate: ([String: Any]) -> Bool
@@ -306,17 +291,15 @@ final class SessionRestoreUITests: SupatermUITestCase {
   }
 
   @discardableResult
+  @MainActor
   private func waitForSessionLayout(
     at url: URL,
-    timeout: TimeInterval = 30,
+    timeout: Duration = .seconds(30),
     matching predicate: (SessionLayout) -> Bool
   ) async throws -> SessionLayout {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-      if let layout = sessionLayout(at: url), predicate(layout) {
-        return layout
-      }
-      try await Task.sleep(for: .milliseconds(200))
+    _ = await wait(timeout: timeout, pollInterval: .milliseconds(200)) {
+      guard let layout = self.sessionLayout(at: url) else { return false }
+      return predicate(layout)
     }
     let lastLayout = sessionLayout(at: url)
     return try XCTUnwrap(

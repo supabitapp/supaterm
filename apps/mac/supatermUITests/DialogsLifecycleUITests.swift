@@ -92,9 +92,7 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
 
     app.typeKey("q", modifierFlags: .command)
 
-    let quitDialog = element(
-      identifiedBy: SupatermUITestIdentifier.Accessibility.dialogQuit
-    )
+    let quitDialog = element(SupatermUITestIdentifier.Accessibility.dialogQuit)
     XCTAssertTrue(quitDialog.waitForExistence(timeout: 10))
 
     let cancelButton = app.buttons[
@@ -153,10 +151,5 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
     app.buttons.matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     )
-  }
-
-  @MainActor
-  private func element(identifiedBy identifier: String) -> XCUIElement {
-    app.descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
 }

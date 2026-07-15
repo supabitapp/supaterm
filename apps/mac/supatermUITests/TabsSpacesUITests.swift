@@ -335,16 +335,12 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
   @MainActor
   private var pinnedSection: XCUIElement {
-    app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
-    ).firstMatch
+    element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
   }
 
   @MainActor
   private var regularSection: XCUIElement {
-    app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarRegularSection
-    ).firstMatch
+    element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
   }
 
   @MainActor
@@ -473,9 +469,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let createButtonCandidate = app.buttons[
       SupatermUITestIdentifier.Accessibility.sidebarCreateSpaceButton
     ]
-    let createButton = try XCTUnwrap(
-      createButtonCandidate.waitForExistence(timeout: 10) ? createButtonCandidate : nil
-    )
+    let createButton = try require(createButtonCandidate)
     createButton.coordinate(
       withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)
     ).click()
@@ -483,17 +477,13 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let nameFieldCandidate = app.textFields[
       SupatermUITestIdentifier.Accessibility.dialogSpaceName
     ]
-    let nameField = try XCTUnwrap(
-      nameFieldCandidate.waitForExistence(timeout: 10) ? nameFieldCandidate : nil
-    )
+    let nameField = try require(nameFieldCandidate)
     nameField.typeText(name)
 
     let confirmCandidate = app.buttons[
       SupatermUITestIdentifier.Accessibility.dialogConfirm
     ]
-    let confirm = try XCTUnwrap(
-      confirmCandidate.waitForExistence(timeout: 10) ? confirmCandidate : nil
-    )
+    let confirm = try require(confirmCandidate)
     confirm.click()
 
     let didDismissEditor = await wait(for: nameField) { !$0.exists }
@@ -503,9 +493,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   private func enterFullScreen() async throws {
     let buttonCandidate = mainWindow.buttons["Enter full screen"]
-    let button = try XCTUnwrap(
-      buttonCandidate.waitForExistence(timeout: 10) ? buttonCandidate : nil
-    )
+    let button = try require(buttonCandidate)
     button.click()
 
     let createButton = app.buttons[
@@ -523,15 +511,11 @@ final class TabsSpacesUITests: SupatermUITestCase {
     on element: XCUIElement,
     timeout: TimeInterval = 10
   ) throws {
-    let foundElement = try XCTUnwrap(
-      element.waitForExistence(timeout: timeout) ? element : nil
-    )
+    let foundElement = try require(element, timeout: timeout)
     foundElement.rightClick()
 
     let itemCandidate = app.menuItems[title]
-    let item = try XCTUnwrap(
-      itemCandidate.waitForExistence(timeout: timeout) ? itemCandidate : nil
-    )
+    let item = try require(itemCandidate, timeout: timeout)
     item.click()
   }
 
@@ -541,15 +525,9 @@ final class TabsSpacesUITests: SupatermUITestCase {
     equals expectedCount: Int,
     timeout: Duration = .seconds(10)
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
-      if query.count == expectedCount {
-        return true
-      }
-      try? await Task.sleep(for: .milliseconds(100))
+    await wait(timeout: timeout) {
+      query.count == expectedCount
     }
-    return query.count == expectedCount
   }
 
   @MainActor

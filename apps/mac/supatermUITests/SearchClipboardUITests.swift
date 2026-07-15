@@ -2,13 +2,6 @@ import AppKit
 import XCTest
 
 final class SearchClipboardUITests: SupatermUITestCase {
-  private enum AccessibilityIdentifier {
-    static let searchField = "terminal.search.field"
-    static let searchMatchCount = "terminal.search.match-count"
-    static let clipboardConfirm = "terminal.clipboard-confirmation.confirm"
-    static let clipboardCancel = "terminal.clipboard-confirmation.cancel"
-  }
-
   private struct MatchCount: Equatable {
     let current: Int?
     let total: Int
@@ -27,12 +20,12 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
     app.typeKey("f", modifierFlags: .command)
 
-    let searchField = app.textFields[AccessibilityIdentifier.searchField]
+    let searchField = app.textFields[SupatermUITestIdentifier.Accessibility.searchField]
     XCTAssertTrue(searchField.waitForExistence(timeout: 10))
     searchField.typeText(needle)
     XCTAssertEqual(searchField.value as? String, needle)
 
-    let matchLabel = app.staticTexts[AccessibilityIdentifier.searchMatchCount]
+    let matchLabel = app.staticTexts[SupatermUITestIdentifier.Accessibility.searchMatchCount]
     let foundMatches = await wait(for: matchLabel, timeout: .seconds(30)) {
       self.matchCount(from: $0) != nil
     }
@@ -83,7 +76,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
     app.typeKey("e", modifierFlags: .command)
 
-    let searchField = app.textFields[AccessibilityIdentifier.searchField]
+    let searchField = app.textFields[SupatermUITestIdentifier.Accessibility.searchField]
     XCTAssertTrue(searchField.waitForExistence(timeout: 10))
     let seededSelection = await wait(for: searchField) {
       ($0.value as? String) == selection
@@ -133,7 +126,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
     replacePasteboard(with: "\(cancelPrefix)\u{1B}[201~PASTE")
 
     app.typeKey("v", modifierFlags: .command)
-    let cancelButton = app.buttons[AccessibilityIdentifier.clipboardCancel]
+    let cancelButton = app.buttons[SupatermUITestIdentifier.Accessibility.clipboardCancel]
     XCTAssertTrue(cancelButton.waitForExistence(timeout: 10))
     cancelButton.click()
     let cancelled = await wait(for: cancelButton) { !$0.exists }
@@ -158,7 +151,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
     replacePasteboard(with: "\(confirmPrefix)\u{1B}\(confirmSuffix)")
     app.typeKey("v", modifierFlags: .command)
 
-    let confirmButton = app.buttons[AccessibilityIdentifier.clipboardConfirm]
+    let confirmButton = app.buttons[SupatermUITestIdentifier.Accessibility.clipboardConfirm]
     XCTAssertTrue(confirmButton.waitForExistence(timeout: 10))
     confirmButton.click()
     let confirmed = await wait(for: confirmButton) { !$0.exists }

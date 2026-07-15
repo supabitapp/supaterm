@@ -143,7 +143,7 @@ final class AgentPanelUITests: SupatermUITestCase {
 
   @MainActor
   private var agentPanel: XCUIElement {
-    app.descendants(matching: .any).matching(identifier: "agent-panel").firstMatch
+    element("agent-panel")
   }
 
   @MainActor

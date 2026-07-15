@@ -1,11 +1,6 @@
 import XCTest
 
 final class MenusFirstRunUITests: SupatermUITestCase {
-  private enum MenuItemIdentifier {
-    static let firstSpace = "app.supabit.supaterm.spaces.select.1"
-    static let secondSpace = "app.supabit.supaterm.spaces.select.2"
-  }
-
   @MainActor
   func testMenuBarStructure() throws {
     _ = mainWindow
@@ -48,8 +43,8 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     try assertMenu(
       "Spaces",
       exposes: [
-        MenuItemIdentifier.firstSpace,
-        MenuItemIdentifier.secondSpace,
+        SupatermUITestIdentifier.MenuItemIdentifier.firstSpace.rawValue,
+        SupatermUITestIdentifier.MenuItemIdentifier.secondSpace.rawValue,
       ]
     )
     try assertMenu(
@@ -87,9 +82,7 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     XCTAssertFalse(app.menuItems["Unpin Tab"].exists)
     pin.click()
 
-    let pinnedSection = app.descendants(matching: .any).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
-    ).firstMatch
+    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
     let didMoveToPinnedSection = await wait(for: pinnedSection) { section in
       section.descendants(matching: .button).matching(
         identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
@@ -109,7 +102,9 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     _ = mainWindow
 
     try openMenu("Spaces")
-    let secondSpace = rawMenuItem(MenuItemIdentifier.secondSpace)
+    let secondSpace = rawMenuItem(
+      SupatermUITestIdentifier.MenuItemIdentifier.secondSpace.rawValue
+    )
     XCTAssertTrue(secondSpace.waitForExistence(timeout: 10))
     XCTAssertFalse(secondSpace.isEnabled)
     app.typeKey(.escape, modifierFlags: [])
@@ -187,7 +182,7 @@ final class MenusFirstRunUITests: SupatermUITestCase {
   @MainActor
   private func openMenu(_ title: String) throws {
     let menu = app.menuBars.menuBarItems[title]
-    _ = try XCTUnwrap(menu.waitForExistence(timeout: 10) ? menu : nil)
+    try require(menu)
     menu.click()
   }
 
@@ -196,19 +191,13 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     app.menuItems.matching(identifier: identifier).firstMatch
   }
 
+  @MainActor
   private func waitForFile(
     at url: URL,
-    timeout: Duration = .seconds(10),
-    pollInterval: Duration = .milliseconds(100)
+    timeout: Duration = .seconds(10)
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
-      if FileManager.default.fileExists(atPath: url.path) {
-        return true
-      }
-      try? await Task.sleep(for: pollInterval)
+    await wait(timeout: timeout) {
+      FileManager.default.fileExists(atPath: url.path)
     }
-    return FileManager.default.fileExists(atPath: url.path)
   }
 }

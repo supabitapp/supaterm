@@ -77,14 +77,37 @@ class SupatermUITestCase: XCTestCase {
     timeout: TimeInterval = 10
   ) throws {
     let topLevelMenu = app.menuBars.menuBarItems[identifier.menuTitle]
-    try XCTUnwrap(
-      topLevelMenu.waitForExistence(timeout: timeout) ? topLevelMenu : nil
-    )
+    try require(topLevelMenu, timeout: timeout)
     topLevelMenu.click()
 
     let item = menuItem(identifier)
-    try XCTUnwrap(item.waitForExistence(timeout: timeout) ? item : nil)
+    try require(item, timeout: timeout)
     item.click()
+  }
+
+  @MainActor
+  @discardableResult
+  func require(
+    _ element: XCUIElement,
+    timeout: TimeInterval = 10,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws -> XCUIElement {
+    try XCTUnwrap(
+      element.waitForExistence(timeout: timeout) ? element : nil,
+      message(),
+      file: file,
+      line: line
+    )
+  }
+
+  @MainActor
+  func element(_ identifier: String, in container: XCUIElement? = nil) -> XCUIElement {
+    if let container {
+      return container.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+    return app.descendants(matching: .any).matching(identifier: identifier).firstMatch
   }
 
   @MainActor
@@ -104,19 +127,30 @@ class SupatermUITestCase: XCTestCase {
 
   @MainActor
   func wait(
+    timeout: Duration = .seconds(10),
+    pollInterval: Duration = .milliseconds(100),
+    until condition: () -> Bool
+  ) async -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while clock.now < deadline {
+      if condition() {
+        return true
+      }
+      try? await Task.sleep(for: pollInterval)
+    }
+    return condition()
+  }
+
+  @MainActor
+  func wait(
     for element: XCUIElement,
     timeout: Duration = .seconds(10),
     pollInterval: Duration = .milliseconds(100),
     until condition: (XCUIElement) -> Bool
   ) async -> Bool {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: timeout)
-    while clock.now < deadline {
-      if condition(element) {
-        return true
-      }
-      try? await Task.sleep(for: pollInterval)
+    await wait(timeout: timeout, pollInterval: pollInterval) {
+      condition(element)
     }
-    return condition(element)
   }
 }
