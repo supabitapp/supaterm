@@ -169,6 +169,7 @@ private struct TerminalSidebarSpaceItemView: View {
       .disabled(spacesCount <= 1)
     }
     .accessibilityLabel("Space \(space.name)")
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityIdentifier("sidebar.space-button")
   }
 }

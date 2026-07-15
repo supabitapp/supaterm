@@ -274,6 +274,7 @@ struct TerminalSidebarTabRow: View {
         }
       }
     }
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityIdentifier("sidebar.tab-row")
   }
 
