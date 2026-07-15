@@ -2,7 +2,7 @@ import ComposableArchitecture
 import SwiftUI
 
 public struct SettingsView: View {
-  let store: StoreOf<SettingsFeature>
+  @Bindable var store: StoreOf<SettingsFeature>
 
   public init(store: StoreOf<SettingsFeature>) {
     self.store = store
@@ -36,7 +36,7 @@ public struct SettingsView: View {
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 750, minHeight: 500)
-    .alert(store: store.scope(state: \.$alert, action: \.alert))
+    .alert($store.scope(state: \.alert, action: \.alert))
     .background {
       AgentInstallFailureAlertPresenter(
         failure: store.agentIntegrationInstallFailure,
