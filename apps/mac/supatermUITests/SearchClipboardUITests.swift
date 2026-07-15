@@ -40,7 +40,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
     let initialMatch = try XCTUnwrap(matchCount(from: matchLabel))
     XCTAssertGreaterThan(initialMatch.total, 1)
 
-    app.typeKey("g", modifierFlags: .command)
+    try clickMenuItem(.findNext)
     let selectedMatch = await wait(for: matchLabel) {
       guard let count = self.matchCount(from: $0) else { return false }
       return count.total == initialMatch.total && count.current != nil
@@ -48,19 +48,20 @@ final class SearchClipboardUITests: SupatermUITestCase {
     XCTAssertTrue(selectedMatch)
     let firstMatch = try XCTUnwrap(matchCount(from: matchLabel))
 
-    app.typeKey("g", modifierFlags: .command)
+    try clickMenuItem(.findNext)
     let navigatedNext = await wait(for: matchLabel) {
       guard let count = self.matchCount(from: $0) else { return false }
       return count.total == firstMatch.total && count.current != firstMatch.current
     }
     XCTAssertTrue(navigatedNext)
 
-    app.typeKey("g", modifierFlags: [.command, .shift])
+    try clickMenuItem(.findPrevious)
     let navigatedPrevious = await wait(for: matchLabel) {
       self.matchCount(from: $0) == firstMatch
     }
     XCTAssertTrue(navigatedPrevious)
 
+    searchField.click()
     app.typeKey(.escape, modifierFlags: [])
     let searchClosed = await wait(for: searchField) { !$0.exists }
     XCTAssertTrue(searchClosed)
