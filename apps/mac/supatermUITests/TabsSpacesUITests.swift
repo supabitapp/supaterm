@@ -286,11 +286,19 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
   @MainActor
   private func exitFullScreen() async {
-    app.typeKey("f", modifierFlags: [.command, .control])
-
-    let spacesMenu = app.menuBars.menuBarItems["Spaces"]
-    let didShowMenu = await wait(for: spacesMenu) { $0.isHittable }
-    XCTAssertTrue(didShowMenu)
+    let createButton = app.buttons[
+      SupatermUITestIdentifier.Accessibility.sidebarCreateSpaceButton
+    ]
+    for _ in 0..<2 {
+      app.typeKey("f", modifierFlags: [.command, .control])
+      let didExit = await wait(for: createButton, timeout: .seconds(5)) {
+        $0.frame.maxY > self.app.frame.maxY - 20
+      }
+      if didExit {
+        return
+      }
+    }
+    XCTFail("Failed to exit full screen")
   }
 
   @MainActor
