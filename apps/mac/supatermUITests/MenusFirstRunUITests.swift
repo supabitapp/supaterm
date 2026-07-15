@@ -137,6 +137,10 @@ final class MenusFirstRunUITests: SupatermUITestCase {
 
   @MainActor
   func testOnlyFirstLaunchRunsOnboarding() async throws {
+    let stateHome = try XCTUnwrap(app.launchEnvironment["SUPATERM_STATE_HOME"])
+    let stateHomeURL = URL(fileURLWithPath: stateHome)
+    try relaunch(at: stateHomeURL, removing: ["launch-state.json", "session.json"])
+
     _ = mainWindow
 
     let firstTerminal = app.textViews.firstMatch
@@ -149,12 +153,11 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didRenderOnboarding)
 
-    let stateHome = try XCTUnwrap(app.launchEnvironment["SUPATERM_STATE_HOME"])
-    let launchState = URL(fileURLWithPath: stateHome).appendingPathComponent("launch-state.json")
+    let launchState = stateHomeURL.appendingPathComponent("launch-state.json")
     let didPersistLaunchState = await waitForFile(at: launchState)
     XCTAssertTrue(didPersistLaunchState)
 
-    try relaunchWithFreshSessionPreservingState(at: URL(fileURLWithPath: stateHome))
+    try relaunch(at: stateHomeURL, removing: ["session.json"])
 
     let secondTerminal = app.textViews.firstMatch
     XCTAssertTrue(secondTerminal.waitForExistence(timeout: 30))
@@ -212,13 +215,15 @@ final class MenusFirstRunUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private func relaunchWithFreshSessionPreservingState(at stateHome: URL) throws {
+  private func relaunch(at stateHome: URL, removing filenames: [String]) throws {
     app.terminate()
     XCTAssertTrue(app.wait(for: .notRunning, timeout: 10))
 
-    let session = stateHome.appendingPathComponent("session.json")
-    if FileManager.default.fileExists(atPath: session.path) {
-      try FileManager.default.removeItem(at: session)
+    for filename in filenames {
+      let file = stateHome.appendingPathComponent(filename)
+      if FileManager.default.fileExists(atPath: file.path) {
+        try FileManager.default.removeItem(at: file)
+      }
     }
 
     app.launch()
