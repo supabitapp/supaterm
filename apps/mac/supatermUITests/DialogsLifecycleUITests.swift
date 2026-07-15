@@ -2,6 +2,52 @@ import XCTest
 
 final class DialogsLifecycleUITests: SupatermUITestCase {
   @MainActor
+  func testCloseAllWindowsShowsSingleConfirmationThatCancelsAndCloses() async throws {
+    _ = mainTerminal
+
+    try clickMenuItem(.newWindow)
+    let didOpenSecondWindow = await wait(
+      for: app.windows.firstMatch,
+      timeout: .seconds(30)
+    ) { _ in
+      self.app.windows.count == 2 && self.app.textViews.count == 2
+    }
+    XCTAssertTrue(didOpenSecondWindow)
+
+    try clickMenuItem(.closeAllWindows)
+
+    let title = app.staticTexts["Close All Windows?"]
+    XCTAssertTrue(title.waitForExistence(timeout: 10))
+    let confirmButtons = app.buttons.matching(
+      identifier: SupatermUITestIdentifier.Accessibility.dialogConfirm
+    )
+    let cancelButtons = app.buttons.matching(
+      identifier: SupatermUITestIdentifier.Accessibility.dialogCancel
+    )
+    XCTAssertEqual(confirmButtons.count, 1)
+    XCTAssertEqual(cancelButtons.count, 1)
+
+    cancelButtons.firstMatch.click()
+    let didCancel = await wait(for: title) { !$0.exists }
+    XCTAssertTrue(didCancel)
+    XCTAssertEqual(app.windows.count, 2)
+    XCTAssertEqual(app.textViews.count, 2)
+
+    try clickMenuItem(.closeAllWindows)
+    XCTAssertTrue(title.waitForExistence(timeout: 10))
+    confirmButtons.firstMatch.click()
+
+    let didCloseAllWindows = await wait(
+      for: app.windows.firstMatch,
+      timeout: .seconds(30)
+    ) { _ in
+      self.app.windows.count < 1
+    }
+    XCTAssertTrue(didCloseAllWindows)
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+  }
+
+  @MainActor
   func testChangeTerminalTitleAppliesTypedTitle() async throws {
     _ = mainWindow
     let terminal = app.textViews.firstMatch
