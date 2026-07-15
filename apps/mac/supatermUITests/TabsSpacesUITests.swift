@@ -272,14 +272,21 @@ final class TabsSpacesUITests: SupatermUITestCase {
     try await renameSelectedTab(to: "Fourth UI Tab")
 
     let expectedOrder = ["First UI Tab", "Second UI Tab", "Third UI Tab", "Fourth UI Tab"]
-    let didAppendAtEnd = await wait(for: tabRows.element(boundBy: 3)) { _ in
-      guard self.tabRows.count == expectedOrder.count else { return false }
-      return expectedOrder.indices.allSatisfy {
-        self.tabRows.element(boundBy: $0).label.contains(expectedOrder[$0])
-      }
-    }
+    let didAppendAtEnd = await waitForTabOrder(expectedOrder)
     XCTAssertTrue(didAppendAtEnd)
     XCTAssertTrue(tabRow(named: "Fourth UI Tab").isSelected)
+  }
+
+  @MainActor
+  func testDraggingRegularTabReordersSidebarRows() async throws {
+    try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
+
+    let firstTab = tabRow(named: "First UI Tab", in: regularSection)
+    let thirdTab = tabRow(named: "Third UI Tab", in: regularSection)
+    firstTab.press(forDuration: 0.5, thenDragTo: thirdTab)
+
+    let didReorder = await waitForTabOrder(["Second UI Tab", "Third UI Tab", "First UI Tab"])
+    XCTAssertTrue(didReorder)
   }
 
   @MainActor
@@ -538,5 +545,19 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   private func waitForSelection(_ element: XCUIElement) async -> Bool {
     await wait(for: element) { $0.isSelected }
+  }
+
+  @MainActor
+  private func waitForTabOrder(
+    _ titles: [String],
+    timeout: Duration = .seconds(10)
+  ) async -> Bool {
+    precondition(!titles.isEmpty)
+    return await wait(for: tabRows.element(boundBy: titles.count - 1), timeout: timeout) { _ in
+      guard self.tabRows.count == titles.count else { return false }
+      return titles.indices.allSatisfy {
+        self.tabRows.element(boundBy: $0).label.contains(titles[$0])
+      }
+    }
   }
 }
