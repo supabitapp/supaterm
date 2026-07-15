@@ -24,6 +24,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   let nickname: String?
   let role: String?
   let transcriptPath: String?
+  let task: String?
   let phase: AgentActivityPhase
   let detail: String?
   let attentionRequestID: String?
@@ -33,6 +34,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     nickname: String?,
     role: String?,
     transcriptPath: String? = nil,
+    task: String? = nil,
     phase: AgentActivityPhase,
     detail: String?,
     attentionRequestID: String? = nil
@@ -41,6 +43,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
     self.nickname = nickname
     self.role = role
     self.transcriptPath = transcriptPath
+    self.task = task
     self.phase = phase
     self.detail = detail
     self.attentionRequestID = attentionRequestID
@@ -49,6 +52,7 @@ nonisolated struct TerminalAgentActiveChild: Codable, Equatable, Identifiable, S
   var subagentID: String { id.subagentID }
   var sessionID: String { id.sessionID }
   var turnID: String? { id.turnID }
+  var displayDetail: String? { detail ?? task }
 }
 
 nonisolated struct TerminalAgentStatePresentation: Equatable, Sendable {
@@ -114,6 +118,7 @@ nonisolated struct TerminalAgentStateStore {
 
   private struct SessionState: Equatable {
     var activeChildren: [TerminalAgentActiveChild.Identity: TerminalAgentActiveChild] = [:]
+    var pendingChildTasks: [String: String] = [:]
     var detail: String?
     var attentionRequestID: String?
     var hoverMessages: [String] = []
@@ -195,7 +200,7 @@ nonisolated struct TerminalAgentStateStore {
       return targetsActiveTurn(event.scope.turnID, state: state)
         && state.phase == .needsInput
         && (state.attentionRequestID == nil || state.attentionRequestID == requestID)
-    case .hoverMessagesUpdated, .progressUpdated(_, source: .transcript):
+    case .hoverMessagesUpdated, .progressUpdated(_, source: .transcript), .subagentTasksUpdated:
       return acceptsTranscriptProjection(turnID: event.scope.turnID, state: state)
     case .subagentStarted, .subagentStopped:
       return false
@@ -218,7 +223,7 @@ nonisolated struct TerminalAgentStateStore {
     case .turnRunning:
       return child.phase != .needsInput
     case .hoverMessagesUpdated, .progressUpdated, .sessionEnded, .sessionResumed, .sessionStarted,
-      .subagentStarted:
+      .subagentStarted, .subagentTasksUpdated:
       return false
     }
   }
@@ -306,6 +311,8 @@ nonisolated struct TerminalAgentStateStore {
       updateHoverMessages(messages, turnID: event.scope.turnID, state: &state)
     case .progressUpdated(let rows, let source):
       updateProgress(rows, source: source, turnID: event.scope.turnID, state: &state)
+    case .subagentTasksUpdated(let tasks):
+      updateChildTasks(tasks, state: &state)
     case .sessionEnded, .subagentStarted, .subagentStopped:
       break
     }
@@ -318,30 +325,47 @@ nonisolated struct TerminalAgentStateStore {
     guard let childKey = Self.childKey(for: event) else { return }
     switch event.action {
     case .subagentStarted(let nickname, let role, let transcriptPath):
+      let task = state.pendingChildTasks.removeValue(forKey: childKey.subagentID)
       state.activeChildren = state.activeChildren.filter {
         $0.key.subagentID != childKey.subagentID || $0.key == childKey
       }
       if let child = state.activeChildren[childKey] {
-        state.activeChildren[childKey] = child.updating(
+        let child = child.updating(
           nickname: nickname,
           role: role,
           transcriptPath: transcriptPath
         )
+        state.activeChildren[childKey] = task.map(child.updating(task:)) ?? child
       } else {
         state.activeChildren[childKey] = TerminalAgentActiveChild(
           id: childKey,
           nickname: nickname,
           role: role,
           transcriptPath: transcriptPath,
+          task: task,
           phase: .running,
           detail: nil
         )
       }
     case .subagentStopped:
+      if let task = state.activeChildren[childKey]?.task {
+        state.pendingChildTasks[childKey.subagentID] = task
+      }
       state.activeChildren.removeValue(forKey: childKey)
     default:
       updateChild(event.action, key: childKey, state: &state)
     }
+  }
+
+  private func updateChildTasks(
+    _ tasks: [String: String],
+    state: inout SessionState
+  ) {
+    let activeIDs = Set(state.activeChildren.keys.map(\.subagentID))
+    for (key, child) in state.activeChildren {
+      state.activeChildren[key] = child.updating(task: tasks[key.subagentID])
+    }
+    state.pendingChildTasks = tasks.filter { !activeIDs.contains($0.key) }
   }
 
   private func updateChild(
@@ -378,6 +402,7 @@ nonisolated struct TerminalAgentStateStore {
     state: inout SessionState
   ) {
     state.activeChildren = state.activeChildren.filter { $0.key.turnID == turnID }
+    state.pendingChildTasks = [:]
     state.turnLifecycle = .active(turnID)
     state.isActionable = true
     state.phase = .running
@@ -541,7 +566,7 @@ nonisolated struct TerminalAgentStateStore {
     let detail =
       state.phase == phase
       ? state.detail
-      : activeChildren.first(where: { $0.phase == phase })?.detail
+      : activeChildren.first(where: { $0.phase == phase })?.displayDetail
     return TerminalAgentStatePresentation(
       agent: agent,
       sessionID: sessionID,
@@ -766,6 +791,20 @@ extension TerminalAgentActiveChild {
       nickname: nickname ?? self.nickname,
       role: role ?? self.role,
       transcriptPath: transcriptPath ?? self.transcriptPath,
+      task: task,
+      phase: phase,
+      detail: detail,
+      attentionRequestID: attentionRequestID
+    )
+  }
+
+  fileprivate nonisolated func updating(task: String?) -> Self {
+    Self(
+      id: id,
+      nickname: nickname,
+      role: role,
+      transcriptPath: transcriptPath,
+      task: task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID
@@ -782,6 +821,7 @@ extension TerminalAgentActiveChild {
       nickname: nickname,
       role: role,
       transcriptPath: transcriptPath,
+      task: task,
       phase: phase,
       detail: detail,
       attentionRequestID: attentionRequestID

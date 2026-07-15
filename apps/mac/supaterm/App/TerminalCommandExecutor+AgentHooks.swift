@@ -127,6 +127,7 @@ extension TerminalCommandExecutor {
     if scope.subagentID == nil {
       actions.append(.hoverMessagesUpdated(snapshot.hoverMessages))
       actions.append(.progressUpdated(snapshot.progressRows, source: .transcript))
+      actions.append(.subagentTasksUpdated(snapshot.childTasks))
     }
     var didChange = false
     for action in actions {

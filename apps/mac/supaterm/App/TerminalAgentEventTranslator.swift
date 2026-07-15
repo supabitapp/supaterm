@@ -78,7 +78,9 @@ nonisolated enum TerminalAgentEventTranslator {
         message: request.event.message
       )
     case .postToolUse:
-      return attentionResolutionEvents(for: request, scope: scope) + [
+      let resolutionEvents = attentionResolutionEvents(for: request, scope: scope)
+      guard scope.subagentID == nil else { return resolutionEvents }
+      return resolutionEvents + [
         event(
           request,
           scope: scope,
@@ -86,6 +88,7 @@ nonisolated enum TerminalAgentEventTranslator {
         )
       ]
     case .preToolUse:
+      guard scope.subagentID == nil else { return [] }
       action = .turnRunning(detail: request.event.toolName)
     case .sessionEnd:
       action = .sessionEnded

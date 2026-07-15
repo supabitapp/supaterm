@@ -122,7 +122,7 @@ The app binds Claude sessions to pane surfaces, tracks the foreground session fo
 - `Stop` marks the tab as `idle` and stores the final assistant message as the latest tab notification when one is provided, unless the transcript still reports an active goal.
 - While the tab is `running`, transcript file events re-arm the running timeout, so long tool calls and streaming responses do not flip the tab to `idle` between hooks.
 - `SessionEnd` clears the tab activity and drops the stored session state.
-- `SubagentStart` and `SubagentStop` add and remove scoped child-agent rows without allowing a child to replace the foreground root session.
+- `SubagentStart` and `SubagentStop` add and remove scoped child-agent rows without allowing a child to replace the foreground root session. Async agent results supply the same task descriptions Claude shows in its agent manager, and child tool hooks cannot replace them with tool names.
 - A command-finished signal from the shell clears pane-bound agent state and transcript observation.
 
 The panel monitor reads Claude task progress from the hook `transcript_path`. File-system events trigger incremental reads; partial JSON lines, truncation, replacement, and oversized records are handled without polling the file once per second.

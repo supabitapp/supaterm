@@ -142,6 +142,25 @@ enum ClaudeProgressFixtures {
     )
   }
 
+  static func appendAsyncAgentResult(
+    agentID: String,
+    description: String,
+    to transcriptURL: URL
+  ) throws {
+    try appendLine(
+      [
+        "type": "user",
+        "toolUseResult": [
+          "isAsync": true,
+          "status": "async_launched",
+          "agentId": agentID,
+          "description": description,
+        ],
+      ],
+      to: transcriptURL
+    )
+  }
+
   static func appendTaskReminder(
     _ tasks: [[String: Any]],
     to transcriptURL: URL

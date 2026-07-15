@@ -188,6 +188,71 @@ struct TerminalCommandExecutorAgentHookTests {
     #expect(harness.host.agentActivity(for: harness.tabID) == .claude(.running))
   }
   @Test
+  func claudeChildTaskMatchesAgentManagerAndSurvivesToolHooks() async throws {
+    let transcriptURL = try ClaudeProgressFixtures.makeTranscript()
+    defer { try? FileManager.default.removeItem(at: transcriptURL.deletingLastPathComponent()) }
+    let harness = try makeClaudeHookHarness()
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          cwd: ClaudeHookFixtures.cwd,
+          hookEventName: .sessionStart,
+          sessionID: ClaudeHookFixtures.sessionID,
+          transcriptPath: transcriptURL.path
+        )
+      )
+    )
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          agentType: "Explore",
+          hookEventName: .subagentStart,
+          sessionID: ClaudeHookFixtures.sessionID,
+          transcriptPath: transcriptURL.path,
+          agentID: "child-1"
+        )
+      )
+    )
+    try ClaudeProgressFixtures.appendAsyncAgentResult(
+      agentID: "child-1",
+      description: "Explore UI test infrastructure",
+      to: transcriptURL
+    )
+
+    let didLoadTask = await waitUntil {
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
+        .activeChildren.first?.task == "Explore UI test infrastructure"
+    }
+    #expect(didLoadTask)
+
+    _ = try harness.commandExecutor.handleAgentHook(
+      SupatermAgentHookRequest(
+        agent: .claude,
+        context: harness.context,
+        event: SupatermAgentHookEvent(
+          agentType: "Explore",
+          hookEventName: .preToolUse,
+          sessionID: ClaudeHookFixtures.sessionID,
+          toolName: "Bash",
+          transcriptPath: transcriptURL.path,
+          agentID: "child-1"
+        )
+      )
+    )
+
+    let child = try #require(
+      harness.host.agentPanelPresentation(for: harness.context.surfaceID)?
+        .activeChildren.first
+    )
+    #expect(AgentPanelView.childTitle(child) == "Explore")
+    #expect(AgentPanelView.childDetail(child) == "Explore UI test infrastructure")
+  }
+  @Test
   func commandFinishedClearsAgentActivityAndStoredSessionRouting() throws {
     let harness = try makeClaudeHookHarness()
 
