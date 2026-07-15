@@ -100,29 +100,29 @@ struct SettingsFeatureCodingAgentsTests {
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
-    await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
+    await store.receive(.terminalSettingsLoadRequested, timeout: Duration.zero) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: Duration.zero) {
       $0.claudeIntegration.isRefreshing = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: Duration.zero) {
       $0.codexIntegration.isRefreshing = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: Duration.zero) {
       $0.piIntegration.isRefreshing = true
     }
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: Duration.zero) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.healthy)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.healthy)), timeout: Duration.zero) {
       $0.claudeIntegration.health = .healthy
       $0.claudeIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: Duration.zero) {
       $0.codexIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.healthy)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.healthy)), timeout: Duration.zero) {
       $0.piIntegration.health = .healthy
       $0.piIntegration.isRefreshing = false
     }
@@ -143,7 +143,7 @@ struct SettingsFeatureCodingAgentsTests {
         $0[keyPath: keyPath].pendingEnabled = true
       }
 
-      await store.receive(.agentIntegrationToggleFinished(agent, .success(.healthy)), timeout: 0) {
+      await store.receive(.agentIntegrationToggleFinished(agent, .success(.healthy)), timeout: Duration.zero) {
         $0[keyPath: keyPath].health = .healthy
         $0[keyPath: keyPath].pendingEnabled = nil
       }
@@ -170,7 +170,7 @@ struct SettingsFeatureCodingAgentsTests {
         $0[keyPath: keyPath].pendingEnabled = false
       }
 
-      await store.receive(.agentIntegrationToggleFinished(agent, .success(.absent)), timeout: 0) {
+      await store.receive(.agentIntegrationToggleFinished(agent, .success(.absent)), timeout: Duration.zero) {
         $0[keyPath: keyPath].health = .absent
         $0[keyPath: keyPath].pendingEnabled = nil
       }
@@ -192,7 +192,7 @@ struct SettingsFeatureCodingAgentsTests {
       $0.claudeIntegration.pendingEnabled = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.claude, .success(.healthy)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.claude, .success(.healthy)), timeout: Duration.zero) {
       $0.claudeIntegration.health = .healthy
       $0.claudeIntegration.pendingEnabled = nil
     }
@@ -243,7 +243,7 @@ struct SettingsFeatureCodingAgentsTests {
       $0.codexIntegration.pendingEnabled = false
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.absent)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.absent)), timeout: Duration.zero) {
       $0.codexIntegration.health = .absent
       $0.codexIntegration.pendingEnabled = nil
     }
@@ -266,7 +266,7 @@ struct SettingsFeatureCodingAgentsTests {
     await store.send(.agentIntegrationToggled(.codex, false)) {
       $0.codexIntegration.pendingEnabled = false
     }
-    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.unavailable)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.codex, .success(.unavailable)), timeout: Duration.zero) {
       $0.codexIntegration.health = .unavailable
       $0.codexIntegration.pendingEnabled = nil
     }
@@ -343,7 +343,7 @@ struct SettingsFeatureCodingAgentsTests {
     await store.send(.agentIntegrationToggled(.pi, false)) {
       $0.piIntegration.pendingEnabled = false
     }
-    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.unavailable)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.unavailable)), timeout: Duration.zero) {
       $0.piIntegration.health = .unavailable
       $0.piIntegration.pendingEnabled = nil
     }
@@ -364,7 +364,7 @@ struct SettingsFeatureCodingAgentsTests {
       $0.piIntegration.pendingEnabled = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.healthy)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.pi, .success(.healthy)), timeout: Duration.zero) {
       $0.piIntegration.health = .healthy
       $0.piIntegration.pendingEnabled = nil
     }
@@ -386,7 +386,7 @@ struct SettingsFeatureCodingAgentsTests {
       $0.piIntegration.pendingEnabled = true
     }
 
-    await store.receive(.agentIntegrationToggleFinished(.pi, .failure(message)), timeout: 0) {
+    await store.receive(.agentIntegrationToggleFinished(.pi, .failure(message)), timeout: Duration.zero) {
       $0.agentIntegrationInstallFailure = SettingsAgentIntegrationInstallFailure(agent: .pi, log: message)
       $0.piIntegration.errorMessage = message
       $0.piIntegration.pendingEnabled = nil

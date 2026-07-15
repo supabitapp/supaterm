@@ -59,7 +59,7 @@ struct SettingsFeatureTests {
       }
 
       await store.send(.task)
-      await store.receive(.settingsLoaded(supatermSettings), timeout: 0) {
+      await store.receive(.settingsLoaded(supatermSettings), timeout: Duration.zero) {
         $0.appearanceMode = .dark
         $0.analyticsEnabled = false
         $0.codingAgentsShowPanel = false
@@ -73,28 +73,28 @@ struct SettingsFeatureTests {
         $0.verboseLoggingEnabled = true
         $0.zmxSessionsEnabled = false
       }
-      await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
+      await store.receive(.terminalSettingsLoadRequested, timeout: Duration.zero) {
         $0.terminal.isLoading = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: Duration.zero) {
         $0.claudeIntegration.isRefreshing = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: Duration.zero) {
         $0.codexIntegration.isRefreshing = true
       }
-      await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: Duration.zero) {
         $0.piIntegration.isRefreshing = true
       }
-      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+      await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: Duration.zero) {
         $0.terminal = terminalSettingsState()
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.absent)), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.absent)), timeout: Duration.zero) {
         $0.claudeIntegration.isRefreshing = false
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: Duration.zero) {
         $0.codexIntegration.isRefreshing = false
       }
-      await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.absent)), timeout: 0) {
+      await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.absent)), timeout: Duration.zero) {
         $0.piIntegration.isRefreshing = false
       }
     }
@@ -117,28 +117,28 @@ struct SettingsFeatureTests {
 
     await store.send(.task)
     await store.receive(\.settingsLoaded)
-    await store.receive(.terminalSettingsLoadRequested, timeout: 0) {
+    await store.receive(.terminalSettingsLoadRequested, timeout: Duration.zero) {
       $0.terminal.isLoading = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.claude), timeout: Duration.zero) {
       $0.claudeIntegration.isRefreshing = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.codex), timeout: Duration.zero) {
       $0.codexIntegration.isRefreshing = true
     }
-    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshRequested(.pi), timeout: Duration.zero) {
       $0.piIntegration.isRefreshing = true
     }
-    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: 0) {
+    await store.receive(.terminalSettingsLoaded(terminalSettingsSnapshot()), timeout: Duration.zero) {
       $0.terminal = terminalSettingsState()
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.absent)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.claude, .success(.absent)), timeout: Duration.zero) {
       $0.claudeIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.codex, .success(.absent)), timeout: Duration.zero) {
       $0.codexIntegration.isRefreshing = false
     }
-    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.absent)), timeout: 0) {
+    await store.receive(.agentIntegrationStatusRefreshed(.pi, .success(.absent)), timeout: Duration.zero) {
       $0.piIntegration.isRefreshing = false
     }
 

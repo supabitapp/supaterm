@@ -40,7 +40,7 @@ struct SettingsFeatureNotificationsTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.authorized), timeout: 0)
+      await store.receive(.systemNotificationsAuthorizationChecked(.authorized), timeout: Duration.zero)
 
       @Shared(.supatermSettings) var supatermSettings = .default
       #expect(supatermSettings.systemNotificationsEnabled)
@@ -70,7 +70,7 @@ struct SettingsFeatureNotificationsTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined), timeout: 0)
+      await store.receive(.systemNotificationsAuthorizationChecked(.notDetermined), timeout: Duration.zero)
       await store.receive(
         .systemNotificationsAuthorizationResult(
           DesktopNotificationClient.AuthorizationRequestResult(
@@ -110,7 +110,7 @@ struct SettingsFeatureNotificationsTests {
       await store.send(.systemNotificationsEnabledChanged(true)) {
         $0.systemNotificationsEnabled = true
       }
-      await store.receive(.systemNotificationsAuthorizationChecked(.denied), timeout: 0)
+      await store.receive(.systemNotificationsAuthorizationChecked(.denied), timeout: Duration.zero)
       await store.receive(
         .systemNotificationsAuthorizationResult(
           DesktopNotificationClient.AuthorizationRequestResult(

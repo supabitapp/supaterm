@@ -107,7 +107,7 @@ struct SettingsFeatureTerminalTests {
       $0.terminal.errorMessage = nil
       $0.terminal.isLoading = true
     }
-    await store.receive(SettingsFeature.Action.terminalSettingsLoadFailed("Broken config"), timeout: 0) {
+    await store.receive(SettingsFeature.Action.terminalSettingsLoadFailed("Broken config"), timeout: Duration.zero) {
       $0.terminal.errorMessage = "Broken config"
       $0.terminal.isLoading = false
     }
