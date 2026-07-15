@@ -28,8 +28,10 @@ struct GhosttySurfaceSearchOverlay: View {
       ZStack(alignment: corner.alignment) {
         HStack(spacing: 4) {
           GhosttySearchField(
+            surfaceView: surfaceView,
             text: $searchText,
             focusRequest: searchFocusRequest,
+            matchLabel: matchLabelText,
             onSubmit: { isShifted in
               navigateSearch(isShifted ? .previous : .next)
             },
@@ -115,7 +117,6 @@ struct GhosttySurfaceSearchOverlay: View {
               }
             }
         )
-        .accessibilityElement(children: .contain)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: corner.alignment)
       .onAppear {
@@ -284,8 +285,10 @@ private struct SearchButtonLabel: View {
 }
 
 private struct GhosttySearchField: NSViewRepresentable {
+  let surfaceView: GhosttySurfaceView
   @Binding var text: String
   var focusRequest: Int
+  var matchLabel: String?
   var onSubmit: (Bool) -> Void
   var onEscape: () -> Void
 
@@ -306,6 +309,7 @@ private struct GhosttySearchField: NSViewRepresentable {
     field.usesSingleLineMode = true
     field.lineBreakMode = .byTruncatingTail
     field.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    field.installAccessibility(on: surfaceView)
     return field
   }
 
@@ -315,11 +319,16 @@ private struct GhosttySearchField: NSViewRepresentable {
     }
     nsView.onSubmit = onSubmit
     nsView.onEscape = onEscape
+    nsView.updateAccessibility(matchLabel: matchLabel)
 
     if context.coordinator.focusRequest != focusRequest, let window = nsView.window {
       context.coordinator.focusRequest = focusRequest
       window.makeFirstResponder(nsView)
     }
+  }
+
+  static func dismantleNSView(_ nsView: SearchField, coordinator _: Coordinator) {
+    nsView.uninstallAccessibility()
   }
 
   final class Coordinator: NSObject, NSTextFieldDelegate {
@@ -339,6 +348,49 @@ private struct GhosttySearchField: NSViewRepresentable {
   final class SearchField: NSTextField {
     var onSubmit: ((Bool) -> Void)?
     var onEscape: (() -> Void)?
+    private weak var accessibilitySurfaceView: GhosttySurfaceView?
+    private var originalAccessibilityChildren: [Any]?
+    private var matchCountAccessibilityElement: NSAccessibilityElement?
+
+    func installAccessibility(on surfaceView: GhosttySurfaceView) {
+      originalAccessibilityChildren = surfaceView.accessibilityChildren()
+      accessibilitySurfaceView = surfaceView
+      setAccessibilityParent(surfaceView)
+
+      guard
+        let matchCountElement = NSAccessibilityElement.element(
+          withRole: .staticText,
+          frame: .zero,
+          label: nil,
+          parent: surfaceView
+        ) as? NSAccessibilityElement
+      else { return }
+      matchCountElement.setAccessibilityIdentifier("terminal.search.match-count")
+      matchCountAccessibilityElement = matchCountElement
+
+      surfaceView.setAccessibilityChildren(
+        (originalAccessibilityChildren ?? []) + [self, matchCountElement]
+      )
+    }
+
+    func updateAccessibility(matchLabel: String?) {
+      guard let matchCountAccessibilityElement else { return }
+      matchCountAccessibilityElement.setAccessibilityLabel(matchLabel)
+      matchCountAccessibilityElement.setAccessibilityValue(matchLabel)
+      guard let window else { return }
+      var frame = window.convertToScreen(convert(bounds, to: nil))
+      frame.origin.x += frame.width - 50
+      frame.size.width = 50
+      matchCountAccessibilityElement.setAccessibilityFrame(frame)
+    }
+
+    func uninstallAccessibility() {
+      accessibilitySurfaceView?.setAccessibilityChildren(originalAccessibilityChildren)
+      setAccessibilityParent(nil)
+      accessibilitySurfaceView = nil
+      originalAccessibilityChildren = nil
+      matchCountAccessibilityElement = nil
+    }
 
     override func cancelOperation(_ sender: Any?) {
       onEscape?()
