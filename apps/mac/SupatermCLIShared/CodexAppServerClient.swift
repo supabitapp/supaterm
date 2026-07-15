@@ -272,16 +272,22 @@ private final class CodexAppServerTransport {
     }
     errorHandle = try FileHandle(forWritingTo: errorURL)
 
-    process.executableURL = CodingAgentCommandRunner.loginShellURL()
-    process.arguments = LoginShellCommandAvailability.interactiveCommandArguments(
-      for: "exec codex app-server --stdio"
-    )
-    var environment = ProcessInfo.processInfo.environment
-    environment["HOME"] = homeDirectoryURL.path
-    environment["CODEX_HOME"] =
+    let codexHomeDirectoryURL =
       homeDirectoryURL
-      .appendingPathComponent(".codex", isDirectory: true).path
-    process.environment = environment
+      .appendingPathComponent(".codex", isDirectory: true)
+    let command = [
+      "exec",
+      "/usr/bin/env",
+      "HOME=\(homeDirectoryURL.path)",
+      "CODEX_HOME=\(codexHomeDirectoryURL.path)",
+      "codex",
+      "app-server",
+      "--stdio",
+    ]
+    .map(SupatermShellCommand.escapedToken)
+    .joined(separator: " ")
+    process.executableURL = CodingAgentCommandRunner.loginShellURL()
+    process.arguments = LoginShellCommandAvailability.interactiveCommandArguments(for: command)
     process.standardInput = inputPipe
     process.standardOutput = outputPipe
     process.standardError = errorHandle
