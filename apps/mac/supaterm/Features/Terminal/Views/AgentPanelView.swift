@@ -22,6 +22,8 @@ enum AgentPanelShortcut {
 }
 
 struct AgentPanelView: View {
+  static let accessibilityIdentifier = "agent-panel"
+
   let presentation: PaneAgentPanelPresentation
   let palette: Palette
   let forksDown: Bool
@@ -37,6 +39,8 @@ struct AgentPanelView: View {
       .padding(AgentPanelMetrics.contentPadding)
       .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
       .accessibilityElement(children: .contain)
+      .accessibilityLabel("Agent panel")
+      .accessibilityIdentifier(Self.accessibilityIdentifier)
   }
 
   private var content: some View {
