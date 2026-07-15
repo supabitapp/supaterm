@@ -17,6 +17,39 @@ type ChangelogEntry = {
 
 const changelogData: ChangelogEntry[] = [
   {
+    version: "v26.4.0",
+    date: "2026-07-15",
+    title: "🧰 Agent Workflow Toolkit",
+    description:
+      "Supaterm now ships version-matched skills and complete documentation, while agent sessions stay accurate through subagents, long-running goals, focus changes, and restored windows.",
+    sections: [
+      {
+        category: "new",
+        items: [
+          "Added sp skills commands to list, inspect, and install version-matched Supaterm skills",
+          "Added sp pane send --submit to send multiline tasks and submit them in one command",
+          "Launched docs.supaterm.com with guides for setup, terminal workflows, coding agents, CLI automation, themes, and troubleshooting",
+        ],
+      },
+      {
+        category: "improvements",
+        items: [
+          "The agent panel now follows the root agent’s current workspace, shows assigned subagent tasks, and clearly highlights clickable rows",
+          "The agent panel now collapses when it would cover the terminal cursor and only shows shortcut hints for the focused pane",
+          "Closing a zoomed multi-pane tab now reveals hidden panes and asks for confirmation",
+        ],
+      },
+      {
+        category: "fixes",
+        items: [
+          "Restored Copy, Paste, and Select All in terminal search after switching apps",
+          "Long-running agent sessions no longer appear complete during quiet transcript periods, internal work, or active goals",
+          "Restored terminal layouts now preserve their default space identity",
+        ],
+      },
+    ],
+  },
+  {
     version: "v26.3.1",
     date: "2026-07-13",
     title: "💙 Final Beta Hotfix",
