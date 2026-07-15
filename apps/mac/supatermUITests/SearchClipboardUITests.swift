@@ -10,7 +10,7 @@ final class SearchClipboardUITests: SupatermUITestCase {
   }
 
   private struct MatchCount: Equatable {
-    let current: Int
+    let current: Int?
     let total: Int
   }
 
@@ -41,15 +41,23 @@ final class SearchClipboardUITests: SupatermUITestCase {
     XCTAssertGreaterThan(initialMatch.total, 1)
 
     app.typeKey("g", modifierFlags: .command)
+    let selectedMatch = await wait(for: matchLabel) {
+      guard let count = self.matchCount(from: $0) else { return false }
+      return count.total == initialMatch.total && count.current != nil
+    }
+    XCTAssertTrue(selectedMatch)
+    let firstMatch = try XCTUnwrap(matchCount(from: matchLabel))
+
+    app.typeKey("g", modifierFlags: .command)
     let navigatedNext = await wait(for: matchLabel) {
       guard let count = self.matchCount(from: $0) else { return false }
-      return count.total == initialMatch.total && count.current != initialMatch.current
+      return count.total == firstMatch.total && count.current != firstMatch.current
     }
     XCTAssertTrue(navigatedNext)
 
     app.typeKey("g", modifierFlags: [.command, .shift])
     let navigatedPrevious = await wait(for: matchLabel) {
-      self.matchCount(from: $0) == initialMatch
+      self.matchCount(from: $0) == firstMatch
     }
     XCTAssertTrue(navigatedPrevious)
 
@@ -208,9 +216,15 @@ final class SearchClipboardUITests: SupatermUITestCase {
     let parts = element.label.split(separator: "/", omittingEmptySubsequences: false)
     guard
       parts.count == 2,
-      let current = Int(parts[0]),
       let total = Int(parts[1])
     else { return nil }
+    let current: Int?
+    if parts[0] == "-" {
+      current = nil
+    } else {
+      guard let value = Int(parts[0]) else { return nil }
+      current = value
+    }
     return MatchCount(current: current, total: total)
   }
 
