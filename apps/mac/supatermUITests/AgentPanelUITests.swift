@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 final class AgentPanelUITests: SupatermUITestCase {
@@ -8,16 +9,23 @@ final class AgentPanelUITests: SupatermUITestCase {
     _ = mainWindow
     try await sendClaudeEvent("session-start")
 
-    await assertEventually(agentPanel, timeout: .seconds(30)) { $0.exists }
+    let expandedPanel = try await requireSettledPanelPixels()
 
     app.typeKey("i", modifierFlags: .command)
-    await assertEventually(agentPanel) { !$0.exists }
+    let collapsedPanel = try await requireSettledPanelPixels()
+    let collapsedDifference = expandedPanel.difference(from: collapsedPanel)
+    XCTAssertGreaterThan(collapsedDifference, 0.002)
 
     app.typeKey("i", modifierFlags: .command)
-    await assertEventually(agentPanel) { $0.exists }
+    let restoredPanel = try await requireSettledPanelPixels()
+    XCTAssertLessThan(
+      expandedPanel.difference(from: restoredPanel),
+      collapsedDifference / 4
+    )
 
     try clickMenuItem(.toggleAgentPanel)
-    await assertEventually(agentPanel) { !$0.exists }
+    let menuCollapsedPanel = try await requireSettledPanelPixels()
+    XCTAssertGreaterThan(expandedPanel.difference(from: menuCollapsedPanel), 0.002)
   }
 
   @MainActor
@@ -52,19 +60,32 @@ final class AgentPanelUITests: SupatermUITestCase {
     }
 
     firstTab.click()
-    await assertEventually(agentPanel, timeout: .seconds(30)) { $0.exists }
+    try await assertAgentPanelMenuItem(isEnabled: true)
     try await sendClaudeEvent("stop")
 
     await assertEventually(firstTab, timeout: .seconds(30)) {
       $0.label.contains("Done.") && !$0.label.contains("Agent activity:")
     }
     try await sendClaudeEvent("session-end")
-    await assertEventually(agentPanel, timeout: .seconds(30)) { !$0.exists }
+    try await assertAgentPanelMenuItem(isEnabled: false)
   }
 
   @MainActor
-  private var agentPanel: XCUIElement {
-    app.descendants(matching: .any)["agent-panel"]
+  private func assertAgentPanelMenuItem(isEnabled: Bool) async throws {
+    let topLevelMenu = app.menuBars.menuBarItems["View"]
+    guard topLevelMenu.waitForExistence(timeout: 10) else {
+      XCTFail("View menu did not appear")
+      return
+    }
+    topLevelMenu.click()
+
+    let item = menuItem(.toggleAgentPanel)
+    guard item.waitForExistence(timeout: 10) else {
+      XCTFail("Agent panel menu item did not appear")
+      return
+    }
+    await assertEventually(item) { $0.isEnabled == isEnabled }
+    app.typeKey(.escape, modifierFlags: [])
   }
 
   @MainActor
@@ -89,6 +110,67 @@ final class AgentPanelUITests: SupatermUITestCase {
   }
 
   @MainActor
+  private func settledPanelPixels(
+    timeout: Duration = .seconds(5)
+  ) async -> PanelPixels? {
+    guard var previous = panelPixels() else { return nil }
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    var stableSampleCount = 0
+
+    while clock.now < deadline {
+      try? await Task.sleep(for: .milliseconds(100))
+      guard let current = panelPixels() else { return nil }
+      if previous.difference(from: current) < 0.0001 {
+        stableSampleCount += 1
+        if stableSampleCount == 3 {
+          return current
+        }
+      } else {
+        stableSampleCount = 0
+      }
+      previous = current
+    }
+    return nil
+  }
+
+  @MainActor
+  private func requireSettledPanelPixels() async throws -> PanelPixels {
+    let pixels = await settledPanelPixels()
+    return try XCTUnwrap(pixels)
+  }
+
+  @MainActor
+  private func panelPixels() -> PanelPixels? {
+    let image = app.textViews.firstMatch.screenshot().image
+    guard
+      let representation = image.tiffRepresentation.flatMap(NSBitmapImageRep.init),
+      !representation.isPlanar,
+      let bitmapData = representation.bitmapData
+    else { return nil }
+
+    let bytesPerPixel = representation.bitsPerPixel / 8
+    guard bytesPerPixel >= 3 else { return nil }
+
+    let width = representation.pixelsWide
+    let height = representation.pixelsHigh
+    let firstX = width * 11 / 20
+    var bytes: [UInt8] = []
+    bytes.reserveCapacity((width - firstX) * height * 3 / 4)
+
+    for y in stride(from: 0, to: height, by: 2) {
+      let row = bitmapData.advanced(by: y * representation.bytesPerRow)
+      for x in stride(from: firstX, to: width, by: 2) {
+        let pixel = row.advanced(by: x * bytesPerPixel)
+        bytes.append(pixel[0])
+        bytes.append(pixel[1])
+        bytes.append(pixel[2])
+      }
+    }
+    return PanelPixels(bytes: bytes)
+  }
+
+  @MainActor
   private func assertEventually(
     _ element: XCUIElement,
     timeout: Duration = .seconds(10),
@@ -98,5 +180,17 @@ final class AgentPanelUITests: SupatermUITestCase {
   ) async {
     let didMatch = await wait(for: element, timeout: timeout, until: condition)
     XCTAssertTrue(didMatch, file: file, line: line)
+  }
+
+  private struct PanelPixels {
+    let bytes: [UInt8]
+
+    func difference(from other: Self) -> Double {
+      guard bytes.count == other.bytes.count, !bytes.isEmpty else { return 1 }
+      let totalDifference = zip(bytes, other.bytes).reduce(into: Int64(0)) { result, pair in
+        result += Int64(abs(Int(pair.0) - Int(pair.1)))
+      }
+      return Double(totalDifference) / Double(bytes.count * 255)
+    }
   }
 }

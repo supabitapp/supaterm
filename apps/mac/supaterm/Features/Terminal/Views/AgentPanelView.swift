@@ -36,13 +36,6 @@ struct AgentPanelView: View {
     content
       .padding(AgentPanelMetrics.contentPadding)
       .frame(width: AgentPanelMetrics.expandedWidth, alignment: .leading)
-      .overlay {
-        Color.clear
-          .allowsHitTesting(false)
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("Agent panel")
-          .accessibilityIdentifier("agent-panel")
-      }
       .accessibilityElement(children: .contain)
   }
 
