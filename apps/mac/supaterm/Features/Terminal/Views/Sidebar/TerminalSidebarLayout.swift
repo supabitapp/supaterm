@@ -21,18 +21,6 @@ enum TerminalSidebarLayout {
     trafficLightTopPadding + WindowTrafficLightMetrics.topPadding + WindowTrafficLightMetrics.buttonSize + 4
   }
 
-  static func sectionTopInset(
-    zoneID: TerminalSidebarDropZoneID,
-    pinnedTabCount: Int
-  ) -> CGFloat {
-    return switch zoneID {
-    case .pinned:
-      pinnedTabCount > 0 ? firstVisibleSectionTopInset : 0
-    case .regular:
-      pinnedTabCount == 0 ? firstVisibleSectionTopInset : 0
-    }
-  }
-
   static func insertingID(
     _ id: TerminalTabID,
     into ids: [TerminalTabID],

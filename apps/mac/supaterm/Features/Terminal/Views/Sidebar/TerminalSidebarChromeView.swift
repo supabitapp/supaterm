@@ -82,6 +82,52 @@ enum TerminalSidebarTabShortcutHints {
   }
 }
 
+struct TerminalSidebarProjectGroup: Equatable, Identifiable {
+  let spaceID: TerminalSpaceID
+  let project: TerminalProjectItem
+  let displayName: String
+  let pinnedTabs: [TerminalTabItem]
+  let regularTabs: [TerminalTabItem]
+  let isCollapsed: Bool
+
+  var id: TerminalProjectID {
+    project.id
+  }
+
+  var showsDivider: Bool {
+    !isCollapsed && !pinnedTabs.isEmpty && !regularTabs.isEmpty
+  }
+
+  var showsEmptyState: Bool {
+    !isCollapsed && pinnedTabs.isEmpty && regularTabs.isEmpty
+  }
+
+  var showsTabSections: Bool {
+    !isCollapsed && (!pinnedTabs.isEmpty || !regularTabs.isEmpty)
+  }
+
+  init(
+    spaceID: TerminalSpaceID,
+    project: TerminalProjectItem,
+    displayName: String,
+    pinnedTabs: [TerminalTabItem],
+    regularTabs: [TerminalTabItem],
+    isCollapsed: Bool
+  ) {
+    self.spaceID = spaceID
+    self.project = project
+    self.displayName = displayName
+    self.pinnedTabs = pinnedTabs
+    self.regularTabs = regularTabs
+    self.isCollapsed = isCollapsed
+  }
+}
+
+private struct TerminalSidebarProjectDeletion: Equatable {
+  let projectID: TerminalProjectID
+  let spaceID: TerminalSpaceID
+}
+
 struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
@@ -90,15 +136,12 @@ struct TerminalSidebarChromeView: View {
   let terminal: TerminalHostState
   let dismissReleaseAnnouncement: () -> Void
 
-  @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.colorScheme) private var colorScheme
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
-  @Shared(.supatermSettings) private var supatermSettings = .default
-  @StateObject private var dragSession = TerminalSidebarDragSession()
   @State private var scrollOffset: CGFloat = 0
   @State private var contentHeight: CGFloat = 0
   @State private var tabFrames: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
+  @State private var pendingProjectDeletion: TerminalSidebarProjectDeletion?
 
   var body: some View {
     VStack(spacing: 10) {
@@ -126,14 +169,16 @@ struct TerminalSidebarChromeView: View {
       .padding(.horizontal, 8)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .onAppear {
-      dragSession.colorScheme = colorScheme
-    }
-    .onChange(of: colorScheme) { _, newValue in
-      dragSession.colorScheme = newValue
-    }
-    .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
-      handle(pendingReorder)
+    .alert(
+      "Delete \(pendingProjectName)?",
+      isPresented: projectDeletionIsPresented
+    ) {
+      Button("Delete Project", role: .destructive, action: deletePendingProject)
+      Button("Cancel", role: .cancel) {
+        pendingProjectDeletion = nil
+      }
+    } message: {
+      Text("All tabs in this project will be closed.")
     }
   }
 
@@ -155,18 +200,18 @@ struct TerminalSidebarChromeView: View {
                 }
                 .id(terminalSidebarScrollTopID)
 
-              pinnedSection
+              projectTopBar
 
-              if !terminal.pinnedTabs.isEmpty {
-                TerminalSidebarSectionDivider(palette: palette)
+              ForEach(projectGroups) { group in
+                TerminalSidebarProjectSection(
+                  group: group,
+                  store: store,
+                  terminal: terminal,
+                  palette: palette,
+                  shortcutHintsByTabID: tabShortcutHintsByID,
+                  requestDeletion: requestDeletion
+                )
               }
-
-              regularSection
-
-              TerminalSidebarRegularSectionHeader(
-                palette: palette,
-                action: newTab
-              )
 
               Color.clear
                 .frame(height: 1)
@@ -192,7 +237,6 @@ struct TerminalSidebarChromeView: View {
           }
           .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
             self.tabFrames = tabFrames
-            dragSession.updateMeasuredTabFrames(tabFrames)
           }
 
           if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
@@ -234,75 +278,376 @@ struct TerminalSidebarChromeView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
-  private var pinnedSection: some View {
-    TerminalSidebarDropZoneHostView(
-      zoneID: .pinned,
-      manager: dragSession
-    ) {
-      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-        ForEach(Array(terminal.pinnedTabs.enumerated()), id: \.element.id) { index, tab in
-          draggableRow(
-            tab: tab,
-            index: index,
-            zoneID: .pinned
-          )
-        }
-      }
-      .coordinateSpace(name: TerminalSidebarDropZoneID.pinned.coordinateSpaceID)
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .padding(
-      .top,
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .pinned,
-        pinnedTabCount: terminal.pinnedTabs.count
+  private var projectGroups: [TerminalSidebarProjectGroup] {
+    guard let spaceID = terminal.selectedSpaceID else { return [] }
+    let pinnedTabs = terminal.pinnedTabs
+    let regularTabs = terminal.regularTabs
+    return terminal.orderedProjects(in: spaceID).map { project in
+      TerminalSidebarProjectGroup(
+        spaceID: spaceID,
+        project: project,
+        displayName: terminal.projectDisplayName(project.id, in: spaceID) ?? project.baseDisplayName,
+        pinnedTabs: pinnedTabs.filter { $0.projectID == project.id },
+        regularTabs: regularTabs.filter { $0.projectID == project.id },
+        isCollapsed: terminal.isProjectCollapsed(project.id, in: spaceID)
       )
-    )
-    .accessibilityElement(children: .contain)
-    .accessibilityIdentifier("sidebar.pinned-section")
-    .onAppear {
-      dragSession.updateTabIDs(terminal.pinnedTabs.map(\.id), for: .pinned)
-    }
-    .onChange(of: terminal.pinnedTabs.map(\.id)) { _, tabIDs in
-      dragSession.updateTabIDs(tabIDs, for: .pinned)
     }
   }
 
-  private var regularSection: some View {
-    TerminalSidebarDropZoneHostView(
-      zoneID: .regular,
-      manager: dragSession
-    ) {
-      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
-        ForEach(Array(terminal.regularTabs.enumerated()), id: \.element.id) { index, tab in
-          draggableRow(
-            tab: tab,
-            index: index,
-            zoneID: .regular
-          )
-        }
+  private var projectTopBar: some View {
+    HStack {
+      Spacer(minLength: 0)
+      Button(action: addProject) {
+        Image(systemName: "folder.badge.plus")
+          .font(.system(size: 12, weight: .semibold))
+          .frame(width: 24, height: 24)
       }
-      .coordinateSpace(name: TerminalSidebarDropZoneID.regular.coordinateSpaceID)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .icon))
+      .foregroundStyle(palette.primaryText)
+      .disabled(terminal.selectedSpaceID == nil)
+      .accessibilityLabel("Add Project")
+      .accessibilityIdentifier("sidebar.add-project-button")
+      .help("Add Project")
     }
-    .padding(
-      .top,
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .regular,
-        pinnedTabCount: terminal.pinnedTabs.count
-      )
-    )
-    .accessibilityElement(children: .contain)
-    .accessibilityIdentifier("sidebar.regular-section")
-    .onAppear {
-      dragSession.updateTabIDs(terminal.regularTabs.map(\.id), for: .regular)
-    }
-    .onChange(of: terminal.regularTabs.map(\.id)) { _, tabIDs in
-      dragSession.updateTabIDs(tabIDs, for: .regular)
+    .padding(.horizontal, 4)
+    .padding(.top, TerminalSidebarLayout.trafficLightTopPadding)
+    .frame(height: TerminalSidebarLayout.firstVisibleSectionTopInset, alignment: .top)
+  }
+
+  private var selectedTabFrame: CGRect? {
+    guard let selectedTabID = terminal.selectedTabID else { return nil }
+    return tabFrames[selectedTabID]?.scrollFrame
+  }
+
+  private var tabShortcutHintsByID: [TerminalTabID: String] {
+    TerminalSidebarTabShortcutHints.byTabID(for: terminal.visibleTabs) { slot in
+      ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
     }
   }
 
-  @ViewBuilder
+  private var projectDeletionIsPresented: Binding<Bool> {
+    Binding(
+      get: { pendingProjectDeletion != nil },
+      set: { isPresented in
+        if !isPresented {
+          pendingProjectDeletion = nil
+        }
+      }
+    )
+  }
+
+  private var pendingProjectName: String {
+    guard let pendingProjectDeletion else { return "Project" }
+    return terminal.projectDisplayName(
+      pendingProjectDeletion.projectID,
+      in: pendingProjectDeletion.spaceID
+    ) ?? "Project"
+  }
+
+  private func addProject() {
+    guard let spaceID = terminal.selectedSpaceID else { return }
+    let panel = NSOpenPanel()
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = false
+    panel.allowsMultipleSelection = false
+    panel.canCreateDirectories = true
+    panel.prompt = "Add Project"
+    guard panel.runModal() == .OK, let directory = panel.url else { return }
+    terminal.createProject(
+      folderPath: directory.path(percentEncoded: false),
+      in: spaceID
+    )
+  }
+
+  private func requestDeletion(
+    projectID: TerminalProjectID,
+    spaceID: TerminalSpaceID
+  ) {
+    pendingProjectDeletion = TerminalSidebarProjectDeletion(
+      projectID: projectID,
+      spaceID: spaceID
+    )
+  }
+
+  private func deletePendingProject() {
+    guard let pendingProjectDeletion else { return }
+    terminal.deleteProject(
+      pendingProjectDeletion.projectID,
+      in: pendingProjectDeletion.spaceID
+    )
+    self.pendingProjectDeletion = nil
+  }
+
+  private func scrollToBottom(
+    using proxy: ScrollViewProxy
+  ) {
+    TerminalMotion.animate(.easeInOut(duration: 0.3), reduceMotion: reduceMotion) {
+      if let selectedTabID = terminal.selectedTabID {
+        proxy.scrollTo(selectedTabID, anchor: .bottom)
+      } else {
+        proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
+      }
+    }
+  }
+
+}
+
+private struct TerminalSidebarSectionDivider: View {
+  let palette: Palette
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: 100, style: .continuous)
+      .fill(palette.sidebarSeparator)
+      .frame(height: 1)
+  }
+}
+
+struct TerminalSidebarProjectHeader: View {
+  enum ContextMenuItem: Equatable {
+    case newTab
+    case togglePinned(Bool)
+    case divider
+    case delete
+
+    var title: String? {
+      switch self {
+      case .newTab:
+        "New Tab"
+      case .togglePinned(let isPinned):
+        isPinned ? "Unpin Project" : "Pin Project"
+      case .divider:
+        nil
+      case .delete:
+        "Delete Project..."
+      }
+    }
+  }
+
+  let project: TerminalProjectItem
+  let displayName: String
+  let isCollapsed: Bool
+  let palette: Palette
+  let toggleCollapsed: () -> Void
+  let newTab: () -> Void
+  let togglePinned: () -> Void
+  let delete: () -> Void
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var isHovering = false
+
+  static func contextMenuItems(
+    isHome: Bool,
+    isPinned: Bool
+  ) -> [ContextMenuItem] {
+    var items: [ContextMenuItem] = [
+      .newTab,
+      .togglePinned(isPinned),
+    ]
+    if !isHome {
+      items.append(contentsOf: [.divider, .delete])
+    }
+    return items
+  }
+
+  var body: some View {
+    ZStack(alignment: .trailing) {
+      Button(action: toggleCollapsed) {
+        HStack(spacing: 7) {
+          Image(systemName: "chevron.down")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(palette.secondaryText)
+            .frame(width: 12, height: 18)
+            .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+            .terminalAnimation(
+              .easeInOut(duration: 0.16),
+              value: isCollapsed,
+              reduceMotion: reduceMotion
+            )
+            .accessibilityHidden(true)
+
+          Image(systemName: project.isHome ? "house" : "folder")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(palette.secondaryText)
+            .frame(width: 15, height: 18)
+            .accessibilityHidden(true)
+
+          Text(displayName)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(palette.primaryText)
+            .lineLimit(1)
+
+          Spacer(minLength: 28)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: TerminalSidebarLayout.tabRowMinHeight)
+        .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(
+        SelectableRowButtonStyle(
+          palette: palette,
+          isSelected: false,
+          isHovering: isHovering,
+          cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
+          appearance: .sidebar,
+          showsSelectionEdge: false
+        )
+      )
+      .accessibilityLabel("\(isCollapsed ? "Expand" : "Collapse") \(displayName)")
+
+      if isHovering {
+        Button(action: newTab) {
+          Image(systemName: "plus")
+            .font(.system(size: 11, weight: .semibold))
+            .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(palette.secondaryText)
+        .padding(.trailing, 4)
+        .accessibilityLabel("New Tab in \(displayName)")
+        .help("New Tab")
+      }
+    }
+    .onHover { isHovering = $0 }
+    .contextMenu {
+      ForEach(
+        Array(
+          Self.contextMenuItems(
+            isHome: project.isHome,
+            isPinned: project.isPinned
+          ).enumerated()
+        ),
+        id: \.offset
+      ) { _, item in
+        switch item {
+        case .newTab:
+          Button(action: newTab) {
+            Label("New Tab", systemImage: "plus")
+          }
+
+        case .togglePinned(let isPinned):
+          Button(action: togglePinned) {
+            Label(
+              isPinned ? "Unpin Project" : "Pin Project",
+              systemImage: isPinned ? "pin.slash" : "pin"
+            )
+          }
+
+        case .divider:
+          Divider()
+
+        case .delete:
+          Button(role: .destructive, action: delete) {
+            Label("Delete Project...", systemImage: "trash")
+          }
+        }
+      }
+    }
+    .accessibilityIdentifier("sidebar.project-header")
+  }
+}
+
+private struct TerminalSidebarProjectSection: View {
+  let group: TerminalSidebarProjectGroup
+  let store: StoreOf<TerminalWindowFeature>
+  let terminal: TerminalHostState
+  let palette: Palette
+  let shortcutHintsByTabID: [TerminalTabID: String]
+  let requestDeletion: (TerminalProjectID, TerminalSpaceID) -> Void
+
+  @Environment(CommandHoldObserver.self) private var commandHoldObserver
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.colorScheme) private var colorScheme
+  @Shared(.supatermSettings) private var supatermSettings = .default
+  @StateObject private var dragSession = TerminalSidebarDragSession()
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      TerminalSidebarProjectHeader(
+        project: group.project,
+        displayName: group.displayName,
+        isCollapsed: group.isCollapsed,
+        palette: palette,
+        toggleCollapsed: toggleCollapsed,
+        newTab: newTab,
+        togglePinned: togglePinned,
+        delete: {
+          requestDeletion(group.project.id, group.spaceID)
+        }
+      )
+
+      if group.showsEmptyState {
+        TerminalSidebarEmptyProjectRow(palette: palette)
+          .padding(.leading, 14)
+      } else if group.showsTabSections {
+        VStack(spacing: 4) {
+          if !group.pinnedTabs.isEmpty {
+            tabSection(group.pinnedTabs, zoneID: .pinned)
+          }
+
+          if group.showsDivider {
+            TerminalSidebarSectionDivider(palette: palette)
+              .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+          }
+
+          if !group.regularTabs.isEmpty {
+            tabSection(group.regularTabs, zoneID: .regular)
+          }
+        }
+        .padding(.leading, 14)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .contain)
+    .accessibilityIdentifier("sidebar.project-group")
+    .onAppear {
+      dragSession.colorScheme = colorScheme
+      updateDragTabIDs()
+    }
+    .onChange(of: colorScheme) { _, colorScheme in
+      dragSession.colorScheme = colorScheme
+    }
+    .onChange(of: group.pinnedTabs.map(\.id)) { _, _ in
+      updateDragTabIDs()
+    }
+    .onChange(of: group.regularTabs.map(\.id)) { _, _ in
+      updateDragTabIDs()
+    }
+    .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
+      dragSession.updateMeasuredTabFrames(tabFrames)
+    }
+    .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
+      handle(pendingReorder)
+    }
+  }
+
+  private func tabSection(
+    _ tabs: [TerminalTabItem],
+    zoneID: TerminalSidebarDropZoneID
+  ) -> some View {
+    TerminalSidebarDropZoneHostView(
+      zoneID: zoneID,
+      manager: dragSession
+    ) {
+      VStack(spacing: TerminalSidebarLayout.tabRowSpacing) {
+        ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
+          draggableRow(
+            tab: tab,
+            index: index,
+            zoneID: zoneID
+          )
+        }
+      }
+      .coordinateSpace(name: zoneID.coordinateSpaceID)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityElement(children: .contain)
+    .accessibilityIdentifier(
+      zoneID == .pinned
+        ? "sidebar.project-pinned-section"
+        : "sidebar.project-regular-section"
+    )
+  }
+
   private func draggableRow(
     tab: TerminalTabItem,
     index: Int,
@@ -328,10 +673,8 @@ struct TerminalSidebarChromeView: View {
       showsAgentSpinner: supatermSettings.codingAgentsShowSpinner
     )
 
-    TerminalSidebarDragSourceView(
-      item: TerminalSidebarDragItem(
-        tabID: tab.id
-      ),
+    return TerminalSidebarDragSourceView(
+      item: TerminalSidebarDragItem(tabID: tab.id),
       preview: preview,
       zoneID: zoneID,
       index: index,
@@ -349,7 +692,7 @@ struct TerminalSidebarChromeView: View {
         palette: palette,
         showsAgentMarks: supatermSettings.codingAgentsShowIcons,
         showsAgentSpinner: supatermSettings.codingAgentsShowSpinner,
-        shortcutHint: tabShortcutHintsByID[tab.id],
+        shortcutHint: shortcutHintsByTabID[tab.id],
         showsShortcutHint: commandHoldObserver.isPressed
       )
       .id(tab.id)
@@ -376,60 +719,57 @@ struct TerminalSidebarChromeView: View {
     }
   }
 
-  private var selectedTabFrame: CGRect? {
-    guard let selectedTabID = terminal.selectedTabID else { return nil }
-    return tabFrames[selectedTabID]?.scrollFrame
-  }
-
-  private var tabShortcutHintsByID: [TerminalTabID: String] {
-    TerminalSidebarTabShortcutHints.byTabID(for: terminal.visibleTabs) { slot in
-      ghosttyShortcuts.keyboardShortcut(for: .goToTab(slot))
-    }
-  }
-
-  private func newTab() {
-    TerminalMotion.animate(.easeInOut(duration: 0.2), reduceMotion: reduceMotion) {
-      _ = store.send(
-        .newTabButtonTapped(inheritingFromSurfaceID: terminal.selectedSurfaceView?.id)
+  private func toggleCollapsed() {
+    TerminalMotion.animate(.easeInOut(duration: 0.16), reduceMotion: reduceMotion) {
+      terminal.setProjectCollapsed(
+        !group.isCollapsed,
+        projectID: group.project.id,
+        in: group.spaceID
       )
     }
   }
 
-  private func scrollToBottom(
-    using proxy: ScrollViewProxy
-  ) {
-    TerminalMotion.animate(.easeInOut(duration: 0.3), reduceMotion: reduceMotion) {
-      if let selectedTabID = terminal.selectedTabID {
-        proxy.scrollTo(selectedTabID, anchor: .bottom)
-      } else {
-        proxy.scrollTo(terminalSidebarScrollBottomID, anchor: .bottom)
-      }
-    }
+  private func newTab() {
+    _ = terminal.createTab(
+      projectID: group.project.id,
+      workingDirectoryPath: group.project.folderPath
+    )
+  }
+
+  private func togglePinned() {
+    terminal.toggleProjectPinned(group.project.id, in: group.spaceID)
+  }
+
+  private func updateDragTabIDs() {
+    dragSession.updateTabIDs(group.pinnedTabs.map(\.id), for: .pinned)
+    dragSession.updateTabIDs(group.regularTabs.map(\.id), for: .regular)
   }
 
   private func handle(
     _ pendingReorder: TerminalSidebarPendingReorder?
   ) {
     guard let pendingReorder else { return }
+    let pinnedIDs = group.pinnedTabs.map(\.id)
+    let regularIDs = group.regularTabs.map(\.id)
 
     switch (pendingReorder.sourceZone, pendingReorder.targetZone) {
     case (.pinned, .pinned):
       let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
-        terminal.pinnedTabs.map(\.id),
+        pinnedIDs,
         movingFrom: pendingReorder.fromIndex,
         to: pendingReorder.toIndex
       )
-      if reorderedIDs != terminal.pinnedTabs.map(\.id) {
+      if reorderedIDs != pinnedIDs {
         _ = store.send(.pinnedTabOrderChanged(reorderedIDs))
       }
 
     case (.regular, .regular):
       let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
-        terminal.regularTabs.map(\.id),
+        regularIDs,
         movingFrom: pendingReorder.fromIndex,
         to: pendingReorder.toIndex
       )
-      if reorderedIDs != terminal.regularTabs.map(\.id) {
+      if reorderedIDs != regularIDs {
         _ = store.send(.regularTabOrderChanged(reorderedIDs))
       }
 
@@ -439,12 +779,12 @@ struct TerminalSidebarChromeView: View {
           tabID: pendingReorder.item.tabID,
           pinnedOrder: TerminalSidebarLayout.insertingID(
             pendingReorder.item.tabID,
-            into: terminal.pinnedTabs.map(\.id),
+            into: pinnedIDs,
             at: pendingReorder.toIndex
           ),
           regularOrder: TerminalSidebarLayout.removingID(
             pendingReorder.item.tabID,
-            from: terminal.regularTabs.map(\.id)
+            from: regularIDs
           )
         )
       )
@@ -455,11 +795,11 @@ struct TerminalSidebarChromeView: View {
           tabID: pendingReorder.item.tabID,
           pinnedOrder: TerminalSidebarLayout.removingID(
             pendingReorder.item.tabID,
-            from: terminal.pinnedTabs.map(\.id)
+            from: pinnedIDs
           ),
           regularOrder: TerminalSidebarLayout.insertingID(
             pendingReorder.item.tabID,
-            into: terminal.regularTabs.map(\.id),
+            into: regularIDs,
             at: pendingReorder.toIndex
           )
         )
@@ -470,39 +810,17 @@ struct TerminalSidebarChromeView: View {
   }
 }
 
-private struct TerminalSidebarSectionDivider: View {
+private struct TerminalSidebarEmptyProjectRow: View {
   let palette: Palette
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 100, style: .continuous)
-      .fill(palette.sidebarSeparator)
-      .frame(height: 1)
-  }
-}
-
-private struct TerminalSidebarRegularSectionHeader: View {
-  let palette: Palette
-  let action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: 8) {
-        Image(systemName: "plus")
-          .font(.system(size: 12, weight: .semibold))
-          .frame(width: 18, height: 18)
-          .foregroundStyle(palette.secondaryText)
-          .accessibilityHidden(true)
-
-        Text("New Tab")
-          .font(.system(size: 13, weight: .medium))
-          .foregroundStyle(palette.secondaryText)
-
-        Spacer(minLength: 0)
-      }
+    Text("No tabs")
+      .font(.system(size: 12, weight: .regular))
+      .foregroundStyle(palette.secondaryText)
       .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
-      .frame(height: TerminalSidebarLayout.tabRowMinHeight)
-    }
-    .buttonStyle(TerminalSidebarButtonStyle(palette: palette, layout: .rect))
+      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityIdentifier("sidebar.project-empty-row")
   }
 }
 

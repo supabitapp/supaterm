@@ -167,12 +167,11 @@ final class CommandPaletteUITests: SupatermUITestCase {
     terminal.click()
 
     let pinnedSection = element(
-      SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
+      SupatermUITestIdentifier.Accessibility.sidebarProjectPinnedSection
     )
     let regularSection = element(
-      SupatermUITestIdentifier.Accessibility.sidebarRegularSection
+      SupatermUITestIdentifier.Accessibility.sidebarProjectRegularSection
     )
-    XCTAssertTrue(pinnedSection.waitForExistence(timeout: 10))
     XCTAssertTrue(regularSection.waitForExistence(timeout: 10))
 
     let pinnedRows = pinnedSection.descendants(matching: .button).matching(

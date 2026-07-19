@@ -8,8 +8,8 @@ final class SessionRestoreUITests: SupatermUITestCase {
     let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
-    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
-    let regularSection = element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
+    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarProjectPinnedSection)
+    let regularSection = element(SupatermUITestIdentifier.Accessibility.sidebarProjectRegularSection)
     let pinnedRows = pinnedSection.descendants(matching: .button).matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     )

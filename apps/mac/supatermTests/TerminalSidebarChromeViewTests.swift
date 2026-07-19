@@ -474,6 +474,83 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func projectGroupSeparatesPinnedAndRegularTabs() {
+    let spaceID = TerminalSpaceID()
+    let project = TerminalProjectItem(folderPath: "/work/supaterm")
+    let regular = TerminalTabItem(projectID: project.id, title: "Regular")
+    let pinned = TerminalTabItem(projectID: project.id, title: "Pinned", isPinned: true)
+    let group = TerminalSidebarProjectGroup(
+      spaceID: spaceID,
+      project: project,
+      displayName: "supaterm",
+      pinnedTabs: [pinned],
+      regularTabs: [regular],
+      isCollapsed: false
+    )
+
+    #expect(group.pinnedTabs == [pinned])
+    #expect(group.regularTabs == [regular])
+    #expect(group.showsDivider)
+    #expect(group.showsTabSections)
+    #expect(!group.showsEmptyState)
+  }
+
+  @Test
+  func collapsedProjectGroupShowsNoTabContent() {
+    let spaceID = TerminalSpaceID()
+    let project = TerminalProjectItem(folderPath: "/work/supaterm")
+    let group = TerminalSidebarProjectGroup(
+      spaceID: spaceID,
+      project: project,
+      displayName: "supaterm",
+      pinnedTabs: [],
+      regularTabs: [TerminalTabItem(projectID: project.id, title: "Terminal")],
+      isCollapsed: true
+    )
+
+    #expect(!group.showsDivider)
+    #expect(!group.showsTabSections)
+    #expect(!group.showsEmptyState)
+  }
+
+  @Test
+  func expandedEmptyProjectGroupShowsEmptyState() {
+    let spaceID = TerminalSpaceID()
+    let project = TerminalProjectItem(folderPath: "/work/supaterm")
+    let group = TerminalSidebarProjectGroup(
+      spaceID: spaceID,
+      project: project,
+      displayName: "supaterm",
+      pinnedTabs: [],
+      regularTabs: [],
+      isCollapsed: false
+    )
+
+    #expect(group.showsEmptyState)
+    #expect(!group.showsTabSections)
+  }
+
+  @Test
+  func projectHeaderContextMenuIncludesDeleteForFolderProject() {
+    let titles = TerminalSidebarProjectHeader.contextMenuItems(
+      isHome: false,
+      isPinned: false
+    ).compactMap(\.title)
+
+    #expect(titles == ["New Tab", "Pin Project", "Delete Project..."])
+  }
+
+  @Test
+  func homeProjectHeaderContextMenuHidesDelete() {
+    let titles = TerminalSidebarProjectHeader.contextMenuItems(
+      isHome: true,
+      isPinned: true
+    ).compactMap(\.title)
+
+    #expect(titles == ["New Tab", "Unpin Project"])
+  }
+
+  @Test
   func tabContextMenuIncludesChangeTabTitle() {
     let titles = TerminalSidebarTabRow.contextMenuItems(
       isPinned: false,

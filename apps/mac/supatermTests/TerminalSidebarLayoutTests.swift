@@ -79,40 +79,6 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
-  func sectionTopInsetOnlyAppliesToFirstVisibleSection() {
-    let expectedInset =
-      TerminalSidebarLayout.trafficLightTopPadding
-      + WindowTrafficLightMetrics.topPadding
-      + WindowTrafficLightMetrics.buttonSize
-      + 4
-
-    #expect(
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .pinned,
-        pinnedTabCount: 2
-      ) == expectedInset
-    )
-    #expect(
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .pinned,
-        pinnedTabCount: 0
-      ) == 0
-    )
-    #expect(
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .regular,
-        pinnedTabCount: 0
-      ) == expectedInset
-    )
-    #expect(
-      TerminalSidebarLayout.sectionTopInset(
-        zoneID: .regular,
-        pinnedTabCount: 1
-      ) == 0
-    )
-  }
-
-  @Test
   func insertingIDClampsAndRemovesExistingOccurrence() {
     let first = TerminalTabID()
     let second = TerminalTabID()

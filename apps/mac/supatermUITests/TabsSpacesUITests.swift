@@ -335,12 +335,12 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
   @MainActor
   private var pinnedSection: XCUIElement {
-    element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
+    element(SupatermUITestIdentifier.Accessibility.sidebarProjectPinnedSection)
   }
 
   @MainActor
   private var regularSection: XCUIElement {
-    element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
+    element(SupatermUITestIdentifier.Accessibility.sidebarProjectRegularSection)
   }
 
   @MainActor
