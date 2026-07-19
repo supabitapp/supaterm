@@ -11,10 +11,54 @@ extension SnapshotCatalog {
     scenario(
       "full",
       group: "Sidebar",
-      title: "Full sidebar chrome",
+      title: "Grouped projects",
       size: CGSize(width: 280, height: 560)
     ) { appearance in
-      AnyView(SidebarChromeSnapshotFixture(appearance: appearance))
+      AnyView(
+        SidebarChromeSnapshotFixture(
+          appearance: appearance,
+          state: .grouped
+        )
+      )
+    },
+    scenario(
+      "collapsed-project",
+      group: "Sidebar",
+      title: "Collapsed project",
+      size: CGSize(width: 280, height: 460)
+    ) { appearance in
+      AnyView(
+        SidebarChromeSnapshotFixture(
+          appearance: appearance,
+          state: .collapsed
+        )
+      )
+    },
+    scenario(
+      "empty-project",
+      group: "Sidebar",
+      title: "Empty project",
+      size: CGSize(width: 280, height: 460)
+    ) { appearance in
+      AnyView(
+        SidebarChromeSnapshotFixture(
+          appearance: appearance,
+          state: .empty
+        )
+      )
+    },
+    scenario(
+      "home-only",
+      group: "Sidebar",
+      title: "Home-only default",
+      size: CGSize(width: 280, height: 420)
+    ) { appearance in
+      AnyView(
+        SidebarChromeSnapshotFixture(
+          appearance: appearance,
+          state: .homeOnly
+        )
+      )
     },
     scenario(
       "basic-selected",
@@ -698,51 +742,147 @@ private enum SidebarChromeSnapshotContext {
   static let commandHold = CommandHoldObserver()
   static let ghosttyShortcuts = GhosttyShortcutManager(runtime: nil)
 
-  static let terminal: TerminalHostState = {
+  static func terminal(
+    for state: SidebarChromeSnapshotState
+  ) -> TerminalHostState {
     let terminal = TerminalHostState(managesTerminalSurfaces: false)
-    let spaces = ["supaterm", "research", "ops"].enumerated().map { index, name in
-      PersistedTerminalSpace(
-        id: TerminalSpaceID(
-          rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-00000000000\(index + 1)")
-        ),
-        name: name
-      )
-    }
-    terminal.spaceManager.bootstrap(
-      from: TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces),
-      initialSelectedSpaceID: spaces[0].id
+    let spaceID = TerminalSpaceID(
+      rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-000000000001")
     )
-    let tabs = [
-      tab("41", title: "dotfiles", isPinned: true),
-      tab("42", title: "notes", isPinned: true),
-      tab("43", title: "supaterm - fish"),
-      tab("44", title: "release-check"),
-      tab("45", title: "agent playground"),
-    ]
+    let projects = projects(for: state, spaceID: spaceID)
+    let space = PersistedTerminalSpace(
+      id: spaceID,
+      name: "supaterm",
+      projects: projects
+    )
+    terminal.spaceManager.bootstrap(
+      from: TerminalSpaceCatalog(defaultSelectedSpaceID: spaceID, spaces: [space]),
+      initialSelectedSpaceID: spaceID
+    )
+    let tabs = tabs(for: state, projects: projects)
     terminal.spaceManager.restoreTabs(
       tabs,
-      selectedTabID: tabs[2].id,
-      in: spaces[0].id
+      selectedTabID: tabs.first(where: { !$0.isPinned })?.id,
+      in: spaceID
     )
+    if state == .collapsed, let folderProject = projects.first(where: { !$0.isHome }) {
+      terminal.collapsedProjectIDsBySpace[spaceID] = [folderProject.id]
+    }
     return terminal
-  }()
+  }
+
+  private static func projects(
+    for state: SidebarChromeSnapshotState,
+    spaceID: TerminalSpaceID
+  ) -> [TerminalProjectItem] {
+    let home = TerminalProjectItem.home(for: spaceID)
+    switch state {
+    case .grouped:
+      return [
+        project("11", folderPath: SnapshotFixtureValues.workspace(), isPinned: true),
+        home,
+        project("12", folderPath: SnapshotFixtureValues.workspace("docs")),
+      ]
+    case .collapsed:
+      return [
+        home,
+        project("13", folderPath: SnapshotFixtureValues.workspace("apps/mac")),
+      ]
+    case .empty:
+      return [
+        home,
+        project("14", folderPath: SnapshotFixtureValues.workspace("integrations")),
+      ]
+    case .homeOnly:
+      return [home]
+    }
+  }
+
+  private static func tabs(
+    for state: SidebarChromeSnapshotState,
+    projects: [TerminalProjectItem]
+  ) -> [TerminalTabItem] {
+    guard let home = projects.first(where: \.isHome) else { return [] }
+    switch state {
+    case .grouped:
+      let supaterm = projects[0]
+      let docs = projects[2]
+      return [
+        tab("41", projectID: supaterm.id, title: "release-check", isPinned: true),
+        tab("42", projectID: supaterm.id, title: "supaterm - fish"),
+        tab("43", projectID: supaterm.id, title: "Sidebar revamp"),
+        tab("44", projectID: home.id, title: "dotfiles"),
+        tab("45", projectID: docs.id, title: "Docs audit", isPinned: true),
+        tab("46", projectID: docs.id, title: "Theming guide"),
+      ]
+    case .collapsed:
+      let project = projects[1]
+      return [
+        tab("47", projectID: home.id, title: "Home shell"),
+        tab("48", projectID: project.id, title: "Build app", isPinned: true),
+        tab("49", projectID: project.id, title: "Unit tests"),
+      ]
+    case .empty:
+      return [
+        tab("50", projectID: home.id, title: "Home shell")
+      ]
+    case .homeOnly:
+      return [
+        tab("51", projectID: home.id, title: "Terminal 1")
+      ]
+    }
+  }
+
+  private static func project(
+    _ id: String,
+    folderPath: String,
+    isPinned: Bool = false
+  ) -> TerminalProjectItem {
+    TerminalProjectItem(
+      id: TerminalProjectID(
+        rawValue: SnapshotFixtureValues.uuid("31000000-0000-0000-0000-0000000000\(id)")
+      ),
+      folderPath: folderPath,
+      isPinned: isPinned
+    )
+  }
 
   private static func tab(
     _ id: String,
+    projectID: TerminalProjectID,
     title: String,
     isPinned: Bool = false
   ) -> TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-0000000000\(id)")),
-      projectID: TerminalProjectID(rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-000000000001")),
+      projectID: projectID,
       title: title,
       isPinned: isPinned
     )
   }
 }
 
+private enum SidebarChromeSnapshotState: Equatable {
+  case grouped
+  case collapsed
+  case empty
+  case homeOnly
+}
+
 private struct SidebarChromeSnapshotFixture: View {
   let appearance: SnapshotAppearance
+
+  @State private var terminal: TerminalHostState
+
+  init(
+    appearance: SnapshotAppearance,
+    state: SidebarChromeSnapshotState
+  ) {
+    self.appearance = appearance
+    _terminal = State(
+      initialValue: SidebarChromeSnapshotContext.terminal(for: state)
+    )
+  }
 
   private var palette: Palette {
     Palette(colorScheme: appearance.colorScheme)
@@ -762,7 +902,7 @@ private struct SidebarChromeSnapshotFixture: View {
       },
       releaseAnnouncement: nil,
       palette: palette,
-      terminal: SidebarChromeSnapshotContext.terminal,
+      terminal: terminal,
       dismissReleaseAnnouncement: {}
     )
     .environment(SidebarChromeSnapshotContext.commandHold)
