@@ -6,12 +6,13 @@ import SupatermCLIShared
 import SupatermSupport
 import SupatermUpdateFeature
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let terminalSidebarScrollSpace = "TerminalSidebarScrollSpace"
 private let terminalSidebarScrollTopID = "TerminalSidebarScrollTop"
 private let terminalSidebarScrollBottomID = "TerminalSidebarScrollBottom"
 
-struct TerminalSidebarMeasuredTabFrame: Equatable {
+struct TerminalSidebarMeasuredDragItemFrame: Equatable {
   let zoneID: TerminalSidebarDropZoneID
   let scrollFrame: CGRect
   let zoneFrame: CGRect
@@ -20,20 +21,20 @@ struct TerminalSidebarMeasuredTabFrame: Equatable {
 extension TerminalSidebarDropZoneID {
   fileprivate var coordinateSpaceID: String {
     switch self {
-    case .pinned:
-      "TerminalSidebarPinnedZone"
-    case .regular:
-      "TerminalSidebarRegularZone"
+    case .projects(let isPinned):
+      "TerminalSidebarProjectsZone-\(isPinned)"
+    case .tabs(let projectID, let isPinned):
+      "TerminalSidebarTabsZone-\(projectID.rawValue.uuidString)-\(isPinned)"
     }
   }
 }
 
-private struct TerminalSidebarTabFramePreferenceKey: PreferenceKey {
-  static let defaultValue: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
+private struct TerminalSidebarDragFramePreferenceKey: PreferenceKey {
+  static let defaultValue: [TerminalSidebarDragItem: TerminalSidebarMeasuredDragItemFrame] = [:]
 
   static func reduce(
-    value: inout [TerminalTabID: TerminalSidebarMeasuredTabFrame],
-    nextValue: () -> [TerminalTabID: TerminalSidebarMeasuredTabFrame]
+    value: inout [TerminalSidebarDragItem: TerminalSidebarMeasuredDragItemFrame],
+    nextValue: () -> [TerminalSidebarDragItem: TerminalSidebarMeasuredDragItemFrame]
   ) {
     value.merge(nextValue()) { $1 }
   }
@@ -128,6 +129,20 @@ private struct TerminalSidebarProjectDeletion: Equatable {
   let spaceID: TerminalSpaceID
 }
 
+nonisolated enum TerminalSidebarFileDrop {
+  static func directoryURLs(
+    from urls: [URL],
+    fileManager: FileManager = .default
+  ) -> [URL] {
+    urls.filter { url in
+      guard url.isFileURL else { return false }
+      var isDirectory = ObjCBool(false)
+      return fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        && isDirectory.boolValue
+    }
+  }
+}
+
 struct TerminalSidebarChromeView: View {
   let store: StoreOf<TerminalWindowFeature>
   let updateStore: StoreOf<UpdateFeature>
@@ -137,11 +152,12 @@ struct TerminalSidebarChromeView: View {
   let dismissReleaseAnnouncement: () -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.colorScheme) private var colorScheme
   @Environment(GhosttyShortcutManager.self) private var ghosttyShortcuts
   @State private var scrollOffset: CGFloat = 0
   @State private var contentHeight: CGFloat = 0
-  @State private var tabFrames: [TerminalTabID: TerminalSidebarMeasuredTabFrame] = [:]
   @State private var pendingProjectDeletion: TerminalSidebarProjectDeletion?
+  @StateObject private var dragSession = TerminalSidebarDragSession()
 
   var body: some View {
     VStack(spacing: 10) {
@@ -202,15 +218,12 @@ struct TerminalSidebarChromeView: View {
 
               projectTopBar
 
-              ForEach(projectGroups) { group in
-                TerminalSidebarProjectSection(
-                  group: group,
-                  store: store,
-                  terminal: terminal,
-                  palette: palette,
-                  shortcutHintsByTabID: tabShortcutHintsByID,
-                  requestDeletion: requestDeletion
-                )
+              if !pinnedProjectGroups.isEmpty || dragSession.isDraggingProject {
+                projectBlock(pinnedProjectGroups, isPinned: true)
+              }
+
+              if !regularProjectGroups.isEmpty || dragSession.isDraggingProject {
+                projectBlock(regularProjectGroups, isPinned: false)
               }
 
               Color.clear
@@ -235,8 +248,8 @@ struct TerminalSidebarChromeView: View {
           .onPreferenceChange(TerminalSidebarContentHeightKey.self) { contentHeight in
             self.contentHeight = contentHeight
           }
-          .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
-            self.tabFrames = tabFrames
+          .onPreferenceChange(TerminalSidebarDragFramePreferenceKey.self) { frames in
+            dragSession.updateMeasuredItemFrames(frames)
           }
 
           if TerminalSidebarLayout.showsTopIndicator(scrollOffset: scrollOffset) {
@@ -276,6 +289,20 @@ struct TerminalSidebarChromeView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .onDrop(of: [.fileURL], isTargeted: nil, perform: createProjects)
+    .onAppear {
+      dragSession.colorScheme = colorScheme
+      updateDragItems()
+    }
+    .onChange(of: colorScheme) { _, colorScheme in
+      dragSession.colorScheme = colorScheme
+    }
+    .onChange(of: projectGroups) { _, _ in
+      updateDragItems()
+    }
+    .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
+      handle(pendingReorder)
+    }
   }
 
   private var projectGroups: [TerminalSidebarProjectGroup] {
@@ -291,6 +318,47 @@ struct TerminalSidebarChromeView: View {
         regularTabs: regularTabs.filter { $0.projectID == project.id },
         isCollapsed: terminal.isProjectCollapsed(project.id, in: spaceID)
       )
+    }
+  }
+
+  private var pinnedProjectGroups: [TerminalSidebarProjectGroup] {
+    projectGroups.filter(\.project.isPinned)
+  }
+
+  private var regularProjectGroups: [TerminalSidebarProjectGroup] {
+    projectGroups.filter { !$0.project.isPinned }
+  }
+
+  private func projectBlock(
+    _ groups: [TerminalSidebarProjectGroup],
+    isPinned: Bool
+  ) -> some View {
+    let zoneID = TerminalSidebarDropZoneID.projects(isPinned: isPinned)
+    return TerminalSidebarDropZoneHostView(
+      zoneID: zoneID,
+      manager: dragSession
+    ) {
+      VStack(spacing: TerminalSidebarLayout.projectGroupSpacing) {
+        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+          TerminalSidebarProjectSection(
+            group: group,
+            projectZoneID: zoneID,
+            projectIndex: index,
+            store: store,
+            terminal: terminal,
+            palette: palette,
+            shortcutHintsByTabID: tabShortcutHintsByID,
+            dragSession: dragSession,
+            requestDeletion: requestDeletion
+          )
+        }
+
+        if groups.isEmpty {
+          Color.clear.frame(height: TerminalSidebarLayout.tabRowMinHeight)
+        }
+      }
+      .coordinateSpace(name: zoneID.coordinateSpaceID)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -316,7 +384,7 @@ struct TerminalSidebarChromeView: View {
 
   private var selectedTabFrame: CGRect? {
     guard let selectedTabID = terminal.selectedTabID else { return nil }
-    return tabFrames[selectedTabID]?.scrollFrame
+    return dragSession.measuredItemFrames[.tab(selectedTabID)]?.scrollFrame
   }
 
   private var tabShortcutHintsByID: [TerminalTabID: String] {
@@ -390,6 +458,148 @@ struct TerminalSidebarChromeView: View {
     }
   }
 
+  private func createProjects(
+    from providers: [NSItemProvider]
+  ) -> Bool {
+    guard let spaceID = terminal.selectedSpaceID else { return false }
+    let providers = providers.filter {
+      $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+    }
+    guard !providers.isEmpty else { return false }
+
+    for provider in providers {
+      provider.loadDataRepresentation(
+        forTypeIdentifier: UTType.fileURL.identifier
+      ) { data, _ in
+        guard
+          let data,
+          let url = URL(dataRepresentation: data, relativeTo: nil),
+          let directory = TerminalSidebarFileDrop.directoryURLs(from: [url]).first
+        else {
+          return
+        }
+        Task { @MainActor in
+          terminal.createProject(
+            folderPath: directory.path(percentEncoded: false),
+            in: spaceID
+          )
+        }
+      }
+    }
+    return true
+  }
+
+  private func updateDragItems() {
+    let groups = projectGroups
+    var orderedItems: [TerminalSidebarDropZoneID: [TerminalSidebarDragItem]] = [
+      .projects(isPinned: true): groups.filter(\.project.isPinned).map { .project($0.id) },
+      .projects(isPinned: false): groups.filter { !$0.project.isPinned }.map { .project($0.id) },
+    ]
+    for group in groups {
+      orderedItems[.tabs(projectID: group.id, isPinned: true)] =
+        group.pinnedTabs.map { .tab($0.id) }
+      orderedItems[.tabs(projectID: group.id, isPinned: false)] =
+        group.regularTabs.map { .tab($0.id) }
+    }
+    dragSession.replaceOrderedItems(orderedItems)
+  }
+
+  private func handle(
+    _ pendingReorder: TerminalSidebarPendingReorder?
+  ) {
+    guard let pendingReorder else { return }
+    defer { dragSession.pendingReorder = nil }
+
+    switch pendingReorder.item {
+    case .project(let projectID):
+      handleProjectDrop(projectID, pendingReorder: pendingReorder)
+    case .tab(let tabID):
+      handleTabDrop(tabID, pendingReorder: pendingReorder)
+    }
+  }
+
+  private func handleProjectDrop(
+    _ projectID: TerminalProjectID,
+    pendingReorder: TerminalSidebarPendingReorder
+  ) {
+    guard
+      case .projects(let sourceIsPinned) = pendingReorder.sourceZone,
+      case .projects(let targetIsPinned) = pendingReorder.targetZone,
+      let group = projectGroups.first(where: { $0.id == projectID })
+    else {
+      return
+    }
+    let result = TerminalSidebarLayout.projectDrop(
+      moving: projectID,
+      pinnedIDs: pinnedProjectGroups.map(\.id),
+      regularIDs: regularProjectGroups.map(\.id),
+      source: (isPinned: sourceIsPinned, index: pendingReorder.fromIndex),
+      target: (isPinned: targetIsPinned, index: pendingReorder.toIndex)
+    )
+    if result.togglesPinned {
+      terminal.setProjectOrder(
+        result.orderedIDs,
+        settingPinned: projectID,
+        to: targetIsPinned,
+        in: group.spaceID
+      )
+    } else {
+      terminal.setProjectOrder(result.orderedIDs, in: group.spaceID)
+    }
+  }
+
+  private func handleTabDrop(
+    _ tabID: TerminalTabID,
+    pendingReorder: TerminalSidebarPendingReorder
+  ) {
+    guard
+      case .tabs(let sourceProjectID, let sourceIsPinned) = pendingReorder.sourceZone,
+      case .tabs(let targetProjectID, let targetIsPinned) = pendingReorder.targetZone,
+      sourceProjectID == targetProjectID,
+      let group = projectGroups.first(where: { $0.id == sourceProjectID })
+    else {
+      return
+    }
+    let pinnedIDs = group.pinnedTabs.map(\.id)
+    let regularIDs = group.regularTabs.map(\.id)
+
+    if sourceIsPinned == targetIsPinned {
+      let sourceIDs = sourceIsPinned ? pinnedIDs : regularIDs
+      let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
+        sourceIDs,
+        movingFrom: pendingReorder.fromIndex,
+        to: pendingReorder.toIndex
+      )
+      guard reorderedIDs != sourceIDs else { return }
+      _ = store.send(
+        sourceIsPinned
+          ? .pinnedTabOrderChanged(reorderedIDs)
+          : .regularTabOrderChanged(reorderedIDs)
+      )
+      return
+    }
+
+    _ = store.send(
+      .sidebarTabMoveCommitted(
+        tabID: tabID,
+        pinnedOrder: targetIsPinned
+          ? TerminalSidebarLayout.insertingID(
+            tabID,
+            into: pinnedIDs,
+            at: pendingReorder.toIndex
+          )
+          : TerminalSidebarLayout.removingID(tabID, from: pinnedIDs),
+        regularOrder: targetIsPinned
+          ? TerminalSidebarLayout.removingID(tabID, from: regularIDs)
+          : TerminalSidebarLayout.insertingID(
+            tabID,
+            into: regularIDs,
+            at: pendingReorder.toIndex
+          )
+      )
+    )
+  }
+
 }
 
 private struct TerminalSidebarSectionDivider: View {
@@ -399,6 +609,40 @@ private struct TerminalSidebarSectionDivider: View {
     RoundedRectangle(cornerRadius: 100, style: .continuous)
       .fill(palette.sidebarSeparator)
       .frame(height: 1)
+  }
+}
+
+struct TerminalSidebarProjectHeaderLabel: View {
+  let project: TerminalProjectItem
+  let displayName: String
+  let isCollapsed: Bool
+  let palette: Palette
+
+  var body: some View {
+    HStack(spacing: 7) {
+      Image(systemName: "chevron.down")
+        .font(.system(size: 9, weight: .semibold))
+        .foregroundStyle(palette.secondaryText)
+        .frame(width: 12, height: 18)
+        .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+        .accessibilityHidden(true)
+
+      Image(systemName: project.isHome ? "house" : "folder")
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(palette.secondaryText)
+        .frame(width: 15, height: 18)
+        .accessibilityHidden(true)
+
+      Text(displayName)
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(palette.primaryText)
+        .lineLimit(1)
+
+      Spacer(minLength: 28)
+    }
+    .padding(.horizontal, 8)
+    .frame(height: TerminalSidebarLayout.tabRowMinHeight)
+    .frame(maxWidth: .infinity)
   }
 }
 
@@ -452,35 +696,17 @@ struct TerminalSidebarProjectHeader: View {
   var body: some View {
     ZStack(alignment: .trailing) {
       Button(action: toggleCollapsed) {
-        HStack(spacing: 7) {
-          Image(systemName: "chevron.down")
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(palette.secondaryText)
-            .frame(width: 12, height: 18)
-            .rotationEffect(.degrees(isCollapsed ? -90 : 0))
-            .terminalAnimation(
-              .easeInOut(duration: 0.16),
-              value: isCollapsed,
-              reduceMotion: reduceMotion
-            )
-            .accessibilityHidden(true)
-
-          Image(systemName: project.isHome ? "house" : "folder")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(palette.secondaryText)
-            .frame(width: 15, height: 18)
-            .accessibilityHidden(true)
-
-          Text(displayName)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(palette.primaryText)
-            .lineLimit(1)
-
-          Spacer(minLength: 28)
-        }
-        .padding(.horizontal, 8)
-        .frame(height: TerminalSidebarLayout.tabRowMinHeight)
-        .frame(maxWidth: .infinity)
+        TerminalSidebarProjectHeaderLabel(
+          project: project,
+          displayName: displayName,
+          isCollapsed: isCollapsed,
+          palette: palette
+        )
+        .terminalAnimation(
+          .easeInOut(duration: 0.16),
+          value: isCollapsed,
+          reduceMotion: reduceMotion
+        )
       }
       .buttonStyle(
         SelectableRowButtonStyle(
@@ -548,83 +774,105 @@ struct TerminalSidebarProjectHeader: View {
 
 private struct TerminalSidebarProjectSection: View {
   let group: TerminalSidebarProjectGroup
+  let projectZoneID: TerminalSidebarDropZoneID
+  let projectIndex: Int
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let palette: Palette
   let shortcutHintsByTabID: [TerminalTabID: String]
+  @ObservedObject var dragSession: TerminalSidebarDragSession
   let requestDeletion: (TerminalProjectID, TerminalSpaceID) -> Void
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.colorScheme) private var colorScheme
   @Shared(.supatermSettings) private var supatermSettings = .default
-  @StateObject private var dragSession = TerminalSidebarDragSession()
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      TerminalSidebarProjectHeader(
-        project: group.project,
-        displayName: group.displayName,
-        isCollapsed: group.isCollapsed,
-        palette: palette,
-        toggleCollapsed: toggleCollapsed,
-        newTab: newTab,
-        togglePinned: togglePinned,
-        delete: {
-          requestDeletion(group.project.id, group.spaceID)
-        }
-      )
+      TerminalSidebarDragSourceView(
+        item: projectDragItem,
+        preview: .project(
+          TerminalSidebarProjectDragPreviewItem(
+            project: group.project,
+            displayName: group.displayName,
+            isCollapsed: group.isCollapsed
+          )
+        ),
+        zoneID: projectZoneID,
+        index: projectIndex,
+        manager: dragSession
+      ) {
+        TerminalSidebarProjectHeader(
+          project: group.project,
+          displayName: group.displayName,
+          isCollapsed: group.isCollapsed,
+          palette: palette,
+          toggleCollapsed: toggleCollapsed,
+          newTab: newTab,
+          togglePinned: togglePinned,
+          delete: {
+            requestDeletion(group.project.id, group.spaceID)
+          }
+        )
+      }
 
-      if group.showsEmptyState {
-        TerminalSidebarEmptyProjectRow(palette: palette)
+      if !group.isCollapsed {
+        if group.showsEmptyState {
+          TerminalSidebarEmptyProjectRow(palette: palette)
+            .padding(.leading, 14)
+        } else {
+          VStack(spacing: 4) {
+            if !group.pinnedTabs.isEmpty || dragSession.isDraggingTab(in: group.project.id) {
+              tabSection(group.pinnedTabs, isPinned: true)
+            }
+
+            if group.showsDivider {
+              TerminalSidebarSectionDivider(palette: palette)
+                .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
+            }
+
+            if !group.regularTabs.isEmpty || dragSession.isDraggingTab(in: group.project.id) {
+              tabSection(group.regularTabs, isPinned: false)
+            }
+          }
           .padding(.leading, 14)
-      } else if group.showsTabSections {
-        VStack(spacing: 4) {
-          if !group.pinnedTabs.isEmpty {
-            tabSection(group.pinnedTabs, zoneID: .pinned)
-          }
-
-          if group.showsDivider {
-            TerminalSidebarSectionDivider(palette: palette)
-              .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
-          }
-
-          if !group.regularTabs.isEmpty {
-            tabSection(group.regularTabs, zoneID: .regular)
-          }
         }
-        .padding(.leading, 14)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    .background {
+      GeometryReader { geometry in
+        let measuredFrame = TerminalSidebarMeasuredDragItemFrame(
+          zoneID: projectZoneID,
+          scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
+          zoneFrame: geometry.frame(in: .named(projectZoneID.coordinateSpaceID))
+        )
+        Color.clear.preference(
+          key: TerminalSidebarDragFramePreferenceKey.self,
+          value: [projectDragItem: measuredFrame]
+        )
+      }
+    }
+    .opacity(dragSession.draggedItem == projectDragItem ? 0 : 1)
+    .offset(y: dragSession.reorderOffset(for: projectZoneID, item: projectDragItem))
+    .terminalAnimation(
+      .spring(response: 0.3, dampingFraction: 0.8),
+      value: dragSession.insertionIndex[projectZoneID],
+      reduceMotion: reduceMotion
+    )
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("sidebar.project-group")
-    .onAppear {
-      dragSession.colorScheme = colorScheme
-      updateDragTabIDs()
-    }
-    .onChange(of: colorScheme) { _, colorScheme in
-      dragSession.colorScheme = colorScheme
-    }
-    .onChange(of: group.pinnedTabs.map(\.id)) { _, _ in
-      updateDragTabIDs()
-    }
-    .onChange(of: group.regularTabs.map(\.id)) { _, _ in
-      updateDragTabIDs()
-    }
-    .onPreferenceChange(TerminalSidebarTabFramePreferenceKey.self) { tabFrames in
-      dragSession.updateMeasuredTabFrames(tabFrames)
-    }
-    .onChange(of: dragSession.pendingReorder) { _, pendingReorder in
-      handle(pendingReorder)
-    }
   }
 
   private func tabSection(
     _ tabs: [TerminalTabItem],
-    zoneID: TerminalSidebarDropZoneID
+    isPinned: Bool
   ) -> some View {
-    TerminalSidebarDropZoneHostView(
+    let zoneID = TerminalSidebarDropZoneID.tabs(
+      projectID: group.project.id,
+      isPinned: isPinned
+    )
+    return TerminalSidebarDropZoneHostView(
       zoneID: zoneID,
       manager: dragSession
     ) {
@@ -639,10 +887,11 @@ private struct TerminalSidebarProjectSection: View {
       }
       .coordinateSpace(name: zoneID.coordinateSpaceID)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(minHeight: tabs.isEmpty ? TerminalSidebarLayout.tabRowMinHeight : 0)
     }
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier(
-      zoneID == .pinned
+      isPinned
         ? "sidebar.project-pinned-section"
         : "sidebar.project-regular-section"
     )
@@ -659,7 +908,7 @@ private struct TerminalSidebarProjectSection: View {
     let terminalProgress = terminal.sidebarTerminalProgress(for: tab.id)
     let agentPresentation = terminal.tabAgentPresentation(for: tab.id)
     let hasTerminalBell = terminal.tabHasBell(for: tab.id)
-    let preview = TerminalSidebarDragPreviewItem(
+    let preview = TerminalSidebarTabDragPreviewItem(
       tab: tab,
       notificationPreviewText: notificationPresentation?.previewText,
       paneWorkingDirectories: paneWorkingDirectories,
@@ -674,8 +923,8 @@ private struct TerminalSidebarProjectSection: View {
     )
 
     return TerminalSidebarDragSourceView(
-      item: TerminalSidebarDragItem(tabID: tab.id),
-      preview: preview,
+      item: .tab(tab.id),
+      preview: .tab(preview),
       zoneID: zoneID,
       index: index,
       manager: dragSession
@@ -698,25 +947,29 @@ private struct TerminalSidebarProjectSection: View {
       .id(tab.id)
       .background {
         GeometryReader { geometry in
-          let measuredFrame = TerminalSidebarMeasuredTabFrame(
+          let measuredFrame = TerminalSidebarMeasuredDragItemFrame(
             zoneID: zoneID,
             scrollFrame: geometry.frame(in: .named(terminalSidebarScrollSpace)),
             zoneFrame: geometry.frame(in: .named(zoneID.coordinateSpaceID))
           )
           Color.clear.preference(
-            key: TerminalSidebarTabFramePreferenceKey.self,
-            value: [tab.id: measuredFrame]
+            key: TerminalSidebarDragFramePreferenceKey.self,
+            value: [.tab(tab.id): measuredFrame]
           )
         }
       }
-      .opacity(dragSession.draggedItem?.tabID == tab.id ? 0 : 1)
-      .offset(y: dragSession.reorderOffset(for: zoneID, tabID: tab.id))
+      .opacity(dragSession.draggedItem == .tab(tab.id) ? 0 : 1)
+      .offset(y: dragSession.reorderOffset(for: zoneID, item: .tab(tab.id)))
       .terminalAnimation(
         .spring(response: 0.3, dampingFraction: 0.8),
         value: dragSession.insertionIndex[zoneID],
         reduceMotion: reduceMotion
       )
     }
+  }
+
+  private var projectDragItem: TerminalSidebarDragItem {
+    .project(group.project.id)
   }
 
   private func toggleCollapsed() {
@@ -738,75 +991,6 @@ private struct TerminalSidebarProjectSection: View {
 
   private func togglePinned() {
     terminal.toggleProjectPinned(group.project.id, in: group.spaceID)
-  }
-
-  private func updateDragTabIDs() {
-    dragSession.updateTabIDs(group.pinnedTabs.map(\.id), for: .pinned)
-    dragSession.updateTabIDs(group.regularTabs.map(\.id), for: .regular)
-  }
-
-  private func handle(
-    _ pendingReorder: TerminalSidebarPendingReorder?
-  ) {
-    guard let pendingReorder else { return }
-    let pinnedIDs = group.pinnedTabs.map(\.id)
-    let regularIDs = group.regularTabs.map(\.id)
-
-    switch (pendingReorder.sourceZone, pendingReorder.targetZone) {
-    case (.pinned, .pinned):
-      let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
-        pinnedIDs,
-        movingFrom: pendingReorder.fromIndex,
-        to: pendingReorder.toIndex
-      )
-      if reorderedIDs != pinnedIDs {
-        _ = store.send(.pinnedTabOrderChanged(reorderedIDs))
-      }
-
-    case (.regular, .regular):
-      let reorderedIDs = TerminalSidebarLayout.reorderedIDs(
-        regularIDs,
-        movingFrom: pendingReorder.fromIndex,
-        to: pendingReorder.toIndex
-      )
-      if reorderedIDs != regularIDs {
-        _ = store.send(.regularTabOrderChanged(reorderedIDs))
-      }
-
-    case (.regular, .pinned):
-      _ = store.send(
-        .sidebarTabMoveCommitted(
-          tabID: pendingReorder.item.tabID,
-          pinnedOrder: TerminalSidebarLayout.insertingID(
-            pendingReorder.item.tabID,
-            into: pinnedIDs,
-            at: pendingReorder.toIndex
-          ),
-          regularOrder: TerminalSidebarLayout.removingID(
-            pendingReorder.item.tabID,
-            from: regularIDs
-          )
-        )
-      )
-
-    case (.pinned, .regular):
-      _ = store.send(
-        .sidebarTabMoveCommitted(
-          tabID: pendingReorder.item.tabID,
-          pinnedOrder: TerminalSidebarLayout.removingID(
-            pendingReorder.item.tabID,
-            from: pinnedIDs
-          ),
-          regularOrder: TerminalSidebarLayout.insertingID(
-            pendingReorder.item.tabID,
-            into: regularIDs,
-            at: pendingReorder.toIndex
-          )
-        )
-      )
-    }
-
-    dragSession.pendingReorder = nil
   }
 }
 

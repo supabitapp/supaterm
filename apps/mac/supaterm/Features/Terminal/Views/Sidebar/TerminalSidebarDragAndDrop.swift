@@ -7,13 +7,46 @@ extension NSPasteboard.PasteboardType {
   static let terminalSidebarTabItem = NSPasteboard.PasteboardType(
     "app.supaterm.sidebar-tab-item"
   )
+  static let terminalSidebarProjectItem = NSPasteboard.PasteboardType(
+    "app.supaterm.sidebar-project-item"
+  )
 }
 
-struct TerminalSidebarDragItem: Equatable {
-  let tabID: TerminalTabID
+extension TerminalSidebarDropZoneID {
+  var pasteboardType: NSPasteboard.PasteboardType {
+    switch self {
+    case .projects:
+      .terminalSidebarProjectItem
+    case .tabs:
+      .terminalSidebarTabItem
+    }
+  }
 }
 
-struct TerminalSidebarDragPreviewItem {
+enum TerminalSidebarDragItem: Equatable, Hashable {
+  case project(TerminalProjectID)
+  case tab(TerminalTabID)
+
+  var pasteboardType: NSPasteboard.PasteboardType {
+    switch self {
+    case .project:
+      .terminalSidebarProjectItem
+    case .tab:
+      .terminalSidebarTabItem
+    }
+  }
+
+  var pasteboardValue: String {
+    switch self {
+    case .project(let projectID):
+      projectID.rawValue.uuidString
+    case .tab(let tabID):
+      tabID.rawValue.uuidString
+    }
+  }
+}
+
+struct TerminalSidebarTabDragPreviewItem {
   let tab: TerminalTabItem
   let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
@@ -25,6 +58,17 @@ struct TerminalSidebarDragPreviewItem {
   let hasTerminalBell: Bool
   let showsAgentMarks: Bool
   let showsAgentSpinner: Bool
+}
+
+struct TerminalSidebarProjectDragPreviewItem {
+  let project: TerminalProjectItem
+  let displayName: String
+  let isCollapsed: Bool
+}
+
+enum TerminalSidebarDragPreviewItem {
+  case project(TerminalSidebarProjectDragPreviewItem)
+  case tab(TerminalSidebarTabDragPreviewItem)
 }
 
 struct TerminalSidebarPendingReorder: Equatable {
@@ -47,14 +91,31 @@ final class TerminalSidebarDragSession: ObservableObject {
   @Published var cursorScreenLocation: NSPoint = .zero
   @Published var colorScheme: ColorScheme = .light
   @Published var sidebarScreenFrame: CGRect = .zero
+  @Published private(set) var measuredItemFrames: [TerminalSidebarDragItem: TerminalSidebarMeasuredDragItemFrame] = [:]
 
   var zoneFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
   var zoneScreenFrames: [TerminalSidebarDropZoneID: CGRect] = [:]
-  var orderedTabIDs: [TerminalSidebarDropZoneID: [TerminalTabID]] = [:]
-  var measuredTabFrames: [TerminalSidebarDropZoneID: [TerminalTabID: CGRect]] = [:]
+  var orderedItems: [TerminalSidebarDropZoneID: [TerminalSidebarDragItem]] = [:]
 
   var isDragging: Bool {
     draggedItem != nil
+  }
+
+  var isDraggingProject: Bool {
+    guard case .project? = draggedItem else { return false }
+    return true
+  }
+
+  func isDraggingTab(
+    in projectID: TerminalProjectID
+  ) -> Bool {
+    guard
+      case .tab? = draggedItem,
+      case .tabs(let sourceProjectID, _)? = sourceZone
+    else {
+      return false
+    }
+    return sourceProjectID == projectID
   }
 
   var isCursorInSidebar: Bool {
@@ -146,7 +207,7 @@ final class TerminalSidebarDragSession: ObservableObject {
   func cursorEnteredZone(
     _ zone: TerminalSidebarDropZoneID
   ) {
-    guard sourceZone != nil else { return }
+    guard canDrop(in: zone) else { return }
     if activeZone != zone {
       activeZone = zone
       NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
@@ -165,18 +226,23 @@ final class TerminalSidebarDragSession: ObservableObject {
     for zone: TerminalSidebarDropZoneID,
     localPoint: CGPoint
   ) {
-    guard sourceZone != nil else { return }
+    guard canDrop(in: zone) else { return }
 
-    let orderedIDs = orderedTabIDs[zone] ?? []
-    guard !orderedIDs.isEmpty else {
+    let orderedItems = orderedItems[zone] ?? []
+    guard !orderedItems.isEmpty else {
       insertionIndex[zone] = 0
       return
     }
 
     let clampedIndex = TerminalSidebarLayout.insertionIndex(
       for: localPoint.y,
-      orderedIDs: orderedIDs,
-      frames: measuredTabFrames[zone] ?? [:]
+      orderedIDs: orderedItems,
+      frames: Dictionary(
+        uniqueKeysWithValues: orderedItems.compactMap { item in
+          guard let frame = measuredItemFrames[item], frame.zoneID == zone else { return nil }
+          return (item, frame.zoneFrame)
+        }
+      )
     )
     if insertionIndex[zone] != clampedIndex {
       insertionIndex[zone] = clampedIndex
@@ -188,6 +254,7 @@ final class TerminalSidebarDragSession: ObservableObject {
     in zone: TerminalSidebarDropZoneID
   ) {
     guard
+      canDrop(in: zone),
       let draggedItem,
       let sourceZone,
       let sourceIndex,
@@ -227,9 +294,20 @@ final class TerminalSidebarDragSession: ObservableObject {
     sidebarScreenFrame = TerminalSidebarLayout.unionFrame(Array(zoneScreenFrames.values))
   }
 
+  func removeZone(
+    _ zone: TerminalSidebarDropZoneID
+  ) {
+    zoneFrames[zone] = nil
+    zoneScreenFrames[zone] = nil
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      sidebarScreenFrame = TerminalSidebarLayout.unionFrame(Array(zoneScreenFrames.values))
+    }
+  }
+
   func reorderOffset(
     for zone: TerminalSidebarDropZoneID,
-    tabID: TerminalTabID
+    item: TerminalSidebarDragItem
   ) -> CGFloat {
     guard
       let draggedItem,
@@ -239,8 +317,8 @@ final class TerminalSidebarDragSession: ObservableObject {
       return 0
     }
 
-    let rowExtent = draggedRowExtent(for: draggedItem.tabID, in: sourceZone)
-    guard let index = orderedTabIDs[zone]?.firstIndex(of: tabID) else { return 0 }
+    let rowExtent = draggedRowExtent(for: draggedItem, in: sourceZone)
+    guard let index = orderedItems[zone]?.firstIndex(of: item) else { return 0 }
 
     if sourceZone == zone {
       if activeZone == zone {
@@ -261,21 +339,16 @@ final class TerminalSidebarDragSession: ObservableObject {
     return index >= destinationIndex ? rowExtent : 0
   }
 
-  func updateTabIDs(
-    _ tabIDs: [TerminalTabID],
-    for zone: TerminalSidebarDropZoneID
+  func replaceOrderedItems(
+    _ orderedItems: [TerminalSidebarDropZoneID: [TerminalSidebarDragItem]]
   ) {
-    orderedTabIDs[zone] = tabIDs
+    self.orderedItems = orderedItems
   }
 
-  func updateMeasuredTabFrames(
-    _ frames: [TerminalTabID: TerminalSidebarMeasuredTabFrame]
+  func updateMeasuredItemFrames(
+    _ frames: [TerminalSidebarDragItem: TerminalSidebarMeasuredDragItemFrame]
   ) {
-    var grouped: [TerminalSidebarDropZoneID: [TerminalTabID: CGRect]] = [:]
-    for (tabID, measuredFrame) in frames {
-      grouped[measuredFrame.zoneID, default: [:]][tabID] = measuredFrame.zoneFrame
-    }
-    measuredTabFrames = grouped
+    measuredItemFrames = frames
   }
 
   private func clearDrag() {
@@ -288,11 +361,42 @@ final class TerminalSidebarDragSession: ObservableObject {
   }
 
   private func draggedRowExtent(
-    for tabID: TerminalTabID,
+    for item: TerminalSidebarDragItem,
     in zone: TerminalSidebarDropZoneID
   ) -> CGFloat {
-    let height = measuredTabFrames[zone]?[tabID]?.height ?? TerminalSidebarLayout.tabRowMinHeight
-    return height + TerminalSidebarLayout.tabRowSpacing
+    let measuredFrame = measuredItemFrames[item]
+    let height =
+      if let measuredFrame, measuredFrame.zoneID == zone {
+        measuredFrame.zoneFrame.height
+      } else {
+        TerminalSidebarLayout.tabRowMinHeight
+      }
+    let spacing =
+      switch zone {
+      case .projects:
+        TerminalSidebarLayout.projectGroupSpacing
+      case .tabs:
+        TerminalSidebarLayout.tabRowSpacing
+      }
+    return height + spacing
+  }
+
+  func canDrop(
+    in zone: TerminalSidebarDropZoneID
+  ) -> Bool {
+    guard let draggedItem, let sourceZone else { return false }
+    return switch (draggedItem, sourceZone, zone) {
+    case (.project, .projects, .projects):
+      true
+    case (
+      .tab,
+      .tabs(let sourceProjectID, _),
+      .tabs(let targetProjectID, _)
+    ):
+      sourceProjectID == targetProjectID
+    default:
+      false
+    }
   }
 
   private func ensurePreviewWindow() {
@@ -490,21 +594,20 @@ private struct TerminalSidebarDragPreviewContent: View {
     Group {
       if let preview = manager.draggedPreview {
         let palette = Palette(colorScheme: manager.colorScheme)
-        TerminalSidebarMorphingPreview(
-          tab: preview.tab,
-          notificationPreviewText: preview.notificationPreviewText,
-          paneWorkingDirectories: preview.paneWorkingDirectories,
-          unreadCount: preview.unreadCount,
-          badgeActivities: preview.badgeActivities,
-          badgeActivity: preview.badgeActivity,
-          badgeActivityIsFocused: preview.badgeActivityIsFocused,
-          terminalProgress: preview.terminalProgress,
-          hasTerminalBell: preview.hasTerminalBell,
-          showsAgentMarks: preview.showsAgentMarks,
-          showsAgentSpinner: preview.showsAgentSpinner,
-          rowWidth: manager.previewRowWidth,
-          palette: palette
-        )
+        switch preview {
+        case .project(let projectPreview):
+          TerminalSidebarProjectDragPreview(
+            preview: projectPreview,
+            rowWidth: manager.previewRowWidth,
+            palette: palette
+          )
+        case .tab(let tabPreview):
+          TerminalSidebarMorphingPreview(
+            preview: tabPreview,
+            rowWidth: manager.previewRowWidth,
+            palette: palette
+          )
+        }
       } else {
         Color.clear
       }
@@ -517,35 +620,25 @@ private struct TerminalSidebarDragPreviewContent: View {
 }
 
 private struct TerminalSidebarMorphingPreview: View {
-  let tab: TerminalTabItem
-  let notificationPreviewText: String?
-  let paneWorkingDirectories: [String]
-  let unreadCount: Int
-  let badgeActivities: [TerminalHostState.AgentActivity]
-  let badgeActivity: TerminalHostState.AgentActivity?
-  let badgeActivityIsFocused: Bool
-  let terminalProgress: TerminalSidebarTerminalProgress?
-  let hasTerminalBell: Bool
-  let showsAgentMarks: Bool
-  let showsAgentSpinner: Bool
+  let preview: TerminalSidebarTabDragPreviewItem
   let rowWidth: CGFloat
   let palette: Palette
 
   var body: some View {
     TerminalSidebarTabSummaryView(
-      tab: tab,
+      tab: preview.tab,
       palette: palette,
       isSelected: true,
-      notificationPreviewText: notificationPreviewText,
-      paneWorkingDirectories: paneWorkingDirectories,
-      unreadCount: unreadCount,
-      badgeActivities: badgeActivities,
-      badgeActivity: badgeActivity,
-      badgeActivityIsFocused: badgeActivityIsFocused,
-      hasTerminalBell: hasTerminalBell,
-      terminalProgress: terminalProgress,
-      showsAgentMarks: showsAgentMarks,
-      showsAgentSpinner: showsAgentSpinner,
+      notificationPreviewText: preview.notificationPreviewText,
+      paneWorkingDirectories: preview.paneWorkingDirectories,
+      unreadCount: preview.unreadCount,
+      badgeActivities: preview.badgeActivities,
+      badgeActivity: preview.badgeActivity,
+      badgeActivityIsFocused: preview.badgeActivityIsFocused,
+      hasTerminalBell: preview.hasTerminalBell,
+      terminalProgress: preview.terminalProgress,
+      showsAgentMarks: preview.showsAgentMarks,
+      showsAgentSpinner: preview.showsAgentSpinner,
       shortcutHint: nil,
       showsShortcutHint: false,
       isRowHovering: false
@@ -555,6 +648,31 @@ private struct TerminalSidebarMorphingPreview: View {
     .padding(.vertical, TerminalSidebarLayout.tabRowVerticalPadding)
     .frame(width: rowWidth)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
+    .background(palette.sidebarDragPreviewFill)
+    .clipShape(
+      RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
+    )
+    .shadow(
+      color: palette.overlayShadow,
+      radius: 8,
+      y: 2
+    )
+  }
+}
+
+private struct TerminalSidebarProjectDragPreview: View {
+  let preview: TerminalSidebarProjectDragPreviewItem
+  let rowWidth: CGFloat
+  let palette: Palette
+
+  var body: some View {
+    TerminalSidebarProjectHeaderLabel(
+      project: preview.project,
+      displayName: preview.displayName,
+      isCollapsed: preview.isCollapsed,
+      palette: palette
+    )
+    .frame(width: rowWidth)
     .background(palette.sidebarDragPreviewFill)
     .clipShape(
       RoundedRectangle(cornerRadius: TerminalSidebarLayout.tabRowCornerRadius, style: .continuous)
@@ -644,7 +762,10 @@ final class TerminalSidebarDragSourceNSView: NSView {
     )
 
     let pasteboardItem = NSPasteboardItem()
-    pasteboardItem.setString(coordinator.item.tabID.rawValue.uuidString, forType: .terminalSidebarTabItem)
+    pasteboardItem.setString(
+      coordinator.item.pasteboardValue,
+      forType: coordinator.item.pasteboardType
+    )
 
     let transparentImage = NSImage(size: NSSize(width: 1, height: 1))
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
@@ -707,10 +828,10 @@ struct TerminalSidebarDragSourceView<Content: View>: View {
   let zoneID: TerminalSidebarDropZoneID
   let index: Int
   let manager: TerminalSidebarDragSession
-  @ViewBuilder let content: () -> Content
+  @ViewBuilder let content: Content
 
   var body: some View {
-    content()
+    content
       .background(
         TerminalSidebarDragSourceAnchor(
           item: item,
@@ -739,6 +860,16 @@ final class TerminalSidebarDropZoneCoordinator: NSObject {
 
 final class TerminalSidebarDropZoneNSView: NSView {
   weak var coordinator: TerminalSidebarDropZoneCoordinator?
+  private var registeredPasteboardType: NSPasteboard.PasteboardType?
+
+  func register(
+    for pasteboardType: NSPasteboard.PasteboardType
+  ) {
+    guard registeredPasteboardType != pasteboardType else { return }
+    unregisterDraggedTypes()
+    registerForDraggedTypes([pasteboardType])
+    registeredPasteboardType = pasteboardType
+  }
 
   override func layout() {
     super.layout()
@@ -773,7 +904,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> NSDragOperation {
     guard
       let coordinator,
-      coordinator.manager.sourceZone != nil
+      coordinator.manager.canDrop(in: coordinator.zoneID)
     else {
       return []
     }
@@ -790,7 +921,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> NSDragOperation {
     guard
       let coordinator,
-      coordinator.manager.sourceZone != nil
+      coordinator.manager.canDrop(in: coordinator.zoneID)
     else {
       return []
     }
@@ -813,7 +944,7 @@ final class TerminalSidebarDropZoneNSView: NSView {
   ) -> Bool {
     guard
       let coordinator,
-      coordinator.manager.sourceZone != nil
+      coordinator.manager.canDrop(in: coordinator.zoneID)
     else {
       return false
     }
@@ -851,7 +982,7 @@ private struct TerminalSidebarDropZoneAnchor: NSViewRepresentable {
   ) -> TerminalSidebarDropZoneNSView {
     let view = TerminalSidebarDropZoneNSView()
     view.coordinator = context.coordinator
-    view.registerForDraggedTypes([.terminalSidebarTabItem])
+    view.register(for: zoneID.pasteboardType)
     return view
   }
 
@@ -860,6 +991,16 @@ private struct TerminalSidebarDropZoneAnchor: NSViewRepresentable {
     context: Context
   ) {
     context.coordinator.zoneID = zoneID
+    nsView.register(for: zoneID.pasteboardType)
+  }
+
+  static func dismantleNSView(
+    _ nsView: TerminalSidebarDropZoneNSView,
+    coordinator: TerminalSidebarDropZoneCoordinator
+  ) {
+    MainActor.assumeIsolated {
+      coordinator.manager.removeZone(coordinator.zoneID)
+    }
   }
 
   func makeCoordinator() -> TerminalSidebarDropZoneCoordinator {
@@ -873,10 +1014,10 @@ private struct TerminalSidebarDropZoneAnchor: NSViewRepresentable {
 struct TerminalSidebarDropZoneHostView<Content: View>: View {
   let zoneID: TerminalSidebarDropZoneID
   let manager: TerminalSidebarDragSession
-  @ViewBuilder let content: () -> Content
+  @ViewBuilder let content: Content
 
   var body: some View {
-    content()
+    content
       .background(
         TerminalSidebarDropZoneAnchor(
           zoneID: zoneID,
