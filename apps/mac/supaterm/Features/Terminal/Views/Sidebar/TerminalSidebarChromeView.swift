@@ -106,22 +106,6 @@ struct TerminalSidebarProjectGroup: Equatable, Identifiable {
   var showsTabSections: Bool {
     !isCollapsed && (!pinnedTabs.isEmpty || !regularTabs.isEmpty)
   }
-
-  init(
-    spaceID: TerminalSpaceID,
-    project: TerminalProjectItem,
-    displayName: String,
-    pinnedTabs: [TerminalTabItem],
-    regularTabs: [TerminalTabItem],
-    isCollapsed: Bool
-  ) {
-    self.spaceID = spaceID
-    self.project = project
-    self.displayName = displayName
-    self.pinnedTabs = pinnedTabs
-    self.regularTabs = regularTabs
-    self.isCollapsed = isCollapsed
-  }
 }
 
 private struct TerminalSidebarProjectDeletion: Equatable {
