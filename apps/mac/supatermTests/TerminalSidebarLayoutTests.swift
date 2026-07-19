@@ -79,6 +79,78 @@ struct TerminalSidebarLayoutTests {
   }
 
   @Test
+  func projectDropReordersWithinPinnedBlock() {
+    let first = TerminalProjectID()
+    let second = TerminalProjectID()
+    let regular = TerminalProjectID()
+
+    let result = TerminalSidebarLayout.projectDrop(
+      moving: second,
+      pinnedIDs: [first, second],
+      regularIDs: [regular],
+      source: (isPinned: true, index: 1),
+      target: (isPinned: true, index: 0)
+    )
+
+    #expect(result.orderedIDs == [second, first, regular])
+    #expect(!result.togglesPinned)
+  }
+
+  @Test
+  func projectDropReordersWithinRegularBlock() {
+    let pinned = TerminalProjectID()
+    let first = TerminalProjectID()
+    let second = TerminalProjectID()
+
+    let result = TerminalSidebarLayout.projectDrop(
+      moving: first,
+      pinnedIDs: [pinned],
+      regularIDs: [first, second],
+      source: (isPinned: false, index: 0),
+      target: (isPinned: false, index: 2)
+    )
+
+    #expect(result.orderedIDs == [pinned, second, first])
+    #expect(!result.togglesPinned)
+  }
+
+  @Test
+  func projectDropAcrossUpperBoundaryPinsAtInsertionIndex() {
+    let pinned = TerminalProjectID()
+    let firstRegular = TerminalProjectID()
+    let secondRegular = TerminalProjectID()
+
+    let result = TerminalSidebarLayout.projectDrop(
+      moving: secondRegular,
+      pinnedIDs: [pinned],
+      regularIDs: [firstRegular, secondRegular],
+      source: (isPinned: false, index: 1),
+      target: (isPinned: true, index: 0)
+    )
+
+    #expect(result.orderedIDs == [secondRegular, pinned, firstRegular])
+    #expect(result.togglesPinned)
+  }
+
+  @Test
+  func projectDropAcrossLowerBoundaryUnpinsAtInsertionIndex() {
+    let firstPinned = TerminalProjectID()
+    let secondPinned = TerminalProjectID()
+    let regular = TerminalProjectID()
+
+    let result = TerminalSidebarLayout.projectDrop(
+      moving: firstPinned,
+      pinnedIDs: [firstPinned, secondPinned],
+      regularIDs: [regular],
+      source: (isPinned: true, index: 0),
+      target: (isPinned: false, index: 1)
+    )
+
+    #expect(result.orderedIDs == [secondPinned, regular, firstPinned])
+    #expect(result.togglesPinned)
+  }
+
+  @Test
   func insertingIDClampsAndRemovesExistingOccurrence() {
     let first = TerminalTabID()
     let second = TerminalTabID()

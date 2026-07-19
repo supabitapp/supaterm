@@ -2,8 +2,13 @@ import CoreGraphics
 import Foundation
 
 enum TerminalSidebarDropZoneID: Hashable {
-  case pinned
-  case regular
+  case projects(isPinned: Bool)
+  case tabs(projectID: TerminalProjectID, isPinned: Bool)
+}
+
+struct TerminalSidebarProjectDropResult: Equatable {
+  let orderedIDs: [TerminalProjectID]
+  let togglesPinned: Bool
 }
 
 enum TerminalSidebarLayout {
@@ -12,6 +17,7 @@ enum TerminalSidebarLayout {
   static let rowHorizontalPadding: CGFloat = 10
   static let tabRowVerticalPadding: CGFloat = 5
   static let tabRowSpacing: CGFloat = 2
+  static let projectGroupSpacing: CGFloat = 8
   static let cardCornerRadius: CGFloat = 12
   static let cardMinHeight: CGFloat = 36
   static let cardVerticalPadding: CGFloat = 8
@@ -21,21 +27,21 @@ enum TerminalSidebarLayout {
     trafficLightTopPadding + WindowTrafficLightMetrics.topPadding + WindowTrafficLightMetrics.buttonSize + 4
   }
 
-  static func insertingID(
-    _ id: TerminalTabID,
-    into ids: [TerminalTabID],
+  static func insertingID<ID: Equatable>(
+    _ id: ID,
+    into ids: [ID],
     at destinationIndex: Int
-  ) -> [TerminalTabID] {
+  ) -> [ID] {
     var reordered = ids.filter { $0 != id }
     let clampedDestination = max(0, min(destinationIndex, reordered.count))
     reordered.insert(id, at: clampedDestination)
     return reordered
   }
 
-  static func removingID(
-    _ id: TerminalTabID,
-    from ids: [TerminalTabID]
-  ) -> [TerminalTabID] {
+  static func removingID<ID: Equatable>(
+    _ id: ID,
+    from ids: [ID]
+  ) -> [ID] {
     ids.filter { $0 != id }
   }
 
@@ -56,11 +62,11 @@ enum TerminalSidebarLayout {
     spacesCount > 1
   }
 
-  static func reorderedIDs(
-    _ ids: [TerminalTabID],
+  static func reorderedIDs<ID>(
+    _ ids: [ID],
     movingFrom sourceIndex: Int,
     to destinationIndex: Int
-  ) -> [TerminalTabID] {
+  ) -> [ID] {
     guard ids.indices.contains(sourceIndex) else { return ids }
 
     var reordered = ids
@@ -70,10 +76,10 @@ enum TerminalSidebarLayout {
     return reordered
   }
 
-  static func insertionIndex(
+  static func insertionIndex<ID: Hashable>(
     for localY: CGFloat,
-    orderedIDs: [TerminalTabID],
-    frames: [TerminalTabID: CGRect]
+    orderedIDs: [ID],
+    frames: [ID: CGRect]
   ) -> Int {
     for (index, id) in orderedIDs.enumerated() {
       guard let frame = frames[id] else { continue }
@@ -82,6 +88,39 @@ enum TerminalSidebarLayout {
       }
     }
     return orderedIDs.count
+  }
+
+  static func projectDrop(
+    moving projectID: TerminalProjectID,
+    pinnedIDs: [TerminalProjectID],
+    regularIDs: [TerminalProjectID],
+    source: (isPinned: Bool, index: Int),
+    target: (isPinned: Bool, index: Int)
+  ) -> TerminalSidebarProjectDropResult {
+    if source.isPinned == target.isPinned {
+      let reorderedIDs = reorderedIDs(
+        source.isPinned ? pinnedIDs : regularIDs,
+        movingFrom: source.index,
+        to: target.index
+      )
+      return TerminalSidebarProjectDropResult(
+        orderedIDs: source.isPinned ? reorderedIDs + regularIDs : pinnedIDs + reorderedIDs,
+        togglesPinned: false
+      )
+    }
+
+    let updatedPinnedIDs =
+      target.isPinned
+      ? insertingID(projectID, into: pinnedIDs, at: target.index)
+      : removingID(projectID, from: pinnedIDs)
+    let updatedRegularIDs =
+      target.isPinned
+      ? removingID(projectID, from: regularIDs)
+      : insertingID(projectID, into: regularIDs, at: target.index)
+    return TerminalSidebarProjectDropResult(
+      orderedIDs: updatedPinnedIDs + updatedRegularIDs,
+      togglesPinned: true
+    )
   }
 
   static func reorderOffset(
@@ -121,7 +160,8 @@ enum TerminalSidebarLayout {
   static func unionFrame(
     _ frames: [CGRect]
   ) -> CGRect {
-    frames.reduce(.null) { partial, frame in
+    guard let first = frames.first else { return .zero }
+    return frames.dropFirst().reduce(first) { partial, frame in
       partial.union(frame)
     }
   }

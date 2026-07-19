@@ -88,11 +88,37 @@ extension TerminalHostState {
     _ orderedIDs: [TerminalProjectID],
     in spaceID: TerminalSpaceID
   ) {
+    writeProjectOrder(orderedIDs, pinnedState: nil, in: spaceID)
+  }
+
+  func setProjectOrder(
+    _ orderedIDs: [TerminalProjectID],
+    settingPinned projectID: TerminalProjectID,
+    to isPinned: Bool,
+    in spaceID: TerminalSpaceID
+  ) {
+    writeProjectOrder(
+      orderedIDs,
+      pinnedState: (projectID, isPinned),
+      in: spaceID
+    )
+  }
+
+  private func writeProjectOrder(
+    _ orderedIDs: [TerminalProjectID],
+    pinnedState: (TerminalProjectID, Bool)?,
+    in spaceID: TerminalSpaceID
+  ) {
     guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
       return
     }
     let projects = spaceCatalog.spaces[spaceIndex].projects
-    let projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+    var projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+    if let (projectID, isPinned) = pinnedState {
+      guard var project = projectsByID[projectID] else { return }
+      project.isPinned = isPinned
+      projectsByID[projectID] = project
+    }
     let orderedProjects = orderedIDs.compactMap { projectsByID[$0] }
     guard orderedProjects.count == projects.count else { return }
     var updatedCatalog = spaceCatalog

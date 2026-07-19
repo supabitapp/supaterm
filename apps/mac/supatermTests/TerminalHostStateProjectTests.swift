@@ -135,6 +135,43 @@ struct TerminalHostStateProjectTests {
   }
 
   @Test
+  func projectOrderCanTogglePinStateAtomically() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let spaceID = try #require(host.selectedSpaceID)
+      let homeProjectID = try #require(host.spaceManager.homeProjectID(in: spaceID))
+      let firstProjectID = try #require(host.createProject(folderPath: "/work/first", in: spaceID))
+      let secondProjectID = try #require(host.createProject(folderPath: "/work/second", in: spaceID))
+
+      host.setProjectOrder(
+        [secondProjectID, homeProjectID, firstProjectID],
+        settingPinned: secondProjectID,
+        to: true,
+        in: spaceID
+      )
+
+      let projects = host.orderedProjects(in: spaceID)
+      #expect(projects.map(\.id) == [secondProjectID, homeProjectID, firstProjectID])
+      #expect(projects.first?.isPinned == true)
+
+      host.setProjectOrder(
+        [homeProjectID, firstProjectID, secondProjectID],
+        settingPinned: secondProjectID,
+        to: false,
+        in: spaceID
+      )
+
+      #expect(
+        host.orderedProjects(in: spaceID).map(\.id)
+          == [homeProjectID, firstProjectID, secondProjectID]
+      )
+      #expect(host.orderedProjects(in: spaceID).last?.isPinned == false)
+    }
+  }
+
+  @Test
   func tabCreationUsesExplicitProjectThenAnchorThenHome() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory

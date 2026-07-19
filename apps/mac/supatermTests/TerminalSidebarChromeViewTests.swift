@@ -531,6 +531,24 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
+  func finderDropKeepsDirectoriesAndIgnoresFiles() throws {
+    let fileManager = FileManager.default
+    let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    let directory = root.appendingPathComponent("project", isDirectory: true)
+    let file = root.appendingPathComponent("notes.txt")
+    defer { try? fileManager.removeItem(at: root) }
+    try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    _ = fileManager.createFile(atPath: file.path, contents: Data())
+
+    #expect(
+      TerminalSidebarFileDrop.directoryURLs(
+        from: [file, directory, URL(string: "https://supaterm.com")!],
+        fileManager: fileManager
+      ) == [directory]
+    )
+  }
+
+  @Test
   func projectHeaderContextMenuIncludesDeleteForFolderProject() {
     let titles = TerminalSidebarProjectHeader.contextMenuItems(
       isHome: false,

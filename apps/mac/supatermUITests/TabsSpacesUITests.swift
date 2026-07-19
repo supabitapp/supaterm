@@ -294,7 +294,14 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didReorder)
 
     let secondTab = tabRow(named: "Second UI Tab", in: regularSection)
-    try clickContextMenuItem("Pin Tab", on: secondTab)
+    let projectHeader = element(SupatermUITestIdentifier.Accessibility.sidebarProjectHeader)
+    XCTAssertTrue(projectHeader.waitForExistence(timeout: 10))
+    let emptyPinnedSectionCoordinate =
+      projectHeader
+      .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1))
+      .withOffset(CGVector(dx: 0, dy: 8))
+    secondTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      .press(forDuration: 0.5, thenDragTo: emptyPinnedSectionCoordinate)
     let didPinSecondTab = await waitForTab(named: "Second UI Tab", in: pinnedSection)
     XCTAssertTrue(didPinSecondTab)
 
