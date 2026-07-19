@@ -62,7 +62,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func beginDragSeedsDragState() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
 
     beginDrag(tab: tab, zone: .regular, index: 1)
 
@@ -88,7 +88,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func cursorZoneTransitionsTrackActiveZone() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .pinned, index: 0)
 
     session.cursorEnteredZone(.regular)
@@ -104,7 +104,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func insertionIndexInEmptyZoneIsZero() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 0)
 
     session.updateInsertionIndex(for: .pinned, localPoint: CGPoint(x: 10, y: 50))
@@ -114,7 +114,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func insertionIndexClampsToRowEdges() {
-    let tabs = (1...3).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...3).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     seedMeasuredFrames(tabs: tabs, zone: .regular)
     beginDrag(tab: tabs[0], zone: .regular, index: 0)
 
@@ -130,7 +130,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func dropAtSourcePositionProducesNoReorder() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 1)
 
     session.completeDropIfPossible(in: .regular)
@@ -141,7 +141,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func dropWithinZoneProducesReorder() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 0)
     session.insertionIndex[.regular] = 2
 
@@ -164,7 +164,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func dropAcrossZonesProducesCrossZoneReorder() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 1)
     session.cursorEnteredZone(.pinned)
     session.insertionIndex[.pinned] = 0
@@ -179,7 +179,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func dropFromPinnedIntoRegularProducesCrossZoneReorder() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .pinned, index: 0)
     session.cursorEnteredZone(.regular)
     session.insertionIndex[.regular] = 2
@@ -193,7 +193,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func dropWithoutInsertionIndexClearsDrag() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 0)
     session.insertionIndex[.regular] = nil
 
@@ -205,7 +205,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func cancelDragClearsStateWithoutReorder() {
-    let tab = TerminalTabItem(title: "Tab")
+    let tab = TerminalTabItem(projectID: TerminalProjectID(), title: "Tab")
     beginDrag(tab: tab, zone: .regular, index: 0)
     session.cursorEnteredZone(.pinned)
 
@@ -222,7 +222,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetIsZeroWithoutActiveDrag() {
-    let tabs = (1...2).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...2).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     seedMeasuredFrames(tabs: tabs, zone: .regular)
 
     #expect(session.reorderOffset(for: .regular, tabID: tabs[1].id) == 0)
@@ -230,7 +230,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetShiftsIntermediateRowsWithinZone() {
-    let tabs = (1...3).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...3).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     seedMeasuredFrames(tabs: tabs, zone: .regular)
     beginDrag(tab: tabs[0], zone: .regular, index: 0)
     session.insertionIndex[.regular] = 2
@@ -242,7 +242,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetCollapsesSourceZoneWhenDraggedAway() {
-    let tabs = (1...3).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...3).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     seedMeasuredFrames(tabs: tabs, zone: .regular)
     beginDrag(tab: tabs[0], zone: .regular, index: 0)
     session.cursorEnteredZone(.pinned)
@@ -254,8 +254,8 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetMakesRoomInTargetZone() {
-    let regular = TerminalTabItem(title: "Regular")
-    let pinned = (1...2).map { TerminalTabItem(title: "Pinned \($0)") }
+    let regular = TerminalTabItem(projectID: TerminalProjectID(), title: "Regular")
+    let pinned = (1...2).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Pinned \($0)") }
     seedMeasuredFrames(tabs: [regular], zone: .regular)
     seedMeasuredFrames(tabs: pinned, zone: .pinned)
     beginDrag(tab: regular, zone: .regular, index: 0)
@@ -269,7 +269,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetFallsBackToMinimumRowExtentWhenUnmeasured() {
-    let tabs = (1...2).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...2).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     session.updateTabIDs(tabs.map(\.id), for: .regular)
     beginDrag(tab: tabs[0], zone: .regular, index: 0)
     session.insertionIndex[.regular] = 1
@@ -280,7 +280,7 @@ struct TerminalSidebarDragSessionTests {
 
   @Test
   func reorderOffsetUsesMeasuredRowHeight() {
-    let tabs = (1...2).map { TerminalTabItem(title: "Tab \($0)") }
+    let tabs = (1...2).map { TerminalTabItem(projectID: TerminalProjectID(), title: "Tab \($0)") }
     seedMeasuredFrames(tabs: tabs, zone: .regular, rowHeight: 48)
     beginDrag(tab: tabs[0], zone: .regular, index: 0)
     session.insertionIndex[.regular] = 1

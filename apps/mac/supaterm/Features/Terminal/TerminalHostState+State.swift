@@ -16,19 +16,22 @@ extension TerminalHostState {
   }
 
   var tabs: [TerminalTabItem] {
-    spaceManager.tabs
+    visibleTabs
   }
 
   var pinnedTabs: [TerminalTabItem] {
-    spaceManager.pinnedTabs
+    visibleTabs.filter(\.isPinned)
   }
 
   var regularTabs: [TerminalTabItem] {
-    spaceManager.regularTabs
+    visibleTabs.filter { !$0.isPinned }
   }
 
   var visibleTabs: [TerminalTabItem] {
-    spaceManager.visibleTabs
+    guard let selectedSpaceID else { return [] }
+    return orderedProjects(in: selectedSpaceID).flatMap {
+      tabs(in: $0.id, spaceID: selectedSpaceID)
+    }
   }
 
   var hasUnreadSidebarNotifications: Bool {
@@ -97,20 +100,9 @@ extension TerminalHostState {
   }
 
   func paneWorkingDirectories(for tabID: TerminalTabID) -> [String] {
-    if let tree = trees[tabID] {
-      return Self.paneWorkingDirectories(
-        paths: tree.leaves().map { $0.bridge.state.pwd }
-      )
-    }
-    guard
-      let spaceID = spaceManager.space(for: tabID)?.id,
-      spaceManager.tab(for: tabID)?.isPinned == true,
-      let session = pinnedTabCatalog.tabs(in: spaceID).first(where: { $0.id == tabID })?.session
-    else {
-      return []
-    }
+    guard let tree = trees[tabID] else { return [] }
     return Self.paneWorkingDirectories(
-      paths: session.root.workingDirectoryPaths
+      paths: tree.leaves().map { $0.bridge.state.pwd }
     )
   }
 
@@ -687,17 +679,6 @@ extension TerminalHostState {
   ) -> String? {
     guard let trimmed = trimmedNonEmpty(value) else { return nil }
     return trimmed.split(whereSeparator: \.isWhitespace).first.map { String($0) }
-  }
-}
-
-extension TerminalPaneNodeSession {
-  fileprivate var workingDirectoryPaths: [String?] {
-    switch self {
-    case .leaf(let leaf):
-      return [leaf.workingDirectoryPath]
-    case .split(let split):
-      return split.left.workingDirectoryPaths + split.right.workingDirectoryPaths
-    }
   }
 }
 

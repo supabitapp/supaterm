@@ -40,8 +40,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   private var lastAppLaunchedDate: Date?
   @Shared(.terminalSessionCatalog)
   private var sessionCatalog = TerminalSessionCatalog.default
-  @Shared(.terminalPinnedTabCatalog)
-  private var pinnedTabCatalog = TerminalPinnedTabCatalog.default
 
   private let menuController: SupatermMenuController
   private let configurationDiagnosticsWindowController = ConfigurationDiagnosticsWindowController()
@@ -400,7 +398,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return Self.knownZmxSessionIDsForLaunchReaping(
           restoreTerminalLayoutEnabled: supatermSettings.restoreTerminalLayoutEnabled,
           sessionCatalog: sessionCatalog,
-          pinnedTabCatalog: pinnedTabCatalog,
           liveSurfaceIDs: terminalWindowRegistry.liveSurfaceIDs()
         )
       }
@@ -438,14 +435,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
   static func knownZmxSessionIDsForLaunchReaping(
     restoreTerminalLayoutEnabled: Bool,
     sessionCatalog: TerminalSessionCatalog,
-    pinnedTabCatalog: TerminalPinnedTabCatalog,
     liveSurfaceIDs: Set<UUID>
   ) -> Set<String> {
     let persistedSurfaceIDs =
       restoreTerminalLayoutEnabled
       ? sessionCatalog.surfaceIDs
       : []
-    let knownSurfaceIDs = persistedSurfaceIDs.union(pinnedTabCatalog.surfaceIDs).union(liveSurfaceIDs)
+    let knownSurfaceIDs = persistedSurfaceIDs.union(liveSurfaceIDs)
     return Set(knownSurfaceIDs.map { ZmxSessionID.make(surfaceID: $0) })
   }
 

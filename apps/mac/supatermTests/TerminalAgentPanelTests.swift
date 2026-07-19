@@ -1917,6 +1917,7 @@ private func restoreSplitHost(
 ) throws -> [UUID] {
   let spaceID = try #require(host.spaces.first?.id)
   let tabSession = TerminalTabSession(
+    projectID: TerminalProjectID.home(for: spaceID),
     isPinned: false,
     lockedTitle: nil,
     focusedPaneIndex: 0,

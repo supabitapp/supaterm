@@ -102,7 +102,6 @@ extension TerminalHostState {
       return
     }
     let spaceID = spaceManager.space(for: tabID)?.id
-    let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == spaceID
 
     let nextSurface =
@@ -116,28 +115,13 @@ extension TerminalHostState {
         surfaceID: surfaceID,
         tabID: tabID,
         spaceID: spaceID,
-        wasPinned: wasPinned,
+        wasPinned: spaceManager.tab(for: tabID)?.isPinned == true,
         leafCount: tree.leaves().count,
         newTreeEmpty: newTree.isEmpty,
         focusedSurfaceID: focusHistoryByTab[tabID]?.current,
         nextSurfaceID: nextSurface?.id
       )
     )
-
-    if newTree.isEmpty, wasPinned {
-      logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
-      persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
-      removeTree(for: tabID, source: .pinnedLastPaneClose)
-      if let spaceID {
-        spaceManager.tabManager(for: spaceID)?.updateDirty(tabID, isDirty: false)
-        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
-      } else {
-        lastEmittedFocusSurfaceID = nil
-      }
-      syncFocus(windowActivity)
-      sessionDidChange(persistingPinnedTabLayouts: false)
-      return
-    }
 
     logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
     killZmxSession(for: surfaceID)
@@ -170,30 +154,7 @@ extension TerminalHostState {
       }
     }
     syncFocus(windowActivity)
-    sessionDidChange(persistingPinnedTabLayouts: false)
-  }
-
-  func suspendPinnedTab(_ tabID: TerminalTabID) {
-    guard
-      let space = spaceManager.space(for: tabID),
-      let tabManager = spaceManager.tabManager(for: space.id),
-      spaceManager.tab(for: tabID)?.isPinned == true
-    else {
-      return
-    }
-    let surfaceIDs = trees[tabID]?.leaves().map(\.id) ?? []
-    SupatermLog.debug(
-      SupatermLog.terminal,
-      "terminal.pinned.suspend",
-      fields: [
-        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
-        "spaceID=\(SupatermLog.uuid(space.id.rawValue))",
-        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
-      ]
-    )
-    persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
-    removeTree(for: tabID, terminateSessions: false, source: .pinnedSuspend)
-    tabManager.updateDirty(tabID, isDirty: false)
+    sessionDidChange()
   }
 
   func requestCloseSurfaceAfterProcessExit(
@@ -310,17 +271,11 @@ extension TerminalHostState {
 
   func shouldCloseWindow<S: Sequence>(afterClosing tabIDs: S) -> Bool where S.Element == TerminalTabID {
     let requestedTabIDs = Set(tabIDs)
-    let closingRegularTabIDs = Set(
-      requestedTabIDs.filter { tabID in
-        trees[tabID] != nil && spaceManager.tab(for: tabID)?.isPinned != true
-      }
-    )
+    let closingTabIDs = Set(requestedTabIDs.filter { trees[$0] != nil })
     let survivingTabs = spaces.flatMap { space in
-      spaceManager.tabs(in: space.id).filter { tab in
-        tab.isPinned || !requestedTabIDs.contains(tab.id)
-      }
+      spaceManager.tabs(in: space.id).filter { !requestedTabIDs.contains($0.id) }
     }
-    return !closingRegularTabIDs.isEmpty && survivingTabs.isEmpty
+    return !closingTabIDs.isEmpty && survivingTabs.isEmpty
   }
 
   func shouldCloseWindow(afterClosingSurface surfaceID: UUID) -> Bool {

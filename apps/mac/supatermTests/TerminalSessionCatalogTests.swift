@@ -33,7 +33,7 @@ struct TerminalSessionCatalogTests {
     let data = Data(
       #"""
       {
-        "version": 3,
+        "version": 5,
         "windows": [
           {
             "selectedSpaceID": {"rawValue": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"},
@@ -72,6 +72,7 @@ struct TerminalSessionCatalogTests {
   func windowSessionPrunesMissingSpacesAndFallsBackSelection() {
     let validSpace = TerminalSpaceID()
     let missingSpace = TerminalSpaceID()
+    let homeProjectID = TerminalProjectID.home(for: validSpace)
     let session = TerminalWindowSession(
       selectedSpaceID: missingSpace,
       spaces: [
@@ -88,7 +89,10 @@ struct TerminalSessionCatalogTests {
       ]
     )
 
-    let pruned = session.pruned(validSpaceIDs: [validSpace])
+    let pruned = session.pruned(
+      validProjectIDsBySpaceID: [validSpace: [homeProjectID]],
+      homeProjectIDsBySpaceID: [validSpace: homeProjectID]
+    )
 
     #expect(pruned?.selectedSpaceID == validSpace)
     #expect(pruned?.spaces.map(\.id) == [validSpace])
@@ -97,6 +101,7 @@ struct TerminalSessionCatalogTests {
   @Test
   func tabSessionSanitizesSplitRatioAndFallsBackFocusedPaneIndex() throws {
     let session = TerminalTabSession(
+      projectID: TerminalProjectID(),
       isPinned: false,
       lockedTitle: "  ",
       focusedPaneIndex: 99,
@@ -128,17 +133,20 @@ struct TerminalSessionCatalogTests {
 
   @Test
   func spaceSessionFallsBackSelectedTabIndex() {
+    let projectID = TerminalProjectID()
     let session = TerminalWindowSpaceSession(
       id: TerminalSpaceID(),
       selectedTabIndex: 42,
       tabs: [
         TerminalTabSession(
+          projectID: projectID,
           isPinned: false,
           lockedTitle: nil,
           focusedPaneIndex: 0,
           root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil, titleOverride: nil))
         ),
         TerminalTabSession(
+          projectID: projectID,
           isPinned: true,
           lockedTitle: "Pinned",
           focusedPaneIndex: 0,
@@ -147,7 +155,10 @@ struct TerminalSessionCatalogTests {
       ]
     )
 
-    let pruned = session.pruned()
+    let pruned = session.pruned(
+      validProjectIDs: [projectID],
+      homeProjectID: projectID
+    )
 
     #expect(pruned.tabs.count == 2)
     #expect(pruned.tabs[1].lockedTitle == "Pinned")
@@ -155,11 +166,43 @@ struct TerminalSessionCatalogTests {
   }
 
   @Test
+  func spaceSessionReassignsDanglingProjectsToHomeAndPrunesCollapsedProjects() {
+    let homeProjectID = TerminalProjectID()
+    let validProjectID = TerminalProjectID()
+    let danglingProjectID = TerminalProjectID()
+    let session = TerminalWindowSpaceSession(
+      id: TerminalSpaceID(),
+      selectedTabIndex: 0,
+      collapsedProjectIDs: [validProjectID, danglingProjectID],
+      tabs: [
+        TerminalTabSession(
+          projectID: danglingProjectID,
+          isPinned: false,
+          lockedTitle: nil,
+          focusedPaneIndex: 0,
+          root: .leaf(TerminalPaneLeafSession(workingDirectoryPath: nil))
+        )
+      ]
+    )
+
+    let pruned = session.pruned(
+      validProjectIDs: [homeProjectID, validProjectID],
+      homeProjectID: homeProjectID
+    )
+
+    #expect(pruned.tabs.map(\.projectID) == [homeProjectID])
+    #expect(pruned.collapsedProjectIDs == [validProjectID])
+  }
+
+  @Test
   func catalogEncodingKeepsPaneIDsAndOmitsDerivedTitles() throws {
     let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!)
     let paneID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+    let projectID = TerminalProjectID(
+      rawValue: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!)
     let tabs: [TerminalTabSession] = [
       TerminalTabSession(
+        projectID: projectID,
         isPinned: false,
         lockedTitle: nil,
         focusedPaneIndex: 0,
@@ -195,6 +238,7 @@ struct TerminalSessionCatalogTests {
         )
       ),
       TerminalTabSession(
+        projectID: projectID,
         isPinned: true,
         lockedTitle: "Pinned",
         focusedPaneIndex: 0,
@@ -204,6 +248,7 @@ struct TerminalSessionCatalogTests {
     let space = TerminalWindowSpaceSession(
       id: spaceID,
       selectedTabIndex: 1,
+      collapsedProjectIDs: [projectID],
       tabs: tabs
     )
     let window = TerminalWindowSession(
@@ -218,6 +263,9 @@ struct TerminalSessionCatalogTests {
     let json = try #require(String(bytes: data, encoding: .utf8))
 
     #expect(json.contains(#""selectedTabIndex":1"#))
+    #expect(json.contains(#""projectID":{"rawValue":"CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"}"#))
+    #expect(json.contains(#""collapsedProjectIDs""#))
+    #expect(json.contains(#""version":6"#))
     #expect(json.contains(#""id":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB""#))
     #expect(json.contains(#""agent":"codex""#))
     #expect(json.contains(#""sessionID":"session-1""#))

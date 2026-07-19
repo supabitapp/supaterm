@@ -44,7 +44,7 @@ struct TerminalSpaceManagerTests {
     let catalog = makeCatalog(["A", "B", "C"])
     manager.bootstrap(from: catalog, initialSelectedSpaceID: catalog.spaces[2].id)
     let removedTabID = manager.tabManager(for: catalog.spaces[2].id)?
-      .createTab(title: "Terminal 1")
+      .createTab(projectID: catalog.spaces[2].projects[0].id, title: "Terminal 1")
 
     let updatedCatalog = TerminalSpaceCatalog(
       defaultSelectedSpaceID: catalog.spaces[0].id,

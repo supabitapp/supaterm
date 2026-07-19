@@ -12,7 +12,6 @@ extension TerminalHostState {
     let spaces = spaces.map { space in
       let tabSnapshots = spaceManager.tabs(in: space.id).compactMap {
         tab -> (TerminalTabID, TerminalTabSession)? in
-        guard !tab.isPinned else { return nil }
         guard let session = restorationTabSession(for: tab) else { return nil }
         return (tab.id, session)
       }
@@ -22,16 +21,10 @@ extension TerminalHostState {
         selectedTabID.flatMap { selectedTabID in
           tabSnapshots.firstIndex { $0.0 == selectedTabID }
         }
-      let selectedPinnedTabID =
-        selectedTabID.flatMap { selectedTabID -> TerminalTabID? in
-          guard selectedTabIndex == nil else { return nil }
-          guard spaceManager.tab(for: selectedTabID)?.isPinned == true else { return nil }
-          return selectedTabID
-        }
       return TerminalWindowSpaceSession(
         id: space.id,
-        selectedTabIndex: selectedPinnedTabID == nil ? selectedTabIndex ?? (tabs.isEmpty ? nil : 0) : nil,
-        selectedPinnedTabID: selectedPinnedTabID,
+        selectedTabIndex: selectedTabIndex ?? (tabs.isEmpty ? nil : 0),
+        collapsedProjectIDs: collapsedProjectIDsBySpace[space.id] ?? [],
         tabs: tabs
       )
     }
@@ -67,12 +60,26 @@ extension TerminalHostState {
       )
       return false
     }
-    let validSpaceIDs = Set(spaces.map(\.id))
-    guard let session = session.pruned(validSpaceIDs: validSpaceIDs) else {
+    let validProjectIDsBySpaceID = Dictionary(
+      uniqueKeysWithValues: spaces.map { space in
+        (space.id, Set(space.projects.map(\.id)))
+      }
+    )
+    let homeProjectIDsBySpaceID = Dictionary(
+      uniqueKeysWithValues: spaces.compactMap { space in
+        space.projects.first(where: \.isHome).map { (space.id, $0.id) }
+      }
+    )
+    guard
+      let session = session.pruned(
+        validProjectIDsBySpaceID: validProjectIDsBySpaceID,
+        homeProjectIDsBySpaceID: homeProjectIDsBySpaceID
+      )
+    else {
       SupatermLog.debug(
         SupatermLog.terminal,
         "terminal.session.restore.skipped",
-        fields: ["reason=emptyAfterPrune", "validSpaces=\(validSpaceIDs.count)"]
+        fields: ["reason=emptyAfterPrune", "validSpaces=\(validProjectIDsBySpaceID.count)"]
       )
       return false
     }
@@ -102,15 +109,12 @@ extension TerminalHostState {
   )]] {
     let sessionsBySpaceID = Dictionary(uniqueKeysWithValues: session.spaces.map { ($0.id, $0) })
     var restoredTabsBySpaceID: [TerminalSpaceID: [(sourceIndex: Int, id: TerminalTabID)]] = [:]
-    var selectedPinnedTabIDsBySpaceID: [TerminalSpaceID: TerminalTabID] = [:]
 
     for space in spaces {
       let spaceSession = sessionsBySpaceID[space.id]
       let restoredTabs = restoredTabItems(for: spaceSession)
       restoredTabsBySpaceID[space.id] = restoredTabs.map { ($0.sourceIndex, $0.tab.id) }
-      if let selectedPinnedTabID = spaceSession?.selectedPinnedTabID {
-        selectedPinnedTabIDsBySpaceID[space.id] = selectedPinnedTabID
-      }
+      collapsedProjectIDsBySpace[space.id] = spaceSession?.collapsedProjectIDs ?? []
       _ = spaceManager.restoreTabs(
         restoredTabs.map(\.tab),
         selectedTabID: selectedTabID(for: spaceSession, restoredTabs: restoredTabs),
@@ -118,16 +122,11 @@ extension TerminalHostState {
       )
     }
 
-    reconcilePinnedTabs(
-      with: pinnedTabCatalog,
-      selectedTabIDsBySpaceID: selectedPinnedTabIDsBySpaceID
-    )
     return restoredTabsBySpaceID
   }
 
   func restoredTabItems(for spaceSession: TerminalWindowSpaceSession?) -> [(sourceIndex: Int, tab: TerminalTabItem)] {
     spaceSession?.tabs.enumerated().compactMap { sourceIndex, session in
-      guard !session.isPinned else { return nil }
       return (
         sourceIndex,
         restoredTabItem(
@@ -143,7 +142,6 @@ extension TerminalHostState {
     for spaceSession: TerminalWindowSpaceSession?,
     restoredTabs: [(sourceIndex: Int, tab: TerminalTabItem)]
   ) -> TerminalTabID? {
-    guard spaceSession?.selectedPinnedTabID == nil else { return nil }
     return spaceSession?.selectedTabIndex.flatMap { index in
       restoredTabs.first(where: { $0.sourceIndex == index })?.tab.id
     }
@@ -158,7 +156,6 @@ extension TerminalHostState {
         uniqueKeysWithValues: (restoredTabsBySpaceID[spaceSession.id] ?? []).map { ($0.sourceIndex, $0.id) }
       )
       for (index, tabSession) in spaceSession.tabs.enumerated() {
-        guard !tabSession.isPinned else { continue }
         guard let tabID = restoredTabs[index] else { continue }
         restoreTabSession(
           tabSession,
@@ -239,6 +236,7 @@ extension TerminalHostState {
       }
       ?? 0
     return TerminalTabSession(
+      projectID: tab.projectID,
       isPinned: tab.isPinned,
       lockedTitle: lockedTabTitle(for: tab.id),
       focusedPaneIndex: focusedPaneIndex,
@@ -278,6 +276,7 @@ extension TerminalHostState {
   ) -> TerminalTabItem {
     TerminalTabItem(
       id: id,
+      projectID: session.projectID,
       title: session.lockedTitle ?? restoredTabTitle(at: index),
       isPinned: session.isPinned,
       isTitleLocked: session.lockedTitle != nil
@@ -374,6 +373,7 @@ extension TerminalHostState {
       focusHistoryByTab[tabID]?.previous = nil
     }
     previousSelectedTabIDBySpace.removeAll()
+    collapsedProjectIDsBySpace.removeAll()
     previousSelectedSpaceID = nil
     lastEmittedFocusSurfaceID = nil
   }
@@ -394,21 +394,17 @@ extension TerminalHostState {
     }
   }
 
-  func sessionDidChange(persistingPinnedTabLayouts: Bool = true) {
+  func sessionDidChange() {
     guard suppressesSessionChanges == 0 else { return }
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.didChange",
       fields: [
-        "persistingPinnedTabLayouts=\(persistingPinnedTabLayouts)",
         "spaces=\(spaces.count)",
         "tabs=\(spaces.reduce(0) { $0 + spaceManager.tabs(in: $1.id).count })",
         "surfaces=\(surfaces.count)",
       ]
     )
-    if persistingPinnedTabLayouts {
-      persistLivePinnedTabLayouts()
-    }
     onSessionChange()
   }
 

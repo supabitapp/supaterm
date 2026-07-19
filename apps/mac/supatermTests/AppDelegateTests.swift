@@ -267,41 +267,29 @@ struct AppDelegateTests {
               selectedTabIndex: 0,
               tabs: [
                 TerminalTabSession(
+                  projectID: TerminalProjectID.home(for: spaceID),
                   isPinned: false,
                   lockedTitle: nil,
                   focusedPaneIndex: 0,
                   root: .leaf(TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil))
-                )
+                ),
+                TerminalTabSession(
+                  projectID: TerminalProjectID.home(for: spaceID),
+                  isPinned: true,
+                  lockedTitle: nil,
+                  focusedPaneIndex: 0,
+                  root: .leaf(TerminalPaneLeafSession(id: pinnedSurfaceID, workingDirectoryPath: nil))
+                ),
               ]
             )
           ]
         )
       ]
     )
-    let pinnedTabCatalog = TerminalPinnedTabCatalog(
-      spaces: [
-        PersistedPinnedTerminalTabsForSpace(
-          id: spaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(
-              id: TerminalTabID(),
-              session: TerminalTabSession(
-                isPinned: true,
-                lockedTitle: nil,
-                focusedPaneIndex: 0,
-                root: .leaf(TerminalPaneLeafSession(id: pinnedSurfaceID, workingDirectoryPath: nil))
-              )
-            )
-          ]
-        )
-      ]
-    )
-
     #expect(
       AppDelegate.knownZmxSessionIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: true,
         sessionCatalog: sessionCatalog,
-        pinnedTabCatalog: pinnedTabCatalog,
         liveSurfaceIDs: [liveSurfaceID]
       ) == Set([persistedSurfaceID, pinnedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
     )
@@ -309,9 +297,8 @@ struct AppDelegateTests {
       AppDelegate.knownZmxSessionIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: false,
         sessionCatalog: sessionCatalog,
-        pinnedTabCatalog: pinnedTabCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([pinnedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == Set([liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
     )
   }
 }

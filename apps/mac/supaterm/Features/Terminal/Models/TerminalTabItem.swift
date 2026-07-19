@@ -2,6 +2,7 @@ import Foundation
 
 struct TerminalTabItem: Identifiable, Equatable, Sendable {
   let id: TerminalTabID
+  let projectID: TerminalProjectID
   let defaultTitle: String
   var title: String
   var isDirty: Bool
@@ -10,12 +11,14 @@ struct TerminalTabItem: Identifiable, Equatable, Sendable {
 
   init(
     id: TerminalTabID = TerminalTabID(),
+    projectID: TerminalProjectID,
     title: String,
     isDirty: Bool = false,
     isPinned: Bool = false,
     isTitleLocked: Bool = false
   ) {
     self.id = id
+    self.projectID = projectID
     self.defaultTitle = title
     self.title = title
     self.isDirty = isDirty

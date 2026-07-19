@@ -3,8 +3,14 @@ import Observation
 @MainActor
 @Observable
 final class TerminalTabManager {
+  private var projectOrder: [TerminalProjectID]
   var tabs: [TerminalTabItem] = []
   var selectedTabId: TerminalTabID?
+
+  init(projectIDs: [TerminalProjectID]) {
+    precondition(!projectIDs.isEmpty)
+    self.projectOrder = projectIDs
+  }
 
   var pinnedTabs: [TerminalTabItem] {
     tabs.filter(\.isPinned)
@@ -14,25 +20,33 @@ final class TerminalTabManager {
     tabs.filter { !$0.isPinned }
   }
 
-  var visibleTabs: [TerminalTabItem] {
-    tabs
+  func tabs(in projectID: TerminalProjectID) -> [TerminalTabItem] {
+    tabs.filter { $0.projectID == projectID }
+  }
+
+  func pinnedTabs(in projectID: TerminalProjectID) -> [TerminalTabItem] {
+    tabs(in: projectID).filter(\.isPinned)
+  }
+
+  func regularTabs(in projectID: TerminalProjectID) -> [TerminalTabItem] {
+    tabs(in: projectID).filter { !$0.isPinned }
   }
 
   func createTab(
+    projectID: TerminalProjectID,
     title: String,
     isPinned: Bool = false,
     isTitleLocked: Bool = false
   ) -> TerminalTabID {
+    precondition(projectOrder.contains(projectID))
     let tab = TerminalTabItem(
+      projectID: projectID,
       title: title,
       isPinned: isPinned,
       isTitleLocked: isTitleLocked
     )
-    if isPinned {
-      tabs = pinnedTabs + [tab] + regularTabs
-    } else {
-      tabs.append(tab)
-    }
+    tabs.append(tab)
+    normalizeOrder()
     selectedTabId = tab.id
     return tab.id
   }
@@ -65,18 +79,32 @@ final class TerminalTabManager {
     tabs[index].isDirty = isDirty
   }
 
-  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
+  func setPinnedTabOrder(
+    _ orderedIDs: [TerminalTabID],
+    in projectID: TerminalProjectID
+  ) {
+    let pinnedTabs = pinnedTabs(in: projectID)
     let pinnedByID = Dictionary(uniqueKeysWithValues: pinnedTabs.map { ($0.id, $0) })
     let orderedPinnedTabs = orderedIDs.compactMap { pinnedByID[$0] }
     guard orderedPinnedTabs.count == pinnedTabs.count else { return }
-    setVisibleTabs(orderedPinnedTabs + regularTabs)
+    replaceTabs(
+      in: projectID,
+      with: orderedPinnedTabs + regularTabs(in: projectID)
+    )
   }
 
-  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
+  func setRegularTabOrder(
+    _ orderedIDs: [TerminalTabID],
+    in projectID: TerminalProjectID
+  ) {
+    let regularTabs = regularTabs(in: projectID)
     let regularByID = Dictionary(uniqueKeysWithValues: regularTabs.map { ($0.id, $0) })
     let orderedRegularTabs = orderedIDs.compactMap { regularByID[$0] }
     guard orderedRegularTabs.count == regularTabs.count else { return }
-    setVisibleTabs(pinnedTabs + orderedRegularTabs)
+    replaceTabs(
+      in: projectID,
+      with: pinnedTabs(in: projectID) + orderedRegularTabs
+    )
   }
 
   func moveTab(
@@ -85,22 +113,14 @@ final class TerminalTabManager {
     regularOrder: [TerminalTabID]
   ) {
     guard var tab = tabs.first(where: { $0.id == id }) else { return }
-
+    let projectID = tab.projectID
     let isPinnedDestination = pinnedOrder.contains(id)
     let isRegularDestination = regularOrder.contains(id)
     guard isPinnedDestination != isRegularDestination else { return }
 
-    var pinnedTabs = pinnedTabs
-    var regularTabs = regularTabs
-
-    if tab.isPinned {
-      pinnedTabs.removeAll { $0.id == id }
-    } else {
-      regularTabs.removeAll { $0.id == id }
-    }
-
+    var pinnedTabs = pinnedTabs(in: projectID).filter { $0.id != id }
+    var regularTabs = regularTabs(in: projectID).filter { $0.id != id }
     tab.isPinned = isPinnedDestination
-
     if isPinnedDestination {
       pinnedTabs.append(tab)
     } else {
@@ -111,20 +131,26 @@ final class TerminalTabManager {
     let regularByID = Dictionary(uniqueKeysWithValues: regularTabs.map { ($0.id, $0) })
     let orderedPinnedTabs = pinnedOrder.compactMap { pinnedByID[$0] }
     let orderedRegularTabs = regularOrder.compactMap { regularByID[$0] }
-
     guard
       orderedPinnedTabs.count == pinnedTabs.count,
       orderedRegularTabs.count == regularTabs.count
     else {
       return
     }
-
-    setVisibleTabs(orderedPinnedTabs + orderedRegularTabs)
+    replaceTabs(in: projectID, with: orderedPinnedTabs + orderedRegularTabs)
   }
 
   func togglePinned(_ id: TerminalTabID) {
-    guard let tab = tabs.first(where: { $0.id == id }) else { return }
-    moveTab(id, toPinned: !tab.isPinned)
+    guard var tab = tabs.first(where: { $0.id == id }) else { return }
+    let projectID = tab.projectID
+    tab.isPinned.toggle()
+    let remainingTabs = tabs(in: projectID).filter { $0.id != id }
+    let pinnedTabs = remainingTabs.filter(\.isPinned)
+    let regularTabs = remainingTabs.filter { !$0.isPinned }
+    replaceTabs(
+      in: projectID,
+      with: tab.isPinned ? pinnedTabs + [tab] + regularTabs : pinnedTabs + regularTabs + [tab]
+    )
   }
 
   func closeTab(_ id: TerminalTabID) {
@@ -134,65 +160,73 @@ final class TerminalTabManager {
     guard wasSelected else { return }
     if tabs.indices.contains(index) {
       selectedTabId = tabs[index].id
-    } else if let lastTab = tabs.last {
-      selectedTabId = lastTab.id
     } else {
-      selectedTabId = nil
+      selectedTabId = tabs.last?.id
     }
   }
 
+  func closeTabs(in projectIDs: Set<TerminalProjectID>) -> [TerminalTabID] {
+    let removedTabIDs = tabs.filter { projectIDs.contains($0.projectID) }.map(\.id)
+    for tabID in removedTabIDs {
+      closeTab(tabID)
+    }
+    return removedTabIDs
+  }
+
   func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
-    guard let index = tabs.firstIndex(where: { $0.id == id }) else { return [] }
-    let nextIndex = tabs.index(after: index)
-    guard nextIndex < tabs.endIndex else { return [] }
-    return tabs[nextIndex...].map(\.id)
+    guard let tab = tabs.first(where: { $0.id == id }) else { return [] }
+    let projectTabs = tabs(in: tab.projectID)
+    guard let index = projectTabs.firstIndex(where: { $0.id == id }) else { return [] }
+    let nextIndex = projectTabs.index(after: index)
+    guard nextIndex < projectTabs.endIndex else { return [] }
+    return projectTabs[nextIndex...].map(\.id)
   }
 
   func otherTabIDs(_ id: TerminalTabID) -> [TerminalTabID] {
-    tabs.map(\.id).filter { $0 != id }
+    guard let tab = tabs.first(where: { $0.id == id }) else { return [] }
+    return tabs(in: tab.projectID).map(\.id).filter { $0 != id }
   }
 
   func restoreTabs(
     _ tabs: [TerminalTabItem],
     selectedTabID: TerminalTabID?
   ) {
-    self.tabs = tabs
+    self.tabs = tabs.filter { projectOrder.contains($0.projectID) }
+    normalizeOrder()
     self.selectedTabId =
       selectedTabID.flatMap { id in
-        tabs.contains(where: { $0.id == id }) ? id : nil
+        self.tabs.contains(where: { $0.id == id }) ? id : nil
       }
-      ?? tabs.first?.id
+      ?? self.tabs.first?.id
   }
 
-  private func setVisibleTabs(_ visibleTabs: [TerminalTabItem]) {
-    tabs = visibleTabs
-    if tabs.contains(where: { $0.id == selectedTabId }) {
-      return
-    }
-    selectedTabId = tabs.first?.id
+  func updateProjectOrder(_ projectIDs: [TerminalProjectID]) -> [TerminalTabID] {
+    precondition(!projectIDs.isEmpty)
+    let validProjectIDs = Set(projectIDs)
+    let removedTabIDs = closeTabs(
+      in: Set(projectOrder).subtracting(validProjectIDs)
+    )
+    projectOrder = projectIDs
+    normalizeOrder()
+    return removedTabIDs
   }
 
-  private func moveTab(_ id: TerminalTabID, toPinned: Bool) {
-    guard var tab = tabs.first(where: { $0.id == id }) else { return }
-
-    var pinnedTabs = pinnedTabs
-    var regularTabs = regularTabs
-
-    if tab.isPinned {
-      pinnedTabs.removeAll { $0.id == id }
-    } else {
-      regularTabs.removeAll { $0.id == id }
+  private func replaceTabs(
+    in projectID: TerminalProjectID,
+    with projectTabs: [TerminalTabItem]
+  ) {
+    tabs.removeAll { $0.projectID == projectID }
+    tabs.append(contentsOf: projectTabs)
+    normalizeOrder()
+    if !tabs.contains(where: { $0.id == selectedTabId }) {
+      selectedTabId = tabs.first?.id
     }
-
-    tab.isPinned = toPinned
-
-    if toPinned {
-      pinnedTabs.append(tab)
-    } else {
-      regularTabs.append(tab)
-    }
-
-    setVisibleTabs(pinnedTabs + regularTabs)
   }
 
+  private func normalizeOrder() {
+    tabs = projectOrder.flatMap { projectID in
+      let projectTabs = tabs.filter { $0.projectID == projectID }
+      return projectTabs.filter(\.isPinned) + projectTabs.filter { !$0.isPinned }
+    }
+  }
 }

@@ -37,6 +37,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
   var tab: TerminalTabItem {
     TerminalTabItem(
       id: tabID,
+      projectID: TerminalProjectID(),
       title: title,
       isDirty: section == .terminalProgress
     )

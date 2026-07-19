@@ -24,6 +24,7 @@ extension TerminalHostState {
 
   @discardableResult
   func createTab(
+    projectID: TerminalProjectID? = nil,
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil,
@@ -36,6 +37,7 @@ extension TerminalHostState {
     }
     return createTab(
       in: target.spaceID,
+      projectID: projectID,
       focusing: focusing,
       startupCommand: startupCommand,
       workingDirectory: workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) },
@@ -47,6 +49,7 @@ extension TerminalHostState {
   @discardableResult
   func createTab(
     in spaceID: TerminalSpaceID,
+    projectID: TerminalProjectID? = nil,
     focusing: Bool = true,
     startupCommand: String? = nil,
     workingDirectory: URL? = nil,
@@ -55,11 +58,21 @@ extension TerminalHostState {
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
     guard let tabManager = spaceManager.tabManager(for: spaceID) else { return nil }
+    guard
+      let projectID = resolvedProjectID(
+        explicitProjectID: projectID,
+        inheritingFromSurfaceID: inheritingFromSurfaceID,
+        in: spaceID
+      )
+    else {
+      return nil
+    }
     let context: ghostty_surface_context_e =
       tabManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
     let tabID = tabManager.createTab(
+      projectID: projectID,
       title: "Terminal \(nextTabIndex(in: spaceID))"
     )
     let tree = splitTree(
@@ -287,6 +300,26 @@ extension TerminalHostState {
       inheritedSurfaceID: inheritingFromSurfaceID ?? currentFocusedSurfaceID(),
       spaceID: spaceID
     )
+  }
+
+  func resolvedProjectID(
+    explicitProjectID: TerminalProjectID?,
+    inheritingFromSurfaceID: UUID?,
+    in spaceID: TerminalSpaceID
+  ) -> TerminalProjectID? {
+    let validProjectIDs = Set(spaceManager.orderedProjects(in: spaceID).map(\.id))
+    if let explicitProjectID {
+      return validProjectIDs.contains(explicitProjectID) ? explicitProjectID : nil
+    }
+    if let inheritingFromSurfaceID,
+      let tabID = tabID(containing: inheritingFromSurfaceID),
+      spaceManager.space(for: tabID)?.id == spaceID,
+      let projectID = spaceManager.tab(for: tabID)?.projectID,
+      validProjectIDs.contains(projectID)
+    {
+      return projectID
+    }
+    return spaceManager.homeProjectID(in: spaceID)
   }
 
   func resolveCreatePaneTarget(

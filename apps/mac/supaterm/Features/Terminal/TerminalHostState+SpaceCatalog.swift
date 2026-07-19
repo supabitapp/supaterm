@@ -7,6 +7,139 @@ import SupatermTerminalCore
 import SwiftUI
 
 extension TerminalHostState {
+  func orderedProjects(in spaceID: TerminalSpaceID) -> [TerminalProjectItem] {
+    spaceManager.orderedProjects(in: spaceID)
+  }
+
+  func projectDisplayName(
+    _ projectID: TerminalProjectID,
+    in spaceID: TerminalSpaceID
+  ) -> String? {
+    spaceCatalog.displayName(for: projectID, in: spaceID)
+  }
+
+  func tabs(
+    in projectID: TerminalProjectID,
+    spaceID: TerminalSpaceID
+  ) -> [TerminalTabItem] {
+    spaceManager.tabs(in: projectID, spaceID: spaceID)
+  }
+
+  func isProjectCollapsed(
+    _ projectID: TerminalProjectID,
+    in spaceID: TerminalSpaceID
+  ) -> Bool {
+    collapsedProjectIDsBySpace[spaceID]?.contains(projectID) == true
+  }
+
+  func setProjectCollapsed(
+    _ isCollapsed: Bool,
+    projectID: TerminalProjectID,
+    in spaceID: TerminalSpaceID
+  ) {
+    guard orderedProjects(in: spaceID).contains(where: { $0.id == projectID }) else { return }
+    if isCollapsed {
+      collapsedProjectIDsBySpace[spaceID, default: []].insert(projectID)
+    } else {
+      collapsedProjectIDsBySpace[spaceID]?.remove(projectID)
+    }
+    sessionDidChange()
+  }
+
+  @discardableResult
+  func createProject(
+    folderPath: String,
+    in spaceID: TerminalSpaceID
+  ) -> TerminalProjectID? {
+    let trimmedPath = folderPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPath.isEmpty, NSString(string: trimmedPath).isAbsolutePath else { return nil }
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      return nil
+    }
+    let project = TerminalProjectItem(
+      folderPath: URL(fileURLWithPath: trimmedPath, isDirectory: true).standardizedFileURL.path
+    )
+    var updatedCatalog = spaceCatalog
+    updatedCatalog.spaces[spaceIndex].projects.append(project)
+    _ = writeSpaceCatalog(updatedCatalog)
+    sessionDidChange()
+    return project.id
+  }
+
+  func deleteProject(
+    _ projectID: TerminalProjectID,
+    in spaceID: TerminalSpaceID
+  ) {
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      return
+    }
+    let projects = spaceCatalog.spaces[spaceIndex].projects
+    guard let project = projects.first(where: { $0.id == projectID }), !project.isHome else {
+      return
+    }
+    var updatedCatalog = spaceCatalog
+    updatedCatalog.spaces[spaceIndex].projects.removeAll { $0.id == projectID }
+    collapsedProjectIDsBySpace[spaceID]?.remove(projectID)
+    _ = writeSpaceCatalog(updatedCatalog)
+    sessionDidChange()
+  }
+
+  func setProjectOrder(
+    _ orderedIDs: [TerminalProjectID],
+    in spaceID: TerminalSpaceID
+  ) {
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      return
+    }
+    let projects = spaceCatalog.spaces[spaceIndex].projects
+    let projectsByID = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0) })
+    let orderedProjects = orderedIDs.compactMap { projectsByID[$0] }
+    guard orderedProjects.count == projects.count else { return }
+    var updatedCatalog = spaceCatalog
+    updatedCatalog.spaces[spaceIndex].projects =
+      orderedProjects.filter(\.isPinned) + orderedProjects.filter { !$0.isPinned }
+    _ = writeSpaceCatalog(updatedCatalog)
+    sessionDidChange()
+  }
+
+  func toggleProjectPinned(
+    _ projectID: TerminalProjectID,
+    in spaceID: TerminalSpaceID
+  ) {
+    guard let spaceIndex = spaceCatalog.spaces.firstIndex(where: { $0.id == spaceID }) else {
+      return
+    }
+    var projects = spaceCatalog.spaces[spaceIndex].projects
+    guard let projectIndex = projects.firstIndex(where: { $0.id == projectID }) else { return }
+    var project = projects.remove(at: projectIndex)
+    project.isPinned.toggle()
+    let pinned = projects.filter(\.isPinned)
+    let regular = projects.filter { !$0.isPinned }
+    var updatedCatalog = spaceCatalog
+    updatedCatalog.spaces[spaceIndex].projects =
+      project.isPinned ? pinned + [project] + regular : pinned + regular + [project]
+    _ = writeSpaceCatalog(updatedCatalog)
+    sessionDidChange()
+  }
+
+  func setPinnedTabOrder(
+    _ orderedIDs: [TerminalTabID],
+    in projectID: TerminalProjectID,
+    spaceID: TerminalSpaceID
+  ) {
+    spaceManager.tabManager(for: spaceID)?.setPinnedTabOrder(orderedIDs, in: projectID)
+    sessionDidChange()
+  }
+
+  func setRegularTabOrder(
+    _ orderedIDs: [TerminalTabID],
+    in projectID: TerminalProjectID,
+    spaceID: TerminalSpaceID
+  ) {
+    spaceManager.tabManager(for: spaceID)?.setRegularTabOrder(orderedIDs, in: projectID)
+    sessionDidChange()
+  }
+
   @discardableResult
   func createSpace(named name: String) throws -> TerminalSpaceID {
     guard let normalizedName = Self.trimmedNonEmpty(name) else {
@@ -91,7 +224,7 @@ extension TerminalHostState {
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogObserved)
-    synchronizePinnedTabCatalogWithSpaces()
+    sanitizeCollapsedProjects()
 
     if previousSelectedSpaceID != selectedSpaceID {
       finalizeSpaceSelectionChange()
@@ -112,7 +245,7 @@ extension TerminalHostState {
 
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogWrite)
-    synchronizePinnedTabCatalogWithSpaces()
+    sanitizeCollapsedProjects()
     return diff
   }
 
@@ -127,5 +260,17 @@ extension TerminalHostState {
 
   func replaceSpaceCatalog(_ spaceCatalog: TerminalSpaceCatalog) {
     $spaceCatalog.withLock { $0 = spaceCatalog }
+  }
+
+  private func sanitizeCollapsedProjects() {
+    for space in spaces {
+      let validProjectIDs = Set(space.projects.map(\.id))
+      collapsedProjectIDsBySpace[space.id] =
+        collapsedProjectIDsBySpace[space.id]?.intersection(validProjectIDs) ?? []
+    }
+    let validSpaceIDs = Set(spaces.map(\.id))
+    collapsedProjectIDsBySpace = collapsedProjectIDsBySpace.filter {
+      validSpaceIDs.contains($0.key)
+    }
   }
 }

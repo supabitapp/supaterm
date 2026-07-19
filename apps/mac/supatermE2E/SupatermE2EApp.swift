@@ -274,7 +274,6 @@ final class SupatermE2EApp: @unchecked Sendable {
     let files = [
       stateHome.appendingPathComponent("session.json", isDirectory: false),
       stateHome.appendingPathComponent("spaces.json", isDirectory: false),
-      stateHome.appendingPathComponent("pinned-tabs.json", isDirectory: false),
     ]
     let deadline = Date().addingTimeInterval(timeout)
     var stableSince: Date?

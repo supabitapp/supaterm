@@ -3,7 +3,7 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 5
+  static let currentVersion = 6
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -70,12 +70,19 @@ nonisolated struct TerminalWindowSession: Equatable, Codable, Sendable {
     self.frame = frame
   }
 
-  func pruned(validSpaceIDs: Set<TerminalSpaceID>) -> TerminalWindowSession? {
+  func pruned(
+    validProjectIDsBySpaceID: [TerminalSpaceID: Set<TerminalProjectID>],
+    homeProjectIDsBySpaceID: [TerminalSpaceID: TerminalProjectID]
+  ) -> TerminalWindowSession? {
     var seenSpaceIDs: Set<TerminalSpaceID> = []
     let spaces = spaces.compactMap { space -> TerminalWindowSpaceSession? in
-      guard validSpaceIDs.contains(space.id) else { return nil }
+      guard let validProjectIDs = validProjectIDsBySpaceID[space.id] else { return nil }
+      guard let homeProjectID = homeProjectIDsBySpaceID[space.id] else { return nil }
       guard seenSpaceIDs.insert(space.id).inserted else { return nil }
-      return space.pruned()
+      return space.pruned(
+        validProjectIDs: validProjectIDs,
+        homeProjectID: homeProjectID
+      )
     }
     guard !spaces.isEmpty else { return nil }
     let resolvedSelectedSpaceID =
@@ -131,11 +138,18 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
 nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
   var id: TerminalSpaceID
   var selectedTabIndex: Int?
-  var selectedPinnedTabID: TerminalTabID?
+  var collapsedProjectIDs: Set<TerminalProjectID> = []
   var tabs: [TerminalTabSession]
 
-  func pruned() -> TerminalWindowSpaceSession {
-    let tabs = tabs.compactMap { $0.pruned() }
+  func pruned(
+    validProjectIDs: Set<TerminalProjectID>,
+    homeProjectID: TerminalProjectID
+  ) -> TerminalWindowSpaceSession {
+    let tabs = tabs.compactMap { tab in
+      tab.pruned(
+        projectID: validProjectIDs.contains(tab.projectID) ? tab.projectID : homeProjectID
+      )
+    }
     let resolvedSelectedTabIndex = Self.resolvedSelectedTabIndex(
       selectedTabIndex,
       tabCount: tabs.count
@@ -143,7 +157,7 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
     return TerminalWindowSpaceSession(
       id: id,
       selectedTabIndex: resolvedSelectedTabIndex,
-      selectedPinnedTabID: selectedPinnedTabID,
+      collapsedProjectIDs: collapsedProjectIDs.intersection(validProjectIDs),
       tabs: tabs
     )
   }
@@ -167,50 +181,22 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
 }
 
 nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
+  var projectID: TerminalProjectID
   var isPinned: Bool
   var lockedTitle: String?
   var focusedPaneIndex: Int
   var root: TerminalPaneNodeSession
 
-  func pruned() -> TerminalTabSession? {
+  func pruned(projectID: TerminalProjectID? = nil) -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
     return TerminalTabSession(
+      projectID: projectID ?? self.projectID,
       isPinned: isPinned,
       lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
       focusedPaneIndex: Self.resolvedFocusedPaneIndex(
         focusedPaneIndex,
         leafCount: root.leafCount
       ),
-      root: root
-    )
-  }
-
-  func updatingWorkingDirectoryPaths(
-    _ workingDirectoryPaths: [String?],
-    focusedPaneIndex: Int
-  ) -> TerminalTabSession {
-    guard root.leafCount > 0 else { return self }
-    guard workingDirectoryPaths.count >= root.leafCount else { return self }
-    let resolvedFocusedPaneIndex = min(max(focusedPaneIndex, 0), root.leafCount - 1)
-    let focusedWorkingDirectoryPath =
-      workingDirectoryPaths.indices.contains(focusedPaneIndex)
-      ? workingDirectoryPaths[focusedPaneIndex]
-      : workingDirectoryPaths.first.flatMap { $0 }
-    let updatesAllLeafPaths = root.leafCount == workingDirectoryPaths.count
-    let root =
-      root.updatingLeaves { index, leaf in
-        var leaf = leaf
-        if updatesAllLeafPaths {
-          leaf.workingDirectoryPath = workingDirectoryPaths[index]
-        } else if index == resolvedFocusedPaneIndex {
-          leaf.workingDirectoryPath = focusedWorkingDirectoryPath
-        }
-        return leaf
-      }
-    return TerminalTabSession(
-      isPinned: isPinned,
-      lockedTitle: lockedTitle,
-      focusedPaneIndex: resolvedFocusedPaneIndex,
       root: root
     )
   }
@@ -283,13 +269,6 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  fileprivate func updatingLeaves(
-    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession
-  ) -> TerminalPaneNodeSession {
-    var index = 0
-    return updatingLeaves(update, index: &index)
-  }
-
   func pruned() -> TerminalPaneNodeSession? {
     switch self {
     case .leaf(let leaf):
@@ -299,35 +278,6 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  private func updatingLeaves(
-    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession,
-    index: inout Int
-  ) -> TerminalPaneNodeSession {
-    switch self {
-    case .leaf(let leaf):
-      let leaf = update(index, leaf)
-      index += 1
-      return .leaf(leaf)
-
-    case .split(let split):
-      let left = split.left.updatingLeaves(
-        update,
-        index: &index
-      )
-      let right = split.right.updatingLeaves(
-        update,
-        index: &index
-      )
-      return .split(
-        TerminalPaneSplitSession(
-          direction: split.direction,
-          ratio: split.ratio,
-          left: left,
-          right: right
-        )
-      )
-    }
-  }
 }
 
 nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {

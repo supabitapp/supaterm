@@ -630,6 +630,7 @@ private struct SidebarRowSnapshotItem {
   var tab: TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid(id)),
+      projectID: TerminalProjectID(rawValue: SnapshotFixtureValues.uuid("30000000-0000-0000-0000-000000000001")),
       title: title,
       isPinned: isPinned
     )
@@ -733,6 +734,7 @@ private enum SidebarChromeSnapshotContext {
   ) -> TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-0000000000\(id)")),
+      projectID: TerminalProjectID(rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-000000000001")),
       title: title,
       isPinned: isPinned
     )

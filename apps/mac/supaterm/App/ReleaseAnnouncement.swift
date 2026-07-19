@@ -223,7 +223,6 @@ nonisolated enum ReleaseAnnouncementStorage {
       SupatermSettings.defaultURL(homeDirectoryPath: homeDirectoryPath, environment: environment),
       SupatermSettings.legacyURL(homeDirectoryPath: homeDirectoryPath, environment: environment),
       TerminalSessionCatalog.defaultURL(homeDirectoryPath: homeDirectoryPath, environment: environment),
-      TerminalPinnedTabCatalog.defaultURL(homeDirectoryPath: homeDirectoryPath, environment: environment),
       TerminalSpaceCatalog.defaultURL(homeDirectoryPath: homeDirectoryPath, environment: environment),
     ]
     return urls.contains { FileManager.default.fileExists(atPath: $0.path) }

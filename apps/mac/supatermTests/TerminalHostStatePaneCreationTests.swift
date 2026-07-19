@@ -67,6 +67,7 @@ struct TerminalHostStatePaneCreationTests {
     let host = TerminalHostState()
     let spaceID = host.spaces[0].id
     let tabSession = TerminalTabSession(
+      projectID: TerminalProjectID.home(for: spaceID),
       isPinned: false,
       lockedTitle: nil,
       focusedPaneIndex: 1,

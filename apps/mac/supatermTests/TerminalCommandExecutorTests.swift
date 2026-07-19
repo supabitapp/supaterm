@@ -116,7 +116,7 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func closeTabClosesPinnedLastTabWithoutClosingWindow() throws {
+  func closeTabRequestsWindowCloseForPinnedLastTab() throws {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry()
@@ -143,9 +143,9 @@ struct TerminalCommandExecutorTests {
 
     _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
 
-    #expect(closeWindowCount == 0)
-    #expect(host.spaceManager.tab(for: tabID) == nil)
-    #expect(host.trees[tabID] == nil)
+    #expect(closeWindowCount == 1)
+    #expect(host.spaceManager.tab(for: tabID) != nil)
+    #expect(host.trees[tabID] != nil)
   }
 
   @Test
@@ -177,23 +177,19 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func resolveCloseOfDormantPinnedTabDoesNotCloseWindow() throws {
+  func resolveCloseOfPinnedLastTabClosesWindow() throws {
     initializeGhosttyForTests()
 
     let host = TerminalHostState()
     host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
     let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
     host.handleCommand(.togglePinned(tabID))
-    host.performCloseSurface(surface.id)
-    #expect(host.trees[tabID] == nil)
-    #expect(host.spaceManager.tab(for: tabID) != nil)
 
     let resolved = try host.resolveClose(
       TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
     )
 
-    #expect(!resolved.shouldCloseWindow)
+    #expect(resolved.shouldCloseWindow)
   }
 
   @Test

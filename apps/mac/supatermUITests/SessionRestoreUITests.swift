@@ -36,7 +36,6 @@ final class SessionRestoreUITests: SupatermUITestCase {
     XCTAssertTrue(didSelectPinnedTab)
     XCTAssertFalse(regularRow.isSelected)
 
-    let pinnedTabsURL = stateHome.appendingPathComponent("pinned-tabs.json")
     let didSavePinnedSelection = await waitForSessionCatalog(at: sessionFileURL) { catalog in
       guard
         let windows = catalog["windows"] as? [[String: Any]],
@@ -44,12 +43,14 @@ final class SessionRestoreUITests: SupatermUITestCase {
         let spaces = windows[0]["spaces"] as? [[String: Any]],
         spaces.count == 1
       else { return false }
-      guard let selectedPinnedTabID = spaces[0]["selectedPinnedTabID"] as? [String: Any] else {
+      guard
+        let tabs = spaces[0]["tabs"] as? [[String: Any]],
+        tabs.count == 2
+      else {
         return false
       }
-      return selectedPinnedTabID["rawValue"] is String
-        && spaces[0]["selectedTabIndex"] == nil
-        && FileManager.default.fileExists(atPath: pinnedTabsURL.path)
+      return spaces[0]["selectedTabIndex"] as? Int == 0
+        && tabs[0]["isPinned"] as? Bool == true
     }
     XCTAssertTrue(didSavePinnedSelection)
 

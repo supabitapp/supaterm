@@ -9,7 +9,6 @@
     static func seedCatalogs() {
       @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
       @Shared(.terminalSessionCatalog) var sessionCatalog = TerminalSessionCatalog.default
-      @Shared(.terminalPinnedTabCatalog) var pinnedTabCatalog = TerminalPinnedTabCatalog.default
       @Shared(.supatermSettings) var settings = SupatermSettings.default
 
       prepareWorkspaceDirectories()
@@ -17,7 +16,17 @@
         $0 = TerminalSpaceCatalog(
           defaultSelectedSpaceID: IDs.space,
           spaces: [
-            PersistedTerminalSpace(id: IDs.space, name: "Supaterm")
+            PersistedTerminalSpace(
+              id: IDs.space,
+              name: "Supaterm",
+              projects: [
+                .home(for: IDs.space),
+                TerminalProjectItem(
+                  id: IDs.project,
+                  folderPath: workspaceRoot.path
+                ),
+              ]
+            )
           ]
         )
       }
@@ -29,26 +38,14 @@
               spaces: [
                 TerminalWindowSpaceSession(
                   id: IDs.space,
-                  selectedTabIndex: 1,
-                  selectedPinnedTabID: nil,
+                  selectedTabIndex: 3,
                   tabs: [
+                    webSession,
+                    apiSession,
                     deploySession,
                     scratchSession,
                   ]
                 )
-              ]
-            )
-          ]
-        )
-      }
-      $pinnedTabCatalog.withLock {
-        $0 = TerminalPinnedTabCatalog(
-          spaces: [
-            PersistedPinnedTerminalTabsForSpace(
-              id: IDs.space,
-              tabs: [
-                PersistedPinnedTerminalTab(id: IDs.webTab, session: webSession),
-                PersistedPinnedTerminalTab(id: IDs.apiTab, session: apiSession),
               ]
             )
           ]
@@ -108,6 +105,7 @@
     ]
 
     private static let webSession = TerminalTabSession(
+      projectID: IDs.project,
       isPinned: true,
       lockedTitle: "supaterm/web",
       focusedPaneIndex: 0,
@@ -134,6 +132,7 @@
     )
 
     private static let apiSession = TerminalTabSession(
+      projectID: IDs.project,
       isPinned: true,
       lockedTitle: "supaterm/api",
       focusedPaneIndex: 0,
@@ -147,6 +146,7 @@
     )
 
     private static let deploySession = TerminalTabSession(
+      projectID: IDs.project,
       isPinned: false,
       lockedTitle: "supaterm/deploy",
       focusedPaneIndex: 0,
@@ -160,6 +160,7 @@
     )
 
     private static let scratchSession = TerminalTabSession(
+      projectID: IDs.project,
       isPinned: false,
       lockedTitle: "scratch",
       focusedPaneIndex: 0,
@@ -199,8 +200,7 @@
 
     private enum IDs {
       static let space = TerminalSpaceID(rawValue: UUID(uuidString: "4F9DA8C0-7B80-42C4-A828-B7A7E4E1D3A1")!)
-      static let webTab = TerminalTabID(rawValue: UUID(uuidString: "F4218391-DB8F-43DD-830C-B63D6F877D81")!)
-      static let apiTab = TerminalTabID(rawValue: UUID(uuidString: "85F58292-F7C3-47DB-89D7-B96DCC6A2771")!)
+      static let project = TerminalProjectID(rawValue: UUID(uuidString: "F4218391-DB8F-43DD-830C-B63D6F877D81")!)
       static let webAgentSurface = UUID(uuidString: "8F02B7F2-4F60-465B-90DF-14C03BF6D482")!
       static let webShellSurface = UUID(uuidString: "F6D8226D-0C92-40D4-B5E8-52B3E850D675")!
       static let apiSurface = UUID(uuidString: "C095C9A1-7E44-4BD2-A9F5-7F322221B495")!
