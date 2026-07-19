@@ -147,6 +147,7 @@ final class SupatermE2EApp: @unchecked Sendable {
     try debugSnapshot()
       .windows
       .flatMap(\.spaces)
+      .flatMap(\.projects)
       .flatMap(\.tabs)
       .first { $0.id == tabID }
   }
@@ -155,6 +156,7 @@ final class SupatermE2EApp: @unchecked Sendable {
     try debugSnapshot()
       .windows
       .flatMap(\.spaces)
+      .flatMap(\.projects)
       .flatMap(\.tabs)
       .flatMap(\.panes)
       .first { $0.id == paneID }

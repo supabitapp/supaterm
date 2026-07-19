@@ -48,7 +48,16 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermAppDebugSnapshot.Project(
+          id: spaceID,
+          name: "Home",
+          path: "/Users/test",
+          isPinned: false,
+          isHome: true,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -107,7 +116,16 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermAppDebugSnapshot.Project(
+          id: spaceID,
+          name: "Home",
+          path: "/Users/test",
+          isPinned: false,
+          isHome: true,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,

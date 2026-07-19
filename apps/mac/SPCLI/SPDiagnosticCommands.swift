@@ -90,7 +90,7 @@ extension SP {
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       commandName: "ls",
-      abstract: "Show the current Supaterm window, space, tab, and pane tree.",
+      abstract: "Show the current Supaterm window, space, project, tab, and pane tree.",
       discussion: SPHelp.treeDiscussion
     )
 

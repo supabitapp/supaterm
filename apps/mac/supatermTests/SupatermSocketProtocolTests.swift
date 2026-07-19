@@ -617,7 +617,16 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermTreeSnapshot.Project(
+          id: UUID(uuidString: "9F0C96A8-E277-4AB3-8994-28F1C47B8775")!,
+          name: "project",
+          path: "/work/project",
+          isPinned: true,
+          isHome: false,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -633,6 +642,21 @@ struct SupatermSocketProtocolTests {
 
     #expect(request.method == SupatermSocketMethod.appTree)
     #expect(try response.decodeResult(SupatermTreeSnapshot.self) == snapshot)
+
+    let object = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any]
+    )
+    let windows = try #require(object["windows"] as? [[String: Any]])
+    let spaces = try #require(windows.first?["spaces"] as? [[String: Any]])
+    let encodedSpace = try #require(spaces.first)
+    let projects = try #require(encodedSpace["projects"] as? [[String: Any]])
+    let encodedProject = try #require(projects.first)
+    #expect(encodedSpace["tabs"] == nil)
+    #expect(encodedProject["name"] as? String == "project")
+    #expect(encodedProject["path"] as? String == "/work/project")
+    #expect(encodedProject["isPinned"] as? Bool == true)
+    #expect(encodedProject["isHome"] as? Bool == false)
+    #expect((encodedProject["tabs"] as? [[String: Any]])?.count == 1)
   }
 
   @Test
@@ -694,7 +718,16 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      projects: [
+        SupatermAppDebugSnapshot.Project(
+          id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
+          name: "Home",
+          path: "/Users/test",
+          isPinned: false,
+          isHome: true,
+          tabs: [tab]
+        )
+      ]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -789,6 +822,7 @@ struct SupatermSocketProtocolTests {
       startupCommand: "pwd",
       cwd: "/tmp/example",
       focus: false,
+      project: "/work/project",
       targetWindowIndex: 1,
       targetSpaceIndex: 2
     )

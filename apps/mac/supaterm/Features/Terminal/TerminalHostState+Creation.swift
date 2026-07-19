@@ -302,6 +302,73 @@ extension TerminalHostState {
     )
   }
 
+  func resolveProjectID(
+    _ selector: String?,
+    in space: TerminalSpaceItem
+  ) throws -> TerminalProjectID? {
+    guard let selector else { return nil }
+    let projects = spaceManager.orderedProjects(in: space.id)
+
+    if let id = UUID(uuidString: selector),
+      let project = projects.first(where: { $0.id.rawValue == id })
+    {
+      return project.id
+    }
+
+    let nameMatches = projects.filter {
+      (projectDisplayName($0.id, in: space.id) ?? $0.baseDisplayName) == selector
+    }
+    if nameMatches.count == 1 {
+      return nameMatches[0].id
+    }
+    if nameMatches.count > 1 {
+      throw TerminalCreateTabError.projectSelectorAmbiguous(
+        selector: selector,
+        spaceName: space.name,
+        projects: projectDescriptors(projects, in: space.id)
+      )
+    }
+
+    if let path = normalizedProjectPath(selector) {
+      let pathMatches = projects.filter { normalizedProjectPath($0.folderPath) == path }
+      if pathMatches.count == 1 {
+        return pathMatches[0].id
+      }
+      if pathMatches.count > 1 {
+        throw TerminalCreateTabError.projectSelectorAmbiguous(
+          selector: selector,
+          spaceName: space.name,
+          projects: projectDescriptors(projects, in: space.id)
+        )
+      }
+    }
+
+    throw TerminalCreateTabError.projectSelectorNotFound(
+      selector: selector,
+      spaceName: space.name,
+      projects: projectDescriptors(projects, in: space.id)
+    )
+  }
+
+  private func projectDescriptors(
+    _ projects: [TerminalProjectItem],
+    in spaceID: TerminalSpaceID
+  ) -> [TerminalProjectDescriptor] {
+    projects.map {
+      TerminalProjectDescriptor(
+        id: $0.id.rawValue,
+        name: projectDisplayName($0.id, in: spaceID) ?? $0.baseDisplayName,
+        path: $0.folderPath
+      )
+    }
+  }
+
+  private func normalizedProjectPath(_ path: String) -> String? {
+    let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, NSString(string: trimmed).isAbsolutePath else { return nil }
+    return URL(fileURLWithPath: trimmed, isDirectory: true).standardizedFileURL.path
+  }
+
   func resolvedProjectID(
     explicitProjectID: TerminalProjectID?,
     inheritingFromSurfaceID: UUID?,

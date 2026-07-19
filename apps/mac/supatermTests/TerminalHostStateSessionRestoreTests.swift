@@ -224,12 +224,13 @@ struct TerminalHostStateSessionRestoreTests {
       let debug = restored.debugWindowSnapshot(index: 1)
       let restoredFirstSpace = try #require(
         debug.spaces.first(where: { $0.id == firstSpaceID.rawValue }))
-      let restoredFirstTab = try #require(restoredFirstSpace.tabs.first)
+      let restoredFirstTab = try #require(restoredFirstSpace.projects.first?.tabs.first)
 
       #expect(restoredFirstTab.panes.count == 2)
       #expect(restoredFirstTab.panes.filter(\.isFocused).count == 1)
       #expect(
-        debug.spaces.last?.tabs.last?.panes.first(where: \.isFocused)?.displayTitle == "Pane Title")
+        debug.spaces.last?.projects.last?.tabs.last?.panes.first(where: \.isFocused)?.displayTitle
+          == "Pane Title")
     }
   }
 

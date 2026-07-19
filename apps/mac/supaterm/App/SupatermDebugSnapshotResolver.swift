@@ -17,27 +17,29 @@ enum SupatermDebugSnapshotResolver {
 
     for window in windows {
       for space in window.spaces {
-        for tab in space.tabs where tab.id == context.tabID {
-          let pane = tab.panes.first { $0.id == context.surfaceID }
-          var problems: [String] = []
-          if pane == nil {
-            problems.append(
-              "Context pane \(context.surfaceID.uuidString) was not found in tab \(context.tabID.uuidString).")
+        for project in space.projects {
+          for tab in project.tabs where tab.id == context.tabID {
+            let pane = tab.panes.first { $0.id == context.surfaceID }
+            var problems: [String] = []
+            if pane == nil {
+              problems.append(
+                "Context pane \(context.surfaceID.uuidString) was not found in tab \(context.tabID.uuidString).")
+            }
+            return Resolution(
+              currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
+                windowIndex: window.index,
+                spaceIndex: space.index,
+                spaceID: space.id,
+                spaceName: space.name,
+                tabIndex: tab.index,
+                tabID: tab.id,
+                tabTitle: tab.title,
+                paneIndex: pane?.index,
+                paneID: pane?.id
+              ),
+              problems: problems
+            )
           }
-          return Resolution(
-            currentTarget: SupatermAppDebugSnapshot.CurrentTarget(
-              windowIndex: window.index,
-              spaceIndex: space.index,
-              spaceID: space.id,
-              spaceName: space.name,
-              tabIndex: tab.index,
-              tabID: tab.id,
-              tabTitle: tab.title,
-              paneIndex: pane?.index,
-              paneID: pane?.id
-            ),
-            problems: problems
-          )
         }
       }
     }

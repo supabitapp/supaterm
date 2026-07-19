@@ -22,6 +22,26 @@ extension SocketControlFeature {
         message: "Failed to create a new tab."
       )
 
+    case .projectSelectorAmbiguous(let selector, let spaceName, let projects):
+      return .error(
+        id: requestID,
+        code: "ambiguous_target",
+        message: projectSelectorErrorMessage(
+          "Project selector \"\(selector)\" is ambiguous in space \"\(spaceName)\".",
+          projects: projects
+        )
+      )
+
+    case .projectSelectorNotFound(let selector, let spaceName, let projects):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: projectSelectorErrorMessage(
+          "No project matches \"\(selector)\" in space \"\(spaceName)\".",
+          projects: projects
+        )
+      )
+
     case .spaceNotFound(let windowIndex, let spaceIndex):
       return .error(
         id: requestID,
@@ -36,6 +56,16 @@ extension SocketControlFeature {
         message: "Window \(windowIndex) was not found."
       )
     }
+  }
+
+  private func projectSelectorErrorMessage(
+    _ message: String,
+    projects: [TerminalProjectDescriptor]
+  ) -> String {
+    let rows = projects.map {
+      "- \($0.name) | \($0.id.uuidString.lowercased()) | \($0.path)"
+    }
+    return ([message, "Available projects:"] + rows).joined(separator: "\n")
   }
 
   func terminalErrorResponse(

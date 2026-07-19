@@ -196,14 +196,19 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
       id: firstSpaceID,
       name: "A",
       isSelected: false,
-      tabs: [firstWindowFirstTab]
+      projects: [treeProject(id: firstSpaceID, tabs: [firstWindowFirstTab])]
     ),
     SupatermTreeSnapshot.Space(
       index: 2,
       id: UUID(uuidString: "AFD1C31C-60A4-4AC8-8D59-418AD05473EB")!,
       name: "B",
       isSelected: false,
-      tabs: [firstWindowSecondTab]
+      projects: [
+        treeProject(
+          id: UUID(uuidString: "AFD1C31C-60A4-4AC8-8D59-418AD05473EB")!,
+          tabs: [firstWindowSecondTab]
+        )
+      ]
     ),
   ]
   let secondWindowSpace = SupatermTreeSnapshot.Space(
@@ -211,7 +216,12 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     id: secondSpaceID,
     name: "C",
     isSelected: true,
-    tabs: [secondWindowFirstTab, secondWindowSecondTab]
+    projects: [
+      treeProject(
+        id: secondSpaceID,
+        tabs: [secondWindowFirstTab, secondWindowSecondTab]
+      )
+    ]
   )
   let secondWindowSpaces = [secondWindowSpace]
 
@@ -228,5 +238,19 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
         spaces: secondWindowSpaces
       ),
     ]
+  )
+}
+
+private func treeProject(
+  id: UUID,
+  tabs: [SupatermTreeSnapshot.Tab]
+) -> SupatermTreeSnapshot.Project {
+  SupatermTreeSnapshot.Project(
+    id: id,
+    name: "Home",
+    path: "/Users/test",
+    isPinned: false,
+    isHome: true,
+    tabs: tabs
   )
 }

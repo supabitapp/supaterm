@@ -25,22 +25,35 @@ extension TerminalHostState {
       index: 1,
       isKey: windowActivity.isKeyWindow,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            SupatermTreeSnapshot.Pane(
-              index: paneOffset + 1,
-              id: pane.id,
-              isFocused: pane.id == focusedSurfaceID
+        let allTabs = spaceManager.tabs(in: space.id)
+        let projects = orderedProjects(in: space.id).map { project in
+          let tabs = allTabs.enumerated().compactMap { tabOffset, tab -> SupatermTreeSnapshot.Tab? in
+            guard tab.projectID == project.id else { return nil }
+            let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+            let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+              SupatermTreeSnapshot.Pane(
+                index: paneOffset + 1,
+                id: pane.id,
+                isFocused: pane.id == focusedSurfaceID
+              )
+            }
+
+            return SupatermTreeSnapshot.Tab(
+              index: tabOffset + 1,
+              id: tab.id.rawValue,
+              title: tab.title,
+              isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
+              panes: panes
             )
           }
 
-          return SupatermTreeSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            panes: panes
+          return SupatermTreeSnapshot.Project(
+            id: project.id.rawValue,
+            name: projectDisplayName(project.id, in: space.id) ?? project.baseDisplayName,
+            path: project.folderPath,
+            isPinned: project.isPinned,
+            isHome: project.isHome,
+            tabs: tabs
           )
         }
 
@@ -49,7 +62,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          projects: projects
         )
       }
     )
@@ -62,29 +75,44 @@ extension TerminalHostState {
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            debugPaneSnapshot(
-              pane,
-              index: paneOffset + 1,
-              isFocused: pane.id == focusedSurfaceID
+        let allTabs = spaceManager.tabs(in: space.id)
+        let projects = orderedProjects(in: space.id).map { project in
+          let tabs = allTabs.enumerated().compactMap {
+            tabOffset,
+            tab -> SupatermAppDebugSnapshot.Tab? in
+            guard tab.projectID == project.id else { return nil }
+            let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+            let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+              debugPaneSnapshot(
+                pane,
+                index: paneOffset + 1,
+                isFocused: pane.id == focusedSurfaceID
+              )
+            }
+
+            return SupatermAppDebugSnapshot.Tab(
+              index: tabOffset + 1,
+              id: tab.id.rawValue,
+              title: tab.title,
+              isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
+              isPinned: tab.isPinned,
+              isDirty: tab.isDirty,
+              isTitleLocked: tab.isTitleLocked,
+              hasRunningActivity: panes.contains(where: \.isRunning),
+              hasBell: panes.contains(where: { $0.bellCount > 0 }),
+              hasReadOnly: panes.contains(where: \.isReadOnly),
+              hasSecureInput: panes.contains(where: \.hasSecureInput),
+              panes: panes
             )
           }
 
-          return SupatermAppDebugSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            isPinned: tab.isPinned,
-            isDirty: tab.isDirty,
-            isTitleLocked: tab.isTitleLocked,
-            hasRunningActivity: panes.contains(where: \.isRunning),
-            hasBell: panes.contains(where: { $0.bellCount > 0 }),
-            hasReadOnly: panes.contains(where: \.isReadOnly),
-            hasSecureInput: panes.contains(where: \.hasSecureInput),
-            panes: panes
+          return SupatermAppDebugSnapshot.Project(
+            id: project.id.rawValue,
+            name: projectDisplayName(project.id, in: space.id) ?? project.baseDisplayName,
+            path: project.folderPath,
+            isPinned: project.isPinned,
+            isHome: project.isHome,
+            tabs: tabs
           )
         }
 
@@ -93,7 +121,7 @@ extension TerminalHostState {
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          projects: projects
         )
       }
     )
@@ -179,6 +207,10 @@ extension TerminalHostState {
 
   func createTab(_ request: TerminalCreateTabRequest) throws -> SupatermNewTabResult {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
+    let projectID = try resolveProjectID(
+      request.projectSelector,
+      in: resolvedTarget.space
+    )
     let currentSelectedSpaceID = spaceManager.selectedSpaceID
     let currentSelectedTabID = spaceManager.selectedTabID
     var createdTabID: TerminalTabID?
@@ -187,6 +219,7 @@ extension TerminalHostState {
       let tabID =
         createTab(
           in: resolvedTarget.space.id,
+          projectID: projectID,
           focusing: false,
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },

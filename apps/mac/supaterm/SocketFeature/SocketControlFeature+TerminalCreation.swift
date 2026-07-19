@@ -44,6 +44,7 @@ extension SocketControlFeature {
       startupCommand: payload.startupCommand,
       cwd: payload.cwd,
       focus: payload.focus,
+      projectSelector: payload.project,
       target: try createTabTarget(from: payload)
     )
   }

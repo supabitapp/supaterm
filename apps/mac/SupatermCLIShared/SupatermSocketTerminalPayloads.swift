@@ -12,6 +12,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
   public let contextPaneID: UUID?
   public let cwd: String?
   public let focus: Bool
+  public let project: String?
   public let targetWindowIndex: Int?
   public let targetSpaceIndex: Int?
 
@@ -20,6 +21,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     contextPaneID: UUID? = nil,
     cwd: String? = nil,
     focus: Bool,
+    project: String? = nil,
     targetWindowIndex: Int? = nil,
     targetSpaceIndex: Int? = nil
   ) {
@@ -27,6 +29,7 @@ public struct SupatermNewTabRequest: Equatable, Sendable, Codable {
     self.contextPaneID = contextPaneID
     self.cwd = cwd
     self.focus = focus
+    self.project = project
     self.targetWindowIndex = targetWindowIndex
     self.targetSpaceIndex = targetSpaceIndex
   }

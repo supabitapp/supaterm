@@ -794,6 +794,18 @@ final class TerminalWindowRegistry {
       return .contextPaneNotFound
     case .creationFailed:
       return .creationFailed
+    case .projectSelectorAmbiguous(let selector, let spaceName, let projects):
+      return .projectSelectorAmbiguous(
+        selector: selector,
+        spaceName: spaceName,
+        projects: projects
+      )
+    case .projectSelectorNotFound(let selector, let spaceName, let projects):
+      return .projectSelectorNotFound(
+        selector: selector,
+        spaceName: spaceName,
+        projects: projects
+      )
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
     case .windowNotFound:
