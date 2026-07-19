@@ -11,17 +11,20 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
   public let startupCommand: String?
   public let cwd: String?
   public let focus: Bool
+  public let projectSelector: String?
   public let target: Target
 
   public init(
     startupCommand: String?,
     cwd: String?,
     focus: Bool,
+    projectSelector: String? = nil,
     target: Target
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.projectSelector = projectSelector
     self.target = target
   }
 }
@@ -300,8 +303,30 @@ public enum TerminalCreatePaneError: Error, Equatable {
 public enum TerminalCreateTabError: Error, Equatable {
   case contextPaneNotFound
   case creationFailed
+  case projectSelectorAmbiguous(
+    selector: String,
+    spaceName: String,
+    projects: [TerminalProjectDescriptor]
+  )
+  case projectSelectorNotFound(
+    selector: String,
+    spaceName: String,
+    projects: [TerminalProjectDescriptor]
+  )
   case spaceNotFound(windowIndex: Int, spaceIndex: Int)
   case windowNotFound(Int)
+}
+
+nonisolated public struct TerminalProjectDescriptor: Equatable, Sendable {
+  public let id: UUID
+  public let name: String
+  public let path: String
+
+  public init(id: UUID, name: String, path: String) {
+    self.id = id
+    self.name = name
+    self.path = path
+  }
 }
 
 public enum TerminalControlError: Error, Equatable {

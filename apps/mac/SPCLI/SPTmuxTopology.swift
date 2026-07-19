@@ -46,6 +46,10 @@ struct SPTmuxTopology {
   let snapshot: SupatermAppDebugSnapshot
   let current: PaneLocation
 
+  static func tabs(in space: Space) -> [Tab] {
+    space.projects.flatMap(\.tabs)
+  }
+
   init(
     snapshot: SupatermAppDebugSnapshot,
     contextPaneID: UUID?
@@ -121,7 +125,8 @@ struct SPTmuxTopology {
       if current.space.id == space.space.id {
         return .init(window: current.window, space: current.space, tab: current.tab)
       }
-      guard let tab = space.space.tabs.first(where: \.isSelected) ?? space.space.tabs.first else {
+      let tabs = Self.tabs(in: space.space)
+      guard let tab = tabs.first(where: \.isSelected) ?? tabs.first else {
         throw ValidationError("Tab target not found.")
       }
       return .init(window: space.window, space: space.space, tab: tab)
@@ -180,7 +185,7 @@ struct SPTmuxTopology {
   ) throws -> PaneLocation {
     for window in snapshot.windows where window.index == windowIndex {
       for space in window.spaces where space.index == spaceIndex {
-        for tab in space.tabs where tab.index == tabIndex {
+        for tab in Self.tabs(in: space) where tab.index == tabIndex {
           for pane in tab.panes where pane.index == paneIndex {
             return .init(window: window, space: space, tab: tab, pane: pane)
           }
@@ -231,18 +236,18 @@ struct SPTmuxTopology {
     in space: SpaceLocation
   ) -> TabLocation? {
     if let id = normalizedUUIDToken(selector) {
-      for tab in space.space.tabs where tab.id == id {
+      for tab in Self.tabs(in: space.space) where tab.id == id {
         return .init(window: space.window, space: space.space, tab: tab)
       }
     }
 
     if let index = Int(strippingTabPrefix(selector)),
-      let tab = space.space.tabs.first(where: { $0.index == index })
+      let tab = Self.tabs(in: space.space).first(where: { $0.index == index })
     {
       return .init(window: space.window, space: space.space, tab: tab)
     }
 
-    if let tab = space.space.tabs.first(where: { $0.title == selector }) {
+    if let tab = Self.tabs(in: space.space).first(where: { $0.title == selector }) {
       return .init(window: space.window, space: space.space, tab: tab)
     }
 
@@ -279,7 +284,7 @@ struct SPTmuxTopology {
       }
       for window in snapshot.windows {
         for space in window.spaces {
-          for tab in space.tabs {
+          for tab in Self.tabs(in: space) {
             if let pane = tab.panes.first(where: { $0.index == index }) {
               return .init(window: window, space: space, tab: tab, pane: pane)
             }
@@ -348,7 +353,7 @@ struct SPTmuxTopology {
   ) -> TabLocation? {
     for window in snapshot.windows {
       for space in window.spaces {
-        for tab in space.tabs where tab.id == id {
+        for tab in tabs(in: space) where tab.id == id {
           return .init(window: window, space: space, tab: tab)
         }
       }
@@ -362,7 +367,7 @@ struct SPTmuxTopology {
   ) -> PaneLocation? {
     for window in snapshot.windows {
       for space in window.spaces {
-        for tab in space.tabs {
+        for tab in tabs(in: space) {
           for pane in tab.panes where pane.id == id {
             return .init(window: window, space: space, tab: tab, pane: pane)
           }
@@ -390,7 +395,8 @@ struct SPTmuxTopology {
       guard let space = window.spaces.first(where: \.isSelected) ?? window.spaces.first else {
         continue
       }
-      guard let tab = space.tabs.first(where: \.isSelected) ?? space.tabs.first else {
+      let tabs = tabs(in: space)
+      guard let tab = tabs.first(where: \.isSelected) ?? tabs.first else {
         continue
       }
       guard let pane = tab.panes.first(where: \.isFocused) ?? tab.panes.first else {

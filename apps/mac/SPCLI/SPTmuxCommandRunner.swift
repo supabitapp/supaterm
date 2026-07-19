@@ -518,7 +518,7 @@ struct SPTmuxCommandRunner {
   private func runListWindows(_ arguments: [String]) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-F", "-t"], boolFlags: [])
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
-    for tab in targetSpace.space.tabs {
+    for tab in SPTmuxTopology.tabs(in: targetSpace.space) {
       let location = SPTmuxTopology.TabLocation(
         window: targetSpace.window,
         space: targetSpace.space,

@@ -40,6 +40,7 @@ extension SupatermE2ESuite {
         let panes =
           snapshot.windows
           .flatMap(\.spaces)
+          .flatMap(\.projects)
           .flatMap(\.tabs)
           .first { $0.id == space.tab.tabID }?
           .panes ?? []

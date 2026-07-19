@@ -22,7 +22,7 @@ enum SPHelp {
     """
 
   static let treeDiscussion = """
-    `sp ls --json` includes UUIDs for spaces, tabs, and panes.
+    `sp ls --json` includes UUIDs for spaces, projects, tabs, and panes.
 
     Example:
       sp ls
@@ -83,6 +83,8 @@ enum SPHelp {
 
     `--in` accepts a space selector or UUID.
 
+    `--project` accepts a project UUID, display name, or normalized folder path in that space.
+
     Trailing arguments after `--` are treated as a terminal startup command.
 
     `--script` runs shell script text as the terminal startup command.
@@ -91,6 +93,7 @@ enum SPHelp {
       sp tab new -- ping 1.1.1.1
       sp tab new --script 'echo hi; pwd'
       sp tab new --focus -- ping 1.1.1.1
+      sp tab new --project Home -- git status
       sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
       sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
     """

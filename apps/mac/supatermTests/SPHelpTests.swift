@@ -132,6 +132,7 @@ struct SPHelpTests {
     #expect(newTabHelp.contains("Trailing arguments after `--` are treated as a terminal startup command."))
     #expect(newTabHelp.contains("`--script` runs shell script text as the terminal startup command."))
     #expect(newTabHelp.contains("sp tab new --script 'echo hi; pwd'"))
+    #expect(newTabHelp.contains("sp tab new --project Home"))
     #expect(newTabHelp.contains("sp tab new --in <space-uuid>"))
     #expect(notifyHelp.contains("space/tab/pane"))
     #expect(notifyHelp.contains("sp pane notify <pane-uuid>"))

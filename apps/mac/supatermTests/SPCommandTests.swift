@@ -38,6 +38,33 @@ struct SPCommandTests {
   }
 
   @Test
+  func newTabBuildsProjectSelectorRequest() throws {
+    let spaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
+    let command = try #require(
+      try SP.parseAsRoot(
+        ["tab", "new", "--in", spaceID.uuidString, "--project", "/work/project", "--", "pwd"]
+      ) as? SP.NewTab
+    )
+
+    let payload = try command.requestPayload(
+      context: nil,
+      snapshot: spCommandTestTreeSnapshot(spaceID: spaceID)
+    )
+
+    #expect(
+      payload
+        == SupatermNewTabRequest(
+          startupCommand: "pwd",
+          cwd: nil,
+          focus: false,
+          project: "/work/project",
+          targetWindowIndex: 1,
+          targetSpaceIndex: 1
+        )
+    )
+  }
+
+  @Test
   func spaceDestroyParserAcceptsYesFlag() throws {
     let command = try #require(
       try SP.parseAsRoot(["space", "destroy", "-y", "1"]) as? SP.SpaceDestroy
@@ -425,37 +452,46 @@ struct SPCommandTests {
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               isSelected: true,
-              tabs: [
-                SupatermAppDebugSnapshot.Tab(
-                  index: 1,
-                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-                  title: "fish",
-                  isSelected: true,
+              projects: [
+                SupatermAppDebugSnapshot.Project(
+                  id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
+                  name: "Home",
+                  path: "/Users/test",
                   isPinned: false,
-                  isDirty: false,
-                  isTitleLocked: false,
-                  hasRunningActivity: false,
-                  hasBell: false,
-                  hasReadOnly: false,
-                  hasSecureInput: false,
-                  panes: [
-                    SupatermAppDebugSnapshot.Pane(
+                  isHome: true,
+                  tabs: [
+                    SupatermAppDebugSnapshot.Tab(
                       index: 1,
-                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
-                      isFocused: true,
-                      displayTitle: "build",
-                      pwd: nil,
-                      isReadOnly: false,
+                      id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                      title: "fish",
+                      isSelected: true,
+                      isPinned: false,
+                      isDirty: false,
+                      isTitleLocked: false,
+                      hasRunningActivity: false,
+                      hasBell: false,
+                      hasReadOnly: false,
                       hasSecureInput: false,
-                      bellCount: 0,
-                      isRunning: false,
-                      progressState: nil,
-                      progressValue: nil,
-                      needsCloseConfirmation: false,
-                      lastCommandExitCode: nil,
-                      lastCommandDurationMs: nil,
-                      lastChildExitCode: nil,
-                      lastChildExitTimeMs: nil
+                      panes: [
+                        SupatermAppDebugSnapshot.Pane(
+                          index: 1,
+                          id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                          isFocused: true,
+                          displayTitle: "build",
+                          pwd: nil,
+                          isReadOnly: false,
+                          hasSecureInput: false,
+                          bellCount: 0,
+                          isRunning: false,
+                          progressState: nil,
+                          progressValue: nil,
+                          needsCloseConfirmation: false,
+                          lastCommandExitCode: nil,
+                          lastCommandDurationMs: nil,
+                          lastChildExitCode: nil,
+                          lastChildExitTimeMs: nil
+                        )
+                      ]
                     )
                   ]
                 )
@@ -472,14 +508,16 @@ struct SPCommandTests {
         == """
         window 1 [key]
         └─ space 1 "A" [selected]
-           └─ tab 1 "fish" [selected]
-              └─ pane 1 "build" [focused]
+           └─ project "Home" "/Users/test" [home]
+              └─ tab 1 "fish" [selected]
+                 └─ pane 1 "build" [focused]
         """
     )
     #expect(
       SPTreeRenderer.renderPlain(snapshot)
         == """
         1\tspace\tA\tselected
+        project\tHome\t/Users/test\thome
         1/1\ttab\tfish\tselected
         1/1/1\tpane\tbuild\tfocused
         """
@@ -705,6 +743,35 @@ private func spCommandTestSocketEndpoint(path: String) -> SupatermSocketEndpoint
     path: path,
     pid: 1,
     startedAt: Date(timeIntervalSince1970: 1)
+  )
+}
+
+private func spCommandTestTreeSnapshot(spaceID: UUID) -> SupatermTreeSnapshot {
+  SupatermTreeSnapshot(
+    windows: [
+      SupatermTreeSnapshot.Window(
+        index: 1,
+        isKey: true,
+        spaces: [
+          SupatermTreeSnapshot.Space(
+            index: 1,
+            id: spaceID,
+            name: "A",
+            isSelected: true,
+            projects: [
+              SupatermTreeSnapshot.Project(
+                id: spaceID,
+                name: "Home",
+                path: "/Users/test",
+                isPinned: false,
+                isHome: true,
+                tabs: []
+              )
+            ]
+          )
+        ]
+      )
+    ]
   )
 }
 

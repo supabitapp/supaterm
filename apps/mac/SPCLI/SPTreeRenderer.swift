@@ -13,6 +13,14 @@ enum SPTreeRenderer {
       let index: Int
       let name: String
       let isSelected: Bool
+      let projects: [Project]
+    }
+
+    struct Project {
+      let name: String
+      let path: String
+      let isPinned: Bool
+      let isHome: Bool
       let tabs: [Tab]
     }
 
@@ -62,20 +70,26 @@ enum SPTreeRenderer {
         let spaceFlags = space.isSelected ? "\tselected" : ""
         let spaceLine = "\(spaceSelector)\tspace\t\(space.name)\(spaceFlags)"
 
-        let tabLines = space.tabs.flatMap { tab -> [String] in
-          let tabSelector = "\(space.index)/\(tab.index)"
-          let tabFlags = tab.isSelected ? "\tselected" : ""
-          let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(tabFlags)"
+        let projectLines = space.projects.flatMap { project -> [String] in
+          let flags = projectFlags(project)
+          let projectLine = "project\t\(project.name)\t\(project.path)\(flags)"
+          let tabLines = project.tabs.flatMap { tab -> [String] in
+            let tabSelector = "\(space.index)/\(tab.index)"
+            let tabFlags = tab.isSelected ? "\tselected" : ""
+            let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(tabFlags)"
 
-          let paneLines = tab.panes.map { pane in
-            let paneSelector = "\(space.index)/\(tab.index)/\(pane.index)"
-            return plainPaneLine(pane, selector: paneSelector)
+            let paneLines = tab.panes.map { pane in
+              let paneSelector = "\(space.index)/\(tab.index)/\(pane.index)"
+              return plainPaneLine(pane, selector: paneSelector)
+            }
+
+            return [tabLine] + paneLines
           }
 
-          return [tabLine] + paneLines
+          return [projectLine] + tabLines
         }
 
-        return [spaceLine] + tabLines
+        return [spaceLine] + projectLines
       }
     }
     .joined(separator: "\n")
@@ -92,16 +106,24 @@ enum SPTreeRenderer {
               index: space.index,
               name: space.name,
               isSelected: space.isSelected,
-              tabs: space.tabs.map { tab in
+              projects: space.projects.map { project in
                 .init(
-                  index: tab.index,
-                  title: tab.title,
-                  isSelected: tab.isSelected,
-                  panes: tab.panes.map { pane in
+                  name: project.name,
+                  path: project.path,
+                  isPinned: project.isPinned,
+                  isHome: project.isHome,
+                  tabs: project.tabs.map { tab in
                     .init(
-                      index: pane.index,
-                      displayTitle: pane.displayTitle,
-                      isFocused: pane.isFocused
+                      index: tab.index,
+                      title: tab.title,
+                      isSelected: tab.isSelected,
+                      panes: tab.panes.map { pane in
+                        .init(
+                          index: pane.index,
+                          displayTitle: pane.displayTitle,
+                          isFocused: pane.isFocused
+                        )
+                      }
                     )
                   }
                 )
@@ -120,7 +142,22 @@ enum SPTreeRenderer {
       let spacePrefix = isLastSpace ? "   " : "│  "
 
       var lines = ["\(spaceBranch)\(spaceLine(space))"]
-      lines.append(contentsOf: renderTabs(space.tabs, prefix: spacePrefix))
+      lines.append(contentsOf: renderProjects(space.projects, prefix: spacePrefix))
+      return lines
+    }
+  }
+
+  private static func renderProjects(
+    _ projects: [Snapshot.Project],
+    prefix: String
+  ) -> [String] {
+    projects.enumerated().flatMap { projectOffset, project in
+      let isLastProject = projectOffset == projects.count - 1
+      let projectBranch = isLastProject ? "└─ " : "├─ "
+      let projectPrefix = prefix + (isLastProject ? "   " : "│  ")
+
+      var lines = ["\(prefix)\(projectBranch)\(projectLine(project))"]
+      lines.append(contentsOf: renderTabs(project.tabs, prefix: projectPrefix))
       return lines
     }
   }
@@ -179,6 +216,25 @@ enum SPTreeRenderer {
       return "tab \(tab.index) \"\(tab.title)\""
     }
     return "tab \(tab.index) \"\(tab.title)\" [\(labels.joined(separator: ", "))]"
+  }
+
+  private static func projectLine(_ project: Snapshot.Project) -> String {
+    let flags = [
+      project.isHome ? "home" : nil,
+      project.isPinned ? "pinned" : nil,
+    ].compactMap { $0 }
+    let suffix = flags.isEmpty ? "" : " [\(flags.joined(separator: ", "))]"
+    return "project \"\(project.name)\" \"\(project.path)\"\(suffix)"
+  }
+
+  private static func projectFlags(_ project: Snapshot.Project) -> String {
+    [
+      project.isHome ? "home" : nil,
+      project.isPinned ? "pinned" : nil,
+    ]
+    .compactMap { $0 }
+    .map { "\t\($0)" }
+    .joined()
   }
 
   private static func paneLine(_ pane: Snapshot.Pane) -> String {
@@ -411,8 +467,10 @@ enum SPDebugRenderer {
 
     for window in app.windows {
       for space in window.spaces {
-        if let tab = space.tabs.first(where: { $0.id == currentTarget.tabID }) {
-          return tab
+        for project in space.projects {
+          if let tab = project.tabs.first(where: { $0.id == currentTarget.tabID }) {
+            return tab
+          }
         }
       }
     }
@@ -427,9 +485,11 @@ enum SPDebugRenderer {
 
     for window in app.windows {
       for space in window.spaces {
-        for tab in space.tabs {
-          if let pane = tab.panes.first(where: { $0.id == paneID }) {
-            return pane
+        for project in space.projects {
+          for tab in project.tabs {
+            if let pane = tab.panes.first(where: { $0.id == paneID }) {
+              return pane
+            }
           }
         }
       }

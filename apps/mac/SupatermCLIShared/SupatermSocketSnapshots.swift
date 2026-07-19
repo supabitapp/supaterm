@@ -124,19 +124,44 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let projects: [Project]
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      projects: [Project]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
+      self.projects = projects
+    }
+  }
+
+  public struct Project: Equatable, Sendable, Codable {
+    public let id: UUID
+    public let name: String
+    public let path: String
+    public let isPinned: Bool
+    public let isHome: Bool
+    public let tabs: [Tab]
+
+    public init(
+      id: UUID,
+      name: String,
+      path: String,
+      isPinned: Bool,
+      isHome: Bool,
+      tabs: [Tab]
+    ) {
+      self.id = id
+      self.name = name
+      self.path = path
+      self.isPinned = isPinned
+      self.isHome = isHome
       self.tabs = tabs
     }
   }
@@ -281,19 +306,44 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let projects: [Project]
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      projects: [Project]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
+      self.projects = projects
+    }
+  }
+
+  public struct Project: Equatable, Sendable, Codable {
+    public let id: UUID
+    public let name: String
+    public let path: String
+    public let isPinned: Bool
+    public let isHome: Bool
+    public let tabs: [Tab]
+
+    public init(
+      id: UUID,
+      name: String,
+      path: String,
+      isPinned: Bool,
+      isHome: Bool,
+      tabs: [Tab]
+    ) {
+      self.id = id
+      self.name = name
+      self.path = path
+      self.isPinned = isPinned
+      self.isHome = isHome
       self.tabs = tabs
     }
   }

@@ -116,34 +116,36 @@ private struct SPTreeIndex {
         }
 
         let spaceKey = SPSpacePathKey(windowIndex: window.index, spaceIndex: space.index)
-        for tab in space.tabs {
-          let tabLocation = SPTabLocation(
-            windowIndex: window.index,
-            spaceIndex: space.index,
-            tabIndex: tab.index
-          )
-          tabsByID[tab.id] = tabLocation
-          firstTabBySpace[spaceKey] = firstTabBySpace[spaceKey] ?? tabLocation
-          if tab.isSelected {
-            selectedTabBySpace[spaceKey] = tabLocation
-          }
-
-          let tabKey = SPTabPathKey(
-            windowIndex: window.index,
-            spaceIndex: space.index,
-            tabIndex: tab.index
-          )
-          for pane in tab.panes {
-            let paneLocation = SPPaneLocation(
+        for project in space.projects {
+          for tab in project.tabs {
+            let tabLocation = SPTabLocation(
               windowIndex: window.index,
               spaceIndex: space.index,
-              tabIndex: tab.index,
-              paneIndex: pane.index
+              tabIndex: tab.index
             )
-            panesByID[pane.id] = paneLocation
-            firstPaneByTab[tabKey] = firstPaneByTab[tabKey] ?? paneLocation
-            if pane.isFocused {
-              focusedPaneByTab[tabKey] = paneLocation
+            tabsByID[tab.id] = tabLocation
+            firstTabBySpace[spaceKey] = firstTabBySpace[spaceKey] ?? tabLocation
+            if tab.isSelected {
+              selectedTabBySpace[spaceKey] = tabLocation
+            }
+
+            let tabKey = SPTabPathKey(
+              windowIndex: window.index,
+              spaceIndex: space.index,
+              tabIndex: tab.index
+            )
+            for pane in tab.panes {
+              let paneLocation = SPPaneLocation(
+                windowIndex: window.index,
+                spaceIndex: space.index,
+                tabIndex: tab.index,
+                paneIndex: pane.index
+              )
+              panesByID[pane.id] = paneLocation
+              firstPaneByTab[tabKey] = firstPaneByTab[tabKey] ?? paneLocation
+              if pane.isFocused {
+                focusedPaneByTab[tabKey] = paneLocation
+              }
             }
           }
         }

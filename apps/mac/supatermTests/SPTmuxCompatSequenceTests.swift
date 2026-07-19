@@ -210,7 +210,16 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         id: spaceID,
         name: spaceName,
         isSelected: true,
-        tabs: [debugTab]
+        projects: [
+          SupatermAppDebugSnapshot.Project(
+            id: spaceID,
+            name: "Home",
+            path: "/Users/test",
+            isPinned: false,
+            isHome: true,
+            tabs: [debugTab]
+          )
+        ]
       )
       let debugWindow = SupatermAppDebugSnapshot.Window(
         index: windowIndex,

@@ -968,14 +968,17 @@ private func tmuxTabID(_ output: String) throws -> UUID {
 private func stableTreeRows(_ tree: SupatermTreeSnapshot) -> [String] {
   tree.windows.flatMap { window in
     window.spaces.flatMap { space in
-      space.tabs.flatMap { tab in
-        tab.panes.map { pane in
-          [
-            "window:\(window.index):\(window.isKey)",
-            "space:\(space.index):\(space.id):\(space.isSelected)",
-            "tab:\(tab.index):\(tab.id):\(tab.isSelected)",
-            "pane:\(pane.index):\(pane.id):\(pane.isFocused)",
-          ].joined(separator: "|")
+      space.projects.flatMap { project in
+        project.tabs.flatMap { tab in
+          tab.panes.map { pane in
+            [
+              "window:\(window.index):\(window.isKey)",
+              "space:\(space.index):\(space.id):\(space.isSelected)",
+              "project:\(project.id):\(project.name):\(project.path):\(project.isPinned):\(project.isHome)",
+              "tab:\(tab.index):\(tab.id):\(tab.isSelected)",
+              "pane:\(pane.index):\(pane.id):\(pane.isFocused)",
+            ].joined(separator: "|")
+          }
         }
       }
     }

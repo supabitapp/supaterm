@@ -19,6 +19,7 @@ struct SocketControlCreationTests {
       startupCommand: "pwd",
       cwd: "/tmp/example",
       focus: false,
+      project: "project",
       targetWindowIndex: 1,
       targetSpaceIndex: 2
     )
@@ -50,6 +51,7 @@ struct SocketControlCreationTests {
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
+              projectSelector: "project",
               target: .space(windowIndex: 1, spaceIndex: 2)
             )
         )
@@ -195,6 +197,57 @@ struct SocketControlCreationTests {
             message: "Space 2 was not found in window 1."
           )
         )
+    )
+  }
+  @Test
+  func newTabRequestMapsMissingProjectToListedError() async throws {
+    let recorder = SocketReplyRecorder()
+    let handle = UUID(uuidString: "7374A207-079D-4C3F-B085-89AC8444064D")!
+    let request = SocketControlClient.Request(
+      handle: handle,
+      payload: try .newTab(
+        SupatermNewTabRequest(
+          startupCommand: nil,
+          focus: false,
+          project: "missing",
+          targetWindowIndex: 1,
+          targetSpaceIndex: 1
+        ),
+        id: "new-tab-project-missing"
+      )
+    )
+    let homeID = UUID(uuidString: "D8805842-54ED-45CA-9D58-C98276688CC3")!
+    let projectID = UUID(uuidString: "8BBC26A1-B3EC-415D-848D-C6BDB340480D")!
+
+    let store = makeStore {
+      $0.socketControlClient.reply = { handle, response in
+        await recorder.record(handle: handle, response: response)
+      }
+      $0.terminalWindowsClient.createTab = { _ in
+        throw TerminalCreateTabError.projectSelectorNotFound(
+          selector: "missing",
+          spaceName: "A",
+          projects: [
+            TerminalProjectDescriptor(id: homeID, name: "Home", path: "/Users/test"),
+            TerminalProjectDescriptor(id: projectID, name: "project", path: "/work/project"),
+          ]
+        )
+      }
+    }
+
+    await store.send(.requestReceived(request))
+
+    let records = await recorder.snapshot()
+    #expect(records.count == 1)
+    #expect(records.first?.response.error?.code == "not_found")
+    #expect(
+      records.first?.response.error?.message
+        == """
+        No project matches "missing" in space "A".
+        Available projects:
+        - Home | \(homeID.uuidString.lowercased()) | /Users/test
+        - project | \(projectID.uuidString.lowercased()) | /work/project
+        """
     )
   }
   @Test

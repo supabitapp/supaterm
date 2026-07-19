@@ -23,6 +23,9 @@ extension SP {
     @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
     var focus = false
 
+    @Option(name: .long, help: "Create the new tab in the specified project.")
+    var project: String?
+
     @OptionGroup
     var options: SPCommandOptions
 
@@ -50,19 +53,30 @@ extension SP {
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
+      try requestPayload(
+        context: SupatermCLIContext.current,
+        snapshot: treeSnapshot(client)
+      )
+    }
+
+    func requestPayload(
+      context: SupatermCLIContext?,
+      snapshot: SupatermTreeSnapshot
+    ) throws -> SupatermNewTabRequest {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
       switch try resolvePublicNewTabTarget(
         space,
-        context: SupatermCLIContext.current,
-        snapshot: try treeSnapshot(client)
+        context: context,
+        snapshot: snapshot
       ) {
       case .context(let contextPaneID):
         return SupatermNewTabRequest(
           startupCommand: command,
           contextPaneID: contextPaneID,
           cwd: cwd,
-          focus: focus
+          focus: focus,
+          project: project
         )
 
       case .space(let windowIndex, let spaceIndex):
@@ -70,6 +84,7 @@ extension SP {
           startupCommand: command,
           cwd: cwd,
           focus: focus,
+          project: project,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex
         )
