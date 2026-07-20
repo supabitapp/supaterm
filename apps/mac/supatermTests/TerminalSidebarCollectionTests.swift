@@ -232,30 +232,36 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test
-  func dragRequiresEightPointsAndStaysInsideSourceEnvelope() {
-    let frame = CGRect(x: 20, y: 20, width: 100, height: 30)
-
+  func dragBeginsAfterEightPointsEvenWhenTheFirstEventMovesPastTheSourceRow() {
     #expect(
       TerminalSidebarDragActivation.decision(
         from: CGPoint(x: 30, y: 30),
-        to: CGPoint(x: 37.9, y: 30),
-        sourceFrame: frame
+        to: CGPoint(x: 37.9, y: 30)
       ) == .pending
     )
     #expect(
       TerminalSidebarDragActivation.decision(
         from: CGPoint(x: 30, y: 30),
-        to: CGPoint(x: 38, y: 30),
-        sourceFrame: frame
+        to: CGPoint(x: 38, y: 30)
       ) == .begin
     )
     #expect(
       TerminalSidebarDragActivation.decision(
         from: CGPoint(x: 30, y: 30),
-        to: CGPoint(x: 130, y: 30),
-        sourceFrame: frame
-      ) == .fail
+        to: CGPoint(x: 130, y: 30)
+      ) == .begin
     )
+  }
+
+  @Test @MainActor
+  func collectionLayoutMakesTheNativeDropIndicatorTransparent() throws {
+    let layout = TerminalSidebarCollectionLayout()
+    let attributes = try #require(
+      layout.layoutAttributesForInterItemGap(before: IndexPath(item: 1, section: 0))
+    )
+
+    #expect(!attributes.isHidden)
+    #expect(attributes.alpha == 0)
   }
 
   @Test @MainActor
@@ -265,6 +271,8 @@ struct TerminalSidebarCollectionTests {
     let collectionView = TerminalSidebarCollectionView(
       frame: CGRect(x: 0, y: 0, width: 200, height: 100)
     )
+    let itemView = NSView(frame: collectionView.bounds)
+    collectionView.installDragRecognizer(on: itemView)
     let window = NSWindow(
       contentRect: CGRect(x: 0, y: 0, width: 200, height: 100),
       styleMask: .borderless,
@@ -276,8 +284,7 @@ struct TerminalSidebarCollectionTests {
     defer { window.close() }
     collectionView.dragCandidate = { _ in
       TerminalSidebarDragCandidate(
-        entryID: entryID,
-        frame: CGRect(x: 0, y: 0, width: 200, height: 100)
+        entryID: entryID
       )
     }
 
@@ -291,7 +298,7 @@ struct TerminalSidebarCollectionTests {
     }
 
     let recognizer = try #require(
-      collectionView.gestureRecognizers.compactMap { $0 as? TerminalSidebarDragGestureRecognizer }
+      itemView.gestureRecognizers.compactMap { $0 as? TerminalSidebarDragGestureRecognizer }
         .first
     )
     let mouseDown = try #require(
@@ -320,11 +327,34 @@ struct TerminalSidebarCollectionTests {
         pressure: 1
       )
     )
-
     recognizer.mouseDown(with: mouseDown)
     recognizer.mouseDragged(with: mouseDragged)
 
     #expect(beganDrag)
+  }
+
+  @Test @MainActor
+  func dragRecognizerCoexistsWithEmbeddedRowGestures() throws {
+    let collectionView = TerminalSidebarCollectionView(
+      frame: CGRect(x: 0, y: 0, width: 200, height: 100)
+    )
+    let itemView = NSView(frame: collectionView.bounds)
+    collectionView.installDragRecognizer(on: itemView)
+    collectionView.installDragRecognizer(on: itemView)
+    let recognizer = try #require(
+      itemView.gestureRecognizers.compactMap { $0 as? TerminalSidebarDragGestureRecognizer }
+        .first
+    )
+    let embeddedRecognizer = NSClickGestureRecognizer()
+
+    #expect(itemView.gestureRecognizers.count == 1)
+    #expect(!recognizer.shouldBeRequiredToFail(by: embeddedRecognizer))
+    #expect(
+      recognizer.delegate?.gestureRecognizer?(
+        recognizer,
+        shouldRecognizeSimultaneouslyWith: embeddedRecognizer
+      ) == true
+    )
   }
 
   @Test

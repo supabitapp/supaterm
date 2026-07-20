@@ -12,29 +12,23 @@ enum TerminalSidebarDragActivation {
   enum Decision: Equatable {
     case pending
     case begin
-    case fail
   }
 
   static let threshold: CGFloat = 8
-  static let envelopeInset: CGFloat = 8
 
   static func decision(
     from origin: CGPoint,
-    to location: CGPoint,
-    sourceFrame: CGRect
+    to location: CGPoint
   ) -> Decision {
     guard hypot(location.x - origin.x, location.y - origin.y) >= threshold else {
       return .pending
     }
-    return sourceFrame.insetBy(dx: -envelopeInset, dy: -envelopeInset).contains(location)
-      ? .begin
-      : .fail
+    return .begin
   }
 }
 
 struct TerminalSidebarDragCandidate {
   let entryID: TerminalSidebarEntryID
-  let frame: CGRect
 }
 
 struct TerminalSidebarHapticTargetTracker {
@@ -56,11 +50,10 @@ struct TerminalSidebarHapticTargetTracker {
 }
 
 @MainActor
-final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
+final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer, NSGestureRecognizerDelegate {
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
     let location: CGPoint
-    let sourceFrame: CGRect
     let mouseDownEvent: NSEvent
   }
 
@@ -71,6 +64,7 @@ final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
   init(collectionView: TerminalSidebarCollectionView) {
     self.collectionView = collectionView
     super.init(target: nil, action: nil)
+    delegate = self
     delaysPrimaryMouseButtonEvents = true
   }
 
@@ -78,7 +72,6 @@ final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
   required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 
   override func mouseDown(with event: NSEvent) {
-    super.mouseDown(with: event)
     guard let collectionView else {
       state = .failed
       return
@@ -92,27 +85,20 @@ final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
     pendingDrag = PendingDrag(
       entryID: candidate.entryID,
       location: location,
-      sourceFrame: candidate.frame,
       mouseDownEvent: event
     )
     dragState = .pending
+    collectionView.activateDragGesture(self)
   }
 
   override func mouseDragged(with event: NSEvent) {
-    super.mouseDragged(with: event)
     guard let collectionView, let pendingDrag else { return }
     let location = collectionView.convert(event.locationInWindow, from: nil)
     switch TerminalSidebarDragActivation.decision(
       from: pendingDrag.location,
-      to: location,
-      sourceFrame: pendingDrag.sourceFrame
+      to: location
     ) {
     case .pending:
-      return
-    case .fail:
-      self.pendingDrag = nil
-      dragState = .failed
-      state = .failed
       return
     case .begin:
       break
@@ -128,7 +114,6 @@ final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
   }
 
   override func mouseUp(with event: NSEvent) {
-    super.mouseUp(with: event)
     pendingDrag = nil
     switch dragState {
     case .pending:
@@ -147,9 +132,11 @@ final class TerminalSidebarDragGestureRecognizer: NSGestureRecognizer {
     dragState = .idle
   }
 
-  override func shouldBeRequiredToFail(by otherGestureRecognizer: NSGestureRecognizer) -> Bool {
-    _ = super.shouldBeRequiredToFail(by: otherGestureRecognizer)
-    return true
+  func gestureRecognizer(
+    _ gestureRecognizer: NSGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: NSGestureRecognizer
+  ) -> Bool {
+    true
   }
 
   func finish() {
@@ -169,12 +156,10 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   var dragCandidate: ((CGPoint) -> TerminalSidebarDragCandidate?)?
   var onDragBegan: ((TerminalSidebarEntryID, NSEvent, NSEvent) -> Bool)?
   var onDragExited: (() -> Void)?
-  private var dragRecognizer: TerminalSidebarDragGestureRecognizer!
+  private weak var activeDragRecognizer: TerminalSidebarDragGestureRecognizer?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
-    dragRecognizer = TerminalSidebarDragGestureRecognizer(collectionView: self)
-    addGestureRecognizer(dragRecognizer)
   }
 
   @available(*, unavailable)
@@ -185,8 +170,20 @@ final class TerminalSidebarCollectionView: NSCollectionView {
     onDragExited?()
   }
 
+  func installDragRecognizer(on view: NSView) {
+    guard !view.gestureRecognizers.contains(where: { $0 is TerminalSidebarDragGestureRecognizer }) else {
+      return
+    }
+    view.addGestureRecognizer(TerminalSidebarDragGestureRecognizer(collectionView: self))
+  }
+
+  func activateDragGesture(_ recognizer: TerminalSidebarDragGestureRecognizer) {
+    activeDragRecognizer = recognizer
+  }
+
   func finishDragGesture() {
-    dragRecognizer.finish()
+    activeDragRecognizer?.finish()
+    activeDragRecognizer = nil
   }
 }
 

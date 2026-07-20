@@ -218,6 +218,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       )
       guard let item = item as? TerminalSidebarCollectionItem else { return nil }
       item.host(TerminalSidebarHostedRow(presentation: presentation, context: context))
+      item.installDragRecognizer(from: self.collectionView)
       item.view.setAccessibilityElement(true)
       item.view.setAccessibilityRole(.row)
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
@@ -321,10 +322,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     else { return nil }
     switch id {
     case .tab:
-      return TerminalSidebarDragCandidate(entryID: id, frame: attributes.frame)
+      return TerminalSidebarDragCandidate(entryID: id)
     case .group(let groupID):
       guard renameState.groupID != groupID else { return nil }
-      return TerminalSidebarDragCandidate(entryID: id, frame: attributes.frame)
+      return TerminalSidebarDragCandidate(entryID: id)
     case .emptyGroup, .pinDivider, .newTab, .newGroup:
       return nil
     }

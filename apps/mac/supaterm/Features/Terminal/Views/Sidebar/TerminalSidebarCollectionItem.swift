@@ -13,6 +13,10 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   func host(_ view: TerminalSidebarHostedRow) {
     containerView.host(view)
   }
+
+  func installDragRecognizer(from collectionView: TerminalSidebarCollectionView) {
+    containerView.installDragRecognizer(from: collectionView)
+  }
 }
 
 @MainActor
@@ -35,6 +39,11 @@ private final class TerminalSidebarHostingContainerView: NSView {
     hostingView.autoresizingMask = [.width, .height]
     addSubview(hostingView)
     self.hostingView = hostingView
+  }
+
+  func installDragRecognizer(from collectionView: TerminalSidebarCollectionView) {
+    guard let hostingView else { return }
+    collectionView.installDragRecognizer(on: hostingView)
   }
 }
 

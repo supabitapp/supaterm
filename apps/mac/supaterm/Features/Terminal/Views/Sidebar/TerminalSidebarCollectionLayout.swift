@@ -417,6 +417,24 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     attributesByIndexPath[indexPath]
   }
 
+  override func layoutAttributesForInterItemGap(
+    before indexPath: IndexPath
+  ) -> NSCollectionViewLayoutAttributes? {
+    let attributes = NSCollectionViewLayoutAttributes(forInterItemGapBefore: indexPath)
+    if let item = layoutAttributesForItem(at: indexPath) {
+      attributes.frame = item.frame
+    } else if indexPath.item > 0,
+      let item = layoutAttributesForItem(
+        at: IndexPath(item: indexPath.item - 1, section: indexPath.section)
+      )
+    {
+      attributes.frame = CGRect(x: item.frame.minX, y: item.frame.maxY, width: item.frame.width, height: 1)
+    }
+    attributes.alpha = 0
+    attributes.isHidden = false
+    return attributes
+  }
+
   override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
     newBounds.size != preparedBoundsSize
   }
