@@ -254,14 +254,26 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test @MainActor
-  func collectionLayoutMakesTheNativeDropIndicatorTransparent() throws {
+  func collectionReplacesTheNativeDropIndicatorWithAnEmptyView() throws {
+    let view = try #require(
+      TerminalSidebarListController.supplementaryView(
+        for: NSCollectionView.elementKindInterItemGapIndicator
+      )
+    )
+
+    #expect(view.subviews.isEmpty)
+    #expect(TerminalSidebarListController.supplementaryView(for: "other") == nil)
+  }
+
+  @Test @MainActor
+  func collectionLayoutProvidesTheNativeDropIndicatorGeometry() throws {
     let layout = TerminalSidebarCollectionLayout()
     let attributes = try #require(
       layout.layoutAttributesForInterItemGap(before: IndexPath(item: 1, section: 0))
     )
 
     #expect(!attributes.isHidden)
-    #expect(attributes.alpha == 0)
+    #expect(attributes.alpha == 1)
   }
 
   @Test @MainActor

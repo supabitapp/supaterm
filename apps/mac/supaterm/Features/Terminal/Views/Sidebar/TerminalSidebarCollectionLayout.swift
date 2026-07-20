@@ -430,8 +430,6 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     {
       attributes.frame = CGRect(x: item.frame.minX, y: item.frame.maxY, width: item.frame.width, height: 1)
     }
-    attributes.alpha = 0
-    attributes.isHidden = false
     return attributes
   }
 

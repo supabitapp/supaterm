@@ -3,6 +3,8 @@ import QuartzCore
 import SupaTheme
 import SwiftUI
 
+final class TerminalSidebarInterItemGapView: NSView, NSCollectionViewElement {}
+
 struct TerminalSidebarDropResult {
   let accepted: Bool
   let createdGroupID: TerminalTabGroupID?
@@ -224,6 +226,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
       return item
     }
+    dataSource.supplementaryViewProvider = { _, kind, _ in
+      Self.supplementaryView(for: kind)
+    }
     collectionLayout.preferredHeight = { [weak self] id, width in
       self?.preferredHeight(for: id, width: width) ?? TerminalSidebarLayout.tabRowMinHeight
     }
@@ -244,6 +249,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       name: NSScrollView.didEndLiveScrollNotification,
       object: scrollView
     )
+  }
+
+  static func supplementaryView(
+    for kind: NSCollectionView.SupplementaryElementKind
+  ) -> TerminalSidebarInterItemGapView? {
+    guard kind == NSCollectionView.elementKindInterItemGapIndicator else { return nil }
+    return TerminalSidebarInterItemGapView()
   }
 
   private func process(_ update: Update) {
