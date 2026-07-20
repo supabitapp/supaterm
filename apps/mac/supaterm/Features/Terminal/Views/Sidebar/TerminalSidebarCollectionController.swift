@@ -458,12 +458,12 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         "screenY=\(coordinate(screenPoint.y))",
       ]
     )
-    let recoveredTrailingDrop = activeDrag.acceptedDrop == nil && recoverTrailingDrop(at: screenPoint)
-    guard self.activeDrag?.acceptedDrop != nil, operation == .move || recoveredTrailingDrop else {
+    let recoveredDrop = activeDrag.acceptedDrop == nil && recoverDrop(at: screenPoint)
+    guard self.activeDrag?.acceptedDrop != nil, operation == .move || recoveredDrop else {
       logDrag(
         "sidebar.drag.rejected",
         drag: activeDrag.value,
-        fields: ["recovered=\(recoveredTrailingDrop)"]
+        fields: ["recovered=\(recoveredDrop)"]
       )
       settleDragging(accepted: false)
       return
@@ -547,7 +547,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     setDropTarget(target, pointerY: target == nil ? nil : pointerY)
   }
 
-  private func recoverTrailingDrop(at screenPoint: NSPoint) -> Bool {
+  private func recoverDrop(at screenPoint: NSPoint) -> Bool {
     guard let drag = activeDrag?.value else { return false }
     guard let window = collectionView.window else {
       logDrag("sidebar.drag.recoveryRejected", drag: drag, fields: ["reason=noWindow"])
@@ -575,7 +575,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       uniqueKeysWithValues: collectionLayout.hitTestPlan.groups.map { ($0.id, $0.frame) }
     )
     guard
-      let target = TerminalSidebarTrailingDropResolver.resolve(
+      let target = TerminalSidebarDropTargetResolver.resolve(
         drag: drag,
         pointerY: location.y,
         outline: appliedOutline,
@@ -586,12 +586,12 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       logDrag(
         "sidebar.drag.recoveryRejected",
         drag: drag,
-        fields: ["reason=noTrailingTarget", "pointerY=\(coordinate(location.y))"]
+        fields: ["reason=noTarget", "pointerY=\(coordinate(location.y))"]
       )
       return false
     }
     setDropTarget(target, pointerY: location.y)
-    return applyDrop(drag, target: target, source: "trailingRecovery")
+    return applyDrop(drag, target: target, source: "releaseRecovery")
   }
 
   private func applyDrop(

@@ -83,7 +83,7 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test
-  func trailingDropMovesPinnedGroupToRegularLaneEnd() {
+  func releaseRecoveryResolvesMiddleAndTrailingRootPositions() {
     let child = TerminalTabID()
     let firstRegular = TerminalTabID()
     let lastRegular = TerminalTabID()
@@ -108,7 +108,7 @@ struct TerminalSidebarCollectionTests {
     ]
 
     #expect(
-      TerminalSidebarTrailingDropResolver.resolve(
+      TerminalSidebarDropTargetResolver.resolve(
         drag: .group(group),
         pointerY: 138,
         outline: outline,
@@ -118,13 +118,14 @@ struct TerminalSidebarCollectionTests {
         == .root(isPinned: false, index: 2)
     )
     #expect(
-      TerminalSidebarTrailingDropResolver.resolve(
+      TerminalSidebarDropTargetResolver.resolve(
         drag: .group(group),
-        pointerY: 110,
+        pointerY: 103,
         outline: outline,
         frames: frames,
         groupFrames: [:]
-      ) == nil
+      )?.destination
+        == .root(isPinned: false, index: 1)
     )
   }
 
