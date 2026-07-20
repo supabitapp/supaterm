@@ -219,16 +219,18 @@ enum TerminalSidebarTrailingDropResolver {
     frames: [TerminalSidebarEntryID: CGRect],
     groupFrames: [TerminalTabGroupID: CGRect]
   ) -> TerminalSidebarDropTarget? {
-    guard let newTabFrame = frames[.newTab], pointerY >= newTabFrame.minY else {
-      return nil
-    }
-    return TerminalSidebarDropTargetResolver.resolve(
-      drag: drag,
-      pointerY: pointerY,
-      outline: outline,
-      frames: frames,
-      groupFrames: groupFrames
-    )
+    guard
+      let target = TerminalSidebarDropTargetResolver.resolve(
+        drag: drag,
+        pointerY: pointerY,
+        outline: outline,
+        frames: frames,
+        groupFrames: groupFrames
+      ),
+      case .root = target.destination,
+      target.insertionEntryIndex == outline.visibleEntries.firstIndex(where: { $0.id == .newTab })
+    else { return nil }
+    return target
   }
 }
 

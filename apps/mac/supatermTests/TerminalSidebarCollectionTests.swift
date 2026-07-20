@@ -110,7 +110,7 @@ struct TerminalSidebarCollectionTests {
     #expect(
       TerminalSidebarTrailingDropResolver.resolve(
         drag: .group(group),
-        pointerY: 180,
+        pointerY: 138,
         outline: outline,
         frames: frames,
         groupFrames: [:]
@@ -120,7 +120,7 @@ struct TerminalSidebarCollectionTests {
     #expect(
       TerminalSidebarTrailingDropResolver.resolve(
         drag: .group(group),
-        pointerY: 130,
+        pointerY: 110,
         outline: outline,
         frames: frames,
         groupFrames: [:]
