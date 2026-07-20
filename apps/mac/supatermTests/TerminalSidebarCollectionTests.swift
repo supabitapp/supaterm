@@ -266,6 +266,17 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test @MainActor
+  func sidebarScrollViewRejectsVerticalScrollers() {
+    let scrollView = TerminalSidebarScrollView()
+
+    scrollView.hasVerticalScroller = true
+    scrollView.verticalScroller = NSScroller()
+
+    #expect(!scrollView.hasVerticalScroller)
+    #expect(scrollView.verticalScroller == nil)
+  }
+
+  @Test @MainActor
   func collectionLayoutProvidesTheNativeDropIndicatorGeometry() throws {
     let layout = TerminalSidebarCollectionLayout()
     let attributes = try #require(

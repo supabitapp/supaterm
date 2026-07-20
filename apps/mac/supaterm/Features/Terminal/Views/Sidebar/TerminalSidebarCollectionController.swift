@@ -5,6 +5,18 @@ import SwiftUI
 
 final class TerminalSidebarInterItemGapView: NSView, NSCollectionViewElement {}
 
+final class TerminalSidebarScrollView: NSScrollView {
+  override var hasVerticalScroller: Bool {
+    get { false }
+    set {}
+  }
+
+  override var verticalScroller: NSScroller? {
+    get { nil }
+    set {}
+  }
+}
+
 struct TerminalSidebarDropResult {
   let accepted: Bool
   let createdGroupID: TerminalTabGroupID?
@@ -54,7 +66,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   let renameState = TerminalSidebarRenameState()
   var onDrop: ((TerminalSidebarDragValue, TerminalSidebarDropDestination) -> TerminalSidebarDropResult)?
 
-  private let scrollView = NSScrollView()
+  private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
   private let dropIndicatorView = TerminalSidebarDropIndicatorView()
@@ -180,7 +192,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func configureHierarchy() {
     scrollView.drawsBackground = false
-    scrollView.hasVerticalScroller = false
     scrollView.contentInsets.top = TerminalSidebarLayout.firstVisibleSectionTopInset
     view.addSubview(scrollView)
 
