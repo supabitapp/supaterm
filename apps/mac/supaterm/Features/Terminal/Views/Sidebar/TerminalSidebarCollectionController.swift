@@ -669,10 +669,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     setDropTarget(target, pointerY: location.y)
     proposedDropIndexPath.pointee =
       IndexPath(
-        item: min(target.insertionEntryIndex ?? 0, appliedOutline.visibleEntries.count),
+        item: min(
+          target.insertionEntryIndex ?? 0,
+          max(0, appliedOutline.visibleEntries.count - 1)
+        ),
         section: 0
       ) as NSIndexPath
-    proposedDropOperation.pointee = .before
+    proposedDropOperation.pointee = .on
     draggingInfo.animatesToDestination = false
     draggingInfo.numberOfValidItemsForDrop = 1
     return .move
