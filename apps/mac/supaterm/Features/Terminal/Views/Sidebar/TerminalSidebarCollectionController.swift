@@ -425,12 +425,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func draggingSessionEnded(
     sessionID: UUID,
-    screenPoint _: NSPoint,
+    screenPoint: NSPoint,
     operation: NSDragOperation
   ) {
     guard let activeDrag, activeDrag.id == sessionID else { return }
     autoscrollController.stop()
-    guard activeDrag.acceptedDrop != nil, operation == .move else {
+    let recoveredTrailingDrop = activeDrag.acceptedDrop == nil && recoverTrailingDrop(at: screenPoint)
+    guard self.activeDrag?.acceptedDrop != nil, operation == .move || recoveredTrailingDrop else {
       settleDragging(accepted: false)
       return
     }
@@ -502,6 +503,49 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     setDropTarget(target, pointerY: target == nil ? nil : pointerY)
   }
 
+  private func recoverTrailingDrop(at screenPoint: NSPoint) -> Bool {
+    guard let window = collectionView.window, let drag = activeDrag?.value else { return false }
+    let windowPoint = window.convertPoint(fromScreen: screenPoint)
+    let scrollLocation = scrollView.convert(windowPoint, from: nil)
+    guard scrollView.bounds.contains(scrollLocation) else { return false }
+    let location = collectionView.convert(windowPoint, from: nil)
+    let itemFrames = Dictionary(
+      uniqueKeysWithValues: collectionLayout.hitTestPlan.items.map { ($0.id, $0.frame) }
+    )
+    let groupFrames = Dictionary(
+      uniqueKeysWithValues: collectionLayout.hitTestPlan.groups.map { ($0.id, $0.frame) }
+    )
+    guard
+      let target = TerminalSidebarTrailingDropResolver.resolve(
+        drag: drag,
+        pointerY: location.y,
+        outline: appliedOutline,
+        frames: itemFrames,
+        groupFrames: groupFrames
+      )
+    else { return false }
+    setDropTarget(target, pointerY: location.y)
+    return applyDrop(drag, target: target)
+  }
+
+  private func applyDrop(
+    _ drag: TerminalSidebarDragValue,
+    target: TerminalSidebarDropTarget
+  ) -> Bool {
+    guard
+      var activeDrag,
+      let result = onDrop?(drag, target.destination),
+      result.accepted
+    else { return false }
+    activeDrag.acceptedDrop = AcceptedDrop(
+      drag: drag,
+      destination: target.destination,
+      createdGroupID: result.createdGroupID
+    )
+    self.activeDrag = activeDrag
+    return true
+  }
+
   func collectionView(
     _ collectionView: NSCollectionView,
     validateDrop draggingInfo: NSDraggingInfo,
@@ -559,19 +603,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         frames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.items.map { ($0.id, $0.frame) }),
         groupFrames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.groups.map { ($0.id, $0.frame) })
       ),
-      var activeDrag,
-      let result = onDrop?(drag, target.destination),
-      result.accepted
+      applyDrop(drag, target: target)
     else {
       setDropTarget(nil, pointerY: nil)
       return false
     }
-    activeDrag.acceptedDrop = AcceptedDrop(
-      drag: drag,
-      destination: target.destination,
-      createdGroupID: result.createdGroupID
-    )
-    self.activeDrag = activeDrag
     return true
   }
 

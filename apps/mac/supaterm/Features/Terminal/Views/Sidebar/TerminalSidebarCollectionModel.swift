@@ -211,6 +211,27 @@ enum TerminalSidebarDropCommit {
   }
 }
 
+enum TerminalSidebarTrailingDropResolver {
+  static func resolve(
+    drag: TerminalSidebarDragValue,
+    pointerY: CGFloat,
+    outline: TerminalSidebarOutline,
+    frames: [TerminalSidebarEntryID: CGRect],
+    groupFrames: [TerminalTabGroupID: CGRect]
+  ) -> TerminalSidebarDropTarget? {
+    guard let newTabFrame = frames[.newTab], pointerY >= newTabFrame.minY else {
+      return nil
+    }
+    return TerminalSidebarDropTargetResolver.resolve(
+      drag: drag,
+      pointerY: pointerY,
+      outline: outline,
+      frames: frames,
+      groupFrames: groupFrames
+    )
+  }
+}
+
 enum TerminalSidebarDropTargetResolver {
   static func resolve(
     drag: TerminalSidebarDragValue,
@@ -397,8 +418,9 @@ enum TerminalSidebarDropTargetResolver {
       return previous.0.isPinned
     case (nil, let next?):
       return next.0.isPinned
-    case (let previous?, nil) where pointerY <= previous.1.maxY:
-      return previous.0.isPinned
+    case (let previous?, nil):
+      if pointerY <= previous.1.maxY { return previous.0.isPinned }
+      return previous.0.isPinned && fallback
     default:
       return fallback
     }

@@ -83,6 +83,52 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test
+  func trailingDropMovesPinnedGroupToRegularLaneEnd() {
+    let child = TerminalTabID()
+    let firstRegular = TerminalTabID()
+    let lastRegular = TerminalTabID()
+    let group = TerminalTabGroupID()
+    let outline = TerminalSidebarOutline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(group, .blue, [child]),
+          isPinned: true
+        ),
+        TerminalSidebarOutline.Root(content: .tab(firstRegular), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(lastRegular), isPinned: false),
+      ],
+      collapsedGroupIDs: []
+    )
+    let frames: [TerminalSidebarEntryID: CGRect] = [
+      .group(group): CGRect(x: 0, y: 0, width: 200, height: 30),
+      .tab(child): CGRect(x: 12, y: 32, width: 188, height: 30),
+      .tab(firstRegular): CGRect(x: 0, y: 72, width: 200, height: 30),
+      .tab(lastRegular): CGRect(x: 0, y: 104, width: 200, height: 30),
+      .newTab: CGRect(x: 0, y: 142, width: 200, height: 30),
+    ]
+
+    #expect(
+      TerminalSidebarTrailingDropResolver.resolve(
+        drag: .group(group),
+        pointerY: 180,
+        outline: outline,
+        frames: frames,
+        groupFrames: [:]
+      )?.destination
+        == .root(isPinned: false, index: 2)
+    )
+    #expect(
+      TerminalSidebarTrailingDropResolver.resolve(
+        drag: .group(group),
+        pointerY: 130,
+        outline: outline,
+        frames: frames,
+        groupFrames: [:]
+      ) == nil
+    )
+  }
+
+  @Test
   func extractingChildRetainsItsSourceGroupInRootIndexMath() {
     let child = TerminalTabID()
     let target = TerminalTabID()
