@@ -721,7 +721,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     drag: TerminalSidebarDragValue,
     fields: [String] = []
   ) {
-    SupatermLog.notice(
+    SupatermLog.debug(
       SupatermLog.sidebarDrag,
       event,
       fields: dragFields(drag) + fields

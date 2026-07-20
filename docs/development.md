@@ -132,6 +132,8 @@ SUPATERM_RUN_INSTANCE_NAME=supaterm-dev SUPATERM_RUN_STATE_HOME=/tmp/supaterm-de
 - `SUPATERM_RUN_STATE_HOME` becomes `SUPATERM_STATE_HOME` for the app process and spawned panes.
 - `SUPATERM_RUN_ZMX_DIR` becomes `ZMX_DIR` for the app process.
 
+All Makefile app launch targets set `SUPATERM_VERBOSE_LOGGING=1`, so development runs always emit verbose diagnostics.
+
 Panes inherit Supaterm context from the running app:
 
 - `SUPATERM_SOCKET_PATH`
