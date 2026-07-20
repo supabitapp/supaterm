@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import SupatermSupport
 import SwiftUI
 
 struct SettingsAdvancedView: View {
@@ -6,8 +7,9 @@ struct SettingsAdvancedView: View {
 
   private var verboseLoggingEnabled: Binding<Bool> {
     Binding(
-      get: { store.verboseLoggingEnabled },
+      get: { SupatermLog.isVerboseLoggingForced || store.verboseLoggingEnabled },
       set: { newValue in
+        guard !SupatermLog.isVerboseLoggingForced else { return }
         _ = store.send(.verboseLoggingEnabledChanged(newValue))
       }
     )
@@ -18,9 +20,12 @@ struct SettingsAdvancedView: View {
       Section {
         SettingsToggleRow(
           title: "Enable Verbose Logging",
-          subtitle: "Emit debug-level diagnostics to local OSLog.",
+          subtitle: SupatermLog.isVerboseLoggingForced
+            ? "Enabled for this development run."
+            : "Emit debug-level diagnostics to local OSLog.",
           isOn: verboseLoggingEnabled
         )
+        .disabled(SupatermLog.isVerboseLoggingForced)
         .accessibilityIdentifier("settings.advanced.verbose-logging")
       }
     }

@@ -11,9 +11,12 @@ public nonisolated enum SupatermLog {
   private static let verboseLoggingEnabled = LockIsolated(false)
   private static let verboseLoggingEnvironmentKey = "SUPATERM_VERBOSE_LOGGING"
 
+  public static var isVerboseLoggingForced: Bool {
+    isVerboseLoggingForced(environment: ProcessInfo.processInfo.environment)
+  }
+
   private static var isVerboseLoggingEnabled: Bool {
-    verboseLoggingEnabled.value
-      || isVerboseLoggingForced(environment: ProcessInfo.processInfo.environment)
+    verboseLoggingEnabled.value || isVerboseLoggingForced
   }
 
   static func isVerboseLoggingForced(environment: [String: String]) -> Bool {
