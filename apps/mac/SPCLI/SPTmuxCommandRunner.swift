@@ -323,7 +323,7 @@ struct SPTmuxCommandRunner {
           equalize: false,
           targetWindowIndex: targetPane.window.index,
           targetSpaceIndex: targetPane.space.index,
-          targetTabIndex: targetPane.tab.index,
+          targetTabIndex: targetPane.tabIndex,
           targetPaneIndex: targetPane.pane.index
         )
       ),
@@ -518,14 +518,14 @@ struct SPTmuxCommandRunner {
   private func runListWindows(_ arguments: [String]) throws {
     let parsed = try SPTmuxArgumentParser.parse(arguments, valueFlags: ["-F", "-t"], boolFlags: [])
     let targetSpace = try topology().resolveSpace(raw: parsed.value("-t"))
-    for tab in targetSpace.space.tabs {
+    for tab in targetSpace.space.flattenedTabs {
       let location = SPTmuxTopology.TabLocation(
         window: targetSpace.window,
         space: targetSpace.space,
         tab: tab
       )
       let context = formatContext(for: location)
-      let fallback = "\(tab.index) \(tab.title)"
+      let fallback = "\(location.tabIndex) \(tab.title)"
       print(renderFormat(parsed.value("-F"), context: context, fallback: fallback))
     }
   }
@@ -876,7 +876,7 @@ struct SPTmuxCommandRunner {
       "session_uuid": pane.space.id.uuidString.lowercased(),
       "window_active": pane.tab.isSelected ? "1" : "0",
       "window_id": "@\(pane.tab.id.uuidString.lowercased())",
-      "window_index": String(pane.tab.index),
+      "window_index": String(pane.tabIndex),
       "window_name": pane.tab.title,
       "window_uuid": pane.tab.id.uuidString.lowercased(),
       "pane_active": pane.pane.isFocused ? "1" : "0",
@@ -894,7 +894,7 @@ struct SPTmuxCommandRunner {
       "session_uuid": tab.space.id.uuidString.lowercased(),
       "window_active": tab.tab.isSelected ? "1" : "0",
       "window_id": "@\(tab.tab.id.uuidString.lowercased())",
-      "window_index": String(tab.tab.index),
+      "window_index": String(tab.tabIndex),
       "window_name": tab.tab.title,
       "window_uuid": tab.tab.id.uuidString.lowercased(),
     ]

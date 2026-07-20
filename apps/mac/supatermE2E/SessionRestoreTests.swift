@@ -12,10 +12,12 @@ extension SupatermE2ESuite {
       let token = token()
       let directory = try scratchDirectory(app, token: token)
       try await app.waitForDebugSnapshot("the initial pane is available") { snapshot in
-        snapshot.windows.first?.spaces.first?.tabs.first?.panes.first != nil
+        guard let space = snapshot.windows.first?.spaces.first else { return false }
+        return space.flattenedTabs.first?.panes.first != nil
       }
+      let initialSpace = try #require(try app.debugSnapshot().windows.first?.spaces.first)
       let initialPaneID = try #require(
-        try app.debugSnapshot().windows.first?.spaces.first?.tabs.first?.panes.first?.id
+        initialSpace.flattenedTabs.first?.panes.first?.id
       )
       let initialPane = SupatermPaneTargetRequest(contextPaneID: initialPaneID)
       try await app.waitForCapture(initialPane, contains: "Welcome to Supaterm!")
@@ -58,7 +60,9 @@ extension SupatermE2ESuite {
       try await app.quit()
       try await app.relaunch()
       try await app.waitForDebugSnapshot("the full restored layout is visible") { snapshot in
-        let paneIDs = Set(snapshot.windows.flatMap(\.spaces).flatMap(\.tabs).flatMap(\.panes).map(\.id))
+        let paneIDs = Set(
+          snapshot.windows.flatMap(\.spaces).flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id)
+        )
         return [initialPaneID, firstSpace.paneID, secondTab.paneID, split.paneID, secondSpace.paneID]
           .allSatisfy { paneIDs.contains($0) }
       }
@@ -70,19 +74,21 @@ extension SupatermE2ESuite {
       #expect(after.summary.paneCount == before.summary.paneCount)
 
       let restoredFirstSpace = try restoredSpace(named: firstSpaceName, in: app)
+      let restoredFirstTabs = restoredFirstSpace.flattenedTabs
       #expect(restoredFirstSpace.id == firstSpace.target.spaceID)
-      #expect(restoredFirstSpace.tabs.map(\.title) == [firstTitle, secondTitle])
-      #expect(restoredFirstSpace.tabs[0].panes.map(\.id) == [firstSpace.paneID])
-      #expect(Set(restoredFirstSpace.tabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
+      #expect(restoredFirstTabs.map(\.title) == [firstTitle, secondTitle])
+      #expect(restoredFirstTabs[0].panes.map(\.id) == [firstSpace.paneID])
+      #expect(Set(restoredFirstTabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
 
       let restoredSecondSpace = try restoredSpace(named: secondSpaceName, in: app)
+      let restoredSecondTabs = restoredSecondSpace.flattenedTabs
       #expect(restoredSecondSpace.id == secondSpace.target.spaceID)
-      #expect(restoredSecondSpace.tabs.map(\.title) == [thirdTitle])
-      #expect(restoredSecondSpace.tabs[0].panes.map(\.id) == [secondSpace.paneID])
+      #expect(restoredSecondTabs.map(\.title) == [thirdTitle])
+      #expect(restoredSecondTabs[0].panes.map(\.id) == [secondSpace.paneID])
 
       #expect(restoredFirstSpace.isSelected)
-      #expect(restoredFirstSpace.tabs[1].isSelected)
-      let restoredSplit = try #require(restoredFirstSpace.tabs[1].panes.first { $0.id == split.paneID })
+      #expect(restoredFirstTabs[1].isSelected)
+      let restoredSplit = try #require(restoredFirstTabs[1].panes.first { $0.id == split.paneID })
       #expect(restoredSplit.isFocused)
 
       let restoredOnboarding = try app.capture(initialPane, scope: .scrollback)
@@ -118,15 +124,18 @@ extension SupatermE2ESuite {
       app.terminate(preservingZmxSessions: true)
       try await app.relaunch()
       try await app.waitForDebugSnapshot("the sigterm layout is restored") { snapshot in
-        let paneIDs = Set(snapshot.windows.flatMap(\.spaces).flatMap(\.tabs).flatMap(\.panes).map(\.id))
+        let paneIDs = Set(
+          snapshot.windows.flatMap(\.spaces).flatMap(\.flattenedTabs).flatMap(\.panes).map(\.id)
+        )
         return [space.paneID, secondTab.paneID, split.paneID].allSatisfy { paneIDs.contains($0) }
       }
 
       let restored = try restoredSpace(named: spaceName, in: app)
+      let restoredTabs = restored.flattenedTabs
       #expect(restored.id == space.target.spaceID)
-      #expect(restored.tabs.map(\.title) == [firstTitle, secondTitle])
-      #expect(restored.tabs[0].panes.map(\.id) == [space.paneID])
-      #expect(Set(restored.tabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
+      #expect(restoredTabs.map(\.title) == [firstTitle, secondTitle])
+      #expect(restoredTabs[0].panes.map(\.id) == [space.paneID])
+      #expect(Set(restoredTabs[1].panes.map(\.id)) == [secondTab.paneID, split.paneID])
     }
 
     @Test(.timeLimit(.minutes(5)))
@@ -157,7 +166,7 @@ extension SupatermE2ESuite {
       try await app.waitForDebugSnapshot("the scrollback pane is restored") { snapshot in
         snapshot.windows
           .flatMap(\.spaces)
-          .flatMap(\.tabs)
+          .flatMap(\.flattenedTabs)
           .flatMap(\.panes)
           .contains { $0.id == tab.paneID }
       }
@@ -197,7 +206,7 @@ extension SupatermE2ESuite {
       try await app.waitForDebugSnapshot("the heartbeat pane is restored") { snapshot in
         snapshot.windows
           .flatMap(\.spaces)
-          .flatMap(\.tabs)
+          .flatMap(\.flattenedTabs)
           .flatMap(\.panes)
           .contains { $0.id == tab.paneID }
       }
@@ -237,14 +246,14 @@ extension SupatermE2ESuite {
       try await app.waitForDebugSnapshot("the pinned tab is restored") { snapshot in
         snapshot.windows
           .flatMap(\.spaces)
-          .flatMap(\.tabs)
+          .flatMap(\.flattenedTabs)
           .contains { $0.title == title && $0.panes.map(\.id) == [tab.paneID] }
       }
 
       let restored = try restoredSpace(named: "pin-\(token)", in: app)
       #expect(restored.id == space.target.spaceID)
       let restoredTab = try restoredTab(titled: title, in: restored)
-      #expect(restoredTab.isPinned)
+      #expect(e2eRootTab(withID: restoredTab.id, in: restored)?.isPinned == true)
       #expect(restoredTab.isTitleLocked)
       #expect(restoredTab.panes.map(\.id) == [tab.paneID])
     }
@@ -338,7 +347,7 @@ private func restoredTab(
   titled title: String,
   in space: SupatermAppDebugSnapshot.Space
 ) throws -> SupatermAppDebugSnapshot.Tab {
-  try #require(space.tabs.first { $0.title == title })
+  try #require(space.flattenedTabs.first { $0.title == title })
 }
 
 private func scratchDirectory(_ app: SupatermE2EApp, token: String) throws -> URL {

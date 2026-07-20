@@ -8,6 +8,9 @@ struct TerminalSidebarTabRow: View {
     case newTab
     case divider
     case togglePinned(Bool)
+    case moveToNewGroup
+    case moveToGroup
+    case removeFromGroup
     case changeTabTitle
     case closeTabsBelow(Bool)
     case closeOtherTabs(Bool)
@@ -21,6 +24,12 @@ struct TerminalSidebarTabRow: View {
         nil
       case .togglePinned(let isPinned):
         isPinned ? "Unpin Tab" : "Pin Tab"
+      case .moveToNewGroup:
+        "Move to New Group"
+      case .moveToGroup:
+        "Move to Group..."
+      case .removeFromGroup:
+        "Remove from Group"
       case .changeTabTitle:
         "Change Tab Title..."
       case .closeTabsBelow:
@@ -36,7 +45,6 @@ struct TerminalSidebarTabRow: View {
   enum CloseButtonPresentation: Equatable {
     case hidden
     case enabled
-    case disabled
   }
 
   private struct AnimatedPresentation: Equatable {
@@ -66,6 +74,9 @@ struct TerminalSidebarTabRow: View {
   let store: StoreOf<TerminalWindowFeature>
   let terminal: TerminalHostState
   let tab: TerminalTabItem
+  let groupID: TerminalTabGroupID?
+  let rootIsPinned: Bool
+  let renameState: TerminalSidebarRenameState?
   let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -80,14 +91,22 @@ struct TerminalSidebarTabRow: View {
   static func contextMenuItems(
     isPinned: Bool,
     hasTabsBelow: Bool,
-    hasOtherTabs: Bool
+    hasOtherTabs: Bool,
+    isGrouped: Bool = false
   ) -> [ContextMenuItem] {
     var items: [ContextMenuItem] = [
       .newTab,
       .divider,
-      .togglePinned(isPinned),
-      .changeTabTitle,
     ]
+    items.append(contentsOf: [
+      .togglePinned(isPinned),
+      .moveToNewGroup,
+      .moveToGroup,
+    ])
+    if isGrouped {
+      items.append(.removeFromGroup)
+    }
+    items.append(.changeTabTitle)
     items.append(contentsOf: [
       .divider,
       .closeTabsBelow(hasTabsBelow),
@@ -99,12 +118,11 @@ struct TerminalSidebarTabRow: View {
   }
 
   static func closeButtonPresentation(
-    isPinned: Bool,
     isHovering: Bool,
     showsShortcutHint: Bool
   ) -> CloseButtonPresentation {
     guard isHovering, !showsShortcutHint else { return .hidden }
-    return isPinned ? .disabled : .enabled
+    return .enabled
   }
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -139,6 +157,7 @@ struct TerminalSidebarTabRow: View {
           tab: tab,
           palette: palette,
           isSelected: isSelected,
+          isPinned: groupID == nil && rootIsPinned,
           notificationPreviewText: notificationPresentation?.previewText,
           paneWorkingDirectories: paneWorkingDirectories,
           unreadCount: unreadCount,
@@ -163,7 +182,6 @@ struct TerminalSidebarTabRow: View {
         }
 
         let closeButtonPresentation = Self.closeButtonPresentation(
-          isPinned: tab.isPinned,
           isHovering: isHovering,
           showsShortcutHint: showsShortcutHint
         )
@@ -182,7 +200,6 @@ struct TerminalSidebarTabRow: View {
               )
           }
           .buttonStyle(.plain)
-          .disabled(closeButtonPresentation == .disabled)
           .onHover { isCloseHovering = $0 }
         }
       }
@@ -215,9 +232,10 @@ struct TerminalSidebarTabRow: View {
       ForEach(
         Array(
           Self.contextMenuItems(
-            isPinned: tab.isPinned,
+            isPinned: groupID == nil && rootIsPinned,
             hasTabsBelow: hasTabsBelow,
-            hasOtherTabs: hasOtherTabs
+            hasOtherTabs: hasOtherTabs,
+            isGrouped: groupID != nil
           ).enumerated()
         ),
         id: \.offset
@@ -225,9 +243,21 @@ struct TerminalSidebarTabRow: View {
         switch item {
         case .newTab:
           Button {
-            _ = store.send(
-              .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-            )
+            if let groupID {
+              let index =
+                terminal.rootItems.compactMap { root -> TerminalTabGroupItem? in
+                  guard case .group(let group) = root, group.id == groupID else { return nil }
+                  return group
+                }.first?.tabs.count ?? 0
+              terminal.createTab(
+                inheritingFromSurfaceID: contextSurfaceID,
+                at: .group(groupID, index: index)
+              )
+            } else {
+              _ = store.send(
+                .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
+              )
+            }
           } label: {
             Label("New Tab", systemImage: "plus")
           }
@@ -240,6 +270,44 @@ struct TerminalSidebarTabRow: View {
             _ = store.send(.togglePinned(tab.id))
           } label: {
             Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
+          }
+
+        case .moveToNewGroup:
+          Button {
+            let groupID = terminal.createGroup(
+              title: "New Group",
+              color: .neutral,
+              containing: [tab.id]
+            )
+            if let groupID {
+              renameState?.begin(groupID: groupID, title: "New Group")
+            }
+          } label: {
+            Label("Move to New Group", systemImage: "rectangle.3.group")
+          }
+
+        case .moveToGroup:
+          Menu {
+            ForEach(availableGroups) { group in
+              Button(group.title) {
+                _ = store.send(
+                  .moveTabCommitted(
+                    tab.id,
+                    .group(group.id, index: group.tabs.count)
+                  )
+                )
+              }
+            }
+          } label: {
+            Label("Move to Group...", systemImage: "arrow.right")
+          }
+          .disabled(availableGroups.isEmpty)
+
+        case .removeFromGroup:
+          Button {
+            _ = store.send(.removeTabFromGroupRequested(tab.id))
+          } label: {
+            Label("Remove from Group", systemImage: "arrow.up.backward")
           }
 
         case .changeTabTitle:
@@ -275,7 +343,7 @@ struct TerminalSidebarTabRow: View {
       }
     }
     .accessibilityAddTraits(isSelected ? .isSelected : [])
-    .accessibilityIdentifier("sidebar.tab-row")
+    .accessibilityIdentifier(accessibilityIdentifier)
   }
 
   private var animatedPresentation: AnimatedPresentation {
@@ -290,6 +358,19 @@ struct TerminalSidebarTabRow: View {
       terminalProgress: terminalProgress,
       unreadCount: unreadCount
     )
+  }
+
+  private var availableGroups: [TerminalTabGroupItem] {
+    terminal.rootItems.compactMap { root in
+      guard case .group(let group) = root, group.id != groupID else { return nil }
+      return group
+    }
+  }
+
+  private var accessibilityIdentifier: String {
+    let tabID = tab.id.rawValue.uuidString.lowercased()
+    guard let groupID else { return "sidebar.tab-row" }
+    return "sidebar.group.\(groupID.rawValue.uuidString.lowercased()).tab.\(tabID)"
   }
 
   private func select() {

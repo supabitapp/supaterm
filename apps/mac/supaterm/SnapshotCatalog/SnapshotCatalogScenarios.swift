@@ -630,8 +630,7 @@ private struct SidebarRowSnapshotItem {
   var tab: TerminalTabItem {
     TerminalTabItem(
       id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid(id)),
-      title: title,
-      isPinned: isPinned
+      title: title
     )
   }
 }
@@ -649,6 +648,7 @@ private struct SidebarRowSnapshotFixture: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
+      isPinned: item.isPinned,
       notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,
@@ -711,30 +711,56 @@ private enum SidebarChromeSnapshotContext {
       from: TerminalSpaceCatalog(defaultSelectedSpaceID: spaces[0].id, spaces: spaces),
       initialSelectedSpaceID: spaces[0].id
     )
-    let tabs = [
-      tab("41", title: "dotfiles", isPinned: true),
-      tab("42", title: "notes", isPinned: true),
-      tab("43", title: "supaterm - fish"),
-      tab("44", title: "release-check"),
-      tab("45", title: "agent playground"),
+    let selectedRoot = rootTab("43", title: "supaterm - fish")
+    let rootItems = [
+      rootTab("41", title: "dotfiles", isPinned: true),
+      rootTab("42", title: "notes", isPinned: true),
+      selectedRoot,
+      TerminalTabRootItem.group(
+        TerminalTabGroupItem(
+          id: TerminalTabGroupID(
+            rawValue: SnapshotFixtureValues.uuid("50000000-0000-0000-0000-000000000001")
+          ),
+          title: "Release",
+          color: .blue,
+          isPinned: false,
+          tabs: [
+            tab("44", title: "release-check"),
+            tab("45", title: "agent playground"),
+          ]
+        )
+      ),
     ]
-    terminal.spaceManager.restoreTabs(
-      tabs,
-      selectedTabID: tabs[2].id,
+    terminal.spaceManager.restoreRootItems(
+      rootItems,
+      selectedTabID: selectedRoot.tabs[0].id,
       in: spaces[0].id
     )
     return terminal
   }()
 
-  private static func tab(
+  private static func rootTab(
     _ id: String,
     title: String,
     isPinned: Bool = false
+  ) -> TerminalTabRootItem {
+    .tab(
+      TerminalUngroupedTabItem(
+        tab: tab(id, title: title),
+        isPinned: isPinned
+      )
+    )
+  }
+
+  private static func tab(
+    _ id: String,
+    title: String
   ) -> TerminalTabItem {
     TerminalTabItem(
-      id: TerminalTabID(rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-0000000000\(id)")),
-      title: title,
-      isPinned: isPinned
+      id: TerminalTabID(
+        rawValue: SnapshotFixtureValues.uuid("40000000-0000-0000-0000-0000000000\(id)")
+      ),
+      title: title
     )
   }
 }

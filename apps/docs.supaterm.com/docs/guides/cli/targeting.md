@@ -1,6 +1,6 @@
 ---
-title: Target instances, spaces, tabs, and panes
-description: Use ambient context, selectors, UUIDs, instances, and sockets safely.
+title: Target instances, spaces, groups, tabs, and panes
+description: Use ambient context, selectors, UUIDs, titles, instances, and sockets safely.
 ---
 
 Targeting has two independent steps: choose a running Supaterm instance, then choose an object inside its terminal hierarchy.
@@ -41,6 +41,13 @@ sp pane focus 1/2/3
 ```
 
 Indexes can change when objects move or close. Use UUIDs for durable automation.
+
+Group commands accept a group UUID or an exact group title in the resolved space. A duplicate title is an error, so use the UUID from `sp ls --json` for durable automation. When run from a tab inside a group, commands that omit the group selector use that group.
+
+```bash
+sp group rename Development 9D99542C-82D1-4505-B879-68F42EC0927D
+sp group collapse Development
+```
 
 ## Discover UUIDs
 

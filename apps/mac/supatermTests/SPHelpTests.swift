@@ -16,6 +16,7 @@ struct SPHelpTests {
     #expect(help.contains("SUPATERM_TAB_ID"))
     #expect(help.contains("Example:"))
     #expect(help.contains("sp ls"))
+    #expect(help.contains("sp group new Work --color blue"))
     #expect(help.contains("sp tab new --focus -- ping 1.1.1.1"))
     #expect(help.contains("sp pane split down -- tail -f /tmp/server.log"))
     #expect(help.contains("sp skills"))
@@ -40,6 +41,18 @@ struct SPHelpTests {
       SP.helpMessage(for: SP.SpaceDestroy.self, columns: 100),
       SP.helpMessage(for: SP.Tab.self, columns: 100),
       SP.helpMessage(for: SP.NewTab.self, columns: 100),
+      SP.helpMessage(for: SP.MoveTab.self, columns: 100),
+      SP.helpMessage(for: SP.Group.self, columns: 100),
+      SP.helpMessage(for: SP.GroupNew.self, columns: 100),
+      SP.helpMessage(for: SP.GroupRename.self, columns: 100),
+      SP.helpMessage(for: SP.GroupColor.self, columns: 100),
+      SP.helpMessage(for: SP.GroupPin.self, columns: 100),
+      SP.helpMessage(for: SP.GroupUnpin.self, columns: 100),
+      SP.helpMessage(for: SP.GroupCollapse.self, columns: 100),
+      SP.helpMessage(for: SP.GroupExpand.self, columns: 100),
+      SP.helpMessage(for: SP.GroupMove.self, columns: 100),
+      SP.helpMessage(for: SP.GroupUngroup.self, columns: 100),
+      SP.helpMessage(for: SP.GroupClose.self, columns: 100),
       SP.helpMessage(for: SP.Pane.self, columns: 100),
       SP.helpMessage(for: SP.NewPane.self, columns: 100),
       SP.helpMessage(for: SP.FocusPane.self, columns: 100),
@@ -132,9 +145,33 @@ struct SPHelpTests {
     #expect(newTabHelp.contains("Trailing arguments after `--` are treated as a terminal startup command."))
     #expect(newTabHelp.contains("`--script` runs shell script text as the terminal startup command."))
     #expect(newTabHelp.contains("sp tab new --script 'echo hi; pwd'"))
+    #expect(newTabHelp.contains("sp tab new --group Build"))
+    #expect(newTabHelp.contains("sp tab new --root"))
     #expect(newTabHelp.contains("sp tab new --in <space-uuid>"))
     #expect(notifyHelp.contains("space/tab/pane"))
     #expect(notifyHelp.contains("sp pane notify <pane-uuid>"))
+  }
+
+  @Test
+  func groupAndMoveHelpLockPublicSyntax() {
+    let groupHelp = SP.helpMessage(for: SP.Group.self, columns: 100)
+    let newHelp = SP.helpMessage(for: SP.GroupNew.self, columns: 100)
+    let moveHelp = SP.helpMessage(for: SP.GroupMove.self, columns: 100)
+    let closeHelp = SP.helpMessage(for: SP.GroupClose.self, columns: 100)
+    let tabMoveHelp = SP.helpMessage(for: SP.MoveTab.self, columns: 100)
+
+    #expect(groupHelp.contains("sp group new Build"))
+    #expect(groupHelp.contains("sp group rename Deploy Build"))
+    #expect(groupHelp.contains("sp group color blue Deploy"))
+    #expect(groupHelp.contains("sp group collapse Deploy"))
+    #expect(groupHelp.contains("sp group ungroup Deploy"))
+    #expect(newHelp.contains("sp group new Deploy --color blue"))
+    #expect(newHelp.contains("sp group new Pinned --pin"))
+    #expect(moveHelp.contains("sp group move Deploy --index 2"))
+    #expect(closeHelp.contains("sp group close Build --yes"))
+    #expect(tabMoveHelp.contains("sp tab move 1/2 --group <group-uuid> --index 1"))
+    #expect(tabMoveHelp.contains("sp tab move <tab-uuid> --root --pin --index 1"))
+    #expect(!groupHelp.contains("sp group delete"))
   }
 
   @Test

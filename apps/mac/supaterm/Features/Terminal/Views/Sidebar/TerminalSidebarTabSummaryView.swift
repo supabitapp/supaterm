@@ -13,6 +13,7 @@ struct TerminalSidebarTabSummaryView: View {
   let tab: TerminalTabItem
   let palette: Palette
   let isSelected: Bool
+  let isPinned: Bool
   let notificationPreviewText: String?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -105,7 +106,7 @@ struct TerminalSidebarTabSummaryView: View {
       showsShortcutHint: showsShortcutHint,
       isRowHovering: isRowHovering,
       statusAccessory: Self.statusAccessory(
-        isPinned: tab.isPinned,
+        isPinned: isPinned,
         unreadCount: unreadCount,
         agentActivity: badgeActivity,
         agentActivityIsFocused: badgeActivityIsFocused,

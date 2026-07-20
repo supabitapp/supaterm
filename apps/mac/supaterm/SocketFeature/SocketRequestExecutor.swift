@@ -117,6 +117,8 @@ public struct SocketRequestExecutor: Sendable {
     @MainActor @Sendable (TerminalCreationRequest) async throws -> TerminalCreationResult
   public var executeTerminalPane: @MainActor @Sendable (TerminalPaneRequest) async throws -> TerminalPaneResult
   public var executeTerminalTab: @MainActor @Sendable (TerminalTabRequest) async throws -> TerminalTabResult
+  public var executeTerminalTabGroup:
+    @MainActor @Sendable (TerminalTabGroupRequest) async throws -> TerminalTabGroupResult
   public var executeTerminalSpace: @MainActor @Sendable (TerminalSpaceRequest) async throws -> TerminalSpaceResult
 
   public init(
@@ -133,6 +135,12 @@ public struct SocketRequestExecutor: Sendable {
       @escaping @MainActor @Sendable (
         TerminalTabRequest
       ) async throws -> TerminalTabResult,
+    executeTerminalTabGroup:
+      @escaping @MainActor @Sendable (
+        TerminalTabGroupRequest
+      ) async throws -> TerminalTabGroupResult = { _ in
+        throw TerminalControlError.contextPaneNotFound
+      },
     executeTerminalSpace:
       @escaping @MainActor @Sendable (
         TerminalSpaceRequest
@@ -142,6 +150,7 @@ public struct SocketRequestExecutor: Sendable {
     self.executeTerminalCreation = executeTerminalCreation
     self.executeTerminalPane = executeTerminalPane
     self.executeTerminalTab = executeTerminalTab
+    self.executeTerminalTabGroup = executeTerminalTabGroup
     self.executeTerminalSpace = executeTerminalSpace
   }
 }

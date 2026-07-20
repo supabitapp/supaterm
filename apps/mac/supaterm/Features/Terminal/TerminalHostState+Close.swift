@@ -15,6 +15,10 @@ extension TerminalHostState {
     performCloseTab(tabID)
   }
 
+  func closeGroup(_ groupID: TerminalTabGroupID) {
+    performCloseGroup(groupID)
+  }
+
   func closeTabs(_ tabIDs: [TerminalTabID]) {
     performCloseTabs(tabIDs)
   }
@@ -67,6 +71,21 @@ extension TerminalHostState {
     emit(resolvedCloseRequest)
   }
 
+  func requestCloseGroup(_ groupID: TerminalTabGroupID) {
+    guard
+      let space = spaceManager.space(for: groupID),
+      let manager = spaceManager.tabManager(for: space.id)
+    else {
+      return
+    }
+    guard !manager.tabIDs(in: groupID).isEmpty else {
+      _ = deleteEmptyGroup(groupID)
+      return
+    }
+    guard let resolvedCloseRequest = resolvedCloseRequest(for: .group(groupID)) else { return }
+    emit(resolvedCloseRequest)
+  }
+
   func requestCloseTabsBelow(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
@@ -102,8 +121,9 @@ extension TerminalHostState {
       return
     }
     let spaceID = spaceManager.space(for: tabID)?.id
-    let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
+    let wasPinned = isPinned(tabID)
     let wasSelectedSpace = selectedSpaceID == spaceID
+    let wasSelectedTab = selectedTabID == tabID
 
     let nextSurface =
       focusHistoryByTab[tabID]?.current == surfaceID
@@ -124,21 +144,6 @@ extension TerminalHostState {
       )
     )
 
-    if newTree.isEmpty, wasPinned {
-      logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
-      persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
-      removeTree(for: tabID, source: .pinnedLastPaneClose)
-      if let spaceID {
-        spaceManager.tabManager(for: spaceID)?.updateDirty(tabID, isDirty: false)
-        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
-      } else {
-        lastEmittedFocusSurfaceID = nil
-      }
-      syncFocus(windowActivity)
-      sessionDidChange(persistingPinnedTabLayouts: false)
-      return
-    }
-
     logCloseKillSurface(surfaceID: surfaceID, tabID: tabID, source: source)
     killZmxSession(for: surfaceID)
     cleanupSurface(surface)
@@ -150,7 +155,11 @@ extension TerminalHostState {
         .flatMap { spaceManager.tabManager(for: $0.id) }?
         .closeTab(tabID)
       if let spaceID {
-        updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
+        updateSelectionAfterClosingTab(
+          in: spaceID,
+          wasSelectedSpace: wasSelectedSpace,
+          didCloseSelectedTab: wasSelectedTab
+        )
       } else {
         lastEmittedFocusSurfaceID = nil
       }
@@ -170,30 +179,7 @@ extension TerminalHostState {
       }
     }
     syncFocus(windowActivity)
-    sessionDidChange(persistingPinnedTabLayouts: false)
-  }
-
-  func suspendPinnedTab(_ tabID: TerminalTabID) {
-    guard
-      let space = spaceManager.space(for: tabID),
-      let tabManager = spaceManager.tabManager(for: space.id),
-      spaceManager.tab(for: tabID)?.isPinned == true
-    else {
-      return
-    }
-    let surfaceIDs = trees[tabID]?.leaves().map(\.id) ?? []
-    SupatermLog.debug(
-      SupatermLog.terminal,
-      "terminal.pinned.suspend",
-      fields: [
-        "tabID=\(SupatermLog.uuid(tabID.rawValue))",
-        "spaceID=\(SupatermLog.uuid(space.id.rawValue))",
-        "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
-      ]
-    )
-    persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
-    removeTree(for: tabID, terminateSessions: false, source: .pinnedSuspend)
-    tabManager.updateDirty(tabID, isDirty: false)
+    sessionDidChange()
   }
 
   func requestCloseSurfaceAfterProcessExit(
@@ -288,7 +274,7 @@ extension TerminalHostState {
       fields: [
         "source=\(source.rawValue)",
         "tabID=\(SupatermLog.uuid(tabID.rawValue))",
-        "isPinned=\(spaceManager.tab(for: tabID)?.isPinned == true)",
+        "isPinned=\(isPinned(tabID))",
         "terminateSessions=\(terminateSessions)",
         "surfaceIDs=\(Self.logSurfaceIDs(surfaceIDs))",
       ]
@@ -310,17 +296,9 @@ extension TerminalHostState {
 
   func shouldCloseWindow<S: Sequence>(afterClosing tabIDs: S) -> Bool where S.Element == TerminalTabID {
     let requestedTabIDs = Set(tabIDs)
-    let closingRegularTabIDs = Set(
-      requestedTabIDs.filter { tabID in
-        trees[tabID] != nil && spaceManager.tab(for: tabID)?.isPinned != true
-      }
-    )
-    let survivingTabs = spaces.flatMap { space in
-      spaceManager.tabs(in: space.id).filter { tab in
-        tab.isPinned || !requestedTabIDs.contains(tab.id)
-      }
-    }
-    return !closingRegularTabIDs.isEmpty && survivingTabs.isEmpty
+    let existingTabIDs = Set(spaces.flatMap { spaceManager.tabs(in: $0.id).map(\.id) })
+    return !requestedTabIDs.isDisjoint(with: existingTabIDs)
+      && existingTabIDs.subtracting(requestedTabIDs).isEmpty
   }
 
   func shouldCloseWindow(afterClosingSurface surfaceID: UUID) -> Bool {
@@ -336,9 +314,17 @@ extension TerminalHostState {
   }
 
   func windowNeedsCloseConfirmation() -> Bool {
-    trees.values.contains { tree in
-      tree.leaves().contains(where: \.needsCloseConfirmation)
-    }
+    Self.anyTabNeedsCloseConfirmation(
+      trees.keys,
+      tabNeedsCloseConfirmation: tabNeedsCloseConfirmation
+    )
+  }
+
+  static func anyTabNeedsCloseConfirmation<TabIDs: Sequence>(
+    _ tabIDs: TabIDs,
+    tabNeedsCloseConfirmation: (TerminalTabID) -> Bool
+  ) -> Bool where TabIDs.Element == TerminalTabID {
+    tabIDs.contains(where: tabNeedsCloseConfirmation)
   }
 
   func surfaceNeedsCloseConfirmation(_ surfaceID: UUID) -> Bool {
@@ -387,7 +373,33 @@ extension TerminalHostState {
         TerminalCloseRequest(
           target: .tabs(existingTabIDs),
           needsConfirmation: needsConfirmationOverride
-            ?? tabIDsWithTrees.contains(where: tabNeedsCloseConfirmation)
+            ?? Self.anyTabNeedsCloseConfirmation(
+              tabIDsWithTrees,
+              tabNeedsCloseConfirmation: tabNeedsCloseConfirmation
+            )
+        )
+      )
+
+    case .group(let groupID):
+      guard
+        let space = spaceManager.space(for: groupID),
+        let manager = spaceManager.tabManager(for: space.id)
+      else {
+        return nil
+      }
+      let tabIDs = manager.tabIDs(in: groupID)
+      guard !tabIDs.isEmpty else { return nil }
+      if shouldCloseWindow(afterClosing: tabIDs) {
+        return .window(needsConfirmation: needsConfirmationOverride ?? windowNeedsCloseConfirmation())
+      }
+      return .request(
+        TerminalCloseRequest(
+          target: .group(groupID),
+          needsConfirmation: needsConfirmationOverride
+            ?? Self.anyTabNeedsCloseConfirmation(
+              tabIDs,
+              tabNeedsCloseConfirmation: tabNeedsCloseConfirmation
+            )
         )
       )
     }
@@ -481,7 +493,7 @@ extension TerminalHostState {
         "tabID=\(SupatermLog.uuid(tabID?.rawValue))",
         "selectedTabID=\(SupatermLog.uuid(selectedTabID?.rawValue))",
         "focusedSurfaceID=\(SupatermLog.uuid(tabID.flatMap { focusHistoryByTab[$0]?.current }))",
-        "isPinned=\(tabID.map { spaceManager.tab(for: $0)?.isPinned == true } ?? false)",
+        "isPinned=\(tabID.map(isPinned) ?? false)",
         "needsConfirmationOverride=\(needsConfirmationOverride.map { "\($0)" } ?? "nil")",
         "resolvedTarget=\(resolvedTarget)",
         "resolvedNeedsConfirmation=\(resolvedNeedsConfirmation)",

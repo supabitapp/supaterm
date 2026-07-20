@@ -116,7 +116,7 @@ struct TerminalCommandExecutorTests {
   }
 
   @Test
-  func closeTabClosesPinnedLastTabWithoutClosingWindow() throws {
+  func closeTabClosesWindowWhenPinnedTargetIsTheLastTab() throws {
     initializeGhosttyForTests()
 
     let registry = TerminalWindowRegistry()
@@ -143,9 +143,7 @@ struct TerminalCommandExecutorTests {
 
     _ = try commandExecutor.closeTab(.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1))
 
-    #expect(closeWindowCount == 0)
-    #expect(host.spaceManager.tab(for: tabID) == nil)
-    #expect(host.trees[tabID] == nil)
+    #expect(closeWindowCount == 1)
   }
 
   @Test
@@ -174,26 +172,6 @@ struct TerminalCommandExecutorTests {
 
     _ = try commandExecutor.closePane(.pane(windowIndex: 1, spaceIndex: 1, tabIndex: 1, paneIndex: 1))
     #expect(closeWindowCount == 1)
-  }
-
-  @Test
-  func resolveCloseOfDormantPinnedTabDoesNotCloseWindow() throws {
-    initializeGhosttyForTests()
-
-    let host = TerminalHostState()
-    host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
-    let tabID = try #require(host.selectedTabID)
-    let surface = try #require(host.selectedSurfaceView)
-    host.handleCommand(.togglePinned(tabID))
-    host.performCloseSurface(surface.id)
-    #expect(host.trees[tabID] == nil)
-    #expect(host.spaceManager.tab(for: tabID) != nil)
-
-    let resolved = try host.resolveClose(
-      TerminalTabTarget.tab(windowIndex: 1, spaceIndex: 1, tabIndex: 1)
-    )
-
-    #expect(!resolved.shouldCloseWindow)
   }
 
   @Test
@@ -475,6 +453,53 @@ struct TerminalCommandExecutorTests {
         host.spaceManager.tabs(in: host.spaces[0].id).map(\.id.rawValue)
           == [firstTabID.rawValue, secondTabID.rawValue]
       )
+    }
+  }
+
+  @Test
+  func groupedChildUnpinIsNoOpAndPinExtractsToPinnedRoot() throws {
+    try withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      initializeGhosttyForTests()
+
+      let registry = TerminalWindowRegistry()
+      let commandExecutor = makeCommandExecutor(registry: registry)
+      let host = TerminalHostState()
+      host.handleCommand(.ensureInitialTab(focusing: false, startupCommand: nil))
+      let firstTabID = try #require(host.selectedTabID)
+      host.handleCommand(.createTab(inheritingFromSurfaceID: nil))
+      let groupedTabID = try #require(host.selectedTabID)
+      let groupedPaneID = try #require(host.selectedSurfaceView?.id)
+      let groupID = try #require(
+        host.createGroup(title: "Group", containing: [firstTabID, groupedTabID])
+      )
+
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      }
+      let windowControllerID = UUID()
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(makeWindow(), for: windowControllerID)
+
+      let unpinned = try commandExecutor.unpinTab(.contextPane(groupedPaneID))
+
+      #expect(!unpinned.isPinned)
+      #expect(host.spaceManager.activeTabManager?.rootItemID(containing: groupedTabID) == .group(groupID))
+      #expect(host.spaceManager.activeTabManager?.tabIDs(in: groupID) == [firstTabID, groupedTabID])
+
+      let pinned = try commandExecutor.pinTab(.contextPane(groupedPaneID))
+
+      #expect(pinned.isPinned)
+      #expect(host.spaceManager.activeTabManager?.rootItemID(containing: groupedTabID) == .tab(groupedTabID))
+      #expect(host.spaceManager.activeTabManager?.pinnedRootItems.map(\.id) == [.tab(groupedTabID)])
+      #expect(host.spaceManager.activeTabManager?.tabIDs(in: groupID) == [firstTabID])
     }
   }
 }

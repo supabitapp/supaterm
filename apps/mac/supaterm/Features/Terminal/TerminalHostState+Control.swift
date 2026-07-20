@@ -8,6 +8,15 @@ import SupatermTerminalCore
 import SwiftUI
 
 extension TerminalHostState {
+  private struct TabCreationSelectionInput {
+    let tabID: TerminalTabID
+    let surfaceID: UUID
+    let focusRequested: Bool
+    let targetSpaceID: TerminalSpaceID
+    let previousSelectedSpaceID: TerminalSpaceID?
+    let previousSelectedTabID: TerminalTabID?
+  }
+
   struct ResolvedPaneClose {
     let result: SupatermClosePaneResult
     let shouldCloseWindow: Bool
@@ -25,31 +34,14 @@ extension TerminalHostState {
       index: 1,
       isKey: windowActivity.isKeyWindow,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            SupatermTreeSnapshot.Pane(
-              index: paneOffset + 1,
-              id: pane.id,
-              isFocused: pane.id == focusedSurfaceID
-            )
-          }
-
-          return SupatermTreeSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            panes: panes
-          )
-        }
-
         return SupatermTreeSnapshot.Space(
           index: spaceOffset + 1,
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          rootItems: spaceManager.rootItems(in: space.id).map {
+            treeRootItemSnapshot($0, spaceID: space.id)
+          }
         )
       }
     )
@@ -62,40 +54,118 @@ extension TerminalHostState {
       isKey: windowActivity.isKeyWindow,
       isVisible: windowActivity.isVisible,
       spaces: spaces.enumerated().map { spaceOffset, space in
-        let tabs = spaceManager.tabs(in: space.id).enumerated().map { tabOffset, tab in
-          let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
-          let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
-            debugPaneSnapshot(
-              pane,
-              index: paneOffset + 1,
-              isFocused: pane.id == focusedSurfaceID
-            )
-          }
-
-          return SupatermAppDebugSnapshot.Tab(
-            index: tabOffset + 1,
-            id: tab.id.rawValue,
-            title: tab.title,
-            isSelected: tab.id == spaceManager.selectedTabID(in: space.id),
-            isPinned: tab.isPinned,
-            isDirty: tab.isDirty,
-            isTitleLocked: tab.isTitleLocked,
-            hasRunningActivity: panes.contains(where: \.isRunning),
-            hasBell: panes.contains(where: { $0.bellCount > 0 }),
-            hasReadOnly: panes.contains(where: \.isReadOnly),
-            hasSecureInput: panes.contains(where: \.hasSecureInput),
-            panes: panes
-          )
-        }
-
         return SupatermAppDebugSnapshot.Space(
           index: spaceOffset + 1,
           id: space.id.rawValue,
           name: space.name,
           isSelected: space.id == selectedSpaceID,
-          tabs: tabs
+          rootItems: spaceManager.rootItems(in: space.id).map {
+            debugRootItemSnapshot($0, spaceID: space.id)
+          }
         )
       }
+    )
+  }
+
+  private func treeRootItemSnapshot(
+    _ item: TerminalTabRootItem,
+    spaceID: TerminalSpaceID
+  ) -> SupatermTreeSnapshot.RootItem {
+    switch item {
+    case .tab(let item):
+      return .tab(
+        SupatermTreeSnapshot.RootTab(
+          isPinned: item.isPinned,
+          tab: treeTabSnapshot(item.tab, spaceID: spaceID)
+        )
+      )
+    case .group(let group):
+      return .group(treeGroupSnapshot(group, spaceID: spaceID))
+    }
+  }
+
+  private func treeTabSnapshot(
+    _ tab: TerminalTabItem,
+    spaceID: TerminalSpaceID
+  ) -> SupatermTreeSnapshot.Tab {
+    let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+    return SupatermTreeSnapshot.Tab(
+      id: tab.id.rawValue,
+      title: tab.title,
+      isSelected: tab.id == spaceManager.selectedTabID(in: spaceID),
+      panes: (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+        SupatermTreeSnapshot.Pane(
+          index: paneOffset + 1,
+          id: pane.id,
+          isFocused: pane.id == focusedSurfaceID
+        )
+      }
+    )
+  }
+
+  func treeGroupSnapshot(
+    _ group: TerminalTabGroupItem,
+    spaceID: TerminalSpaceID
+  ) -> SupatermTreeSnapshot.Group {
+    SupatermTreeSnapshot.Group(
+      color: socketGroupColor(group.color),
+      id: group.id.rawValue,
+      isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
+      isPinned: group.isPinned,
+      title: group.title,
+      tabs: group.tabs.map { treeTabSnapshot($0, spaceID: spaceID) }
+    )
+  }
+
+  private func debugRootItemSnapshot(
+    _ item: TerminalTabRootItem,
+    spaceID: TerminalSpaceID
+  ) -> SupatermAppDebugSnapshot.RootItem {
+    switch item {
+    case .tab(let item):
+      return .tab(
+        SupatermAppDebugSnapshot.RootTab(
+          isPinned: item.isPinned,
+          tab: debugTabSnapshot(item.tab, spaceID: spaceID)
+        )
+      )
+    case .group(let group):
+      return .group(
+        SupatermAppDebugSnapshot.Group(
+          color: socketGroupColor(group.color),
+          id: group.id.rawValue,
+          isCollapsed: collapsedTabGroupIDsBySpace[spaceID]?.contains(group.id) == true,
+          isPinned: group.isPinned,
+          title: group.title,
+          tabs: group.tabs.map { debugTabSnapshot($0, spaceID: spaceID) }
+        )
+      )
+    }
+  }
+
+  private func debugTabSnapshot(
+    _ tab: TerminalTabItem,
+    spaceID: TerminalSpaceID
+  ) -> SupatermAppDebugSnapshot.Tab {
+    let focusedSurfaceID = focusHistoryByTab[tab.id]?.current
+    let panes = (trees[tab.id]?.leaves() ?? []).enumerated().map { paneOffset, pane in
+      debugPaneSnapshot(
+        pane,
+        index: paneOffset + 1,
+        isFocused: pane.id == focusedSurfaceID
+      )
+    }
+    return SupatermAppDebugSnapshot.Tab(
+      id: tab.id.rawValue,
+      title: tab.title,
+      isSelected: tab.id == spaceManager.selectedTabID(in: spaceID),
+      isDirty: tab.isDirty,
+      isTitleLocked: tab.isTitleLocked,
+      hasRunningActivity: panes.contains(where: \.isRunning),
+      hasBell: panes.contains(where: { $0.bellCount > 0 }),
+      hasReadOnly: panes.contains(where: \.isReadOnly),
+      hasSecureInput: panes.contains(where: \.hasSecureInput),
+      panes: panes
     )
   }
 
@@ -181,6 +251,10 @@ extension TerminalHostState {
     let resolvedTarget = try resolveCreateTabTarget(request.target)
     let currentSelectedSpaceID = spaceManager.selectedSpaceID
     let currentSelectedTabID = spaceManager.selectedTabID
+    let placement = try resolvedCreateTabPlacement(
+      request.groupDestination,
+      in: resolvedTarget.space.id
+    )
     var createdTabID: TerminalTabID?
 
     do {
@@ -191,6 +265,7 @@ extension TerminalHostState {
           startupCommand: request.startupCommand,
           workingDirectory: request.cwd.map { URL(fileURLWithPath: $0, isDirectory: true) },
           inheritingFromSurfaceID: resolvedTarget.inheritedSurfaceID,
+          at: placement,
           sessionChangesEnabled: false,
           synchronizesFocus: Self.shouldSyncFocusDuringTabCreation(
             targetSpaceID: resolvedTarget.space.id,
@@ -207,28 +282,16 @@ extension TerminalHostState {
       }
       createdTabID = tabID
 
-      let resolvedSelectedTabID = Self.selectedTabID(
-        afterCreatingTabIn: resolvedTarget.space.id,
-        targetTabID: tabID,
-        focusRequested: request.focus,
-        currentSelectedSpaceID: currentSelectedSpaceID,
-        currentSelectedTabID: currentSelectedTabID
+      applyTabCreationSelection(
+        TabCreationSelectionInput(
+          tabID: tabID,
+          surfaceID: surfaceID,
+          focusRequested: request.focus,
+          targetSpaceID: resolvedTarget.space.id,
+          previousSelectedSpaceID: currentSelectedSpaceID,
+          previousSelectedTabID: currentSelectedTabID
+        )
       )
-      if let tabManager = spaceManager.tabManager(for: resolvedTarget.space.id),
-        resolvedSelectedTabID != tabManager.selectedTabId
-      {
-        applySelectedTab(resolvedSelectedTabID, in: resolvedTarget.space.id)
-      }
-
-      if request.focus {
-        if currentSelectedSpaceID != resolvedTarget.space.id {
-          selectSpace(resolvedTarget.space.id, persistDefaultSelection: true)
-        }
-        applySelectedTab(tabID, in: resolvedTarget.space.id)
-        if let surface = surfaces[surfaceID] {
-          focusSurface(surface, in: tabID)
-        }
-      }
 
       syncFocus(windowActivity)
       sessionDidChange()
@@ -278,6 +341,34 @@ extension TerminalHostState {
         spaceManager.tabManager(for: resolvedTarget.space.id)?.closeTab(createdTabID)
       }
       throw TerminalCreateTabError.creationFailed
+    }
+  }
+
+  private func applyTabCreationSelection(_ input: TabCreationSelectionInput) {
+    let resolvedSelectedTabID = Self.selectedTabID(
+      afterCreatingTabIn: input.targetSpaceID,
+      targetTabID: input.tabID,
+      focusRequested: input.focusRequested,
+      currentSelectedSpaceID: input.previousSelectedSpaceID,
+      currentSelectedTabID: input.previousSelectedTabID
+    )
+    if let tabManager = spaceManager.tabManager(for: input.targetSpaceID),
+      resolvedSelectedTabID != tabManager.selectedTabId
+    {
+      if input.focusRequested {
+        applySelectedTab(resolvedSelectedTabID, in: input.targetSpaceID)
+      } else {
+        tabManager.selectTab(resolvedSelectedTabID)
+      }
+    }
+
+    guard input.focusRequested else { return }
+    if input.previousSelectedSpaceID != input.targetSpaceID {
+      selectSpace(input.targetSpaceID, persistDefaultSelection: true)
+    }
+    applySelectedTab(input.tabID, in: input.targetSpaceID)
+    if let surface = surfaces[input.surfaceID] {
+      focusSurface(surface, in: input.tabID)
     }
   }
 
@@ -537,16 +628,16 @@ extension TerminalHostState {
 
   func pinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
     let resolvedTarget = try resolveTabItemTarget(target)
-    if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned != true {
-      togglePinned(resolvedTarget.tabID)
-    }
+    _ = setTabPinned(resolvedTarget.tabID, isPinned: true)
     return try pinTabResult(for: resolvedTarget.tabID)
   }
 
   func unpinTab(_ target: TerminalTabTarget) throws -> SupatermPinTabResult {
     let resolvedTarget = try resolveTabItemTarget(target)
-    if spaceManager.tab(for: resolvedTarget.tabID)?.isPinned == true {
-      togglePinned(resolvedTarget.tabID)
+    if let manager = spaceManager.tabManager(for: resolvedTarget.spaceID),
+      manager.rootItemID(containing: resolvedTarget.tabID) == .tab(resolvedTarget.tabID)
+    {
+      _ = setTabPinned(resolvedTarget.tabID, isPinned: false)
     }
     return try pinTabResult(for: resolvedTarget.tabID)
   }
@@ -1075,8 +1166,17 @@ extension TerminalHostState {
   }
 
   func pinTabResult(for tabID: TerminalTabID) throws -> SupatermPinTabResult {
-    SupatermPinTabResult(
-      isPinned: spaceManager.tab(for: tabID)?.isPinned == true,
+    let isPinned: Bool
+    if let space = spaceManager.space(for: tabID),
+      let manager = spaceManager.tabManager(for: space.id),
+      manager.rootItemID(containing: tabID) == .tab(tabID)
+    {
+      isPinned = manager.isPinned(tabID) == true
+    } else {
+      isPinned = false
+    }
+    return SupatermPinTabResult(
+      isPinned: isPinned,
       target: try tabTarget(for: tabID)
     )
   }
@@ -1223,5 +1323,18 @@ extension TerminalHostState {
 
   func handleDirectInteraction(on surfaceID: UUID) {
     clearNotificationAttention(for: surfaceID)
+  }
+
+  private func socketGroupColor(_ color: TerminalTabGroupColor) -> SupatermTabGroupColor {
+    switch color {
+    case .neutral: .neutral
+    case .red: .red
+    case .orange: .orange
+    case .yellow: .yellow
+    case .green: .green
+    case .blue: .blue
+    case .pink: .pink
+    case .purple: .purple
+    }
   }
 }

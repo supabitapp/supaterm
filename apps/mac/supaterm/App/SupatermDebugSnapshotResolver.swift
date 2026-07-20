@@ -17,7 +17,7 @@ enum SupatermDebugSnapshotResolver {
 
     for window in windows {
       for space in window.spaces {
-        for tab in space.tabs where tab.id == context.tabID {
+        for (tabOffset, tab) in space.flattenedTabs.enumerated() where tab.id == context.tabID {
           let pane = tab.panes.first { $0.id == context.surfaceID }
           var problems: [String] = []
           if pane == nil {
@@ -30,7 +30,7 @@ enum SupatermDebugSnapshotResolver {
               spaceIndex: space.index,
               spaceID: space.id,
               spaceName: space.name,
-              tabIndex: tab.index,
+              tabIndex: tabOffset + 1,
               tabID: tab.id,
               tabTitle: tab.title,
               paneIndex: pane?.index,

@@ -20,6 +20,16 @@ extension SP {
     )
     var space: SPSpaceReference?
 
+    @Option(
+      name: .long,
+      help: "Create the tab in the specified group.",
+      transform: parseGroupReference
+    )
+    var group: SPGroupReference?
+
+    @Flag(name: .long, help: "Create the tab at the space root.")
+    var root = false
+
     @Flag(inversion: .prefixedNo, help: "Focus the new tab after creating it.")
     var focus = false
 
@@ -47,22 +57,29 @@ extension SP {
 
     func validate() throws {
       try validateStartupCommand(script: script, tokens: input)
+      if group != nil && root {
+        throw ValidationError("Provide either --group or --root, not both.")
+      }
     }
 
     private func requestPayload(client: SPSocketClient) throws -> SupatermNewTabRequest {
       let command = try startupCommand(script: script, tokens: input)
       let cwd = try resolvedWorkingDirectory(cwd)
-      switch try resolvePublicNewTabTarget(
-        space,
+      let destination = group.map(SPGroupDestinationReference.group) ?? (root ? .root : nil)
+      let placement = try resolvePublicNewTabPlacement(
+        space: space,
+        group: destination,
         context: SupatermCLIContext.current,
         snapshot: try treeSnapshot(client)
-      ) {
+      )
+      switch placement.target {
       case .context(let contextPaneID):
         return SupatermNewTabRequest(
           startupCommand: command,
           contextPaneID: contextPaneID,
           cwd: cwd,
-          focus: focus
+          focus: focus,
+          groupDestination: placement.groupDestination
         )
 
       case .space(let windowIndex, let spaceIndex):
@@ -70,6 +87,7 @@ extension SP {
           startupCommand: command,
           cwd: cwd,
           focus: focus,
+          groupDestination: placement.groupDestination,
           targetWindowIndex: windowIndex,
           targetSpaceIndex: spaceIndex
         )

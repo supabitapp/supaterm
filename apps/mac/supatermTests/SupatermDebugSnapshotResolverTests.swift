@@ -30,11 +30,9 @@ struct SupatermDebugSnapshotResolverTests {
       lastChildExitTimeMs: nil
     )
     let tab = SupatermAppDebugSnapshot.Tab(
-      index: 1,
       id: tabID,
       title: "shell",
       isSelected: true,
-      isPinned: false,
       isDirty: true,
       isTitleLocked: false,
       hasRunningActivity: true,
@@ -48,7 +46,9 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      rootItems: [
+        .tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))
+      ]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,
@@ -89,11 +89,9 @@ struct SupatermDebugSnapshotResolverTests {
       tabID: tabID
     )
     let tab = SupatermAppDebugSnapshot.Tab(
-      index: 1,
       id: tabID,
       title: "shell",
       isSelected: true,
-      isPinned: false,
       isDirty: false,
       isTitleLocked: false,
       hasRunningActivity: false,
@@ -107,7 +105,18 @@ struct SupatermDebugSnapshotResolverTests {
       id: spaceID,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      rootItems: [
+        .group(
+          SupatermAppDebugSnapshot.Group(
+            color: .green,
+            id: UUID(uuidString: "58EB1323-9973-4D2C-991D-D621760AE842")!,
+            isCollapsed: true,
+            isPinned: false,
+            title: "Work",
+            tabs: [tab]
+          )
+        )
+      ]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,

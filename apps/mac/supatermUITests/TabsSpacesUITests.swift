@@ -43,20 +43,24 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let title = "Pinned UI Tab"
     try await renameSelectedTab(to: title)
 
-    let didShowRegularTab = await waitForTab(named: title, in: regularSection)
+    let didShowRegularTab = await wait(for: tabRow(named: title)) {
+      $0.exists && !$0.label.contains("Pinned")
+    }
     XCTAssertTrue(didShowRegularTab)
 
     try clickContextMenuItem("Pin Tab", on: tabRow(named: title))
 
-    let didMoveToPinned = await waitForTab(named: title, in: pinnedSection)
+    let didMoveToPinned = await wait(for: tabRow(named: title)) {
+      $0.label.contains("Pinned")
+    }
     XCTAssertTrue(didMoveToPinned)
-    XCTAssertFalse(tabRow(named: title, in: regularSection).exists)
 
-    try clickContextMenuItem("Unpin Tab", on: tabRow(named: title, in: pinnedSection))
+    try clickContextMenuItem("Unpin Tab", on: tabRow(named: title))
 
-    let didMoveToRegular = await waitForTab(named: title, in: regularSection)
+    let didMoveToRegular = await wait(for: tabRow(named: title)) {
+      $0.exists && !$0.label.contains("Pinned")
+    }
     XCTAssertTrue(didMoveToRegular)
-    XCTAssertFalse(tabRow(named: title, in: pinnedSection).exists)
   }
 
   @MainActor
@@ -233,7 +237,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertFalse(row.label.contains("Pinned"))
 
     try clickContextMenuItem("Pin Tab", on: row)
-    let didMoveToPinned = await waitForTab(named: "Slot Lane Tab", in: pinnedSection)
+    let didMoveToPinned = await wait(for: row) { $0.label.contains("Pinned") }
     XCTAssertTrue(didMoveToPinned)
 
     mainTerminal.click()
@@ -286,25 +290,31 @@ final class TabsSpacesUITests: SupatermUITestCase {
   func testDraggingTabReordersRegularSectionAndPinsAcrossSections() async throws {
     try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
 
-    let firstTab = tabRow(named: "First UI Tab", in: regularSection)
-    let thirdTab = tabRow(named: "Third UI Tab", in: regularSection)
-    firstTab.press(forDuration: 0.5, thenDragTo: thirdTab)
+    let firstTab = tabRow(named: "First UI Tab")
+    let thirdTab = tabRow(named: "Third UI Tab")
+    firstTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+      forDuration: 0.5,
+      thenDragTo: thirdTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+    )
 
     let didReorder = await waitForTabOrder(["Second UI Tab", "Third UI Tab", "First UI Tab"])
     XCTAssertTrue(didReorder)
 
-    let secondTab = tabRow(named: "Second UI Tab", in: regularSection)
+    let secondTab = tabRow(named: "Second UI Tab")
     try clickContextMenuItem("Pin Tab", on: secondTab)
-    let didPinSecondTab = await waitForTab(named: "Second UI Tab", in: pinnedSection)
+    let didPinSecondTab = await wait(for: secondTab) { $0.label.contains("Pinned") }
     XCTAssertTrue(didPinSecondTab)
 
-    let thirdTabInRegularSection = tabRow(named: "Third UI Tab", in: regularSection)
-    let secondTabInPinnedSection = tabRow(named: "Second UI Tab", in: pinnedSection)
-    thirdTabInRegularSection.press(forDuration: 0.5, thenDragTo: secondTabInPinnedSection)
+    let thirdTabInRegularSection = tabRow(named: "Third UI Tab")
+    thirdTabInRegularSection.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+      forDuration: 0.5,
+      thenDragTo: secondTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+    )
 
-    let didPinThirdTab = await waitForTab(named: "Third UI Tab", in: pinnedSection)
+    let didPinThirdTab = await wait(for: thirdTabInRegularSection) {
+      $0.label.contains("Pinned")
+    }
     XCTAssertTrue(didPinThirdTab)
-    XCTAssertFalse(tabRow(named: "Third UI Tab", in: regularSection).exists)
   }
 
   @MainActor
@@ -334,19 +344,8 @@ final class TabsSpacesUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private var pinnedSection: XCUIElement {
-    element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
-  }
-
-  @MainActor
-  private var regularSection: XCUIElement {
-    element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
-  }
-
-  @MainActor
-  private func tabRow(named title: String, in container: XCUIElement? = nil) -> XCUIElement {
-    let buttons = container?.descendants(matching: .button) ?? app.buttons
-    return buttons.matching(
+  private func tabRow(named title: String) -> XCUIElement {
+    app.buttons.matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     ).matching(
       NSPredicate(format: "label CONTAINS %@", title)
@@ -528,14 +527,6 @@ final class TabsSpacesUITests: SupatermUITestCase {
     await wait(timeout: timeout) {
       query.count == expectedCount
     }
-  }
-
-  @MainActor
-  private func waitForTab(
-    named title: String,
-    in container: XCUIElement
-  ) async -> Bool {
-    await wait(for: tabRow(named: title, in: container)) { $0.exists }
   }
 
   @MainActor

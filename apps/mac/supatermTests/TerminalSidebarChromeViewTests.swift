@@ -485,6 +485,8 @@ struct TerminalSidebarChromeViewTests {
       titles == [
         "New Tab",
         "Pin Tab",
+        "Move to New Group",
+        "Move to Group...",
         "Change Tab Title...",
         "Close All Below",
         "Close Others",
@@ -505,6 +507,32 @@ struct TerminalSidebarChromeViewTests {
       titles == [
         "New Tab",
         "Unpin Tab",
+        "Move to New Group",
+        "Move to Group...",
+        "Change Tab Title...",
+        "Close All Below",
+        "Close Others",
+        "Close",
+      ]
+    )
+  }
+
+  @Test
+  func groupedTabContextMenuSupportsExtractionAndRegrouping() {
+    let titles = TerminalSidebarTabRow.contextMenuItems(
+      isPinned: false,
+      hasTabsBelow: true,
+      hasOtherTabs: true,
+      isGrouped: true
+    ).compactMap(\.title)
+
+    #expect(
+      titles == [
+        "New Tab",
+        "Pin Tab",
+        "Move to New Group",
+        "Move to Group...",
+        "Remove from Group",
         "Change Tab Title...",
         "Close All Below",
         "Close Others",
@@ -517,7 +545,6 @@ struct TerminalSidebarChromeViewTests {
   func regularHoveredTabShowsEnabledCloseButton() {
     #expect(
       TerminalSidebarTabRow.closeButtonPresentation(
-        isPinned: false,
         isHovering: true,
         showsShortcutHint: false
       ) == .enabled
@@ -525,13 +552,12 @@ struct TerminalSidebarChromeViewTests {
   }
 
   @Test
-  func pinnedHoveredTabShowsDisabledCloseButton() {
+  func pinnedHoveredTabShowsEnabledCloseButton() {
     #expect(
       TerminalSidebarTabRow.closeButtonPresentation(
-        isPinned: true,
         isHovering: true,
         showsShortcutHint: false
-      ) == .disabled
+      ) == .enabled
     )
   }
 
@@ -539,7 +565,6 @@ struct TerminalSidebarChromeViewTests {
   func shortcutHintHidesCloseButton() {
     #expect(
       TerminalSidebarTabRow.closeButtonPresentation(
-        isPinned: false,
         isHovering: true,
         showsShortcutHint: true
       ) == .hidden

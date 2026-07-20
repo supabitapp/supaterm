@@ -50,6 +50,18 @@ enum SPResolvedPaneTarget: Equatable {
   case tab(windowIndex: Int, spaceIndex: Int, tabIndex: Int)
 }
 
+struct SPGroupLocation: Equatable {
+  let windowIndex: Int
+  let spaceIndex: Int
+  let groupID: UUID
+  let title: String
+}
+
+struct SPResolvedNewTabPlacement: Equatable {
+  let target: SPResolvedNewTabTarget
+  let groupDestination: SupatermTabGroupDestination?
+}
+
 private struct SPSpacePathKey: Hashable {
   let windowIndex: Int
   let spaceIndex: Int
@@ -85,9 +97,13 @@ private struct SPTabPathKey: Hashable {
 private struct SPTreeIndex {
   let keyWindowIndex: Int?
   let singleWindowIndex: Int?
+  let spacesByPath: [SPSpacePathKey: SupatermTreeSnapshot.Space]
   let spacesByID: [UUID: SPSpaceLocation]
   let tabsByID: [UUID: SPTabLocation]
   let panesByID: [UUID: SPPaneLocation]
+  let groupsByID: [UUID: SPGroupLocation]
+  let groupsBySpace: [SPSpacePathKey: [SPGroupLocation]]
+  let groupByTabPath: [SPTabPathKey: SPGroupLocation]
   let selectedSpaceByWindow: [Int: SPSpaceLocation]
   let firstSpaceByWindow: [Int: SPSpaceLocation]
   let selectedTabBySpace: [SPSpacePathKey: SPTabLocation]
@@ -96,9 +112,13 @@ private struct SPTreeIndex {
   let firstPaneByTab: [SPTabPathKey: SPPaneLocation]
 
   init(snapshot: SupatermTreeSnapshot) {
+    var spacesByPath: [SPSpacePathKey: SupatermTreeSnapshot.Space] = [:]
     var spacesByID: [UUID: SPSpaceLocation] = [:]
     var tabsByID: [UUID: SPTabLocation] = [:]
     var panesByID: [UUID: SPPaneLocation] = [:]
+    var groupsByID: [UUID: SPGroupLocation] = [:]
+    var groupsBySpace: [SPSpacePathKey: [SPGroupLocation]] = [:]
+    var groupByTabPath: [SPTabPathKey: SPGroupLocation] = [:]
     var selectedSpaceByWindow: [Int: SPSpaceLocation] = [:]
     var firstSpaceByWindow: [Int: SPSpaceLocation] = [:]
     var selectedTabBySpace: [SPSpacePathKey: SPTabLocation] = [:]
@@ -116,11 +136,38 @@ private struct SPTreeIndex {
         }
 
         let spaceKey = SPSpacePathKey(windowIndex: window.index, spaceIndex: space.index)
-        for tab in space.tabs {
+        spacesByPath[spaceKey] = space
+        let tabs = space.flattenedTabs
+        let tabIndexes = Dictionary(
+          uniqueKeysWithValues: tabs.enumerated().map { ($0.element.id, $0.offset + 1) }
+        )
+        for group in tabGroups(in: space) {
+          let groupLocation = SPGroupLocation(
+            windowIndex: window.index,
+            spaceIndex: space.index,
+            groupID: group.id,
+            title: group.title
+          )
+          groupsByID[group.id] = groupLocation
+          groupsBySpace[spaceKey, default: []].append(groupLocation)
+          for tab in group.tabs {
+            guard let tabIndex = tabIndexes[tab.id] else { continue }
+            groupByTabPath[
+              SPTabPathKey(
+                windowIndex: window.index,
+                spaceIndex: space.index,
+                tabIndex: tabIndex
+              )
+            ] = groupLocation
+          }
+        }
+
+        for (offset, tab) in tabs.enumerated() {
+          let tabIndex = offset + 1
           let tabLocation = SPTabLocation(
             windowIndex: window.index,
             spaceIndex: space.index,
-            tabIndex: tab.index
+            tabIndex: tabIndex
           )
           tabsByID[tab.id] = tabLocation
           firstTabBySpace[spaceKey] = firstTabBySpace[spaceKey] ?? tabLocation
@@ -131,13 +178,13 @@ private struct SPTreeIndex {
           let tabKey = SPTabPathKey(
             windowIndex: window.index,
             spaceIndex: space.index,
-            tabIndex: tab.index
+            tabIndex: tabIndex
           )
           for pane in tab.panes {
             let paneLocation = SPPaneLocation(
               windowIndex: window.index,
               spaceIndex: space.index,
-              tabIndex: tab.index,
+              tabIndex: tabIndex,
               paneIndex: pane.index
             )
             panesByID[pane.id] = paneLocation
@@ -152,9 +199,13 @@ private struct SPTreeIndex {
 
     self.keyWindowIndex = snapshot.windows.first(where: \.isKey)?.index
     self.singleWindowIndex = snapshot.windows.count == 1 ? snapshot.windows.first?.index : nil
+    self.spacesByPath = spacesByPath
     self.spacesByID = spacesByID
     self.tabsByID = tabsByID
     self.panesByID = panesByID
+    self.groupsByID = groupsByID
+    self.groupsBySpace = groupsBySpace
+    self.groupByTabPath = groupByTabPath
     self.selectedSpaceByWindow = selectedSpaceByWindow
     self.firstSpaceByWindow = firstSpaceByWindow
     self.selectedTabBySpace = selectedTabBySpace
@@ -175,6 +226,32 @@ private struct SPTreeIndex {
     panesByID[id]
   }
 
+  func spaceLocation(windowIndex: Int, spaceIndex: Int) -> SPSpaceLocation? {
+    let key = SPSpacePathKey(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    guard spacesByPath[key] != nil else { return nil }
+    return .init(windowIndex: windowIndex, spaceIndex: spaceIndex)
+  }
+
+  func tabLocation(windowIndex: Int, spaceIndex: Int, tabIndex: Int) -> SPTabLocation? {
+    let key = SPSpacePathKey(windowIndex: windowIndex, spaceIndex: spaceIndex)
+    guard
+      tabIndex > 0,
+      let tabs = spacesByPath[key]?.flattenedTabs,
+      tabs.indices.contains(tabIndex - 1)
+    else {
+      return nil
+    }
+    return .init(
+      windowIndex: windowIndex,
+      spaceIndex: spaceIndex,
+      tabIndex: tabIndex
+    )
+  }
+
+  func groupLocation(id: UUID) -> SPGroupLocation? {
+    groupsByID[id]
+  }
+
   func requireSpaceLocation(id: UUID) throws -> SPSpaceLocation {
     guard let location = spaceLocation(id: id) else {
       throw ValidationError("No space exists with UUID \(id.uuidString.lowercased()).")
@@ -192,6 +269,59 @@ private struct SPTreeIndex {
   func requirePaneLocation(id: UUID) throws -> SPPaneLocation {
     guard let location = paneLocation(id: id) else {
       throw ValidationError("No pane exists with UUID \(id.uuidString.lowercased()).")
+    }
+    return location
+  }
+
+  func requireSpaceLocation(windowIndex: Int, spaceIndex: Int) throws -> SPSpaceLocation {
+    guard let location = spaceLocation(windowIndex: windowIndex, spaceIndex: spaceIndex) else {
+      throw ValidationError("No space exists at \(windowIndex)/\(spaceIndex).")
+    }
+    return location
+  }
+
+  func requireTabLocation(windowIndex: Int, spaceIndex: Int, tabIndex: Int) throws -> SPTabLocation {
+    guard
+      let location = tabLocation(
+        windowIndex: windowIndex,
+        spaceIndex: spaceIndex,
+        tabIndex: tabIndex
+      )
+    else {
+      throw ValidationError("No tab exists at \(spaceIndex)/\(tabIndex).")
+    }
+    return location
+  }
+
+  func requireGroupLocation(id: UUID) throws -> SPGroupLocation {
+    guard let location = groupLocation(id: id) else {
+      throw ValidationError("No group exists with UUID \(id.uuidString.lowercased()).")
+    }
+    return location
+  }
+
+  func requireGroupLocation(named name: String, in space: SPSpaceLocation) throws -> SPGroupLocation {
+    let key = SPSpacePathKey(windowIndex: space.windowIndex, spaceIndex: space.spaceIndex)
+    let matches = groupsBySpace[key, default: []].filter { $0.title == name }
+    guard let match = matches.first else {
+      throw ValidationError("No group named \"\(name)\" exists in space \(space.spaceIndex).")
+    }
+    guard matches.count == 1 else {
+      throw ValidationError(
+        "More than one group is named \"\(name)\" in space \(space.spaceIndex); use a group UUID."
+      )
+    }
+    return match
+  }
+
+  func requireGroupLocation(containing tab: SPTabLocation) throws -> SPGroupLocation {
+    let key = SPTabPathKey(
+      windowIndex: tab.windowIndex,
+      spaceIndex: tab.spaceIndex,
+      tabIndex: tab.tabIndex
+    )
+    guard let location = groupByTabPath[key] else {
+      throw ValidationError("Tab \(tab.spaceIndex)/\(tab.tabIndex) does not belong to a group.")
     }
     return location
   }
@@ -536,6 +666,27 @@ enum SPContainerReference: Equatable, Sendable {
   }
 }
 
+enum SPGroupReference: Equatable, Sendable {
+  case id(UUID)
+  case title(String)
+
+  static func parse(_ argument: String) throws -> Self {
+    let trimmed = argument.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      throw ValidationError("Group targets must be an exact title or UUID.")
+    }
+    if let id = UUID(uuidString: trimmed) {
+      return .id(id)
+    }
+    return .title(trimmed)
+  }
+}
+
+enum SPGroupDestinationReference: Equatable, Sendable {
+  case group(SPGroupReference)
+  case root
+}
+
 func parseSpaceReference(_ argument: String) throws -> SPSpaceReference {
   try SPSpaceReference.parse(argument)
 }
@@ -550,6 +701,17 @@ func parsePaneReference(_ argument: String) throws -> SPPaneReference {
 
 func parseContainerReference(_ argument: String) throws -> SPContainerReference {
   try SPContainerReference.parse(argument)
+}
+
+func parseGroupReference(_ argument: String) throws -> SPGroupReference {
+  try SPGroupReference.parse(argument)
+}
+
+extension SPGroupReference: ExpressibleByArgument {
+  init?(argument: String) {
+    guard let value = try? parseGroupReference(argument) else { return nil }
+    self = value
+  }
 }
 
 func resolvePublicNewTabTarget(
@@ -636,6 +798,175 @@ func resolvePublicTabTarget(
       spaceIndex: location.spaceIndex,
       tabIndex: location.tabIndex
     )
+  }
+}
+
+func resolvePublicGroupTargetRequest(
+  _ reference: SPGroupReference?,
+  context: SupatermCLIContext?,
+  snapshot: SupatermTreeSnapshot
+) throws -> SupatermTabGroupTargetRequest {
+  let index = SPTreeIndex(snapshot: snapshot)
+  let location: SPGroupLocation
+  if let reference {
+    location = try resolveGroup(reference, in: nil, context: context, index: index)
+  } else {
+    location = try index.requireGroupLocation(containing: index.ambientTabLocation(context: context))
+  }
+  return .init(groupID: location.groupID)
+}
+
+func resolvePublicNewTabPlacement(
+  space: SPSpaceReference?,
+  group: SPGroupDestinationReference?,
+  context: SupatermCLIContext?,
+  snapshot: SupatermTreeSnapshot
+) throws -> SPResolvedNewTabPlacement {
+  guard let group else {
+    return .init(
+      target: try resolvePublicNewTabTarget(space, context: context, snapshot: snapshot),
+      groupDestination: nil
+    )
+  }
+
+  switch group {
+  case .root:
+    return .init(
+      target: try resolvePublicNewTabTarget(space, context: context, snapshot: snapshot),
+      groupDestination: .root(isPinned: false)
+    )
+
+  case .group(let reference):
+    let index = SPTreeIndex(snapshot: snapshot)
+    let explicitSpace = try space.map {
+      try resolveSpaceLocation($0, context: context, index: index)
+    }
+    let groupLocation = try resolveGroup(
+      reference,
+      in: explicitSpace,
+      context: context,
+      index: index
+    )
+    if let explicitSpace {
+      try requireSameSpace(explicitSpace, groupLocation)
+    }
+    return .init(
+      target: .space(
+        windowIndex: groupLocation.windowIndex,
+        spaceIndex: groupLocation.spaceIndex
+      ),
+      groupDestination: .group(groupLocation.groupID)
+    )
+  }
+}
+
+func resolvePublicMoveTabRequest(
+  tab: SPTabReference?,
+  destination: SPGroupDestinationReference,
+  index destinationIndex: Int?,
+  isPinned: Bool,
+  context: SupatermCLIContext?,
+  snapshot: SupatermTreeSnapshot
+) throws -> SupatermMoveTabRequest {
+  if let destinationIndex, destinationIndex < 1 {
+    throw ValidationError("--index must be 1 or greater.")
+  }
+
+  let treeIndex = SPTreeIndex(snapshot: snapshot)
+  let tabLocation = try resolveConcreteTabLocation(tab, context: context, index: treeIndex)
+  let resolvedDestination: SupatermTabGroupDestination
+  switch destination {
+  case .root:
+    resolvedDestination = .root(isPinned: isPinned)
+
+  case .group(let reference):
+    guard !isPinned else {
+      throw ValidationError("--pin can only be used with --root.")
+    }
+    let sourceSpace = SPSpaceLocation(
+      windowIndex: tabLocation.windowIndex,
+      spaceIndex: tabLocation.spaceIndex
+    )
+    let groupLocation = try resolveGroup(
+      reference,
+      in: sourceSpace,
+      context: context,
+      index: treeIndex
+    )
+    try requireSameSpace(sourceSpace, groupLocation)
+    resolvedDestination = .group(groupLocation.groupID)
+  }
+
+  return .init(
+    destination: resolvedDestination,
+    index: destinationIndex,
+    target: .init(
+      targetWindowIndex: tabLocation.windowIndex,
+      targetSpaceIndex: tabLocation.spaceIndex,
+      targetTabIndex: tabLocation.tabIndex
+    )
+  )
+}
+
+private func resolveSpaceLocation(
+  _ reference: SPSpaceReference,
+  context: SupatermCLIContext?,
+  index: SPTreeIndex
+) throws -> SPSpaceLocation {
+  switch reference {
+  case .index(let spaceIndex):
+    return try index.requireSpaceLocation(
+      windowIndex: index.defaultWindowIndex(context: context),
+      spaceIndex: spaceIndex
+    )
+  case .id(let spaceID):
+    return try index.requireSpaceLocation(id: spaceID)
+  }
+}
+
+private func resolveConcreteTabLocation(
+  _ reference: SPTabReference?,
+  context: SupatermCLIContext?,
+  index: SPTreeIndex
+) throws -> SPTabLocation {
+  guard let reference else {
+    return try index.ambientTabLocation(context: context)
+  }
+  switch reference {
+  case .id(let tabID):
+    return try index.requireTabLocation(id: tabID)
+  case .path(let spaceIndex, let tabIndex):
+    return try index.requireTabLocation(
+      windowIndex: index.defaultWindowIndex(context: context),
+      spaceIndex: spaceIndex,
+      tabIndex: tabIndex
+    )
+  }
+}
+
+private func resolveGroup(
+  _ reference: SPGroupReference,
+  in space: SPSpaceLocation?,
+  context: SupatermCLIContext?,
+  index: SPTreeIndex
+) throws -> SPGroupLocation {
+  switch reference {
+  case .id(let groupID):
+    return try index.requireGroupLocation(id: groupID)
+  case .title(let title):
+    return try index.requireGroupLocation(
+      named: title,
+      in: space ?? index.ambientSpaceLocation(context: context)
+    )
+  }
+}
+
+private func requireSameSpace(
+  _ space: SPSpaceLocation,
+  _ group: SPGroupLocation
+) throws {
+  guard space.windowIndex == group.windowIndex, space.spaceIndex == group.spaceIndex else {
+    throw ValidationError("The destination group must belong to the target tab's space.")
   }
 }
 

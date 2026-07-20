@@ -1917,7 +1917,6 @@ private func restoreSplitHost(
 ) throws -> [UUID] {
   let spaceID = try #require(host.spaces.first?.id)
   let tabSession = TerminalTabSession(
-    isPinned: false,
     lockedTitle: nil,
     focusedPaneIndex: 0,
     root: .split(
@@ -1935,7 +1934,8 @@ private func restoreSplitHost(
       TerminalWindowSpaceSession(
         id: spaceID,
         selectedTabIndex: 0,
-        tabs: [tabSession]
+        collapsedGroupIDs: [],
+        rootItems: [.tab(isPinned: false, tab: tabSession)]
       )
     ]
   )

@@ -11,15 +11,16 @@ sp onboard
 
 ## Learn the layout
 
-Supaterm has three levels:
+Supaterm has four organizational levels:
 
 - **Spaces** separate areas of work.
-- **Tabs** live inside a space and can be pinned.
+- **Groups** optionally collect related tabs inside a space.
+- **Tabs** live at a space root or inside a group.
 - **Panes** are split terminal regions inside a tab.
 
-The sidebar shows spaces, pinned tabs, regular tabs, unread activity, working directories, and coding-agent status. Toggle it with `Command-S`.
+The sidebar shows spaces, root tabs, colored groups, pinned work, unread activity, working directories, and coding-agent status. Toggle it with `Command-S`.
 
-![Supaterm sidebar with pinned tabs, regular tabs, and spaces.](/images/sidebar-full-dark.png)
+![Supaterm sidebar with tabs and spaces.](/images/sidebar-full-dark.png)
 
 ## Essential shortcuts
 

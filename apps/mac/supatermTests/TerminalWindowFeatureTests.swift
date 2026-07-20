@@ -1136,11 +1136,12 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func sidebarTabMoveCommittedSendsAtomicMoveCommand() async {
+  func moveTabCommittedSendsStructuralMoveCommand() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
-    let pinnedID = TerminalTabID()
-    let regularID = TerminalTabID()
+    let placement = TerminalTabPlacement.root(
+      TerminalRootPlacement(isPinned: true, index: 1)
+    )
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
@@ -1149,18 +1150,10 @@ struct TerminalWindowFeatureTests {
     }
 
     await store.send(
-      .sidebarTabMoveCommitted(
-        tabID: tabID,
-        pinnedOrder: [tabID, pinnedID],
-        regularOrder: [regularID]
-      )
+      .moveTabCommitted(tabID, placement)
     )
 
-    let expected = TerminalClient.Command.moveSidebarTab(
-      tabID: tabID,
-      pinnedOrder: [tabID, pinnedID],
-      regularOrder: [regularID]
-    )
+    let expected = TerminalClient.Command.moveTab(tabID, placement)
 
     #expect(recorder.commands == [expected])
   }
@@ -1345,9 +1338,19 @@ private func makeCommandPaletteSnapshot() -> TerminalCommandPaletteSnapshot {
       TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
     ],
     selectedTabID: selectedTabID,
-    visibleTabs: [
-      TerminalTabItem(id: selectedTabID, title: "Main"),
-      TerminalTabItem(id: otherTabID, title: "Logs"),
+    rootItems: [
+      .tab(
+        TerminalUngroupedTabItem(
+          tab: TerminalTabItem(id: selectedTabID, title: "Main"),
+          isPinned: false
+        )
+      ),
+      .tab(
+        TerminalUngroupedTabItem(
+          tab: TerminalTabItem(id: otherTabID, title: "Logs"),
+          isPinned: false
+        )
+      ),
     ]
   )
 }

@@ -81,7 +81,7 @@ private struct TerminalSidebarTabPreviewItem: Identifiable {
 
   private var statusAccessory: TerminalSidebarTabSummaryView.StatusAccessory? {
     TerminalSidebarTabSummaryView.statusAccessory(
-      isPinned: tab.isPinned,
+      isPinned: false,
       unreadCount: unreadCount,
       agentActivity: agentActivity,
       terminalProgress: terminalProgress,
@@ -278,6 +278,7 @@ private struct TerminalSidebarTabPreviewRow: View {
       tab: item.tab,
       palette: palette,
       isSelected: item.isSelected,
+      isPinned: false,
       notificationPreviewText: item.notificationPreviewText,
       paneWorkingDirectories: item.paneWorkingDirectories,
       unreadCount: item.unreadCount,

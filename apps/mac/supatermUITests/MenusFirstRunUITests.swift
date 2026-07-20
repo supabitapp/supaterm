@@ -82,11 +82,8 @@ final class MenusFirstRunUITests: SupatermUITestCase {
     XCTAssertFalse(app.menuItems["Unpin Tab"].exists)
     pin.click()
 
-    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
-    let didMoveToPinnedSection = await wait(for: pinnedSection) { section in
-      section.descendants(matching: .button).matching(
-        identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-      ).firstMatch.exists
+    let didMoveToPinnedSection = await wait(for: tabRow) { row in
+      row.exists && row.label.contains("Pinned")
     }
     XCTAssertTrue(didMoveToPinnedSection)
 

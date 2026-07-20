@@ -40,7 +40,7 @@ extension SupatermE2ESuite {
         let panes =
           snapshot.windows
           .flatMap(\.spaces)
-          .flatMap(\.tabs)
+          .flatMap(\.flattenedTabs)
           .first { $0.id == space.tab.tabID }?
           .panes ?? []
         #expect(Set(panes.map(\.id)) == [space.tab.paneID, split.paneID])

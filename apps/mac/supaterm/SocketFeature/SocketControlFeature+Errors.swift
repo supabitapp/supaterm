@@ -92,6 +92,10 @@ extension SocketControlFeature {
     _ error: TerminalControlError,
     requestID: String
   ) -> SupatermSocketResponse {
+    if let response = tabGroupErrorResponse(error, requestID: requestID) {
+      return response
+    }
+
     switch error {
     case .captureFailed:
       return .error(
@@ -106,6 +110,9 @@ extension SocketControlFeature {
         code: "not_found",
         message: "The current pane could not be resolved."
       )
+
+    case .groupNotFound, .groupSpaceMismatch, .invalidGroupIndex, .invalidGroupTitle:
+      preconditionFailure()
 
     case .invalidSpaceName:
       return .error(
@@ -184,6 +191,40 @@ extension SocketControlFeature {
         code: "not_found",
         message: "Window \(windowIndex) was not found."
       )
+    }
+  }
+
+  private func tabGroupErrorResponse(
+    _ error: TerminalControlError,
+    requestID: String
+  ) -> SupatermSocketResponse? {
+    switch error {
+    case .groupNotFound(let groupID):
+      return .error(
+        id: requestID,
+        code: "not_found",
+        message: "Tab group \(groupID.uuidString.lowercased()) was not found."
+      )
+    case .groupSpaceMismatch:
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "The tab and destination group must belong to the same window and space."
+      )
+    case .invalidGroupIndex(let index):
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Tab group index \(index + 1) is outside the destination."
+      )
+    case .invalidGroupTitle:
+      return .error(
+        id: requestID,
+        code: "invalid_request",
+        message: "Tab group title must not be empty."
+      )
+    default:
+      return nil
     }
   }
 }

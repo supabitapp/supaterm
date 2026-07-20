@@ -135,9 +135,139 @@ struct SPTargetResolverTests {
 
     #expect(target == .pane(windowIndex: 2, spaceIndex: 1, tabIndex: 2, paneIndex: 1))
   }
+
+  @Test
+  func resolveGroupByUUIDGloballyAndTitleInAmbientSpace() throws {
+    let groupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+    )
+
+    #expect(
+      try resolvePublicGroupTargetRequest(
+        .id(groupID),
+        context: nil,
+        snapshot: treeSnapshot()
+      ) == SupatermTabGroupTargetRequest(groupID: groupID)
+    )
+    #expect(
+      try resolvePublicGroupTargetRequest(
+        .title("Work"),
+        context: context,
+        snapshot: treeSnapshot()
+      ) == SupatermTabGroupTargetRequest(groupID: groupID)
+    )
+    #expect(
+      try resolvePublicGroupTargetRequest(
+        nil,
+        context: context,
+        snapshot: treeSnapshot()
+      ) == SupatermTabGroupTargetRequest(groupID: groupID)
+    )
+  }
+
+  @Test
+  func resolveGroupRejectsDuplicateTitleInAmbientSpace() {
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicGroupTargetRequest(
+        .title("Work"),
+        context: nil,
+        snapshot: treeSnapshot(hasDuplicateGroupTitle: true)
+      )
+    }
+  }
+
+  @Test
+  func resolveNewTabPlacementPreservesAmbientInheritanceAndExplicitDestinations() throws {
+    let context = SupatermCLIContext(
+      surfaceID: UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!,
+      tabID: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!
+    )
+
+    #expect(
+      try resolvePublicNewTabPlacement(
+        space: nil,
+        group: nil,
+        context: context,
+        snapshot: treeSnapshot()
+      )
+        == SPResolvedNewTabPlacement(
+          target: .context(context.surfaceID),
+          groupDestination: nil
+        )
+    )
+    #expect(
+      try resolvePublicNewTabPlacement(
+        space: nil,
+        group: .root,
+        context: context,
+        snapshot: treeSnapshot()
+      )
+        == SPResolvedNewTabPlacement(
+          target: .context(context.surfaceID),
+          groupDestination: .root(isPinned: false)
+        )
+    )
+    #expect(
+      try resolvePublicNewTabPlacement(
+        space: nil,
+        group: .group(.title("Work")),
+        context: context,
+        snapshot: treeSnapshot()
+      )
+        == SPResolvedNewTabPlacement(
+          target: .space(windowIndex: 2, spaceIndex: 1),
+          groupDestination: .group(
+            UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+          )
+        )
+    )
+  }
+
+  @Test
+  func resolveMoveTabUsesFlattenedIndexAndPreservesPublicDestinationIndex() throws {
+    let request = try resolvePublicMoveTabRequest(
+      tab: .path(spaceIndex: 1, tabIndex: 2),
+      destination: .group(.title("Work")),
+      index: 1,
+      isPinned: false,
+      context: nil,
+      snapshot: treeSnapshot()
+    )
+
+    #expect(
+      request
+        == SupatermMoveTabRequest(
+          destination: .group(UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!),
+          index: 1,
+          target: SupatermTabTargetRequest(
+            targetWindowIndex: 2,
+            targetSpaceIndex: 1,
+            targetTabIndex: 2
+          )
+        )
+    )
+  }
+
+  @Test
+  func resolveMoveTabRejectsGroupInAnotherSpace() {
+    #expect(throws: ValidationError.self) {
+      _ = try resolvePublicMoveTabRequest(
+        tab: .path(spaceIndex: 1, tabIndex: 2),
+        destination: .group(
+          .id(UUID(uuidString: "5C2CCAB6-3BE5-437E-8A70-0C014C45AA23")!)
+        ),
+        index: nil,
+        isPinned: false,
+        context: nil,
+        snapshot: treeSnapshot()
+      )
+    }
+  }
 }
 
-private func treeSnapshot() -> SupatermTreeSnapshot {
+private func treeSnapshot(hasDuplicateGroupTitle: Bool = false) -> SupatermTreeSnapshot {
   let firstSpaceID = UUID(uuidString: "5A8B47F5-9C4E-4F1B-B4AE-251DE331BB78")!
   let secondSpaceID = UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!
   let firstTabID = UUID(uuidString: "A59BCA89-5C7D-44B7-BB9E-9BC8D29E899A")!
@@ -146,7 +276,6 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
   let secondPaneID = UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!
   let thirdPaneID = UUID(uuidString: "8CF762C9-61EB-4E8E-B2B2-A87D0C3FF5B9")!
   let firstWindowFirstTab = SupatermTreeSnapshot.Tab(
-    index: 1,
     id: firstTabID,
     title: "shell",
     isSelected: false,
@@ -155,7 +284,6 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     ]
   )
   let firstWindowSecondTab = SupatermTreeSnapshot.Tab(
-    index: 1,
     id: UUID(uuidString: "067A8941-C553-48C2-B92A-FC258B0260C6")!,
     title: "logs",
     isSelected: false,
@@ -169,7 +297,6 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     ]
   )
   let secondWindowFirstTab = SupatermTreeSnapshot.Tab(
-    index: 1,
     id: UUID(uuidString: "D9AF1AF2-8B42-484F-88DB-C582B8E9201E")!,
     title: "editor",
     isSelected: false,
@@ -182,7 +309,6 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
     ]
   )
   let secondWindowSecondTab = SupatermTreeSnapshot.Tab(
-    index: 2,
     id: secondTabID,
     title: "tests",
     isSelected: true,
@@ -190,28 +316,16 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
       SupatermTreeSnapshot.Pane(index: 1, id: thirdPaneID, isFocused: true)
     ]
   )
-  let firstWindowSpaces = [
-    SupatermTreeSnapshot.Space(
-      index: 1,
-      id: firstSpaceID,
-      name: "A",
-      isSelected: false,
-      tabs: [firstWindowFirstTab]
-    ),
-    SupatermTreeSnapshot.Space(
-      index: 2,
-      id: UUID(uuidString: "AFD1C31C-60A4-4AC8-8D59-418AD05473EB")!,
-      name: "B",
-      isSelected: false,
-      tabs: [firstWindowSecondTab]
-    ),
-  ]
-  let secondWindowSpace = SupatermTreeSnapshot.Space(
-    index: 1,
+  let firstWindowSpaces = targetResolverFirstWindowSpaces(
+    firstSpaceID: firstSpaceID,
+    firstTab: firstWindowFirstTab,
+    secondTab: firstWindowSecondTab
+  )
+  let secondWindowSpace = targetResolverSecondWindowSpace(
     id: secondSpaceID,
-    name: "C",
-    isSelected: true,
-    tabs: [secondWindowFirstTab, secondWindowSecondTab]
+    firstTab: secondWindowFirstTab,
+    secondTab: secondWindowSecondTab,
+    hasDuplicateGroupTitle: hasDuplicateGroupTitle
   )
   let secondWindowSpaces = [secondWindowSpace]
 
@@ -228,5 +342,81 @@ private func treeSnapshot() -> SupatermTreeSnapshot {
         spaces: secondWindowSpaces
       ),
     ]
+  )
+}
+
+private func targetResolverFirstWindowSpaces(
+  firstSpaceID: UUID,
+  firstTab: SupatermTreeSnapshot.Tab,
+  secondTab: SupatermTreeSnapshot.Tab
+) -> [SupatermTreeSnapshot.Space] {
+  [
+    SupatermTreeSnapshot.Space(
+      index: 1,
+      id: firstSpaceID,
+      name: "A",
+      isSelected: false,
+      rootItems: [
+        .group(
+          SupatermTreeSnapshot.Group(
+            color: .neutral,
+            id: UUID(uuidString: "5C2CCAB6-3BE5-437E-8A70-0C014C45AA23")!,
+            isCollapsed: false,
+            isPinned: false,
+            title: "Remote",
+            tabs: [firstTab]
+          )
+        )
+      ]
+    ),
+    SupatermTreeSnapshot.Space(
+      index: 2,
+      id: UUID(uuidString: "AFD1C31C-60A4-4AC8-8D59-418AD05473EB")!,
+      name: "B",
+      isSelected: false,
+      rootItems: [.tab(SupatermTreeSnapshot.RootTab(isPinned: false, tab: secondTab))]
+    ),
+  ]
+}
+
+private func targetResolverSecondWindowSpace(
+  id: UUID,
+  firstTab: SupatermTreeSnapshot.Tab,
+  secondTab: SupatermTreeSnapshot.Tab,
+  hasDuplicateGroupTitle: Bool
+) -> SupatermTreeSnapshot.Space {
+  let duplicateGroups: [SupatermTreeSnapshot.RootItem] =
+    hasDuplicateGroupTitle
+    ? [
+      .group(
+        SupatermTreeSnapshot.Group(
+          color: .red,
+          id: UUID(uuidString: "AD777E81-B111-4239-B2B1-7848C3D496D5")!,
+          isCollapsed: false,
+          isPinned: false,
+          title: "Work",
+          tabs: []
+        )
+      )
+    ] : []
+
+  return SupatermTreeSnapshot.Space(
+    index: 1,
+    id: id,
+    name: "C",
+    isSelected: true,
+    rootItems: [
+      .tab(SupatermTreeSnapshot.RootTab(isPinned: false, tab: firstTab)),
+      .group(
+        SupatermTreeSnapshot.Group(
+          color: .blue,
+          id: UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!,
+          isCollapsed: true,
+          isPinned: false,
+          title: "Work",
+          tabs: [secondTab]
+        )
+      ),
+    ] + duplicateGroups
   )
 }

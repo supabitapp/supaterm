@@ -11,17 +11,20 @@ public struct TerminalCreateTabRequest: Equatable, Sendable {
   public let startupCommand: String?
   public let cwd: String?
   public let focus: Bool
+  public let groupDestination: SupatermTabGroupDestination?
   public let target: Target
 
   public init(
     startupCommand: String?,
     cwd: String?,
     focus: Bool,
+    groupDestination: SupatermTabGroupDestination? = nil,
     target: Target
   ) {
     self.startupCommand = startupCommand
     self.cwd = cwd
     self.focus = focus
+    self.groupDestination = groupDestination
     self.target = target
   }
 }
@@ -98,6 +101,114 @@ public enum TerminalTabTarget: Equatable, Sendable {
 public enum TerminalPaneTarget: Equatable, Sendable {
   case contextPane(UUID)
   case pane(windowIndex: Int, spaceIndex: Int, tabIndex: Int, paneIndex: Int)
+}
+
+public struct TerminalCreateTabGroupRequest: Equatable, Sendable {
+  public let color: SupatermTabGroupColor
+  public let isPinned: Bool
+  public let target: TerminalSpaceTarget
+  public let title: String
+
+  public init(
+    color: SupatermTabGroupColor,
+    isPinned: Bool,
+    target: TerminalSpaceTarget,
+    title: String
+  ) {
+    self.color = color
+    self.isPinned = isPinned
+    self.target = target
+    self.title = title
+  }
+}
+
+public struct TerminalRenameTabGroupRequest: Equatable, Sendable {
+  public let groupID: UUID
+  public let title: String
+
+  public init(
+    groupID: UUID,
+    title: String
+  ) {
+    self.groupID = groupID
+    self.title = title
+  }
+}
+
+public struct TerminalSetTabGroupColorRequest: Equatable, Sendable {
+  public let color: SupatermTabGroupColor
+  public let groupID: UUID
+
+  public init(
+    color: SupatermTabGroupColor,
+    groupID: UUID
+  ) {
+    self.color = color
+    self.groupID = groupID
+  }
+}
+
+public struct TerminalSetTabGroupCollapsedRequest: Equatable, Sendable {
+  public let groupID: UUID
+  public let isCollapsed: Bool
+
+  public init(
+    groupID: UUID,
+    isCollapsed: Bool
+  ) {
+    self.groupID = groupID
+    self.isCollapsed = isCollapsed
+  }
+}
+
+public struct TerminalMoveTabGroupRequest: Equatable, Sendable {
+  public let groupID: UUID
+  public let index: Int
+
+  public init(
+    groupID: UUID,
+    index: Int
+  ) {
+    self.groupID = groupID
+    self.index = index
+  }
+}
+
+public enum TerminalMoveTabDestination: Equatable, Sendable {
+  case group(id: UUID, index: Int?)
+  case root(isPinned: Bool, index: Int?)
+}
+
+public struct TerminalMoveTabRequest: Equatable, Sendable {
+  public let destination: TerminalMoveTabDestination
+  public let target: TerminalTabTarget
+
+  public init(
+    destination: TerminalMoveTabDestination,
+    target: TerminalTabTarget
+  ) {
+    self.destination = destination
+    self.target = target
+  }
+}
+
+public enum TerminalTabGroupRequest: Equatable, Sendable {
+  case close(UUID)
+  case create(TerminalCreateTabGroupRequest)
+  case move(TerminalMoveTabGroupRequest)
+  case moveTab(TerminalMoveTabRequest)
+  case pin(UUID)
+  case rename(TerminalRenameTabGroupRequest)
+  case setCollapsed(TerminalSetTabGroupCollapsedRequest)
+  case setColor(TerminalSetTabGroupColorRequest)
+  case ungroup(UUID)
+  case unpin(UUID)
+}
+
+public enum TerminalTabGroupResult: Equatable, Sendable {
+  case group(SupatermTabGroupMutationResult)
+  case movedTab(SupatermMoveTabResult)
+  case removedGroup(SupatermRemoveTabGroupResult)
 }
 
 public struct TerminalEqualizePanesRequest: Equatable, Sendable {
@@ -307,6 +418,10 @@ public enum TerminalCreateTabError: Error, Equatable {
 public enum TerminalControlError: Error, Equatable {
   case captureFailed
   case contextPaneNotFound
+  case groupNotFound(UUID)
+  case groupSpaceMismatch
+  case invalidGroupTitle
+  case invalidGroupIndex(Int)
   case invalidSpaceName
   case lastPaneNotFound
   case lastSpaceNotFound

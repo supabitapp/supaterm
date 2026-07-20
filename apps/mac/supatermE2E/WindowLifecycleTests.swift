@@ -12,7 +12,7 @@ extension SupatermE2ESuite {
       var paneIDs = try app.debugSnapshot()
         .windows
         .flatMap(\.spaces)
-        .flatMap(\.tabs)
+        .flatMap(\.flattenedTabs)
         .flatMap(\.panes)
         .map(\.id)
       #expect(!paneIDs.isEmpty)

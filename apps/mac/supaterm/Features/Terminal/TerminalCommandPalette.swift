@@ -66,7 +66,11 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
   let selectedSpaceID: TerminalSpaceID?
   let spaces: [TerminalSpaceItem]
   let selectedTabID: TerminalTabID?
-  let visibleTabs: [TerminalTabItem]
+  let rootItems: [TerminalTabRootItem]
+
+  var visibleTabs: [TerminalTabItem] {
+    rootItems.flatMap(\.tabs)
+  }
 
   var selectedSpace: TerminalSpaceItem? {
     guard let selectedSpaceID else { return nil }
@@ -78,6 +82,14 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
     return visibleTabs.first { $0.id == selectedTabID }
   }
 
+  var selectedTabIsPinned: Bool {
+    guard let selectedTabID else { return false }
+    return rootItems.contains { item in
+      guard case .tab(let tab) = item else { return false }
+      return tab.tab.id == selectedTabID && tab.isPinned
+    }
+  }
+
   static let empty = Self(
     ghosttyCommands: [],
     ghosttyShortcutDisplayByAction: [:],
@@ -87,7 +99,7 @@ struct TerminalCommandPaletteSnapshot: Equatable, Sendable {
     selectedSpaceID: nil,
     spaces: [],
     selectedTabID: nil,
-    visibleTabs: []
+    rootItems: []
   )
 }
 
@@ -322,7 +334,7 @@ enum TerminalCommandPalettePresentation {
 
     return TerminalCommandPaletteRow(
       id: "supaterm:toggle-pinned:\(selectedTab.id.rawValue.uuidString)",
-      title: selectedTab.isPinned ? "Unpin Tab" : "Pin Tab",
+      title: snapshot.selectedTabIsPinned ? "Unpin Tab" : "Pin Tab",
       subtitle: selectedTab.title,
       description: nil,
       leadingIcon: nil,

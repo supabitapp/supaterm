@@ -8,20 +8,12 @@ final class SessionRestoreUITests: SupatermUITestCase {
     let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
-    let pinnedSection = element(SupatermUITestIdentifier.Accessibility.sidebarPinnedSection)
-    let regularSection = element(SupatermUITestIdentifier.Accessibility.sidebarRegularSection)
-    let pinnedRows = pinnedSection.descendants(matching: .button).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
-    let regularRows = regularSection.descendants(matching: .button).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
-    let pinnedRow = pinnedRows.firstMatch
-    let regularRow = regularRows.firstMatch
+    let pinnedRow = tabRows.element(boundBy: 0)
+    let regularRow = tabRows.element(boundBy: 1)
 
     try clickContextMenuItem("Pin Tab", on: tabRows.firstMatch)
     let didPinInitialTab = await wait(for: pinnedRow, timeout: .seconds(30)) { row in
-      row.exists && regularRows.count < 1
+      row.exists && self.tabRows.count == 1
     }
     XCTAssertTrue(didPinInitialTab)
 
@@ -36,20 +28,21 @@ final class SessionRestoreUITests: SupatermUITestCase {
     XCTAssertTrue(didSelectPinnedTab)
     XCTAssertFalse(regularRow.isSelected)
 
-    let pinnedTabsURL = stateHome.appendingPathComponent("pinned-tabs.json")
     let didSavePinnedSelection = await waitForSessionCatalog(at: sessionFileURL) { catalog in
       guard
+        catalog["version"] as? Int == 6,
         let windows = catalog["windows"] as? [[String: Any]],
         windows.count == 1,
         let spaces = windows[0]["spaces"] as? [[String: Any]],
-        spaces.count == 1
+        spaces.count == 1,
+        let rootItems = spaces[0]["rootItems"] as? [[String: Any]],
+        rootItems.count == 2
       else { return false }
-      guard let selectedPinnedTabID = spaces[0]["selectedPinnedTabID"] as? [String: Any] else {
-        return false
-      }
-      return selectedPinnedTabID["rawValue"] is String
-        && spaces[0]["selectedTabIndex"] == nil
-        && FileManager.default.fileExists(atPath: pinnedTabsURL.path)
+      return spaces[0]["selectedTabIndex"] as? Int == 0
+        && rootItems[0]["kind"] as? String == "tab"
+        && rootItems[0]["isPinned"] as? Bool == true
+        && rootItems[1]["kind"] as? String == "tab"
+        && rootItems[1]["isPinned"] as? Bool == false
     }
     XCTAssertTrue(didSavePinnedSelection)
 
@@ -316,7 +309,8 @@ final class SessionRestoreUITests: SupatermUITestCase {
       windows.count == 1,
       let spaces = windows[0]["spaces"] as? [[String: Any]],
       spaces.count == 1,
-      let tabs = spaces[0]["tabs"] as? [[String: Any]]
+      let rootItems = spaces[0]["rootItems"] as? [[String: Any]],
+      let tabs = sessionTabs(in: rootItems)
     else { return nil }
     return SessionLayout(
       selectedTabIndex: spaces[0]["selectedTabIndex"] as? Int,
@@ -328,6 +322,23 @@ final class SessionRestoreUITests: SupatermUITestCase {
         return SessionTabLayout(leafIDs: leafIDs, splitDirections: splitDirections)
       }
     )
+  }
+
+  private func sessionTabs(in rootItems: [[String: Any]]) -> [[String: Any]]? {
+    var tabs: [[String: Any]] = []
+    for rootItem in rootItems {
+      switch rootItem["kind"] as? String {
+      case "tab":
+        guard let tab = rootItem["tab"] as? [String: Any] else { return nil }
+        tabs.append(tab)
+      case "group":
+        guard let groupedTabs = rootItem["tabs"] as? [[String: Any]] else { return nil }
+        tabs.append(contentsOf: groupedTabs)
+      default:
+        return nil
+      }
+    }
+    return tabs
   }
 
   private func flatten(

@@ -16,6 +16,7 @@ enum TerminalCloseTarget: Equatable, Sendable {
   case surface(UUID)
   case tab(TerminalTabID)
   case tabs([TerminalTabID])
+  case group(TerminalTabGroupID)
 }
 
 struct TerminalCloseRequest: Equatable, Sendable {
@@ -32,13 +33,15 @@ struct TerminalClient: Sendable {
     case closeSurface(UUID)
     case closeTab(TerminalTabID)
     case closeTabs([TerminalTabID])
+    case closeGroup(TerminalTabGroupID)
+    case createGroup(title: String, color: TerminalTabGroupColor, tabIDs: [TerminalTabID])
     case createSpace(name: String)
     case createTab(inheritingFromSurfaceID: UUID?)
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
     case navigateSearch(GhosttySearchDirection)
-    case moveSidebarTab(
-      tabID: TerminalTabID, pinnedOrder: [TerminalTabID], regularOrder: [TerminalTabID])
+    case moveGroup(TerminalTabGroupID, TerminalRootPlacement)
+    case moveTab(TerminalTabID, TerminalTabPlacement)
     case nextSpace
     case nextTab
     case performGhosttyBindingActionOnFocusedSurface(String)
@@ -50,15 +53,20 @@ struct TerminalClient: Sendable {
     case requestCloseTab(TerminalTabID)
     case requestCloseTabsBelow(TerminalTabID)
     case requestCloseOtherTabs(TerminalTabID)
+    case requestCloseGroup(TerminalTabGroupID)
+    case removeTabFromGroup(TerminalTabID)
     case renameSpace(TerminalSpaceID, String)
     case selectLastTab
     case selectTab(TerminalTabID)
     case selectTabSlot(Int)
     case selectSpaceSlot(Int)
     case selectSpace(TerminalSpaceID)
-    case setPinnedTabOrder([TerminalTabID])
-    case setRegularTabOrder([TerminalTabID])
+    case renameGroup(TerminalTabGroupID, String)
+    case setGroupColor(TerminalTabGroupID, TerminalTabGroupColor)
+    case toggleGroupCollapsed(TerminalTabGroupID)
     case togglePinned(TerminalTabID)
+    case togglePinnedRootItem(TerminalTabRootItemID)
+    case ungroup(TerminalTabGroupID)
     case updateWindowActivity(WindowActivityState)
   }
 

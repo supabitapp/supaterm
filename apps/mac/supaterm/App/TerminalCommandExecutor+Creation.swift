@@ -14,6 +14,7 @@ extension TerminalCommandExecutor {
         startupCommand: request.startupCommand,
         cwd: request.cwd,
         focus: request.focus,
+        groupDestination: request.groupDestination,
         target: .space(windowIndex: 1, spaceIndex: spaceIndex)
       )
       do {

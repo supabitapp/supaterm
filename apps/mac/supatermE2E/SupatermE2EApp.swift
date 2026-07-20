@@ -147,15 +147,24 @@ final class SupatermE2EApp: @unchecked Sendable {
     try debugSnapshot()
       .windows
       .flatMap(\.spaces)
-      .flatMap(\.tabs)
+      .flatMap(\.flattenedTabs)
       .first { $0.id == tabID }
+  }
+
+  func debugRootTab(_ tabID: UUID) throws -> SupatermAppDebugSnapshot.RootTab? {
+    try debugSnapshot()
+      .windows
+      .flatMap(\.spaces)
+      .lazy
+      .compactMap { e2eRootTab(withID: tabID, in: $0) }
+      .first
   }
 
   func debugPane(_ paneID: UUID) throws -> SupatermAppDebugSnapshot.Pane? {
     try debugSnapshot()
       .windows
       .flatMap(\.spaces)
-      .flatMap(\.tabs)
+      .flatMap(\.flattenedTabs)
       .flatMap(\.panes)
       .first { $0.id == paneID }
   }
@@ -274,7 +283,6 @@ final class SupatermE2EApp: @unchecked Sendable {
     let files = [
       stateHome.appendingPathComponent("session.json", isDirectory: false),
       stateHome.appendingPathComponent("spaces.json", isDirectory: false),
-      stateHome.appendingPathComponent("pinned-tabs.json", isDirectory: false),
     ]
     let deadline = Date().addingTimeInterval(timeout)
     var stableSince: Date?

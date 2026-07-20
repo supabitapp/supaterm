@@ -3,8 +3,6 @@ enum SupatermUITestIdentifier {
     static let sidebarSpaceButton = "sidebar.space-button"
     static let sidebarCreateSpaceButton = "sidebar.create-space-button"
     static let sidebarTabRow = "sidebar.tab-row"
-    static let sidebarPinnedSection = "sidebar.pinned-section"
-    static let sidebarRegularSection = "sidebar.regular-section"
     static let paletteInput = "palette.input"
     static let paletteResultRow = "palette.result-row"
     static let dialogConfirm = "dialog.confirm"

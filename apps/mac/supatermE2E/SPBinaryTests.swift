@@ -128,6 +128,14 @@ extension SupatermE2ESuite {
     }
 
     @Test(.timeLimit(.minutes(5)))
+    func groupCommandsMutateStructuralSocketTree() async throws {
+      try await withTestSpace { app, space in
+        let runner = spRunner(app, tabID: space.tab.tabID, paneID: space.tab.paneID)
+        try exerciseGroupCommands(app: app, space: space, runner: runner)
+      }
+    }
+
+    @Test(.timeLimit(.minutes(5)))
     func tmuxCompatibilityCommandsUseTheLiveSocketTree() async throws {
       try await withTestSpace { app, space in
         try await app.waitForShellPrompt(space.pane)
@@ -284,6 +292,7 @@ extension SupatermE2ESuite {
             ["skills", "get", "core", "--full"], cwd: space.directory)
         )
         #expect(fullCore.stdout.contains("--- references/pane.md ---"))
+        #expect(fullCore.stdout.contains("--- references/group.md ---"))
 
         let path = try requireSuccessfulSPResult(
           try runner.run(["skills", "path", "core"], cwd: space.directory)
@@ -418,6 +427,135 @@ private struct CLISpaceE2E {
 private struct CLITabE2E {
   let result: SupatermNewTabResult
   let runner: SPBinaryRunner
+}
+
+private func exerciseGroupCommands(
+  app: SupatermE2EApp,
+  space: TestSpace,
+  runner: SPBinaryRunner
+) throws {
+  let created: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "new", "Work", "--color", "blue", "--in", space.spaceID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  let groupID = created.group.id
+  #expect(created.group.color == .blue)
+  #expect(!created.group.isPinned)
+
+  let renamed: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "rename", "Build", groupID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(renamed.group.title == "Build")
+
+  let colored: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "color", "purple", groupID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(colored.group.color == .purple)
+
+  let pinned: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "pin", groupID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(pinned.group.isPinned)
+
+  let collapsed: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "collapse", groupID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(collapsed.group.isCollapsed)
+
+  let expanded: SupatermTabGroupMutationResult = try runSPJSON(
+    ["group", "expand", groupID.uuidString],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(!expanded.group.isCollapsed)
+
+  let tab: SupatermNewTabResult = try runSPJSON(
+    [
+      "tab", "new", "--group", groupID.uuidString, "--in", space.spaceID.uuidString,
+      "--script", hermeticShellStartupCommand,
+    ],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  let groupedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
+  let groupedSpace = try #require(
+    groupedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID }
+  )
+  let group = try #require(groupedSpace.rootItems.compactMap(groupValue).first { $0.id == groupID })
+  #expect(group.title == "Build")
+  #expect(group.color == .purple)
+  #expect(group.isPinned)
+  #expect(!group.isCollapsed)
+  #expect(group.tabs.map(\.id) == [tab.tabID])
+
+  let moved: SupatermMoveTabResult = try runSPJSON(
+    ["tab", "move", tab.tabID.uuidString, "--root", "--pin", "--index", "1"],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(moved.target.tabID == tab.tabID)
+  let movedTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
+  let movedSpace = try #require(movedTree.windows.flatMap(\.spaces).first { $0.id == space.spaceID })
+  #expect(
+    movedSpace.rootItems.contains {
+      guard case .tab(let rootTab) = $0 else { return false }
+      return rootTab.tab.id == tab.tabID && rootTab.isPinned
+    }
+  )
+  #expect(
+    movedSpace.rootItems.compactMap(groupValue).first { $0.id == groupID }?.tabs.isEmpty == true
+  )
+
+  let removed: SupatermRemoveTabGroupResult = try runSPJSON(
+    ["group", "close", groupID.uuidString, "--yes"],
+    app: app,
+    runner: runner,
+    cwd: space.directory
+  )
+  #expect(removed.removedGroupID == groupID)
+  let finalTree = try app.send(.tree(), as: SupatermTreeSnapshot.self)
+  #expect(
+    finalTree.windows.flatMap(\.spaces).flatMap(\.rootItems).compactMap(groupValue)
+      .contains { $0.id == groupID } == false
+  )
+}
+
+private func runSPJSON<Result: Decodable>(
+  _ arguments: [String],
+  app: SupatermE2EApp,
+  runner: SPBinaryRunner,
+  cwd: URL
+) throws -> Result {
+  try decodeSPJSON(
+    Result.self,
+    from: try requireSuccessfulSPResult(
+      try runner.run(arguments + ["--socket", app.socketPath, "--json"], cwd: cwd)
+    )
+  )
+}
+
+private func groupValue(
+  _ item: SupatermTreeSnapshot.RootItem
+) -> SupatermTreeSnapshot.Group? {
+  guard case .group(let group) = item else { return nil }
+  return group
 }
 
 private func exerciseSpaceCommands(
@@ -968,12 +1106,12 @@ private func tmuxTabID(_ output: String) throws -> UUID {
 private func stableTreeRows(_ tree: SupatermTreeSnapshot) -> [String] {
   tree.windows.flatMap { window in
     window.spaces.flatMap { space in
-      space.tabs.flatMap { tab in
+      space.flattenedTabs.enumerated().flatMap { tabOffset, tab in
         tab.panes.map { pane in
           [
             "window:\(window.index):\(window.isKey)",
             "space:\(space.index):\(space.id):\(space.isSelected)",
-            "tab:\(tab.index):\(tab.id):\(tab.isSelected)",
+            "tab:\(tabOffset + 1):\(tab.id):\(tab.isSelected)",
             "pane:\(pane.index):\(pane.id):\(pane.isFocused)",
           ].joined(separator: "|")
         }

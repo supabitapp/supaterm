@@ -28,6 +28,7 @@ extension TerminalHostState {
     startupCommand: String? = nil,
     workingDirectoryPath: String? = nil,
     inheritingFromSurfaceID: UUID? = nil,
+    at placement: TerminalTabPlacement? = nil,
     sessionChangesEnabled: Bool = true
   ) -> TerminalTabID? {
     guard let target = resolveLocalCreateTabTarget(inheritingFromSurfaceID: inheritingFromSurfaceID)
@@ -40,6 +41,7 @@ extension TerminalHostState {
       startupCommand: startupCommand,
       workingDirectory: workingDirectoryPath.map { URL(fileURLWithPath: $0, isDirectory: true) },
       inheritingFromSurfaceID: target.inheritedSurfaceID,
+      at: placement,
       sessionChangesEnabled: sessionChangesEnabled
     )
   }
@@ -51,6 +53,7 @@ extension TerminalHostState {
     startupCommand: String? = nil,
     workingDirectory: URL? = nil,
     inheritingFromSurfaceID: UUID? = nil,
+    at placement: TerminalTabPlacement? = nil,
     sessionChangesEnabled: Bool = true,
     synchronizesFocus: Bool = true
   ) -> TerminalTabID? {
@@ -59,9 +62,23 @@ extension TerminalHostState {
       tabManager.tabs.isEmpty
       ? GHOSTTY_SURFACE_CONTEXT_WINDOW
       : GHOSTTY_SURFACE_CONTEXT_TAB
-    let tabID = tabManager.createTab(
-      title: "Terminal \(nextTabIndex(in: spaceID))"
-    )
+    let resolvedPlacement =
+      placement
+      ?? defaultTabPlacement(
+        in: tabManager,
+        inheritingFromSurfaceID: inheritingFromSurfaceID
+      )
+    guard
+      let tabID = tabManager.createTab(
+        title: "Terminal \(nextTabIndex(in: spaceID))",
+        at: resolvedPlacement
+      )
+    else {
+      return nil
+    }
+    if focusing, case .group(let groupID, _) = resolvedPlacement {
+      collapsedTabGroupIDsBySpace[spaceID]?.remove(groupID)
+    }
     let tree = splitTree(
       for: tabID,
       inheritingFromSurfaceID: inheritingFromSurfaceID,
@@ -81,6 +98,30 @@ extension TerminalHostState {
       sessionDidChange()
     }
     return tabID
+  }
+
+  func defaultTabPlacement(
+    in tabManager: TerminalTabManager,
+    inheritingFromSurfaceID: UUID?
+  ) -> TerminalTabPlacement {
+    if let inheritingFromSurfaceID,
+      let anchorTabID = tabID(containing: inheritingFromSurfaceID)
+    {
+      if let groupID = tabManager.groupID(containing: anchorTabID) {
+        return .group(groupID, index: tabManager.tabIDs(in: groupID).count)
+      }
+      if let isPinned = tabManager.isPinned(anchorTabID) {
+        return .root(
+          TerminalRootPlacement(
+            isPinned: isPinned,
+            index: isPinned ? tabManager.pinnedRootItems.count : tabManager.regularRootItems.count
+          )
+        )
+      }
+    }
+    return .root(
+      TerminalRootPlacement(isPinned: false, index: tabManager.regularRootItems.count)
+    )
   }
 
   func createSurface(

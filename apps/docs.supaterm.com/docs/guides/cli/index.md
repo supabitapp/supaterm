@@ -1,6 +1,6 @@
 ---
 title: CLI quickstart
-description: Control Supaterm spaces, tabs, panes, settings, and coding-agent workflows with sp.
+description: Control Supaterm spaces, tab groups, panes, settings, and coding-agent workflows with sp.
 ---
 
 `sp` is the command-line interface bundled with Supaterm. Every pane gets the matching binary on `PATH` and receives enough context to target its owning app, tab, and pane.
@@ -13,13 +13,15 @@ sp diagnostic
 sp instance ls
 ```
 
-`sp ls` prints the current window, space, tab, and pane tree. Add `--json` for stable IDs and machine-readable output.
+`sp ls` prints the current window, space, group, tab, and pane tree. Add `--json` for stable IDs and machine-readable output.
 
 ## Create terminal surfaces
 
 ```bash
 space_id="$(sp space new --json --focus Work | jq -r '.target.spaceID')"
+sp group new Development --in "$space_id" --color blue
 tab="$(sp tab new --json --in "$space_id" --focus --cwd ~/code/project -- git status)"
+sp tab move "$(printf '%s' "$tab" | jq -r '.tabID')" --group Development
 pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
 sp pane split --in "$pane_id" right -- npm test
 ```

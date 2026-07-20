@@ -14,6 +14,7 @@ enum SPHelp {
 
     Example:
       sp ls
+      sp group new Work --color blue
       sp tab new --focus -- ping 1.1.1.1
       sp pane split down -- tail -f /tmp/server.log
       sp skills
@@ -91,8 +92,88 @@ enum SPHelp {
       sp tab new -- ping 1.1.1.1
       sp tab new --script 'echo hi; pwd'
       sp tab new --focus -- ping 1.1.1.1
+      sp tab new --group Build
+      sp tab new --root
       sp tab new --in 1 --cwd ~/tmp -- ping 1.1.1.1
       sp tab new --in <space-uuid> --cwd ~/tmp -- ping 1.1.1.1
+    """
+
+  static let groupDiscussion = """
+    Groups are addressed by title or UUID. A unique title is required.
+
+    Example:
+      sp group new Build
+      sp group rename Deploy Build
+      sp group color blue Deploy
+      sp group collapse Deploy
+      sp group move Deploy --index 1
+      sp group ungroup Deploy
+      sp group close Deploy --yes
+    """
+
+  static let groupNewDiscussion = """
+    Creates an empty group in the current space unless --in selects another space.
+
+    Example:
+      sp group new Build
+      sp group new Deploy --color blue
+      sp group new Pinned --pin
+      sp group new Logs --in 2
+    """
+
+  static let groupRenameDiscussion = """
+    If you omit the group target inside Supaterm, the current tab's group is used.
+
+    Example:
+      sp group rename Deploy
+      sp group rename Deploy Build
+      sp group rename Deploy <group-uuid>
+    """
+
+  static let groupColorDiscussion = """
+    If you omit the group target inside Supaterm, the current tab's group is used.
+
+    Example:
+      sp group color blue
+      sp group color green Deploy
+      sp group color neutral <group-uuid>
+    """
+
+  static let groupTargetDiscussion = """
+    If you omit the group target inside Supaterm, the current tab's group is used.
+
+    Group targets accept a unique title or UUID.
+
+    Example:
+      sp group pin Build
+      sp group unpin Build
+      sp group collapse Build
+      sp group expand Build
+      sp group ungroup Build
+      sp group close Build --yes
+    """
+
+  static let groupMoveDiscussion = """
+    Moves a group to a 1-based index within its pinned or regular root lane.
+
+    If you omit the group target inside Supaterm, the current tab's group is used.
+
+    Example:
+      sp group move --index 1
+      sp group move Deploy --index 2
+      sp group move <group-uuid> --index 1
+    """
+
+  static let moveTabDiscussion = """
+    If you omit the tab target inside Supaterm, the current tab is used.
+
+    Move to a group by unique title or UUID, or use --root. --index is 1-based.
+
+    Example:
+      sp tab move --group Build
+      sp tab move 1/2 --group <group-uuid> --index 1
+      sp tab move --root
+      sp tab move <tab-uuid> --root --pin --index 1
     """
 
   static let notifyDiscussion = """

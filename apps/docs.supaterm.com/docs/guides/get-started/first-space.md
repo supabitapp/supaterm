@@ -1,6 +1,6 @@
 ---
 title: Create your first space
-description: Organize a project with a space, tabs, pinned tabs, and split panes.
+description: Organize a project with a space, tab groups, pinned work, and split panes.
 ---
 
 A space is the top-level container for one area of work. Use separate spaces for projects or contexts that should not share a tab list.
@@ -19,16 +19,18 @@ space_id="$(sp space new --json --focus Supaterm | jq -r '.target.spaceID')"
 
 Right-click a space to rename or delete it. Supaterm always keeps at least one space.
 
-## Add a project tab
+## Add a project group and tab
 
-Create a tab in the new space and start it in your project:
+Create a group, then create a tab in the new space and move it into that group:
 
 ```bash
+sp group new Project --in "$space_id" --color blue
 tab="$(sp tab new --json --in "$space_id" --focus --cwd ~/code/supaterm)"
 pane_id="$(printf '%s' "$tab" | jq -r '.paneID')"
+sp tab move "$(printf '%s' "$tab" | jq -r '.tabID')" --group Project
 ```
 
-Right-click the tab to rename or pin it. Pinned tabs stay in a dedicated section above regular tabs and keep their pane layout.
+You can also create groups from the sidebar, drag tabs into them, or drop one root tab onto another to create a group. Right-click a group to rename, color, collapse, pin, ungroup, or close it. Pinning a tab inside a group extracts it as a pinned root tab.
 
 ## Split the tab
 

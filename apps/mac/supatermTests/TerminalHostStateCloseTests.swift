@@ -67,34 +67,23 @@ struct TerminalHostStateCloseTests {
   }
 
   @Test
-  func windowCloseScopesConfirmationToItsHost() throws {
-    try withDependencies {
-      $0.defaultFileStorage = .inMemory
-    } operation: {
-      let runtime = try makeGhosttyRuntime(
-        """
-        confirm-close-surface = always
-        """,
-        applicationIsActive: { false }
-      )
-      let hostWithLiveSurface = TerminalHostState(
-        runtime: runtime,
-        zmxSessionsEnabled: false
-      )
-      let emptyHost = TerminalHostState(
-        runtime: runtime,
-        zmxSessionsEnabled: false
-      )
+  func closeConfirmationAggregationScopesTabIDs() {
+    let confirmingTabID = TerminalTabID()
+    let otherTabID = TerminalTabID()
+    let confirmingTabIDs = Set([confirmingTabID])
 
-      hostWithLiveSurface.ensureInitialTab(
-        focusing: false,
-        startupCommand: "exec /bin/cat"
+    #expect(
+      TerminalHostState.anyTabNeedsCloseConfirmation(
+        [confirmingTabID],
+        tabNeedsCloseConfirmation: confirmingTabIDs.contains
       )
-      runtime.tick()
-
-      #expect(hostWithLiveSurface.windowNeedsCloseConfirmation())
-      #expect(!emptyHost.windowNeedsCloseConfirmation())
-    }
+    )
+    #expect(
+      !TerminalHostState.anyTabNeedsCloseConfirmation(
+        [otherTabID],
+        tabNeedsCloseConfirmation: confirmingTabIDs.contains
+      )
+    )
   }
 
   private func makeSplitTabSetup(hasSurvivingTab: Bool) throws -> CloseTabTestSetup {

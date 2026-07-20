@@ -1,38 +1,41 @@
 import AppKit
 import Foundation
 import GhosttyKit
-import Observation
-import Sharing
-import SupatermCLIShared
 import SupatermSupport
-import SwiftUI
+
+private struct RestoredTerminalTab {
+  let sourceIndex: Int
+  let id: TerminalTabID
+  let session: TerminalTabSession
+}
+
+private struct RestoredTerminalSpace {
+  let rootItems: [TerminalTabRootItem]
+  let tabs: [RestoredTerminalTab]
+}
+
+private struct TerminalRootSessionSnapshot {
+  let item: TerminalTabRootSessionItem
+  let tabIDs: [TerminalTabID]
+}
 
 extension TerminalHostState {
   func restorationSnapshot() -> TerminalWindowSession {
     let spaces = spaces.map { space in
-      let tabSnapshots = spaceManager.tabs(in: space.id).compactMap {
-        tab -> (TerminalTabID, TerminalTabSession)? in
-        guard !tab.isPinned else { return nil }
-        guard let session = restorationTabSession(for: tab) else { return nil }
-        return (tab.id, session)
+      let rootSnapshots = spaceManager.rootItems(in: space.id).compactMap(restorationSnapshot(for:))
+      let rootItems = rootSnapshots.map(\.item)
+      let tabIDs = rootSnapshots.flatMap(\.tabIDs)
+      let selectedTabIndex = spaceManager.selectedTabID(in: space.id).flatMap {
+        tabIDs.firstIndex(of: $0)
       }
-      let tabs = tabSnapshots.map(\.1)
-      let selectedTabID = spaceManager.selectedTabID(in: space.id)
-      let selectedTabIndex =
-        selectedTabID.flatMap { selectedTabID in
-          tabSnapshots.firstIndex { $0.0 == selectedTabID }
-        }
-      let selectedPinnedTabID =
-        selectedTabID.flatMap { selectedTabID -> TerminalTabID? in
-          guard selectedTabIndex == nil else { return nil }
-          guard spaceManager.tab(for: selectedTabID)?.isPinned == true else { return nil }
-          return selectedTabID
-        }
+      let collapsedGroupIDs = rootItems.compactMap(\.groupID).filter {
+        collapsedTabGroupIDsBySpace[space.id]?.contains($0) == true
+      }
       return TerminalWindowSpaceSession(
         id: space.id,
-        selectedTabIndex: selectedPinnedTabID == nil ? selectedTabIndex ?? (tabs.isEmpty ? nil : 0) : nil,
-        selectedPinnedTabID: selectedPinnedTabID,
-        tabs: tabs
+        selectedTabIndex: selectedTabIndex ?? (tabIDs.isEmpty ? nil : 0),
+        collapsedGroupIDs: collapsedGroupIDs,
+        rootItems: rootItems
       )
     }
 
@@ -92,86 +95,115 @@ extension TerminalHostState {
 
   func restorePrunedSession(_ session: TerminalWindowSession) -> Bool {
     clearSessionState()
-    let restoredTabsBySpaceID = restoreTabItems(from: session)
-    restorePaneSessions(from: session, restoredTabsBySpaceID: restoredTabsBySpaceID)
+    let restoredSpaces = restoreTabItems(from: session)
+    restorePaneSessions(restoredSpaces)
     return finalizeRestoredSession(session)
   }
 
-  func restoreTabItems(from session: TerminalWindowSession) -> [TerminalSpaceID: [(
-    sourceIndex: Int, id: TerminalTabID
-  )]] {
+  private func restorationSnapshot(
+    for item: TerminalTabRootItem
+  ) -> TerminalRootSessionSnapshot? {
+    switch item {
+    case .tab(let item):
+      guard let tab = restorationTabSession(for: item.tab) else { return nil }
+      return TerminalRootSessionSnapshot(
+        item: .tab(isPinned: item.isPinned, tab: tab),
+        tabIDs: [item.tab.id]
+      )
+    case .group(let group):
+      let snapshots = group.tabs.compactMap { tab in
+        restorationTabSession(for: tab).map { (tab.id, $0) }
+      }
+      return TerminalRootSessionSnapshot(
+        item: .group(
+          id: group.id,
+          title: group.title,
+          color: group.color,
+          isPinned: group.isPinned,
+          tabs: snapshots.map(\.1)
+        ),
+        tabIDs: snapshots.map(\.0)
+      )
+    }
+  }
+
+  private func restoreTabItems(
+    from session: TerminalWindowSession
+  ) -> [TerminalSpaceID: RestoredTerminalSpace] {
     let sessionsBySpaceID = Dictionary(uniqueKeysWithValues: session.spaces.map { ($0.id, $0) })
-    var restoredTabsBySpaceID: [TerminalSpaceID: [(sourceIndex: Int, id: TerminalTabID)]] = [:]
-    var selectedPinnedTabIDsBySpaceID: [TerminalSpaceID: TerminalTabID] = [:]
+    var restoredSpaces: [TerminalSpaceID: RestoredTerminalSpace] = [:]
 
     for space in spaces {
       let spaceSession = sessionsBySpaceID[space.id]
-      let restoredTabs = restoredTabItems(for: spaceSession)
-      restoredTabsBySpaceID[space.id] = restoredTabs.map { ($0.sourceIndex, $0.tab.id) }
-      if let selectedPinnedTabID = spaceSession?.selectedPinnedTabID {
-        selectedPinnedTabIDsBySpaceID[space.id] = selectedPinnedTabID
+      let restoredSpace = restoredSpace(for: spaceSession)
+      restoredSpaces[space.id] = restoredSpace
+      collapsedTabGroupIDsBySpace[space.id] = Set(spaceSession?.collapsedGroupIDs ?? [])
+      let selectedTabID = spaceSession?.selectedTabIndex.flatMap { index in
+        restoredSpace.tabs.first(where: { $0.sourceIndex == index })?.id
       }
-      _ = spaceManager.restoreTabs(
-        restoredTabs.map(\.tab),
-        selectedTabID: selectedTabID(for: spaceSession, restoredTabs: restoredTabs),
+      _ = spaceManager.restoreRootItems(
+        restoredSpace.rootItems,
+        selectedTabID: selectedTabID,
         in: space.id
       )
     }
 
-    reconcilePinnedTabs(
-      with: pinnedTabCatalog,
-      selectedTabIDsBySpaceID: selectedPinnedTabIDsBySpaceID
-    )
-    return restoredTabsBySpaceID
+    return restoredSpaces
   }
 
-  func restoredTabItems(for spaceSession: TerminalWindowSpaceSession?) -> [(sourceIndex: Int, tab: TerminalTabItem)] {
-    spaceSession?.tabs.enumerated().compactMap { sourceIndex, session in
-      guard !session.isPinned else { return nil }
-      return (
-        sourceIndex,
-        restoredTabItem(
-          for: session,
-          id: TerminalTabID(),
-          at: sourceIndex
-        )
-      )
-    } ?? []
-  }
-
-  func selectedTabID(
-    for spaceSession: TerminalWindowSpaceSession?,
-    restoredTabs: [(sourceIndex: Int, tab: TerminalTabItem)]
-  ) -> TerminalTabID? {
-    guard spaceSession?.selectedPinnedTabID == nil else { return nil }
-    return spaceSession?.selectedTabIndex.flatMap { index in
-      restoredTabs.first(where: { $0.sourceIndex == index })?.tab.id
+  private func restoredSpace(
+    for spaceSession: TerminalWindowSpaceSession?
+  ) -> RestoredTerminalSpace {
+    guard let spaceSession else {
+      return RestoredTerminalSpace(rootItems: [], tabs: [])
     }
+    var sourceIndex = 0
+    var restoredTabs: [RestoredTerminalTab] = []
+    let rootItems = spaceSession.rootItems.map { item -> TerminalTabRootItem in
+      switch item {
+      case .tab(let isPinned, let session):
+        let tab = restoredTabItem(for: session, at: sourceIndex)
+        restoredTabs.append(
+          RestoredTerminalTab(sourceIndex: sourceIndex, id: tab.id, session: session)
+        )
+        sourceIndex += 1
+        return .tab(TerminalUngroupedTabItem(tab: tab, isPinned: isPinned))
+      case .group(let id, let title, let color, let isPinned, let sessions):
+        let tabs = sessions.map { session -> TerminalTabItem in
+          let tab = restoredTabItem(for: session, at: sourceIndex)
+          restoredTabs.append(
+            RestoredTerminalTab(sourceIndex: sourceIndex, id: tab.id, session: session)
+          )
+          sourceIndex += 1
+          return tab
+        }
+        return .group(
+          TerminalTabGroupItem(
+            id: id,
+            title: title,
+            color: color,
+            isPinned: isPinned,
+            tabs: tabs
+          )
+        )
+      }
+    }
+    return RestoredTerminalSpace(rootItems: rootItems, tabs: restoredTabs)
   }
 
-  func restorePaneSessions(
-    from session: TerminalWindowSession,
-    restoredTabsBySpaceID: [TerminalSpaceID: [(sourceIndex: Int, id: TerminalTabID)]]
+  private func restorePaneSessions(
+    _ restoredSpaces: [TerminalSpaceID: RestoredTerminalSpace]
   ) {
-    for spaceSession in session.spaces {
-      let restoredTabs = Dictionary(
-        uniqueKeysWithValues: (restoredTabsBySpaceID[spaceSession.id] ?? []).map { ($0.sourceIndex, $0.id) }
-      )
-      for (index, tabSession) in spaceSession.tabs.enumerated() {
-        guard !tabSession.isPinned else { continue }
-        guard let tabID = restoredTabs[index] else { continue }
-        restoreTabSession(
-          tabSession,
-          tabID: tabID,
-          in: spaceSession.id
-        )
+    for (spaceID, restoredSpace) in restoredSpaces {
+      for tab in restoredSpace.tabs {
+        restoreTabSession(tab.session, tabID: tab.id, in: spaceID)
       }
     }
   }
 
   func finalizeRestoredSession(_ session: TerminalWindowSession) -> Bool {
-    guard spaces.contains(where: { !spaceManager.tabs(in: $0.id).isEmpty }) else {
-      logRestoreFailed(reason: "noRestoredTabs")
+    guard spaces.contains(where: { !spaceManager.rootItems(in: $0.id).isEmpty }) else {
+      logRestoreFailed(reason: "noRestoredItems")
       clearSessionState()
       return false
     }
@@ -239,7 +271,6 @@ extension TerminalHostState {
       }
       ?? 0
     return TerminalTabSession(
-      isPinned: tab.isPinned,
       lockedTitle: lockedTabTitle(for: tab.id),
       focusedPaneIndex: focusedPaneIndex,
       root: root
@@ -279,7 +310,6 @@ extension TerminalHostState {
     TerminalTabItem(
       id: id,
       title: session.lockedTitle ?? restoredTabTitle(at: index),
-      isPinned: session.isPinned,
       isTitleLocked: session.lockedTitle != nil
     )
   }
@@ -368,8 +398,9 @@ extension TerminalHostState {
     )
     removeTrees(for: existingTabIDs, terminateSessions: false, source: .sessionClear)
     for space in spaces {
-      _ = spaceManager.restoreTabs([], selectedTabID: nil, in: space.id)
+      _ = spaceManager.restoreRootItems([], selectedTabID: nil, in: space.id)
     }
+    collapsedTabGroupIDsBySpace.removeAll()
     for tabID in focusHistoryByTab.keys {
       focusHistoryByTab[tabID]?.previous = nil
     }
@@ -394,21 +425,17 @@ extension TerminalHostState {
     }
   }
 
-  func sessionDidChange(persistingPinnedTabLayouts: Bool = true) {
+  func sessionDidChange() {
     guard suppressesSessionChanges == 0 else { return }
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.didChange",
       fields: [
-        "persistingPinnedTabLayouts=\(persistingPinnedTabLayouts)",
         "spaces=\(spaces.count)",
         "tabs=\(spaces.reduce(0) { $0 + spaceManager.tabs(in: $1.id).count })",
         "surfaces=\(surfaces.count)",
       ]
     )
-    if persistingPinnedTabLayouts {
-      persistLivePinnedTabLayouts()
-    }
     onSessionChange()
   }
 

@@ -7,6 +7,7 @@ extension SocketRequestExecutor {
       executeTerminalCreation: { try commandExecutor.execute($0) },
       executeTerminalPane: { try commandExecutor.execute($0) },
       executeTerminalTab: { try commandExecutor.execute($0) },
+      executeTerminalTabGroup: { try commandExecutor.execute($0) },
       executeTerminalSpace: { try commandExecutor.execute($0) }
     )
   }

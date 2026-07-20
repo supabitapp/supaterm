@@ -192,11 +192,9 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         )
       }
       let debugTab = SupatermAppDebugSnapshot.Tab(
-        index: tabIndex,
         id: tabID,
         title: tabTitle,
         isSelected: true,
-        isPinned: false,
         isDirty: false,
         isTitleLocked: false,
         hasRunningActivity: false,
@@ -210,7 +208,7 @@ private final class SPTmuxTransportStub: SPTmuxTransport {
         id: spaceID,
         name: spaceName,
         isSelected: true,
-        tabs: [debugTab]
+        rootItems: [.tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: debugTab))]
       )
       let debugWindow = SupatermAppDebugSnapshot.Window(
         index: windowIndex,

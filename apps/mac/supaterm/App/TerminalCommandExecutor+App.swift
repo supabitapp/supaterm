@@ -54,12 +54,15 @@ extension TerminalCommandExecutor {
         windowCount: windows.count,
         spaceCount: windows.reduce(0) { $0 + $1.spaces.count },
         tabCount: windows.reduce(0) { partial, window in
-          partial + window.spaces.reduce(0) { $0 + $1.tabs.count }
+          partial
+            + window.spaces.reduce(0) { spacePartial, space in
+              spacePartial + space.flattenedTabs.count
+            }
         },
         paneCount: windows.reduce(0) { partial, window in
           partial
             + window.spaces.reduce(0) { spacePartial, space in
-              spacePartial + space.tabs.reduce(0) { $0 + $1.panes.count }
+              spacePartial + space.flattenedTabs.reduce(0) { $0 + $1.panes.count }
             }
         },
         keyWindowIndex: windows.first(where: \.isKey)?.index

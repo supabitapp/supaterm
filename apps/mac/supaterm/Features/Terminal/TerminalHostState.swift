@@ -27,9 +27,6 @@ nonisolated enum TerminalSurfaceCloseSource: String, Sendable {
 nonisolated enum TerminalTreeRemovalSource: String, Sendable {
   case closeTab = "closeTab"
   case controlCleanup = "control.cleanup"
-  case pinnedLastPaneClose = "pinned.lastPaneClose"
-  case pinnedReconcile = "pinned.reconcile"
-  case pinnedSuspend = "pinned.suspend"
   case sessionClear = "session.clear"
   case spaceCatalogObserved = "spaceCatalog.observed"
   case spaceCatalogWrite = "spaceCatalog.write"
@@ -286,18 +283,9 @@ final class TerminalHostState {
   var spaceCatalog = TerminalSpaceCatalog.default
   @ObservationIgnored
   var spaceCatalogObservationTask: Task<Void, Never>?
-  @ObservationIgnored
-  @Shared(.terminalPinnedTabCatalog)
-  var pinnedTabCatalog = TerminalPinnedTabCatalog.default
-  @ObservationIgnored
-  var pinnedTabCatalogObservationTask: Task<Void, Never>?
-  @ObservationIgnored
   var runtimeConfigObserver: NSObjectProtocol?
   @ObservationIgnored
   var lastAppliedSpaceCatalog = TerminalSpaceCatalog.default
-  @ObservationIgnored
-  var lastAppliedPinnedTabCatalog = TerminalPinnedTabCatalog.default
-  @ObservationIgnored
   var onSessionChange: @MainActor () -> Void = {}
   @ObservationIgnored
   var onSurfaceCommandFinished: @MainActor (UUID) -> Void = { _ in }
@@ -315,6 +303,7 @@ final class TerminalHostState {
   var paneAgentMetadataBySurfaceID: [UUID: PaneAgentMetadata] = [:]
   var agentStateStore = TerminalAgentStateStore()
   var previousSelectedTabIDBySpace: [TerminalSpaceID: TerminalTabID] = [:]
+  var collapsedTabGroupIDsBySpace: [TerminalSpaceID: Set<TerminalTabGroupID>] = [:]
   var previousSelectedSpaceID: TerminalSpaceID?
   var lastEmittedFocusSurfaceID: UUID?
   var runtimeConfigGeneration = 0
@@ -342,21 +331,13 @@ final class TerminalHostState {
       from: initialSpaceCatalog,
       initialSelectedSpaceID: initialSpaceCatalog.defaultSelectedSpaceID
     )
-    let initialPinnedTabCatalog = sanitizedPinnedTabCatalog(pinnedTabCatalog)
-    if initialPinnedTabCatalog != pinnedTabCatalog {
-      replacePinnedTabCatalog(initialPinnedTabCatalog)
-    }
-    lastAppliedPinnedTabCatalog = initialPinnedTabCatalog
-    reconcilePinnedTabs(with: initialPinnedTabCatalog)
     observeRuntimeConfig()
     observeSpaceCatalog()
-    observePinnedTabCatalog()
     agentPanelController = TerminalAgentPanelController(terminal: self)
   }
 
   isolated deinit {
     spaceCatalogObservationTask?.cancel()
-    pinnedTabCatalogObservationTask?.cancel()
     agentPanelController?.stop()
     if let runtimeConfigObserver {
       NotificationCenter.default.removeObserver(runtimeConfigObserver)
@@ -396,14 +377,17 @@ final class TerminalHostState {
   func handleCommand(_ command: TerminalClient.Command) {
     switch command {
     case .closeSurface,
+      .closeGroup,
       .closeTab,
       .closeTabs,
       .requestCloseSurface,
+      .requestCloseGroup,
       .requestCloseTab,
       .requestCloseTabsBelow,
       .requestCloseOtherTabs:
       handleCloseCommand(command)
-    case .createTab,
+    case .createGroup,
+      .createTab,
       .ensureInitialTab,
       .createSpace:
       handleCreationCommand(command)
@@ -418,17 +402,23 @@ final class TerminalHostState {
     case .nextSpace,
       .previousSpace,
       .selectLastTab,
-      .moveSidebarTab,
       .selectTab,
       .selectTabSlot,
       .selectSpaceSlot,
       .selectSpace,
-      .setPinnedTabOrder,
-      .setRegularTabOrder,
       .togglePinned,
       .updateWindowActivity,
       .deleteSpace:
       handleSelectionCommand(command)
+    case .moveGroup,
+      .moveTab,
+      .removeTabFromGroup,
+      .renameGroup,
+      .setGroupColor,
+      .toggleGroupCollapsed,
+      .togglePinnedRootItem,
+      .ungroup:
+      handleTabGroupCommand(command)
     }
   }
 
@@ -436,12 +426,16 @@ final class TerminalHostState {
     switch command {
     case .closeSurface(let surfaceID):
       closeSurface(surfaceID)
+    case .closeGroup(let groupID):
+      closeGroup(groupID)
     case .closeTab(let tabID):
       closeTab(tabID)
     case .closeTabs(let tabIDs):
       closeTabs(tabIDs)
     case .requestCloseSurface(let surfaceID):
       requestCloseSurface(surfaceID)
+    case .requestCloseGroup(let groupID):
+      requestCloseGroup(groupID)
     case .requestCloseTab(let tabID):
       requestCloseTab(tabID)
     case .requestCloseTabsBelow(let tabID):
@@ -455,6 +449,8 @@ final class TerminalHostState {
 
   func handleCreationCommand(_ command: TerminalClient.Command) {
     switch command {
+    case .createGroup(let title, let color, let tabIDs):
+      _ = createGroup(title: title, color: color, containing: tabIDs)
     case .createTab(let inheritingFromSurfaceID):
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
     case .ensureInitialTab(let focusing, let startupCommand, let workingDirectoryPath):
@@ -505,14 +501,8 @@ final class TerminalHostState {
       selectSpace(slot: slot)
     case .selectSpace(let spaceID):
       selectSpace(spaceID)
-    case .moveSidebarTab(let tabID, let pinnedOrder, let regularOrder):
-      moveSidebarTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-    case .setPinnedTabOrder(let orderedIDs):
-      setPinnedTabOrder(orderedIDs)
     case .previousSpace:
       previousSpace()
-    case .setRegularTabOrder(let orderedIDs):
-      setRegularTabOrder(orderedIDs)
     case .togglePinned(let tabID):
       togglePinned(tabID)
     case .deleteSpace(let spaceID):
@@ -524,41 +514,32 @@ final class TerminalHostState {
     }
   }
 
-  func setPinnedTabOrder(_ orderedIDs: [TerminalTabID]) {
-    spaceManager.activeTabManager?.setPinnedTabOrder(orderedIDs)
-    if let selectedSpaceID {
-      syncPinnedTabMembership(in: selectedSpaceID)
+  func handleTabGroupCommand(_ command: TerminalClient.Command) {
+    switch command {
+    case .moveGroup(let groupID, let placement):
+      moveGroup(groupID, to: placement)
+    case .moveTab(let tabID, let placement):
+      moveTab(tabID, to: placement)
+    case .removeTabFromGroup(let tabID):
+      removeTabFromGroup(tabID)
+    case .renameGroup(let groupID, let title):
+      renameGroup(groupID, title: title)
+    case .setGroupColor(let groupID, let color):
+      setGroupColor(groupID, color: color)
+    case .toggleGroupCollapsed(let groupID):
+      toggleGroupCollapsed(groupID)
+    case .togglePinnedRootItem(let rootItemID):
+      togglePinned(rootItemID)
+    case .ungroup(let groupID):
+      ungroup(groupID)
+    default:
+      return
     }
-    sessionDidChange()
-  }
-
-  func setRegularTabOrder(_ orderedIDs: [TerminalTabID]) {
-    spaceManager.activeTabManager?.setRegularTabOrder(orderedIDs)
-    sessionDidChange()
-  }
-
-  func moveSidebarTab(
-    _ tabID: TerminalTabID,
-    pinnedOrder: [TerminalTabID],
-    regularOrder: [TerminalTabID]
-  ) {
-    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
-    spaceManager.tabManager(for: spaceID)?
-      .moveTab(tabID, pinnedOrder: pinnedOrder, regularOrder: regularOrder)
-    syncPinnedTabMembership(in: spaceID)
-    sessionDidChange()
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
     guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
-    if spaceManager.tab(for: tabID)?.isPinned == true, trees[tabID] == nil {
-      let wasSelectedSpace = selectedSpaceID == spaceID
-      spaceManager.tabManager(for: spaceID)?.closeTab(tabID)
-      updateSelectionAfterClosingTab(in: spaceID, wasSelectedSpace: wasSelectedSpace)
-    } else {
-      spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
-    }
-    syncPinnedTabMembership(in: spaceID)
+    spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
     sessionDidChange()
   }
 
@@ -821,23 +802,16 @@ final class TerminalHostState {
   func performCloseTab(_ tabID: TerminalTabID) {
     guard let space = spaceManager.space(for: tabID) else { return }
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
-    let wasPinned = spaceManager.tab(for: tabID)?.isPinned == true
     let wasSelectedSpace = selectedSpaceID == space.id
-    let dormantPinnedSurfaceIDs =
-      wasPinned && trees[tabID] == nil
-      ? Array(pinnedTabCatalog.tabs(in: space.id).first(where: { $0.id == tabID })?.session.surfaceIDs ?? [])
-      : []
-
-    if wasPinned {
-      removePinnedTabFromCatalog(tabID, in: space.id)
-    }
+    let wasSelectedTab = tabManager.selectedTabId == tabID
 
     removeTree(for: tabID, source: .closeTab)
-    if !dormantPinnedSurfaceIDs.isEmpty {
-      killZmxSessions(for: dormantPinnedSurfaceIDs)
-    }
     tabManager.closeTab(tabID)
-    updateSelectionAfterClosingTab(in: space.id, wasSelectedSpace: wasSelectedSpace)
+    updateSelectionAfterClosingTab(
+      in: space.id,
+      wasSelectedSpace: wasSelectedSpace,
+      didCloseSelectedTab: wasSelectedTab
+    )
     syncFocus(windowActivity)
     sessionDidChange()
   }
@@ -848,6 +822,22 @@ final class TerminalHostState {
       for tabID in tabIDs {
         performCloseTab(tabID)
       }
+    }
+  }
+
+  func performCloseGroup(_ groupID: TerminalTabGroupID) {
+    guard
+      let space = spaceManager.space(for: groupID),
+      let tabManager = spaceManager.tabManager(for: space.id)
+    else {
+      return
+    }
+    withBatchedSessionChange {
+      for tabID in tabManager.tabIDs(in: groupID) {
+        performCloseTab(tabID)
+      }
+      _ = tabManager.deleteEmptyGroup(groupID)
+      collapsedTabGroupIDsBySpace[space.id]?.remove(groupID)
     }
   }
 
@@ -876,7 +866,6 @@ final class TerminalHostState {
     view.bridge.onPathChange = { [weak self] in
       guard let self else { return }
       self.updateTabTitle(for: tabID)
-      self.persistPinnedTabWorkingDirectoriesIfNeeded(for: tabID)
       self.agentPanelController?.surfacePathChanged(view.id)
       self.sessionDidChange()
     }
@@ -1121,7 +1110,6 @@ final class TerminalHostState {
   }
 
   func focusSurface(in tabID: TerminalTabID) {
-    restorePinnedTabSessionIfNeeded(for: tabID)
     if let unreadSurfaceID = latestUnreadNotifiedSurfaceID(in: tabID),
       let surface = surfaces[unreadSurfaceID]
     {
@@ -1324,7 +1312,6 @@ final class TerminalHostState {
       .flatMap { spaceManager.tabManager(for: $0.id) }?
       .setLockedTitle(tabID, title: title)
     updateTabTitle(for: tabID)
-    persistPinnedTabTitleIfNeeded(for: tabID)
     sessionDidChange()
   }
 

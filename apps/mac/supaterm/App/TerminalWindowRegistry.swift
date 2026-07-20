@@ -439,7 +439,7 @@ final class TerminalWindowRegistry {
       selectedSpaceID: terminal.selectedSpaceID,
       spaces: terminal.spaces,
       selectedTabID: terminal.selectedTabID,
-      visibleTabs: terminal.visibleTabs
+      rootItems: terminal.rootItems
     )
   }
 
@@ -810,6 +810,8 @@ final class TerminalWindowRegistry {
       return .captureFailed
     case .contextPaneNotFound:
       return .contextPaneNotFound
+    case .groupNotFound, .groupSpaceMismatch, .invalidGroupIndex, .invalidGroupTitle:
+      return error
     case .invalidSpaceName:
       return .invalidSpaceName
     case .lastPaneNotFound:

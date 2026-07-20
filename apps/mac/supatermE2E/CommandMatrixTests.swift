@@ -162,11 +162,11 @@ extension SupatermE2ESuite {
 
         let pinned = try app.send(.pinTab(target), as: SupatermPinTabResult.self)
         #expect(pinned.isPinned)
-        #expect(try app.debugTab(space.tab.tabID)?.isPinned == true)
+        #expect(try app.debugRootTab(space.tab.tabID)?.isPinned == true)
 
         let unpinned = try app.send(.unpinTab(target), as: SupatermPinTabResult.self)
         #expect(!unpinned.isPinned)
-        #expect(try app.debugTab(space.tab.tabID)?.isPinned == false)
+        #expect(try app.debugRootTab(space.tab.tabID)?.isPinned == false)
       }
     }
 

@@ -3,7 +3,7 @@ import Foundation
 import SupatermCLIShared
 
 nonisolated struct TerminalSessionCatalog: Equatable, Codable, Sendable {
-  static let currentVersion = 5
+  static let currentVersion = 6
   static let `default` = Self(windows: [])
 
   let version: Int
@@ -131,32 +131,137 @@ nonisolated struct TerminalWindowFrame: Equatable, Codable, Sendable {
 nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
   var id: TerminalSpaceID
   var selectedTabIndex: Int?
-  var selectedPinnedTabID: TerminalTabID?
-  var tabs: [TerminalTabSession]
+  var collapsedGroupIDs: [TerminalTabGroupID]
+  var rootItems: [TerminalTabRootSessionItem]
 
   func pruned() -> TerminalWindowSpaceSession {
-    let tabs = tabs.compactMap { $0.pruned() }
+    let selectedTabSurfaceIDs = selectedTabIndex.flatMap { index in
+      let tabs = self.rootItems.flatMap(\.tabs)
+      return tabs.indices.contains(index) ? tabs[index].surfaceIDs : nil
+    }
+    var seenGroupIDs: Set<TerminalTabGroupID> = []
+    let rootItems = rootItems.compactMap { item -> TerminalTabRootSessionItem? in
+      guard let item = item.pruned() else { return nil }
+      if case .group(let id, _, _, _, _) = item {
+        guard seenGroupIDs.insert(id).inserted else { return nil }
+      }
+      return item
+    }
+    let normalizedRootItems =
+      rootItems.filter(\.isPinned) + rootItems.filter { !$0.isPinned }
+    let survivingGroupIDs = Set(normalizedRootItems.compactMap(\.groupID))
+    var seenCollapsedGroupIDs: Set<TerminalTabGroupID> = []
+    let collapsedGroupIDs = collapsedGroupIDs.filter {
+      survivingGroupIDs.contains($0) && seenCollapsedGroupIDs.insert($0).inserted
+    }
     let resolvedSelectedTabIndex = Self.resolvedSelectedTabIndex(
-      selectedTabIndex,
-      tabCount: tabs.count
+      selectedTabSurfaceIDs,
+      tabs: normalizedRootItems.flatMap(\.tabs)
     )
     return TerminalWindowSpaceSession(
       id: id,
       selectedTabIndex: resolvedSelectedTabIndex,
-      selectedPinnedTabID: selectedPinnedTabID,
-      tabs: tabs
+      collapsedGroupIDs: collapsedGroupIDs,
+      rootItems: normalizedRootItems
     )
   }
 
   private static func resolvedSelectedTabIndex(
-    _ selectedTabIndex: Int?,
-    tabCount: Int
+    _ selectedTabSurfaceIDs: Set<UUID>?,
+    tabs: [TerminalTabSession]
   ) -> Int? {
-    guard tabCount > 0 else { return nil }
-    guard let selectedTabIndex, (0..<tabCount).contains(selectedTabIndex) else {
-      return 0
+    guard !tabs.isEmpty else { return nil }
+    guard let selectedTabSurfaceIDs else { return 0 }
+    return tabs.firstIndex { $0.surfaceIDs == selectedTabSurfaceIDs } ?? 0
+  }
+
+  var surfaceIDs: Set<UUID> {
+    rootItems.reduce(into: Set<UUID>()) { result, item in
+      result.formUnion(item.surfaceIDs)
     }
-    return selectedTabIndex
+  }
+}
+
+nonisolated enum TerminalTabRootSessionItem: Equatable, Codable, Sendable {
+  case tab(isPinned: Bool, tab: TerminalTabSession)
+  case group(
+    id: TerminalTabGroupID,
+    title: String,
+    color: TerminalTabGroupColor,
+    isPinned: Bool,
+    tabs: [TerminalTabSession]
+  )
+
+  private enum CodingKeys: String, CodingKey {
+    case kind
+    case isPinned
+    case tab
+    case id
+    case title
+    case color
+    case tabs
+  }
+
+  private enum Kind: String, Codable {
+    case tab
+    case group
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    switch try container.decode(Kind.self, forKey: .kind) {
+    case .tab:
+      self = .tab(
+        isPinned: try container.decode(Bool.self, forKey: .isPinned),
+        tab: try container.decode(TerminalTabSession.self, forKey: .tab)
+      )
+    case .group:
+      self = .group(
+        id: try container.decode(TerminalTabGroupID.self, forKey: .id),
+        title: try container.decode(String.self, forKey: .title),
+        color: try container.decode(TerminalTabGroupColor.self, forKey: .color),
+        isPinned: try container.decode(Bool.self, forKey: .isPinned),
+        tabs: try container.decode([TerminalTabSession].self, forKey: .tabs)
+      )
+    }
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .tab(let isPinned, let tab):
+      try container.encode(Kind.tab, forKey: .kind)
+      try container.encode(isPinned, forKey: .isPinned)
+      try container.encode(tab, forKey: .tab)
+    case .group(let id, let title, let color, let isPinned, let tabs):
+      try container.encode(Kind.group, forKey: .kind)
+      try container.encode(id, forKey: .id)
+      try container.encode(title, forKey: .title)
+      try container.encode(color, forKey: .color)
+      try container.encode(isPinned, forKey: .isPinned)
+      try container.encode(tabs, forKey: .tabs)
+    }
+  }
+
+  var isPinned: Bool {
+    switch self {
+    case .tab(let isPinned, _), .group(_, _, _, let isPinned, _):
+      return isPinned
+    }
+  }
+
+  var tabs: [TerminalTabSession] {
+    switch self {
+    case .tab(_, let tab):
+      return [tab]
+    case .group(_, _, _, _, let tabs):
+      return tabs
+    }
+  }
+
+  var groupID: TerminalTabGroupID? {
+    guard case .group(let id, _, _, _, _) = self else { return nil }
+    return id
   }
 
   var surfaceIDs: Set<UUID> {
@@ -164,10 +269,26 @@ nonisolated struct TerminalWindowSpaceSession: Equatable, Codable, Sendable {
       result.formUnion(tab.surfaceIDs)
     }
   }
+
+  func pruned() -> TerminalTabRootSessionItem? {
+    switch self {
+    case .tab(let isPinned, let tab):
+      guard let tab = tab.pruned() else { return nil }
+      return .tab(isPinned: isPinned, tab: tab)
+    case .group(let id, let title, let color, let isPinned, let tabs):
+      let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+      return .group(
+        id: id,
+        title: normalizedTitle.isEmpty ? "Group" : normalizedTitle,
+        color: color,
+        isPinned: isPinned,
+        tabs: tabs.compactMap { $0.pruned() }
+      )
+    }
+  }
 }
 
 nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
-  var isPinned: Bool
   var lockedTitle: String?
   var focusedPaneIndex: Int
   var root: TerminalPaneNodeSession
@@ -175,42 +296,11 @@ nonisolated struct TerminalTabSession: Equatable, Codable, Sendable {
   func pruned() -> TerminalTabSession? {
     guard let root = root.pruned() else { return nil }
     return TerminalTabSession(
-      isPinned: isPinned,
       lockedTitle: lockedTitle?.isEmpty == true ? nil : lockedTitle,
       focusedPaneIndex: Self.resolvedFocusedPaneIndex(
         focusedPaneIndex,
         leafCount: root.leafCount
       ),
-      root: root
-    )
-  }
-
-  func updatingWorkingDirectoryPaths(
-    _ workingDirectoryPaths: [String?],
-    focusedPaneIndex: Int
-  ) -> TerminalTabSession {
-    guard root.leafCount > 0 else { return self }
-    guard workingDirectoryPaths.count >= root.leafCount else { return self }
-    let resolvedFocusedPaneIndex = min(max(focusedPaneIndex, 0), root.leafCount - 1)
-    let focusedWorkingDirectoryPath =
-      workingDirectoryPaths.indices.contains(focusedPaneIndex)
-      ? workingDirectoryPaths[focusedPaneIndex]
-      : workingDirectoryPaths.first.flatMap { $0 }
-    let updatesAllLeafPaths = root.leafCount == workingDirectoryPaths.count
-    let root =
-      root.updatingLeaves { index, leaf in
-        var leaf = leaf
-        if updatesAllLeafPaths {
-          leaf.workingDirectoryPath = workingDirectoryPaths[index]
-        } else if index == resolvedFocusedPaneIndex {
-          leaf.workingDirectoryPath = focusedWorkingDirectoryPath
-        }
-        return leaf
-      }
-    return TerminalTabSession(
-      isPinned: isPinned,
-      lockedTitle: lockedTitle,
-      focusedPaneIndex: resolvedFocusedPaneIndex,
       root: root
     )
   }
@@ -283,13 +373,6 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  fileprivate func updatingLeaves(
-    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession
-  ) -> TerminalPaneNodeSession {
-    var index = 0
-    return updatingLeaves(update, index: &index)
-  }
-
   func pruned() -> TerminalPaneNodeSession? {
     switch self {
     case .leaf(let leaf):
@@ -299,35 +382,6 @@ nonisolated indirect enum TerminalPaneNodeSession: Equatable, Codable, Sendable 
     }
   }
 
-  private func updatingLeaves(
-    _ update: (Int, TerminalPaneLeafSession) -> TerminalPaneLeafSession,
-    index: inout Int
-  ) -> TerminalPaneNodeSession {
-    switch self {
-    case .leaf(let leaf):
-      let leaf = update(index, leaf)
-      index += 1
-      return .leaf(leaf)
-
-    case .split(let split):
-      let left = split.left.updatingLeaves(
-        update,
-        index: &index
-      )
-      let right = split.right.updatingLeaves(
-        update,
-        index: &index
-      )
-      return .split(
-        TerminalPaneSplitSession(
-          direction: split.direction,
-          ratio: split.ratio,
-          left: left,
-          right: right
-        )
-      )
-    }
-  }
 }
 
 nonisolated struct TerminalPaneLeafSession: Equatable, Codable, Sendable {

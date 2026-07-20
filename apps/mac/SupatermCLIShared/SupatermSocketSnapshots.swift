@@ -8,6 +8,119 @@ public struct SupatermDebugRequest: Equatable, Sendable, Codable {
   }
 }
 
+public struct SupatermSnapshotGroup<Tab: Equatable & Sendable & Codable>:
+  Equatable, Sendable, Codable
+{
+  public let color: SupatermTabGroupColor
+  public let id: UUID
+  public let isCollapsed: Bool
+  public let isPinned: Bool
+  public let title: String
+  public let tabs: [Tab]
+
+  public init(
+    color: SupatermTabGroupColor,
+    id: UUID,
+    isCollapsed: Bool,
+    isPinned: Bool,
+    title: String,
+    tabs: [Tab]
+  ) {
+    self.color = color
+    self.id = id
+    self.isCollapsed = isCollapsed
+    self.isPinned = isPinned
+    self.title = title
+    self.tabs = tabs
+  }
+}
+
+public struct SupatermSnapshotRootTab<Tab: Equatable & Sendable & Codable>:
+  Equatable, Sendable, Codable
+{
+  public let isPinned: Bool
+  public let tab: Tab
+
+  public init(isPinned: Bool, tab: Tab) {
+    self.isPinned = isPinned
+    self.tab = tab
+  }
+}
+
+public enum SupatermSnapshotRootItem<Tab: Equatable & Sendable & Codable>:
+  Equatable, Sendable, Codable
+{
+  case group(SupatermSnapshotGroup<Tab>)
+  case tab(SupatermSnapshotRootTab<Tab>)
+
+  public var flattenedTabs: [Tab] {
+    switch self {
+    case .group(let group):
+      group.tabs
+    case .tab(let rootTab):
+      [rootTab.tab]
+    }
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case color
+    case id
+    case isCollapsed
+    case isPinned
+    case kind
+    case tab
+    case tabs
+    case title
+  }
+
+  private enum Kind: String, Codable {
+    case group
+    case tab
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    switch try container.decode(Kind.self, forKey: .kind) {
+    case .group:
+      self = .group(
+        SupatermSnapshotGroup(
+          color: try container.decode(SupatermTabGroupColor.self, forKey: .color),
+          id: try container.decode(UUID.self, forKey: .id),
+          isCollapsed: try container.decode(Bool.self, forKey: .isCollapsed),
+          isPinned: try container.decode(Bool.self, forKey: .isPinned),
+          title: try container.decode(String.self, forKey: .title),
+          tabs: try container.decode([Tab].self, forKey: .tabs)
+        )
+      )
+    case .tab:
+      self = .tab(
+        SupatermSnapshotRootTab(
+          isPinned: try container.decode(Bool.self, forKey: .isPinned),
+          tab: try container.decode(Tab.self, forKey: .tab)
+        )
+      )
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .group(let group):
+      try container.encode(Kind.group, forKey: .kind)
+      try container.encode(group.color, forKey: .color)
+      try container.encode(group.id, forKey: .id)
+      try container.encode(group.isCollapsed, forKey: .isCollapsed)
+      try container.encode(group.isPinned, forKey: .isPinned)
+      try container.encode(group.tabs, forKey: .tabs)
+      try container.encode(group.title, forKey: .title)
+    case .tab(let rootTab):
+      try container.encode(Kind.tab, forKey: .kind)
+      try container.encode(rootTab.isPinned, forKey: .isPinned)
+      try container.encode(rootTab.tab, forKey: .tab)
+    }
+  }
+}
+
 public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
   public struct Build: Equatable, Sendable, Codable {
     public let version: String
@@ -100,6 +213,10 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     }
   }
 
+  public typealias Group = SupatermSnapshotGroup<Tab>
+  public typealias RootTab = SupatermSnapshotRootTab<Tab>
+  public typealias RootItem = SupatermSnapshotRootItem<Tab>
+
   public struct Window: Equatable, Sendable, Codable {
     public let index: Int
     public let isKey: Bool
@@ -124,29 +241,31 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let rootItems: [RootItem]
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      rootItems: [RootItem]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
-      self.tabs = tabs
+      self.rootItems = rootItems
+    }
+
+    public var flattenedTabs: [Tab] {
+      rootItems.flatMap(\.flattenedTabs)
     }
   }
 
   public struct Tab: Equatable, Sendable, Codable {
-    public let index: Int
     public let id: UUID
     public let title: String
     public let isSelected: Bool
-    public let isPinned: Bool
     public let isDirty: Bool
     public let isTitleLocked: Bool
     public let hasRunningActivity: Bool
@@ -156,11 +275,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
     public let panes: [Pane]
 
     public init(
-      index: Int,
       id: UUID,
       title: String,
       isSelected: Bool,
-      isPinned: Bool,
       isDirty: Bool,
       isTitleLocked: Bool,
       hasRunningActivity: Bool,
@@ -169,11 +286,9 @@ public struct SupatermAppDebugSnapshot: Equatable, Sendable, Codable {
       hasSecureInput: Bool,
       panes: [Pane]
     ) {
-      self.index = index
       self.id = id
       self.title = title
       self.isSelected = isSelected
-      self.isPinned = isPinned
       self.isDirty = isDirty
       self.isTitleLocked = isTitleLocked
       self.hasRunningActivity = hasRunningActivity
@@ -276,37 +391,48 @@ public struct SupatermTreeSnapshot: Equatable, Sendable, Codable {
     }
   }
 
+  public typealias Group = SupatermSnapshotGroup<Tab>
+  public typealias RootTab = SupatermSnapshotRootTab<Tab>
+  public typealias RootItem = SupatermSnapshotRootItem<Tab>
+
   public struct Space: Equatable, Sendable, Codable {
     public let index: Int
     public let id: UUID
     public let name: String
     public let isSelected: Bool
-    public let tabs: [Tab]
+    public let rootItems: [RootItem]
 
     public init(
       index: Int,
       id: UUID,
       name: String,
       isSelected: Bool,
-      tabs: [Tab]
+      rootItems: [RootItem]
     ) {
       self.index = index
       self.id = id
       self.name = name
       self.isSelected = isSelected
-      self.tabs = tabs
+      self.rootItems = rootItems
+    }
+
+    public var flattenedTabs: [Tab] {
+      rootItems.flatMap(\.flattenedTabs)
     }
   }
 
   public struct Tab: Equatable, Sendable, Codable {
-    public let index: Int
     public let id: UUID
     public let title: String
     public let isSelected: Bool
     public let panes: [Pane]
 
-    public init(index: Int, id: UUID, title: String, isSelected: Bool, panes: [Pane]) {
-      self.index = index
+    public init(
+      id: UUID,
+      title: String,
+      isSelected: Bool,
+      panes: [Pane]
+    ) {
       self.id = id
       self.title = title
       self.isSelected = isSelected

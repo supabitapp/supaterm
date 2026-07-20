@@ -21,7 +21,15 @@ func makeStore(
 }
 
 extension SocketRequestExecutor {
-  static func testing(terminalWindowsClient: TerminalWindowsClient) -> Self {
+  static func testing(
+    terminalWindowsClient: TerminalWindowsClient,
+    executeTerminalTabGroup:
+      @escaping @MainActor @Sendable (
+        TerminalTabGroupRequest
+      ) async throws -> TerminalTabGroupResult = { _ in
+        throw TerminalControlError.contextPaneNotFound
+      }
+  ) -> Self {
     Self(
       executeApp: { try await testingApp($0, terminalWindowsClient: terminalWindowsClient) },
       executeTerminalCreation: {
@@ -29,6 +37,7 @@ extension SocketRequestExecutor {
       },
       executeTerminalPane: { try await testingPane($0, terminalWindowsClient: terminalWindowsClient) },
       executeTerminalTab: { try await testingTab($0, terminalWindowsClient: terminalWindowsClient) },
+      executeTerminalTabGroup: executeTerminalTabGroup,
       executeTerminalSpace: {
         try await testingSpace($0, terminalWindowsClient: terminalWindowsClient)
       }

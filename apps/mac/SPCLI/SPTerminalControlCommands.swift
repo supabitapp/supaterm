@@ -36,6 +36,7 @@ extension SP {
         UnpinTab.self,
         CloseTab.self,
         RenameTab.self,
+        MoveTab.self,
         NextTab.self,
         PreviousTab.self,
         LastTab.self,
@@ -1052,7 +1053,7 @@ private func readStandardInput() -> String {
   String(decoding: FileHandle.standardInput.readDataToEndOfFile(), as: UTF8.self)
 }
 
-private func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpaceTargetRequest {
+func spaceTargetRequest(_ target: SPResolvedSpaceTarget) -> SupatermSpaceTargetRequest {
   switch target {
   case .context(let contextPaneID):
     return .init(contextPaneID: contextPaneID)

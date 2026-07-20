@@ -15,9 +15,9 @@ Each tab row can show:
 - a coding-agent running or attention state
 - a shortcut hint for the first ten tabs
 
-Pinned tabs appear above regular tabs. Spaces sit at the bottom. Update and release cards appear above the space bar when relevant.
+Root tabs and groups share one outline. Pinned root items remain before regular root items, while tabs within a group follow the group's order. Group cards show their name and color and can be collapsed without changing tab selection order. Spaces sit at the bottom. Update and release cards appear above the space bar when relevant.
 
-Click a row to focus it, middle-click a regular tab to close it, or right-click for tab actions. Drag rows to reorder or move them between pinned and regular sections.
+Click a row to focus it, middle-click a tab to close it, or right-click for tab and group actions. Drag a root tab onto another root tab to create a group, onto a group to append it, or out of a group to promote it to the root. Drag a group to reorder it as one item. Pinning a grouped tab extracts it as a pinned root tab.
 
 Toggle the sidebar with `Command-S`.
 

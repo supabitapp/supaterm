@@ -21,7 +21,6 @@ struct SocketControlFeatureAppTests {
       isFocused: true
     )
     let tab = SupatermTreeSnapshot.Tab(
-      index: 1,
       id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "zsh",
       isSelected: true,
@@ -32,7 +31,7 @@ struct SocketControlFeatureAppTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      rootItems: [.tab(SupatermTreeSnapshot.RootTab(isPinned: false, tab: tab))]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,

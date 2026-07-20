@@ -15,10 +15,12 @@ struct SocketControlCreationTests {
   func newTabRequestRepliesWithCreatedTab() async throws {
     let recorder = SocketReplyRecorder()
     let handle = UUID(uuidString: "52A01791-C69B-423B-B58E-021239595B1D")!
+    let groupID = UUID(uuidString: "BEA0180D-C5AF-4A85-96DD-5B6356C87CD8")!
     let requestPayload = SupatermNewTabRequest(
       startupCommand: "pwd",
       cwd: "/tmp/example",
       focus: false,
+      groupDestination: .group(groupID),
       targetWindowIndex: 1,
       targetSpaceIndex: 2
     )
@@ -50,6 +52,7 @@ struct SocketControlCreationTests {
               startupCommand: "pwd",
               cwd: "/tmp/example",
               focus: false,
+              groupDestination: .group(groupID),
               target: .space(windowIndex: 1, spaceIndex: 2)
             )
         )

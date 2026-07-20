@@ -13,6 +13,20 @@ enum SPTreeRenderer {
       let index: Int
       let name: String
       let isSelected: Bool
+      let rootItems: [RootItem]
+    }
+
+    enum RootItem {
+      case group(Group)
+      case tab(Tab)
+    }
+
+    struct Group {
+      let id: UUID
+      let title: String
+      let color: SupatermTabGroupColor
+      let isPinned: Bool
+      let isCollapsed: Bool
       let tabs: [Tab]
     }
 
@@ -20,6 +34,7 @@ enum SPTreeRenderer {
       let index: Int
       let title: String
       let isSelected: Bool
+      let isPinned: Bool?
       let panes: [Pane]
     }
 
@@ -62,23 +77,44 @@ enum SPTreeRenderer {
         let spaceFlags = space.isSelected ? "\tselected" : ""
         let spaceLine = "\(spaceSelector)\tspace\t\(space.name)\(spaceFlags)"
 
-        let tabLines = space.tabs.flatMap { tab -> [String] in
-          let tabSelector = "\(space.index)/\(tab.index)"
-          let tabFlags = tab.isSelected ? "\tselected" : ""
-          let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(tabFlags)"
-
-          let paneLines = tab.panes.map { pane in
-            let paneSelector = "\(space.index)/\(tab.index)/\(pane.index)"
-            return plainPaneLine(pane, selector: paneSelector)
+        let rootLines = space.rootItems.flatMap { item -> [String] in
+          switch item {
+          case .group(let group):
+            let flagValues: [String?] = [
+              group.color.rawValue,
+              group.isPinned ? "pinned" : nil,
+              group.isCollapsed ? "collapsed" : nil,
+            ]
+            let flags = flagValues.compactMap(\.self)
+            let groupLine =
+              "\(group.id.uuidString.lowercased())\tgroup\t\(group.title)\t\(flags.joined(separator: ","))"
+            return [groupLine] + group.tabs.flatMap { plainTabLines($0, spaceIndex: space.index) }
+          case .tab(let tab):
+            return plainTabLines(tab, spaceIndex: space.index)
           }
-
-          return [tabLine] + paneLines
         }
 
-        return [spaceLine] + tabLines
+        return [spaceLine] + rootLines
       }
     }
     .joined(separator: "\n")
+  }
+
+  private static func plainTabLines(_ tab: Snapshot.Tab, spaceIndex: Int) -> [String] {
+    let tabSelector = "\(spaceIndex)/\(tab.index)"
+    let tabFlags = [
+      tab.isSelected ? "selected" : nil,
+      tab.isPinned == true ? "pinned" : nil,
+    ].compactMap(\.self)
+    let suffix = tabFlags.isEmpty ? "" : "\t\(tabFlags.joined(separator: ","))"
+    let tabLine = "\(tabSelector)\ttab\t\(tab.title)\(suffix)"
+
+    let paneLines = tab.panes.map { pane in
+      let paneSelector = "\(spaceIndex)/\(tab.index)/\(pane.index)"
+      return plainPaneLine(pane, selector: paneSelector)
+    }
+
+    return [tabLine] + paneLines
   }
 
   private static func projectedSnapshot(from snapshot: SupatermAppDebugSnapshot) -> Snapshot {
@@ -88,23 +124,33 @@ enum SPTreeRenderer {
           index: window.index,
           isKey: window.isKey,
           spaces: window.spaces.map { space in
-            .init(
+            var tabIndex = 0
+            return .init(
               index: space.index,
               name: space.name,
               isSelected: space.isSelected,
-              tabs: space.tabs.map { tab in
-                .init(
-                  index: tab.index,
-                  title: tab.title,
-                  isSelected: tab.isSelected,
-                  panes: tab.panes.map { pane in
+              rootItems: space.rootItems.map { item in
+                switch item {
+                case .group(let group):
+                  return .group(
                     .init(
-                      index: pane.index,
-                      displayTitle: pane.displayTitle,
-                      isFocused: pane.isFocused
+                      id: group.id,
+                      title: group.title,
+                      color: group.color,
+                      isPinned: group.isPinned,
+                      isCollapsed: group.isCollapsed,
+                      tabs: group.tabs.map { tab in
+                        tabIndex += 1
+                        return projectedTab(tab, index: tabIndex, isPinned: nil)
+                      }
                     )
-                  }
-                )
+                  )
+                case .tab(let rootTab):
+                  tabIndex += 1
+                  return .tab(
+                    projectedTab(rootTab.tab, index: tabIndex, isPinned: rootTab.isPinned)
+                  )
+                }
               }
             )
           }
@@ -120,8 +166,26 @@ enum SPTreeRenderer {
       let spacePrefix = isLastSpace ? "   " : "│  "
 
       var lines = ["\(spaceBranch)\(spaceLine(space))"]
-      lines.append(contentsOf: renderTabs(space.tabs, prefix: spacePrefix))
+      lines.append(contentsOf: renderRootItems(space.rootItems, prefix: spacePrefix))
       return lines
+    }
+  }
+
+  private static func renderRootItems(
+    _ items: [Snapshot.RootItem],
+    prefix: String
+  ) -> [String] {
+    items.enumerated().flatMap { offset, item in
+      let isLast = offset == items.count - 1
+      let branch = isLast ? "└─ " : "├─ "
+      let childPrefix = prefix + (isLast ? "   " : "│  ")
+      switch item {
+      case .group(let group):
+        return ["\(prefix)\(branch)\(groupLine(group))"]
+          + renderTabs(group.tabs, prefix: childPrefix)
+      case .tab(let tab):
+        return renderTab(tab, branch: branch, childPrefix: childPrefix, prefix: prefix)
+      }
     }
   }
 
@@ -134,15 +198,21 @@ enum SPTreeRenderer {
       let tabBranch = isLastTab ? "└─ " : "├─ "
       let tabPrefix = prefix + (isLastTab ? "   " : "│  ")
 
-      var lines = ["\(prefix)\(tabBranch)\(tabLine(tab))"]
-      lines.append(
-        contentsOf: tab.panes.enumerated().map { paneOffset, pane in
-          let paneBranch = paneOffset == tab.panes.count - 1 ? "└─ " : "├─ "
-          return "\(tabPrefix)\(paneBranch)\(paneLine(pane))"
-        }
-      )
-      return lines
+      return renderTab(tab, branch: tabBranch, childPrefix: tabPrefix, prefix: prefix)
     }
+  }
+
+  private static func renderTab(
+    _ tab: Snapshot.Tab,
+    branch: String,
+    childPrefix: String,
+    prefix: String
+  ) -> [String] {
+    ["\(prefix)\(branch)\(tabLine(tab))"]
+      + tab.panes.enumerated().map { paneOffset, pane in
+        let paneBranch = paneOffset == tab.panes.count - 1 ? "└─ " : "├─ "
+        return "\(childPrefix)\(paneBranch)\(paneLine(pane))"
+      }
   }
 
   private static func windowLine(_ window: Snapshot.Window) -> String {
@@ -174,11 +244,46 @@ enum SPTreeRenderer {
     if tab.isSelected {
       labels.append("selected")
     }
+    if tab.isPinned == true {
+      labels.append("pinned")
+    }
 
     if labels.isEmpty {
       return "tab \(tab.index) \"\(tab.title)\""
     }
     return "tab \(tab.index) \"\(tab.title)\" [\(labels.joined(separator: ", "))]"
+  }
+
+  private static func groupLine(_ group: Snapshot.Group) -> String {
+    var labels = [group.color.rawValue]
+    if group.isPinned {
+      labels.append("pinned")
+    }
+    if group.isCollapsed {
+      labels.append("collapsed")
+    }
+    return
+      "group \(group.id.uuidString.lowercased()) \"\(group.title)\" [\(labels.joined(separator: ", "))]"
+  }
+
+  private static func projectedTab(
+    _ tab: SupatermAppDebugSnapshot.Tab,
+    index: Int,
+    isPinned: Bool?
+  ) -> Snapshot.Tab {
+    .init(
+      index: index,
+      title: tab.title,
+      isSelected: tab.isSelected,
+      isPinned: isPinned,
+      panes: tab.panes.map { pane in
+        .init(
+          index: pane.index,
+          displayTitle: pane.displayTitle,
+          isFocused: pane.isFocused
+        )
+      }
+    )
   }
 
   private static func paneLine(_ pane: Snapshot.Pane) -> String {
@@ -325,7 +430,6 @@ enum SPDebugRenderer {
             [
               "title: \(currentTab.title)",
               "selected: \(yesNo(currentTab.isSelected))",
-              "pinned: \(yesNo(currentTab.isPinned))",
               "dirty: \(yesNo(currentTab.isDirty))",
               "title locked: \(yesNo(currentTab.isTitleLocked))",
               "running: \(yesNo(currentTab.hasRunningActivity))",
@@ -411,7 +515,7 @@ enum SPDebugRenderer {
 
     for window in app.windows {
       for space in window.spaces {
-        if let tab = space.tabs.first(where: { $0.id == currentTarget.tabID }) {
+        if let tab = space.flattenedTabs.first(where: { $0.id == currentTarget.tabID }) {
           return tab
         }
       }
@@ -427,7 +531,7 @@ enum SPDebugRenderer {
 
     for window in app.windows {
       for space in window.spaces {
-        for tab in space.tabs {
+        for tab in space.flattenedTabs {
           if let pane = tab.panes.first(where: { $0.id == paneID }) {
             return pane
           }

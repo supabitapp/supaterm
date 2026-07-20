@@ -166,28 +166,16 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let terminal = try readyTerminal()
     terminal.click()
 
-    let pinnedSection = element(
-      SupatermUITestIdentifier.Accessibility.sidebarPinnedSection
-    )
-    let regularSection = element(
-      SupatermUITestIdentifier.Accessibility.sidebarRegularSection
-    )
-    XCTAssertTrue(pinnedSection.waitForExistence(timeout: 10))
-    XCTAssertTrue(regularSection.waitForExistence(timeout: 10))
-
-    let pinnedRows = pinnedSection.descendants(matching: .button).matching(
+    let rows = app.buttons.matching(
       identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
     )
-    let regularRows = regularSection.descendants(matching: .button).matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
-    XCTAssertEqual(pinnedRows.count, 0)
-    XCTAssertEqual(regularRows.count, 1)
+    XCTAssertEqual(rows.count, 1)
+    XCTAssertFalse(rows.firstMatch.label.contains("Pinned"))
 
     try await executePaletteCommand("Pin Tab")
 
-    let didMoveTab = await wait(for: pinnedRows.firstMatch) {
-      $0.exists && pinnedRows.count == 1 && !regularRows.firstMatch.exists
+    let didMoveTab = await wait(for: rows.firstMatch) {
+      $0.exists && $0.label.contains("Pinned") && rows.count == 1
     }
     XCTAssertTrue(didMoveTab)
   }

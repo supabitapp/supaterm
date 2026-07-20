@@ -128,8 +128,7 @@ struct TerminalCommandPaletteStateTests {
   private func makeSnapshot(selectedTabIsPinned: Bool = false) -> TerminalCommandPaletteSnapshot {
     let selectedSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
     let otherSpaceID = TerminalSpaceID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!)
-    var visibleTabs = self.visibleTabs
-    visibleTabs[0].isPinned = selectedTabIsPinned
+    let visibleTabs = self.visibleTabs
 
     return TerminalCommandPaletteSnapshot(
       ghosttyCommands: [
@@ -183,7 +182,15 @@ struct TerminalCommandPaletteStateTests {
         TerminalSpaceItem(id: otherSpaceID, name: "Workspace Beta"),
       ],
       selectedTabID: visibleTabs[0].id,
-      visibleTabs: visibleTabs
+      rootItems: [
+        .tab(
+          TerminalUngroupedTabItem(
+            tab: visibleTabs[0],
+            isPinned: selectedTabIsPinned
+          )
+        ),
+        .tab(TerminalUngroupedTabItem(tab: visibleTabs[1], isPinned: false)),
+      ]
     )
   }
 }

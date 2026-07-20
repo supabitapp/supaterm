@@ -38,6 +38,80 @@ struct SPCommandTests {
   }
 
   @Test
+  func groupParsersAcceptPublicCommandShapes() throws {
+    let groupID = UUID(uuidString: "5A52445E-E42A-48B7-A5DD-C6C7C978B139")!
+    let create = try #require(
+      try SP.parseAsRoot([
+        "group", "new", "Work", "--color", "blue", "--pin", "--in", "2",
+      ]) as? SP.GroupNew
+    )
+    let rename = try #require(
+      try SP.parseAsRoot(["group", "rename", "Build", groupID.uuidString]) as? SP.GroupRename
+    )
+    let move = try #require(
+      try SP.parseAsRoot(["group", "move", "Work", "--index", "2"]) as? SP.GroupMove
+    )
+    let close = try #require(
+      try SP.parseAsRoot(["group", "close", "Work", "-y"]) as? SP.GroupClose
+    )
+
+    #expect(create.title == "Work")
+    #expect(create.color == .blue)
+    #expect(create.pin)
+    #expect(create.space == .index(2))
+    #expect(rename.title == "Build")
+    #expect(rename.group == .id(groupID))
+    #expect(move.group == .title("Work"))
+    #expect(move.index == 2)
+    #expect(close.group == .title("Work"))
+    #expect(close.yes)
+  }
+
+  @Test
+  func moveTabParsesExclusiveGroupAndRootDestinations() throws {
+    let grouped = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--index", "1"])
+        as? SP.MoveTab
+    )
+    let rooted = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--root", "--index", "2", "--pin"])
+        as? SP.MoveTab
+    )
+
+    #expect(try grouped.destinationReference() == .group(.title("Work")))
+    #expect(grouped.index == 1)
+    #expect(try rooted.destinationReference() == .root)
+    #expect(rooted.index == 2)
+    #expect(rooted.pin)
+  }
+
+  @Test
+  func moveTabRejectsMissingConflictingAndPinnedGroupDestinations() throws {
+    let missing = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2"]) as? SP.MoveTab
+    )
+    let conflicting = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--root"])
+        as? SP.MoveTab
+    )
+    let pinnedGroup = try #require(
+      try SP.parseAsRoot(["tab", "move", "1/2", "--group", "Work", "--pin"])
+        as? SP.MoveTab
+    )
+
+    #expect(throws: ValidationError.self) { try missing.destinationReference() }
+    #expect(throws: ValidationError.self) { try conflicting.destinationReference() }
+    #expect(throws: ValidationError.self) { try pinnedGroup.destinationReference() }
+  }
+
+  @Test
+  func newTabRejectsGroupAndRootTogether() throws {
+    #expect(throws: (any Error).self) {
+      try SP.parseAsRoot(["tab", "new", "--group", "Work", "--root"])
+    }
+  }
+
+  @Test
   func spaceDestroyParserAcceptsYesFlag() throws {
     let command = try #require(
       try SP.parseAsRoot(["space", "destroy", "-y", "1"]) as? SP.SpaceDestroy
@@ -425,39 +499,42 @@ struct SPCommandTests {
               id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
               name: "A",
               isSelected: true,
-              tabs: [
-                SupatermAppDebugSnapshot.Tab(
-                  index: 1,
-                  id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
-                  title: "fish",
-                  isSelected: true,
-                  isPinned: false,
-                  isDirty: false,
-                  isTitleLocked: false,
-                  hasRunningActivity: false,
-                  hasBell: false,
-                  hasReadOnly: false,
-                  hasSecureInput: false,
-                  panes: [
-                    SupatermAppDebugSnapshot.Pane(
-                      index: 1,
-                      id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
-                      isFocused: true,
-                      displayTitle: "build",
-                      pwd: nil,
-                      isReadOnly: false,
+              rootItems: [
+                .tab(
+                  SupatermAppDebugSnapshot.RootTab(
+                    isPinned: false,
+                    tab: SupatermAppDebugSnapshot.Tab(
+                      id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
+                      title: "fish",
+                      isSelected: true,
+                      isDirty: false,
+                      isTitleLocked: false,
+                      hasRunningActivity: false,
+                      hasBell: false,
+                      hasReadOnly: false,
                       hasSecureInput: false,
-                      bellCount: 0,
-                      isRunning: false,
-                      progressState: nil,
-                      progressValue: nil,
-                      needsCloseConfirmation: false,
-                      lastCommandExitCode: nil,
-                      lastCommandDurationMs: nil,
-                      lastChildExitCode: nil,
-                      lastChildExitTimeMs: nil
+                      panes: [
+                        SupatermAppDebugSnapshot.Pane(
+                          index: 1,
+                          id: UUID(uuidString: "2B8B3A57-D7F8-4EF7-930F-46B1F7281B2A")!,
+                          isFocused: true,
+                          displayTitle: "build",
+                          pwd: nil,
+                          isReadOnly: false,
+                          hasSecureInput: false,
+                          bellCount: 0,
+                          isRunning: false,
+                          progressState: nil,
+                          progressValue: nil,
+                          needsCloseConfirmation: false,
+                          lastCommandExitCode: nil,
+                          lastCommandDurationMs: nil,
+                          lastChildExitCode: nil,
+                          lastChildExitTimeMs: nil
+                        )
+                      ]
                     )
-                  ]
+                  )
                 )
               ]
             )

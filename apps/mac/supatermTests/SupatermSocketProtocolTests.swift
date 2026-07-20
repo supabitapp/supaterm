@@ -595,7 +595,6 @@ struct SupatermSocketProtocolTests {
   @Test
   func treeRequestAndSnapshotRoundTripThroughTypedHelpers() throws {
     let tab = SupatermTreeSnapshot.Tab(
-      index: 1,
       id: UUID(uuidString: "6BFC889D-2D0F-4675-924E-B15A6A4E372B")!,
       title: "zsh",
       isSelected: true,
@@ -617,7 +616,19 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "A6E57B1B-0A61-4F72-BD52-B26DC5D3C497")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      rootItems: [
+        .group(
+          SupatermTreeSnapshot.Group(
+            color: .blue,
+            id: UUID(uuidString: "F08C721E-A7E9-4A7C-B350-944EDB986FA2")!,
+            isCollapsed: true,
+            isPinned: false,
+            title: "Work",
+            tabs: [tab]
+          )
+        ),
+        .tab(SupatermTreeSnapshot.RootTab(isPinned: true, tab: tab)),
+      ]
     )
     let window = SupatermTreeSnapshot.Window(
       index: 1,
@@ -633,6 +644,25 @@ struct SupatermSocketProtocolTests {
 
     #expect(request.method == SupatermSocketMethod.appTree)
     #expect(try response.decodeResult(SupatermTreeSnapshot.self) == snapshot)
+
+    let json = try #require(
+      JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any]
+    )
+    let windows = try #require(json["windows"] as? [[String: Any]])
+    let spaces = try #require(windows.first?["spaces"] as? [[String: Any]])
+    let rootItems = try #require(spaces.first?["rootItems"] as? [[String: Any]])
+    let group = try #require(rootItems.first)
+    #expect(group["kind"] as? String == "group")
+    #expect(group["title"] as? String == "Work")
+    #expect(group["color"] as? String == "blue")
+    #expect(group["group"] == nil)
+    #expect((try #require(group["tabs"] as? [[String: Any]])).first?["index"] == nil)
+    let rootTab = try #require(rootItems.dropFirst().first)
+    #expect(rootTab["kind"] as? String == "tab")
+    #expect(rootTab["isPinned"] as? Bool == true)
+    #expect(rootTab["tab"] is [String: Any])
+    #expect(rootTab["tabs"] == nil)
+    #expect(rootTab["group"] == nil)
   }
 
   @Test
@@ -676,11 +706,9 @@ struct SupatermSocketProtocolTests {
       lastChildExitTimeMs: nil
     )
     let tab = SupatermAppDebugSnapshot.Tab(
-      index: 1,
       id: context.tabID,
       title: "zsh",
       isSelected: true,
-      isPinned: false,
       isDirty: true,
       isTitleLocked: false,
       hasRunningActivity: true,
@@ -694,7 +722,7 @@ struct SupatermSocketProtocolTests {
       id: UUID(uuidString: "3006D18B-D5B7-47E5-9632-5BFD80C1FF21")!,
       name: "A",
       isSelected: true,
-      tabs: [tab]
+      rootItems: [.tab(SupatermAppDebugSnapshot.RootTab(isPinned: false, tab: tab))]
     )
     let window = SupatermAppDebugSnapshot.Window(
       index: 1,

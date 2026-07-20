@@ -237,6 +237,12 @@ public struct SocketControlFeature {
     ) {
       return response
     }
+    if let response = try await terminalTabGroupResponseResult(
+      for: request,
+      socketRequestExecutor: socketRequestExecutor
+    ) {
+      return response
+    }
     return try await terminalSpaceResponseResult(
       for: request,
       socketRequestExecutor: socketRequestExecutor

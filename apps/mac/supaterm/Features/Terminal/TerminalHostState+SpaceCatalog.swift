@@ -91,7 +91,8 @@ extension TerminalHostState {
     lastAppliedSpaceCatalog = resolvedSpaceCatalog
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogObserved)
-    synchronizePinnedTabCatalogWithSpaces()
+    let spaceIDs = Set(spaces.map(\.id))
+    collapsedTabGroupIDsBySpace = collapsedTabGroupIDsBySpace.filter { spaceIDs.contains($0.key) }
 
     if previousSelectedSpaceID != selectedSpaceID {
       finalizeSpaceSelectionChange()
@@ -112,7 +113,8 @@ extension TerminalHostState {
 
     let diff = spaceManager.applyCatalog(resolvedSpaceCatalog)
     removeTrees(for: diff.removedTabIDs, source: .spaceCatalogWrite)
-    synchronizePinnedTabCatalogWithSpaces()
+    let spaceIDs = Set(spaces.map(\.id))
+    collapsedTabGroupIDsBySpace = collapsedTabGroupIDsBySpace.filter { spaceIDs.contains($0.key) }
     return diff
   }
 

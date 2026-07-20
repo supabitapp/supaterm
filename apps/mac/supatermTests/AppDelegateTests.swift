@@ -254,7 +254,7 @@ struct AppDelegateTests {
   @Test
   func launchReaperKnownSessionsIncludesLiveSurfaces() {
     let persistedSurfaceID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-    let pinnedSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+    let secondPersistedSurfaceID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     let liveSurfaceID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
     let spaceID = TerminalSpaceID(rawValue: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!)
     let sessionCatalog = TerminalSessionCatalog(
@@ -265,53 +265,50 @@ struct AppDelegateTests {
             TerminalWindowSpaceSession(
               id: spaceID,
               selectedTabIndex: 0,
-              tabs: [
-                TerminalTabSession(
+              collapsedGroupIDs: [],
+              rootItems: [
+                .tab(
                   isPinned: false,
-                  lockedTitle: nil,
-                  focusedPaneIndex: 0,
-                  root: .leaf(TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil))
-                )
+                  tab: TerminalTabSession(
+                    lockedTitle: nil,
+                    focusedPaneIndex: 0,
+                    root: .leaf(
+                      TerminalPaneLeafSession(id: persistedSurfaceID, workingDirectoryPath: nil)
+                    )
+                  )
+                ),
+                .tab(
+                  isPinned: true,
+                  tab: TerminalTabSession(
+                    lockedTitle: nil,
+                    focusedPaneIndex: 0,
+                    root: .leaf(
+                      TerminalPaneLeafSession(
+                        id: secondPersistedSurfaceID,
+                        workingDirectoryPath: nil
+                      )
+                    )
+                  )
+                ),
               ]
             )
           ]
         )
       ]
     )
-    let pinnedTabCatalog = TerminalPinnedTabCatalog(
-      spaces: [
-        PersistedPinnedTerminalTabsForSpace(
-          id: spaceID,
-          tabs: [
-            PersistedPinnedTerminalTab(
-              id: TerminalTabID(),
-              session: TerminalTabSession(
-                isPinned: true,
-                lockedTitle: nil,
-                focusedPaneIndex: 0,
-                root: .leaf(TerminalPaneLeafSession(id: pinnedSurfaceID, workingDirectoryPath: nil))
-              )
-            )
-          ]
-        )
-      ]
-    )
-
     #expect(
       AppDelegate.knownZmxSessionIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: true,
         sessionCatalog: sessionCatalog,
-        pinnedTabCatalog: pinnedTabCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([persistedSurfaceID, pinnedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == Set([persistedSurfaceID, secondPersistedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
     )
     #expect(
       AppDelegate.knownZmxSessionIDsForLaunchReaping(
         restoreTerminalLayoutEnabled: false,
         sessionCatalog: sessionCatalog,
-        pinnedTabCatalog: pinnedTabCatalog,
         liveSurfaceIDs: [liveSurfaceID]
-      ) == Set([pinnedSurfaceID, liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
+      ) == Set([liveSurfaceID].map { ZmxSessionID.make(surfaceID: $0) })
     )
   }
 }

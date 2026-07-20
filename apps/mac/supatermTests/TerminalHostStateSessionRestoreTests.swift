@@ -201,6 +201,10 @@ struct TerminalHostStateSessionRestoreTests {
       host.spaceManager.tabManager(for: secondSpaceID)?.setLockedTitle(
         secondSpaceSelectedTabID, title: "Pinned Tab")
       host.selectedSurfaceView?.setTitleOverride("Pane Title")
+      let groupID = try #require(
+        host.createGroup(title: "Workspace", color: .purple, containing: [secondSpaceSelectedTabID])
+      )
+      #expect(host.setGroupCollapsed(groupID, isCollapsed: true))
 
       let snapshot = host.restorationSnapshot()
 
@@ -215,7 +219,16 @@ struct TerminalHostStateSessionRestoreTests {
           == restored.spaceManager.tabs(in: secondSpaceID).last?.id
       )
       #expect(restored.spaceManager.tabs(in: secondSpaceID).count == secondSpaceTabs.count)
-      #expect(restored.spaceManager.tabs(in: secondSpaceID).map(\.isPinned) == [true, false])
+      #expect(restored.spaceManager.rootItems(in: secondSpaceID).map(\.isPinned) == [true, true])
+      #expect(restored.collapsedTabGroupIDs == [groupID])
+      let restoredGroupedTabID = try #require(
+        restored.spaceManager.tabs(in: secondSpaceID).last?.id
+      )
+      #expect(
+        restored.spaceManager.tabManager(for: secondSpaceID)?.groupID(
+          containing: restoredGroupedTabID
+        ) == groupID
+      )
       #expect(restored.spaceManager.tabs(in: secondSpaceID).last?.title == "Pinned Tab")
       #expect(restored.spaceManager.tabs(in: secondSpaceID).last?.isTitleLocked == true)
       #expect(restored.selectedSurfaceState?.pwd == restoredPathString)
@@ -224,12 +237,14 @@ struct TerminalHostStateSessionRestoreTests {
       let debug = restored.debugWindowSnapshot(index: 1)
       let restoredFirstSpace = try #require(
         debug.spaces.first(where: { $0.id == firstSpaceID.rawValue }))
-      let restoredFirstTab = try #require(restoredFirstSpace.tabs.first)
+      let restoredFirstTab = try #require(debugTabs(in: restoredFirstSpace).first)
+      let restoredLastSpace = try #require(debug.spaces.last)
 
       #expect(restoredFirstTab.panes.count == 2)
       #expect(restoredFirstTab.panes.filter(\.isFocused).count == 1)
       #expect(
-        debug.spaces.last?.tabs.last?.panes.first(where: \.isFocused)?.displayTitle == "Pane Title")
+        debugTabs(in: restoredLastSpace).last?.panes.first(where: \.isFocused)?.displayTitle
+          == "Pane Title")
     }
   }
 
@@ -240,5 +255,18 @@ struct TerminalHostStateSessionRestoreTests {
       killSession: killSession,
       listSessions: { [] }
     )
+  }
+
+  private func debugTabs(
+    in space: SupatermAppDebugSnapshot.Space
+  ) -> [SupatermAppDebugSnapshot.Tab] {
+    space.rootItems.flatMap { item in
+      switch item {
+      case .group(let group):
+        group.tabs
+      case .tab(let rootTab):
+        [rootTab.tab]
+      }
+    }
   }
 }

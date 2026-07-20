@@ -21,12 +21,8 @@ final class TerminalSpaceManager {
     activeTabManager?.tabs ?? []
   }
 
-  var pinnedTabs: [TerminalTabItem] {
-    activeTabManager?.pinnedTabs ?? []
-  }
-
-  var regularTabs: [TerminalTabItem] {
-    activeTabManager?.regularTabs ?? []
+  var rootItems: [TerminalTabRootItem] {
+    activeTabManager?.rootItems ?? []
   }
 
   var visibleTabs: [TerminalTabItem] {
@@ -115,8 +111,27 @@ final class TerminalSpaceManager {
     }
   }
 
+  func space(for groupID: TerminalTabGroupID) -> TerminalSpaceItem? {
+    spaces.first { space in
+      tabManagers[space.id]?.group(for: groupID) != nil
+    }
+  }
+
+  func space(for rootItemID: TerminalTabRootItemID) -> TerminalSpaceItem? {
+    switch rootItemID {
+    case .tab(let tabID):
+      return space(for: tabID)
+    case .group(let groupID):
+      return space(for: groupID)
+    }
+  }
+
   func tabs(in spaceID: TerminalSpaceID) -> [TerminalTabItem] {
     tabManagers[spaceID]?.tabs ?? []
+  }
+
+  func rootItems(in spaceID: TerminalSpaceID) -> [TerminalTabRootItem] {
+    tabManagers[spaceID]?.rootItems ?? []
   }
 
   func space(at index: Int) -> TerminalSpaceItem? {
@@ -143,13 +158,13 @@ final class TerminalSpaceManager {
   }
 
   @discardableResult
-  func restoreTabs(
-    _ tabs: [TerminalTabItem],
+  func restoreRootItems(
+    _ rootItems: [TerminalTabRootItem],
     selectedTabID: TerminalTabID?,
     in spaceID: TerminalSpaceID
   ) -> Bool {
     guard let tabManager = tabManagers[spaceID] else { return false }
-    tabManager.restoreTabs(tabs, selectedTabID: selectedTabID)
+    tabManager.restoreRootItems(rootItems, selectedTabID: selectedTabID)
     return true
   }
 

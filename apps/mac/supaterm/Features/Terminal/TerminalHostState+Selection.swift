@@ -25,6 +25,9 @@ extension TerminalHostState {
       previousSelectedTabIDBySpace[spaceID] = currentSelectedTabID
     }
     spaceManager.tabManager(for: spaceID)?.selectTab(tabID)
+    if let groupID = spaceManager.tabManager(for: spaceID)?.groupID(containing: tabID) {
+      collapsedTabGroupIDsBySpace[spaceID]?.remove(groupID)
+    }
   }
 
   func selectTab(_ tabID: TerminalTabID) {
@@ -35,7 +38,7 @@ extension TerminalHostState {
       persistDefaultSelectedSpaceID(space.id)
     }
     applySelectedTab(tabID, in: space.id)
-    focusSurface(in: tabID)
+    focusSurfaceIfNeeded(in: tabID)
     syncFocus(windowActivity)
     sessionDidChange()
   }
@@ -119,12 +122,16 @@ extension TerminalHostState {
 
   func updateSelectionAfterClosingTab(
     in spaceID: TerminalSpaceID,
-    wasSelectedSpace: Bool
+    wasSelectedSpace: Bool,
+    didCloseSelectedTab: Bool
   ) {
     guard wasSelectedSpace else { return }
 
     if let selectedTabID = spaceManager.selectedTabID(in: spaceID) {
       if isSelectableTab(selectedTabID) {
+        if didCloseSelectedTab {
+          applySelectedTab(selectedTabID, in: spaceID)
+        }
         focusSurfaceIfNeeded(in: selectedTabID)
         return
       }
