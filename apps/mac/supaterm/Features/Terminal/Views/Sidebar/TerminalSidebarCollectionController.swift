@@ -692,15 +692,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       setDropTarget(nil, pointerY: nil)
       return false
     }
-    guard
-      let target = TerminalSidebarDropTargetResolver.resolve(
-        drag: drag,
-        pointerY: location.y,
-        outline: appliedOutline,
-        frames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.items.map { ($0.id, $0.frame) }),
-        groupFrames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.groups.map { ($0.id, $0.frame) })
-      )
-    else {
+    guard let target = collectionLayout.dropTarget else {
       logDrag(
         "sidebar.drag.nativeDropRejected",
         drag: drag,
@@ -721,7 +713,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     drag: TerminalSidebarDragValue,
     fields: [String] = []
   ) {
-    SupatermLog.debug(
+    SupatermLog.verbose(
       SupatermLog.sidebarDrag,
       event,
       fields: dragFields(drag) + fields

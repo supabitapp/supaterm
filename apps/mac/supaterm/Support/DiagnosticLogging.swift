@@ -40,6 +40,15 @@ public nonisolated enum SupatermLog {
     }
   }
 
+  public static func verbose(
+    _ logger: Logger,
+    _ event: String,
+    fields: [String] = []
+  ) {
+    guard isVerboseLoggingEnabled else { return }
+    notice(logger, event, fields: fields)
+  }
+
   public static func notice(
     _ logger: Logger,
     _ event: String,
