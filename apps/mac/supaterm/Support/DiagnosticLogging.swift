@@ -4,6 +4,7 @@ import OSLog
 
 public nonisolated enum SupatermLog {
   public static let subsystem = "app.supabit.supaterm"
+  public static let sidebarDrag = Logger(subsystem: subsystem, category: "sidebar-drag")
   public static let terminal = Logger(subsystem: subsystem, category: "terminal")
   public static let zmx = Logger(subsystem: subsystem, category: "zmx")
 

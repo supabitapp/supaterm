@@ -154,6 +154,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         outline: outline
       )
     {
+      logDrag(
+        "sidebar.drag.modelApplied",
+        drag: accepted.drag,
+        fields: destinationFields(accepted.destination)
+      )
       pendingUpdate = update
       if let groupID = accepted.createdGroupID,
         let group = outline.group(groupID),
@@ -169,6 +174,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
     if activeDrag != nil {
       if !outlineContainsActiveDrag(outline) {
+        if let drag = activeDrag?.value {
+          logDrag("sidebar.drag.sourceDisappeared", drag: drag)
+        }
         pendingUpdate = update
         settleDragging(accepted: false)
       } else if outline != appliedOutline {
@@ -390,6 +398,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       sourceFrame: sourceFrame,
       hotspot: hotspot
     )
+    logDrag(
+      "sidebar.drag.started",
+      drag: value,
+      fields: [
+        "pinnedRoots=\(appliedOutline.roots.filter(\.isPinned).count)",
+        "regularRoots=\(appliedOutline.roots.filter { !$0.isPinned }.count)",
+        "sourceMinY=\(coordinate(sourceFrame.minY))",
+        "sourceMaxY=\(coordinate(sourceFrame.maxY))",
+      ]
+    )
     hapticTracker.reset()
     collectionLayout.draggedEntryIDs = sourceIDs
     previewPanel = TerminalSidebarDragPreviewPanel(
@@ -430,8 +448,23 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   ) {
     guard let activeDrag, activeDrag.id == sessionID else { return }
     autoscrollController.stop()
+    logDrag(
+      "sidebar.drag.ended",
+      drag: activeDrag.value,
+      fields: [
+        "operation=\(operation.rawValue)",
+        "nativeAccepted=\(activeDrag.acceptedDrop != nil)",
+        "screenX=\(coordinate(screenPoint.x))",
+        "screenY=\(coordinate(screenPoint.y))",
+      ]
+    )
     let recoveredTrailingDrop = activeDrag.acceptedDrop == nil && recoverTrailingDrop(at: screenPoint)
     guard self.activeDrag?.acceptedDrop != nil, operation == .move || recoveredTrailingDrop else {
+      logDrag(
+        "sidebar.drag.rejected",
+        drag: activeDrag.value,
+        fields: ["recovered=\(recoveredTrailingDrop)"]
+      )
       settleDragging(accepted: false)
       return
     }
@@ -439,6 +472,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     self.activeDrag?.watchdog = Task { @MainActor [weak self] in
       try? await Task.sleep(for: .milliseconds(250))
       guard !Task.isCancelled else { return }
+      if let drag = self?.activeDrag?.value {
+        self?.logDrag("sidebar.drag.commitTimedOut", drag: drag)
+      }
       self?.settleDragging(accepted: false)
     }
   }
@@ -470,6 +506,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private func setDropTarget(_ target: TerminalSidebarDropTarget?, pointerY: CGFloat?) {
     let changed = collectionLayout.dropTarget != target
     if changed {
+      if let drag = activeDrag?.value {
+        logDrag(
+          "sidebar.drag.targetChanged",
+          drag: drag,
+          fields: ["pointerY=\(pointerY.map { coordinate($0) } ?? "nil")"]
+            + (target.map { destinationFields($0.destination) } ?? ["destination=none"])
+        )
+      }
       layoutAnimator.animate(enabled: animationsEnabled) {
         collectionLayout.dropTarget = target
       }
@@ -504,10 +548,25 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func recoverTrailingDrop(at screenPoint: NSPoint) -> Bool {
-    guard let window = collectionView.window, let drag = activeDrag?.value else { return false }
+    guard let drag = activeDrag?.value else { return false }
+    guard let window = collectionView.window else {
+      logDrag("sidebar.drag.recoveryRejected", drag: drag, fields: ["reason=noWindow"])
+      return false
+    }
     let windowPoint = window.convertPoint(fromScreen: screenPoint)
     let scrollLocation = scrollView.convert(windowPoint, from: nil)
-    guard scrollView.bounds.contains(scrollLocation) else { return false }
+    guard scrollView.bounds.contains(scrollLocation) else {
+      logDrag(
+        "sidebar.drag.recoveryRejected",
+        drag: drag,
+        fields: [
+          "reason=outsideSidebar",
+          "scrollX=\(coordinate(scrollLocation.x))",
+          "scrollY=\(coordinate(scrollLocation.y))",
+        ]
+      )
+      return false
+    }
     let location = collectionView.convert(windowPoint, from: nil)
     let itemFrames = Dictionary(
       uniqueKeysWithValues: collectionLayout.hitTestPlan.items.map { ($0.id, $0.frame) }
@@ -523,26 +582,58 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         frames: itemFrames,
         groupFrames: groupFrames
       )
-    else { return false }
+    else {
+      logDrag(
+        "sidebar.drag.recoveryRejected",
+        drag: drag,
+        fields: ["reason=noTrailingTarget", "pointerY=\(coordinate(location.y))"]
+      )
+      return false
+    }
     setDropTarget(target, pointerY: location.y)
-    return applyDrop(drag, target: target)
+    return applyDrop(drag, target: target, source: "trailingRecovery")
   }
 
   private func applyDrop(
     _ drag: TerminalSidebarDragValue,
-    target: TerminalSidebarDropTarget
+    target: TerminalSidebarDropTarget,
+    source: String
   ) -> Bool {
-    guard
-      var activeDrag,
-      let result = onDrop?(drag, target.destination),
-      result.accepted
-    else { return false }
+    guard var activeDrag else {
+      logDrag(
+        "sidebar.drag.dropRejected",
+        drag: drag,
+        fields: ["source=\(source)", "reason=noActiveDrag"] + destinationFields(target.destination)
+      )
+      return false
+    }
+    guard let result = onDrop?(drag, target.destination) else {
+      logDrag(
+        "sidebar.drag.dropRejected",
+        drag: drag,
+        fields: ["source=\(source)", "reason=noHandler"] + destinationFields(target.destination)
+      )
+      return false
+    }
+    guard result.accepted else {
+      logDrag(
+        "sidebar.drag.dropRejected",
+        drag: drag,
+        fields: ["source=\(source)", "reason=modelRejected"] + destinationFields(target.destination)
+      )
+      return false
+    }
     activeDrag.acceptedDrop = AcceptedDrop(
       drag: drag,
       destination: target.destination,
       createdGroupID: result.createdGroupID
     )
     self.activeDrag = activeDrag
+    logDrag(
+      "sidebar.drag.dropAccepted",
+      drag: drag,
+      fields: ["source=\(source)"] + destinationFields(target.destination)
+    )
     return true
   }
 
@@ -594,21 +685,78 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     dropOperation: NSCollectionView.DropOperation
   ) -> Bool {
     let location = collectionView.convert(draggingInfo.draggingLocation, from: nil)
+    guard let drag = draggedValue(from: draggingInfo) else {
+      if let drag = activeDrag?.value {
+        logDrag("sidebar.drag.nativeDropRejected", drag: drag, fields: ["reason=invalidPayload"])
+      }
+      setDropTarget(nil, pointerY: nil)
+      return false
+    }
     guard
-      let drag = draggedValue(from: draggingInfo),
       let target = TerminalSidebarDropTargetResolver.resolve(
         drag: drag,
         pointerY: location.y,
         outline: appliedOutline,
         frames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.items.map { ($0.id, $0.frame) }),
         groupFrames: Dictionary(uniqueKeysWithValues: collectionLayout.hitTestPlan.groups.map { ($0.id, $0.frame) })
-      ),
-      applyDrop(drag, target: target)
+      )
     else {
+      logDrag(
+        "sidebar.drag.nativeDropRejected",
+        drag: drag,
+        fields: ["reason=noTarget", "pointerY=\(coordinate(location.y))"]
+      )
       setDropTarget(nil, pointerY: nil)
       return false
     }
-    return true
+    let accepted = applyDrop(drag, target: target, source: "appKit")
+    if !accepted {
+      setDropTarget(nil, pointerY: nil)
+    }
+    return accepted
+  }
+
+  private func logDrag(
+    _ event: String,
+    drag: TerminalSidebarDragValue,
+    fields: [String] = []
+  ) {
+    SupatermLog.notice(
+      SupatermLog.sidebarDrag,
+      event,
+      fields: dragFields(drag) + fields
+    )
+  }
+
+  private func dragFields(_ drag: TerminalSidebarDragValue) -> [String] {
+    switch drag {
+    case .tab(let id):
+      ["drag=tab", "dragID=\(SupatermLog.uuid(id.rawValue))"]
+    case .group(let id):
+      ["drag=group", "dragID=\(SupatermLog.uuid(id.rawValue))"]
+    }
+  }
+
+  private func destinationFields(_ destination: TerminalSidebarDropDestination) -> [String] {
+    switch destination {
+    case .root(let isPinned, let index):
+      ["destination=root", "isPinned=\(isPinned)", "index=\(index)"]
+    case .group(let id, let index):
+      [
+        "destination=group",
+        "destinationID=\(SupatermLog.uuid(id.rawValue))",
+        "index=\(index)",
+      ]
+    case .createGroup(let targetTabID):
+      [
+        "destination=createGroup",
+        "targetTabID=\(SupatermLog.uuid(targetTabID.rawValue))",
+      ]
+    }
+  }
+
+  private func coordinate(_ value: CGFloat) -> String {
+    String(format: "%.1f", Double(value))
   }
 
   func collectionView(
