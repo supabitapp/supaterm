@@ -56,7 +56,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   let renameState = TerminalSidebarRenameState()
-  let groupHoverState = TerminalSidebarGroupHoverState()
+  let groupHeaderHoverState = TerminalSidebarGroupHeaderHoverState()
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
 
   private let scrollView = TerminalSidebarScrollView()
@@ -77,6 +77,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private var updatePhase = UpdatePhase.idle
   private var hasAppliedSnapshot = false
   private var selectedTabID: TerminalTabID?
+  private var hoveredGroupID: TerminalTabGroupID?
   private var pendingRevealTabID: TerminalTabID?
   private var pendingDrag: PendingDrag?
   private var activeDrag: ActiveDrag?
@@ -126,14 +127,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     self.rows = rows
     self.context = context
     motionPolicy = TerminalSidebarMotionPolicy(reduceMotion: reduceMotion)
-    groupHoverState.retain(
-      Set(
-        outline.roots.compactMap { root -> TerminalTabGroupID? in
-          guard case .group(let id, _, _, _) = root.content else { return nil }
-          return id
-        }
-      )
+    let groupIDs = Set(
+      outline.roots.compactMap { root -> TerminalTabGroupID? in
+        guard case .group(let id, _, _, _) = root.content else { return nil }
+        return id
+      }
     )
+    groupHeaderHoverState.retain(groupIDs)
+    if let hoveredGroupID, !groupIDs.contains(hoveredGroupID) {
+      setHoveredGroupID(nil)
+    }
     measuredHeights = measuredHeights.filter { id, measurement in
       guard let row = rows[id] else { return false }
       return measurement.key == row.measurementKey
@@ -167,9 +170,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func configureHierarchy() {
-    groupHoverState.onChange = { [weak self] previous, current in
-      self?.refreshGroupSurfaces(ids: Set([previous, current].compactMap { $0 }))
-    }
     scrollView.drawsBackground = false
     scrollView.contentInsets.top = TerminalSidebarLayout.firstVisibleSectionTopInset
     view.addSubview(scrollView)
@@ -212,6 +212,9 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     }
     collectionView.onDraggingSessionEnded = { [weak self] _, _ in
       self?.nativeDraggingEnded(source: "source")
+    }
+    collectionView.onPointerMoved = { [weak self] point in
+      self?.updateGroupHover(at: point)
     }
 
     dataSource = NSCollectionViewDiffableDataSource(collectionView: collectionView) {
@@ -510,7 +513,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       let payload = appliedOutline.dragPayload(for: entryID)
     else { return false }
     let liftedEntryIDs = appliedOutline.liftedEntryIDs(for: payload.source)
-    groupHoverState.clear()
+    groupHeaderHoverState.clear()
+    setHoveredGroupID(nil)
     let sourceIDs = Set(liftedEntryIDs)
     guard
       let sourceFrame = collectionLayout.plan.items
@@ -921,6 +925,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionLayout.invalidateLayout()
     collectionView.layoutSubtreeIfNeeded()
     updateDecorations()
+    updateGroupHover(at: collectionView.pointerLocation)
   }
 
   private func updateDecorations() {
@@ -965,6 +970,18 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     }
   }
 
+  private func updateGroupHover(at point: CGPoint?) {
+    let groupID = activeDrag == nil ? point.flatMap(collectionLayout.plan.groupID(at:)) : nil
+    setHoveredGroupID(groupID)
+  }
+
+  private func setHoveredGroupID(_ groupID: TerminalTabGroupID?) {
+    guard hoveredGroupID != groupID else { return }
+    let previous = hoveredGroupID
+    hoveredGroupID = groupID
+    refreshGroupSurfaces(ids: Set([previous, groupID].compactMap { $0 }))
+  }
+
   private func updateGroupSurface(
     group: TerminalSidebarLayoutPlan.Group,
     background: TerminalSidebarGroupBackgroundView
@@ -974,7 +991,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       color: group.color,
       palette: context.palette,
       surfaceState: TerminalSidebarGroupSurfaceState.resolve(
-        isHovered: groupHoverState.groupID == group.id,
+        isHovered: hoveredGroupID == group.id,
         isDropTarget: collectionLayout.plan.highlightedGroupID == group.id
       ),
       alpha: group.alpha,

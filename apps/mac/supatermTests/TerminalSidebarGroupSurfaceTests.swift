@@ -9,28 +9,25 @@ struct TerminalSidebarGroupSurfaceTests {
   func hoverStateGuardsRepeatedAndStaleTransitions() {
     let first = TerminalTabGroupID()
     let second = TerminalTabGroupID()
-    let state = TerminalSidebarGroupHoverState()
-    var changes: [(TerminalTabGroupID?, TerminalTabGroupID?)] = []
-    state.onChange = { changes.append(($0, $1)) }
+    let state = TerminalSidebarGroupHeaderHoverState()
 
     state.enter(first)
+    #expect(state.groupID == first)
     state.enter(first)
     state.enter(second)
+    #expect(state.groupID == second)
     state.exit(first)
+    #expect(state.groupID == second)
     state.exit(second)
 
     #expect(state.groupID == nil)
-    #expect(changes.count == 3)
-    #expect(changes[0].0 == nil && changes[0].1 == first)
-    #expect(changes[1].0 == first && changes[1].1 == second)
-    #expect(changes[2].0 == second && changes[2].1 == nil)
   }
 
   @Test @MainActor
   func removalDragClearAndReuseLeaveNoStaleHover() {
     let first = TerminalTabGroupID()
     let second = TerminalTabGroupID()
-    let state = TerminalSidebarGroupHoverState()
+    let state = TerminalSidebarGroupHeaderHoverState()
 
     state.enter(first)
     state.retain([second])
@@ -65,7 +62,7 @@ struct TerminalSidebarGroupSurfaceTests {
       TerminalSidebarGroupSurfaceStyle.resolve(.hovered)
         == TerminalSidebarGroupSurfaceStyle(
           fillOpacity: 0.10,
-          hoverOpacity: 1,
+          hoverOpacity: 0.10,
           strokeOpacity: 0.18
         )
     )
@@ -80,18 +77,9 @@ struct TerminalSidebarGroupSurfaceTests {
   }
 
   @Test
-  func hoverTokenMatchesLightAndDarkValues() {
-    let light = Palette(colorScheme: .light).sidebarGroupHoverFillValue
-    let dark = Palette(colorScheme: .dark).sidebarGroupHoverFillValue
-
-    #expect(light.red == 1)
-    #expect(light.green == 1)
-    #expect(light.blue == 1)
-    #expect(light.alpha == 0.40)
-    #expect(dark.red == 1)
-    #expect(dark.green == 1)
-    #expect(dark.blue == 1)
-    #expect(dark.alpha == 0.12)
+  func hoverBlendStrengthensContrastForEachScheme() {
+    #expect(TerminalSidebarGroupSurfaceBlendMode.resolve(colorScheme: .light) == .plusDarker)
+    #expect(TerminalSidebarGroupSurfaceBlendMode.resolve(colorScheme: .dark) == .plusLighter)
   }
 
   @Test

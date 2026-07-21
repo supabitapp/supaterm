@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import Foundation
 import SupaTheme
@@ -15,6 +16,14 @@ extension SnapshotCatalog {
       size: CGSize(width: 280, height: 560)
     ) { appearance in
       AnyView(SidebarChromeSnapshotFixture(appearance: appearance))
+    },
+    scenario(
+      "full-group-hover",
+      group: "Sidebar",
+      title: "Full sidebar group hover",
+      size: CGSize(width: 280, height: 560)
+    ) { appearance in
+      AnyView(SidebarChromeGroupHoverSnapshotFixture(appearance: appearance))
     },
     scenario(
       "basic-selected",
@@ -794,6 +803,67 @@ private struct SidebarChromeSnapshotFixture: View {
     .padding(.vertical, 8)
     .background(palette.windowBackgroundTint)
     .background(palette.detailBackground)
+  }
+}
+
+private struct SidebarChromeGroupHoverSnapshotFixture: NSViewRepresentable {
+  let appearance: SnapshotAppearance
+
+  func makeNSView(context: Context) -> SidebarChromeGroupHoverSnapshotView {
+    SidebarChromeGroupHoverSnapshotView(appearance: appearance)
+  }
+
+  func updateNSView(_ view: SidebarChromeGroupHoverSnapshotView, context: Context) {
+    view.snapshotAppearance = appearance
+  }
+}
+
+@MainActor
+private final class SidebarChromeGroupHoverSnapshotView: NSView {
+  private let hostingView: NSHostingView<SidebarChromeSnapshotFixture>
+
+  var snapshotAppearance: SnapshotAppearance {
+    didSet {
+      hostingView.rootView = SidebarChromeSnapshotFixture(appearance: snapshotAppearance)
+    }
+  }
+
+  init(appearance: SnapshotAppearance) {
+    snapshotAppearance = appearance
+    hostingView = NSHostingView(rootView: SidebarChromeSnapshotFixture(appearance: appearance))
+    super.init(frame: .zero)
+    addSubview(hostingView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+  override func layout() {
+    super.layout()
+    hostingView.frame = bounds
+    hostingView.layoutSubtreeIfNeeded()
+
+    guard
+      let collectionView = descendant(TerminalSidebarCollectionView.self, in: hostingView),
+      let groupBackground = collectionView.subviews.first(where: {
+        $0 is TerminalSidebarGroupBackgroundView
+      })
+    else { return }
+
+    collectionView.onPointerMoved?(
+      CGPoint(x: groupBackground.frame.midX, y: groupBackground.frame.midY)
+    )
+  }
+
+  private func descendant<View: NSView>(
+    _ type: View.Type,
+    in root: NSView
+  ) -> View? {
+    if let view = root as? View { return view }
+    for subview in root.subviews {
+      if let view = descendant(type, in: subview) { return view }
+    }
+    return nil
   }
 }
 

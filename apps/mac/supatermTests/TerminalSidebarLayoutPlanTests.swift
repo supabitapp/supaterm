@@ -235,6 +235,29 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func groupHoverFrameContainsHeaderAndChildren() throws {
+    let child = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: false
+        )
+      ],
+      revision: 1
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(outline: outline)
+    let groupFrame = try #require(plan.groups.first?.frame)
+    let headerFrame = try #require(plan.items.first { $0.id == .group(groupID) }?.frame)
+    let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
+
+    #expect(plan.groupID(at: CGPoint(x: groupFrame.midX, y: headerFrame.midY)) == groupID)
+    #expect(plan.groupID(at: CGPoint(x: groupFrame.midX, y: childFrame.midY)) == groupID)
+    #expect(plan.groupID(at: CGPoint(x: groupFrame.maxX + 1, y: childFrame.midY)) == nil)
+  }
+
+  @Test
   func orderedTargetMapUsesFirstMatch() {
     let first = TerminalSidebarSemanticTarget(
       path: .rootBoundary(index: 0, affinity: .before),

@@ -173,6 +173,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
   }
 
+  func groupID(at point: CGPoint) -> TerminalTabGroupID? {
+    groups.first { $0.frame.contains(point) }?.id
+  }
+
   func interpolated(from origin: Self, progress: CGFloat) -> Self {
     let progress = max(0, min(progress, 1))
     let originItems = Dictionary(uniqueKeysWithValues: origin.items.map { ($0.id, $0) })

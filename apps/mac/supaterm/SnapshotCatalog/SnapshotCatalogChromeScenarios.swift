@@ -107,7 +107,6 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "sidebarSelectedStroke", color: palette.sidebarSelectedStroke),
       TokenSwatch(name: "sidebarItemHoverFill", color: palette.sidebarItemHoverFill),
       TokenSwatch(name: "sidebarItemPressedFill", color: palette.sidebarItemPressedFill),
-      TokenSwatch(name: "sidebarGroupHoverFill", color: palette.sidebarGroupHoverFill),
       TokenSwatch(name: "sidebarSeparator", color: palette.sidebarSeparator),
       TokenSwatch(name: "shadow", color: palette.shadow),
       TokenSwatch(name: "scrim", color: palette.scrim),

@@ -208,6 +208,8 @@ struct TerminalSidebarDragCoordinator: Equatable {
 
 @MainActor
 final class TerminalSidebarCollectionView: NSCollectionView {
+  private var pointerTrackingArea: NSTrackingArea?
+
   var onRowMouseDown: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseDragged: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseUp: ((TerminalSidebarEntryID) -> Bool)?
@@ -218,6 +220,13 @@ final class TerminalSidebarCollectionView: NSCollectionView {
   var onPerformDragOperation: (((any NSDraggingInfo)) -> Bool)?
   var onDraggingSessionMoved: ((NSPoint) -> Void)?
   var onDraggingSessionEnded: ((NSPoint, NSDragOperation) -> Void)?
+  var onPointerMoved: ((CGPoint?) -> Void)?
+
+  var pointerLocation: CGPoint? {
+    guard let window, window.isKeyWindow else { return nil }
+    let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    return visibleRect.contains(point) ? point : nil
+  }
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -225,6 +234,34 @@ final class TerminalSidebarCollectionView: NSCollectionView {
 
   @available(*, unavailable)
   required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let pointerTrackingArea { removeTrackingArea(pointerTrackingArea) }
+    let pointerTrackingArea = NSTrackingArea(
+      rect: .zero,
+      options: [.activeInKeyWindow, .inVisibleRect, .mouseEnteredAndExited, .mouseMoved],
+      owner: self,
+      userInfo: nil
+    )
+    addTrackingArea(pointerTrackingArea)
+    self.pointerTrackingArea = pointerTrackingArea
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    updatePointer(with: event)
+    super.mouseEntered(with: event)
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    updatePointer(with: event)
+    super.mouseMoved(with: event)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    onPointerMoved?(nil)
+    super.mouseExited(with: event)
+  }
 
   func rowMouseDown(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
     onRowMouseDown?(entryID, event) == true
@@ -236,6 +273,10 @@ final class TerminalSidebarCollectionView: NSCollectionView {
 
   func rowMouseUp(entryID: TerminalSidebarEntryID) -> Bool {
     onRowMouseUp?(entryID) == true
+  }
+
+  private func updatePointer(with event: NSEvent) {
+    onPointerMoved?(convert(event.locationInWindow, from: nil))
   }
 
   override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {

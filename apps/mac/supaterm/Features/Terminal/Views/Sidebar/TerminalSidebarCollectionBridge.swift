@@ -30,7 +30,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
         terminal: terminal,
         palette: palette,
         renameState: controller.renameState,
-        groupHoverState: controller.groupHoverState,
+        groupHeaderHoverState: controller.groupHeaderHoverState,
         actions: actions
       ),
       selectedTabID: selectedTabID,

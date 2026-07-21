@@ -60,6 +60,15 @@ enum TerminalSidebarGroupSurfaceState: Equatable {
   }
 }
 
+enum TerminalSidebarGroupSurfaceBlendMode: String, Equatable {
+  case plusDarker = "plusDarkerBlendMode"
+  case plusLighter = "plusLighterBlendMode"
+
+  static func resolve(colorScheme: ColorScheme) -> Self {
+    colorScheme == .dark ? .plusLighter : .plusDarker
+  }
+}
+
 struct TerminalSidebarGroupSurfaceStyle: Equatable {
   let fillOpacity: CGFloat
   let hoverOpacity: Float
@@ -70,7 +79,7 @@ struct TerminalSidebarGroupSurfaceStyle: Equatable {
     case .resting:
       Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.18)
     case .hovered:
-      Self(fillOpacity: 0.10, hoverOpacity: 1, strokeOpacity: 0.18)
+      Self(fillOpacity: 0.10, hoverOpacity: 0.10, strokeOpacity: 0.18)
     case .dropTarget:
       Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.85)
     }
@@ -79,33 +88,27 @@ struct TerminalSidebarGroupSurfaceStyle: Equatable {
 
 @MainActor
 @Observable
-final class TerminalSidebarGroupHoverState {
+final class TerminalSidebarGroupHeaderHoverState {
   private(set) var groupID: TerminalTabGroupID?
-  @ObservationIgnored var onChange: ((TerminalTabGroupID?, TerminalTabGroupID?) -> Void)?
 
   func enter(_ groupID: TerminalTabGroupID) {
     guard self.groupID != groupID else { return }
-    let previous = self.groupID
     self.groupID = groupID
-    onChange?(previous, groupID)
   }
 
   func exit(_ groupID: TerminalTabGroupID) {
     guard self.groupID == groupID else { return }
     self.groupID = nil
-    onChange?(groupID, nil)
   }
 
   func retain(_ groupIDs: Set<TerminalTabGroupID>) {
     guard let groupID, !groupIDs.contains(groupID) else { return }
     self.groupID = nil
-    onChange?(groupID, nil)
   }
 
   func clear() {
-    guard let groupID else { return }
+    guard groupID != nil else { return }
     self.groupID = nil
-    onChange?(groupID, nil)
   }
 }
 
@@ -219,7 +222,7 @@ struct TerminalSidebarRowContext {
   let terminal: TerminalHostState
   let palette: Palette
   let renameState: TerminalSidebarRenameState
-  let groupHoverState: TerminalSidebarGroupHoverState
+  let groupHeaderHoverState: TerminalSidebarGroupHeaderHoverState
   let actions: TerminalSidebarRowActions
 }
 
@@ -248,16 +251,12 @@ struct TerminalSidebarHostedRow: View {
         shortcutHint: presentation.shortcutHint,
         showsShortcutHint: presentation.showsShortcutHint
       )
-      .onHover { isHovering in
-        guard isHovering, let groupID = presentation.groupID else { return }
-        context.groupHoverState.exit(groupID)
-      }
     case .group(let presentation):
       TerminalSidebarGroupHeader(
         presentation: presentation,
         palette: context.palette,
         renameState: context.renameState,
-        hoverState: context.groupHoverState,
+        hoverState: context.groupHeaderHoverState,
         actions: context.actions
       )
     case .pinDivider:
@@ -318,7 +317,7 @@ private struct TerminalSidebarGroupHeader: View {
   let presentation: TerminalSidebarGroupRowPresentation
   let palette: Palette
   let renameState: TerminalSidebarRenameState
-  let hoverState: TerminalSidebarGroupHoverState
+  let hoverState: TerminalSidebarGroupHeaderHoverState
   let actions: TerminalSidebarRowActions
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -518,14 +517,11 @@ final class TerminalSidebarGroupBackgroundView: NSView {
     let sidebarColor = color.sidebarNSColor(palette: palette)
     let style = TerminalSidebarGroupSurfaceStyle.resolve(surfaceState)
     fillLayer.fillColor = sidebarColor.withAlphaComponent(style.fillOpacity).cgColor
-    let hoverColor = palette.sidebarGroupHoverFillValue
-    hoverLayer.fillColor =
-      NSColor(
-        srgbRed: CGFloat(hoverColor.red),
-        green: CGFloat(hoverColor.green),
-        blue: CGFloat(hoverColor.blue),
-        alpha: CGFloat(hoverColor.alpha)
-      ).cgColor
+    hoverLayer.compositingFilter =
+      TerminalSidebarGroupSurfaceBlendMode.resolve(
+        colorScheme: palette.colorScheme
+      ).rawValue
+    hoverLayer.fillColor = sidebarColor.cgColor
     strokeLayer.strokeColor = sidebarColor.withAlphaComponent(style.strokeOpacity).cgColor
     setHoverOpacity(style.hoverOpacity, animated: !reduceMotion)
   }
