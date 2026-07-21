@@ -916,6 +916,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         entryID: id,
         collectionView: collectionView
       )
+      item.view.setAccessibilityIdentifier(accessibilityIdentifier(for: presentation))
     }
   }
 
@@ -1097,7 +1098,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func semanticPath(_ path: TerminalSidebarSemanticPath) -> String {
     switch path {
-    case .root(let index, let affinity): "root:\(index):\(affinity)"
+    case .rootItem(let index): "rootItem:\(index)"
+    case .rootBoundary(let index, let affinity): "rootBoundary:\(index):\(affinity)"
     case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
     case .pinnedEnd: "pinnedEnd"
     case .trailingRoot: "trailingRoot"

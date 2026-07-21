@@ -232,7 +232,8 @@ enum TerminalSidebarRootTargetAffinity: Equatable {
 }
 
 enum TerminalSidebarSemanticPath: Equatable {
-  case root(index: Int, affinity: TerminalSidebarRootTargetAffinity)
+  case rootItem(index: Int)
+  case rootBoundary(index: Int, affinity: TerminalSidebarRootTargetAffinity)
   case group(TerminalTabGroupID, index: Int)
   case pinnedEnd
   case trailingRoot
@@ -333,8 +334,15 @@ enum TerminalSidebarDropPlanner {
   ) -> TerminalSidebarDropPlan? {
     guard payload.topologyStamp == outline.topologyStamp else { return nil }
     switch path {
-    case .root(let index, let affinity):
-      return rootPlan(payload: payload, index: index, affinity: affinity, outline: outline)
+    case .rootItem(let index):
+      return rootItemPlan(payload: payload, index: index, outline: outline)
+    case .rootBoundary(let index, let affinity):
+      return rootBoundaryPlan(
+        payload: payload,
+        index: index,
+        affinity: affinity,
+        outline: outline
+      )
     case .group(let groupID, let index):
       return groupPlan(payload: payload, groupID: groupID, index: index, outline: outline)
     case .pinnedEnd:
@@ -355,19 +363,18 @@ enum TerminalSidebarDropPlanner {
     }
   }
 
-  private static func rootPlan(
+  private static func rootItemPlan(
     payload: TerminalSidebarDragPayload,
     index: Int,
-    affinity: TerminalSidebarRootTargetAffinity,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
     guard outline.roots.indices.contains(index) else { return nil }
     let target = outline.roots[index]
-    if case .tab = payload.value, affinity == .before {
+    if case .tab = payload.value {
       switch target.content {
       case .tab(let targetTabID):
         return TerminalSidebarDropPlan(
-          path: .root(index: index, affinity: affinity),
+          path: .rootItem(index: index),
           destination: .createGroup(targetTabID: targetTabID),
           placeholder: .tabHighlight(targetTabID)
         )
@@ -377,20 +384,52 @@ enum TerminalSidebarDropPlanner {
           return tabID != sourceID
         }.count
         return TerminalSidebarDropPlan(
-          path: .root(index: index, affinity: affinity),
+          path: .rootItem(index: index),
           destination: .group(groupID, index: destinationIndex),
           placeholder: .groupHighlight(groupID)
         )
       }
     }
 
-    let boundary = index + (affinity == .after ? 1 : 0)
+    return rootInsertionPlan(
+      payload: payload,
+      path: .rootItem(index: index),
+      target: target,
+      boundary: index,
+      outline: outline
+    )
+  }
+
+  private static func rootBoundaryPlan(
+    payload: TerminalSidebarDragPayload,
+    index: Int,
+    affinity: TerminalSidebarRootTargetAffinity,
+    outline: TerminalSidebarOutline
+  ) -> TerminalSidebarDropPlan? {
+    guard outline.roots.indices.contains(index) else { return nil }
+    let target = outline.roots[index]
+    return rootInsertionPlan(
+      payload: payload,
+      path: .rootBoundary(index: index, affinity: affinity),
+      target: target,
+      boundary: index + (affinity == .after ? 1 : 0),
+      outline: outline
+    )
+  }
+
+  private static func rootInsertionPlan(
+    payload: TerminalSidebarDragPayload,
+    path: TerminalSidebarSemanticPath,
+    target: TerminalSidebarOutline.Root,
+    boundary: Int,
+    outline: TerminalSidebarOutline
+  ) -> TerminalSidebarDropPlan {
     let reduced = reducedRoots(payload: payload, outline: outline)
     let destinationIndex = outline.roots[..<boundary].count { root in
       root.isPinned == target.isPinned && reduced.contains { $0.id == root.id }
     }
     return TerminalSidebarDropPlan(
-      path: .root(index: index, affinity: affinity),
+      path: path,
       destination: .root(isPinned: target.isPinned, index: destinationIndex),
       placeholder: rootPlaceholder(
         boundary: boundary,

@@ -33,7 +33,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   static let dividerHeight: CGFloat = 9
   static let targetRowHeight: CGFloat = 37
   static let expandedHeaderTargetHeight: CGFloat = 34
-  static let expandedGroupExitTargetHeight: CGFloat = 7
+  static let rootBoundaryTargetHeight: CGFloat = 7
   static let collapsedGroupTopTargetHeight: CGFloat = 19
   static let collapsedGroupBottomTargetHeight: CGFloat = 18
   static let initialY: CGFloat = -3
@@ -339,14 +339,23 @@ struct TerminalSidebarLayoutPlan: Equatable {
       return RootTargetGeometry(
         targets: [
           TerminalSidebarSemanticTarget(
-            path: .root(index: rootIndex, affinity: .before),
+            path: .rootBoundary(index: rootIndex, affinity: .before),
+            frame: CGRect(
+              x: 0,
+              y: item.frame.minY,
+              width: context.width,
+              height: min(rootBoundaryTargetHeight, item.frame.height)
+            )
+          ),
+          TerminalSidebarSemanticTarget(
+            path: .rootItem(index: rootIndex),
             frame: CGRect(
               x: 0,
               y: item.frame.minY,
               width: context.width,
               height: item.frame.height
             )
-          )
+          ),
         ],
         expandedGroup: nil,
         tabsEndY: item.frame.maxY
@@ -376,6 +385,15 @@ struct TerminalSidebarLayoutPlan: Equatable {
       if !groupIsDragged {
         targets = [
           TerminalSidebarSemanticTarget(
+            path: .rootBoundary(index: rootIndex, affinity: .before),
+            frame: CGRect(
+              x: 0,
+              y: header.frame.minY,
+              width: context.width,
+              height: min(rootBoundaryTargetHeight, header.frame.height)
+            )
+          ),
+          TerminalSidebarSemanticTarget(
             path: .group(groupID, index: 0),
             frame: CGRect(
               x: 0,
@@ -385,7 +403,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
             )
           ),
           TerminalSidebarSemanticTarget(
-            path: .root(index: rootIndex, affinity: .after),
+            path: .rootBoundary(index: rootIndex, affinity: .after),
             frame: CGRect(
               x: 0,
               y: header.frame.minY + collapsedGroupTopTargetHeight,
@@ -417,25 +435,34 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
     var targets = [
       TerminalSidebarSemanticTarget(
-        path: .root(index: rootIndex, affinity: .before),
+        path: .rootBoundary(index: rootIndex, affinity: .before),
+        frame: CGRect(
+          x: 0,
+          y: header.frame.minY,
+          width: context.width,
+          height: min(rootBoundaryTargetHeight, header.frame.height)
+        )
+      ),
+      TerminalSidebarSemanticTarget(
+        path: .rootItem(index: rootIndex),
         frame: CGRect(
           x: 3,
           y: header.frame.minY,
           width: context.width,
           height: expandedHeaderTargetHeight
         )
-      )
+      ),
     ]
     targets.append(contentsOf: childTargets(groupID: groupID, tabIDs: tabIDs, context: context))
     if context.sourceIsTab {
       targets.append(
         TerminalSidebarSemanticTarget(
-          path: .root(index: rootIndex, affinity: .after),
+          path: .rootBoundary(index: rootIndex, affinity: .after),
           frame: CGRect(
             x: 0,
             y: childEndY,
             width: context.width,
-            height: expandedGroupExitTargetHeight
+            height: rootBoundaryTargetHeight
           )
         )
       )
@@ -556,8 +583,8 @@ struct TerminalSidebarLayoutPlan: Equatable {
     case (_, .pinDivider), (.pinDivider, _):
       0
     case (.tab(_, .some, _), .tab(_, nil, _)),
-      (.tab(_, .some, _), .group):
-      expandedGroupTrailingSpacing
+      (.group, .tab(_, nil, _)):
+      rootSpacing
     case (_, .group), (_, .newTab):
       rootSpacing
     default:

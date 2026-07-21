@@ -166,7 +166,9 @@ extension SupatermUITestCase {
     let destination = try require(destination)
     source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
       forDuration: 0.5,
-      thenDragTo: destination.coordinate(withNormalizedOffset: destinationOffset)
+      thenDragTo: destination.coordinate(withNormalizedOffset: destinationOffset),
+      withVelocity: .slow,
+      thenHoldForDuration: 0
     )
   }
 
@@ -175,7 +177,9 @@ extension SupatermUITestCase {
     let source = try require(source)
     source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
       forDuration: 0.5,
-      thenDragTo: destination
+      thenDragTo: destination,
+      withVelocity: .slow,
+      thenHoldForDuration: 0
     )
   }
 
@@ -232,6 +236,7 @@ extension SupatermUITestCase {
   @MainActor
   private func sidebarMatches(_ expected: [SidebarRootExpectation]) -> Bool {
     let rows = sidebarStructuralRows.allElementsBoundByIndex
+    let tabs = sidebarSemanticTabRows.allElementsBoundByIndex
     let roots = rows.filter { row in
       row.identifier.hasPrefix(
         SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix
@@ -245,13 +250,11 @@ extension SupatermUITestCase {
     for (row, expectation) in zip(roots, expected) {
       switch expectation {
       case .tab(let title):
-        let tab = sidebarTabRow(named: title)
         guard
           row.identifier.hasPrefix(
             SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix
           ),
-          tab.exists,
-          row.frame.intersects(tab.frame)
+          tabs.contains(where: { $0.label.contains(title) && row.frame.intersects($0.frame) })
         else { return false }
       case .group(let title, let expectedChildren):
         let prefix = SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix
@@ -269,9 +272,9 @@ extension SupatermUITestCase {
         guard children.count == expectedChildren.count else { return false }
         guard
           zip(children, expectedChildren).allSatisfy({ pair in
-            self.app.buttons.matching(identifier: pair.0.identifier).matching(
-              NSPredicate(format: "label CONTAINS %@", pair.1)
-            ).firstMatch.exists
+            tabs.contains {
+              $0.label.contains(pair.1) && pair.0.frame.intersects($0.frame)
+            }
           })
         else { return false }
       }

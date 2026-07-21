@@ -2,12 +2,33 @@ import XCTest
 
 final class TabGroupingDragUITests: SupatermUITestCase {
   @MainActor
+  func testRootTabDropsBeforeFirstGroupAtLeadingEdge() async throws {
+    try await createNamedTabs(["Group Seed", "Mover"])
+    try await createGroup(named: "First", containing: "Group Seed")
+    await requireSidebarStructure([
+      .group("First", children: ["Group Seed"]),
+      .tab("Mover"),
+    ])
+
+    try drag(
+      sidebarStructuralTabRow(named: "Mover"),
+      to: sidebarGroupHeader(named: "First"),
+      destinationOffset: CGVector(dx: 0.5, dy: 0.05)
+    )
+
+    await requireSidebarStructure([
+      .tab("Mover"),
+      .group("First", children: ["Group Seed"]),
+    ])
+  }
+
+  @MainActor
   func testRootTabDropsIntoExpandedGroup() async throws {
-    try await createNamedTabs(["Root A", "Group Seed", "Root B"])
+    try await createNamedTabs(["Group Seed", "Root A", "Root B"])
     try await createGroup(named: "Alpha", containing: "Group Seed")
     await requireSidebarStructure([
-      .tab("Root A"),
       .group("Alpha", children: ["Group Seed"]),
+      .tab("Root A"),
       .tab("Root B"),
     ])
 
