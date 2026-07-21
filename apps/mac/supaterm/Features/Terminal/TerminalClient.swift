@@ -40,8 +40,7 @@ struct TerminalClient: Sendable {
     case deleteSpace(TerminalSpaceID)
     case ensureInitialTab(focusing: Bool, startupCommand: String?, workingDirectoryPath: String? = nil)
     case navigateSearch(GhosttySearchDirection)
-    case moveGroup(TerminalTabGroupID, TerminalRootPlacement)
-    case moveTab(TerminalTabID, TerminalTabPlacement)
+    case move(TerminalTabMoveRequest)
     case nextSpace
     case nextTab
     case performGhosttyBindingActionOnFocusedSurface(String)

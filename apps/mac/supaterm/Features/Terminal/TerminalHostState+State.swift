@@ -23,6 +23,11 @@ extension TerminalHostState {
     spaceManager.rootItems
   }
 
+  var selectedSpaceTopologyRevision: UInt64 {
+    guard let selectedSpaceID else { return 0 }
+    return spaceManager.tabManager(for: selectedSpaceID)?.topologyRevision ?? 0
+  }
+
   var visibleTabs: [TerminalTabItem] {
     spaceManager.visibleTabs
   }

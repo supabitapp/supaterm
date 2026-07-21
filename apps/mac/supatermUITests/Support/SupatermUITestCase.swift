@@ -35,6 +35,7 @@ class SupatermUITestCase: XCTestCase {
         "HOME": home.path,
         "SUPATERM_INSTANCE_NAME": "ui-\(token)",
         "SUPATERM_STATE_HOME": stateHome.path,
+        "SUPATERM_VERBOSE_LOGGING": "1",
         "ZMX_DIR": zmx.path,
       ]
       app.launch()

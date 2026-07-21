@@ -8,24 +8,24 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   func testNewAndCloseTabUpdateSidebarRows() async throws {
     _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
     try clickMenuItem(.newTab)
 
-    let didCreateTab = await waitForCount(tabRows, equals: 2, timeout: .seconds(30))
+    let didCreateTab = await waitForSidebarElementCount(tabRows, equals: 2, timeout: .seconds(30))
     XCTAssertTrue(didCreateTab)
 
     try closeSelectedTab()
 
-    let didCloseTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didCloseTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didCloseTab)
   }
 
   @MainActor
   func testChangingTabTitleUpdatesSidebarRow() async throws {
     _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
     let title = "Renamed UI Tab"
@@ -37,7 +37,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   func testPinAndUnpinMoveTabBetweenSidebarSections() async throws {
     _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
     let title = "Pinned UI Tab"
@@ -48,14 +48,14 @@ final class TabsSpacesUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didShowRegularTab)
 
-    try clickContextMenuItem("Pin Tab", on: tabRow(named: title))
+    try clickSidebarContextMenuItem("Pin Tab", on: tabRow(named: title))
 
     let didMoveToPinned = await wait(for: tabRow(named: title)) {
       $0.label.contains("Pinned")
     }
     XCTAssertTrue(didMoveToPinned)
 
-    try clickContextMenuItem("Unpin Tab", on: tabRow(named: title))
+    try clickSidebarContextMenuItem("Unpin Tab", on: tabRow(named: title))
 
     let didMoveToRegular = await wait(for: tabRow(named: title)) {
       $0.exists && !$0.label.contains("Pinned")
@@ -66,7 +66,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   func testCreateSwitchRenameAndDeleteSpace() async throws {
     _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
     XCTAssertEqual(spaceButtons.count, 0)
 
@@ -74,7 +74,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
     try await createSpace(named: "UI Space")
 
-    let didShowSpaceBar = await waitForCount(spaceButtons, equals: 2)
+    let didShowSpaceBar = await waitForSidebarElementCount(spaceButtons, equals: 2)
     XCTAssertTrue(didShowSpaceBar)
 
     let initialSpace = spaceButton(named: "1")
@@ -84,15 +84,15 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
     app.typeKey("1", modifierFlags: .control)
 
-    let didSelectInitialSpace = await waitForSelection(initialSpace)
+    let didSelectInitialSpace = await waitForSidebarSelection(initialSpace)
     XCTAssertTrue(didSelectInitialSpace)
 
     app.typeKey("2", modifierFlags: .control)
 
-    let didSelectCreatedSpace = await waitForSelection(createdSpace)
+    let didSelectCreatedSpace = await waitForSidebarSelection(createdSpace)
     XCTAssertTrue(didSelectCreatedSpace)
 
-    try clickContextMenuItem("Rename Space", on: createdSpace)
+    try clickSidebarContextMenuItem("Rename Space", on: createdSpace)
 
     let nameField = app.textFields[
       SupatermUITestIdentifier.Accessibility.dialogSpaceName
@@ -113,7 +113,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didRenameSpace)
     XCTAssertFalse(spaceButton(named: "UI Space").exists)
 
-    try clickContextMenuItem("Delete Space", on: renamedSpace)
+    try clickSidebarContextMenuItem("Delete Space", on: renamedSpace)
 
     let deleteTitle = app.staticTexts["Delete Space \"Renamed UI Space\"?"]
     XCTAssertTrue(deleteTitle.waitForExistence(timeout: 10))
@@ -121,7 +121,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(deleteButton.waitForExistence(timeout: 10))
     deleteButton.click()
 
-    let didDeleteSpace = await waitForCount(spaceButtons, equals: 0)
+    let didDeleteSpace = await waitForSidebarElementCount(spaceButtons, equals: 0)
     XCTAssertTrue(didDeleteSpace)
   }
 
@@ -136,17 +136,17 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
     try clickMenuItem(.nextTab)
 
-    let didSelectFirstTab = await waitForSelection(firstTab)
+    let didSelectFirstTab = await waitForSidebarSelection(firstTab)
     XCTAssertTrue(didSelectFirstTab)
 
     try clickMenuItem(.selectLastTab)
 
-    let didSelectLastTab = await waitForSelection(thirdTab)
+    let didSelectLastTab = await waitForSidebarSelection(thirdTab)
     XCTAssertTrue(didSelectLastTab)
 
     try clickMenuItem(.previousTab)
 
-    let didSelectPreviousTab = await waitForSelection(secondTab)
+    let didSelectPreviousTab = await waitForSidebarSelection(secondTab)
     XCTAssertTrue(didSelectPreviousTab)
   }
 
@@ -160,20 +160,20 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(thirdTab.isSelected)
 
     try clickMenuItem(.previousTab)
-    let didSelectSecondTab = await waitForSelection(secondTab)
+    let didSelectSecondTab = await waitForSidebarSelection(secondTab)
     XCTAssertTrue(didSelectSecondTab)
 
     try closeSelectedTab()
-    let didCloseSecondTab = await waitForCount(tabRows, equals: 2, timeout: .seconds(30))
+    let didCloseSecondTab = await waitForSidebarElementCount(tabRows, equals: 2, timeout: .seconds(30))
     XCTAssertTrue(didCloseSecondTab)
-    let didSelectThirdTab = await waitForSelection(thirdTab)
+    let didSelectThirdTab = await waitForSidebarSelection(thirdTab)
     XCTAssertTrue(didSelectThirdTab)
     XCTAssertFalse(firstTab.isSelected)
 
     try closeSelectedTab()
-    let didCloseThirdTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didCloseThirdTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didCloseThirdTab)
-    let didSelectFirstTab = await waitForSelection(firstTab)
+    let didSelectFirstTab = await waitForSidebarSelection(firstTab)
     XCTAssertTrue(didSelectFirstTab)
   }
 
@@ -215,7 +215,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didSelectSecondTab)
 
     firstTab.click()
-    let didSelectFirstTab = await waitForSelection(firstTab)
+    let didSelectFirstTab = await waitForSidebarSelection(firstTab)
     XCTAssertTrue(didSelectFirstTab)
     try await requireFocus(on: paneB)
     XCTAssertFalse(focusedTerminalPane(identifier: paneA.identifier).exists)
@@ -229,14 +229,14 @@ final class TabsSpacesUITests: SupatermUITestCase {
   @MainActor
   func testPinnedTabShowsPinIndicatorUntilAgentActivityTakesTheSlot() async throws {
     _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
+    let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
     try await renameSelectedTab(to: "Slot Lane Tab")
 
     let row = tabRow(named: "Slot Lane Tab")
     XCTAssertFalse(row.label.contains("Pinned"))
 
-    try clickContextMenuItem("Pin Tab", on: row)
+    try clickSidebarContextMenuItem("Pin Tab", on: row)
     let didMoveToPinned = await wait(for: row) { $0.label.contains("Pinned") }
     XCTAssertTrue(didMoveToPinned)
 
@@ -272,11 +272,11 @@ final class TabsSpacesUITests: SupatermUITestCase {
 
     let secondTab = tabRow(named: "Second UI Tab")
     try clickMenuItem(.previousTab)
-    let didSelectSecondTab = await waitForSelection(secondTab)
+    let didSelectSecondTab = await waitForSidebarSelection(secondTab)
     XCTAssertTrue(didSelectSecondTab)
 
     try clickMenuItem(.newTab)
-    let didCreateFourthTab = await waitForCount(tabRows, equals: 4, timeout: .seconds(30))
+    let didCreateFourthTab = await waitForSidebarElementCount(tabRows, equals: 4, timeout: .seconds(30))
     XCTAssertTrue(didCreateFourthTab)
     try await renameSelectedTab(to: "Fourth UI Tab")
 
@@ -301,7 +301,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didReorder)
 
     let secondTab = tabRow(named: "Second UI Tab")
-    try clickContextMenuItem("Pin Tab", on: secondTab)
+    try clickSidebarContextMenuItem("Pin Tab", on: secondTab)
     let didPinSecondTab = await wait(for: secondTab) { $0.label.contains("Pinned") }
     XCTAssertTrue(didPinSecondTab)
 
@@ -318,11 +318,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private var tabRows: XCUIElementQuery {
-    app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
-  }
+  private var tabRows: XCUIElementQuery { sidebarTabRows }
 
   @MainActor
   private var terminalPanes: XCUIElementQuery {
@@ -344,61 +340,13 @@ final class TabsSpacesUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private func tabRow(named title: String) -> XCUIElement {
-    app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).matching(
-      NSPredicate(format: "label CONTAINS %@", title)
-    ).firstMatch
-  }
+  private func tabRow(named title: String) -> XCUIElement { sidebarTabRow(named: title) }
 
   @MainActor
   private func spaceButton(named name: String) -> XCUIElement {
     spaceButtons.matching(
       NSPredicate(format: "label == %@", "Space \(name)")
     ).firstMatch
-  }
-
-  @MainActor
-  private func renameSelectedTab(to title: String) async throws {
-    try clickMenuItem(.changeTabTitle)
-
-    let sheet = mainWindow.sheets.firstMatch
-    XCTAssertTrue(sheet.waitForExistence(timeout: 10))
-    XCTAssertTrue(sheet.staticTexts["Change Tab Title"].exists)
-
-    let titleField = sheet.textFields.firstMatch
-    XCTAssertTrue(titleField.waitForExistence(timeout: 10))
-    titleField.click()
-    titleField.typeKey("a", modifierFlags: .command)
-    titleField.typeText(title)
-    sheet.buttons["OK"].click()
-
-    let didDismissSheet = await wait(for: sheet) { !$0.exists }
-    XCTAssertTrue(didDismissSheet)
-    let didUpdateTitle = await wait(for: tabRow(named: title)) { $0.exists }
-    XCTAssertTrue(didUpdateTitle)
-  }
-
-  @MainActor
-  private func createNamedTabs(_ titles: [String]) async throws {
-    precondition(!titles.isEmpty)
-    _ = mainWindow
-    let didShowInitialTab = await waitForCount(tabRows, equals: 1, timeout: .seconds(30))
-    XCTAssertTrue(didShowInitialTab)
-
-    for (index, title) in titles.enumerated() {
-      if index > 0 {
-        try clickMenuItem(.newTab)
-        let didCreateTab = await waitForCount(
-          tabRows,
-          equals: index + 1,
-          timeout: .seconds(30)
-        )
-        XCTAssertTrue(didCreateTab)
-      }
-      try await renameSelectedTab(to: title)
-    }
   }
 
   @MainActor
@@ -504,47 +452,4 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didMoveAboveDock)
   }
 
-  @MainActor
-  private func clickContextMenuItem(
-    _ title: String,
-    on element: XCUIElement,
-    timeout: TimeInterval = 10
-  ) throws {
-    let foundElement = try require(element, timeout: timeout)
-    foundElement.rightClick()
-
-    let itemCandidate = app.menuItems[title]
-    let item = try require(itemCandidate, timeout: timeout)
-    item.click()
-  }
-
-  @MainActor
-  private func waitForCount(
-    _ query: XCUIElementQuery,
-    equals expectedCount: Int,
-    timeout: Duration = .seconds(10)
-  ) async -> Bool {
-    await wait(timeout: timeout) {
-      query.count == expectedCount
-    }
-  }
-
-  @MainActor
-  private func waitForSelection(_ element: XCUIElement) async -> Bool {
-    await wait(for: element) { $0.isSelected }
-  }
-
-  @MainActor
-  private func waitForTabOrder(
-    _ titles: [String],
-    timeout: Duration = .seconds(10)
-  ) async -> Bool {
-    precondition(!titles.isEmpty)
-    return await wait(for: tabRows.element(boundBy: titles.count - 1), timeout: timeout) { _ in
-      guard self.tabRows.count == titles.count else { return false }
-      return titles.indices.allSatisfy {
-        self.tabRows.element(boundBy: $0).label.contains(titles[$0])
-      }
-    }
-  }
 }

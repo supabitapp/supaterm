@@ -1,8 +1,15 @@
 enum SupatermUITestIdentifier {
   enum Accessibility {
+    static let sidebarStructuralRowPrefix = "sidebar."
     static let sidebarSpaceButton = "sidebar.space-button"
     static let sidebarCreateSpaceButton = "sidebar.create-space-button"
     static let sidebarTabRow = "sidebar.tab-row"
+    static let sidebarRootTabRowPrefix = "sidebar.tab-row."
+    static let sidebarGroupPrefix = "sidebar.group."
+    static let sidebarGroupHeaderPrefix = "sidebar.group-header."
+    static let sidebarGroupedTabMarker = ".tab."
+    static let sidebarNewTab = "sidebar.new-tab"
+    static let sidebarNewGroup = "sidebar.new-group"
     static let paletteInput = "palette.input"
     static let paletteResultRow = "palette.result-row"
     static let dialogConfirm = "dialog.confirm"

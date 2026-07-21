@@ -50,16 +50,176 @@ enum TerminalSidebarCollapseMotion {
   }
 }
 
+enum TerminalSidebarAutoscrollDirection: Equatable {
+  case up
+  case down
+}
+
 enum TerminalSidebarAutoscrollBehavior {
   static let edgeSize: CGFloat = 60
   static let minimumContentHeight: CGFloat = 240
-  static let hysteresis: CGFloat = 20
+  static let directionTolerance: CGFloat = 20
   static let activationDelay: TimeInterval = 0.25
-  static let minimumVelocity: CGFloat = 60
-  static let maximumVelocity: CGFloat = 480
 
-  static func velocity(penetration: CGFloat) -> CGFloat {
-    minimumVelocity + (maximumVelocity - minimumVelocity) * max(0, min(penetration, 1))
+  static func step(outwardDelta: CGFloat, isFirstTick: Bool) -> CGFloat {
+    guard !isFirstTick else { return 1 }
+    return 1 + 7 * min(max(outwardDelta, 0) * 0.25, 1)
+  }
+
+  static func direction(
+    pointerY: CGFloat,
+    visibleRect: CGRect
+  ) -> TerminalSidebarAutoscrollDirection? {
+    guard visibleRect.minY...visibleRect.maxY ~= pointerY else { return nil }
+    if pointerY <= visibleRect.minY + edgeSize { return .up }
+    if pointerY >= visibleRect.maxY - edgeSize { return .down }
+    return nil
+  }
+}
+
+struct TerminalSidebarDragVelocityTracker {
+  private(set) var velocity = CGVector.zero
+  private var lastPoint: CGPoint?
+  private var lastTimestamp: TimeInterval?
+
+  mutating func update(point: CGPoint, timestamp: TimeInterval) {
+    guard let lastPoint, let lastTimestamp else {
+      self.lastPoint = point
+      self.lastTimestamp = timestamp
+      velocity = .zero
+      return
+    }
+    let elapsed = timestamp - lastTimestamp
+    if elapsed > 0 {
+      velocity = CGVector(
+        dx: (point.x - lastPoint.x) / elapsed,
+        dy: (point.y - lastPoint.y) / elapsed
+      )
+    }
+    self.lastPoint = point
+    self.lastTimestamp = timestamp
+  }
+}
+
+enum TerminalSidebarDropMotion {
+  enum Timing: Equatable {
+    case easeOut
+    case easeIn
+    case easeInEaseOut
+  }
+
+  struct Path: Equatable {
+    let positions: [CGPoint]
+    let times: [CGFloat]
+    let timings: [Timing]
+    let duration: TimeInterval
+  }
+
+  static let duration: TimeInterval = 0.25
+
+  static func path(
+    start: CGPoint,
+    destination: CGPoint,
+    velocity: CGVector
+  ) -> Path {
+    let speed = hypot(velocity.dx, velocity.dy)
+    let arc = min(speed * 0.002 + 2, 5)
+    let midpoint = CGPoint(
+      x: (start.x + destination.x) / 2,
+      y: (start.y + destination.y) / 2 - arc
+    )
+    return Path(
+      positions: [
+        start,
+        midpoint,
+        destination,
+        CGPoint(x: destination.x, y: destination.y + 1),
+        destination,
+      ],
+      times: [0, 0.4, 0.7, 0.85, 1],
+      timings: [.easeOut, .easeIn, .easeOut, .easeInEaseOut],
+      duration: duration
+    )
+  }
+}
+
+enum TerminalSidebarTransformSpring {
+  static let dampingRatio: CGFloat = 0.65
+  static let response: TimeInterval = 0.25
+
+  static var stiffness: CGFloat {
+    let angularFrequency = 2 * CGFloat.pi / response
+    return angularFrequency * angularFrequency
+  }
+
+  static var damping: CGFloat {
+    2 * dampingRatio * sqrt(stiffness)
+  }
+
+  static func animation(from: CGFloat, to: CGFloat) -> CASpringAnimation {
+    let animation = CASpringAnimation(keyPath: "transform.translation.y")
+    animation.fromValue = from
+    animation.toValue = to
+    animation.mass = 1
+    animation.stiffness = stiffness
+    animation.damping = damping
+    animation.initialVelocity = 0
+    animation.duration = response
+    return animation
+  }
+
+  static func positionAnimation(from: CGPoint, to: CGPoint) -> CASpringAnimation {
+    let animation = CASpringAnimation(keyPath: "position")
+    animation.fromValue = NSValue(point: from)
+    animation.toValue = NSValue(point: to)
+    animation.mass = 1
+    animation.stiffness = stiffness
+    animation.damping = damping
+    animation.initialVelocity = 0
+    animation.duration = response
+    return animation
+  }
+}
+
+enum TerminalSidebarDropRipple {
+  static let stiffness: CGFloat = 130.5071656342394
+  static let dampingRatio: CGFloat = 0.55
+
+  static func scaleDelta(distance: CGFloat, focusSpan: CGFloat) -> CGFloat? {
+    guard focusSpan > 0 else { return nil }
+    let halfSpan = focusSpan / 2
+    guard distance >= 0, distance < halfSpan else { return nil }
+    let delta = 0.03 * exp(-3 * distance / halfSpan)
+    return delta > 0.001 ? delta : nil
+  }
+
+  static func animation(
+    scaleDelta: CGFloat,
+    center: CGPoint,
+    distance: CGFloat
+  ) -> CASpringAnimation {
+    var transform = CATransform3DIdentity
+    transform = CATransform3DTranslate(transform, center.x, center.y, 0)
+    transform = CATransform3DScale(transform, 1 + scaleDelta, 1 + scaleDelta, 1)
+    transform = CATransform3DTranslate(transform, -center.x, -center.y, 0)
+
+    let animation = CASpringAnimation(keyPath: "transform")
+    animation.fromValue = NSValue(caTransform3D: transform)
+    animation.toValue = NSValue(caTransform3D: CATransform3DIdentity)
+    animation.isAdditive = true
+    animation.mass = 1
+    animation.stiffness = stiffness
+    animation.damping = 2 * sqrt(stiffness * animation.mass) * dampingRatio
+    animation.beginTime = CACurrentMediaTime() + 0.15 + distance * 0.0015
+    animation.duration = animation.settlingDuration
+    return animation
+  }
+}
+
+enum TerminalSidebarLiveDragGeometry {
+  static func fanSpacing(itemCount: Int) -> CGFloat {
+    guard itemCount > 0 else { return 0 }
+    return ceil(min(140 / CGFloat(itemCount), 7))
   }
 }
 
@@ -238,19 +398,15 @@ final class TerminalSidebarLayoutAnimator {
 
 @MainActor
 final class TerminalSidebarDragAutoscrollController {
-  private enum Direction {
-    case up
-    case down
-  }
-
   private weak var collectionView: NSCollectionView?
   private weak var scrollView: NSScrollView?
   private let onScroll: (CGFloat) -> Void
   private var pointerY: CGFloat?
-  private var direction: Direction?
+  private var direction: TerminalSidebarAutoscrollDirection?
   private var enteredEdgeAt: TimeInterval?
   private var edgeEntryPointerY: CGFloat?
-  private var lastFrameTimestamp: TimeInterval?
+  private var outwardDelta: CGFloat = 0
+  private var isFirstTick = true
   private var isLiveScrolling = false
   private lazy var displayLinkDriver = TerminalSidebarDisplayLinkDriver(
     collectionView: collectionView,
@@ -282,21 +438,15 @@ final class TerminalSidebarDragAutoscrollController {
       stop()
       return
     }
+    let previousPointerY = self.pointerY
     self.pointerY = pointerY
     let visibleRect = collectionView.visibleRect
-    guard visibleRect.minY...visibleRect.maxY ~= pointerY else {
-      stop()
-      return
-    }
-    let nextDirection: Direction?
-    if pointerY < visibleRect.minY + TerminalSidebarAutoscrollBehavior.edgeSize {
-      nextDirection = .up
-    } else if pointerY > visibleRect.maxY - TerminalSidebarAutoscrollBehavior.edgeSize {
-      nextDirection = .down
-    } else {
-      nextDirection = nil
-    }
-    guard let nextDirection else {
+    guard
+      let nextDirection = TerminalSidebarAutoscrollBehavior.direction(
+        pointerY: pointerY,
+        visibleRect: visibleRect
+      )
+    else {
       stop()
       return
     }
@@ -304,17 +454,27 @@ final class TerminalSidebarDragAutoscrollController {
       direction = nextDirection
       enteredEdgeAt = CACurrentMediaTime()
       edgeEntryPointerY = pointerY
-    } else if let enteredEdgeAt,
-      CACurrentMediaTime() - enteredEdgeAt < TerminalSidebarAutoscrollBehavior.activationDelay,
-      let edgeEntryPointerY,
-      movedInward(
-        from: edgeEntryPointerY,
-        to: pointerY,
-        direction: nextDirection
-      ) > TerminalSidebarAutoscrollBehavior.hysteresis
-    {
-      self.enteredEdgeAt = CACurrentMediaTime()
-      self.edgeEntryPointerY = pointerY
+      outwardDelta = 0
+      isFirstTick = true
+    } else {
+      outwardDelta =
+        previousPointerY.map {
+          movedOutward(from: $0, to: pointerY, direction: nextDirection)
+        } ?? 0
+      if let enteredEdgeAt,
+        CACurrentMediaTime() - enteredEdgeAt < TerminalSidebarAutoscrollBehavior.activationDelay,
+        let edgeEntryPointerY,
+        movedInward(
+          from: edgeEntryPointerY,
+          to: pointerY,
+          direction: nextDirection
+        ) > TerminalSidebarAutoscrollBehavior.directionTolerance
+      {
+        self.enteredEdgeAt = CACurrentMediaTime()
+        self.edgeEntryPointerY = pointerY
+        outwardDelta = 0
+        isFirstTick = true
+      }
     }
     displayLinkDriver.start()
   }
@@ -324,38 +484,31 @@ final class TerminalSidebarDragAutoscrollController {
     direction = nil
     enteredEdgeAt = nil
     edgeEntryPointerY = nil
-    lastFrameTimestamp = nil
+    outwardDelta = 0
+    isFirstTick = true
     displayLinkDriver.stop()
   }
 
   private func update(_ displayLink: CADisplayLink) -> Bool {
     guard
-      let collectionView,
       let scrollView,
       let pointerY,
       let direction,
       let enteredEdgeAt,
       displayLink.timestamp - enteredEdgeAt >= TerminalSidebarAutoscrollBehavior.activationDelay
     else { return direction != nil }
-    let visibleRect = collectionView.visibleRect
-    let penetration: CGFloat
     let sign: CGFloat
     switch direction {
     case .up:
-      penetration =
-        (visibleRect.minY + TerminalSidebarAutoscrollBehavior.edgeSize - pointerY)
-        / TerminalSidebarAutoscrollBehavior.edgeSize
       sign = -1
     case .down:
-      penetration =
-        (pointerY - visibleRect.maxY + TerminalSidebarAutoscrollBehavior.edgeSize)
-        / TerminalSidebarAutoscrollBehavior.edgeSize
       sign = 1
     }
-    let previousTimestamp = lastFrameTimestamp ?? displayLink.timestamp
-    let elapsed = max(0, min(displayLink.timestamp - previousTimestamp, 1.0 / 30.0))
-    lastFrameTimestamp = displayLink.timestamp
-    let step = TerminalSidebarAutoscrollBehavior.velocity(penetration: penetration) * elapsed
+    let step = TerminalSidebarAutoscrollBehavior.step(
+      outwardDelta: outwardDelta,
+      isFirstTick: isFirstTick
+    )
+    isFirstTick = false
     let clipView = scrollView.contentView
     let previousY = clipView.bounds.origin.y
     let nextY = TerminalSidebarScrollGeometry.constrainedY(
@@ -378,11 +531,22 @@ final class TerminalSidebarDragAutoscrollController {
   private func movedInward(
     from entryPointerY: CGFloat,
     to pointerY: CGFloat,
-    direction: Direction
+    direction: TerminalSidebarAutoscrollDirection
   ) -> CGFloat {
     switch direction {
     case .up: pointerY - entryPointerY
     case .down: entryPointerY - pointerY
+    }
+  }
+
+  private func movedOutward(
+    from previousPointerY: CGFloat,
+    to pointerY: CGFloat,
+    direction: TerminalSidebarAutoscrollDirection
+  ) -> CGFloat {
+    switch direction {
+    case .up: max(previousPointerY - pointerY, 0)
+    case .down: max(pointerY - previousPointerY, 0)
     }
   }
 }

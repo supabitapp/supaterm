@@ -473,7 +473,7 @@ struct TerminalCommandExecutorTests {
       let groupedPaneID = try #require(host.selectedSurfaceView?.id)
       let groupID = try #require(
         host.createGroup(title: "Group", containing: [firstTabID, groupedTabID])
-      )
+      ).groupID
 
       let store = Store(initialState: AppFeature.State()) {
         AppFeature()

@@ -1916,7 +1916,9 @@ private func restoreSplitHost(
   workingDirectoryPath: String
 ) throws -> [UUID] {
   let spaceID = try #require(host.spaces.first?.id)
+  let sessionTabID = TerminalTabID()
   let tabSession = TerminalTabSession(
+    id: sessionTabID,
     lockedTitle: nil,
     focusedPaneIndex: 0,
     root: .split(
@@ -1933,9 +1935,17 @@ private func restoreSplitHost(
     spaces: [
       TerminalWindowSpaceSession(
         id: spaceID,
-        selectedTabIndex: 0,
+        selectedTabID: sessionTabID,
+        nodes: [
+          TerminalTabNodeSession(
+            item: .tab(sessionTabID),
+            parent: .root(isPinned: false),
+            order: 0
+          )
+        ],
+        groups: [],
         collapsedGroupIDs: [],
-        rootItems: [.tab(isPinned: false, tab: tabSession)]
+        tabs: [tabSession]
       )
     ]
   )

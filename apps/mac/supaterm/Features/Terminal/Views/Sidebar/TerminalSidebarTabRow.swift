@@ -274,13 +274,13 @@ struct TerminalSidebarTabRow: View {
 
         case .moveToNewGroup:
           Button {
-            let groupID = terminal.createGroup(
+            let result = terminal.createGroup(
               title: "New Group",
               color: .neutral,
               containing: [tab.id]
             )
-            if let groupID {
-              renameState?.begin(groupID: groupID, title: "New Group")
+            if let result {
+              renameState?.begin(groupID: result.groupID, title: "New Group")
             }
           } label: {
             Label("Move to New Group", systemImage: "rectangle.3.group")
@@ -291,9 +291,12 @@ struct TerminalSidebarTabRow: View {
             ForEach(availableGroups) { group in
               Button(group.title) {
                 _ = store.send(
-                  .moveTabCommitted(
-                    tab.id,
-                    .group(group.id, index: group.tabs.count)
+                  .moveCommitted(
+                    TerminalTabMoveRequest(
+                      expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
+                      itemIDs: [.tab(tab.id)],
+                      destination: .group(group.id, index: group.tabs.count)
+                    )
                   )
                 )
               }

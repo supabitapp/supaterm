@@ -3,39 +3,45 @@ import Foundation
 import GhosttyKit
 import SupatermSupport
 
-private struct RestoredTerminalTab {
-  let sourceIndex: Int
-  let id: TerminalTabID
-  let session: TerminalTabSession
-}
-
 private struct RestoredTerminalSpace {
   let rootItems: [TerminalTabRootItem]
-  let tabs: [RestoredTerminalTab]
+  let tabs: [TerminalTabSession]
 }
 
 private struct TerminalRootSessionSnapshot {
-  let item: TerminalTabRootSessionItem
-  let tabIDs: [TerminalTabID]
+  let nodes: [TerminalTabNodeSession]
+  let group: TerminalTabGroupSession?
+  let tabs: [TerminalTabSession]
 }
 
 extension TerminalHostState {
   func restorationSnapshot() -> TerminalWindowSession {
     let spaces = spaces.map { space in
-      let rootSnapshots = spaceManager.rootItems(in: space.id).compactMap(restorationSnapshot(for:))
-      let rootItems = rootSnapshots.map(\.item)
-      let tabIDs = rootSnapshots.flatMap(\.tabIDs)
-      let selectedTabIndex = spaceManager.selectedTabID(in: space.id).flatMap {
-        tabIDs.firstIndex(of: $0)
+      var rootOrderByPinned = [true: 0, false: 0]
+      var rootSnapshots: [TerminalRootSessionSnapshot] = []
+      for item in spaceManager.rootItems(in: space.id) {
+        let rootOrder = rootOrderByPinned[item.isPinned, default: 0]
+        guard let snapshot = restorationSnapshot(for: item, rootOrder: rootOrder) else {
+          continue
+        }
+        rootSnapshots.append(snapshot)
+        rootOrderByPinned[item.isPinned] = rootOrder + 1
       }
-      let collapsedGroupIDs = rootItems.compactMap(\.groupID).filter {
-        collapsedTabGroupIDsBySpace[space.id]?.contains($0) == true
-      }
+      let tabs = rootSnapshots.flatMap(\.tabs)
+      let tabIDs = Set(tabs.map(\.id))
+      let selectedTabID =
+        spaceManager.selectedTabID(in: space.id).flatMap {
+          tabIDs.contains($0) ? $0 : nil
+        } ?? tabs.first?.id
       return TerminalWindowSpaceSession(
         id: space.id,
-        selectedTabIndex: selectedTabIndex ?? (tabIDs.isEmpty ? nil : 0),
-        collapsedGroupIDs: collapsedGroupIDs,
-        rootItems: rootItems
+        selectedTabID: selectedTabID,
+        nodes: rootSnapshots.flatMap(\.nodes),
+        groups: rootSnapshots.compactMap(\.group),
+        collapsedGroupIDs: rootSnapshots.compactMap(\.group).map(\.id).filter {
+          collapsedTabGroupIDsBySpace[space.id]?.contains($0) == true
+        },
+        tabs: tabs
       )
     }
 
@@ -101,28 +107,47 @@ extension TerminalHostState {
   }
 
   private func restorationSnapshot(
-    for item: TerminalTabRootItem
+    for item: TerminalTabRootItem,
+    rootOrder: Int
   ) -> TerminalRootSessionSnapshot? {
     switch item {
     case .tab(let item):
       guard let tab = restorationTabSession(for: item.tab) else { return nil }
       return TerminalRootSessionSnapshot(
-        item: .tab(isPinned: item.isPinned, tab: tab),
-        tabIDs: [item.tab.id]
+        nodes: [
+          TerminalTabNodeSession(
+            item: .tab(item.tab.id),
+            parent: .root(isPinned: item.isPinned),
+            order: rootOrder
+          )
+        ],
+        group: nil,
+        tabs: [tab]
       )
     case .group(let group):
-      let snapshots = group.tabs.compactMap { tab in
-        restorationTabSession(for: tab).map { (tab.id, $0) }
-      }
+      let tabs = group.tabs.compactMap(restorationTabSession(for:))
       return TerminalRootSessionSnapshot(
-        item: .group(
+        nodes: [
+          TerminalTabNodeSession(
+            item: .group(group.id),
+            parent: .root(isPinned: group.isPinned),
+            order: rootOrder
+          )
+        ]
+          + tabs.enumerated().map { order, tab in
+            TerminalTabNodeSession(
+              item: .tab(tab.id),
+              parent: .group(group.id),
+              order: order
+            )
+          },
+        group: TerminalTabGroupSession(
           id: group.id,
           title: group.title,
           color: group.color,
-          isPinned: group.isPinned,
-          tabs: snapshots.map(\.1)
+          lifetime: group.lifetime
         ),
-        tabIDs: snapshots.map(\.0)
+        tabs: tabs
       )
     }
   }
@@ -138,12 +163,9 @@ extension TerminalHostState {
       let restoredSpace = restoredSpace(for: spaceSession)
       restoredSpaces[space.id] = restoredSpace
       collapsedTabGroupIDsBySpace[space.id] = Set(spaceSession?.collapsedGroupIDs ?? [])
-      let selectedTabID = spaceSession?.selectedTabIndex.flatMap { index in
-        restoredSpace.tabs.first(where: { $0.sourceIndex == index })?.id
-      }
       _ = spaceManager.restoreRootItems(
         restoredSpace.rootItems,
-        selectedTabID: selectedTabID,
+        selectedTabID: spaceSession?.selectedTabID,
         in: space.id
       )
     }
@@ -157,33 +179,49 @@ extension TerminalHostState {
     guard let spaceSession else {
       return RestoredTerminalSpace(rootItems: [], tabs: [])
     }
-    var sourceIndex = 0
-    var restoredTabs: [RestoredTerminalTab] = []
-    let rootItems = spaceSession.rootItems.map { item -> TerminalTabRootItem in
-      switch item {
-      case .tab(let isPinned, let session):
-        let tab = restoredTabItem(for: session, at: sourceIndex)
-        restoredTabs.append(
-          RestoredTerminalTab(sourceIndex: sourceIndex, id: tab.id, session: session)
-        )
-        sourceIndex += 1
-        return .tab(TerminalUngroupedTabItem(tab: tab, isPinned: isPinned))
-      case .group(let id, let title, let color, let isPinned, let sessions):
-        let tabs = sessions.map { session -> TerminalTabItem in
-          let tab = restoredTabItem(for: session, at: sourceIndex)
-          restoredTabs.append(
-            RestoredTerminalTab(sourceIndex: sourceIndex, id: tab.id, session: session)
+    let tabSessionsByID = Dictionary(uniqueKeysWithValues: spaceSession.tabs.map { ($0.id, $0) })
+    let groupSessionsByID = Dictionary(uniqueKeysWithValues: spaceSession.groups.map { ($0.id, $0) })
+    var tabNodesByGroupID: [TerminalTabGroupID: [TerminalTabNodeSession]] = [:]
+    for node in spaceSession.nodes {
+      guard let groupID = node.parent.groupID else { continue }
+      tabNodesByGroupID[groupID, default: []].append(node)
+    }
+    tabNodesByGroupID = tabNodesByGroupID.mapValues { $0.sorted { $0.order < $1.order } }
+    let rootNodes = spaceSession.nodes.filter { $0.parent.isPinned != nil }.sorted {
+      let lhsLane = $0.parent.isPinned == true ? 0 : 1
+      let rhsLane = $1.parent.isPinned == true ? 0 : 1
+      return (lhsLane, $0.order) < (rhsLane, $1.order)
+    }
+    var restoredTabs: [TerminalTabSession] = []
+    let rootItems = rootNodes.compactMap { node -> TerminalTabRootItem? in
+      switch node.item {
+      case .tab(let id):
+        guard let session = tabSessionsByID[id] else { return nil }
+        let tab = restoredTabItem(for: session, at: restoredTabs.count)
+        restoredTabs.append(session)
+        return .tab(
+          TerminalUngroupedTabItem(
+            tab: tab,
+            isPinned: node.parent.isPinned == true
           )
-          sourceIndex += 1
+        )
+      case .group(let id):
+        guard let group = groupSessionsByID[id] else { return nil }
+        let tabs = (tabNodesByGroupID[id] ?? []).compactMap { node -> TerminalTabItem? in
+          guard let tabID = node.item.tabID else { return nil }
+          guard let session = tabSessionsByID[tabID] else { return nil }
+          let tab = restoredTabItem(for: session, at: restoredTabs.count)
+          restoredTabs.append(session)
           return tab
         }
         return .group(
           TerminalTabGroupItem(
             id: id,
-            title: title,
-            color: color,
-            isPinned: isPinned,
-            tabs: tabs
+            title: group.title,
+            color: group.color,
+            isPinned: node.parent.isPinned == true,
+            tabs: tabs,
+            lifetime: group.lifetime
           )
         )
       }
@@ -196,7 +234,7 @@ extension TerminalHostState {
   ) {
     for (spaceID, restoredSpace) in restoredSpaces {
       for tab in restoredSpace.tabs {
-        restoreTabSession(tab.session, tabID: tab.id, in: spaceID)
+        restoreTabSession(tab, in: spaceID)
       }
     }
   }
@@ -271,6 +309,7 @@ extension TerminalHostState {
       }
       ?? 0
     return TerminalTabSession(
+      id: tab.id,
       lockedTitle: lockedTabTitle(for: tab.id),
       focusedPaneIndex: focusedPaneIndex,
       root: root
@@ -304,11 +343,10 @@ extension TerminalHostState {
 
   func restoredTabItem(
     for session: TerminalTabSession,
-    id: TerminalTabID = TerminalTabID(),
     at index: Int
   ) -> TerminalTabItem {
     TerminalTabItem(
-      id: id,
+      id: session.id,
       title: session.lockedTitle ?? restoredTabTitle(at: index),
       isTitleLocked: session.lockedTitle != nil
     )
@@ -320,9 +358,9 @@ extension TerminalHostState {
 
   func restoreTabSession(
     _ session: TerminalTabSession,
-    tabID: TerminalTabID,
     in spaceID: TerminalSpaceID
   ) {
+    let tabID = session.id
     SupatermLog.debug(
       SupatermLog.terminal,
       "terminal.session.restoreTab",

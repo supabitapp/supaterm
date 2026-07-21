@@ -76,7 +76,7 @@ struct TerminalSidebarChromeView: View {
       selectedTabID: terminal.selectedTabID,
       reduceMotion: reduceMotion,
       actions: rowActions,
-      onDrop: performDrop
+      performDrop: performDrop
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .accessibilityIdentifier("sidebar.tab-outline")
@@ -93,12 +93,14 @@ struct TerminalSidebarChromeView: View {
           )
         case .group(let group):
           TerminalSidebarOutline.Root(
-            content: .group(group.id, group.color, group.tabs.map(\.id)),
+            content: .group(group.id, group.color, group.lifetime, group.tabs.map(\.id)),
             isPinned: group.isPinned
           )
         }
       },
-      collapsedGroupIDs: terminal.collapsedTabGroupIDs
+      collapsedGroupIDs: terminal.collapsedTabGroupIDs,
+      topologyRevision: terminal.selectedSpaceTopologyRevision,
+      spaceID: terminal.selectedSpaceID
     )
   }
 
@@ -127,9 +129,6 @@ struct TerminalSidebarChromeView: View {
             tabCount: group.tabs.count
           )
         )
-        if group.tabs.isEmpty {
-          rows[.emptyGroup(group.id)] = .emptyGroup(group.id)
-        }
         for tab in group.tabs {
           rows[.tab(tab.id)] = .tab(
             tabPresentation(
@@ -179,7 +178,7 @@ struct TerminalSidebarChromeView: View {
       toggleGroupCollapsed: { _ = store.send(.toggleGroupCollapsedRequested($0)) },
       createTabInGroup: createTab,
       createGroup: {
-        terminal.createGroup(title: "New Group", color: .neutral, containing: [])
+        terminal.createGroup(title: "New Group", color: .neutral, containing: [])?.groupID
       },
       renameGroup: { terminal.renameGroup($0, title: $1) },
       setGroupColor: { terminal.setGroupColor($0, color: $1) },
@@ -218,35 +217,65 @@ struct TerminalSidebarChromeView: View {
   }
 
   private func performDrop(
-    _ drag: TerminalSidebarDragValue,
-    _ destination: TerminalSidebarDropDestination
-  ) -> TerminalSidebarDropResult {
-    switch (drag, destination) {
+    _ transaction: TerminalSidebarDropTransaction
+  ) -> TerminalSidebarDropReceipt? {
+    let payload = transaction.payload
+    guard payload.topologyStamp.spaceID == terminal.selectedSpaceID else { return nil }
+    switch (payload.value, transaction.plan.destination) {
     case (.group(let id), .root(let isPinned, let index)):
-      return terminal.moveGroup(
-        id,
-        to: TerminalRootPlacement(isPinned: isPinned, index: index)
-      ) ? .accepted() : .rejected
+      return try? .moved(
+        spaceID: payload.topologyStamp.spaceID,
+        result: terminal.move(
+          TerminalTabMoveRequest(
+            operationID: payload.operationID,
+            expectedTopologyRevision: payload.topologyRevision,
+            itemIDs: [.group(id)],
+            destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
+          )
+        )
+      )
     case (.tab(let id), .root(let isPinned, let index)):
-      return terminal.moveTab(
-        id,
-        to: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
-      ) ? .accepted() : .rejected
+      return try? .moved(
+        spaceID: payload.topologyStamp.spaceID,
+        result: terminal.move(
+          TerminalTabMoveRequest(
+            operationID: payload.operationID,
+            expectedTopologyRevision: payload.topologyRevision,
+            itemIDs: [.tab(id)],
+            destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
+          )
+        )
+      )
     case (.tab(let id), .group(let groupID, let index)):
-      return terminal.moveTab(id, to: .group(groupID, index: index))
-        ? .accepted()
-        : .rejected
+      return try? .moved(
+        spaceID: payload.topologyStamp.spaceID,
+        result: terminal.move(
+          TerminalTabMoveRequest(
+            operationID: payload.operationID,
+            expectedTopologyRevision: payload.topologyRevision,
+            itemIDs: [.tab(id)],
+            destination: .group(groupID, index: index)
+          )
+        )
+      )
     case (.tab(let id), .createGroup(let targetTabID)):
+      guard payload.topologyStamp.revision == terminal.selectedSpaceTopologyRevision else {
+        return nil
+      }
       guard
-        let groupID = terminal.createGroup(
+        let result = terminal.createGroup(
           title: "New Group",
           color: .neutral,
           containing: [targetTabID, id]
         )
-      else { return .rejected }
-      return .accepted(createdGroupID: groupID)
+      else { return nil }
+      return .createdGroup(
+        operationID: payload.operationID,
+        spaceID: payload.topologyStamp.spaceID,
+        result: result
+      )
     case (.group, .group), (.group, .createGroup):
-      return .rejected
+      return nil
     }
   }
 }

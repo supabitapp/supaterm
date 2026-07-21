@@ -169,8 +169,7 @@ struct TerminalWindowFeature {
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
     case nextSpaceRequested
     case nextTabMenuItemSelected
-    case moveGroupCommitted(TerminalTabGroupID, TerminalRootPlacement)
-    case moveTabCommitted(TerminalTabID, TerminalTabPlacement)
+    case moveCommitted(TerminalTabMoveRequest)
     case previousSpaceRequested
     case previousTabMenuItemSelected
     case removeTabFromGroupRequested(TerminalTabID)
@@ -396,11 +395,8 @@ struct TerminalWindowFeature {
       case .nextTabMenuItemSelected:
         return sendCommand(.nextTab)
 
-      case .moveGroupCommitted(let groupID, let placement):
-        return sendCommand(.moveGroup(groupID, placement))
-
-      case .moveTabCommitted(let tabID, let placement):
-        return sendCommand(.moveTab(tabID, placement))
+      case .moveCommitted(let request):
+        return sendCommand(.move(request))
 
       case .previousSpaceRequested:
         return sendCommand(.previousSpace)

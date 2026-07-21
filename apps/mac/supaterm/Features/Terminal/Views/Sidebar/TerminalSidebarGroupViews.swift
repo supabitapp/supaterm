@@ -67,7 +67,6 @@ struct TerminalSidebarTabRowPresentation: Equatable {
 enum TerminalSidebarRowPresentation: Equatable {
   case tab(TerminalSidebarTabRowPresentation)
   case group(TerminalSidebarGroupRowPresentation)
-  case emptyGroup(TerminalTabGroupID)
   case pinDivider
   case newTab
   case newGroup
@@ -86,8 +85,6 @@ enum TerminalSidebarRowPresentation: Equatable {
       )
     case .group(let presentation):
       return AnyHashable("group:\(presentation.id.rawValue):\(presentation.title)")
-    case .emptyGroup(let id):
-      return AnyHashable("empty:\(id.rawValue)")
     case .pinDivider: return AnyHashable("pin-divider")
     case .newTab: return AnyHashable("new-tab")
     case .newGroup: return AnyHashable("new-group")
@@ -175,21 +172,6 @@ struct TerminalSidebarHostedRow: View {
         renameState: context.renameState,
         actions: context.actions
       )
-    case .emptyGroup(let groupID):
-      HStack(spacing: 6) {
-        Image(systemName: "arrow.down.to.line.compact")
-          .font(.system(size: 10, weight: .medium))
-          .accessibilityHidden(true)
-        Text("Drop tabs here")
-          .font(.system(size: 11, weight: .medium))
-        Spacer(minLength: 0)
-      }
-      .foregroundStyle(context.palette.secondaryText)
-      .padding(.horizontal, TerminalSidebarLayout.rowHorizontalPadding)
-      .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
-      .accessibilityElement(children: .combine)
-      .accessibilityLabel("Empty group. Drop tabs here.")
-      .accessibilityIdentifier("sidebar.empty-group.\(groupID.rawValue.uuidString.lowercased())")
     case .pinDivider:
       Rectangle()
         .fill(context.palette.sidebarSeparator)

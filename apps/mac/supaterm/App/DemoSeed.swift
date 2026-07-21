@@ -28,19 +28,44 @@
               spaces: [
                 TerminalWindowSpaceSession(
                   id: IDs.space,
-                  selectedTabIndex: 2,
-                  collapsedGroupIDs: [],
-                  rootItems: [
-                    .group(
+                  selectedTabID: IDs.deployTab,
+                  nodes: [
+                    TerminalTabNodeSession(
+                      item: .group(IDs.group),
+                      parent: .root(isPinned: true),
+                      order: 0
+                    ),
+                    TerminalTabNodeSession(
+                      item: .tab(IDs.webTab),
+                      parent: .group(IDs.group),
+                      order: 0
+                    ),
+                    TerminalTabNodeSession(
+                      item: .tab(IDs.apiTab),
+                      parent: .group(IDs.group),
+                      order: 1
+                    ),
+                    TerminalTabNodeSession(
+                      item: .tab(IDs.deployTab),
+                      parent: .root(isPinned: false),
+                      order: 0
+                    ),
+                    TerminalTabNodeSession(
+                      item: .tab(IDs.scratchTab),
+                      parent: .root(isPinned: false),
+                      order: 1
+                    ),
+                  ],
+                  groups: [
+                    TerminalTabGroupSession(
                       id: IDs.group,
                       title: "Development",
                       color: .blue,
-                      isPinned: true,
-                      tabs: [webSession, apiSession]
-                    ),
-                    .tab(isPinned: false, tab: deploySession),
-                    .tab(isPinned: false, tab: scratchSession),
-                  ]
+                      lifetime: .automatic
+                    )
+                  ],
+                  collapsedGroupIDs: [],
+                  tabs: [webSession, apiSession, deploySession, scratchSession]
                 )
               ]
             )
@@ -101,6 +126,7 @@
     ]
 
     private static let webSession = TerminalTabSession(
+      id: IDs.webTab,
       lockedTitle: "supaterm/web",
       focusedPaneIndex: 0,
       root: .split(
@@ -126,6 +152,7 @@
     )
 
     private static let apiSession = TerminalTabSession(
+      id: IDs.apiTab,
       lockedTitle: "supaterm/api",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -138,6 +165,7 @@
     )
 
     private static let deploySession = TerminalTabSession(
+      id: IDs.deployTab,
       lockedTitle: "supaterm/deploy",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -150,6 +178,7 @@
     )
 
     private static let scratchSession = TerminalTabSession(
+      id: IDs.scratchTab,
       lockedTitle: "scratch",
       focusedPaneIndex: 0,
       root: .leaf(
@@ -189,6 +218,10 @@
     private enum IDs {
       static let space = TerminalSpaceID(rawValue: UUID(uuidString: "4F9DA8C0-7B80-42C4-A828-B7A7E4E1D3A1")!)
       static let group = TerminalTabGroupID(rawValue: UUID(uuidString: "F4218391-DB8F-43DD-830C-B63D6F877D81")!)
+      static let webTab = TerminalTabID(rawValue: UUID(uuidString: "1C1AC87E-612A-4EE8-91B1-44200DD67FF5")!)
+      static let apiTab = TerminalTabID(rawValue: UUID(uuidString: "793D7D09-6485-4CD6-B790-0A0D3E6E652A")!)
+      static let deployTab = TerminalTabID(rawValue: UUID(uuidString: "84D4F03C-F02C-44A2-A527-62EA71BB5BB2")!)
+      static let scratchTab = TerminalTabID(rawValue: UUID(uuidString: "269EC9ED-9D04-409F-97D7-2EF024A3E1A4")!)
       static let webAgentSurface = UUID(uuidString: "8F02B7F2-4F60-465B-90DF-14C03BF6D482")!
       static let webShellSurface = UUID(uuidString: "F6D8226D-0C92-40D4-B5E8-52B3E850D675")!
       static let apiSurface = UUID(uuidString: "C095C9A1-7E44-4BD2-A9F5-7F322221B495")!

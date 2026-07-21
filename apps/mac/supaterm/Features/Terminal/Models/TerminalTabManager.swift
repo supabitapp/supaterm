@@ -4,19 +4,48 @@ import Observation
 @MainActor
 @Observable
 final class TerminalTabManager {
-  private(set) var rootItems: [TerminalTabRootItem] = []
+  private struct Storage: Equatable {
+    var tabsByID: [TerminalTabID: TerminalTabItem] = [:]
+    var groupsByID: [TerminalTabGroupID: TerminalTabGroup] = [:]
+    var pinnedRootIDs: [TerminalTabRootItemID] = []
+    var regularRootIDs: [TerminalTabRootItemID] = []
+    var childIDsByGroupID: [TerminalTabGroupID: [TerminalTabID]] = [:]
+    var topologyRevision: UInt64 = 0
+  }
+
+  private struct AppliedMove {
+    let priorLocations: [TerminalTabRootItemID: TerminalTabPlacement]
+    let deletedEmptyGroupIDs: [TerminalTabGroupID]
+  }
+
+  private struct MoveSource {
+    let priorLocations: [TerminalTabRootItemID: TerminalTabPlacement]
+    let groupIDs: [TerminalTabGroupID]
+  }
+
+  private var storage = Storage()
   var selectedTabId: TerminalTabID?
+
+  var topologyRevision: UInt64 {
+    storage.topologyRevision
+  }
+
+  var rootItems: [TerminalTabRootItem] {
+    (storage.pinnedRootIDs + storage.regularRootIDs).compactMap {
+      rootItem(for: $0, in: storage)
+    }
+  }
 
   var tabs: [TerminalTabItem] {
     rootItems.flatMap(\.tabs)
   }
 
   var pinnedRootItems: [TerminalTabRootItem] {
-    rootItems.filter(\.isPinned)
+    storage.pinnedRootIDs.compactMap { rootItem(for: $0, in: storage) }
   }
 
   var regularRootItems: [TerminalTabRootItem] {
-    rootItems.filter { !$0.isPinned }
+    storage.regularRootIDs.compactMap { rootItem(for: $0, in: storage) }
   }
 
   var visibleTabs: [TerminalTabItem] {
@@ -28,7 +57,7 @@ final class TerminalTabManager {
     isTitleLocked: Bool = false
   ) -> TerminalTabID {
     let placement = TerminalTabPlacement.root(
-      TerminalRootPlacement(isPinned: false, index: regularRootItems.count)
+      TerminalRootPlacement(isPinned: false, index: storage.regularRootIDs.count)
     )
     return createTab(title: title, isTitleLocked: isTitleLocked, at: placement)!
   }
@@ -38,17 +67,18 @@ final class TerminalTabManager {
     isTitleLocked: Bool = false,
     at placement: TerminalTabPlacement
   ) -> TerminalTabID? {
-    let tab = TerminalTabItem(
-      title: title,
-      isTitleLocked: isTitleLocked
-    )
-    guard insertTab(tab, at: placement) else { return nil }
+    let tab = TerminalTabItem(title: title, isTitleLocked: isTitleLocked)
+    var next = storage
+    guard Self.insertTabID(tab.id, at: placement, in: &next) else { return nil }
+    next.tabsByID[tab.id] = tab
+    next.topologyRevision += 1
+    storage = next
     selectedTabId = tab.id
     return tab.id
   }
 
   func selectTab(_ id: TerminalTabID) {
-    guard tabs.contains(where: { $0.id == id }) else { return }
+    guard storage.tabsByID[id] != nil else { return }
     selectedTabId = id
   }
 
@@ -83,192 +113,247 @@ final class TerminalTabManager {
     title: String,
     color: TerminalTabGroupColor = .neutral,
     containing tabIDs: [TerminalTabID]
-  ) -> TerminalTabGroupID? {
+  ) -> TerminalTabGroupCreationResult? {
     let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalizedTitle.isEmpty else { return nil }
     guard Set(tabIDs).count == tabIDs.count else { return nil }
+    guard tabIDs.allSatisfy({ storage.tabsByID[$0] != nil }) else { return nil }
 
-    let selectedTabs = tabIDs.compactMap(tab(for:))
-    guard selectedTabs.count == tabIDs.count else { return nil }
-
-    let insertion = groupInsertion(containing: tabIDs)
+    let insertion = groupInsertion(containing: tabIDs, in: storage)
     guard tabIDs.isEmpty || insertion != nil else { return nil }
     let resolvedInsertion =
       insertion
-      ?? TerminalRootPlacement(isPinned: false, index: regularRootItems.count)
-
-    for tabID in tabIDs {
-      _ = removeTab(tabID)
-    }
-
-    let group = TerminalTabGroupItem(
+      ?? TerminalRootPlacement(isPinned: false, index: storage.regularRootIDs.count)
+    let groupID = TerminalTabGroupID()
+    var next = storage
+    next.groupsByID[groupID] = TerminalTabGroup(
+      id: groupID,
       title: normalizedTitle,
       color: color,
-      isPinned: resolvedInsertion.isPinned,
-      tabs: selectedTabs
+      lifetime: tabIDs.isEmpty ? .durable : .automatic
     )
-    guard insertRootItem(.group(group), at: resolvedInsertion) else {
-      preconditionFailure("Resolved group insertion must remain valid")
+    next.childIDsByGroupID[groupID] = []
+    guard Self.insertRootID(.group(groupID), at: resolvedInsertion, in: &next) else {
+      return nil
     }
+    let deletedEmptyGroupIDs: [TerminalTabGroupID]
+    if !tabIDs.isEmpty {
+      let request = TerminalTabMoveRequest(
+        expectedTopologyRevision: next.topologyRevision,
+        itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
+        destination: .group(groupID, index: 0)
+      )
+      guard let applied = try? Self.applyMove(request, to: &next) else { return nil }
+      deletedEmptyGroupIDs = applied.deletedEmptyGroupIDs
+    } else {
+      deletedEmptyGroupIDs = []
+    }
+    next.topologyRevision = storage.topologyRevision + 1
+    storage = next
     repairSelection()
-    return group.id
+    return TerminalTabGroupCreationResult(
+      groupID: groupID,
+      deletedEmptyGroupIDs: deletedEmptyGroupIDs,
+      topologyRevision: next.topologyRevision
+    )
   }
 
   @discardableResult
   func renameGroup(_ id: TerminalTabGroupID, title: String) -> Bool {
     let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalizedTitle.isEmpty else { return false }
-    guard let index = groupRootIndex(id) else { return false }
-    guard case .group(var group) = rootItems[index] else { return false }
+    guard !normalizedTitle.isEmpty, var group = storage.groupsByID[id] else { return false }
     group.title = normalizedTitle
-    rootItems[index] = .group(group)
+    storage.groupsByID[id] = group
     return true
   }
 
   @discardableResult
   func setGroupColor(_ id: TerminalTabGroupID, color: TerminalTabGroupColor) -> Bool {
-    guard let index = groupRootIndex(id) else { return false }
-    guard case .group(var group) = rootItems[index] else { return false }
+    guard var group = storage.groupsByID[id] else { return false }
     group.color = color
-    rootItems[index] = .group(group)
+    storage.groupsByID[id] = group
     return true
   }
 
   @discardableResult
-  func moveTab(_ id: TerminalTabID, to placement: TerminalTabPlacement) -> Bool {
-    guard let tab = tab(for: id) else { return false }
-    guard isValid(placement, afterRemoving: id) else { return false }
-    _ = removeTab(id)
-    guard insertTab(tab, at: placement) else {
-      preconditionFailure("Validated tab placement must remain valid")
+  func move(_ request: TerminalTabMoveRequest) throws -> TerminalTabMoveResult {
+    var next = storage
+    let applied = try Self.applyMove(request, to: &next)
+    if next != storage {
+      next.topologyRevision = storage.topologyRevision + 1
+      storage = next
+      repairSelection()
     }
-    repairSelection()
-    return true
-  }
-
-  @discardableResult
-  func moveGroup(_ id: TerminalTabGroupID, to placement: TerminalRootPlacement) -> Bool {
-    guard let sourceIndex = groupRootIndex(id) else { return false }
-    guard isValid(placement, afterRemovingRootItemAt: sourceIndex) else { return false }
-    guard case .group(var group) = rootItems.remove(at: sourceIndex) else {
-      preconditionFailure("Resolved group root must remain a group")
+    guard let location = Self.location(of: request.itemIDs[0], in: storage) else {
+      preconditionFailure("Moved item must have a final location")
     }
-    group.isPinned = placement.isPinned
-    guard insertRootItem(.group(group), at: placement) else {
-      preconditionFailure("Validated group placement must remain valid")
-    }
-    return true
-  }
-
-  @discardableResult
-  func togglePinned(_ id: TerminalTabRootItemID) -> Bool {
-    guard let sourceIndex = rootItems.firstIndex(where: { $0.id == id }) else { return false }
-    let item = rootItems[sourceIndex]
-    return setPinned(id, isPinned: !item.isPinned)
-  }
-
-  @discardableResult
-  func setPinned(_ id: TerminalTabRootItemID, isPinned: Bool) -> Bool {
-    guard let sourceIndex = rootItems.firstIndex(where: { $0.id == id }) else { return false }
-    let item = rootItems[sourceIndex]
-    guard item.isPinned != isPinned else { return true }
-    let placement = TerminalRootPlacement(
-      isPinned: isPinned,
-      index: isPinned ? pinnedRootItems.count : regularRootItems.count
+    return TerminalTabMoveResult(
+      operationID: request.operationID,
+      itemIDs: request.itemIDs,
+      location: location,
+      priorLocations: applied.priorLocations,
+      deletedEmptyGroupIDs: applied.deletedEmptyGroupIDs,
+      topologyRevision: storage.topologyRevision
     )
-    rootItems.remove(at: sourceIndex)
-    let movedItem: TerminalTabRootItem
-    switch item {
-    case .tab(var tab):
-      tab.isPinned = placement.isPinned
-      movedItem = .tab(tab)
-    case .group(var group):
-      group.isPinned = placement.isPinned
-      movedItem = .group(group)
-    }
-    guard insertRootItem(movedItem, at: placement) else {
-      preconditionFailure("Pin destination must remain valid")
-    }
-    return true
   }
 
   @discardableResult
-  func togglePinned(_ id: TerminalTabID) -> Bool {
-    guard let location = tabLocation(id) else { return false }
+  func togglePinned(_ id: TerminalTabRootItemID) -> TerminalTabMoveResult? {
+    guard case .root(let placement) = Self.location(of: id, in: storage) else { return nil }
+    return setPinned(id, isPinned: !placement.isPinned)
+  }
+
+  @discardableResult
+  func setPinned(
+    _ id: TerminalTabRootItemID,
+    isPinned: Bool
+  ) -> TerminalTabMoveResult? {
+    guard case .root(let current) = Self.location(of: id, in: storage) else { return nil }
+    let index =
+      current.isPinned == isPinned
+      ? current.index
+      : Self.rootIDs(isPinned: isPinned, in: storage).count
+    return try? move(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: storage.topologyRevision,
+        itemIDs: [id],
+        destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
+      )
+    )
+  }
+
+  @discardableResult
+  func togglePinned(_ id: TerminalTabID) -> TerminalTabMoveResult? {
+    guard let location = Self.location(of: .tab(id), in: storage) else { return nil }
     switch location {
-    case .root:
-      return togglePinned(.tab(id))
+    case .root(let placement):
+      return setPinned(.tab(id), isPinned: !placement.isPinned)
     case .group:
-      return moveTab(
-        id,
-        to: .root(
-          TerminalRootPlacement(isPinned: true, index: pinnedRootItems.count)
+      return try? move(
+        TerminalTabMoveRequest(
+          expectedTopologyRevision: storage.topologyRevision,
+          itemIDs: [.tab(id)],
+          destination: .root(
+            TerminalRootPlacement(isPinned: true, index: storage.pinnedRootIDs.count)
+          )
         )
       )
     }
   }
 
   @discardableResult
-  func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> Bool {
-    guard let location = tabLocation(id) else { return false }
+  func setTabPinned(_ id: TerminalTabID, isPinned: Bool) -> TerminalTabMoveResult? {
+    guard let location = Self.location(of: .tab(id), in: storage) else { return nil }
     switch location {
     case .root:
       return setPinned(.tab(id), isPinned: isPinned)
     case .group:
-      guard isPinned else { return true }
-      return moveTab(
-        id,
-        to: .root(
-          TerminalRootPlacement(isPinned: true, index: pinnedRootItems.count)
+      guard isPinned else { return nil }
+      return try? move(
+        TerminalTabMoveRequest(
+          expectedTopologyRevision: storage.topologyRevision,
+          itemIDs: [.tab(id)],
+          destination: .root(
+            TerminalRootPlacement(isPinned: true, index: storage.pinnedRootIDs.count)
+          )
         )
       )
     }
   }
 
   @discardableResult
-  func removeTabFromGroup(_ id: TerminalTabID) -> Bool {
-    guard case .group(let groupID, _) = tabLocation(id) else { return false }
-    guard let groupIndex = groupRootIndex(groupID) else { return false }
-    guard case .group(let group) = rootItems[groupIndex] else { return false }
-    let laneIndex = rootItems[..<groupIndex].count(where: { $0.isPinned == group.isPinned }) + 1
-    return moveTab(
-      id,
-      to: .root(TerminalRootPlacement(isPinned: group.isPinned, index: laneIndex))
+  func removeTabFromGroup(_ id: TerminalTabID) -> TerminalTabMoveResult? {
+    guard case .group(let groupID, _) = Self.location(of: .tab(id), in: storage) else {
+      return nil
+    }
+    guard case .root(let groupPlacement) = Self.location(of: .group(groupID), in: storage) else {
+      return nil
+    }
+    return try? move(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: storage.topologyRevision,
+        itemIDs: [.tab(id)],
+        destination: .root(
+          TerminalRootPlacement(
+            isPinned: groupPlacement.isPinned,
+            index: groupPlacement.index + 1
+          )
+        )
+      )
     )
   }
 
   @discardableResult
   func ungroup(_ id: TerminalTabGroupID) -> Bool {
-    guard let index = groupRootIndex(id) else { return false }
-    guard case .group(let group) = rootItems.remove(at: index) else { return false }
-    let tabs = group.tabs.map {
-      TerminalTabRootItem.tab(TerminalUngroupedTabItem(tab: $0, isPinned: group.isPinned))
+    guard
+      case .root(let placement) = Self.location(of: .group(id), in: storage),
+      storage.groupsByID[id] != nil
+    else {
+      return false
     }
-    rootItems.insert(contentsOf: tabs, at: index)
+    let childIDs = storage.childIDsByGroupID[id] ?? []
+    var next = storage
+    if !childIDs.isEmpty {
+      let request = TerminalTabMoveRequest(
+        expectedTopologyRevision: next.topologyRevision,
+        itemIDs: childIDs.map(TerminalTabRootItemID.tab),
+        destination: .root(placement)
+      )
+      guard (try? Self.applyMove(request, to: &next)) != nil else { return false }
+    }
+    Self.deleteGroup(id, from: &next)
+    next.topologyRevision = storage.topologyRevision + 1
+    storage = next
     repairSelection()
     return true
   }
 
   @discardableResult
   func deleteEmptyGroup(_ id: TerminalTabGroupID) -> Bool {
-    guard let index = groupRootIndex(id) else { return false }
-    guard case .group(let group) = rootItems[index], group.tabs.isEmpty else { return false }
-    rootItems.remove(at: index)
+    guard storage.groupsByID[id] != nil, storage.childIDsByGroupID[id]?.isEmpty == true else {
+      return false
+    }
+    var next = storage
+    Self.deleteGroup(id, from: &next)
+    next.topologyRevision += 1
+    storage = next
     return true
   }
 
-  func closeTab(_ id: TerminalTabID) {
+  @discardableResult
+  func closeTab(_ id: TerminalTabID) -> TerminalTabCloseResult? {
     let previousTabs = tabs
-    guard let index = previousTabs.firstIndex(where: { $0.id == id }) else { return }
+    guard let index = previousTabs.firstIndex(where: { $0.id == id }) else { return nil }
     let wasSelected = selectedTabId == id
-    _ = removeTab(id)
-    guard wasSelected else { return }
-    let remainingTabs = tabs
-    if remainingTabs.indices.contains(index) {
-      selectedTabId = remainingTabs[index].id
+    var next = storage
+    let sourceGroupID: TerminalTabGroupID?
+    if case .group(let groupID, _) = Self.location(of: .tab(id), in: next) {
+      sourceGroupID = groupID
     } else {
-      selectedTabId = remainingTabs.last?.id
+      sourceGroupID = nil
     }
+    Self.remove(.tab(id), from: &next)
+    next.tabsByID[id] = nil
+    let deletedEmptyGroupIDs: [TerminalTabGroupID]
+    if let sourceGroupID, Self.deleteAutomaticGroupIfEmpty(sourceGroupID, from: &next) {
+      deletedEmptyGroupIDs = [sourceGroupID]
+    } else {
+      deletedEmptyGroupIDs = []
+    }
+    next.topologyRevision += 1
+    storage = next
+    if wasSelected {
+      let remainingTabs = tabs
+      if remainingTabs.indices.contains(index) {
+        selectedTabId = remainingTabs[index].id
+      } else {
+        selectedTabId = remainingTabs.last?.id
+      }
+    }
+    return TerminalTabCloseResult(
+      deletedEmptyGroupIDs: deletedEmptyGroupIDs,
+      topologyRevision: next.topologyRevision
+    )
   }
 
   func tabIDsBelow(_ id: TerminalTabID) -> [TerminalTabID] {
@@ -284,23 +369,22 @@ final class TerminalTabManager {
   }
 
   func groupID(containing tabID: TerminalTabID) -> TerminalTabGroupID? {
-    guard case .group(let groupID, _) = tabLocation(tabID) else { return nil }
+    guard case .group(let groupID, _) = Self.location(of: .tab(tabID), in: storage) else {
+      return nil
+    }
     return groupID
   }
 
   func tabIDs(in groupID: TerminalTabGroupID) -> [TerminalTabID] {
-    group(for: groupID)?.tabs.map(\.id) ?? []
+    storage.childIDsByGroupID[groupID] ?? []
   }
 
   func group(for id: TerminalTabGroupID) -> TerminalTabGroupItem? {
-    guard let index = groupRootIndex(id), case .group(let group) = rootItems[index] else {
-      return nil
-    }
-    return group
+    groupItem(for: id, in: storage)
   }
 
   func rootItemID(containing tabID: TerminalTabID) -> TerminalTabRootItemID? {
-    guard let location = tabLocation(tabID) else { return nil }
+    guard let location = Self.location(of: .tab(tabID), in: storage) else { return nil }
     switch location {
     case .root:
       return .tab(tabID)
@@ -310,10 +394,10 @@ final class TerminalTabManager {
   }
 
   func isPinned(_ tabID: TerminalTabID) -> Bool? {
-    guard let location = tabLocation(tabID) else { return nil }
+    guard let location = Self.location(of: .tab(tabID), in: storage) else { return nil }
     switch location {
-    case .root(let index):
-      return rootItems[index].isPinned
+    case .root(let placement):
+      return placement.isPinned
     case .group:
       return false
     }
@@ -323,199 +407,325 @@ final class TerminalTabManager {
     _ rootItems: [TerminalTabRootItem],
     selectedTabID: TerminalTabID?
   ) {
-    self.rootItems = Self.sanitized(rootItems)
-    self.selectedTabId =
-      selectedTabID.flatMap { id in
-        tabs.contains(where: { $0.id == id }) ? id : nil
+    var next = Storage(topologyRevision: storage.topologyRevision + 1)
+    var seenTabIDs: Set<TerminalTabID> = []
+    var seenGroupIDs: Set<TerminalTabGroupID> = []
+    let normalizedItems = rootItems.filter(\.isPinned) + rootItems.filter { !$0.isPinned }
+    for item in normalizedItems {
+      switch item {
+      case .tab(let item):
+        guard seenTabIDs.insert(item.tab.id).inserted else { continue }
+        next.tabsByID[item.tab.id] = item.tab
+        Self.appendRootID(.tab(item.tab.id), isPinned: item.isPinned, to: &next)
+      case .group(let group):
+        guard seenGroupIDs.insert(group.id).inserted else { continue }
+        let tabs = group.tabs.filter { seenTabIDs.insert($0.id).inserted }
+        next.groupsByID[group.id] = TerminalTabGroup(
+          id: group.id,
+          title: group.title,
+          color: group.color,
+          lifetime: group.lifetime
+        )
+        next.childIDsByGroupID[group.id] = tabs.map(\.id)
+        for tab in tabs {
+          next.tabsByID[tab.id] = tab
+        }
+        Self.appendRootID(.group(group.id), isPinned: group.isPinned, to: &next)
       }
+    }
+    storage = next
+    selectedTabId =
+      selectedTabID.flatMap { next.tabsByID[$0]?.id }
       ?? tabs.first?.id
   }
 
-  private enum TabLocation {
-    case root(index: Int)
-    case group(TerminalTabGroupID, index: Int)
+  private func updateTab(_ id: TerminalTabID, update: (inout TerminalTabItem) -> Void) {
+    guard var tab = storage.tabsByID[id] else { return }
+    update(&tab)
+    storage.tabsByID[id] = tab
   }
 
-  private func tab(for id: TerminalTabID) -> TerminalTabItem? {
-    tabs.first(where: { $0.id == id })
+  private func groupInsertion(
+    containing tabIDs: [TerminalTabID],
+    in storage: Storage
+  ) -> TerminalRootPlacement? {
+    guard let firstTabID = tabIDs.first else { return nil }
+    guard let location = Self.location(of: .tab(firstTabID), in: storage) else { return nil }
+    let rootID: TerminalTabRootItemID
+    let followsSourceRoot: Bool
+    switch location {
+    case .root:
+      rootID = .tab(firstTabID)
+      followsSourceRoot = false
+    case .group(let groupID, _):
+      rootID = .group(groupID)
+      followsSourceRoot = true
+    }
+    guard case .root(let rootPlacement) = Self.location(of: rootID, in: storage) else {
+      return nil
+    }
+    let selectedRootIDs = Set(tabIDs.map(TerminalTabRootItemID.tab))
+    let roots = Self.rootIDs(isPinned: rootPlacement.isPinned, in: storage)
+    guard let rootIndex = roots.firstIndex(of: rootID) else { return nil }
+    let index =
+      roots[..<rootIndex].count { !selectedRootIDs.contains($0) }
+      + (followsSourceRoot ? 1 : 0)
+    return TerminalRootPlacement(isPinned: rootPlacement.isPinned, index: index)
   }
 
-  private func tabLocation(_ id: TerminalTabID) -> TabLocation? {
-    for (rootIndex, item) in rootItems.enumerated() {
-      switch item {
-      case .tab(let item) where item.tab.id == id:
-        return .root(index: rootIndex)
-      case .group(let group):
-        if let index = group.tabs.firstIndex(where: { $0.id == id }) {
-          return .group(group.id, index: index)
-        }
-      default:
-        continue
+  private func rootItem(
+    for id: TerminalTabRootItemID,
+    in storage: Storage
+  ) -> TerminalTabRootItem? {
+    guard case .root(let placement) = Self.location(of: id, in: storage) else { return nil }
+    switch id {
+    case .tab(let tabID):
+      guard let tab = storage.tabsByID[tabID] else { return nil }
+      return .tab(TerminalUngroupedTabItem(tab: tab, isPinned: placement.isPinned))
+    case .group(let groupID):
+      return groupItem(for: groupID, in: storage).map(TerminalTabRootItem.group)
+    }
+  }
+
+  private func groupItem(
+    for id: TerminalTabGroupID,
+    in storage: Storage
+  ) -> TerminalTabGroupItem? {
+    guard
+      let group = storage.groupsByID[id],
+      case .root(let placement) = Self.location(of: .group(id), in: storage)
+    else {
+      return nil
+    }
+    return TerminalTabGroupItem(
+      id: group.id,
+      title: group.title,
+      color: group.color,
+      isPinned: placement.isPinned,
+      tabs: (storage.childIDsByGroupID[id] ?? []).compactMap { storage.tabsByID[$0] },
+      lifetime: group.lifetime
+    )
+  }
+
+  private func repairSelection() {
+    guard selectedTabId.flatMap({ storage.tabsByID[$0] }) == nil else { return }
+    selectedTabId = tabs.first?.id
+  }
+
+  private static func applyMove(
+    _ request: TerminalTabMoveRequest,
+    to storage: inout Storage
+  ) throws -> AppliedMove {
+    guard request.expectedTopologyRevision == storage.topologyRevision else {
+      throw TerminalTabMoveError.staleTopology(
+        expected: request.expectedTopologyRevision,
+        actual: storage.topologyRevision
+      )
+    }
+    let source = try moveSource(for: request.itemIDs, in: storage)
+    try validateDestination(request.destination, for: request.itemIDs, in: storage)
+    for itemID in request.itemIDs {
+      remove(itemID, from: &storage)
+    }
+    try insertMovedItems(request.itemIDs, at: request.destination, in: &storage)
+
+    var deletedEmptyGroupIDs: [TerminalTabGroupID] = []
+    for groupID in source.groupIDs where deleteAutomaticGroupIfEmpty(groupID, from: &storage) {
+      deletedEmptyGroupIDs.append(groupID)
+    }
+    return AppliedMove(
+      priorLocations: source.priorLocations,
+      deletedEmptyGroupIDs: deletedEmptyGroupIDs
+    )
+  }
+
+  private static func moveSource(
+    for itemIDs: [TerminalTabRootItemID],
+    in storage: Storage
+  ) throws -> MoveSource {
+    guard !itemIDs.isEmpty else { throw TerminalTabMoveError.emptyItems }
+    let requestedGroupIDs = Set(
+      itemIDs.compactMap { itemID -> TerminalTabGroupID? in
+        guard case .group(let groupID) = itemID else { return nil }
+        return groupID
+      })
+    for itemID in itemIDs {
+      guard case .tab(let tabID) = itemID else { continue }
+      guard
+        case .group(let groupID, _) = location(of: itemID, in: storage),
+        requestedGroupIDs.contains(groupID)
+      else { continue }
+      throw TerminalTabMoveError.ancestorAndDescendant(groupID, tabID)
+    }
+    var seenIDs: Set<TerminalTabRootItemID> = []
+    var priorLocations: [TerminalTabRootItemID: TerminalTabPlacement] = [:]
+    var sourceGroupIDs: [TerminalTabGroupID] = []
+    for itemID in itemIDs {
+      guard seenIDs.insert(itemID).inserted else {
+        throw TerminalTabMoveError.duplicateItem(itemID)
+      }
+      guard let location = location(of: itemID, in: storage) else {
+        throw TerminalTabMoveError.itemNotFound(itemID)
+      }
+      priorLocations[itemID] = location
+      if case .tab = itemID, case .group(let groupID, _) = location,
+        !sourceGroupIDs.contains(groupID)
+      {
+        sourceGroupIDs.append(groupID)
+      }
+    }
+    return MoveSource(priorLocations: priorLocations, groupIDs: sourceGroupIDs)
+  }
+
+  private static func validateDestination(
+    _ destination: TerminalTabPlacement,
+    for itemIDs: [TerminalTabRootItemID],
+    in storage: Storage
+  ) throws {
+    if case .group(let groupID, _) = destination {
+      guard storage.groupsByID[groupID] != nil else {
+        throw TerminalTabMoveError.invalidDestination(destination)
+      }
+      guard itemIDs.allSatisfy({ if case .tab = $0 { true } else { false } }) else {
+        throw TerminalTabMoveError.invalidDestination(destination)
+      }
+    }
+  }
+
+  private static func insertMovedItems(
+    _ itemIDs: [TerminalTabRootItemID],
+    at destination: TerminalTabPlacement,
+    in storage: inout Storage
+  ) throws {
+    switch destination {
+    case .root(let placement):
+      guard insertRootIDs(itemIDs, at: placement, in: &storage) else {
+        throw TerminalTabMoveError.invalidDestination(destination)
+      }
+    case .group(let groupID, let index):
+      guard var childIDs = storage.childIDsByGroupID[groupID],
+        (0...childIDs.count).contains(index)
+      else {
+        throw TerminalTabMoveError.invalidDestination(destination)
+      }
+      let tabIDs = itemIDs.compactMap { itemID -> TerminalTabID? in
+        guard case .tab(let tabID) = itemID else { return nil }
+        return tabID
+      }
+      childIDs.insert(contentsOf: tabIDs, at: index)
+      storage.childIDsByGroupID[groupID] = childIDs
+    }
+  }
+
+  private static func location(
+    of id: TerminalTabRootItemID,
+    in storage: Storage
+  ) -> TerminalTabPlacement? {
+    if let index = storage.pinnedRootIDs.firstIndex(of: id) {
+      return .root(TerminalRootPlacement(isPinned: true, index: index))
+    }
+    if let index = storage.regularRootIDs.firstIndex(of: id) {
+      return .root(TerminalRootPlacement(isPinned: false, index: index))
+    }
+    guard case .tab(let tabID) = id else { return nil }
+    for (groupID, childIDs) in storage.childIDsByGroupID {
+      if let index = childIDs.firstIndex(of: tabID) {
+        return .group(groupID, index: index)
       }
     }
     return nil
   }
 
-  @discardableResult
-  private func removeTab(_ id: TerminalTabID) -> TerminalTabItem? {
-    guard let location = tabLocation(id) else { return nil }
-    switch location {
-    case .root(let index):
-      guard case .tab(let item) = rootItems.remove(at: index) else { return nil }
-      return item.tab
-    case .group(let groupID, let index):
-      guard let rootIndex = groupRootIndex(groupID) else { return nil }
-      guard case .group(var group) = rootItems[rootIndex] else { return nil }
-      let tab = group.tabs.remove(at: index)
-      rootItems[rootIndex] = .group(group)
-      return tab
+  private static func remove(
+    _ id: TerminalTabRootItemID,
+    from storage: inout Storage
+  ) {
+    storage.pinnedRootIDs.removeAll { $0 == id }
+    storage.regularRootIDs.removeAll { $0 == id }
+    guard case .tab(let tabID) = id else { return }
+    for groupID in storage.childIDsByGroupID.keys {
+      storage.childIDsByGroupID[groupID]?.removeAll { $0 == tabID }
     }
   }
 
-  @discardableResult
-  private func insertTab(_ tab: TerminalTabItem, at placement: TerminalTabPlacement) -> Bool {
+  private static func insertTabID(
+    _ id: TerminalTabID,
+    at placement: TerminalTabPlacement,
+    in storage: inout Storage
+  ) -> Bool {
     switch placement {
     case .root(let placement):
-      return insertRootItem(
-        .tab(TerminalUngroupedTabItem(tab: tab, isPinned: placement.isPinned)),
-        at: placement
-      )
+      return insertRootIDs([.tab(id)], at: placement, in: &storage)
     case .group(let groupID, let index):
-      guard let rootIndex = groupRootIndex(groupID) else { return false }
-      guard case .group(var group) = rootItems[rootIndex] else { return false }
-      guard (0...group.tabs.count).contains(index) else { return false }
-      group.tabs.insert(tab, at: index)
-      rootItems[rootIndex] = .group(group)
+      guard var childIDs = storage.childIDsByGroupID[groupID],
+        (0...childIDs.count).contains(index)
+      else {
+        return false
+      }
+      childIDs.insert(id, at: index)
+      storage.childIDsByGroupID[groupID] = childIDs
       return true
     }
   }
 
-  private func updateTab(_ id: TerminalTabID, update: (inout TerminalTabItem) -> Void) {
-    guard let location = tabLocation(id) else { return }
-    switch location {
-    case .root(let index):
-      guard case .tab(var item) = rootItems[index] else { return }
-      update(&item.tab)
-      rootItems[index] = .tab(item)
-    case .group(let groupID, let index):
-      guard let rootIndex = groupRootIndex(groupID) else { return }
-      guard case .group(var group) = rootItems[rootIndex] else { return }
-      update(&group.tabs[index])
-      rootItems[rootIndex] = .group(group)
-    }
-  }
-
-  private func groupRootIndex(_ id: TerminalTabGroupID) -> Int? {
-    rootItems.firstIndex(where: { $0.id == .group(id) })
-  }
-
-  private func groupInsertion(containing tabIDs: [TerminalTabID]) -> TerminalRootPlacement? {
-    guard let firstTabID = tabIDs.first else { return nil }
-    guard let location = tabLocation(firstTabID) else { return nil }
-    let rootIndex: Int
-    let followsSourceRoot: Bool
-    switch location {
-    case .root(let index):
-      rootIndex = index
-      followsSourceRoot = false
-    case .group(let groupID, _):
-      guard let index = groupRootIndex(groupID) else { return nil }
-      rootIndex = index
-      followsSourceRoot = true
-    }
-    let item = rootItems[rootIndex]
-    let selectedRootIDs = Set(tabIDs.map(TerminalTabRootItemID.tab))
-    let laneIndex =
-      rootItems[..<rootIndex].count {
-        $0.isPinned == item.isPinned && !selectedRootIDs.contains($0.id)
-      } + (followsSourceRoot ? 1 : 0)
-    return TerminalRootPlacement(isPinned: item.isPinned, index: laneIndex)
-  }
-
-  private func isValid(
-    _ placement: TerminalTabPlacement,
-    afterRemoving tabID: TerminalTabID
+  private static func insertRootID(
+    _ id: TerminalTabRootItemID,
+    at placement: TerminalRootPlacement,
+    in storage: inout Storage
   ) -> Bool {
-    var items = rootItems
-    guard let location = tabLocation(tabID) else { return false }
-    switch location {
-    case .root(let index):
-      items.remove(at: index)
-    case .group(let groupID, let index):
-      guard let rootIndex = groupRootIndex(groupID) else { return false }
-      guard case .group(var group) = items[rootIndex] else { return false }
-      group.tabs.remove(at: index)
-      items[rootIndex] = .group(group)
-    }
-
-    switch placement {
-    case .root(let placement):
-      return (0...items.count(where: { $0.isPinned == placement.isPinned })).contains(
-        placement.index
-      )
-    case .group(let groupID, let index):
-      guard
-        let group = items.compactMap({ item -> TerminalTabGroupItem? in
-          guard case .group(let group) = item, group.id == groupID else { return nil }
-          return group
-        }).first
-      else {
-        return false
-      }
-      return (0...group.tabs.count).contains(index)
-    }
+    insertRootIDs([id], at: placement, in: &storage)
   }
 
-  private func isValid(
-    _ placement: TerminalRootPlacement,
-    afterRemovingRootItemAt index: Int
+  private static func insertRootIDs(
+    _ ids: [TerminalTabRootItemID],
+    at placement: TerminalRootPlacement,
+    in storage: inout Storage
   ) -> Bool {
-    var items = rootItems
-    items.remove(at: index)
-    return (0...items.count(where: { $0.isPinned == placement.isPinned })).contains(
-      placement.index
-    )
-  }
-
-  @discardableResult
-  private func insertRootItem(
-    _ item: TerminalTabRootItem,
-    at placement: TerminalRootPlacement
-  ) -> Bool {
-    let laneIndices = rootItems.indices.filter { rootItems[$0].isPinned == placement.isPinned }
-    guard (0...laneIndices.count).contains(placement.index) else { return false }
-    let insertionIndex: Int
-    if laneIndices.indices.contains(placement.index) {
-      insertionIndex = laneIndices[placement.index]
-    } else if placement.isPinned {
-      insertionIndex = regularRootItems.isEmpty ? rootItems.endIndex : rootItems.firstIndex { !$0.isPinned }!
+    if placement.isPinned {
+      guard (0...storage.pinnedRootIDs.count).contains(placement.index) else { return false }
+      storage.pinnedRootIDs.insert(contentsOf: ids, at: placement.index)
     } else {
-      insertionIndex = rootItems.endIndex
+      guard (0...storage.regularRootIDs.count).contains(placement.index) else { return false }
+      storage.regularRootIDs.insert(contentsOf: ids, at: placement.index)
     }
-    rootItems.insert(item, at: insertionIndex)
     return true
   }
 
-  private func repairSelection() {
-    guard !tabs.contains(where: { $0.id == selectedTabId }) else { return }
-    selectedTabId = tabs.first?.id
+  private static func appendRootID(
+    _ id: TerminalTabRootItemID,
+    isPinned: Bool,
+    to storage: inout Storage
+  ) {
+    if isPinned {
+      storage.pinnedRootIDs.append(id)
+    } else {
+      storage.regularRootIDs.append(id)
+    }
   }
 
-  private static func sanitized(_ rootItems: [TerminalTabRootItem]) -> [TerminalTabRootItem] {
-    var seenTabIDs: Set<TerminalTabID> = []
-    var seenGroupIDs: Set<TerminalTabGroupID> = []
-    var items: [TerminalTabRootItem] = []
-    for item in rootItems {
-      switch item {
-      case .tab(let item):
-        guard seenTabIDs.insert(item.tab.id).inserted else { continue }
-        items.append(.tab(item))
-      case .group(var group):
-        guard seenGroupIDs.insert(group.id).inserted else { continue }
-        group.tabs = group.tabs.filter { seenTabIDs.insert($0.id).inserted }
-        items.append(.group(group))
-      }
-    }
-    return items.filter(\.isPinned) + items.filter { !$0.isPinned }
+  private static func rootIDs(
+    isPinned: Bool,
+    in storage: Storage
+  ) -> [TerminalTabRootItemID] {
+    isPinned ? storage.pinnedRootIDs : storage.regularRootIDs
+  }
+
+  private static func deleteAutomaticGroupIfEmpty(
+    _ id: TerminalTabGroupID,
+    from storage: inout Storage
+  ) -> Bool {
+    guard storage.groupsByID[id]?.lifetime == .automatic else { return false }
+    guard storage.childIDsByGroupID[id]?.isEmpty == true else { return false }
+    deleteGroup(id, from: &storage)
+    return true
+  }
+
+  private static func deleteGroup(
+    _ id: TerminalTabGroupID,
+    from storage: inout Storage
+  ) {
+    remove(.group(id), from: &storage)
+    storage.groupsByID[id] = nil
+    storage.childIDsByGroupID[id] = nil
   }
 }

@@ -410,8 +410,7 @@ final class TerminalHostState {
       .updateWindowActivity,
       .deleteSpace:
       handleSelectionCommand(command)
-    case .moveGroup,
-      .moveTab,
+    case .move,
       .removeTabFromGroup,
       .renameGroup,
       .setGroupColor,
@@ -516,10 +515,8 @@ final class TerminalHostState {
 
   func handleTabGroupCommand(_ command: TerminalClient.Command) {
     switch command {
-    case .moveGroup(let groupID, let placement):
-      moveGroup(groupID, to: placement)
-    case .moveTab(let tabID, let placement):
-      moveTab(tabID, to: placement)
+    case .move(let request):
+      _ = try? move(request)
     case .removeTabFromGroup(let tabID):
       removeTabFromGroup(tabID)
     case .renameGroup(let groupID, let title):
@@ -538,9 +535,15 @@ final class TerminalHostState {
   }
 
   func togglePinned(_ tabID: TerminalTabID) {
-    guard let spaceID = spaceManager.space(for: tabID)?.id else { return }
-    spaceManager.tabManager(for: spaceID)?.togglePinned(tabID)
-    sessionDidChange()
+    guard
+      let spaceID = spaceManager.space(for: tabID)?.id,
+      let manager = spaceManager.tabManager(for: spaceID)
+    else {
+      return
+    }
+    let previousRevision = manager.topologyRevision
+    guard let result = manager.togglePinned(tabID) else { return }
+    finishMove(result, previousRevision: previousRevision, spaceID: spaceID)
   }
 
   @discardableResult
@@ -806,7 +809,8 @@ final class TerminalHostState {
     let wasSelectedTab = tabManager.selectedTabId == tabID
 
     removeTree(for: tabID, source: .closeTab)
-    tabManager.closeTab(tabID)
+    guard let result = tabManager.closeTab(tabID) else { return }
+    removeCollapsedGroups(result.deletedEmptyGroupIDs, in: space.id)
     updateSelectionAfterClosingTab(
       in: space.id,
       wasSelectedSpace: wasSelectedSpace,

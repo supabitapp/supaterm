@@ -1136,7 +1136,7 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func moveTabCommittedSendsStructuralMoveCommand() async {
+  func moveCommittedSendsStructuralMoveCommand() async {
     let recorder = TerminalCommandRecorder()
     let tabID = TerminalTabID()
     let placement = TerminalTabPlacement.root(
@@ -1149,13 +1149,17 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(
-      .moveTabCommitted(tabID, placement)
+    let request = TerminalTabMoveRequest(
+      operationID: TerminalTabMoveOperationID(
+        rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+      ),
+      expectedTopologyRevision: 7,
+      itemIDs: [.tab(tabID)],
+      destination: placement
     )
+    await store.send(.moveCommitted(request))
 
-    let expected = TerminalClient.Command.moveTab(tabID, placement)
-
-    #expect(recorder.commands == [expected])
+    #expect(recorder.commands == [.move(request)])
   }
 
   @Test

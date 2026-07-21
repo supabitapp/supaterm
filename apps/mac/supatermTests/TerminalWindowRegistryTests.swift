@@ -616,9 +616,9 @@ struct TerminalWindowRegistryTests {
 
       #expect(snapshot.windows.count == 2)
       #expect(snapshot.windows[0].frame == TerminalWindowFrame(firstFrame))
-      #expect(snapshot.windows[0].spaces.first?.rootItems.flatMap(\.tabs).count == 1)
+      #expect(snapshot.windows[0].spaces.first?.tabs.count == 1)
       #expect(snapshot.windows[1].frame == TerminalWindowFrame(secondFrame))
-      #expect(snapshot.windows[1].spaces.first?.rootItems.flatMap(\.tabs).count == 2)
+      #expect(snapshot.windows[1].spaces.first?.tabs.count == 2)
     }
   }
   @Test

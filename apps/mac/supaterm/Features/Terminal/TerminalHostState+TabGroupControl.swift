@@ -43,7 +43,7 @@ extension TerminalHostState {
         throw TerminalControlError.spaceNotFound(windowIndex: 1, spaceIndex: 1)
       }
       guard
-        let groupID = manager.createGroup(
+        let creation = manager.createGroup(
           title: request.title,
           color: terminalGroupColor(request.color),
           containing: []
@@ -51,6 +51,7 @@ extension TerminalHostState {
       else {
         throw TerminalControlError.invalidGroupTitle
       }
+      let groupID = creation.groupID
       if request.isPinned {
         _ = manager.setPinned(.group(groupID), isPinned: true)
       }
@@ -59,11 +60,23 @@ extension TerminalHostState {
 
     case .move(let request):
       let resolved = try resolvedControlGroup(request.groupID)
+      let topologyRevision = try controlTopologyRevision(
+        in: resolved.space.id,
+        groupID: request.groupID
+      )
       let placement = TerminalRootPlacement(
         isPinned: resolved.group.isPinned,
         index: request.index
       )
-      guard moveGroup(resolved.group.id, to: placement) else {
+      guard
+        (try? move(
+          TerminalTabMoveRequest(
+            expectedTopologyRevision: topologyRevision,
+            itemIDs: [.group(resolved.group.id)],
+            destination: .root(placement)
+          )
+        )) != nil
+      else {
         throw TerminalControlError.invalidGroupIndex(request.index)
       }
       return .group(try groupMutationResult(for: resolved.group.id))
@@ -136,6 +149,16 @@ extension TerminalHostState {
     return ResolvedControlGroup(group: group, space: space, spaceIndex: spaceIndex)
   }
 
+  private func controlTopologyRevision(
+    in spaceID: TerminalSpaceID,
+    groupID: UUID
+  ) throws -> UInt64 {
+    guard let manager = spaceManager.tabManager(for: spaceID) else {
+      throw TerminalControlError.groupNotFound(groupID)
+    }
+    return manager.topologyRevision
+  }
+
   private func groupMutationResult(
     for groupID: TerminalTabGroupID
   ) throws -> SupatermTabGroupMutationResult {
@@ -192,7 +215,15 @@ extension TerminalHostState {
       )
     }
 
-    guard moveTab(target.tabID, to: placement) else {
+    guard
+      (try? move(
+        TerminalTabMoveRequest(
+          expectedTopologyRevision: manager.topologyRevision,
+          itemIDs: [.tab(target.tabID)],
+          destination: placement
+        )
+      )) != nil
+    else {
       let index: Int
       switch placement {
       case .group(_, let destinationIndex):

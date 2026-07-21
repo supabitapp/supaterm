@@ -56,6 +56,7 @@ final class SupatermE2EApp: @unchecked Sendable {
       "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
       "SHELL": "/bin/zsh",
       "SUPATERM_TEST_MODE": "1",
+      "SUPATERM_VERBOSE_LOGGING": "1",
       "USER": NSUserName(),
       SupatermCLIEnvironment.instanceNameKey: instanceName,
       SupatermCLIEnvironment.stateHomeKey: stateHome.path,
