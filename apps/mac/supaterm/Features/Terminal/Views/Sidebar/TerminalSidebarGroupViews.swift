@@ -329,18 +329,6 @@ private struct TerminalSidebarGroupHeader: View {
 
   var body: some View {
     HStack(spacing: 6) {
-      Button {
-        actions.toggleGroupCollapsed(presentation.id)
-      } label: {
-        Image(systemName: "chevron.down")
-          .font(.system(size: 9, weight: .semibold))
-          .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
-          .frame(width: 14, height: 20)
-          .contentShape(Rectangle())
-          .accessibilityHidden(true)
-      }
-      .buttonStyle(.plain)
-
       Circle()
         .fill(presentation.color.sidebarColor(palette: palette))
         .frame(width: 8, height: 8)
@@ -387,6 +375,18 @@ private struct TerminalSidebarGroupHeader: View {
         .foregroundStyle(palette.secondaryText)
         .accessibilityLabel("New Tab in \(presentation.title)")
       }
+
+      Button {
+        actions.toggleGroupCollapsed(presentation.id)
+      } label: {
+        Image(systemName: "chevron.down")
+          .font(.system(size: 9, weight: .semibold))
+          .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
+          .frame(width: 14, height: 20)
+          .contentShape(Rectangle())
+          .accessibilityHidden(true)
+      }
+      .buttonStyle(.plain)
     }
     .padding(.horizontal, 8)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
