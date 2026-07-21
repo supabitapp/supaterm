@@ -333,7 +333,9 @@ struct TerminalHostStateSessionRestoreTests {
           destination: .root(
             TerminalRootPlacement(
               isPinned: false,
-              index: manager.regularRootItems.count
+              index: try #require(
+                manager.rootCount(isPinned: false, afterRemoving: [.tab(automaticTabID)])
+              )
             )
           )
         )
@@ -348,7 +350,9 @@ struct TerminalHostStateSessionRestoreTests {
           destination: .root(
             TerminalRootPlacement(
               isPinned: false,
-              index: manager.regularRootItems.count
+              index: try #require(
+                manager.rootCount(isPinned: false, afterRemoving: [.tab(durableTabID)])
+              )
             )
           )
         )

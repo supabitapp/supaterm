@@ -316,7 +316,7 @@ private struct TerminalSidebarTabPreviewRow: View {
   }
 
   private var rowAppearance: SelectableRowButtonStyle.ResolvedAppearance {
-    SelectableRowButtonStyle.Appearance.sidebar.resolve(palette: palette)
+    SelectableRowButtonStyle.Appearance.sidebar(restFill: .clear).resolve(palette: palette)
   }
 }
 

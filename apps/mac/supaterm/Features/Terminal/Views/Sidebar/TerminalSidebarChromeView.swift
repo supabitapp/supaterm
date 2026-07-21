@@ -222,35 +222,16 @@ struct TerminalSidebarChromeView: View {
     _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
     guard command.topologyStamp.spaceID == terminal.selectedSpaceID else { return nil }
-    switch command {
-    case .move(let operationID, let topologyStamp, let itemID, let destination):
-      return try? .moved(
-        spaceID: topologyStamp.spaceID,
-        result: terminal.move(
-          TerminalTabMoveRequest(
-            operationID: operationID,
-            expectedTopologyRevision: topologyStamp.revision,
-            itemIDs: [itemID],
-            destination: destination
-          )
+    return try? TerminalSidebarDropReceipt(
+      spaceID: command.topologyStamp.spaceID,
+      result: terminal.move(
+        TerminalTabMoveRequest(
+          operationID: command.operationID,
+          expectedTopologyRevision: command.topologyStamp.revision,
+          itemIDs: command.itemIDs,
+          destination: command.destination
         )
       )
-    case .createGroup(let operationID, let topologyStamp, let sourceTabID, let targetTabID):
-      guard topologyStamp.revision == terminal.selectedSpaceTopologyRevision else {
-        return nil
-      }
-      guard
-        let result = terminal.createGroup(
-          title: "New Group",
-          color: .neutral,
-          containing: [targetTabID, sourceTabID]
-        )
-      else { return nil }
-      return .createdGroup(
-        operationID: operationID,
-        spaceID: topologyStamp.spaceID,
-        result: result
-      )
-    }
+    )
   }
 }

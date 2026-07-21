@@ -166,6 +166,42 @@ struct TerminalTabManagerTests {
   }
 
   @Test
+  func batchMoveRemovesAutomaticSourceGroupsBeforeRootInsertion() throws {
+    let manager = TerminalTabManager()
+    let first = manager.createTab(title: "First")
+    let second = manager.createTab(title: "Second")
+    let tail = manager.createTab(title: "Tail")
+    let firstGroup = try #require(manager.createGroup(title: "First", containing: [first])).groupID
+    let secondGroup = try #require(manager.createGroup(title: "Second", containing: [second])).groupID
+
+    let result = try manager.move(
+      TerminalTabMoveRequest(
+        expectedTopologyRevision: manager.topologyRevision,
+        itemIDs: [.tab(first), .tab(second)],
+        destination: .root(TerminalRootPlacement(isPinned: false, index: 1))
+      )
+    )
+
+    #expect(manager.rootItems.map(\.id) == [.tab(tail), .tab(first), .tab(second)])
+    #expect(result.location == .root(TerminalRootPlacement(isPinned: false, index: 1)))
+    #expect(result.deletedEmptyGroupIDs == [firstGroup, secondGroup])
+  }
+
+  @Test
+  func removingLastAutomaticChildUsesRootIndexAfterGroupDeletion() throws {
+    let manager = TerminalTabManager()
+    let first = manager.createTab(title: "First")
+    let grouped = manager.createTab(title: "Grouped")
+    let trailing = manager.createTab(title: "Trailing")
+    _ = try #require(manager.createGroup(title: "Group", containing: [grouped]))
+
+    let result = try #require(manager.removeTabFromGroup(grouped))
+
+    #expect(manager.rootItems.map(\.id) == [.tab(first), .tab(grouped), .tab(trailing)])
+    #expect(result.location == .root(TerminalRootPlacement(isPinned: false, index: 1)))
+  }
+
+  @Test
   func batchMoveRejectsGroupWithItsDescendantWithoutMutation() throws {
     let manager = TerminalTabManager()
     let child = manager.createTab(title: "Child")

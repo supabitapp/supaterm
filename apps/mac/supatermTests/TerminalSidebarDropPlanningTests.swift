@@ -4,7 +4,7 @@ import Testing
 
 struct TerminalSidebarDropPlanningTests {
   @Test
-  func payloadStoresOneSemanticSourceAndDerivesLiftedRows() throws {
+  func payloadStoresOrderedTabsOrOneGroupAndDerivesLiftedRows() throws {
     let first = TerminalTabID()
     let second = TerminalTabID()
     let groupID = TerminalTabGroupID()
@@ -18,103 +18,106 @@ struct TerminalSidebarDropPlanningTests {
       revision: 9
     )
 
-    let payload = try #require(outline.dragPayload(for: .group(groupID)))
+    let tabs = try #require(
+      outline.dragPayload(for: .tab(second), selectedTabIDs: [first, second])
+    )
+    let group = try #require(outline.dragPayload(for: .group(groupID)))
 
-    #expect(payload.source == .group(groupID))
-    #expect(payload.source.itemID == .group(groupID))
-    #expect(outline.liftedEntryIDs(for: payload.source) == [.group(groupID), .tab(first), .tab(second)])
-    #expect(payload.topologyRevision == 9)
+    #expect(tabs.source == .tabs([first, second]))
+    #expect(tabs.source.itemIDs == [.tab(first), .tab(second)])
+    #expect(outline.liftedEntryIDs(for: tabs.source) == [.tab(first), .tab(second)])
+    #expect(group.source == .group(groupID))
+    #expect(group.source.itemIDs == [.group(groupID)])
+    #expect(outline.liftedEntryIDs(for: group.source) == [.group(groupID), .tab(first), .tab(second)])
+    #expect(group.topologyRevision == 9)
   }
 
   @Test
-  func plansFreezeIntoOneMoveOrCreateGroupCommand() throws {
-    let source = TerminalTabID()
-    let target = TerminalTabID()
-    let payload = TerminalSidebarTestFixture.payload(source: .tab(source), revision: 4)
-    let move = TerminalSidebarDropPlan(
+  func planFreezesIntoOneOrderedMoveCommand() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let payload = TerminalSidebarTestFixture.payload(
+      source: .tabs([first, second]),
+      revision: 4
+    )
+    let plan = TerminalSidebarDropPlan(
       path: .trailingRoot,
       destination: .root(isPinned: false, index: 2),
       placeholder: .beforeFooter
     )
-    let create = TerminalSidebarDropPlan(
-      path: .rootItem(index: 0),
-      destination: .createGroup(targetTabID: target),
-      placeholder: .tabHighlight(target)
-    )
 
     #expect(
-      move.command(for: payload)
-        == .move(
+      plan.command(for: payload)
+        == TerminalSidebarDropCommand(
           operationID: payload.operationID,
           topologyStamp: payload.topologyStamp,
-          itemID: .tab(source),
+          itemIDs: [.tab(first), .tab(second)],
           destination: .root(TerminalRootPlacement(isPinned: false, index: 2))
-        )
-    )
-    #expect(
-      create.command(for: payload)
-        == .createGroup(
-          operationID: payload.operationID,
-          topologyStamp: payload.topologyStamp,
-          sourceTabID: source,
-          targetTabID: target
         )
     )
   }
 
   @Test
-  func tabRootTargetCreatesGroupWhileGroupRootTargetReorders() throws {
-    let sourceTab = TerminalTabID()
-    let targetTab = TerminalTabID()
+  func rootTabTargetReordersAndGroupHeaderAppends() throws {
+    let source = TerminalTabID()
+    let target = TerminalTabID()
     let child = TerminalTabID()
     let groupID = TerminalTabGroupID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(content: .tab(targetTab), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(target), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .group(groupID, .blue, .automatic, [child]),
           isPinned: false
         ),
-        TerminalSidebarOutline.Root(content: .tab(sourceTab), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
       ],
       revision: 3
     )
+    let payload = try #require(outline.dragPayload(for: .tab(source)))
 
-    let tabPayload = try #require(outline.dragPayload(for: .tab(sourceTab)))
-    let groupPayload = try #require(outline.dragPayload(for: .group(groupID)))
+    let reorder = TerminalSidebarDropPlanner.plan(
+      payload: payload,
+      path: .rootBoundary(index: 0, affinity: .before),
+      outline: outline
+    )
+    let append = TerminalSidebarDropPlanner.plan(
+      payload: payload,
+      path: .rootItem(index: 1),
+      outline: outline
+    )
 
-    #expect(
-      TerminalSidebarDropPlanner.plan(
-        payload: tabPayload,
-        path: .rootItem(index: 0),
-        outline: outline
-      )?.destination == .createGroup(targetTabID: targetTab)
-    )
-    #expect(
-      TerminalSidebarDropPlanner.plan(
-        payload: groupPayload,
-        path: .rootItem(index: 0),
-        outline: outline
-      )?.destination == .root(isPinned: false, index: 0)
-    )
+    #expect(reorder?.destination == .root(isPinned: false, index: 0))
+    #expect(reorder?.placeholder == .before(.tab(target)))
+    #expect(append?.destination == .group(groupID, index: 1))
+    #expect(append?.placeholder == .groupEnd(groupID))
+    #expect(append?.highlightedGroupID == groupID)
   }
 
   @Test
-  func automaticLastChildExitUsesPostRemovalRootIndex() throws {
-    let source = TerminalTabID()
+  func mixedBatchUsesPostRemovalIndexesAndDeletesAutomaticSources() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
     let tail = TerminalTabID()
-    let groupID = TerminalTabGroupID()
+    let firstGroup = TerminalTabGroupID()
+    let secondGroup = TerminalTabGroupID()
     let outline = TerminalSidebarTestFixture.outline(
       roots: [
         TerminalSidebarOutline.Root(
-          content: .group(groupID, .green, .automatic, [source]),
+          content: .group(firstGroup, .green, .automatic, [first]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(
+          content: .group(secondGroup, .blue, .automatic, [second]),
           isPinned: false
         ),
         TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
       ],
       revision: 5
     )
-    let payload = try #require(outline.dragPayload(for: .tab(source)))
+    let payload = try #require(
+      outline.dragPayload(for: .tab(first), selectedTabIDs: [first, second])
+    )
 
     #expect(
       TerminalSidebarDropPlanner.plan(
@@ -162,7 +165,42 @@ struct TerminalSidebarDropPlanningTests {
         payload: payload,
         path: .trailingRoot,
         outline: outline
-      )?.destination == .root(isPinned: false, index: 1)
+      ) == nil
+    )
+  }
+
+  @Test
+  func sameGroupBatchRejectsAnExactNoOp() throws {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let third = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .purple, .automatic, [first, second, third]),
+          isPinned: false
+        )
+      ],
+      revision: 2
+    )
+    let payload = try #require(
+      outline.dragPayload(for: .tab(first), selectedTabIDs: [first, second])
+    )
+
+    #expect(
+      TerminalSidebarDropPlanner.plan(
+        payload: payload,
+        path: .group(groupID, index: 0),
+        outline: outline
+      ) == nil
+    )
+    #expect(
+      TerminalSidebarDropPlanner.plan(
+        payload: payload,
+        path: .group(groupID, index: 3),
+        outline: outline
+      )?.destination == .group(groupID, index: 1)
     )
   }
 }

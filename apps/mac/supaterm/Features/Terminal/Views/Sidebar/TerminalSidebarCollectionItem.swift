@@ -21,9 +21,12 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
   func liftHostedView(sourceFrame: CGRect) -> TerminalSidebarLiftedRow? {
     guard let hostedView = containerView.liftHostedView() else { return nil }
     return TerminalSidebarLiftedRow(
-      item: self,
       hostedView: hostedView,
-      sourceFrame: sourceFrame
+      sourceFrame: sourceFrame,
+      restore: { [weak self, weak hostedView] in
+        guard let self, let hostedView else { return }
+        restoreHostedView(hostedView)
+      }
     )
   }
 
@@ -34,12 +37,22 @@ final class TerminalSidebarCollectionItem: NSCollectionViewItem {
 
 @MainActor
 struct TerminalSidebarLiftedRow {
-  let item: TerminalSidebarCollectionItem
   let hostedView: NSView
   let sourceFrame: CGRect
+  let restoreAction: @MainActor () -> Void
+
+  init(
+    hostedView: NSView,
+    sourceFrame: CGRect,
+    restore: @escaping @MainActor () -> Void
+  ) {
+    self.hostedView = hostedView
+    self.sourceFrame = sourceFrame
+    restoreAction = restore
+  }
 
   func restore() {
-    item.restoreHostedView(hostedView)
+    restoreAction()
   }
 }
 
@@ -113,7 +126,7 @@ private final class SidebarEventHostingView: NSHostingView<TerminalSidebarHosted
   }
 
   override func mouseUp(with event: NSEvent) {
-    guard let entryID, collectionView?.rowMouseUp(entryID: entryID) == true else {
+    guard let entryID, collectionView?.rowMouseUp(entryID: entryID, event: event) == true else {
       super.mouseUp(with: event)
       return
     }

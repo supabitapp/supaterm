@@ -1,4 +1,5 @@
 import AppKit
+import ComposableArchitecture
 import QuartzCore
 import SupaTheme
 import SwiftUI
@@ -31,8 +32,15 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private struct PendingDrag {
     let entryID: TerminalSidebarEntryID
     let eventNumber: Int
+    let modifierFlags: NSEvent.ModifierFlags
     let origin: CGPoint
     let sourceFrame: CGRect
+  }
+
+  private struct DragSourceGeometry {
+    let itemByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
+    let fanAnchorIndex: Int?
+    let frame: CGRect
   }
 
   private struct ActiveDrag {
@@ -57,12 +65,13 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   let renameState = TerminalSidebarRenameState()
   let groupHoverState = TerminalSidebarGroupHoverState()
+  let groupHeaderHoverState = TerminalSidebarGroupHoverState()
+  let tabSelectionState = TerminalSidebarTabSelectionState()
   var performDrop: ((TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?)?
 
   private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
-  private let combineHighlightView = TerminalSidebarDropHighlightView()
   private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
   private var rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation] = [:]
@@ -135,6 +144,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       }
     )
     groupHoverState.retain(groupIDs)
+    groupHeaderHoverState.retain(groupIDs)
     if let fixedHoveredGroupID = context.fixedHoveredGroupID,
       groupIDs.contains(fixedHoveredGroupID)
     {
@@ -147,12 +157,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
     if selectedTabID != self.selectedTabID {
       let previous = self.selectedTabID
+      tabSelectionState.clear()
       self.selectedTabID = selectedTabID
       pendingRevealTabID = selectedTabID
       refreshVisibleRows(
         ids: Set([previous, selectedTabID].compactMap { $0 }.map(TerminalSidebarEntryID.tab))
       )
     }
+    tabSelectionState.retainVisible(in: outline, primaryTabID: selectedTabID)
 
     refreshVisibleRows(ids: Set(rows.keys))
     let update = Update(outline: outline, reduceMotion: reduceMotion)
@@ -187,15 +199,14 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView.registerForDraggedTypes([.terminalSidebarOutlineItem])
     collectionView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
     collectionView.delegate = self
-    collectionView.addSubview(combineHighlightView)
     collectionView.onRowMouseDown = { [weak self] entryID, event in
       self?.rowMouseDown(entryID: entryID, event: event) == true
     }
     collectionView.onRowMouseDragged = { [weak self] entryID, event in
       self?.rowMouseDragged(entryID: entryID, event: event) == true
     }
-    collectionView.onRowMouseUp = { [weak self] entryID in
-      self?.rowMouseUp(entryID: entryID) == true
+    collectionView.onRowMouseUp = { [weak self] entryID, event in
+      self?.rowMouseUp(entryID: entryID, event: event) == true
     }
     collectionView.onDraggingUpdated = { [weak self] info in
       self?.draggingUpdated(info) ?? []
@@ -470,13 +481,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     else { return false }
     let location = collectionView.convert(event.locationInWindow, from: nil)
     guard attributes.frame.contains(location) else { return false }
+    let modifierFlags = event.modifierFlags.intersection([.command, .shift])
     pendingDrag = PendingDrag(
       entryID: entryID,
       eventNumber: event.eventNumber,
+      modifierFlags: modifierFlags,
       origin: location,
       sourceFrame: attributes.frame
     )
-    return false
+    guard case .tab = entryID else { return false }
+    return !modifierFlags.isEmpty
   }
 
   private func rowMouseDragged(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
@@ -496,64 +510,81 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       return false
     case .begin:
       self.pendingDrag = nil
-      return beginDragging(entryID: entryID, event: event, pointer: location)
+      return beginDragging(
+        entryID: entryID,
+        modifierFlags: pendingDrag.modifierFlags,
+        event: event,
+        pointer: location
+      )
     }
   }
 
-  private func rowMouseUp(entryID: TerminalSidebarEntryID) -> Bool {
+  private func rowMouseUp(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
     let consumes = activeDrag != nil && pendingDrag?.entryID == nil
-    if pendingDrag?.entryID == entryID { pendingDrag = nil }
-    return consumes
+    guard pendingDrag?.entryID == entryID else { return consumes }
+    pendingDrag = nil
+    guard case .tab(let tabID) = entryID else { return consumes }
+    let modifiers = event.modifierFlags.intersection([.command, .shift])
+    guard !modifiers.isEmpty else { return consumes }
+    applyModifiedSelection(tabID: tabID, modifiers: modifiers)
+    return true
+  }
+
+  private func applyModifiedSelection(
+    tabID: TerminalTabID,
+    modifiers: NSEvent.ModifierFlags
+  ) {
+    guard let selectedTabID else {
+      tabSelectionState.clear()
+      _ = context?.store.send(.tabSelected(tabID))
+      return
+    }
+    if modifiers.contains(.shift) {
+      tabSelectionState.selectRange(
+        to: tabID,
+        primaryTabID: selectedTabID,
+        outline: appliedOutline,
+        additive: modifiers.contains(.command)
+      )
+    } else {
+      tabSelectionState.toggle(tabID, primaryTabID: selectedTabID)
+    }
   }
 
   private func beginDragging(
     entryID: TerminalSidebarEntryID,
+    modifierFlags: NSEvent.ModifierFlags,
     event: NSEvent,
     pointer: CGPoint
   ) -> Bool {
+    guard case .idle = updatePhase else { return false }
+    guard let selectedTabIDs = selectedTabIDsForDrag(entryID, modifierFlags: modifierFlags) else {
+      return false
+    }
     guard
-      case .idle = updatePhase,
-      let payload = appliedOutline.dragPayload(for: entryID)
+      let payload = appliedOutline.dragPayload(
+        for: entryID,
+        selectedTabIDs: selectedTabIDs
+      )
     else { return false }
     let liftedEntryIDs = appliedOutline.liftedEntryIDs(for: payload.source)
     setHoveredGroupID(nil)
-    let sourceIDs = Set(liftedEntryIDs)
+    groupHeaderHoverState.set(nil)
     guard
-      let sourceFrame = collectionLayout.plan.items
-        .filter({ sourceIDs.contains($0.id) && $0.frame.height > 0 })
-        .map(\.frame)
-        .reduce(Optional<CGRect>.none, { $0?.union($1) ?? $1 })
+      let geometry = dragSourceGeometry(
+        payload: payload,
+        liftedEntryIDs: liftedEntryIDs,
+        anchorEntryID: entryID
+      ),
+      let liftedRows = liftRows(liftedEntryIDs, itemByID: geometry.itemByID)
     else { return false }
-    let hotspot = CGPoint(x: pointer.x - sourceFrame.minX, y: pointer.y - sourceFrame.minY)
-    let active = ActiveDrag(
+    activeDrag = ActiveDrag(
       payload: payload,
       liftedEntryIDs: liftedEntryIDs,
       coordinator: TerminalSidebarDragCoordinator(payload: payload),
       target: nil
     )
     let screenPoint = screenPoint(for: event)
-    activeDrag = active
-    let liftedRows = liftedEntryIDs.compactMap { entryID -> TerminalSidebarLiftedRow? in
-      guard
-        let indexPath = dataSource.indexPath(for: entryID),
-        let item = collectionView.item(at: indexPath) as? TerminalSidebarCollectionItem,
-        let sourceItem = collectionLayout.plan.items.first(where: { $0.id == entryID })
-      else { return nil }
-      return item.liftHostedView(sourceFrame: sourceItem.frame)
-    }
-    guard !liftedRows.isEmpty else {
-      activeDrag = nil
-      return false
-    }
-    let liftedGroupBackground: TerminalSidebarLiftedGroupBackground?
-    switch payload.source {
-    case .group(let groupID):
-      liftedGroupBackground = groupBackgroundViews[groupID].map {
-        TerminalSidebarLiftedGroupBackground(id: groupID, view: $0, sourceFrame: $0.frame)
-      }
-    case .tab:
-      liftedGroupBackground = nil
-    }
     collectionLayout.dragDropState = TerminalSidebarDragDropState(
       draggingItemIDs: liftedEntryIDs,
       target: nil
@@ -561,9 +592,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     dragPresentation.begin(
       TerminalSidebarDragPresentation.Lift(
         rows: liftedRows,
-        groupBackground: liftedGroupBackground,
-        sourceFrame: sourceFrame,
-        hotspot: hotspot,
+        groupBackground: liftedGroupBackground(for: payload.source),
+        fanAnchorIndex: geometry.fanAnchorIndex,
+        sourceFrame: geometry.frame,
+        hotspot: CGPoint(x: pointer.x - geometry.frame.minX, y: pointer.y - geometry.frame.minY),
         screenPoint: screenPoint,
         timestamp: event.timestamp
       ),
@@ -573,21 +605,135 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     logDrag(
       "sidebar.drag.activation",
       fields: activeFields(payload) + [
-        "sourceMinY=\(coordinate(sourceFrame.minY))",
-        "sourceMaxY=\(coordinate(sourceFrame.maxY))",
+        "sourceMinY=\(coordinate(geometry.frame.minY))",
+        "sourceMaxY=\(coordinate(geometry.frame.maxY))",
       ]
     )
+    beginNativeDraggingSession(payload: payload, frame: geometry.frame, event: event)
+    return true
+  }
 
+  private func selectedTabIDsForDrag(
+    _ entryID: TerminalSidebarEntryID,
+    modifierFlags: NSEvent.ModifierFlags
+  ) -> [TerminalTabID]? {
+    switch entryID {
+    case .tab(let tabID):
+      if tabSelectionState.style(for: tabID, primaryTabID: selectedTabID) == .none {
+        if modifierFlags.contains(.shift) || modifierFlags.contains(.command) {
+          applyModifiedSelection(tabID: tabID, modifiers: modifierFlags)
+        } else {
+          tabSelectionState.clear()
+          _ = context?.store.send(.tabSelected(tabID))
+        }
+      }
+      return tabSelectionState.contextualTabIDs(
+        for: tabID,
+        primaryTabID: selectedTabID,
+        outline: appliedOutline
+      )
+    case .group:
+      tabSelectionState.clear()
+      return []
+    case .pinDivider, .newTab, .newGroup:
+      return nil
+    }
+  }
+
+  private func dragSourceGeometry(
+    payload: TerminalSidebarDragPayload,
+    liftedEntryIDs: [TerminalSidebarEntryID],
+    anchorEntryID: TerminalSidebarEntryID
+  ) -> DragSourceGeometry? {
+    let sourceIDs = Set(liftedEntryIDs)
+    let sourceItems = collectionLayout.plan.items.filter {
+      sourceIDs.contains($0.id) && $0.frame.height > 0
+    }
+    guard sourceItems.count == liftedEntryIDs.count else { return nil }
+    let itemByID = Dictionary(uniqueKeysWithValues: sourceItems.map { ($0.id, $0) })
+    switch payload.source {
+    case .tabs:
+      guard
+        let anchorIndex = liftedEntryIDs.firstIndex(of: anchorEntryID),
+        let anchorFrame = itemByID[anchorEntryID]?.frame
+      else { return nil }
+      return DragSourceGeometry(
+        itemByID: itemByID,
+        fanAnchorIndex: anchorIndex,
+        frame: TerminalSidebarLiveDragGeometry.fanFrame(
+          anchorFrame: anchorFrame,
+          rowHeights: liftedEntryIDs.compactMap { itemByID[$0]?.frame.height },
+          anchorIndex: anchorIndex
+        )
+      )
+    case .group:
+      guard
+        let frame = sourceItems.map(\.frame).reduce(
+          Optional<CGRect>.none,
+          { $0?.union($1) ?? $1 }
+        )
+      else { return nil }
+      return DragSourceGeometry(itemByID: itemByID, fanAnchorIndex: nil, frame: frame)
+    }
+  }
+
+  private func liftRows(
+    _ entryIDs: [TerminalSidebarEntryID],
+    itemByID: [TerminalSidebarEntryID: TerminalSidebarLayoutPlan.Item]
+  ) -> [TerminalSidebarLiftedRow]? {
+    var liftedRows: [TerminalSidebarLiftedRow] = []
+    for entryID in entryIDs {
+      guard let sourceItem = itemByID[entryID] else {
+        liftedRows.forEach { $0.restore() }
+        return nil
+      }
+      if let indexPath = dataSource.indexPath(for: entryID),
+        let item = collectionView.item(at: indexPath) as? TerminalSidebarCollectionItem,
+        let lifted = item.liftHostedView(sourceFrame: sourceItem.frame)
+      {
+        liftedRows.append(lifted)
+        continue
+      }
+      guard let presentation = rows[entryID], let context else {
+        liftedRows.forEach { $0.restore() }
+        return nil
+      }
+      let hostedView = NSHostingView(
+        rootView: TerminalSidebarHostedRow(presentation: presentation, context: context)
+      )
+      hostedView.frame.size = sourceItem.frame.size
+      liftedRows.append(
+        TerminalSidebarLiftedRow(
+          hostedView: hostedView,
+          sourceFrame: sourceItem.frame,
+          restore: {}
+        )
+      )
+    }
+    return liftedRows
+  }
+
+  private func liftedGroupBackground(
+    for source: TerminalSidebarDragSource
+  ) -> TerminalSidebarLiftedGroupBackground? {
+    guard case .group(let groupID) = source, let view = groupBackgroundViews[groupID] else {
+      return nil
+    }
+    return TerminalSidebarLiftedGroupBackground(id: groupID, view: view, sourceFrame: view.frame)
+  }
+
+  private func beginNativeDraggingSession(
+    payload: TerminalSidebarDragPayload,
+    frame: CGRect,
+    event: NSEvent
+  ) {
     let pasteboardItem = NSPasteboardItem()
     pasteboardItem.setString(
       payload.operationID.rawValue.uuidString,
       forType: .terminalSidebarOutlineItem
     )
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
-    draggingItem.setDraggingFrame(
-      sourceFrame,
-      contents: nil
-    )
+    draggingItem.setDraggingFrame(frame, contents: nil)
     let session = collectionView.beginDraggingSession(
       with: [draggingItem],
       event: event,
@@ -595,7 +741,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     )
     session.draggingFormation = .none
     session.animatesToStartingPositionsOnCancelOrFail = false
-    return true
   }
 
   private func draggingUpdated(_ info: any NSDraggingInfo) -> NSDragOperation {
@@ -738,13 +883,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private func beginSettlement(_ settlement: TerminalSidebarDragCoordinator.Settlement) {
     guard let activeDrag else { return }
     switch settlement {
-    case .accepted(let receipt):
-      if let groupID = receipt.createdGroupID,
-        let row = rows[.group(groupID)],
-        case .group(let presentation) = row
-      {
-        renameState.begin(groupID: groupID, title: presentation.title)
-      }
+    case .accepted:
       settleDragging(accepted: true)
     case .superseded:
       finishDragging()
@@ -759,29 +898,27 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   }
 
   private func settleDragging(accepted: Bool) {
-    guard let activeDrag, let sourceFrame = dragPresentation.sourceFrame else {
+    guard activeDrag != nil, let sourceFrame = dragPresentation.sourceFrame else {
       finishDragging()
       return
     }
     autoscrollController.stop()
     layoutAnimator.finish()
-    let destination = accepted ? settlementFrame(for: activeDrag, sourceFrame: sourceFrame) : sourceFrame
+    let destination = accepted ? settlementFrame(sourceFrame: sourceFrame) : sourceFrame
     dragPresentation.settle(
-      to: destination,
-      accepted: accepted,
-      motionPolicy: motionPolicy,
-      rippleCandidates: accepted ? rippleCandidates() : []
+      TerminalSidebarDragPresentation.Settlement(
+        targetFrame: destination,
+        rippleFocusFrame: collectionLayout.plan.dropPlaceholderFrame ?? destination,
+        accepted: accepted,
+        motionPolicy: motionPolicy,
+        rippleCandidates: accepted ? rippleCandidates() : []
+      )
     ) { [weak self] in
       self?.finishDragging()
     }
   }
 
-  private func settlementFrame(for activeDrag: ActiveDrag, sourceFrame: CGRect) -> CGRect {
-    if let groupID = activeDrag.coordinator.receipt?.createdGroupID,
-      let frame = collectionLayout.plan.groups.first(where: { $0.id == groupID })?.frame
-    {
-      return frame
-    }
+  private func settlementFrame(sourceFrame: CGRect) -> CGRect {
     if let placeholder = collectionLayout.plan.dropPlaceholderFrame {
       return CGRect(
         x: placeholder.minX,
@@ -792,11 +929,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     }
     if let groupID = collectionLayout.plan.highlightedGroupID,
       let frame = collectionLayout.plan.groups.first(where: { $0.id == groupID })?.frame
-    {
-      return frame
-    }
-    if let tabID = collectionLayout.plan.highlightedTabID,
-      let frame = collectionLayout.plan.items.first(where: { $0.id == .tab(tabID) })?.frame
     {
       return frame
     }
@@ -952,14 +1084,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       updateGroupSurface(group: group, background: background)
       background.needsLayout = true
     }
-    if let tabID = collectionLayout.plan.highlightedTabID,
-      let frame = collectionLayout.plan.items.first(where: { $0.id == .tab(tabID) })?.frame
-    {
-      combineHighlightView.frame = frame
-      combineHighlightView.isHidden = false
-    } else {
-      combineHighlightView.isHidden = true
-    }
   }
 
   private func refreshGroupSurfaces(ids: Set<TerminalTabGroupID>) {
@@ -1045,7 +1169,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private func activeFields(_ payload: TerminalSidebarDragPayload) -> [String] {
     operationFields(payload.operationID) + [
       "source=\(dragName(payload.source))",
-      "sourceID=\(rootID(payload.source.itemID))",
+      "sourceIDs=\(payload.source.itemIDs.map(rootID).joined(separator: ","))",
       "sourceSpace=\(SupatermLog.uuid(payload.topologyStamp.spaceID.rawValue))",
       "sourceRevision=\(payload.topologyStamp.revision)",
     ]
@@ -1076,7 +1200,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
 
   private func dragName(_ value: TerminalSidebarDragSource) -> String {
     switch value {
-    case .tab: "tab"
+    case .tabs: "tabs"
     case .group: "group"
     }
   }
@@ -1102,7 +1226,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     switch destination {
     case .root(let isPinned, let index): "root:\(isPinned):\(index)"
     case .group(let id, let index): "group:\(SupatermLog.uuid(id.rawValue)):\(index)"
-    case .createGroup(let id): "createGroup:\(SupatermLog.uuid(id.rawValue))"
     }
   }
 
@@ -1117,21 +1240,4 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   @objc private func liveScrollDidEnd() {
     autoscrollController.setLiveScrolling(false)
   }
-}
-
-private final class TerminalSidebarDropHighlightView: NSView {
-  override init(frame frameRect: NSRect) {
-    super.init(frame: frameRect)
-    wantsLayer = true
-    layer?.borderWidth = 1.5
-    layer?.borderColor = NSColor.controlAccentColor.cgColor
-    layer?.cornerRadius = TerminalSidebarLayout.tabRowCornerRadius
-    layer?.zPosition = 100
-    isHidden = true
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
-
-  override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

@@ -131,9 +131,9 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
-  func closeOtherTabsRequestedAsksHostToResolveClose() async {
+  func closeTabsRequestedAsksHostToResolveClose() async {
     let recorder = TerminalCommandRecorder()
-    let tabID = TerminalTabID()
+    let tabIDs = [TerminalTabID(), TerminalTabID()]
 
     let store = TestStore(initialState: TerminalWindowFeature.State()) {
       TerminalWindowFeature()
@@ -141,9 +141,25 @@ struct TerminalWindowFeatureTests {
       $0.terminalClient.send = { recorder.record($0) }
     }
 
-    await store.send(.closeOtherTabsRequested(tabID))
+    await store.send(.closeTabsRequested(tabIDs))
 
-    #expect(recorder.commands == [.requestCloseOtherTabs(tabID)])
+    #expect(recorder.commands == [.requestCloseTabs(tabIDs)])
+  }
+
+  @Test
+  func closeOtherTabsRequestedAsksHostToResolveClose() async {
+    let recorder = TerminalCommandRecorder()
+    let tabIDs = [TerminalTabID(), TerminalTabID()]
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(.closeOtherTabsRequested(tabIDs))
+
+    #expect(recorder.commands == [.requestCloseOtherTabs(tabIDs)])
   }
 
   @Test

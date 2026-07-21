@@ -6,6 +6,7 @@ final class TerminalSidebarDragPresentation {
   struct Lift {
     let rows: [TerminalSidebarLiftedRow]
     let groupBackground: TerminalSidebarLiftedGroupBackground?
+    let fanAnchorIndex: Int?
     let sourceFrame: CGRect
     let hotspot: CGPoint
     let screenPoint: CGPoint
@@ -16,6 +17,14 @@ final class TerminalSidebarDragPresentation {
     let layer: CALayer
     let frame: CGRect
     let center: CGPoint
+  }
+
+  struct Settlement {
+    let targetFrame: CGRect
+    let rippleFocusFrame: CGRect
+    let accepted: Bool
+    let motionPolicy: TerminalSidebarMotionPolicy
+    let rippleCandidates: [RippleCandidate]
   }
 
   private weak var collectionView: NSCollectionView?
@@ -43,6 +52,7 @@ final class TerminalSidebarDragPresentation {
     let liveView = TerminalSidebarLiveDragView(
       rows: lift.rows,
       groupBackground: lift.groupBackground,
+      fanAnchorIndex: lift.fanAnchorIndex,
       frame: lift.sourceFrame
     )
     collectionView?.addSubview(liveView, positioned: .above, relativeTo: nil)
@@ -84,32 +94,35 @@ final class TerminalSidebarDragPresentation {
   }
 
   func settle(
-    to targetFrame: CGRect,
-    accepted: Bool,
-    motionPolicy: TerminalSidebarMotionPolicy,
-    rippleCandidates: [RippleCandidate],
+    _ settlement: Settlement,
     completion: @escaping @MainActor @Sendable () -> Void
   ) {
     guard let liveView, let layer = liveView.layer else {
       completion()
       return
     }
-    if accepted, motionPolicy.ripple {
-      applyDropRipple(candidates: rippleCandidates, focusFrame: targetFrame)
+    if settlement.accepted, settlement.motionPolicy.ripple {
+      applyDropRipple(
+        candidates: settlement.rippleCandidates,
+        focusFrame: settlement.rippleFocusFrame
+      )
     }
     let destination = TerminalSidebarLiveDragGeometry.settlementPosition(
       currentLayerPosition: layer.position,
       currentFrame: liveView.frame,
-      targetFrame: targetFrame
+      targetFrame: settlement.targetFrame
     )
-    let animatesSettlement = accepted ? motionPolicy.acceptedArc : motionPolicy.snapback
+    let animatesSettlement =
+      settlement.accepted
+      ? settlement.motionPolicy.acceptedArc
+      : settlement.motionPolicy.snapback
     guard animatesSettlement else {
-      liveView.frame = targetFrame
+      liveView.frame = settlement.targetFrame
       completion()
       return
     }
     let positionAnimation: CAAnimation
-    if accepted {
+    if settlement.accepted {
       let motion = TerminalSidebarDropMotion.path(
         start: layer.position,
         destination: destination,
@@ -144,7 +157,10 @@ final class TerminalSidebarDragPresentation {
       TerminalSidebarTransformSpring.animation(from: translation, to: 0),
       forKey: "settleLift"
     )
-    layer.add(positionAnimation, forKey: accepted ? "acceptedDrop" : "cancelledDrop")
+    layer.add(
+      positionAnimation,
+      forKey: settlement.accepted ? "acceptedDrop" : "cancelledDrop"
+    )
     CATransaction.commit()
   }
 
@@ -226,6 +242,7 @@ private final class TerminalSidebarLiveDragView: NSView {
   init(
     rows: [TerminalSidebarLiftedRow],
     groupBackground: TerminalSidebarLiftedGroupBackground?,
+    fanAnchorIndex: Int?,
     frame: CGRect
   ) {
     self.rows = rows
@@ -240,11 +257,25 @@ private final class TerminalSidebarLiveDragView: NSView {
     layer?.shadowOffset = CGSize(width: 0, height: -2)
     layer?.opacity = 0.96
     groupBackground?.install(in: self, relativeTo: frame)
-    for row in rows {
-      row.hostedView.frame = TerminalSidebarLiveDragGeometry.rowFrame(
-        sourceFrame: row.sourceFrame,
-        containerFrame: frame
-      )
+    let fanSpacing = fanAnchorIndex.map { _ in
+      TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: rows.count)
+    }
+    for (index, row) in rows.enumerated() {
+      if let fanSpacing {
+        row.hostedView.frame = CGRect(
+          x: 0,
+          y: CGFloat(index) * fanSpacing,
+          width: frame.width,
+          height: row.sourceFrame.height
+        )
+        row.hostedView.wantsLayer = true
+        row.hostedView.layer?.zPosition = index == fanAnchorIndex ? 1 : 0
+      } else {
+        row.hostedView.frame = TerminalSidebarLiveDragGeometry.rowFrame(
+          sourceFrame: row.sourceFrame,
+          containerFrame: frame
+        )
+      }
       addSubview(row.hostedView)
     }
   }

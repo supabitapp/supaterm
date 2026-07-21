@@ -168,6 +168,21 @@ struct TerminalSidebarMotionTests {
   }
 
   @Test
+  func batchPreviewUsesACompactFanAnchoredToTheClickedRow() {
+    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 1) == 0)
+    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 2) == 7)
+    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 8) == 7)
+    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 30) == 4)
+    #expect(
+      TerminalSidebarLiveDragGeometry.fanFrame(
+        anchorFrame: CGRect(x: 12, y: 80, width: 200, height: 37),
+        rowHeights: [37, 42, 51],
+        anchorIndex: 1
+      ) == CGRect(x: 12, y: 73, width: 200, height: 65)
+    )
+  }
+
+  @Test
   func hapticTrackerFiresOnlyForPathChanges() {
     var tracker = TerminalSidebarHapticTargetTracker()
     let first = tracker.shouldPerform(for: .trailingRoot)

@@ -92,10 +92,11 @@ extension TerminalHostState {
     requestCloseTabs(tabManager.tabIDsBelow(tabID))
   }
 
-  func requestCloseOtherTabs(_ tabID: TerminalTabID) {
-    guard let space = spaceManager.space(for: tabID) else { return }
+  func requestCloseOtherTabs(keeping tabIDs: [TerminalTabID]) {
+    guard let tabID = tabIDs.first, let space = spaceManager.space(for: tabID) else { return }
     guard let tabManager = spaceManager.tabManager(for: space.id) else { return }
-    requestCloseTabs(tabManager.otherTabIDs(tabID))
+    let retained = Set(tabIDs)
+    requestCloseTabs(tabManager.tabs.map(\.id).filter { !retained.contains($0) })
   }
 
   func requestCloseTabs(_ tabIDs: [TerminalTabID]) {

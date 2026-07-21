@@ -10,7 +10,7 @@ struct TerminalSidebarDragCoordinatorTests {
       TerminalRootPlacement(isPinned: false, index: 0)
     )
     let coordinator = TerminalSidebarTestFixture.completedCoordinator(
-      source: .tab(source),
+      source: .tabs([source]),
       sourceRevision: 7,
       receiptRevision: 8,
       destination: destination
@@ -63,7 +63,7 @@ struct TerminalSidebarDragCoordinatorTests {
       TerminalRootPlacement(isPinned: false, index: 0)
     )
     var snapshotFirst = TerminalSidebarTestFixture.completedCoordinator(
-      source: .tab(tabID),
+      source: .tabs([tabID]),
       sourceRevision: 1,
       receiptRevision: 2,
       destination: destination
@@ -78,7 +78,7 @@ struct TerminalSidebarDragCoordinatorTests {
     #expect(duplicateSnapshotFirstEnd == nil)
 
     var nativeFirst = TerminalSidebarTestFixture.completedCoordinator(
-      source: .tab(tabID),
+      source: .tabs([tabID]),
       sourceRevision: 1,
       receiptRevision: 2,
       destination: destination
@@ -100,7 +100,7 @@ struct TerminalSidebarDragCoordinatorTests {
       TerminalRootPlacement(isPinned: false, index: 0)
     )
     var coordinator = TerminalSidebarTestFixture.completedCoordinator(
-      source: .tab(tabID),
+      source: .tabs([tabID]),
       sourceRevision: 10,
       receiptRevision: 11,
       destination: destination
@@ -131,7 +131,7 @@ struct TerminalSidebarDragCoordinatorTests {
       TerminalRootPlacement(isPinned: false, index: 0)
     )
     let coordinator = TerminalSidebarTestFixture.completedCoordinator(
-      source: .tab(source),
+      source: .tabs([source]),
       sourceRevision: 3,
       receiptRevision: 4,
       destination: destination
@@ -180,7 +180,7 @@ struct TerminalSidebarDragCoordinatorTests {
   @Test
   func nilReceiptRejectsOnlyAfterNativeEndAndDuplicateEndsDoNothing() throws {
     let tabID = TerminalTabID()
-    let payload = TerminalSidebarTestFixture.payload(source: .tab(tabID), revision: 2)
+    let payload = TerminalSidebarTestFixture.payload(source: .tabs([tabID]), revision: 2)
     let plan = TerminalSidebarDropPlan(
       path: .trailingRoot,
       destination: .root(isPinned: false, index: 0),
@@ -205,7 +205,10 @@ struct TerminalSidebarDragCoordinatorTests {
 
   @Test
   func topologyChangeCancelsTrackingWithoutAReceipt() {
-    let payload = TerminalSidebarTestFixture.payload(source: .tab(TerminalTabID()), revision: 2)
+    let payload = TerminalSidebarTestFixture.payload(
+      source: .tabs([TerminalTabID()]),
+      revision: 2
+    )
     var coordinator = TerminalSidebarDragCoordinator(payload: payload)
 
     let cancellation = coordinator.cancel(topologyChanged: true)
@@ -217,51 +220,62 @@ struct TerminalSidebarDragCoordinatorTests {
   }
 
   @Test
-  func createdGroupReceiptRequiresExactOrderedChildrenAndDeletedGroups() {
-    let source = TerminalTabID()
-    let target = TerminalTabID()
+  func batchReceiptRequiresExactOrderedContiguousItemsAndDeletedGroups() {
+    let first = TerminalTabID()
+    let second = TerminalTabID()
+    let tail = TerminalTabID()
     let deletedGroup = TerminalTabGroupID()
-    let createdGroup = TerminalTabGroupID()
-    let payload = TerminalSidebarTestFixture.payload(source: .tab(source), revision: 4)
-    let command = TerminalSidebarDropCommand.createGroup(
+    let payload = TerminalSidebarTestFixture.payload(
+      source: .tabs([first, second]),
+      revision: 4
+    )
+    let destination = TerminalTabPlacement.root(
+      TerminalRootPlacement(isPinned: false, index: 0)
+    )
+    let command = TerminalSidebarDropCommand(
       operationID: payload.operationID,
       topologyStamp: payload.topologyStamp,
-      sourceTabID: source,
-      targetTabID: target
+      itemIDs: [.tab(first), .tab(second)],
+      destination: destination
     )
-    let receipt = TerminalSidebarDropReceipt.createdGroup(
-      operationID: payload.operationID,
+    let receipt = TerminalSidebarDropReceipt(
       spaceID: payload.topologyStamp.spaceID,
-      result: TerminalTabGroupCreationResult(
-        groupID: createdGroup,
+      result: TerminalTabMoveResult(
+        operationID: payload.operationID,
+        itemIDs: command.itemIDs,
+        location: destination,
         deletedEmptyGroupIDs: [deletedGroup],
         topologyRevision: 5
       )
     )
     let matching = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(
-          content: .group(createdGroup, .neutral, .automatic, [target, source]),
-          isPinned: false
-        )
+        TerminalSidebarOutline.Root(content: .tab(first), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(second), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
       ],
       revision: 5
     )
     let reversed = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(
-          content: .group(createdGroup, .neutral, .automatic, [source, target]),
-          isPinned: false
-        )
+        TerminalSidebarOutline.Root(content: .tab(second), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(first), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
+      ],
+      revision: 5
+    )
+    let separated = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(first), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(tail), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(second), isPinned: false),
       ],
       revision: 5
     )
     let deletedStillPresent = TerminalSidebarTestFixture.outline(
       roots: [
-        TerminalSidebarOutline.Root(
-          content: .group(createdGroup, .neutral, .automatic, [target, source]),
-          isPinned: false
-        ),
+        TerminalSidebarOutline.Root(content: .tab(first), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(second), isPinned: false),
         TerminalSidebarOutline.Root(
           content: .group(deletedGroup, .blue, .durable, []),
           isPinned: false
@@ -272,6 +286,7 @@ struct TerminalSidebarDragCoordinatorTests {
 
     #expect(receipt.matches(matching, command: command))
     #expect(!receipt.matches(reversed, command: command))
+    #expect(!receipt.matches(separated, command: command))
     #expect(!receipt.matches(deletedStillPresent, command: command))
   }
 }

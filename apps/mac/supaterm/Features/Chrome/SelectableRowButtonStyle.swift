@@ -4,7 +4,7 @@ import SwiftUI
 struct SelectableRowButtonStyle: ButtonStyle {
   enum Appearance {
     case standard(restFill: Color)
-    case sidebar
+    case sidebar(restFill: Color)
 
     func resolve(palette: Palette) -> ResolvedAppearance {
       switch self {
@@ -17,12 +17,12 @@ struct SelectableRowButtonStyle: ButtonStyle {
           selectedStroke: AnyShapeStyle(palette.selectedStroke),
           selectedShadow: palette.selectedShadow
         )
-      case .sidebar:
+      case .sidebar(let restFill):
         ResolvedAppearance(
           selectedFill: palette.sidebarSelectedFill,
           pressedFill: palette.sidebarItemPressedFill,
           hoverFill: palette.sidebarItemHoverFill,
-          restFill: .clear,
+          restFill: restFill,
           selectedStroke: AnyShapeStyle(palette.sidebarSelectedStroke),
           selectedShadow: palette.sidebarSelectedShadow
         )

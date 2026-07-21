@@ -190,11 +190,6 @@ struct TerminalSidebarDragCoordinator: Equatable {
     }
   }
 
-  var receipt: TerminalSidebarDropReceipt? {
-    if case .settling(.accepted(let receipt)) = phase { return receipt }
-    return completedDrop?.receipt
-  }
-
   private var completedDrop: (command: TerminalSidebarDropCommand, receipt: TerminalSidebarDropReceipt)? {
     switch phase {
     case .awaitingNativeEnd(let command, let receipt?, _),
@@ -212,7 +207,7 @@ final class TerminalSidebarCollectionView: NSCollectionView {
 
   var onRowMouseDown: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onRowMouseDragged: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
-  var onRowMouseUp: ((TerminalSidebarEntryID) -> Bool)?
+  var onRowMouseUp: ((TerminalSidebarEntryID, NSEvent) -> Bool)?
   var onDraggingUpdated: (((any NSDraggingInfo)) -> NSDragOperation)?
   var onDraggingExited: (() -> Void)?
   var onDraggingEnded: (() -> Void)?
@@ -271,8 +266,8 @@ final class TerminalSidebarCollectionView: NSCollectionView {
     onRowMouseDragged?(entryID, event) == true
   }
 
-  func rowMouseUp(entryID: TerminalSidebarEntryID) -> Bool {
-    onRowMouseUp?(entryID) == true
+  func rowMouseUp(entryID: TerminalSidebarEntryID, event: NSEvent) -> Bool {
+    onRowMouseUp?(entryID, event) == true
   }
 
   private func updatePointer(with event: NSEvent) {

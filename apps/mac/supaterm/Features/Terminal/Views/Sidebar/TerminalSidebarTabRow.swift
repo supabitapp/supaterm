@@ -77,6 +77,8 @@ struct TerminalSidebarTabRow: View {
   let groupID: TerminalTabGroupID?
   let rootIsPinned: Bool
   let renameState: TerminalSidebarRenameState?
+  let selectionState: TerminalSidebarTabSelectionState
+  let outline: TerminalSidebarOutline
   let notificationPresentation: TerminalHostState.SidebarNotificationPresentation?
   let paneWorkingDirectories: [String]
   let unreadCount: Int
@@ -129,8 +131,16 @@ struct TerminalSidebarTabRow: View {
   @State private var isHovering = false
   @State private var isCloseHovering = false
 
+  private var selectionStyle: TerminalSidebarTabSelectionStyle {
+    selectionState.style(for: tab.id, primaryTabID: terminal.selectedTabID)
+  }
+
+  private var isPrimarySelected: Bool {
+    selectionStyle == .primary
+  }
+
   private var isSelected: Bool {
-    terminal.selectedTabID == tab.id
+    selectionStyle != .none
   }
 
   private var agentPresentation: TerminalHostState.TabAgentPresentation {
@@ -156,7 +166,7 @@ struct TerminalSidebarTabRow: View {
         let summary = TerminalSidebarTabSummaryView(
           tab: tab,
           palette: palette,
-          isSelected: isSelected,
+          isSelected: isPrimarySelected,
           isPinned: groupID == nil && rootIsPinned,
           notificationPreviewText: notificationPresentation?.previewText,
           paneWorkingDirectories: paneWorkingDirectories,
@@ -189,12 +199,12 @@ struct TerminalSidebarTabRow: View {
           Button(action: close) {
             Image(systemName: "xmark")
               .font(.system(size: 12, weight: .heavy))
-              .foregroundStyle(isSelected ? palette.selectedText : palette.sidebarTabTitle)
+              .foregroundStyle(isPrimarySelected ? palette.selectedText : palette.sidebarTabTitle)
               .frame(width: 24, height: 24)
               .accessibilityHidden(true)
               .background(
                 isCloseHovering
-                  ? (isSelected ? palette.selectedPillFill : palette.unselectedFill)
+                  ? (isPrimarySelected ? palette.selectedPillFill : palette.unselectedFill)
                   : .clear,
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
               )
@@ -211,10 +221,12 @@ struct TerminalSidebarTabRow: View {
     .buttonStyle(
       SelectableRowButtonStyle(
         palette: palette,
-        isSelected: isSelected,
+        isSelected: isPrimarySelected,
         isHovering: isHovering,
         cornerRadius: TerminalSidebarLayout.tabRowCornerRadius,
-        appearance: .sidebar
+        appearance: .sidebar(
+          restFill: selectionStyle == .secondary ? palette.sidebarItemHoverFill : .clear
+        )
       )
     )
     .terminalAnimation(
@@ -229,118 +241,133 @@ struct TerminalSidebarTabRow: View {
       self.isHovering = isHovering
     }
     .contextMenu {
-      ForEach(
-        Array(
-          Self.contextMenuItems(
-            isPinned: groupID == nil && rootIsPinned,
-            hasTabsBelow: hasTabsBelow,
-            hasOtherTabs: hasOtherTabs,
-            isGrouped: groupID != nil
-          ).enumerated()
-        ),
-        id: \.offset
-      ) { _, item in
-        switch item {
-        case .newTab:
-          Button {
-            if let groupID {
-              let index =
-                terminal.rootItems.compactMap { root -> TerminalTabGroupItem? in
-                  guard case .group(let group) = root, group.id == groupID else { return nil }
-                  return group
-                }.first?.tabs.count ?? 0
-              terminal.createTab(
-                inheritingFromSurfaceID: contextSurfaceID,
-                at: .group(groupID, index: index)
-              )
-            } else {
-              _ = store.send(
-                .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-              )
-            }
-          } label: {
-            Label("New Tab", systemImage: "plus")
-          }
-
-        case .divider:
-          Divider()
-
-        case .togglePinned(let isPinned):
-          Button {
-            _ = store.send(.togglePinned(tab.id))
-          } label: {
-            Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
-          }
-
-        case .moveToNewGroup:
-          Button {
-            let result = terminal.createGroup(
-              title: "New Group",
-              color: .neutral,
-              containing: [tab.id]
-            )
-            if let result {
-              renameState?.begin(groupID: result.groupID, title: "New Group")
-            }
-          } label: {
-            Label("Move to New Group", systemImage: "rectangle.3.group")
-          }
-
-        case .moveToGroup:
-          Menu {
-            ForEach(availableGroups) { group in
-              Button(group.title) {
+      let contextualTabIDs = selectionState.contextualTabIDs(
+        for: tab.id,
+        primaryTabID: terminal.selectedTabID,
+        outline: outline
+      )
+      if contextualTabIDs.count > 1 {
+        TerminalSidebarBatchTabMenu(
+          store: store,
+          terminal: terminal,
+          tabIDs: contextualTabIDs,
+          contextualTabID: tab.id,
+          renameState: renameState
+        )
+      } else {
+        ForEach(
+          Array(
+            Self.contextMenuItems(
+              isPinned: groupID == nil && rootIsPinned,
+              hasTabsBelow: hasTabsBelow,
+              hasOtherTabs: hasOtherTabs,
+              isGrouped: groupID != nil
+            ).enumerated()
+          ),
+          id: \.offset
+        ) { _, item in
+          switch item {
+          case .newTab:
+            Button {
+              if let groupID {
+                let index =
+                  terminal.rootItems.compactMap { root -> TerminalTabGroupItem? in
+                    guard case .group(let group) = root, group.id == groupID else { return nil }
+                    return group
+                  }.first?.tabs.count ?? 0
+                terminal.createTab(
+                  inheritingFromSurfaceID: contextSurfaceID,
+                  at: .group(groupID, index: index)
+                )
+              } else {
                 _ = store.send(
-                  .moveCommitted(
-                    TerminalTabMoveRequest(
-                      expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
-                      itemIDs: [.tab(tab.id)],
-                      destination: .group(group.id, index: group.tabs.count)
-                    )
-                  )
+                  .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
                 )
               }
+            } label: {
+              Label("New Tab", systemImage: "plus")
             }
-          } label: {
-            Label("Move to Group...", systemImage: "arrow.right")
-          }
-          .disabled(availableGroups.isEmpty)
 
-        case .removeFromGroup:
-          Button {
-            _ = store.send(.removeTabFromGroupRequested(tab.id))
-          } label: {
-            Label("Remove from Group", systemImage: "arrow.up.backward")
-          }
+          case .divider:
+            Divider()
 
-        case .changeTabTitle:
-          Button {
-            terminal.promptTabTitle(tab.id)
-          } label: {
-            Label("Change Tab Title...", systemImage: "pencil")
-          }
+          case .togglePinned(let isPinned):
+            Button {
+              _ = store.send(.togglePinned(tab.id))
+            } label: {
+              Label(isPinned ? "Unpin Tab" : "Pin Tab", systemImage: isPinned ? "pin.slash" : "pin")
+            }
 
-        case .closeTabsBelow(let isEnabled):
-          Button {
-            _ = store.send(.closeTabsBelowRequested(tab.id))
-          } label: {
-            Label("Close All Below", systemImage: "arrow.down.to.line")
-          }
-          .disabled(!isEnabled)
+          case .moveToNewGroup:
+            Button {
+              let result = terminal.createGroup(
+                title: "New Group",
+                color: .neutral,
+                containing: [tab.id]
+              )
+              if let result {
+                renameState?.begin(groupID: result.groupID, title: "New Group")
+              }
+            } label: {
+              Label("Move to New Group", systemImage: "rectangle.3.group")
+            }
 
-        case .closeOtherTabs(let isEnabled):
-          Button {
-            _ = store.send(.closeOtherTabsRequested(tab.id))
-          } label: {
-            Label("Close Others", systemImage: "xmark.circle")
-          }
-          .disabled(!isEnabled)
+          case .moveToGroup:
+            Menu {
+              ForEach(availableGroups) { group in
+                Button(group.title) {
+                  _ = store.send(
+                    .moveCommitted(
+                      TerminalTabMoveRequest(
+                        expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
+                        itemIDs: [.tab(tab.id)],
+                        destination: .group(group.id, index: group.tabs.count)
+                      )
+                    )
+                  )
+                }
+              }
+            } label: {
+              Label("Move to Group...", systemImage: "arrow.right")
+            }
+            .disabled(availableGroups.isEmpty)
 
-        case .close:
-          Button(role: .destructive) {
-            _ = store.send(.closeTabRequested(tab.id))
-          } label: {
-            Label("Close", systemImage: "xmark")
+          case .removeFromGroup:
+            Button {
+              _ = store.send(.removeTabFromGroupRequested(tab.id))
+            } label: {
+              Label("Remove from Group", systemImage: "arrow.up.backward")
+            }
+
+          case .changeTabTitle:
+            Button {
+              terminal.promptTabTitle(tab.id)
+            } label: {
+              Label("Change Tab Title...", systemImage: "pencil")
+            }
+
+          case .closeTabsBelow(let isEnabled):
+            Button {
+              _ = store.send(.closeTabsBelowRequested(tab.id))
+            } label: {
+              Label("Close All Below", systemImage: "arrow.down.to.line")
+            }
+            .disabled(!isEnabled)
+
+          case .closeOtherTabs(let isEnabled):
+            Button {
+              _ = store.send(.closeOtherTabsRequested([tab.id]))
+            } label: {
+              Label("Close Others", systemImage: "xmark.circle")
+            }
+            .disabled(!isEnabled)
+
+          case .close:
+            Button(role: .destructive) {
+              _ = store.send(.closeTabRequested(tab.id))
+            } label: {
+              Label("Close", systemImage: "xmark")
+            }
           }
         }
       }
@@ -375,6 +402,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private func select() {
+    selectionState.clear()
     _ = store.send(.tabSelected(tab.id))
   }
 
@@ -382,6 +410,168 @@ struct TerminalSidebarTabRow: View {
     TerminalMotion.animate(.easeInOut(duration: 0.15), reduceMotion: reduceMotion) {
       _ = store.send(.closeTabRequested(tab.id))
     }
+  }
+}
+
+struct TerminalSidebarBatchTabMenu: View {
+  enum PinAction: Equatable {
+    case pin
+    case unpin
+    case disabled
+  }
+
+  let store: StoreOf<TerminalWindowFeature>
+  let terminal: TerminalHostState
+  let tabIDs: [TerminalTabID]
+  let contextualTabID: TerminalTabID
+  let renameState: TerminalSidebarRenameState?
+
+  var body: some View {
+    Button(pinTitle, systemImage: pinAction == .unpin ? "pin.slash" : "pin") {
+      togglePinned()
+    }
+    .disabled(pinAction == .disabled)
+
+    Button("New Group with \(tabIDs.count) Tabs", systemImage: "rectangle.3.group") {
+      createGroup()
+    }
+
+    Menu("Move to Group", systemImage: "arrow.right") {
+      ForEach(groups) { group in
+        Button(group.title) {
+          moveToGroup(group)
+        }
+        .disabled(moveToGroupIsNoOp(group))
+      }
+    }
+    .disabled(groups.isEmpty)
+
+    if let sharedGroup {
+      Button("Remove from Group", systemImage: "arrow.up.backward") {
+        removeFromGroup(sharedGroup)
+      }
+    }
+
+    Divider()
+
+    Button(role: .destructive) {
+      _ = store.send(.closeTabsRequested(tabIDs))
+    } label: {
+      Label("Close \(tabIDs.count) Tabs", systemImage: "xmark")
+    }
+
+    Button("Close Other Tabs", systemImage: "xmark.circle") {
+      _ = store.send(.closeOtherTabsRequested(tabIDs))
+    }
+    .disabled(!hasOtherTabs)
+
+    Button("Close Tabs Below", systemImage: "arrow.down.to.line") {
+      _ = store.send(.closeTabsBelowRequested(contextualTabID))
+    }
+    .disabled(!hasTabsBelow)
+  }
+
+  var pinAction: PinAction {
+    let selected = Set(tabIDs)
+    let roots = terminal.rootItems.compactMap { root -> (TerminalTabID, Bool)? in
+      guard case .tab(let item) = root, selected.contains(item.tab.id) else { return nil }
+      return (item.tab.id, item.isPinned)
+    }
+    guard roots.count == tabIDs.count else { return .disabled }
+    let pinStates = Set(roots.map { $0.1 })
+    guard pinStates.count == 1, let isPinned = pinStates.first else { return .disabled }
+    return isPinned ? .unpin : .pin
+  }
+
+  private var pinTitle: String {
+    "\(pinAction == .unpin ? "Unpin" : "Pin") \(tabIDs.count) Tabs"
+  }
+
+  private var groups: [TerminalTabGroupItem] {
+    terminal.rootItems.compactMap { root in
+      guard case .group(let group) = root else { return nil }
+      return group
+    }
+  }
+
+  private var sharedGroup: TerminalTabGroupItem? {
+    let selected = Set(tabIDs)
+    return groups.first { group in
+      selected.isSubset(of: Set(group.tabs.map(\.id))) && selected.count == tabIDs.count
+    }
+  }
+
+  private var hasOtherTabs: Bool {
+    let selected = Set(tabIDs)
+    return terminal.tabs.contains { !selected.contains($0.id) }
+  }
+
+  private var hasTabsBelow: Bool {
+    guard let index = terminal.tabs.firstIndex(where: { $0.id == contextualTabID }) else {
+      return false
+    }
+    return terminal.tabs.index(after: index) < terminal.tabs.endIndex
+  }
+
+  private func togglePinned() {
+    guard pinAction != .disabled else { return }
+    let isPinned = pinAction == .pin
+    let destinationIndex = terminal.rootItems.count { $0.isPinned == isPinned }
+    move(
+      tabIDs,
+      to: .root(TerminalRootPlacement(isPinned: isPinned, index: destinationIndex))
+    )
+  }
+
+  private func createGroup() {
+    let result = terminal.createGroup(
+      title: "New Group",
+      color: .neutral,
+      containing: tabIDs
+    )
+    if let result {
+      renameState?.begin(groupID: result.groupID, title: "New Group")
+    }
+  }
+
+  private func moveToGroup(_ group: TerminalTabGroupItem) {
+    let selected = Set(tabIDs)
+    let destinationIndex = group.tabs.count { !selected.contains($0.id) }
+    move(tabIDs, to: .group(group.id, index: destinationIndex))
+  }
+
+  private func moveToGroupIsNoOp(_ group: TerminalTabGroupItem) -> Bool {
+    let selected = Set(tabIDs)
+    return group.tabs.map(\.id).filter { !selected.contains($0) } + tabIDs
+      == group.tabs.map(\.id)
+  }
+
+  private func removeFromGroup(_ group: TerminalTabGroupItem) {
+    let lane = terminal.rootItems.filter { $0.isPinned == group.isPinned }
+    guard let index = lane.firstIndex(where: { $0.id == .group(group.id) }) else { return }
+    let groupIsDeleted =
+      group.lifetime == .automatic && Set(group.tabs.map(\.id)).isSubset(of: Set(tabIDs))
+    move(
+      tabIDs,
+      to: .root(
+        TerminalRootPlacement(
+          isPinned: group.isPinned,
+          index: index + (groupIsDeleted ? 0 : 1)
+        )
+      )
+    )
+  }
+
+  private func move(_ tabIDs: [TerminalTabID], to destination: TerminalTabPlacement) {
+    _ = store.send(
+      .moveCommitted(
+        TerminalTabMoveRequest(
+          expectedTopologyRevision: terminal.selectedSpaceTopologyRevision,
+          itemIDs: tabIDs.map(TerminalTabRootItemID.tab),
+          destination: destination
+        )
+      )
+    )
   }
 }
 

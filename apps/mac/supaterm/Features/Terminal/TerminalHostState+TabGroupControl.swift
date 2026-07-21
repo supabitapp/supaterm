@@ -205,11 +205,11 @@ extension TerminalHostState {
       placement = .group(groupID, index: requestedIndex ?? destinationCount)
 
     case .root(let isPinned, let requestedIndex):
-      let sourceIsInDestinationLane =
-        manager.rootItemID(containing: target.tabID) == .tab(target.tabID)
-        && manager.isPinned(target.tabID) == isPinned
-      let laneCount = isPinned ? manager.pinnedRootItems.count : manager.regularRootItems.count
-      let destinationCount = laneCount - (sourceIsInDestinationLane ? 1 : 0)
+      let destinationCount =
+        manager.rootCount(
+          isPinned: isPinned,
+          afterRemoving: [.tab(target.tabID)]
+        ) ?? 0
       placement = .root(
         TerminalRootPlacement(isPinned: isPinned, index: requestedIndex ?? destinationCount)
       )

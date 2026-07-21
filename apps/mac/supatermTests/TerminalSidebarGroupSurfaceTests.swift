@@ -1,5 +1,7 @@
+import Observation
 import SupaTheme
 import SwiftUI
+import Synchronization
 import Testing
 
 @testable import supaterm
@@ -125,5 +127,105 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarAccessibilityIdentifier.group(groupID) == "sidebar.group-header.\(group)"
     )
+  }
+
+  @Test @MainActor
+  func tabSelectionSpansRootsAndGroupsInVisibleOrder() {
+    let primary = TerminalTabID()
+    let firstChild = TerminalTabID()
+    let secondChild = TerminalTabID()
+    let trailing = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [firstChild, secondChild]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(trailing), isPinned: false),
+      ],
+      revision: 1
+    )
+    let selection = TerminalSidebarTabSelectionState()
+
+    selection.selectRange(
+      to: secondChild,
+      primaryTabID: primary,
+      outline: outline,
+      additive: false
+    )
+    selection.toggle(trailing, primaryTabID: primary)
+
+    #expect(
+      selection.orderedTabIDs(primaryTabID: primary, outline: outline)
+        == [primary, firstChild, secondChild, trailing]
+    )
+    #expect(selection.style(for: primary, primaryTabID: primary) == .primary)
+    #expect(selection.style(for: firstChild, primaryTabID: primary) == .secondary)
+  }
+
+  @Test @MainActor
+  func tabSelectionClearsHiddenRowsAndScopesUnselectedContextMenus() {
+    let primary = TerminalTabID()
+    let child = TerminalTabID()
+    let unselected = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let expanded = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .green, .automatic, [child]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(unselected), isPinned: false),
+      ],
+      revision: 1
+    )
+    let collapsed = TerminalSidebarTestFixture.outline(
+      roots: expanded.roots,
+      revision: 2,
+      collapsedGroupIDs: [groupID]
+    )
+    let selection = TerminalSidebarTabSelectionState()
+
+    selection.toggle(child, primaryTabID: primary)
+    #expect(
+      selection.contextualTabIDs(
+        for: unselected,
+        primaryTabID: primary,
+        outline: expanded
+      ) == [unselected]
+    )
+    selection.retainVisible(in: collapsed, primaryTabID: primary)
+
+    #expect(selection.secondaryTabIDs.isEmpty)
+  }
+
+  @Test @MainActor
+  func retainingUnchangedVisibleSelectionDoesNotInvalidateObservation() async {
+    let primary = TerminalTabID()
+    let secondary = TerminalTabID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(content: .tab(primary), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(secondary), isPinned: false),
+      ],
+      revision: 1
+    )
+    let selection = TerminalSidebarTabSelectionState()
+    selection.toggle(secondary, primaryTabID: primary)
+    let invalidationCount = Mutex(0)
+
+    withObservationTracking {
+      _ = selection.secondaryTabIDs
+    } onChange: {
+      invalidationCount.withLock { $0 += 1 }
+    }
+
+    selection.retainVisible(in: outline, primaryTabID: primary)
+    for _ in 0..<5 { await Task.yield() }
+
+    #expect(invalidationCount.withLock { $0 } == 0)
   }
 }

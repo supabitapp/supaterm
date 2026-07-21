@@ -2,15 +2,49 @@ import XCTest
 
 final class TabGroupingDragUITests: SupatermUITestCase {
   @MainActor
-  func testGroupHeaderHoverRevealsItsNewTabAction() async throws {
+  func testGroupCloseAppearsOnlyWhileHoveringItsHeader() async throws {
     try await createNamedTabs(["Seed"])
     try await createGroup(named: "Hover", containing: "Seed")
     let header = try require(sidebarGroupHeader(named: "Hover"))
+    let child = try require(sidebarStructuralTabRow(named: "Seed"))
+    let close = app.buttons["Close Hover"]
 
     header.hover()
+    XCTAssertTrue(close.waitForExistence(timeout: 2))
 
-    let action = app.buttons["New Tab in Hover"]
-    XCTAssertTrue(action.waitForExistence(timeout: 2))
+    child.hover()
+    let didHideClose = await wait(for: close) { !$0.exists }
+    XCTAssertTrue(didHideClose)
+  }
+
+  @MainActor
+  func testGroupHeaderTogglesFromItsFullWidth() async throws {
+    try await createNamedTabs(["Seed"])
+    try await createGroup(named: "Toggle", containing: "Seed")
+    let header = try require(sidebarGroupHeader(named: "Toggle"))
+
+    header.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).click()
+    let didCollapse = await wait(for: sidebarStructuralTabRow(named: "Seed")) { !$0.exists }
+    XCTAssertTrue(didCollapse)
+
+    header.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).click()
+    XCTAssertTrue(sidebarStructuralTabRow(named: "Seed").waitForExistence(timeout: 2))
+  }
+
+  @MainActor
+  func testDroppingTabOnTabOnlyReordersRoots() async throws {
+    try await createNamedTabs(["First", "Mover"])
+
+    try drag(
+      sidebarStructuralTabRow(named: "Mover"),
+      to: sidebarStructuralTabRow(named: "First")
+    )
+
+    await requireSidebarStructure([
+      .tab("Mover"),
+      .tab("First"),
+    ])
+    XCTAssertEqual(sidebarGroupHeaders.count, 0)
   }
 
   @MainActor

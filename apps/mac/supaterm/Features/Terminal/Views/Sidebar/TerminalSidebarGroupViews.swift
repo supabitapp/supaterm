@@ -113,6 +113,91 @@ final class TerminalSidebarGroupHoverState {
   }
 }
 
+enum TerminalSidebarTabSelectionStyle: Equatable {
+  case none
+  case primary
+  case secondary
+}
+
+@MainActor
+@Observable
+final class TerminalSidebarTabSelectionState {
+  private(set) var secondaryTabIDs: Set<TerminalTabID> = []
+
+  func style(
+    for tabID: TerminalTabID,
+    primaryTabID: TerminalTabID?
+  ) -> TerminalSidebarTabSelectionStyle {
+    if tabID == primaryTabID { return .primary }
+    return secondaryTabIDs.contains(tabID) ? .secondary : .none
+  }
+
+  func orderedTabIDs(
+    primaryTabID: TerminalTabID?,
+    outline: TerminalSidebarOutline
+  ) -> [TerminalTabID] {
+    let selected = secondaryTabIDs.union(primaryTabID.map { Set([$0]) } ?? [])
+    return Self.visibleTabIDs(in: outline).filter(selected.contains)
+  }
+
+  func contextualTabIDs(
+    for tabID: TerminalTabID,
+    primaryTabID: TerminalTabID?,
+    outline: TerminalSidebarOutline
+  ) -> [TerminalTabID] {
+    guard style(for: tabID, primaryTabID: primaryTabID) != .none else { return [tabID] }
+    return orderedTabIDs(primaryTabID: primaryTabID, outline: outline)
+  }
+
+  func toggle(_ tabID: TerminalTabID, primaryTabID: TerminalTabID?) {
+    guard tabID != primaryTabID else { return }
+    if !secondaryTabIDs.insert(tabID).inserted {
+      secondaryTabIDs.remove(tabID)
+    }
+  }
+
+  func selectRange(
+    to tabID: TerminalTabID,
+    primaryTabID: TerminalTabID?,
+    outline: TerminalSidebarOutline,
+    additive: Bool
+  ) {
+    guard let primaryTabID else { return }
+    let visible = Self.visibleTabIDs(in: outline)
+    guard
+      let primaryIndex = visible.firstIndex(of: primaryTabID),
+      let targetIndex = visible.firstIndex(of: tabID)
+    else { return }
+    let bounds = min(primaryIndex, targetIndex)...max(primaryIndex, targetIndex)
+    let range = Set(visible[bounds]).subtracting([primaryTabID])
+    if additive {
+      secondaryTabIDs.formUnion(range)
+    } else {
+      secondaryTabIDs = range
+    }
+  }
+
+  func clear() {
+    guard !secondaryTabIDs.isEmpty else { return }
+    secondaryTabIDs = []
+  }
+
+  func retainVisible(in outline: TerminalSidebarOutline, primaryTabID: TerminalTabID?) {
+    let visible = Set(Self.visibleTabIDs(in: outline))
+    var retained = secondaryTabIDs.intersection(visible)
+    if let primaryTabID { retained.remove(primaryTabID) }
+    guard retained != secondaryTabIDs else { return }
+    secondaryTabIDs = retained
+  }
+
+  private static func visibleTabIDs(in outline: TerminalSidebarOutline) -> [TerminalTabID] {
+    outline.visibleEntries.compactMap { entry in
+      guard case .tab(let tabID, _, _) = entry.kind else { return nil }
+      return tabID
+    }
+  }
+}
+
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
@@ -223,7 +308,9 @@ struct TerminalSidebarRowContext {
   let terminal: TerminalHostState
   let palette: Palette
   let renameState: TerminalSidebarRenameState
-  let groupHoverState: TerminalSidebarGroupHoverState
+  let groupHeaderHoverState: TerminalSidebarGroupHoverState
+  let tabSelectionState: TerminalSidebarTabSelectionState
+  let outline: TerminalSidebarOutline
   let fixedHoveredGroupID: TerminalTabGroupID?
   let actions: TerminalSidebarRowActions
 }
@@ -242,6 +329,8 @@ struct TerminalSidebarHostedRow: View {
         groupID: presentation.groupID,
         rootIsPinned: presentation.rootIsPinned,
         renameState: context.renameState,
+        selectionState: context.tabSelectionState,
+        outline: context.outline,
         notificationPresentation: presentation.notificationPresentation,
         paneWorkingDirectories: presentation.paneWorkingDirectories,
         unreadCount: presentation.unreadCount,
@@ -258,7 +347,7 @@ struct TerminalSidebarHostedRow: View {
         presentation: presentation,
         palette: context.palette,
         renameState: context.renameState,
-        hoverState: context.groupHoverState,
+        hoverState: context.groupHeaderHoverState,
         actions: context.actions
       )
     case .pinDivider:
@@ -330,40 +419,63 @@ private struct TerminalSidebarGroupHeader: View {
   }
 
   var body: some View {
-    HStack(spacing: 6) {
-      Circle()
-        .fill(presentation.color.sidebarColor(palette: palette))
-        .frame(width: 8, height: 8)
-        .accessibilityHidden(true)
-
+    HStack(spacing: 0) {
       if isRenaming {
-        TextField(
-          "Group name",
-          text: Binding(
-            get: { renameState.draft },
-            set: { renameState.draft = $0 }
+        HStack(spacing: 6) {
+          Circle()
+            .fill(presentation.color.sidebarColor(palette: palette))
+            .frame(width: 8, height: 8)
+            .accessibilityHidden(true)
+          TextField(
+            "Group name",
+            text: Binding(
+              get: { renameState.draft },
+              set: { renameState.draft = $0 }
+            )
           )
-        )
-        .textFieldStyle(.plain)
-        .font(.system(size: 12, weight: .semibold))
-        .focused($titleIsFocused)
-        .onSubmit {
-          renameState.commit(rename: actions.renameGroup)
-        }
-        .onExitCommand {
-          renameState.cancel()
-        }
-      } else {
-        Text(presentation.title)
+          .textFieldStyle(.plain)
           .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(palette.primaryText)
-          .lineLimit(1)
-          .onTapGesture(count: 2) {
-            renameState.begin(groupID: presentation.id, title: presentation.title)
+          .focused($titleIsFocused)
+          .onSubmit {
+            renameState.commit(rename: actions.renameGroup)
           }
+          .onExitCommand {
+            renameState.cancel()
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        Button {
+          actions.toggleGroupCollapsed(presentation.id)
+        } label: {
+          HStack(spacing: 6) {
+            Circle()
+              .fill(presentation.color.sidebarColor(palette: palette))
+              .frame(width: 8, height: 8)
+              .accessibilityHidden(true)
+            Text(presentation.title)
+              .font(.system(size: 12, weight: .semibold))
+              .foregroundStyle(palette.primaryText)
+              .lineLimit(1)
+            Image(systemName: "chevron.down")
+              .font(.system(size: 9, weight: .semibold))
+              .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
+              .frame(width: 14, height: 20)
+              .accessibilityHidden(true)
+            Spacer(minLength: 0)
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+          "\(presentation.title), \(presentation.color.displayName) group, \(presentation.tabCount) tabs"
+        )
+        .accessibilityValue(presentation.isCollapsed ? "Collapsed" : "Expanded")
+        .accessibilityHint(presentation.isCollapsed ? "Expands the group" : "Collapses the group")
+        .accessibilityAction(named: "Rename Group") {
+          renameState.begin(groupID: presentation.id, title: presentation.title)
+        }
       }
-
-      Spacer(minLength: 0)
 
       if hoverState.groupID == presentation.id, !isRenaming {
         Button {
@@ -377,22 +489,17 @@ private struct TerminalSidebarGroupHeader: View {
         .foregroundStyle(palette.secondaryText)
         .accessibilityLabel("Close \(presentation.title)")
       }
-
-      Button {
-        actions.toggleGroupCollapsed(presentation.id)
-      } label: {
-        Image(systemName: "chevron.down")
-          .font(.system(size: 9, weight: .semibold))
-          .rotationEffect(.degrees(presentation.isCollapsed ? -90 : 0))
-          .frame(width: 14, height: 20)
-          .contentShape(Rectangle())
-          .accessibilityHidden(true)
-      }
-      .buttonStyle(.plain)
     }
     .padding(.horizontal, 8)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .contentShape(Rectangle())
+    .onHover { hovering in
+      if hovering {
+        hoverState.set(presentation.id)
+      } else if hoverState.groupID == presentation.id {
+        hoverState.set(nil)
+      }
+    }
     .onChange(of: isRenaming, initial: true) { _, isRenaming in
       titleIsFocused = isRenaming
     }
@@ -448,14 +555,7 @@ private struct TerminalSidebarGroupHeader: View {
         Label("Close Group", systemImage: "xmark")
       }
     }
-    .accessibilityElement(children: isRenaming ? .contain : .combine)
-    .accessibilityLabel(
-      "\(presentation.title), \(presentation.color.displayName) group, \(presentation.tabCount) tabs"
-    )
-    .accessibilityValue(presentation.isCollapsed ? "Collapsed" : "Expanded")
-    .accessibilityAction(named: presentation.isCollapsed ? "Expand" : "Collapse") {
-      actions.toggleGroupCollapsed(presentation.id)
-    }
+    .accessibilityElement(children: .contain)
     .accessibilityIdentifier(
       TerminalSidebarAccessibilityIdentifier.group(presentation.id)
     )

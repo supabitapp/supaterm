@@ -149,10 +149,11 @@ struct TerminalWindowFeature {
     case closeConfirmationCancelButtonTapped
     case closeConfirmationConfirmButtonTapped
     case closeAllWindowsRequested([ObjectIdentifier])
-    case closeOtherTabsRequested(TerminalTabID)
+    case closeOtherTabsRequested([TerminalTabID])
     case closeGroupRequested(TerminalTabGroupID)
     case closeSurfaceRequested(UUID)
     case closeTabRequested(TerminalTabID)
+    case closeTabsRequested([TerminalTabID])
     case closeTabsBelowRequested(TerminalTabID)
     case collapseSidebarButtonTapped
     case floatingSidebarVisibilityChanged(Bool)
@@ -314,8 +315,8 @@ struct TerminalWindowFeature {
         state.pendingSpaceDeleteRequest = nil
         return sendCommand(.deleteSpace(request.space.id))
 
-      case .closeOtherTabsRequested(let tabID):
-        return sendCommand(.requestCloseOtherTabs(tabID))
+      case .closeOtherTabsRequested(let tabIDs):
+        return sendCommand(.requestCloseOtherTabs(tabIDs))
 
       case .closeGroupRequested(let groupID):
         return sendCommand(.requestCloseGroup(groupID))
@@ -325,6 +326,9 @@ struct TerminalWindowFeature {
 
       case .closeTabRequested(let tabID):
         return sendCommand(.requestCloseTab(tabID))
+
+      case .closeTabsRequested(let tabIDs):
+        return sendCommand(.requestCloseTabs(tabIDs))
 
       case .closeTabsBelowRequested(let tabID):
         return sendCommand(.requestCloseTabsBelow(tabID))

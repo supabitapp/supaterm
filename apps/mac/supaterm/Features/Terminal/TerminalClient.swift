@@ -50,8 +50,9 @@ struct TerminalClient: Sendable {
     case previousTab
     case requestCloseSurface(UUID)
     case requestCloseTab(TerminalTabID)
+    case requestCloseTabs([TerminalTabID])
     case requestCloseTabsBelow(TerminalTabID)
-    case requestCloseOtherTabs(TerminalTabID)
+    case requestCloseOtherTabs([TerminalTabID])
     case requestCloseGroup(TerminalTabGroupID)
     case removeTabFromGroup(TerminalTabID)
     case renameSpace(TerminalSpaceID, String)

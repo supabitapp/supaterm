@@ -65,11 +65,11 @@ enum TerminalSidebarTestFixture {
     revision: UInt64,
     deletedEmptyGroupIDs: [TerminalTabGroupID] = []
   ) -> TerminalSidebarDropReceipt {
-    .moved(
+    TerminalSidebarDropReceipt(
       spaceID: payload.topologyStamp.spaceID,
       result: TerminalTabMoveResult(
         operationID: payload.operationID,
-        itemIDs: [payload.source.itemID],
+        itemIDs: payload.source.itemIDs,
         location: destination,
         deletedEmptyGroupIDs: deletedEmptyGroupIDs,
         topologyRevision: revision

@@ -66,7 +66,6 @@ struct TerminalSidebarLayoutPlanTests {
     #expect(
       plan.semanticTargets.map(\.path) == [
         .rootBoundary(index: 0, affinity: .before),
-        .rootItem(index: 0),
         .rootBoundary(index: 1, affinity: .before),
         .rootItem(index: 1),
         .group(groupID, index: 0),
@@ -76,10 +75,10 @@ struct TerminalSidebarLayoutPlanTests {
       ]
     )
     let leading = try #require(plan.semanticTargets.first)
-    let rootTarget = try #require(plan.semanticTargets[safe: 1])
-    let headerTarget = try #require(plan.semanticTargets[safe: 3])
-    let exitTarget = try #require(plan.semanticTargets[safe: 6])
-    #expect(leading.frame == CGRect(x: 0, y: -3, width: 220, height: 7))
+    let rootTarget = try #require(plan.semanticTargets[safe: 0])
+    let headerTarget = try #require(plan.semanticTargets[safe: 2])
+    let exitTarget = try #require(plan.semanticTargets[safe: 5])
+    #expect(leading.frame == CGRect(x: 0, y: -3, width: 220, height: 37))
     #expect(rootTarget.frame.height == 37)
     #expect(headerTarget.frame.minX == 3)
     #expect(headerTarget.frame.height == 34)
@@ -116,7 +115,9 @@ struct TerminalSidebarLayoutPlanTests {
     )
     let rootFrame = try #require(plan.items.first { $0.id == .tab(root) }?.frame)
     let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
-    let rootTarget = try #require(plan.semanticTargets.first { $0.path == .rootItem(index: 0) })
+    let rootTarget = try #require(
+      plan.semanticTargets.first { $0.path == .rootBoundary(index: 0, affinity: .before) }
+    )
     let childTarget = try #require(
       plan.semanticTargets.first { $0.path == .group(groupID, index: 0) }
     )
