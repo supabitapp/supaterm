@@ -371,9 +371,7 @@ struct TerminalSidebarTabRow: View {
   }
 
   private var accessibilityIdentifier: String {
-    let tabID = tab.id.rawValue.uuidString.lowercased()
-    guard let groupID else { return "sidebar.tab-row" }
-    return "sidebar.group.\(groupID.rawValue.uuidString.lowercased()).tab.\(tabID)"
+    TerminalSidebarAccessibilityIdentifier.tab(tab.id, groupID: groupID)
   }
 
   private func select() {

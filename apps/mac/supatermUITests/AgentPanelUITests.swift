@@ -43,9 +43,7 @@ final class AgentPanelUITests: SupatermUITestCase {
 
   @MainActor
   func testClaudeLifecycleUpdatesSidebarAndPanel() async throws {
-    let tabRows = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
+    let tabRows = sidebarTabRows
     let firstTab = await requireFirstTab()
 
     try await sendClaudeEvent("session-start")
@@ -150,9 +148,7 @@ final class AgentPanelUITests: SupatermUITestCase {
       $0.exists && $0.isHittable
     }
 
-    let firstTab = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).element(boundBy: 0)
+    let firstTab = sidebarTabRows.element(boundBy: 0)
     await assertEventually(firstTab, timeout: Self.coldStartTimeout) {
       $0.exists && $0.isHittable
     }

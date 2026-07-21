@@ -94,6 +94,8 @@ struct TerminalTabManagerTests {
       rawValue: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
     )
     let revision = manager.topologyRevision
+    #expect(manager.tabIDs(in: sourceGroupID) == [source])
+    #expect(manager.tabIDs(in: targetGroupID) == [target])
     let result = try manager.move(
       TerminalTabMoveRequest(
         operationID: operationID,
@@ -104,8 +106,6 @@ struct TerminalTabManagerTests {
     )
 
     #expect(result.operationID == operationID)
-    let priorLocation = result.priorLocations[TerminalTabRootItemID.tab(source)]
-    #expect(priorLocation == TerminalTabPlacement.group(sourceGroupID, index: 0))
     #expect(result.location == TerminalTabPlacement.group(targetGroupID, index: 1))
     #expect(result.deletedEmptyGroupIDs == [sourceGroupID])
     #expect(result.topologyRevision == revision + 1)
@@ -147,6 +147,7 @@ struct TerminalTabManagerTests {
     let third = manager.createTab(title: "Third")
     let fourth = manager.createTab(title: "Fourth")
     let revision = manager.topologyRevision
+    #expect(manager.rootItems.map(\.id) == [.tab(first), .tab(second), .tab(third), .tab(fourth)])
 
     let result = try manager.move(
       TerminalTabMoveRequest(
@@ -157,16 +158,6 @@ struct TerminalTabManagerTests {
     )
 
     #expect(manager.rootItems.map(\.id) == [.tab(first), .tab(fourth), .tab(second), .tab(third)])
-    let secondLocation = result.priorLocations[TerminalTabRootItemID.tab(second)]
-    let thirdLocation = result.priorLocations[TerminalTabRootItemID.tab(third)]
-    #expect(
-      secondLocation
-        == TerminalTabPlacement.root(TerminalRootPlacement(isPinned: false, index: 1))
-    )
-    #expect(
-      thirdLocation
-        == TerminalTabPlacement.root(TerminalRootPlacement(isPinned: false, index: 2))
-    )
     #expect(
       result.location
         == TerminalTabPlacement.root(TerminalRootPlacement(isPinned: false, index: 2))

@@ -155,7 +155,6 @@ nonisolated struct TerminalTabMoveResult: Equatable, Sendable {
   let operationID: TerminalTabMoveOperationID
   let itemIDs: [TerminalTabRootItemID]
   let location: TerminalTabPlacement
-  let priorLocations: [TerminalTabRootItemID: TerminalTabPlacement]
   let deletedEmptyGroupIDs: [TerminalTabGroupID]
   let topologyRevision: UInt64
 }

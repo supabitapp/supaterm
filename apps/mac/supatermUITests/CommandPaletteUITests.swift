@@ -109,9 +109,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
   func testToggleSidebarCommandHidesAndRestoresSidebar() async throws {
     let terminal = try readyTerminal()
     terminal.click()
-    let sidebarRow = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).firstMatch
+    let sidebarRow = sidebarTabRows.firstMatch
 
     try await executePaletteCommand("Toggle Sidebar")
 
@@ -166,9 +164,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
     let terminal = try readyTerminal()
     terminal.click()
 
-    let rows = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
+    let rows = sidebarTabRows
     XCTAssertEqual(rows.count, 1)
     XCTAssertFalse(rows.firstMatch.label.contains("Pinned"))
 
@@ -203,9 +199,7 @@ final class CommandPaletteUITests: SupatermUITestCase {
   private func readyTerminal() throws -> XCUIElement {
     _ = mainWindow
 
-    let sidebarRow = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).firstMatch
+    let sidebarRow = sidebarTabRows.firstMatch
     try require(sidebarRow, timeout: 30, "Initial sidebar tab row did not appear")
 
     let terminal = app.textViews.firstMatch

@@ -1,6 +1,18 @@
 import AppKit
 import QuartzCore
 
+struct TerminalSidebarMotionPolicy: Equatable {
+  let reduceMotion: Bool
+
+  var lift: Bool { !reduceMotion }
+  var targetInterpolation: Bool { !reduceMotion }
+  var collapseStagger: Bool { !reduceMotion }
+  var hoverFade: Bool { !reduceMotion }
+  var acceptedArc: Bool { !reduceMotion }
+  var ripple: Bool { !reduceMotion }
+  var snapback: Bool { !reduceMotion }
+}
+
 enum TerminalSidebarAnimationCurve {
   static func standard(
     from: CGFloat,
@@ -61,9 +73,9 @@ enum TerminalSidebarAutoscrollBehavior {
   static let directionTolerance: CGFloat = 20
   static let activationDelay: TimeInterval = 0.25
 
-  static func step(outwardDelta: CGFloat, isFirstTick: Bool) -> CGFloat {
-    guard !isFirstTick else { return 1 }
-    return 1 + 7 * min(max(outwardDelta, 0) * 0.25, 1)
+  static func distance(outwardDelta: CGFloat, elapsed: TimeInterval) -> CGFloat {
+    let step = 1 + 7 * min(max(outwardDelta, 0) * 0.25, 1)
+    return step * min(max(elapsed, 0), 1 / 30) * 60
   }
 
   static func direction(
@@ -74,6 +86,20 @@ enum TerminalSidebarAutoscrollBehavior {
     if pointerY <= visibleRect.minY + edgeSize { return .up }
     if pointerY >= visibleRect.maxY - edgeSize { return .down }
     return nil
+  }
+}
+
+struct TerminalSidebarAutoscrollTiming: Equatable {
+  private var previousTimestamp: TimeInterval?
+
+  mutating func interval(timestamp: TimeInterval, targetTimestamp: TimeInterval) -> TimeInterval {
+    let interval = previousTimestamp.map { timestamp - $0 } ?? targetTimestamp - timestamp
+    previousTimestamp = timestamp
+    return interval
+  }
+
+  mutating func reset() {
+    previousTimestamp = nil
   }
 }
 
@@ -431,7 +457,7 @@ final class TerminalSidebarDragAutoscrollController {
   private var enteredEdgeAt: TimeInterval?
   private var edgeEntryPointerY: CGFloat?
   private var outwardDelta: CGFloat = 0
-  private var isFirstTick = true
+  private var timing = TerminalSidebarAutoscrollTiming()
   private var isLiveScrolling = false
   private lazy var displayLinkDriver = TerminalSidebarDisplayLinkDriver(
     collectionView: collectionView,
@@ -480,7 +506,7 @@ final class TerminalSidebarDragAutoscrollController {
       enteredEdgeAt = CACurrentMediaTime()
       edgeEntryPointerY = pointerY
       outwardDelta = 0
-      isFirstTick = true
+      timing.reset()
     } else {
       outwardDelta =
         previousPointerY.map {
@@ -498,7 +524,7 @@ final class TerminalSidebarDragAutoscrollController {
         self.enteredEdgeAt = CACurrentMediaTime()
         self.edgeEntryPointerY = pointerY
         outwardDelta = 0
-        isFirstTick = true
+        timing.reset()
       }
     }
     displayLinkDriver.start()
@@ -510,7 +536,7 @@ final class TerminalSidebarDragAutoscrollController {
     enteredEdgeAt = nil
     edgeEntryPointerY = nil
     outwardDelta = 0
-    isFirstTick = true
+    timing.reset()
     displayLinkDriver.stop()
   }
 
@@ -529,15 +555,18 @@ final class TerminalSidebarDragAutoscrollController {
     case .down:
       sign = 1
     }
-    let step = TerminalSidebarAutoscrollBehavior.step(
-      outwardDelta: outwardDelta,
-      isFirstTick: isFirstTick
+    let elapsed = timing.interval(
+      timestamp: displayLink.timestamp,
+      targetTimestamp: displayLink.targetTimestamp
     )
-    isFirstTick = false
+    let distance = TerminalSidebarAutoscrollBehavior.distance(
+      outwardDelta: outwardDelta,
+      elapsed: elapsed
+    )
     let clipView = scrollView.contentView
     let previousY = clipView.bounds.origin.y
     let nextY = TerminalSidebarScrollGeometry.constrainedY(
-      previousY + sign * step,
+      previousY + sign * distance,
       in: clipView
     )
     guard nextY != previousY else {

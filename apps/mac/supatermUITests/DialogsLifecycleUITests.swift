@@ -148,8 +148,6 @@ final class DialogsLifecycleUITests: SupatermUITestCase {
 
   @MainActor
   private var tabRows: XCUIElementQuery {
-    app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
+    sidebarTabRows
   }
 }

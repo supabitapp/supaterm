@@ -49,6 +49,66 @@ struct TerminalSidebarGroupRowPresentation: Equatable {
   let tabCount: Int
 }
 
+enum TerminalSidebarGroupSurfaceState: Equatable {
+  case resting
+  case hovered
+  case dropTarget
+
+  static func resolve(isHovered: Bool, isDropTarget: Bool) -> Self {
+    if isDropTarget { return .dropTarget }
+    return isHovered ? .hovered : .resting
+  }
+}
+
+struct TerminalSidebarGroupSurfaceStyle: Equatable {
+  let fillOpacity: CGFloat
+  let hoverOpacity: Float
+  let strokeOpacity: CGFloat
+
+  static func resolve(_ state: TerminalSidebarGroupSurfaceState) -> Self {
+    switch state {
+    case .resting:
+      Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.18)
+    case .hovered:
+      Self(fillOpacity: 0.10, hoverOpacity: 1, strokeOpacity: 0.18)
+    case .dropTarget:
+      Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.85)
+    }
+  }
+}
+
+@MainActor
+@Observable
+final class TerminalSidebarGroupHoverState {
+  private(set) var groupID: TerminalTabGroupID?
+  @ObservationIgnored var onChange: ((TerminalTabGroupID?, TerminalTabGroupID?) -> Void)?
+
+  func enter(_ groupID: TerminalTabGroupID) {
+    guard self.groupID != groupID else { return }
+    let previous = self.groupID
+    self.groupID = groupID
+    onChange?(previous, groupID)
+  }
+
+  func exit(_ groupID: TerminalTabGroupID) {
+    guard self.groupID == groupID else { return }
+    self.groupID = nil
+    onChange?(groupID, nil)
+  }
+
+  func retain(_ groupIDs: Set<TerminalTabGroupID>) {
+    guard let groupID, !groupIDs.contains(groupID) else { return }
+    self.groupID = nil
+    onChange?(groupID, nil)
+  }
+
+  func clear() {
+    guard let groupID else { return }
+    self.groupID = nil
+    onChange?(groupID, nil)
+  }
+}
+
 struct TerminalSidebarTabRowPresentation: Equatable {
   let tab: TerminalTabItem
   let groupID: TerminalTabGroupID?
@@ -88,6 +148,28 @@ enum TerminalSidebarRowPresentation: Equatable {
     case .pinDivider: return AnyHashable("pin-divider")
     case .newTab: return AnyHashable("new-tab")
     case .newGroup: return AnyHashable("new-group")
+    }
+  }
+}
+
+enum TerminalSidebarAccessibilityIdentifier {
+  static func tab(_ tabID: TerminalTabID, groupID: TerminalTabGroupID?) -> String {
+    let tab = tabID.rawValue.uuidString.lowercased()
+    guard let groupID else { return "sidebar.tab-row.\(tab)" }
+    return "sidebar.group.\(groupID.rawValue.uuidString.lowercased()).tab.\(tab)"
+  }
+
+  static func group(_ groupID: TerminalTabGroupID) -> String {
+    "sidebar.group-header.\(groupID.rawValue.uuidString.lowercased())"
+  }
+
+  static func row(_ presentation: TerminalSidebarRowPresentation) -> String {
+    switch presentation {
+    case .tab(let row): tab(row.tab.id, groupID: row.groupID)
+    case .group(let row): group(row.id)
+    case .pinDivider: "sidebar.pin-divider"
+    case .newTab: "sidebar.new-tab"
+    case .newGroup: "sidebar.new-group"
     }
   }
 }
@@ -137,6 +219,7 @@ struct TerminalSidebarRowContext {
   let terminal: TerminalHostState
   let palette: Palette
   let renameState: TerminalSidebarRenameState
+  let groupHoverState: TerminalSidebarGroupHoverState
   let actions: TerminalSidebarRowActions
 }
 
@@ -165,11 +248,16 @@ struct TerminalSidebarHostedRow: View {
         shortcutHint: presentation.shortcutHint,
         showsShortcutHint: presentation.showsShortcutHint
       )
+      .onHover { isHovering in
+        guard isHovering, let groupID = presentation.groupID else { return }
+        context.groupHoverState.exit(groupID)
+      }
     case .group(let presentation):
       TerminalSidebarGroupHeader(
         presentation: presentation,
         palette: context.palette,
         renameState: context.renameState,
+        hoverState: context.groupHoverState,
         actions: context.actions
       )
     case .pinDivider:
@@ -230,11 +318,11 @@ private struct TerminalSidebarGroupHeader: View {
   let presentation: TerminalSidebarGroupRowPresentation
   let palette: Palette
   let renameState: TerminalSidebarRenameState
+  let hoverState: TerminalSidebarGroupHoverState
   let actions: TerminalSidebarRowActions
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @FocusState private var titleIsFocused: Bool
-  @State private var isHovering = false
 
   private var isRenaming: Bool {
     renameState.groupID == presentation.id
@@ -288,7 +376,7 @@ private struct TerminalSidebarGroupHeader: View {
 
       Spacer(minLength: 0)
 
-      if isHovering, !isRenaming {
+      if hoverState.groupID == presentation.id, !isRenaming {
         Button {
           actions.createTabInGroup(presentation.id)
         } label: {
@@ -304,7 +392,13 @@ private struct TerminalSidebarGroupHeader: View {
     .padding(.horizontal, 8)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .contentShape(Rectangle())
-    .onHover { isHovering = $0 }
+    .onHover { isHovering in
+      if isHovering {
+        hoverState.enter(presentation.id)
+      } else {
+        hoverState.exit(presentation.id)
+      }
+    }
     .onChange(of: isRenaming, initial: true) { _, isRenaming in
       titleIsFocused = isRenaming
     }
@@ -369,21 +463,25 @@ private struct TerminalSidebarGroupHeader: View {
       actions.toggleGroupCollapsed(presentation.id)
     }
     .accessibilityIdentifier(
-      "sidebar.group-header.\(presentation.id.rawValue.uuidString.lowercased())"
+      TerminalSidebarAccessibilityIdentifier.group(presentation.id)
     )
   }
 }
 
 final class TerminalSidebarGroupBackgroundView: NSView {
   private let fillLayer = CAShapeLayer()
+  private let hoverLayer = CAShapeLayer()
   private let strokeLayer = CAShapeLayer()
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
     layer?.addSublayer(fillLayer)
+    layer?.addSublayer(hoverLayer)
     layer?.addSublayer(strokeLayer)
     fillLayer.fillColor = NSColor.clear.cgColor
+    hoverLayer.fillColor = NSColor.clear.cgColor
+    hoverLayer.opacity = 0
     strokeLayer.fillColor = NSColor.clear.cgColor
     strokeLayer.lineWidth = 1.5
   }
@@ -400,8 +498,10 @@ final class TerminalSidebarGroupBackgroundView: NSView {
       transform: nil
     )
     fillLayer.frame = bounds
+    hoverLayer.frame = bounds
     strokeLayer.frame = bounds
     fillLayer.path = path
+    hoverLayer.path = path
     strokeLayer.path = path
   }
 
@@ -410,15 +510,39 @@ final class TerminalSidebarGroupBackgroundView: NSView {
   func update(
     color: TerminalTabGroupColor,
     palette: Palette,
-    highlighted: Bool,
-    alpha: CGFloat
+    surfaceState: TerminalSidebarGroupSurfaceState,
+    alpha: CGFloat,
+    reduceMotion: Bool
   ) {
     alphaValue = alpha
     let sidebarColor = color.sidebarNSColor(palette: palette)
-    fillLayer.fillColor = sidebarColor.withAlphaComponent(0.10).cgColor
-    strokeLayer.strokeColor =
-      highlighted
-      ? sidebarColor.withAlphaComponent(0.85).cgColor
-      : sidebarColor.withAlphaComponent(0.18).cgColor
+    let style = TerminalSidebarGroupSurfaceStyle.resolve(surfaceState)
+    fillLayer.fillColor = sidebarColor.withAlphaComponent(style.fillOpacity).cgColor
+    let hoverColor = palette.sidebarGroupHoverFillValue
+    hoverLayer.fillColor =
+      NSColor(
+        srgbRed: CGFloat(hoverColor.red),
+        green: CGFloat(hoverColor.green),
+        blue: CGFloat(hoverColor.blue),
+        alpha: CGFloat(hoverColor.alpha)
+      ).cgColor
+    strokeLayer.strokeColor = sidebarColor.withAlphaComponent(style.strokeOpacity).cgColor
+    setHoverOpacity(style.hoverOpacity, animated: !reduceMotion)
+  }
+
+  private func setHoverOpacity(_ opacity: Float, animated: Bool) {
+    let current = hoverLayer.presentation()?.opacity ?? hoverLayer.opacity
+    hoverLayer.removeAnimation(forKey: "hoverOpacity")
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    hoverLayer.opacity = opacity
+    CATransaction.commit()
+    guard animated, current != opacity else { return }
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.fromValue = current
+    animation.toValue = opacity
+    animation.duration = 0.15
+    animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    hoverLayer.add(animation, forKey: "hoverOpacity")
   }
 }

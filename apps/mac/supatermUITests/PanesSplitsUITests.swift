@@ -102,9 +102,7 @@ final class PanesSplitsUITests: SupatermUITestCase {
     }
     XCTAssertTrue(didSetLeftTitle)
 
-    let sidebarTabRow = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).firstMatch
+    let sidebarTabRow = sidebarTabRows.firstMatch
     try clickMenuItem(.toggleSidebar)
     let didHideSidebar = await wait(for: sidebarTabRow) { !$0.isHittable }
     XCTAssertTrue(didHideSidebar)

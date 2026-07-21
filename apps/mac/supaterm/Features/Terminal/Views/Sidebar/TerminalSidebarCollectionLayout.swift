@@ -1,8 +1,13 @@
 import AppKit
 
-struct TerminalSidebarExpandedGroupGeometry: Equatable {
-  let groupID: TerminalTabGroupID
-  let containerMaxY: CGFloat
+struct TerminalSidebarDropTargetMap: Equatable {
+  let targets: [TerminalSidebarSemanticTarget]
+
+  func semanticTarget(at pointerY: CGFloat) -> TerminalSidebarSemanticTarget? {
+    targets.first { target in
+      pointerY >= target.frame.minY && pointerY < target.frame.maxY
+    }
+  }
 }
 
 struct TerminalSidebarLayoutPlan: Equatable {
@@ -46,7 +51,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
   let highlightedGroupID: TerminalTabGroupID?
   let highlightedTabID: TerminalTabID?
   let semanticTargets: [TerminalSidebarSemanticTarget]
-  let expandedGroupGeometries: [TerminalSidebarExpandedGroupGeometry]
 
   private init(
     items: [Item],
@@ -55,8 +59,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     dropPlaceholderFrame: CGRect?,
     highlightedGroupID: TerminalTabGroupID?,
     highlightedTabID: TerminalTabID?,
-    semanticTargets: [TerminalSidebarSemanticTarget],
-    expandedGroupGeometries: [TerminalSidebarExpandedGroupGeometry]
+    semanticTargets: [TerminalSidebarSemanticTarget]
   ) {
     self.items = items
     self.groups = groups
@@ -65,7 +68,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
     self.highlightedGroupID = highlightedGroupID
     self.highlightedTabID = highlightedTabID
     self.semanticTargets = semanticTargets
-    self.expandedGroupGeometries = expandedGroupGeometries
   }
 
   init(
@@ -162,8 +164,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     self.dropPlaceholderFrame = dropPlaceholderFrame
     highlightedGroupID = highlights.groupID
     highlightedTabID = highlights.tabID
-    semanticTargets = targetGeometry.targets
-    expandedGroupGeometries = targetGeometry.expandedGroups
+    semanticTargets = targetGeometry
   }
 
   func semanticTarget(at pointerY: CGFloat) -> TerminalSidebarSemanticTarget? {
@@ -223,8 +224,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       dropPlaceholderFrame: dropPlaceholderFrame,
       highlightedGroupID: highlightedGroupID,
       highlightedTabID: highlightedTabID,
-      semanticTargets: semanticTargets,
-      expandedGroupGeometries: expandedGroupGeometries
+      semanticTargets: semanticTargets
     )
   }
 
@@ -267,18 +267,13 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   private struct RootTargetGeometry {
     let targets: [TerminalSidebarSemanticTarget]
-    let expandedGroup: TerminalSidebarExpandedGroupGeometry?
     let tabsEndY: CGFloat
   }
 
   private static func targetGeometry(
     _ context: TargetGeometryContext
-  ) -> (
-    targets: [TerminalSidebarSemanticTarget],
-    expandedGroups: [TerminalSidebarExpandedGroupGeometry]
-  ) {
+  ) -> [TerminalSidebarSemanticTarget] {
     var targets: [TerminalSidebarSemanticTarget] = []
-    var expandedGroups: [TerminalSidebarExpandedGroupGeometry] = []
     var tabsEndY = Self.initialY
 
     for (rootIndex, root) in context.outline.roots.enumerated() {
@@ -303,9 +298,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
         context: context
       )
       targets.append(contentsOf: rootGeometry.targets)
-      if let expandedGroup = rootGeometry.expandedGroup {
-        expandedGroups.append(expandedGroup)
-      }
       tabsEndY = max(tabsEndY, rootGeometry.tabsEndY)
     }
 
@@ -320,7 +312,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
         )
       )
     )
-    return (targets, expandedGroups)
+    return targets
   }
 
   private static func targetGeometry(
@@ -331,10 +323,10 @@ struct TerminalSidebarLayoutPlan: Equatable {
     switch root.content {
     case .tab(let tabID):
       guard let item = context.itemByID[.tab(tabID)] else {
-        return RootTargetGeometry(targets: [], expandedGroup: nil, tabsEndY: initialY)
+        return RootTargetGeometry(targets: [], tabsEndY: initialY)
       }
       guard !context.draggedIDs.contains(.tab(tabID)) else {
-        return RootTargetGeometry(targets: [], expandedGroup: nil, tabsEndY: item.frame.maxY)
+        return RootTargetGeometry(targets: [], tabsEndY: item.frame.maxY)
       }
       return RootTargetGeometry(
         targets: [
@@ -357,7 +349,6 @@ struct TerminalSidebarLayoutPlan: Equatable {
             )
           ),
         ],
-        expandedGroup: nil,
         tabsEndY: item.frame.maxY
       )
     case .group(let groupID, _, _, let tabIDs):
@@ -377,7 +368,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     context: TargetGeometryContext
   ) -> RootTargetGeometry {
     guard let header = context.itemByID[.group(groupID)] else {
-      return RootTargetGeometry(targets: [], expandedGroup: nil, tabsEndY: initialY)
+      return RootTargetGeometry(targets: [], tabsEndY: initialY)
     }
     let groupIsDragged = context.draggedIDs.contains(.group(groupID))
     if context.outline.collapsedGroupIDs.contains(groupID) || tabIDs.isEmpty {
@@ -415,22 +406,17 @@ struct TerminalSidebarLayoutPlan: Equatable {
       }
       return RootTargetGeometry(
         targets: targets,
-        expandedGroup: nil,
         tabsEndY: header.frame.maxY
       )
     }
 
     let childFrames = tabIDs.compactMap { context.itemByID[.tab($0)]?.frame }
     let childEndY = childFrames.map(\.maxY).max() ?? header.frame.maxY
-    let expandedGroup = TerminalSidebarExpandedGroupGeometry(
-      groupID: groupID,
-      containerMaxY: childEndY + expandedGroupTrailingSpacing
-    )
+    let containerMaxY = childEndY + expandedGroupTrailingSpacing
     guard !groupIsDragged else {
       return RootTargetGeometry(
         targets: [],
-        expandedGroup: expandedGroup,
-        tabsEndY: expandedGroup.containerMaxY
+        tabsEndY: containerMaxY
       )
     }
     var targets = [
@@ -474,8 +460,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
     return RootTargetGeometry(
       targets: targets,
-      expandedGroup: expandedGroup,
-      tabsEndY: expandedGroup.containerMaxY
+      tabsEndY: containerMaxY
     )
   }
 
@@ -660,13 +645,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     width: 0,
     viewportHeight: 0
   )
-  private(set) var hitTestPlan = TerminalSidebarLayoutPlan(
-    outline: TerminalSidebarOutline(roots: [], collapsedGroupIDs: [], topologyRevision: 0),
-    preferredHeights: [:],
-    dragDropState: nil,
-    width: 0,
-    viewportHeight: 0
-  )
+  private(set) var dropTargetMap = TerminalSidebarDropTargetMap(targets: [])
   private var transitionOrigin: TerminalSidebarLayoutPlan?
   private var transitionProgress: CGFloat = 1
   private var attributesByIndexPath: [IndexPath: NSCollectionViewLayoutAttributes] = [:]
@@ -718,7 +697,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
     let hitTestState = dragDropState.map {
       TerminalSidebarDragDropState(draggingItemIDs: $0.draggingItemIDs, target: nil)
     }
-    hitTestPlan = TerminalSidebarLayoutPlan(
+    let hitTestPlan = TerminalSidebarLayoutPlan(
       outline: outline,
       preferredHeights: heights,
       visibilityByEntryID: visibilityByEntryID,
@@ -726,6 +705,7 @@ final class TerminalSidebarCollectionLayout: NSCollectionViewLayout {
       width: width,
       viewportHeight: viewportHeight
     )
+    dropTargetMap = TerminalSidebarDropTargetMap(targets: hitTestPlan.semanticTargets)
     targetPlan = TerminalSidebarLayoutPlan(
       outline: outline,
       preferredHeights: heights,

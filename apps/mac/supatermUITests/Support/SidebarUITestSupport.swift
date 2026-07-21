@@ -18,20 +18,18 @@ extension SupatermUITestCase {
   @MainActor
   var sidebarTabRows: XCUIElementQuery {
     app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
+      NSPredicate(
+        format: "identifier BEGINSWITH %@ OR (identifier BEGINSWITH %@ AND identifier CONTAINS %@)",
+        SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix,
+        SupatermUITestIdentifier.Accessibility.sidebarGroupPrefix,
+        SupatermUITestIdentifier.Accessibility.sidebarGroupedTabMarker
+      )
     )
   }
 
   @MainActor
   var sidebarSemanticTabRows: XCUIElementQuery {
-    app.buttons.matching(
-      NSPredicate(
-        format: "identifier == %@ OR (identifier BEGINSWITH %@ AND identifier CONTAINS %@)",
-        SupatermUITestIdentifier.Accessibility.sidebarTabRow,
-        SupatermUITestIdentifier.Accessibility.sidebarGroupPrefix,
-        SupatermUITestIdentifier.Accessibility.sidebarGroupedTabMarker
-      )
-    )
+    sidebarTabRows
   }
 
   @MainActor
@@ -236,7 +234,6 @@ extension SupatermUITestCase {
   @MainActor
   private func sidebarMatches(_ expected: [SidebarRootExpectation]) -> Bool {
     let rows = sidebarStructuralRows.allElementsBoundByIndex
-    let tabs = sidebarSemanticTabRows.allElementsBoundByIndex
     let roots = rows.filter { row in
       row.identifier.hasPrefix(
         SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix
@@ -254,7 +251,7 @@ extension SupatermUITestCase {
           row.identifier.hasPrefix(
             SupatermUITestIdentifier.Accessibility.sidebarRootTabRowPrefix
           ),
-          tabs.contains(where: { $0.label.contains(title) && row.frame.intersects($0.frame) })
+          row.label.contains(title)
         else { return false }
       case .group(let title, let expectedChildren):
         let prefix = SupatermUITestIdentifier.Accessibility.sidebarGroupHeaderPrefix
@@ -272,9 +269,7 @@ extension SupatermUITestCase {
         guard children.count == expectedChildren.count else { return false }
         guard
           zip(children, expectedChildren).allSatisfy({ pair in
-            tabs.contains {
-              $0.label.contains(pair.1) && pair.0.frame.intersects($0.frame)
-            }
+            pair.0.label.contains(pair.1)
           })
         else { return false }
       }

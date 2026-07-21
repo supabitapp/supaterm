@@ -14,12 +14,10 @@ final class TerminalTabManager {
   }
 
   private struct AppliedMove {
-    let priorLocations: [TerminalTabRootItemID: TerminalTabPlacement]
     let deletedEmptyGroupIDs: [TerminalTabGroupID]
   }
 
   private struct MoveSource {
-    let priorLocations: [TerminalTabRootItemID: TerminalTabPlacement]
     let groupIDs: [TerminalTabGroupID]
   }
 
@@ -191,7 +189,6 @@ final class TerminalTabManager {
       operationID: request.operationID,
       itemIDs: request.itemIDs,
       location: location,
-      priorLocations: applied.priorLocations,
       deletedEmptyGroupIDs: applied.deletedEmptyGroupIDs,
       topologyRevision: storage.topologyRevision
     )
@@ -534,7 +531,6 @@ final class TerminalTabManager {
       deletedEmptyGroupIDs.append(groupID)
     }
     return AppliedMove(
-      priorLocations: source.priorLocations,
       deletedEmptyGroupIDs: deletedEmptyGroupIDs
     )
   }
@@ -558,7 +554,6 @@ final class TerminalTabManager {
       throw TerminalTabMoveError.ancestorAndDescendant(groupID, tabID)
     }
     var seenIDs: Set<TerminalTabRootItemID> = []
-    var priorLocations: [TerminalTabRootItemID: TerminalTabPlacement] = [:]
     var sourceGroupIDs: [TerminalTabGroupID] = []
     for itemID in itemIDs {
       guard seenIDs.insert(itemID).inserted else {
@@ -567,14 +562,13 @@ final class TerminalTabManager {
       guard let location = location(of: itemID, in: storage) else {
         throw TerminalTabMoveError.itemNotFound(itemID)
       }
-      priorLocations[itemID] = location
       if case .tab = itemID, case .group(let groupID, _) = location,
         !sourceGroupIDs.contains(groupID)
       {
         sourceGroupIDs.append(groupID)
       }
     }
-    return MoveSource(priorLocations: priorLocations, groupIDs: sourceGroupIDs)
+    return MoveSource(groupIDs: sourceGroupIDs)
   }
 
   private static func validateDestination(

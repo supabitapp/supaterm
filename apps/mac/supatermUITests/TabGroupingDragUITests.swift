@@ -2,6 +2,18 @@ import XCTest
 
 final class TabGroupingDragUITests: SupatermUITestCase {
   @MainActor
+  func testGroupHeaderHoverRevealsItsNewTabAction() async throws {
+    try await createNamedTabs(["Seed"])
+    try await createGroup(named: "Hover", containing: "Seed")
+    let header = try require(sidebarGroupHeader(named: "Hover"))
+
+    header.hover()
+
+    let action = app.buttons["New Tab in Hover"]
+    XCTAssertTrue(action.waitForExistence(timeout: 2))
+  }
+
+  @MainActor
   func testRootTabDropsBeforeFirstGroupAtLeadingEdge() async throws {
     try await createNamedTabs(["Group Seed", "Mover"])
     try await createGroup(named: "First", containing: "Group Seed")

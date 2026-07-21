@@ -22,9 +22,7 @@ final class FoundationSmokeUITests: SupatermUITestCase {
   func testFoundationStack() async throws {
     _ = mainWindow
 
-    let tabRows = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    )
+    let tabRows = sidebarTabRows
     guard tabRows.firstMatch.waitForExistence(timeout: 30) else {
       XCTFail("Initial sidebar tab row did not appear")
       return

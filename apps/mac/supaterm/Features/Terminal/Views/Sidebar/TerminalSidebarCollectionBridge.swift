@@ -11,7 +11,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let selectedTabID: TerminalTabID?
   let reduceMotion: Bool
   let actions: TerminalSidebarRowActions
-  let performDrop: (TerminalSidebarDropTransaction) -> TerminalSidebarDropReceipt?
+  let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
 
   func makeNSViewController(context: Context) -> TerminalSidebarListController {
     TerminalSidebarListController()
@@ -30,6 +30,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
         terminal: terminal,
         palette: palette,
         renameState: controller.renameState,
+        groupHoverState: controller.groupHoverState,
         actions: actions
       ),
       selectedTabID: selectedTabID,

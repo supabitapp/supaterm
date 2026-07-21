@@ -67,9 +67,7 @@ final class MenusFirstRunUITests: SupatermUITestCase {
   func testPinMenuFollowsSelectedTabState() async throws {
     _ = mainWindow
 
-    let tabRow = app.buttons.matching(
-      identifier: SupatermUITestIdentifier.Accessibility.sidebarTabRow
-    ).firstMatch
+    let tabRow = sidebarTabRows.firstMatch
     guard tabRow.waitForExistence(timeout: 30) else {
       XCTFail("Initial sidebar tab row did not appear")
       return

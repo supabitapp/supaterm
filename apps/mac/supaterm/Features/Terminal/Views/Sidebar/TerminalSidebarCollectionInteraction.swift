@@ -46,95 +46,162 @@ struct TerminalSidebarHapticTargetTracker {
   }
 }
 
-struct TerminalSidebarDropLifecycle: Equatable {
-  enum State: Equatable {
-    case tracking
-    case completing(TerminalSidebarDropPlan)
-    case completed(TerminalSidebarDropReceipt?)
-  }
-
+struct TerminalSidebarDragCoordinator: Equatable {
   enum SnapshotDisposition: Equatable {
     case waiting
-    case matching
-    case stale
+    case exact
+    case superseding
+    case incompatible
     case rejected
   }
 
-  let operationID: TerminalTabMoveOperationID
-  let sourceTopologyStamp: TerminalSidebarTopologyStamp
-  private(set) var state: State = .tracking
-
-  init(
-    operationID: TerminalTabMoveOperationID,
-    sourceTopologyStamp: TerminalSidebarTopologyStamp
-  ) {
-    self.operationID = operationID
-    self.sourceTopologyStamp = sourceTopologyStamp
+  enum SnapshotAcceptance: Equatable {
+    case exact
+    case superseding
   }
 
-  mutating func freeze(_ plan: TerminalSidebarDropPlan) -> Bool {
-    guard case .tracking = state else { return false }
-    state = .completing(plan)
-    return true
+  enum Settlement: Equatable {
+    case accepted(TerminalSidebarDropReceipt)
+    case superseded
+    case rejected(topologyChanged: Bool)
+  }
+
+  enum Phase: Equatable {
+    case tracking
+    case frozen(TerminalSidebarDropPlan, TerminalSidebarDropCommand)
+    case awaitingNativeEnd(
+      TerminalSidebarDropCommand,
+      TerminalSidebarDropReceipt?,
+      SnapshotAcceptance?
+    )
+    case awaitingSnapshot(TerminalSidebarDropCommand, TerminalSidebarDropReceipt)
+    case settling(Settlement)
+    case finished
+  }
+
+  let payload: TerminalSidebarDragPayload
+  private(set) var phase: Phase = .tracking
+
+  init(payload: TerminalSidebarDragPayload) {
+    self.payload = payload
+  }
+
+  mutating func freeze(_ plan: TerminalSidebarDropPlan) -> TerminalSidebarDropCommand? {
+    guard case .tracking = phase, let command = plan.command(for: payload) else { return nil }
+    phase = .frozen(plan, command)
+    return command
   }
 
   mutating func complete(_ receipt: TerminalSidebarDropReceipt?) -> Bool {
-    guard case .completing = state else { return false }
-    guard receipt?.operationID == operationID || receipt == nil else { return false }
-    guard receipt?.topologyStamp.spaceID == sourceTopologyStamp.spaceID || receipt == nil else {
+    guard case .frozen(_, let command) = phase else { return false }
+    guard receipt?.operationID == command.operationID || receipt == nil else { return false }
+    guard receipt?.topologyStamp.spaceID == command.topologyStamp.spaceID || receipt == nil else {
       return false
     }
     guard
-      (receipt?.topologyStamp.revision ?? sourceTopologyStamp.revision)
-        >= sourceTopologyStamp.revision
+      (receipt?.topologyStamp.revision ?? command.topologyStamp.revision)
+        >= command.topologyStamp.revision
     else { return false }
-    state = .completed(receipt)
+    phase = .awaitingNativeEnd(command, receipt, nil)
     return true
   }
 
   func snapshotDisposition(for outline: TerminalSidebarOutline) -> SnapshotDisposition {
-    guard case .completed(let receipt) = state else { return .waiting }
-    guard let receipt else { return .rejected }
-    guard let topologyStamp = outline.topologyStamp else { return .stale }
-    guard topologyStamp.spaceID == receipt.topologyStamp.spaceID else { return .stale }
+    if case .awaitingNativeEnd(_, nil, _) = phase { return .rejected }
+    guard let completedDrop else { return .waiting }
+    let (command, receipt) = completedDrop
+    guard let topologyStamp = outline.topologyStamp else { return .incompatible }
+    guard topologyStamp.spaceID == receipt.topologyStamp.spaceID else { return .incompatible }
     if topologyStamp.revision < receipt.topologyStamp.revision { return .waiting }
-    guard topologyStamp.revision == receipt.topologyStamp.revision else { return .stale }
-    return receipt.matches(outline) ? .matching : .stale
+    if topologyStamp.revision > receipt.topologyStamp.revision { return .superseding }
+    return receipt.matches(outline, command: command) ? .exact : .incompatible
+  }
+
+  mutating func recordSnapshot(_ acceptance: SnapshotAcceptance) -> Settlement? {
+    switch phase {
+    case .awaitingNativeEnd(let command, let receipt?, _):
+      phase = .awaitingNativeEnd(command, receipt, acceptance)
+      return nil
+    case .awaitingSnapshot(_, let receipt):
+      let settlement: Settlement =
+        acceptance == .exact ? .accepted(receipt) : .superseded
+      phase = .settling(settlement)
+      return settlement
+    case .tracking, .frozen, .awaitingNativeEnd(_, nil, _), .settling, .finished:
+      return nil
+    }
+  }
+
+  mutating func cancel(topologyChanged: Bool) -> Settlement? {
+    switch phase {
+    case .tracking, .frozen, .awaitingNativeEnd, .awaitingSnapshot:
+      let settlement = Settlement.rejected(topologyChanged: topologyChanged)
+      phase = .settling(settlement)
+      return settlement
+    case .settling, .finished:
+      return nil
+    }
+  }
+
+  mutating func nativeEnded() -> Settlement? {
+    switch phase {
+    case .tracking, .frozen:
+      let settlement = Settlement.rejected(topologyChanged: false)
+      phase = .settling(settlement)
+      return settlement
+    case .awaitingNativeEnd(_, nil, _):
+      let settlement = Settlement.rejected(topologyChanged: false)
+      phase = .settling(settlement)
+      return settlement
+    case .awaitingNativeEnd(let command, let receipt?, nil):
+      phase = .awaitingSnapshot(command, receipt)
+      return nil
+    case .awaitingNativeEnd(_, let receipt?, .exact):
+      let settlement = Settlement.accepted(receipt)
+      phase = .settling(settlement)
+      return settlement
+    case .awaitingNativeEnd(_, .some, .superseding):
+      let settlement = Settlement.superseded
+      phase = .settling(settlement)
+      return settlement
+    case .awaitingSnapshot, .settling, .finished:
+      return nil
+    }
+  }
+
+  mutating func finish() {
+    guard case .settling = phase else { return }
+    phase = .finished
+  }
+
+  var frozenPlan: TerminalSidebarDropPlan? {
+    guard case .frozen(let plan, _) = phase else { return nil }
+    return plan
+  }
+
+  var command: TerminalSidebarDropCommand? {
+    switch phase {
+    case .frozen(_, let command),
+      .awaitingNativeEnd(let command, _, _),
+      .awaitingSnapshot(let command, _):
+      return command
+    case .tracking, .settling, .finished:
+      return nil
+    }
   }
 
   var receipt: TerminalSidebarDropReceipt? {
-    guard case .completed(let receipt) = state else { return nil }
-    return receipt
-  }
-}
-
-enum TerminalSidebarDropReconciliation {
-  enum Decision: Equatable {
-    case wait
-    case acceptApplied
-    case applyQueued
-    case cancel
-    case rejected
+    if case .settling(.accepted(let receipt)) = phase { return receipt }
+    return completedDrop?.receipt
   }
 
-  static func decision(
-    lifecycle: TerminalSidebarDropLifecycle,
-    appliedOutline: TerminalSidebarOutline,
-    queuedOutline: TerminalSidebarOutline?
-  ) -> Decision {
-    if let queuedOutline {
-      switch lifecycle.snapshotDisposition(for: queuedOutline) {
-      case .matching: return .applyQueued
-      case .stale: return .cancel
-      case .rejected: return .rejected
-      case .waiting: break
-      }
-    }
-    switch lifecycle.snapshotDisposition(for: appliedOutline) {
-    case .waiting: return .wait
-    case .matching: return .acceptApplied
-    case .stale: return .cancel
-    case .rejected: return .rejected
+  private var completedDrop: (command: TerminalSidebarDropCommand, receipt: TerminalSidebarDropReceipt)? {
+    switch phase {
+    case .awaitingNativeEnd(let command, let receipt?, _),
+      .awaitingSnapshot(let command, let receipt):
+      return (command, receipt)
+    case .tracking, .frozen, .awaitingNativeEnd(_, nil, _), .settling, .finished:
+      return nil
     }
   }
 }

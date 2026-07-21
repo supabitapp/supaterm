@@ -217,65 +217,38 @@ struct TerminalSidebarChromeView: View {
   }
 
   private func performDrop(
-    _ transaction: TerminalSidebarDropTransaction
+    _ command: TerminalSidebarDropCommand
   ) -> TerminalSidebarDropReceipt? {
-    let payload = transaction.payload
-    guard payload.topologyStamp.spaceID == terminal.selectedSpaceID else { return nil }
-    switch (payload.value, transaction.plan.destination) {
-    case (.group(let id), .root(let isPinned, let index)):
+    guard command.topologyStamp.spaceID == terminal.selectedSpaceID else { return nil }
+    switch command {
+    case .move(let operationID, let topologyStamp, let itemID, let destination):
       return try? .moved(
-        spaceID: payload.topologyStamp.spaceID,
+        spaceID: topologyStamp.spaceID,
         result: terminal.move(
           TerminalTabMoveRequest(
-            operationID: payload.operationID,
-            expectedTopologyRevision: payload.topologyRevision,
-            itemIDs: [.group(id)],
-            destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
+            operationID: operationID,
+            expectedTopologyRevision: topologyStamp.revision,
+            itemIDs: [itemID],
+            destination: destination
           )
         )
       )
-    case (.tab(let id), .root(let isPinned, let index)):
-      return try? .moved(
-        spaceID: payload.topologyStamp.spaceID,
-        result: terminal.move(
-          TerminalTabMoveRequest(
-            operationID: payload.operationID,
-            expectedTopologyRevision: payload.topologyRevision,
-            itemIDs: [.tab(id)],
-            destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
-          )
-        )
-      )
-    case (.tab(let id), .group(let groupID, let index)):
-      return try? .moved(
-        spaceID: payload.topologyStamp.spaceID,
-        result: terminal.move(
-          TerminalTabMoveRequest(
-            operationID: payload.operationID,
-            expectedTopologyRevision: payload.topologyRevision,
-            itemIDs: [.tab(id)],
-            destination: .group(groupID, index: index)
-          )
-        )
-      )
-    case (.tab(let id), .createGroup(let targetTabID)):
-      guard payload.topologyStamp.revision == terminal.selectedSpaceTopologyRevision else {
+    case .createGroup(let operationID, let topologyStamp, let sourceTabID, let targetTabID):
+      guard topologyStamp.revision == terminal.selectedSpaceTopologyRevision else {
         return nil
       }
       guard
         let result = terminal.createGroup(
           title: "New Group",
           color: .neutral,
-          containing: [targetTabID, id]
+          containing: [targetTabID, sourceTabID]
         )
       else { return nil }
       return .createdGroup(
-        operationID: payload.operationID,
-        spaceID: payload.topologyStamp.spaceID,
+        operationID: operationID,
+        spaceID: topologyStamp.spaceID,
         result: result
       )
-    case (.group, .group), (.group, .createGroup):
-      return nil
     }
   }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SupaTheme
 import SwiftUI
 
@@ -18,6 +19,14 @@ extension SnapshotCatalog {
       size: CGSize(width: 760, height: 920)
     ) { appearance in
       AnyView(PaletteTokenSheetSnapshotFixture(appearance: appearance))
+    },
+    scenario(
+      "group-surfaces",
+      group: "Chrome",
+      title: "Group surfaces",
+      size: CGSize(width: 680, height: 230)
+    ) { appearance in
+      AnyView(GroupSurfaceSnapshotFixture(appearance: appearance))
     },
   ]
 }
@@ -98,6 +107,7 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "sidebarSelectedStroke", color: palette.sidebarSelectedStroke),
       TokenSwatch(name: "sidebarItemHoverFill", color: palette.sidebarItemHoverFill),
       TokenSwatch(name: "sidebarItemPressedFill", color: palette.sidebarItemPressedFill),
+      TokenSwatch(name: "sidebarGroupHoverFill", color: palette.sidebarGroupHoverFill),
       TokenSwatch(name: "sidebarSeparator", color: palette.sidebarSeparator),
       TokenSwatch(name: "shadow", color: palette.shadow),
       TokenSwatch(name: "scrim", color: palette.scrim),
@@ -123,5 +133,67 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       + palette.referenceSwatches.map {
         TokenSwatch(name: $0.name, color: $0.color)
       }
+  }
+}
+
+private struct GroupSurfaceSnapshotFixture: View {
+  let appearance: SnapshotAppearance
+
+  var body: some View {
+    let palette = Palette(colorScheme: appearance.colorScheme)
+    ZStack {
+      palette.detailBackground
+      VStack(spacing: 14) {
+        ForEach([TerminalTabGroupColor.neutral, .blue], id: \.self) { color in
+          HStack(spacing: 12) {
+            ForEach(
+              [
+                TerminalSidebarGroupSurfaceState.resting,
+                .hovered,
+                .dropTarget,
+              ],
+              id: \.self
+            ) { state in
+              VStack(spacing: 5) {
+                GroupSurfaceRepresentable(color: color, palette: palette, state: state)
+                  .frame(width: 190, height: 58)
+                Text("\(color.displayName) · \(name(state))")
+                  .font(.system(size: 10, weight: .medium))
+                  .foregroundStyle(palette.secondaryText)
+              }
+            }
+          }
+        }
+      }
+      .padding(20)
+    }
+  }
+
+  private func name(_ state: TerminalSidebarGroupSurfaceState) -> String {
+    switch state {
+    case .resting: "Resting"
+    case .hovered: "Hovered"
+    case .dropTarget: "Drop target"
+    }
+  }
+}
+
+private struct GroupSurfaceRepresentable: NSViewRepresentable {
+  let color: TerminalTabGroupColor
+  let palette: Palette
+  let state: TerminalSidebarGroupSurfaceState
+
+  func makeNSView(context: Context) -> TerminalSidebarGroupBackgroundView {
+    TerminalSidebarGroupBackgroundView(frame: .zero)
+  }
+
+  func updateNSView(_ view: TerminalSidebarGroupBackgroundView, context: Context) {
+    view.update(
+      color: color,
+      palette: palette,
+      surfaceState: state,
+      alpha: 1,
+      reduceMotion: true
+    )
   }
 }

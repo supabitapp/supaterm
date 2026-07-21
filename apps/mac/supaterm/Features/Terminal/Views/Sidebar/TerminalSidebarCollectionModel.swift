@@ -62,10 +62,6 @@ struct TerminalSidebarOutline: Equatable {
     }
   }
 
-  var topologyRevision: UInt64 {
-    topologyStamp?.revision ?? 0
-  }
-
   var visibleEntries: [TerminalSidebarEntry] {
     var entries: [TerminalSidebarEntry] = []
     let hasPinned = roots.contains { $0.isPinned }
@@ -136,29 +132,30 @@ struct TerminalSidebarOutline: Equatable {
 
   func dragPayload(for entryID: TerminalSidebarEntryID) -> TerminalSidebarDragPayload? {
     guard let topologyStamp else { return nil }
-    let value: TerminalSidebarDragValue
-    let itemIDs: [TerminalTabRootItemID]
-    let entryIDs: [TerminalSidebarEntryID]
+    let source: TerminalSidebarDragSource
     switch entryID {
     case .tab(let id):
-      value = .tab(id)
-      itemIDs = [.tab(id)]
-      entryIDs = [.tab(id)]
+      source = .tab(id)
     case .group(let id):
-      value = .group(id)
-      itemIDs = [.group(id)]
-      let visibleIDs = Set(visibleEntryIDs(forGroup: id))
-      entryIDs = visibleEntries.map(\.id).filter { visibleIDs.contains($0) }
+      source = .group(id)
     case .pinDivider, .newTab, .newGroup:
       return nil
     }
     return TerminalSidebarDragPayload(
       operationID: TerminalTabMoveOperationID(),
-      value: value,
-      itemIDs: itemIDs,
-      entryIDs: entryIDs,
+      source: source,
       topologyStamp: topologyStamp
     )
+  }
+
+  func liftedEntryIDs(for source: TerminalSidebarDragSource) -> [TerminalSidebarEntryID] {
+    switch source {
+    case .tab(let id):
+      return [.tab(id)]
+    case .group(let id):
+      let visibleIDs = Set(visibleEntryIDs(forGroup: id))
+      return visibleEntries.map(\.id).filter { visibleIDs.contains($0) }
+    }
   }
 
   private func rootPlacement(at rootIndex: Int) -> TerminalRootPlacement {
@@ -209,16 +206,21 @@ struct TerminalSidebarEntry: Equatable {
   }
 }
 
-enum TerminalSidebarDragValue: Equatable {
+enum TerminalSidebarDragSource: Equatable {
   case tab(TerminalTabID)
   case group(TerminalTabGroupID)
+
+  var itemID: TerminalTabRootItemID {
+    switch self {
+    case .tab(let id): .tab(id)
+    case .group(let id): .group(id)
+    }
+  }
 }
 
 struct TerminalSidebarDragPayload: Equatable {
   let operationID: TerminalTabMoveOperationID
-  let value: TerminalSidebarDragValue
-  let itemIDs: [TerminalTabRootItemID]
-  let entryIDs: [TerminalSidebarEntryID]
+  let source: TerminalSidebarDragSource
   let topologyStamp: TerminalSidebarTopologyStamp
 
   var topologyRevision: UInt64 {
@@ -262,6 +264,33 @@ struct TerminalSidebarDropPlan: Equatable {
   let path: TerminalSidebarSemanticPath
   let destination: TerminalSidebarDropDestination
   let placeholder: TerminalSidebarDropPlaceholder
+
+  func command(for payload: TerminalSidebarDragPayload) -> TerminalSidebarDropCommand? {
+    switch destination {
+    case .root(let isPinned, let index):
+      return .move(
+        operationID: payload.operationID,
+        topologyStamp: payload.topologyStamp,
+        itemID: payload.source.itemID,
+        destination: .root(TerminalRootPlacement(isPinned: isPinned, index: index))
+      )
+    case .group(let groupID, let index):
+      return .move(
+        operationID: payload.operationID,
+        topologyStamp: payload.topologyStamp,
+        itemID: payload.source.itemID,
+        destination: .group(groupID, index: index)
+      )
+    case .createGroup(let targetTabID):
+      guard case .tab(let sourceTabID) = payload.source else { return nil }
+      return .createGroup(
+        operationID: payload.operationID,
+        topologyStamp: payload.topologyStamp,
+        sourceTabID: sourceTabID,
+        targetTabID: targetTabID
+      )
+    }
+  }
 }
 
 struct TerminalSidebarDragDropState: Equatable {
@@ -269,9 +298,31 @@ struct TerminalSidebarDragDropState: Equatable {
   let target: TerminalSidebarDropPlan?
 }
 
-struct TerminalSidebarDropTransaction: Equatable {
-  let payload: TerminalSidebarDragPayload
-  let plan: TerminalSidebarDropPlan
+enum TerminalSidebarDropCommand: Equatable {
+  case move(
+    operationID: TerminalTabMoveOperationID,
+    topologyStamp: TerminalSidebarTopologyStamp,
+    itemID: TerminalTabRootItemID,
+    destination: TerminalTabPlacement
+  )
+  case createGroup(
+    operationID: TerminalTabMoveOperationID,
+    topologyStamp: TerminalSidebarTopologyStamp,
+    sourceTabID: TerminalTabID,
+    targetTabID: TerminalTabID
+  )
+
+  var operationID: TerminalTabMoveOperationID {
+    switch self {
+    case .move(let operationID, _, _, _), .createGroup(let operationID, _, _, _): operationID
+    }
+  }
+
+  var topologyStamp: TerminalSidebarTopologyStamp {
+    switch self {
+    case .move(_, let topologyStamp, _, _), .createGroup(_, let topologyStamp, _, _): topologyStamp
+    }
+  }
 }
 
 enum TerminalSidebarDropReceipt: Equatable {
@@ -312,16 +363,30 @@ enum TerminalSidebarDropReceipt: Equatable {
     }
   }
 
-  func matches(_ outline: TerminalSidebarOutline) -> Bool {
+  func matches(_ outline: TerminalSidebarOutline, command: TerminalSidebarDropCommand) -> Bool {
+    guard operationID == command.operationID else { return false }
     guard outline.topologyStamp == topologyStamp else { return false }
     guard deletedEmptyGroupIDs.allSatisfy({ outline.group($0) == nil }) else { return false }
-    switch self {
-    case .moved(_, let result):
-      guard let firstItemID = result.itemIDs.first else { return false }
-      guard result.itemIDs.allSatisfy({ outline.location(of: $0) != nil }) else { return false }
-      return outline.location(of: firstItemID) == result.location
-    case .createdGroup(_, _, let result):
-      return outline.group(result.groupID) != nil
+    switch (self, command) {
+    case (
+      .moved(_, let result),
+      .move(_, let sourceTopologyStamp, let itemID, let destination)
+    ):
+      return sourceTopologyStamp.spaceID == topologyStamp.spaceID
+        && result.itemIDs == [itemID]
+        && result.location == destination
+        && outline.location(of: itemID) == destination
+    case (
+      .createdGroup(_, _, let result),
+      .createGroup(_, let sourceTopologyStamp, let sourceTabID, let targetTabID)
+    ):
+      guard sourceTopologyStamp.spaceID == topologyStamp.spaceID,
+        let group = outline.group(result.groupID),
+        case .group(_, _, _, let children) = group.content
+      else { return false }
+      return children == [targetTabID, sourceTabID]
+    case (.moved, .createGroup), (.createdGroup, .move):
+      return false
     }
   }
 }
@@ -370,7 +435,7 @@ enum TerminalSidebarDropPlanner {
   ) -> TerminalSidebarDropPlan? {
     guard outline.roots.indices.contains(index) else { return nil }
     let target = outline.roots[index]
-    if case .tab = payload.value {
+    if case .tab = payload.source {
       switch target.content {
       case .tab(let targetTabID):
         return TerminalSidebarDropPlan(
@@ -380,7 +445,7 @@ enum TerminalSidebarDropPlanner {
         )
       case .group(let groupID, _, _, let tabIDs):
         let destinationIndex = tabIDs.filter { tabID in
-          guard case .tab(let sourceID) = payload.value else { return true }
+          guard case .tab(let sourceID) = payload.source else { return true }
           return tabID != sourceID
         }.count
         return TerminalSidebarDropPlan(
@@ -446,7 +511,7 @@ enum TerminalSidebarDropPlanner {
     index: Int,
     outline: TerminalSidebarOutline
   ) -> TerminalSidebarDropPlan? {
-    guard case .tab(let sourceID) = payload.value else { return nil }
+    guard case .tab(let sourceID) = payload.source else { return nil }
     let original = outline.tabIDs(in: groupID)
     guard (0...original.count).contains(index) else { return nil }
     let reduced = original.filter { $0 != sourceID }
@@ -484,7 +549,7 @@ enum TerminalSidebarDropPlanner {
     payload: TerminalSidebarDragPayload,
     outline: TerminalSidebarOutline
   ) -> [TerminalSidebarOutline.Root] {
-    switch payload.value {
+    switch payload.source {
     case .group(let sourceID):
       return outline.roots.filter { $0.id != .group(sourceID) }
     case .tab(let sourceID):

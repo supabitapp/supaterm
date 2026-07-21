@@ -6,6 +6,102 @@
 
   @MainActor
   enum DemoSeed {
+    private enum PaneSeed {
+      case leaf(UUID)
+      case split(UUID, UUID)
+    }
+
+    private struct TabSeed {
+      let id: TerminalTabID
+      let title: String
+      let directory: String
+      let pane: PaneSeed
+
+      var session: TerminalTabSession {
+        let root: TerminalPaneNodeSession
+        switch pane {
+        case .leaf(let surfaceID):
+          root = .leaf(leaf(surfaceID, title: title))
+        case .split(let primarySurfaceID, let secondarySurfaceID):
+          root = .split(
+            TerminalPaneSplitSession(
+              direction: .horizontal,
+              ratio: 0.58,
+              left: .leaf(leaf(primarySurfaceID, title: title)),
+              right: .leaf(leaf(secondarySurfaceID, title: "shell"))
+            )
+          )
+        }
+        return TerminalTabSession(
+          id: id,
+          lockedTitle: title,
+          focusedPaneIndex: 0,
+          root: root
+        )
+      }
+
+      private func leaf(_ surfaceID: UUID, title: String) -> TerminalPaneLeafSession {
+        TerminalPaneLeafSession(
+          id: surfaceID,
+          workingDirectoryPath: workingDirectoryPath(directory),
+          titleOverride: title
+        )
+      }
+    }
+
+    private struct GroupSeed {
+      let id: TerminalTabGroupID
+      let title: String
+      let color: TerminalTabGroupColor
+      let tabs: [TabSeed]
+    }
+
+    private enum RootSeed {
+      case tab(TabSeed, isPinned: Bool)
+      case group(GroupSeed, isPinned: Bool)
+
+      var isPinned: Bool {
+        switch self {
+        case .tab(_, let isPinned), .group(_, let isPinned): isPinned
+        }
+      }
+
+      var tabs: [TabSeed] {
+        switch self {
+        case .tab(let tab, _): [tab]
+        case .group(let group, _): group.tabs
+        }
+      }
+
+      func nodes(rootOrder: Int) -> [TerminalTabNodeSession] {
+        switch self {
+        case .tab(let tab, let isPinned):
+          return [
+            TerminalTabNodeSession(
+              item: .tab(tab.id),
+              parent: .root(isPinned: isPinned),
+              order: rootOrder
+            )
+          ]
+        case .group(let group, let isPinned):
+          return [
+            TerminalTabNodeSession(
+              item: .group(group.id),
+              parent: .root(isPinned: isPinned),
+              order: rootOrder
+            )
+          ]
+            + group.tabs.enumerated().map { order, tab in
+              TerminalTabNodeSession(
+                item: .tab(tab.id),
+                parent: .group(group.id),
+                order: order
+              )
+            }
+        }
+      }
+    }
+
     static func seedCatalogs() {
       @Shared(.terminalSpaceCatalog) var spaceCatalog = TerminalSpaceCatalog.default
       @Shared(.terminalSessionCatalog) var sessionCatalog = TerminalSessionCatalog.default
@@ -15,9 +111,7 @@
       $spaceCatalog.withLock {
         $0 = TerminalSpaceCatalog(
           defaultSelectedSpaceID: IDs.space,
-          spaces: [
-            PersistedTerminalSpace(id: IDs.space, name: "Supaterm")
-          ]
+          spaces: [PersistedTerminalSpace(id: IDs.space, name: "Supaterm")]
         )
       }
       $sessionCatalog.withLock {
@@ -44,9 +138,7 @@
         $0.codingAgentsShowPanel = true
       }
       ReleaseAnnouncementStorage.save(
-        ReleaseAnnouncementStorageState(
-          acknowledgedVersion: AppBuild.version
-        )
+        ReleaseAnnouncementStorageState(acknowledgedVersion: AppBuild.version)
       )
     }
 
@@ -92,237 +184,103 @@
       IDs.deploySurface,
     ]
 
-    private static let nodes = [
-      groupNode(IDs.developmentGroup, isPinned: true, order: 0),
-      groupedTabNode(IDs.macTab, groupID: IDs.developmentGroup, order: 0),
-      groupedTabNode(IDs.webTab, groupID: IDs.developmentGroup, order: 1),
-      groupedTabNode(IDs.apiTab, groupID: IDs.developmentGroup, order: 2),
-      rootTabNode(IDs.docsTab, isPinned: false, order: 0),
-      groupNode(IDs.productGroup, isPinned: false, order: 1),
-      groupedTabNode(IDs.roadmapTab, groupID: IDs.productGroup, order: 0),
-      groupedTabNode(IDs.designTab, groupID: IDs.productGroup, order: 1),
-      rootTabNode(IDs.scratchTab, isPinned: false, order: 2),
-      groupNode(IDs.operationsGroup, isPinned: false, order: 3),
-      groupedTabNode(IDs.deployTab, groupID: IDs.operationsGroup, order: 0),
-      groupedTabNode(IDs.monitoringTab, groupID: IDs.operationsGroup, order: 1),
-      groupedTabNode(IDs.databaseTab, groupID: IDs.operationsGroup, order: 2),
-      groupNode(IDs.researchGroup, isPinned: false, order: 4),
-      groupedTabNode(IDs.prototypeTab, groupID: IDs.researchGroup, order: 0),
-      groupedTabNode(IDs.benchmarksTab, groupID: IDs.researchGroup, order: 1),
-      rootTabNode(IDs.playgroundTab, isPinned: false, order: 5),
-    ]
+    private static var nodes: [TerminalTabNodeSession] {
+      var laneOrders = [true: 0, false: 0]
+      return roots.flatMap { root in
+        let order = laneOrders[root.isPinned, default: 0]
+        laneOrders[root.isPinned] = order + 1
+        return root.nodes(rootOrder: order)
+      }
+    }
 
-    private static let groups = [
-      TerminalTabGroupSession(
-        id: IDs.developmentGroup,
-        title: "Development",
-        color: .blue,
-        lifetime: .automatic
-      ),
-      TerminalTabGroupSession(
-        id: IDs.productGroup,
-        title: "Product",
-        color: .pink,
-        lifetime: .automatic
-      ),
-      TerminalTabGroupSession(
-        id: IDs.operationsGroup,
-        title: "Operations",
-        color: .orange,
-        lifetime: .automatic
-      ),
-      TerminalTabGroupSession(
-        id: IDs.researchGroup,
-        title: "Research",
-        color: .green,
-        lifetime: .automatic
-      ),
-    ]
-
-    private static let tabSessions = [
-      macSession,
-      webSession,
-      apiSession,
-      docsSession,
-      roadmapSession,
-      designSession,
-      scratchSession,
-      deploySession,
-      monitoringSession,
-      databaseSession,
-      prototypeSession,
-      benchmarksSession,
-      playgroundSession,
-    ]
-
-    private static let macSession = leafSession(
-      id: IDs.macTab,
-      title: "supaterm/mac",
-      directory: "mac",
-      surfaceID: IDs.macSurface
-    )
-
-    private static let webSession = TerminalTabSession(
-      id: IDs.webTab,
-      lockedTitle: "supaterm/web",
-      focusedPaneIndex: 0,
-      root: .split(
-        TerminalPaneSplitSession(
-          direction: .horizontal,
-          ratio: 0.58,
-          left: .leaf(
-            TerminalPaneLeafSession(
-              id: IDs.webAgentSurface,
-              workingDirectoryPath: workingDirectoryPath("web"),
-              titleOverride: "supaterm/web"
-            )
-          ),
-          right: .leaf(
-            TerminalPaneLeafSession(
-              id: IDs.webShellSurface,
-              workingDirectoryPath: workingDirectoryPath("web"),
-              titleOverride: "shell"
-            )
-          )
+    private static var groups: [TerminalTabGroupSession] {
+      roots.compactMap { root in
+        guard case .group(let group, _) = root else { return nil }
+        return TerminalTabGroupSession(
+          id: group.id,
+          title: group.title,
+          color: group.color,
+          lifetime: .automatic
         )
-      )
-    )
-
-    private static let apiSession = leafSession(
-      id: IDs.apiTab,
-      title: "supaterm/api",
-      directory: "api",
-      surfaceID: IDs.apiSurface
-    )
-
-    private static let docsSession = leafSession(
-      id: IDs.docsTab,
-      title: "docs",
-      directory: "docs",
-      surfaceID: IDs.docsSurface
-    )
-
-    private static let roadmapSession = leafSession(
-      id: IDs.roadmapTab,
-      title: "roadmap",
-      directory: "roadmap",
-      surfaceID: IDs.roadmapSurface
-    )
-
-    private static let designSession = leafSession(
-      id: IDs.designTab,
-      title: "design system",
-      directory: "design",
-      surfaceID: IDs.designSurface
-    )
-
-    private static let scratchSession = leafSession(
-      id: IDs.scratchTab,
-      title: "scratch",
-      directory: "scratch",
-      surfaceID: IDs.scratchSurface
-    )
-
-    private static let deploySession = leafSession(
-      id: IDs.deployTab,
-      title: "supaterm/deploy",
-      directory: "deploy",
-      surfaceID: IDs.deploySurface
-    )
-
-    private static let monitoringSession = leafSession(
-      id: IDs.monitoringTab,
-      title: "observability",
-      directory: "monitoring",
-      surfaceID: IDs.monitoringSurface
-    )
-
-    private static let databaseSession = leafSession(
-      id: IDs.databaseTab,
-      title: "database",
-      directory: "database",
-      surfaceID: IDs.databaseSurface
-    )
-
-    private static let prototypeSession = leafSession(
-      id: IDs.prototypeTab,
-      title: "prototypes",
-      directory: "prototypes",
-      surfaceID: IDs.prototypeSurface
-    )
-
-    private static let benchmarksSession = leafSession(
-      id: IDs.benchmarksTab,
-      title: "benchmarks",
-      directory: "benchmarks",
-      surfaceID: IDs.benchmarksSurface
-    )
-
-    private static let playgroundSession = leafSession(
-      id: IDs.playgroundTab,
-      title: "playground",
-      directory: "playground",
-      surfaceID: IDs.playgroundSurface
-    )
-
-    private static func groupNode(
-      _ groupID: TerminalTabGroupID,
-      isPinned: Bool,
-      order: Int
-    ) -> TerminalTabNodeSession {
-      TerminalTabNodeSession(
-        item: .group(groupID),
-        parent: .root(isPinned: isPinned),
-        order: order
-      )
+      }
     }
 
-    private static func groupedTabNode(
-      _ tabID: TerminalTabID,
-      groupID: TerminalTabGroupID,
-      order: Int
-    ) -> TerminalTabNodeSession {
-      TerminalTabNodeSession(
-        item: .tab(tabID),
-        parent: .group(groupID),
-        order: order
-      )
+    private static var tabSessions: [TerminalTabSession] {
+      roots.flatMap(\.tabs).map(\.session)
     }
 
-    private static func rootTabNode(
-      _ tabID: TerminalTabID,
-      isPinned: Bool,
-      order: Int
-    ) -> TerminalTabNodeSession {
-      TerminalTabNodeSession(
-        item: .tab(tabID),
-        parent: .root(isPinned: isPinned),
-        order: order
-      )
-    }
-
-    private static func leafSession(
-      id: TerminalTabID,
-      title: String,
-      directory: String,
-      surfaceID: UUID
-    ) -> TerminalTabSession {
-      TerminalTabSession(
-        id: id,
-        lockedTitle: title,
-        focusedPaneIndex: 0,
-        root: .leaf(
-          TerminalPaneLeafSession(
-            id: surfaceID,
-            workingDirectoryPath: workingDirectoryPath(directory),
-            titleOverride: title
-          )
-        )
-      )
-    }
+    private static let roots: [RootSeed] = [
+      .group(
+        GroupSeed(
+          id: IDs.developmentGroup,
+          title: "Development",
+          color: .blue,
+          tabs: [
+            TabSeed(id: IDs.macTab, title: "supaterm/mac", directory: "mac", pane: .leaf(IDs.macSurface)),
+            TabSeed(
+              id: IDs.webTab,
+              title: "supaterm/web",
+              directory: "web",
+              pane: .split(IDs.webAgentSurface, IDs.webShellSurface)
+            ),
+            TabSeed(id: IDs.apiTab, title: "supaterm/api", directory: "api", pane: .leaf(IDs.apiSurface)),
+          ]
+        ),
+        isPinned: true
+      ),
+      .tab(TabSeed(id: IDs.docsTab, title: "docs", directory: "docs", pane: .leaf(IDs.docsSurface)), isPinned: false),
+      .group(
+        GroupSeed(
+          id: IDs.productGroup,
+          title: "Product",
+          color: .pink,
+          tabs: [
+            TabSeed(id: IDs.roadmapTab, title: "roadmap", directory: "roadmap", pane: .leaf(IDs.roadmapSurface)),
+            TabSeed(id: IDs.designTab, title: "design system", directory: "design", pane: .leaf(IDs.designSurface)),
+          ]
+        ),
+        isPinned: false
+      ),
+      .tab(
+        TabSeed(id: IDs.scratchTab, title: "scratch", directory: "scratch", pane: .leaf(IDs.scratchSurface)),
+        isPinned: false),
+      .group(
+        GroupSeed(
+          id: IDs.operationsGroup,
+          title: "Operations",
+          color: .orange,
+          tabs: [
+            TabSeed(id: IDs.deployTab, title: "supaterm/deploy", directory: "deploy", pane: .leaf(IDs.deploySurface)),
+            TabSeed(
+              id: IDs.monitoringTab, title: "observability", directory: "monitoring", pane: .leaf(IDs.monitoringSurface)
+            ),
+            TabSeed(id: IDs.databaseTab, title: "database", directory: "database", pane: .leaf(IDs.databaseSurface)),
+          ]
+        ),
+        isPinned: false
+      ),
+      .group(
+        GroupSeed(
+          id: IDs.researchGroup,
+          title: "Research",
+          color: .green,
+          tabs: [
+            TabSeed(
+              id: IDs.prototypeTab, title: "prototypes", directory: "prototypes", pane: .leaf(IDs.prototypeSurface)),
+            TabSeed(
+              id: IDs.benchmarksTab, title: "benchmarks", directory: "benchmarks", pane: .leaf(IDs.benchmarksSurface)),
+          ]
+        ),
+        isPinned: false
+      ),
+      .tab(
+        TabSeed(
+          id: IDs.playgroundTab, title: "playground", directory: "playground", pane: .leaf(IDs.playgroundSurface)),
+        isPinned: false),
+    ]
 
     private static func prepareWorkspaceDirectories() {
-      for directory in workspaceDirectoryNames {
+      for directory in Set(roots.flatMap(\.tabs).map(\.directory)) {
         try? FileManager.default.createDirectory(
           at: workspaceRoot.appendingPathComponent(directory, isDirectory: true),
           withIntermediateDirectories: true
@@ -333,22 +291,6 @@
     private static func workingDirectoryPath(_ name: String) -> String {
       workspaceRoot.appendingPathComponent(name, isDirectory: true).path
     }
-
-    private static let workspaceDirectoryNames = [
-      "api",
-      "benchmarks",
-      "database",
-      "deploy",
-      "design",
-      "docs",
-      "mac",
-      "monitoring",
-      "playground",
-      "prototypes",
-      "roadmap",
-      "scratch",
-      "web",
-    ]
 
     private static let workspaceRoot =
       FileManager.default.homeDirectoryForCurrentUser
