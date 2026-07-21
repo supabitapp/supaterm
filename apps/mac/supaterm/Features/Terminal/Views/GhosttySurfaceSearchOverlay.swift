@@ -28,10 +28,8 @@ struct GhosttySurfaceSearchOverlay: View {
       ZStack(alignment: corner.alignment) {
         HStack(spacing: 4) {
           GhosttySearchField(
-            surfaceView: surfaceView,
             text: $searchText,
             focusRequest: searchFocusRequest,
-            matchLabel: matchLabelText,
             onSubmit: { isShifted in
               navigateSearch(isShifted ? .previous : .next)
             },
@@ -286,10 +284,8 @@ private struct SearchButtonLabel: View {
 }
 
 private struct GhosttySearchField: NSViewRepresentable {
-  let surfaceView: GhosttySurfaceView
   @Binding var text: String
   var focusRequest: Int
-  var matchLabel: String?
   var onSubmit: (Bool) -> Void
   var onEscape: () -> Void
 
@@ -310,7 +306,6 @@ private struct GhosttySearchField: NSViewRepresentable {
     field.usesSingleLineMode = true
     field.lineBreakMode = .byTruncatingTail
     field.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-    field.installAccessibility(on: surfaceView)
     return field
   }
 
@@ -320,16 +315,11 @@ private struct GhosttySearchField: NSViewRepresentable {
     }
     nsView.onSubmit = onSubmit
     nsView.onEscape = onEscape
-    nsView.updateAccessibility(matchLabel: matchLabel)
 
     if context.coordinator.focusRequest != focusRequest, let window = nsView.window {
       context.coordinator.focusRequest = focusRequest
       window.makeFirstResponder(nsView)
     }
-  }
-
-  static func dismantleNSView(_ nsView: SearchField, coordinator _: Coordinator) {
-    nsView.uninstallAccessibility()
   }
 
   final class Coordinator: NSObject, NSTextFieldDelegate {
@@ -349,62 +339,6 @@ private struct GhosttySearchField: NSViewRepresentable {
   final class SearchField: NSTextField {
     var onSubmit: ((Bool) -> Void)?
     var onEscape: (() -> Void)?
-    private weak var accessibilitySurfaceView: GhosttySurfaceView?
-    private var matchCountAccessibilityElement: NSAccessibilityElement?
-
-    func installAccessibility(on surfaceView: GhosttySurfaceView) {
-      accessibilitySurfaceView = surfaceView
-      setAccessibilityParent(surfaceView)
-
-      guard
-        let matchCountElement = NSAccessibilityElement.element(
-          withRole: .staticText,
-          frame: .zero,
-          label: nil,
-          parent: surfaceView
-        ) as? NSAccessibilityElement
-      else { return }
-      matchCountElement.setAccessibilityIdentifier("terminal.search.match-count")
-      matchCountAccessibilityElement = matchCountElement
-
-      surfaceView.setAccessibilityChildren(
-        (surfaceView.accessibilityChildren() ?? []).filter {
-          !($0 is SearchField)
-            && ($0 as? NSAccessibilityElement)?.accessibilityIdentifier()
-              != "terminal.search.match-count"
-        } + [self, matchCountElement]
-      )
-    }
-
-    func updateAccessibility(matchLabel: String?) {
-      guard let matchCountAccessibilityElement else { return }
-      matchCountAccessibilityElement.setAccessibilityLabel(matchLabel)
-      matchCountAccessibilityElement.setAccessibilityValue(matchLabel)
-      guard let window else { return }
-      var frame = window.convertToScreen(convert(bounds, to: nil))
-      frame.origin.x += frame.width - 50
-      frame.size.width = 50
-      matchCountAccessibilityElement.setAccessibilityFrame(frame)
-    }
-
-    func uninstallAccessibility() {
-      if let accessibilitySurfaceView {
-        accessibilitySurfaceView.setAccessibilityChildren(
-          (accessibilitySurfaceView.accessibilityChildren() ?? []).filter { child in
-            if (child as AnyObject) === self { return false }
-            if let matchCountAccessibilityElement,
-              (child as AnyObject) === matchCountAccessibilityElement
-            {
-              return false
-            }
-            return true
-          }
-        )
-      }
-      setAccessibilityParent(nil)
-      accessibilitySurfaceView = nil
-      matchCountAccessibilityElement = nil
-    }
 
     override func cancelOperation(_ sender: Any?) {
       onEscape?()

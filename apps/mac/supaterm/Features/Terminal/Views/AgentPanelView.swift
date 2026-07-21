@@ -23,7 +23,6 @@ enum AgentPanelShortcut {
 
 struct AgentPanelView: View {
   static let accessibilityIdentifier = "agent-panel"
-  static let copySessionIDAccessibilityIdentifier = "agent-panel.copy-session-id"
 
   let presentation: PaneAgentPanelPresentation
   let palette: Palette
@@ -227,7 +226,6 @@ struct AgentPanelView: View {
             copy(session.sessionID, target: .sessionID)
           }
         )
-        .accessibilityIdentifier(Self.copySessionIDAccessibilityIdentifier)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }

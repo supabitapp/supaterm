@@ -29,9 +29,9 @@ final class AgentPanelUITests: SupatermUITestCase {
     try await sendClaudeEvent("session-start")
     try await sendClaudeEvent("user-prompt-submit")
 
-    let copyButton = app.buttons[
-      SupatermUITestIdentifier.Accessibility.agentPanelCopySessionID
-    ]
+    let copyButton = agentPanel.buttons.matching(
+      NSPredicate(format: "label IN %@", ["Copy session ID", "Copied"])
+    ).firstMatch
     await assertEventually(copyButton, timeout: Self.coldStartTimeout) {
       $0.exists && $0.isHittable
     }
