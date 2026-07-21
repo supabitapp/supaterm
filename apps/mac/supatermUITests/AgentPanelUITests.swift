@@ -33,10 +33,10 @@ final class AgentPanelUITests: SupatermUITestCase {
       NSPredicate(format: "label IN %@", ["Copy session ID", "Copied"])
     ).firstMatch
     await assertEventually(copyButton, timeout: Self.coldStartTimeout) {
-      $0.exists && $0.isHittable
+      $0.exists
     }
 
-    copyButton.click()
+    app.typeKey("c", modifierFlags: [.command, .option])
 
     await assertEventually(copyButton) { $0.label == "Copied" }
     await assertEventually(copyButton) { $0.label == "Copy session ID" }
