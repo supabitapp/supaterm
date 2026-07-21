@@ -31,6 +31,7 @@ struct TerminalSidebarChromeView: View {
   let releaseAnnouncement: ReleaseAnnouncement?
   let palette: Palette
   let terminal: TerminalHostState
+  let fixedHoveredGroupID: TerminalTabGroupID?
   let dismissReleaseAnnouncement: () -> Void
 
   @Environment(CommandHoldObserver.self) private var commandHoldObserver
@@ -74,6 +75,7 @@ struct TerminalSidebarChromeView: View {
       outline: outline,
       rows: rows,
       selectedTabID: terminal.selectedTabID,
+      fixedHoveredGroupID: fixedHoveredGroupID,
       reduceMotion: reduceMotion,
       actions: rowActions,
       performDrop: performDrop

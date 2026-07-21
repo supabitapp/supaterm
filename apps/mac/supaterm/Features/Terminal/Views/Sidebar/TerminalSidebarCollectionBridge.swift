@@ -9,6 +9,7 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
   let outline: TerminalSidebarOutline
   let rows: [TerminalSidebarEntryID: TerminalSidebarRowPresentation]
   let selectedTabID: TerminalTabID?
+  let fixedHoveredGroupID: TerminalTabGroupID?
   let reduceMotion: Bool
   let actions: TerminalSidebarRowActions
   let performDrop: (TerminalSidebarDropCommand) -> TerminalSidebarDropReceipt?
@@ -30,7 +31,8 @@ struct TerminalSidebarOutlineList: NSViewControllerRepresentable {
         terminal: terminal,
         palette: palette,
         renameState: controller.renameState,
-        groupHeaderHoverState: controller.groupHeaderHoverState,
+        groupHoverState: controller.groupHoverState,
+        fixedHoveredGroupID: fixedHoveredGroupID,
         actions: actions
       ),
       selectedTabID: selectedTabID,

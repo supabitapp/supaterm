@@ -109,6 +109,7 @@ struct TerminalSidebarView: View {
         releaseAnnouncement: releaseAnnouncement,
         palette: palette,
         terminal: terminal,
+        fixedHoveredGroupID: nil,
         dismissReleaseAnnouncement: dismissReleaseAnnouncement
       )
       WindowTrafficLights()

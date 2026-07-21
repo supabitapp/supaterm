@@ -120,6 +120,11 @@ private struct PaletteTokenSheetSnapshotFixture: View {
       TokenSwatch(name: "warningFill", color: palette.warningFill),
       TokenSwatch(name: "dangerFill", color: palette.dangerFill),
       TokenSwatch(name: "dangerHoverFill", color: palette.dangerHoverFill),
+      TokenSwatch(
+        name: "sidebarGroupNeutralHoverFill",
+        color: palette.sidebarGroupNeutralHoverFillValue.color
+      ),
+      TokenSwatch(name: "sidebarGroupStroke", color: palette.sidebarGroupStrokeValue.color),
       TokenSwatch(name: "onAccent", color: palette.onAccent),
       TokenSwatch(name: "onWarning", color: palette.onWarning),
       TokenSwatch(name: "onSuccess", color: palette.onSuccess),

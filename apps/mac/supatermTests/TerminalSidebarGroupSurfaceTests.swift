@@ -6,36 +6,34 @@ import Testing
 
 struct TerminalSidebarGroupSurfaceTests {
   @Test @MainActor
-  func hoverStateGuardsRepeatedAndStaleTransitions() {
+  func hoverStateTracksWholeGroupTransitions() {
     let first = TerminalTabGroupID()
     let second = TerminalTabGroupID()
-    let state = TerminalSidebarGroupHeaderHoverState()
+    let state = TerminalSidebarGroupHoverState()
 
-    state.enter(first)
+    state.set(first)
     #expect(state.groupID == first)
-    state.enter(first)
-    state.enter(second)
+    state.set(first)
+    state.set(second)
     #expect(state.groupID == second)
-    state.exit(first)
-    #expect(state.groupID == second)
-    state.exit(second)
+    state.set(nil)
 
     #expect(state.groupID == nil)
   }
 
   @Test @MainActor
-  func removalDragClearAndReuseLeaveNoStaleHover() {
+  func removalResetAndReuseLeaveNoStaleHover() {
     let first = TerminalTabGroupID()
     let second = TerminalTabGroupID()
-    let state = TerminalSidebarGroupHeaderHoverState()
+    let state = TerminalSidebarGroupHoverState()
 
-    state.enter(first)
+    state.set(first)
     state.retain([second])
     #expect(state.groupID == nil)
-    state.enter(second)
-    state.clear()
+    state.set(second)
+    state.set(nil)
     #expect(state.groupID == nil)
-    state.enter(first)
+    state.set(first)
     #expect(state.groupID == first)
   }
 
@@ -50,36 +48,53 @@ struct TerminalSidebarGroupSurfaceTests {
     #expect(
       TerminalSidebarGroupSurfaceState.resolve(isHovered: true, isDropTarget: true) == .dropTarget
     )
-    #expect(
-      TerminalSidebarGroupSurfaceStyle.resolve(.resting)
-        == TerminalSidebarGroupSurfaceStyle(
-          fillOpacity: 0.10,
-          hoverOpacity: 0,
-          strokeOpacity: 0.18
-        )
-    )
-    #expect(
-      TerminalSidebarGroupSurfaceStyle.resolve(.hovered)
-        == TerminalSidebarGroupSurfaceStyle(
-          fillOpacity: 0.10,
-          hoverOpacity: 0.10,
-          strokeOpacity: 0.18
-        )
-    )
-    #expect(
-      TerminalSidebarGroupSurfaceStyle.resolve(.dropTarget)
-        == TerminalSidebarGroupSurfaceStyle(
-          fillOpacity: 0.10,
-          hoverOpacity: 0,
-          strokeOpacity: 0.85
-        )
-    )
   }
 
   @Test
-  func hoverBlendStrengthensContrastForEachScheme() {
-    #expect(TerminalSidebarGroupSurfaceBlendMode.resolve(colorScheme: .light) == .plusDarker)
-    #expect(TerminalSidebarGroupSurfaceBlendMode.resolve(colorScheme: .dark) == .plusLighter)
+  func neutralGroupIsFlatUntilInteraction() {
+    let resting = TerminalSidebarGroupSurfaceStyle.resolve(color: .neutral, state: .resting)
+    let hovered = TerminalSidebarGroupSurfaceStyle.resolve(color: .neutral, state: .hovered)
+    let dropTarget = TerminalSidebarGroupSurfaceStyle.resolve(color: .neutral, state: .dropTarget)
+
+    #expect(resting == TerminalSidebarGroupSurfaceStyle(fill: .clear, showsStroke: false))
+    #expect(hovered == TerminalSidebarGroupSurfaceStyle(fill: .neutral, showsStroke: true))
+    #expect(dropTarget == hovered)
+  }
+
+  @Test
+  func coloredGroupsStrengthenOnInteraction() {
+    for color in TerminalTabGroupColor.allCases where color != .neutral {
+      let resting = TerminalSidebarGroupSurfaceStyle.resolve(color: color, state: .resting)
+      let hovered = TerminalSidebarGroupSurfaceStyle.resolve(color: color, state: .hovered)
+      let dropTarget = TerminalSidebarGroupSurfaceStyle.resolve(color: color, state: .dropTarget)
+
+      #expect(
+        resting
+          == TerminalSidebarGroupSurfaceStyle(fill: .group(opacity: 0.15), showsStroke: true)
+      )
+      #expect(
+        hovered
+          == TerminalSidebarGroupSurfaceStyle(fill: .group(opacity: 0.25), showsStroke: true)
+      )
+      #expect(dropTarget == hovered)
+    }
+  }
+
+  @Test
+  func neutralSurfaceTokensMatchEachScheme() {
+    let light = Palette(colorScheme: .light)
+    let dark = Palette(colorScheme: .dark)
+
+    #expect(
+      light.sidebarGroupNeutralHoverFillValue
+        == ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.05)
+    )
+    #expect(
+      dark.sidebarGroupNeutralHoverFillValue
+        == ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
+    )
+    #expect(light.sidebarGroupStrokeValue == ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.10))
+    #expect(dark.sidebarGroupStrokeValue == ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10))
   }
 
   @Test

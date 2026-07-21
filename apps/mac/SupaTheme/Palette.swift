@@ -83,6 +83,16 @@ public struct Palette {
   public var sidebarSelectedShadow: Color { selectedShadow }
   public var sidebarItemHoverFill: Color { sidebarItemInk.color.opacity(isDark ? 0.15 : 0.1) }
   public var sidebarItemPressedFill: Color { sidebarItemInk.color.opacity(0.065) }
+  public var sidebarGroupNeutralHoverFillValue: ThemeColor {
+    isDark
+      ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
+      : ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.05)
+  }
+  public var sidebarGroupStrokeValue: ThemeColor {
+    isDark
+      ? ThemeColor(red: 1, green: 1, blue: 1, alpha: 0.10)
+      : ThemeColor(red: 0, green: 0, blue: 0, alpha: 0.10)
+  }
   public var sidebarSeparator: Color { (isDark ? Color.white : .black).opacity(0.15) }
   public var selectedText: Color { isDark ? Color.white : .black }
   public var shadow: Color { .black.opacity(isDark ? 0.28 : 0.08) }

@@ -15,13 +15,7 @@ extension TerminalTabGroupColor {
   }
 
   func sidebarNSColor(palette: Palette) -> NSColor {
-    let color = sidebarThemeColor(palette: palette)
-    return NSColor(
-      srgbRed: CGFloat(color.red),
-      green: CGFloat(color.green),
-      blue: CGFloat(color.blue),
-      alpha: CGFloat(color.alpha)
-    )
+    NSColor(themeColor: sidebarThemeColor(palette: palette))
   }
 
   private func sidebarThemeColor(palette: Palette) -> ThemeColor {
@@ -37,6 +31,17 @@ extension TerminalTabGroupColor {
     case .purple: tone = palette.referencePalette.violet
     }
     return tone.color(for: palette.colorScheme)
+  }
+}
+
+extension NSColor {
+  fileprivate convenience init(themeColor: ThemeColor) {
+    self.init(
+      srgbRed: CGFloat(themeColor.red),
+      green: CGFloat(themeColor.green),
+      blue: CGFloat(themeColor.blue),
+      alpha: CGFloat(themeColor.alpha)
+    )
   }
 }
 
@@ -60,54 +65,50 @@ enum TerminalSidebarGroupSurfaceState: Equatable {
   }
 }
 
-enum TerminalSidebarGroupSurfaceBlendMode: String, Equatable {
-  case plusDarker = "plusDarkerBlendMode"
-  case plusLighter = "plusLighterBlendMode"
-
-  static func resolve(colorScheme: ColorScheme) -> Self {
-    colorScheme == .dark ? .plusLighter : .plusDarker
-  }
+enum TerminalSidebarGroupSurfaceFill: Equatable {
+  case clear
+  case neutral
+  case group(opacity: CGFloat)
 }
 
 struct TerminalSidebarGroupSurfaceStyle: Equatable {
-  let fillOpacity: CGFloat
-  let hoverOpacity: Float
-  let strokeOpacity: CGFloat
+  let fill: TerminalSidebarGroupSurfaceFill
+  let showsStroke: Bool
 
-  static func resolve(_ state: TerminalSidebarGroupSurfaceState) -> Self {
+  static func resolve(
+    color: TerminalTabGroupColor,
+    state: TerminalSidebarGroupSurfaceState
+  ) -> Self {
+    if color == .neutral {
+      switch state {
+      case .resting:
+        return Self(fill: .clear, showsStroke: false)
+      case .hovered, .dropTarget:
+        return Self(fill: .neutral, showsStroke: true)
+      }
+    }
+
     switch state {
     case .resting:
-      Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.18)
-    case .hovered:
-      Self(fillOpacity: 0.10, hoverOpacity: 0.10, strokeOpacity: 0.18)
-    case .dropTarget:
-      Self(fillOpacity: 0.10, hoverOpacity: 0, strokeOpacity: 0.85)
+      return Self(fill: .group(opacity: 0.15), showsStroke: true)
+    case .hovered, .dropTarget:
+      return Self(fill: .group(opacity: 0.25), showsStroke: true)
     }
   }
 }
 
 @MainActor
 @Observable
-final class TerminalSidebarGroupHeaderHoverState {
+final class TerminalSidebarGroupHoverState {
   private(set) var groupID: TerminalTabGroupID?
 
-  func enter(_ groupID: TerminalTabGroupID) {
+  func set(_ groupID: TerminalTabGroupID?) {
     guard self.groupID != groupID else { return }
     self.groupID = groupID
   }
 
-  func exit(_ groupID: TerminalTabGroupID) {
-    guard self.groupID == groupID else { return }
-    self.groupID = nil
-  }
-
   func retain(_ groupIDs: Set<TerminalTabGroupID>) {
     guard let groupID, !groupIDs.contains(groupID) else { return }
-    self.groupID = nil
-  }
-
-  func clear() {
-    guard groupID != nil else { return }
     self.groupID = nil
   }
 }
@@ -222,7 +223,8 @@ struct TerminalSidebarRowContext {
   let terminal: TerminalHostState
   let palette: Palette
   let renameState: TerminalSidebarRenameState
-  let groupHeaderHoverState: TerminalSidebarGroupHeaderHoverState
+  let groupHoverState: TerminalSidebarGroupHoverState
+  let fixedHoveredGroupID: TerminalTabGroupID?
   let actions: TerminalSidebarRowActions
 }
 
@@ -256,7 +258,7 @@ struct TerminalSidebarHostedRow: View {
         presentation: presentation,
         palette: context.palette,
         renameState: context.renameState,
-        hoverState: context.groupHeaderHoverState,
+        hoverState: context.groupHoverState,
         actions: context.actions
       )
     case .pinDivider:
@@ -317,7 +319,7 @@ private struct TerminalSidebarGroupHeader: View {
   let presentation: TerminalSidebarGroupRowPresentation
   let palette: Palette
   let renameState: TerminalSidebarRenameState
-  let hoverState: TerminalSidebarGroupHeaderHoverState
+  let hoverState: TerminalSidebarGroupHoverState
   let actions: TerminalSidebarRowActions
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -365,15 +367,15 @@ private struct TerminalSidebarGroupHeader: View {
 
       if hoverState.groupID == presentation.id, !isRenaming {
         Button {
-          actions.createTabInGroup(presentation.id)
+          actions.closeGroup(presentation.id)
         } label: {
-          Image(systemName: "plus")
+          Image(systemName: "xmark")
             .font(.system(size: 11, weight: .semibold))
             .frame(width: 22, height: 22)
         }
         .buttonStyle(.plain)
         .foregroundStyle(palette.secondaryText)
-        .accessibilityLabel("New Tab in \(presentation.title)")
+        .accessibilityLabel("Close \(presentation.title)")
       }
 
       Button {
@@ -391,13 +393,6 @@ private struct TerminalSidebarGroupHeader: View {
     .padding(.horizontal, 8)
     .frame(minHeight: TerminalSidebarLayout.tabRowMinHeight)
     .contentShape(Rectangle())
-    .onHover { isHovering in
-      if isHovering {
-        hoverState.enter(presentation.id)
-      } else {
-        hoverState.exit(presentation.id)
-      }
-    }
     .onChange(of: isRenaming, initial: true) { _, isRenaming in
       titleIsFocused = isRenaming
     }
@@ -469,20 +464,17 @@ private struct TerminalSidebarGroupHeader: View {
 
 final class TerminalSidebarGroupBackgroundView: NSView {
   private let fillLayer = CAShapeLayer()
-  private let hoverLayer = CAShapeLayer()
   private let strokeLayer = CAShapeLayer()
+  private var renderedSurfaceState: TerminalSidebarGroupSurfaceState?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
     wantsLayer = true
     layer?.addSublayer(fillLayer)
-    layer?.addSublayer(hoverLayer)
     layer?.addSublayer(strokeLayer)
     fillLayer.fillColor = NSColor.clear.cgColor
-    hoverLayer.fillColor = NSColor.clear.cgColor
-    hoverLayer.opacity = 0
     strokeLayer.fillColor = NSColor.clear.cgColor
-    strokeLayer.lineWidth = 1.5
+    strokeLayer.strokeColor = NSColor.clear.cgColor
   }
 
   @available(*, unavailable)
@@ -490,18 +482,19 @@ final class TerminalSidebarGroupBackgroundView: NSView {
 
   override func layout() {
     super.layout()
+    let lineWidth = 1 / (window?.backingScaleFactor ?? 1)
+    let shapeBounds = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
     let path = CGPath(
-      roundedRect: bounds,
-      cornerWidth: TerminalSidebarLayout.tabRowCornerRadius,
-      cornerHeight: TerminalSidebarLayout.tabRowCornerRadius,
+      roundedRect: shapeBounds,
+      cornerWidth: TerminalSidebarLayout.groupCornerRadius,
+      cornerHeight: TerminalSidebarLayout.groupCornerRadius,
       transform: nil
     )
     fillLayer.frame = bounds
-    hoverLayer.frame = bounds
     strokeLayer.frame = bounds
     fillLayer.path = path
-    hoverLayer.path = path
     strokeLayer.path = path
+    strokeLayer.lineWidth = lineWidth
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -515,30 +508,55 @@ final class TerminalSidebarGroupBackgroundView: NSView {
   ) {
     alphaValue = alpha
     let sidebarColor = color.sidebarNSColor(palette: palette)
-    let style = TerminalSidebarGroupSurfaceStyle.resolve(surfaceState)
-    fillLayer.fillColor = sidebarColor.withAlphaComponent(style.fillOpacity).cgColor
-    hoverLayer.compositingFilter =
-      TerminalSidebarGroupSurfaceBlendMode.resolve(
-        colorScheme: palette.colorScheme
-      ).rawValue
-    hoverLayer.fillColor = sidebarColor.cgColor
-    strokeLayer.strokeColor = sidebarColor.withAlphaComponent(style.strokeOpacity).cgColor
-    setHoverOpacity(style.hoverOpacity, animated: !reduceMotion)
+    let style = TerminalSidebarGroupSurfaceStyle.resolve(color: color, state: surfaceState)
+    let fillColor =
+      switch style.fill {
+      case .clear:
+        NSColor.clear
+      case .neutral:
+        NSColor(themeColor: palette.sidebarGroupNeutralHoverFillValue)
+      case .group(let opacity):
+        sidebarColor.withAlphaComponent(opacity)
+      }
+    let strokeColor =
+      style.showsStroke
+      ? NSColor(themeColor: palette.sidebarGroupStrokeValue)
+      : NSColor.clear
+    let animated = !reduceMotion && renderedSurfaceState != nil && renderedSurfaceState != surfaceState
+    setFillColor(fillColor.cgColor, animated: animated)
+    setStrokeColor(strokeColor.cgColor, animated: animated)
+    renderedSurfaceState = surfaceState
   }
 
-  private func setHoverOpacity(_ opacity: Float, animated: Bool) {
-    let current = hoverLayer.presentation()?.opacity ?? hoverLayer.opacity
-    hoverLayer.removeAnimation(forKey: "hoverOpacity")
+  private func setFillColor(_ color: CGColor, animated: Bool) {
+    let current = fillLayer.presentation()?.fillColor ?? fillLayer.fillColor
+    fillLayer.removeAnimation(forKey: "fillColor")
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    hoverLayer.opacity = opacity
+    fillLayer.fillColor = color
     CATransaction.commit()
-    guard animated, current != opacity else { return }
-    let animation = CABasicAnimation(keyPath: "opacity")
+    guard animated, current != color else { return }
+    let animation = CABasicAnimation(keyPath: "fillColor")
     animation.fromValue = current
-    animation.toValue = opacity
+    animation.toValue = color
     animation.duration = 0.15
     animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-    hoverLayer.add(animation, forKey: "hoverOpacity")
+    fillLayer.add(animation, forKey: "fillColor")
+  }
+
+  private func setStrokeColor(_ color: CGColor, animated: Bool) {
+    let current = strokeLayer.presentation()?.strokeColor ?? strokeLayer.strokeColor
+    strokeLayer.removeAnimation(forKey: "strokeColor")
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    strokeLayer.strokeColor = color
+    CATransaction.commit()
+    guard animated, current != color else { return }
+    let animation = CABasicAnimation(keyPath: "strokeColor")
+    animation.fromValue = current
+    animation.toValue = color
+    animation.duration = 0.15
+    animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    strokeLayer.add(animation, forKey: "strokeColor")
   }
 }

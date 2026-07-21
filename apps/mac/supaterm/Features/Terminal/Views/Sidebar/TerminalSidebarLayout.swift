@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 
 enum TerminalSidebarLayout {
+  static let groupCornerRadius: CGFloat = 12
   static let tabRowCornerRadius: CGFloat = 8
   static let tabRowMinHeight: CGFloat = 30
   static let rowHorizontalPadding: CGFloat = 10
