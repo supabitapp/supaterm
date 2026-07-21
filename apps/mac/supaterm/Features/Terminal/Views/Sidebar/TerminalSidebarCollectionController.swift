@@ -65,7 +65,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
   private let scrollView = TerminalSidebarScrollView()
   private let collectionView = TerminalSidebarCollectionView()
   private let collectionLayout = TerminalSidebarCollectionLayout()
-  private let dropIndicatorView = TerminalSidebarDropIndicatorView()
   private let combineHighlightView = TerminalSidebarDropHighlightView()
   private var groupBackgroundViews: [TerminalTabGroupID: TerminalSidebarGroupBackgroundView] = [:]
   private var dataSource: NSCollectionViewDiffableDataSource<Int, TerminalSidebarEntryID>!
@@ -176,7 +175,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     collectionView.registerForDraggedTypes([.terminalSidebarOutlineItem])
     collectionView.setDraggingSourceOperationMask([.copy, .move], forLocal: true)
     collectionView.delegate = self
-    collectionView.addSubview(dropIndicatorView)
     collectionView.addSubview(combineHighlightView)
     collectionView.onRowMouseDown = { [weak self] entryID, event in
       self?.rowMouseDown(entryID: entryID, event: event) == true
@@ -730,10 +728,10 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     {
       return frame
     }
-    if let indicator = collectionLayout.plan.dropIndicatorFrame {
+    if let placeholder = collectionLayout.plan.dropPlaceholderFrame {
       return CGRect(
-        x: indicator.minX,
-        y: indicator.midY - activeDrag.sourceFrame.height / 2,
+        x: placeholder.minX,
+        y: placeholder.midY - activeDrag.sourceFrame.height / 2,
         width: activeDrag.sourceFrame.width,
         height: activeDrag.sourceFrame.height
       )
@@ -991,12 +989,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
         )
       }
       background.needsLayout = true
-    }
-    if let frame = collectionLayout.plan.dropIndicatorFrame {
-      dropIndicatorView.frame = frame
-      dropIndicatorView.isHidden = false
-    } else {
-      dropIndicatorView.isHidden = true
     }
     if let tabID = collectionLayout.plan.highlightedTabID,
       let frame = collectionLayout.plan.items.first(where: { $0.id == .tab(tabID) })?.frame

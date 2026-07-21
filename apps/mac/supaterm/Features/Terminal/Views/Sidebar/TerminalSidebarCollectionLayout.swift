@@ -42,7 +42,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   let items: [Item]
   let groups: [Group]
   let contentSize: CGSize
-  let dropIndicatorFrame: CGRect?
+  let dropPlaceholderFrame: CGRect?
   let highlightedGroupID: TerminalTabGroupID?
   let highlightedTabID: TerminalTabID?
   let semanticTargets: [TerminalSidebarSemanticTarget]
@@ -52,7 +52,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     items: [Item],
     groups: [Group],
     contentSize: CGSize,
-    dropIndicatorFrame: CGRect?,
+    dropPlaceholderFrame: CGRect?,
     highlightedGroupID: TerminalTabGroupID?,
     highlightedTabID: TerminalTabID?,
     semanticTargets: [TerminalSidebarSemanticTarget],
@@ -61,7 +61,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     self.items = items
     self.groups = groups
     self.contentSize = contentSize
-    self.dropIndicatorFrame = dropIndicatorFrame
+    self.dropPlaceholderFrame = dropPlaceholderFrame
     self.highlightedGroupID = highlightedGroupID
     self.highlightedTabID = highlightedTabID
     self.semanticTargets = semanticTargets
@@ -91,11 +91,11 @@ struct TerminalSidebarLayoutPlan: Equatable {
     let availableWidth = max(1, width - Self.horizontalInset * 2)
     var items: [Item] = []
     var y = Self.initialY
-    var dropIndicatorFrame: CGRect?
+    var dropPlaceholderFrame: CGRect?
 
     for (index, entry) in entries.enumerated() {
       if insertionIndex == index, dropGapHeight > 0 {
-        dropIndicatorFrame = Self.indicatorFrame(
+        dropPlaceholderFrame = Self.placeholderFrame(
           y: y + dropGapHeight / 2,
           width: availableWidth,
           placeholder: dragDropState?.target?.placeholder
@@ -127,7 +127,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
 
     if insertionIndex == entries.count, dropGapHeight > 0 {
-      dropIndicatorFrame = Self.indicatorFrame(
+      dropPlaceholderFrame = Self.placeholderFrame(
         y: y + dropGapHeight / 2,
         width: availableWidth,
         placeholder: dragDropState?.target?.placeholder
@@ -159,7 +159,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
       width: width,
       height: max(0, y + Self.rootSpacing + Self.bottomPadding)
     )
-    self.dropIndicatorFrame = dropIndicatorFrame
+    self.dropPlaceholderFrame = dropPlaceholderFrame
     highlightedGroupID = highlights.groupID
     highlightedTabID = highlights.tabID
     semanticTargets = targetGeometry.targets
@@ -220,7 +220,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
           progress: progress
         )
       ),
-      dropIndicatorFrame: dropIndicatorFrame,
+      dropPlaceholderFrame: dropPlaceholderFrame,
       highlightedGroupID: highlightedGroupID,
       highlightedTabID: highlightedTabID,
       semanticTargets: semanticTargets,
@@ -568,7 +568,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
   }
 
-  private static func indicatorFrame(
+  private static func placeholderFrame(
     y: CGFloat,
     width: CGFloat,
     placeholder: TerminalSidebarDropPlaceholder?
