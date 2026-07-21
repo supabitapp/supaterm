@@ -29,43 +29,10 @@
                 TerminalWindowSpaceSession(
                   id: IDs.space,
                   selectedTabID: IDs.deployTab,
-                  nodes: [
-                    TerminalTabNodeSession(
-                      item: .group(IDs.group),
-                      parent: .root(isPinned: true),
-                      order: 0
-                    ),
-                    TerminalTabNodeSession(
-                      item: .tab(IDs.webTab),
-                      parent: .group(IDs.group),
-                      order: 0
-                    ),
-                    TerminalTabNodeSession(
-                      item: .tab(IDs.apiTab),
-                      parent: .group(IDs.group),
-                      order: 1
-                    ),
-                    TerminalTabNodeSession(
-                      item: .tab(IDs.deployTab),
-                      parent: .root(isPinned: false),
-                      order: 0
-                    ),
-                    TerminalTabNodeSession(
-                      item: .tab(IDs.scratchTab),
-                      parent: .root(isPinned: false),
-                      order: 1
-                    ),
-                  ],
-                  groups: [
-                    TerminalTabGroupSession(
-                      id: IDs.group,
-                      title: "Development",
-                      color: .blue,
-                      lifetime: .automatic
-                    )
-                  ],
-                  collapsedGroupIDs: [],
-                  tabs: [webSession, apiSession, deploySession, scratchSession]
+                  nodes: nodes,
+                  groups: groups,
+                  collapsedGroupIDs: [IDs.researchGroup],
+                  tabs: tabSessions
                 )
               ]
             )
@@ -125,6 +92,76 @@
       IDs.deploySurface,
     ]
 
+    private static let nodes = [
+      groupNode(IDs.developmentGroup, isPinned: true, order: 0),
+      groupedTabNode(IDs.macTab, groupID: IDs.developmentGroup, order: 0),
+      groupedTabNode(IDs.webTab, groupID: IDs.developmentGroup, order: 1),
+      groupedTabNode(IDs.apiTab, groupID: IDs.developmentGroup, order: 2),
+      rootTabNode(IDs.docsTab, isPinned: false, order: 0),
+      groupNode(IDs.productGroup, isPinned: false, order: 1),
+      groupedTabNode(IDs.roadmapTab, groupID: IDs.productGroup, order: 0),
+      groupedTabNode(IDs.designTab, groupID: IDs.productGroup, order: 1),
+      rootTabNode(IDs.scratchTab, isPinned: false, order: 2),
+      groupNode(IDs.operationsGroup, isPinned: false, order: 3),
+      groupedTabNode(IDs.deployTab, groupID: IDs.operationsGroup, order: 0),
+      groupedTabNode(IDs.monitoringTab, groupID: IDs.operationsGroup, order: 1),
+      groupedTabNode(IDs.databaseTab, groupID: IDs.operationsGroup, order: 2),
+      groupNode(IDs.researchGroup, isPinned: false, order: 4),
+      groupedTabNode(IDs.prototypeTab, groupID: IDs.researchGroup, order: 0),
+      groupedTabNode(IDs.benchmarksTab, groupID: IDs.researchGroup, order: 1),
+      rootTabNode(IDs.playgroundTab, isPinned: false, order: 5),
+    ]
+
+    private static let groups = [
+      TerminalTabGroupSession(
+        id: IDs.developmentGroup,
+        title: "Development",
+        color: .blue,
+        lifetime: .automatic
+      ),
+      TerminalTabGroupSession(
+        id: IDs.productGroup,
+        title: "Product",
+        color: .pink,
+        lifetime: .automatic
+      ),
+      TerminalTabGroupSession(
+        id: IDs.operationsGroup,
+        title: "Operations",
+        color: .orange,
+        lifetime: .automatic
+      ),
+      TerminalTabGroupSession(
+        id: IDs.researchGroup,
+        title: "Research",
+        color: .green,
+        lifetime: .automatic
+      ),
+    ]
+
+    private static let tabSessions = [
+      macSession,
+      webSession,
+      apiSession,
+      docsSession,
+      roadmapSession,
+      designSession,
+      scratchSession,
+      deploySession,
+      monitoringSession,
+      databaseSession,
+      prototypeSession,
+      benchmarksSession,
+      playgroundSession,
+    ]
+
+    private static let macSession = leafSession(
+      id: IDs.macTab,
+      title: "supaterm/mac",
+      directory: "mac",
+      surfaceID: IDs.macSurface
+    )
+
     private static let webSession = TerminalTabSession(
       id: IDs.webTab,
       lockedTitle: "supaterm/web",
@@ -151,44 +188,138 @@
       )
     )
 
-    private static let apiSession = TerminalTabSession(
+    private static let apiSession = leafSession(
       id: IDs.apiTab,
-      lockedTitle: "supaterm/api",
-      focusedPaneIndex: 0,
-      root: .leaf(
-        TerminalPaneLeafSession(
-          id: IDs.apiSurface,
-          workingDirectoryPath: workingDirectoryPath("api"),
-          titleOverride: "supaterm/api"
-        )
-      )
+      title: "supaterm/api",
+      directory: "api",
+      surfaceID: IDs.apiSurface
     )
 
-    private static let deploySession = TerminalTabSession(
-      id: IDs.deployTab,
-      lockedTitle: "supaterm/deploy",
-      focusedPaneIndex: 0,
-      root: .leaf(
-        TerminalPaneLeafSession(
-          id: IDs.deploySurface,
-          workingDirectoryPath: workingDirectoryPath("deploy"),
-          titleOverride: "supaterm/deploy"
-        )
-      )
+    private static let docsSession = leafSession(
+      id: IDs.docsTab,
+      title: "docs",
+      directory: "docs",
+      surfaceID: IDs.docsSurface
     )
 
-    private static let scratchSession = TerminalTabSession(
+    private static let roadmapSession = leafSession(
+      id: IDs.roadmapTab,
+      title: "roadmap",
+      directory: "roadmap",
+      surfaceID: IDs.roadmapSurface
+    )
+
+    private static let designSession = leafSession(
+      id: IDs.designTab,
+      title: "design system",
+      directory: "design",
+      surfaceID: IDs.designSurface
+    )
+
+    private static let scratchSession = leafSession(
       id: IDs.scratchTab,
-      lockedTitle: "scratch",
-      focusedPaneIndex: 0,
-      root: .leaf(
-        TerminalPaneLeafSession(
-          id: IDs.scratchSurface,
-          workingDirectoryPath: workingDirectoryPath("scratch"),
-          titleOverride: "scratch"
+      title: "scratch",
+      directory: "scratch",
+      surfaceID: IDs.scratchSurface
+    )
+
+    private static let deploySession = leafSession(
+      id: IDs.deployTab,
+      title: "supaterm/deploy",
+      directory: "deploy",
+      surfaceID: IDs.deploySurface
+    )
+
+    private static let monitoringSession = leafSession(
+      id: IDs.monitoringTab,
+      title: "observability",
+      directory: "monitoring",
+      surfaceID: IDs.monitoringSurface
+    )
+
+    private static let databaseSession = leafSession(
+      id: IDs.databaseTab,
+      title: "database",
+      directory: "database",
+      surfaceID: IDs.databaseSurface
+    )
+
+    private static let prototypeSession = leafSession(
+      id: IDs.prototypeTab,
+      title: "prototypes",
+      directory: "prototypes",
+      surfaceID: IDs.prototypeSurface
+    )
+
+    private static let benchmarksSession = leafSession(
+      id: IDs.benchmarksTab,
+      title: "benchmarks",
+      directory: "benchmarks",
+      surfaceID: IDs.benchmarksSurface
+    )
+
+    private static let playgroundSession = leafSession(
+      id: IDs.playgroundTab,
+      title: "playground",
+      directory: "playground",
+      surfaceID: IDs.playgroundSurface
+    )
+
+    private static func groupNode(
+      _ groupID: TerminalTabGroupID,
+      isPinned: Bool,
+      order: Int
+    ) -> TerminalTabNodeSession {
+      TerminalTabNodeSession(
+        item: .group(groupID),
+        parent: .root(isPinned: isPinned),
+        order: order
+      )
+    }
+
+    private static func groupedTabNode(
+      _ tabID: TerminalTabID,
+      groupID: TerminalTabGroupID,
+      order: Int
+    ) -> TerminalTabNodeSession {
+      TerminalTabNodeSession(
+        item: .tab(tabID),
+        parent: .group(groupID),
+        order: order
+      )
+    }
+
+    private static func rootTabNode(
+      _ tabID: TerminalTabID,
+      isPinned: Bool,
+      order: Int
+    ) -> TerminalTabNodeSession {
+      TerminalTabNodeSession(
+        item: .tab(tabID),
+        parent: .root(isPinned: isPinned),
+        order: order
+      )
+    }
+
+    private static func leafSession(
+      id: TerminalTabID,
+      title: String,
+      directory: String,
+      surfaceID: UUID
+    ) -> TerminalTabSession {
+      TerminalTabSession(
+        id: id,
+        lockedTitle: title,
+        focusedPaneIndex: 0,
+        root: .leaf(
+          TerminalPaneLeafSession(
+            id: surfaceID,
+            workingDirectoryPath: workingDirectoryPath(directory),
+            titleOverride: title
+          )
         )
       )
-    )
+    }
 
     private static func prepareWorkspaceDirectories() {
       for directory in workspaceDirectoryNames {
@@ -204,10 +335,19 @@
     }
 
     private static let workspaceDirectoryNames = [
-      "web",
       "api",
+      "benchmarks",
+      "database",
       "deploy",
+      "design",
+      "docs",
+      "mac",
+      "monitoring",
+      "playground",
+      "prototypes",
+      "roadmap",
       "scratch",
+      "web",
     ]
 
     private static let workspaceRoot =
@@ -216,17 +356,47 @@
       .appendingPathComponent("supaterm", isDirectory: true)
 
     private enum IDs {
-      static let space = TerminalSpaceID(rawValue: UUID(uuidString: "4F9DA8C0-7B80-42C4-A828-B7A7E4E1D3A1")!)
-      static let group = TerminalTabGroupID(rawValue: UUID(uuidString: "F4218391-DB8F-43DD-830C-B63D6F877D81")!)
-      static let webTab = TerminalTabID(rawValue: UUID(uuidString: "1C1AC87E-612A-4EE8-91B1-44200DD67FF5")!)
-      static let apiTab = TerminalTabID(rawValue: UUID(uuidString: "793D7D09-6485-4CD6-B790-0A0D3E6E652A")!)
-      static let deployTab = TerminalTabID(rawValue: UUID(uuidString: "84D4F03C-F02C-44A2-A527-62EA71BB5BB2")!)
-      static let scratchTab = TerminalTabID(rawValue: UUID(uuidString: "269EC9ED-9D04-409F-97D7-2EF024A3E1A4")!)
-      static let webAgentSurface = UUID(uuidString: "8F02B7F2-4F60-465B-90DF-14C03BF6D482")!
-      static let webShellSurface = UUID(uuidString: "F6D8226D-0C92-40D4-B5E8-52B3E850D675")!
-      static let apiSurface = UUID(uuidString: "C095C9A1-7E44-4BD2-A9F5-7F322221B495")!
-      static let deploySurface = UUID(uuidString: "E6BD77C4-835A-4F9B-9953-8B5A44A124B5")!
-      static let scratchSurface = UUID(uuidString: "0AF060BC-0F4B-4D18-86DF-C74F268040C8")!
+      static let space = TerminalSpaceID(rawValue: uuid(1))
+
+      static let developmentGroup = TerminalTabGroupID(rawValue: uuid(10))
+      static let productGroup = TerminalTabGroupID(rawValue: uuid(11))
+      static let operationsGroup = TerminalTabGroupID(rawValue: uuid(12))
+      static let researchGroup = TerminalTabGroupID(rawValue: uuid(13))
+
+      static let macTab = TerminalTabID(rawValue: uuid(20))
+      static let webTab = TerminalTabID(rawValue: uuid(21))
+      static let apiTab = TerminalTabID(rawValue: uuid(22))
+      static let docsTab = TerminalTabID(rawValue: uuid(23))
+      static let roadmapTab = TerminalTabID(rawValue: uuid(24))
+      static let designTab = TerminalTabID(rawValue: uuid(25))
+      static let scratchTab = TerminalTabID(rawValue: uuid(26))
+      static let deployTab = TerminalTabID(rawValue: uuid(27))
+      static let monitoringTab = TerminalTabID(rawValue: uuid(28))
+      static let databaseTab = TerminalTabID(rawValue: uuid(29))
+      static let prototypeTab = TerminalTabID(rawValue: uuid(30))
+      static let benchmarksTab = TerminalTabID(rawValue: uuid(31))
+      static let playgroundTab = TerminalTabID(rawValue: uuid(32))
+
+      static let macSurface = uuid(40)
+      static let webAgentSurface = uuid(41)
+      static let webShellSurface = uuid(42)
+      static let apiSurface = uuid(43)
+      static let docsSurface = uuid(44)
+      static let roadmapSurface = uuid(45)
+      static let designSurface = uuid(46)
+      static let scratchSurface = uuid(47)
+      static let deploySurface = uuid(48)
+      static let monitoringSurface = uuid(49)
+      static let databaseSurface = uuid(50)
+      static let prototypeSurface = uuid(51)
+      static let benchmarksSurface = uuid(52)
+      static let playgroundSurface = uuid(53)
+
+      private static func uuid(_ value: Int) -> UUID {
+        let suffix = String(value, radix: 16)
+        let padding = String(repeating: "0", count: 12 - suffix.count)
+        return UUID(uuidString: "00000000-0000-4000-8000-\(padding)\(suffix)")!
+      }
     }
   }
 #endif
