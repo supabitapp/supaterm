@@ -153,10 +153,82 @@ struct TerminalSidebarCollectionTests {
     #expect(headerTarget.frame.width == 220)
     #expect(headerTarget.frame.height == 34)
     let exitTarget = try #require(plan.semanticTargets[safe: 6])
-    #expect(exitTarget.frame.height == 7)
+    #expect(exitTarget.frame.height == TerminalSidebarLayoutPlan.rootSpacing)
+    #expect(plan.semanticTarget(at: exitTarget.frame.maxY - 0.5)?.path == exitTarget.path)
     let geometry = try #require(plan.expandedGroupGeometries.first)
     #expect(geometry.groupID == groupID)
     #expect(geometry.containerMaxY == exitTarget.frame.minY + 3)
+  }
+
+  @Test
+  func expandedGroupExitTargetDoesNotMaskPinBoundary() throws {
+    let child = TerminalTabID()
+    let source = TerminalTabID()
+    let regular = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: true
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: true),
+        TerminalSidebarOutline.Root(content: .tab(regular), isPinned: false),
+      ],
+      revision: 3
+    )
+    let plan = layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      width: 220,
+      viewportHeight: 300
+    )
+    let divider = try #require(plan.items.first { $0.id == .pinDivider }?.frame)
+
+    #expect(plan.semanticTarget(at: divider.midY)?.path == .pinnedEnd)
+    #expect(
+      !plan.semanticTargets.contains {
+        $0.path == .rootBoundary(index: 0, affinity: .after)
+      }
+    )
+  }
+
+  @Test
+  func expandedGroupExitTargetEndsBeforeNextRoot() throws {
+    let child = TerminalTabID()
+    let source = TerminalTabID()
+    let next = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: false
+        ),
+        TerminalSidebarOutline.Root(content: .tab(source), isPinned: false),
+        TerminalSidebarOutline.Root(content: .tab(next), isPinned: false),
+      ],
+      revision: 3
+    )
+    let plan = layoutPlan(
+      outline: outline,
+      draggingItemIDs: [.tab(source)],
+      width: 220,
+      viewportHeight: 300
+    )
+    let exitTarget = try #require(
+      plan.semanticTargets.first {
+        $0.path == .rootBoundary(index: 0, affinity: .after)
+      }
+    )
+    let nextFrame = try #require(plan.items.first { $0.id == .tab(next) }?.frame)
+
+    #expect(exitTarget.frame.maxY == nextFrame.minY)
+    #expect(
+      plan.semanticTarget(
+        at: nextFrame.minY + TerminalSidebarLayoutPlan.rootBoundaryTargetHeight + 0.5
+      )?.path == .rootItem(index: 2)
+    )
   }
 
   @Test
@@ -694,7 +766,7 @@ struct TerminalSidebarCollectionTests {
   }
 
   @Test
-  func autoscrollAndCompositeFanUseExactFunctions() {
+  func autoscrollUsesExactFunctions() {
     let visibleRect = CGRect(x: 0, y: 100, width: 220, height: 300)
 
     #expect(TerminalSidebarAutoscrollBehavior.edgeSize == 60)
@@ -714,8 +786,62 @@ struct TerminalSidebarCollectionTests {
     #expect(
       TerminalSidebarAutoscrollBehavior.direction(pointerY: 160.1, visibleRect: visibleRect) == nil
     )
-    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 20) == 7)
-    #expect(TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: 30) == 5)
+  }
+
+  @Test
+  func liveDragRowsPreserveSourceGeometry() {
+    let containerFrame = CGRect(x: 4, y: 50, width: 212, height: 180)
+
+    #expect(
+      TerminalSidebarLiveDragGeometry.rowFrame(
+        sourceFrame: CGRect(x: 4, y: 50, width: 212, height: 40),
+        containerFrame: containerFrame
+      ) == CGRect(x: 0, y: 0, width: 212, height: 40)
+    )
+    #expect(
+      TerminalSidebarLiveDragGeometry.rowFrame(
+        sourceFrame: CGRect(x: 16, y: 92, width: 200, height: 56),
+        containerFrame: containerFrame
+      ) == CGRect(x: 12, y: 42, width: 200, height: 56)
+    )
+  }
+
+  @Test
+  func liveDragPreviewStaysWithinSidebarWidth() {
+    let bounds = CGRect(x: 4, y: 0, width: 212, height: 400)
+
+    #expect(
+      TerminalSidebarLiveDragGeometry.constrainedX(-100, frameWidth: 212, bounds: bounds)
+        == 4
+    )
+    #expect(
+      TerminalSidebarLiveDragGeometry.constrainedX(100, frameWidth: 212, bounds: bounds)
+        == 4
+    )
+    #expect(
+      TerminalSidebarLiveDragGeometry.constrainedX(100, frameWidth: 200, bounds: bounds)
+        == 16
+    )
+  }
+
+  @Test
+  func liveDragSettlementUsesFrameDeltaInLayerCoordinates() {
+    let currentFrame = CGRect(x: 8, y: 100, width: 212, height: 180)
+
+    #expect(
+      TerminalSidebarLiveDragGeometry.settlementPosition(
+        currentLayerPosition: CGPoint(x: 0, y: 0),
+        currentFrame: currentFrame,
+        targetFrame: CGRect(x: 4, y: 300, width: 212, height: 180)
+      ) == CGPoint(x: -4, y: 200)
+    )
+    #expect(
+      TerminalSidebarLiveDragGeometry.settlementPosition(
+        currentLayerPosition: CGPoint(x: 106, y: 90),
+        currentFrame: currentFrame,
+        targetFrame: CGRect(x: 4, y: 300, width: 300, height: 40)
+      ) == CGPoint(x: 102, y: 290)
+    )
   }
 
   @Test
@@ -784,9 +910,9 @@ struct TerminalSidebarCollectionTests {
     let secondGroupFrame = try #require(plan.groups.first { $0.id == secondGroup }?.frame)
     let thirdGroupFrame = try #require(plan.groups.first { $0.id == thirdGroup }?.frame)
 
-    #expect(rootFrame.minY - firstGroupFrame.maxY == 4)
-    #expect(secondGroupFrame.minY - rootFrame.maxY == 4)
-    #expect(thirdGroupFrame.minY - secondGroupFrame.maxY == 2)
+    #expect(rootFrame.minY - firstGroupFrame.maxY == 8)
+    #expect(secondGroupFrame.minY - rootFrame.maxY == 8)
+    #expect(thirdGroupFrame.minY - secondGroupFrame.maxY == 6)
 
     let collapsedOutline = TerminalSidebarOutline(
       roots: [
@@ -813,7 +939,7 @@ struct TerminalSidebarCollectionTests {
       collapsedPlan.items.first { $0.id == .tab(root) }?.frame
     )
 
-    #expect(collapsedRootFrame.minY - collapsedGroupFrame.maxY == 4)
+    #expect(collapsedRootFrame.minY - collapsedGroupFrame.maxY == 8)
 
     let emptyOutline = outline(
       roots: [
@@ -834,7 +960,7 @@ struct TerminalSidebarCollectionTests {
     let emptyGroupFrame = try #require(emptyPlan.groups.first { $0.id == firstGroup }?.frame)
     let emptyRootFrame = try #require(emptyPlan.items.first { $0.id == .tab(root) }?.frame)
 
-    #expect(emptyRootFrame.minY - emptyGroupFrame.maxY == 4)
+    #expect(emptyRootFrame.minY - emptyGroupFrame.maxY == 8)
   }
 
   @Test

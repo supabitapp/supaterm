@@ -37,14 +37,6 @@ struct TerminalSidebarLiftedRow {
   let item: TerminalSidebarCollectionItem
   let hostedView: NSView
   let sourceFrame: CGRect
-  let size: CGSize
-
-  init(item: TerminalSidebarCollectionItem, hostedView: NSView, sourceFrame: CGRect) {
-    self.item = item
-    self.hostedView = hostedView
-    self.sourceFrame = sourceFrame
-    size = hostedView.frame.size
-  }
 
   func restore() {
     item.restoreHostedView(hostedView)

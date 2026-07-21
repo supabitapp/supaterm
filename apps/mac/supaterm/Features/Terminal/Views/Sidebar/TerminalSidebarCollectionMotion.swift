@@ -217,9 +217,34 @@ enum TerminalSidebarDropRipple {
 }
 
 enum TerminalSidebarLiveDragGeometry {
-  static func fanSpacing(itemCount: Int) -> CGFloat {
-    guard itemCount > 0 else { return 0 }
-    return ceil(min(140 / CGFloat(itemCount), 7))
+  static func settlementPosition(
+    currentLayerPosition: CGPoint,
+    currentFrame: CGRect,
+    targetFrame: CGRect
+  ) -> CGPoint {
+    CGPoint(
+      x: currentLayerPosition.x + targetFrame.minX - currentFrame.minX,
+      y: currentLayerPosition.y + targetFrame.minY - currentFrame.minY
+    )
+  }
+
+  static func constrainedX(
+    _ proposedX: CGFloat,
+    frameWidth: CGFloat,
+    bounds: CGRect
+  ) -> CGFloat {
+    let maximumX = max(bounds.minX, bounds.maxX - frameWidth)
+    return max(bounds.minX, min(proposedX, maximumX))
+  }
+
+  static func rowFrame(
+    sourceFrame: CGRect,
+    containerFrame: CGRect
+  ) -> CGRect {
+    sourceFrame.offsetBy(
+      dx: -containerFrame.minX,
+      dy: -containerFrame.minY
+    )
   }
 }
 

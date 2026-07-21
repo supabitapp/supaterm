@@ -28,7 +28,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   static let horizontalInset: CGFloat = 4
   static let childIndentation: CGFloat = 12
-  static let rootSpacing: CGFloat = 6
+  static let rootSpacing: CGFloat = 10
   static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
   static let targetRowHeight: CGFloat = 37
@@ -454,7 +454,12 @@ struct TerminalSidebarLayoutPlan: Equatable {
       ),
     ]
     targets.append(contentsOf: childTargets(groupID: groupID, tabIDs: tabIDs, context: context))
-    if context.sourceIsTab {
+    let exitTargetHeight = expandedGroupExitTargetHeight(
+      childEndY: childEndY,
+      rootIndex: rootIndex,
+      context: context
+    )
+    if context.sourceIsTab, exitTargetHeight > 0 {
       targets.append(
         TerminalSidebarSemanticTarget(
           path: .rootBoundary(index: rootIndex, affinity: .after),
@@ -462,7 +467,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
             x: 0,
             y: childEndY,
             width: context.width,
-            height: rootBoundaryTargetHeight
+            height: exitTargetHeight
           )
         )
       )
@@ -472,6 +477,21 @@ struct TerminalSidebarLayoutPlan: Equatable {
       expandedGroup: expandedGroup,
       tabsEndY: expandedGroup.containerMaxY
     )
+  }
+
+  private static func expandedGroupExitTargetHeight(
+    childEndY: CGFloat,
+    rootIndex: Int,
+    context: TargetGeometryContext
+  ) -> CGFloat {
+    guard let root = context.outline.roots[safe: rootIndex] else { return 0 }
+    let nextRoot = context.outline.roots.dropFirst(rootIndex + 1).first {
+      !context.draggedIDs.contains($0.entryID)
+    }
+    if let nextRoot, root.isPinned != nextRoot.isPinned { return 0 }
+    let nextEntryID = nextRoot?.entryID ?? .newTab
+    guard let nextItem = context.itemByID[nextEntryID] else { return 0 }
+    return max(0, nextItem.frame.minY - childEndY)
   }
 
   private static func childTargets(

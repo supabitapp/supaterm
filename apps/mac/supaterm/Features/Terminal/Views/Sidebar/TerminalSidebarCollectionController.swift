@@ -543,8 +543,8 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     )
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
     draggingItem.setDraggingFrame(
-      screenFrame(for: sourceFrame),
-      contents: NSImage(size: sourceFrame.size)
+      sourceFrame,
+      contents: nil
     )
     let session = collectionView.beginDraggingSession(
       with: [draggingItem],
@@ -631,8 +631,16 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     guard let window = collectionView.window else { return }
     let windowPoint = window.convertPoint(fromScreen: screenPoint)
     let pointer = collectionView.convert(windowPoint, from: nil)
+    let horizontalBounds = collectionView.bounds.insetBy(
+      dx: TerminalSidebarLayoutPlan.horizontalInset,
+      dy: 0
+    )
     liveDragView.frame.origin = CGPoint(
-      x: pointer.x - activeDrag.hotspot.x,
+      x: TerminalSidebarLiveDragGeometry.constrainedX(
+        pointer.x - activeDrag.hotspot.x,
+        frameWidth: liveDragView.frame.width,
+        bounds: horizontalBounds
+      ),
       y: pointer.y - activeDrag.hotspot.y
     )
   }
@@ -809,7 +817,11 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
       completion()
       return
     }
-    let destination = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
+    let destination = TerminalSidebarLiveDragGeometry.settlementPosition(
+      currentLayerPosition: layer.position,
+      currentFrame: liveDragView.frame,
+      targetFrame: targetFrame
+    )
     guard animationsEnabled else {
       liveDragView.frame = targetFrame
       completion()
@@ -1027,11 +1039,6 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     return window.convertPoint(toScreen: event.locationInWindow)
   }
 
-  private func screenFrame(for frame: CGRect) -> CGRect {
-    guard let window = collectionView.window else { return frame }
-    return window.convertToScreen(collectionView.convert(frame, to: nil))
-  }
-
   private func accessibilityIdentifier(for presentation: TerminalSidebarRowPresentation) -> String {
     switch presentation {
     case .tab(let row):
@@ -1168,13 +1175,10 @@ private final class TerminalSidebarLiveDragView: NSView {
     layer?.shadowOffset = CGSize(width: 0, height: -2)
     layer?.opacity = 0.96
     groupBackground?.install(in: self, relativeTo: frame)
-    let fanSpacing = TerminalSidebarLiveDragGeometry.fanSpacing(itemCount: rows.count)
-    for (index, row) in rows.enumerated() {
-      row.hostedView.frame = CGRect(
-        x: row.sourceFrame.minX - frame.minX,
-        y: CGFloat(index) * fanSpacing,
-        width: row.size.width,
-        height: row.size.height
+    for row in rows {
+      row.hostedView.frame = TerminalSidebarLiveDragGeometry.rowFrame(
+        sourceFrame: row.sourceFrame,
+        containerFrame: frame
       )
       addSubview(row.hostedView)
     }
