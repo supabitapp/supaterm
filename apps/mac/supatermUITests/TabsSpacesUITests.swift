@@ -290,14 +290,13 @@ final class TabsSpacesUITests: SupatermUITestCase {
   func testDraggingTabReordersRegularSectionAndPinsAcrossSections() async throws {
     try await createNamedTabs(["First UI Tab", "Second UI Tab", "Third UI Tab"])
 
-    let firstTab = tabRow(named: "First UI Tab")
-    let thirdTab = tabRow(named: "Third UI Tab")
-    firstTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
-      forDuration: 0.5,
-      thenDragTo: thirdTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9))
+    let reorderedTitles = ["Second UI Tab", "Third UI Tab", "First UI Tab"]
+    let didReorder = await dragTab(
+      source: tabRow(named: "First UI Tab"),
+      destination: tabRow(named: "Third UI Tab"),
+      destinationY: 0.9,
+      until: { self.tabRowsMatch(reorderedTitles) }
     )
-
-    let didReorder = await waitForTabOrder(["Second UI Tab", "Third UI Tab", "First UI Tab"])
     XCTAssertTrue(didReorder)
 
     let secondTab = tabRow(named: "Second UI Tab")
@@ -306,14 +305,12 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didPinSecondTab)
 
     let thirdTabInRegularSection = tabRow(named: "Third UI Tab")
-    thirdTabInRegularSection.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
-      forDuration: 0.5,
-      thenDragTo: secondTab.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+    let didPinThirdTab = await dragTab(
+      source: thirdTabInRegularSection,
+      destination: secondTab,
+      destinationY: 0.1,
+      until: { thirdTabInRegularSection.label.contains("Pinned") }
     )
-
-    let didPinThirdTab = await wait(for: thirdTabInRegularSection) {
-      $0.label.contains("Pinned")
-    }
     XCTAssertTrue(didPinThirdTab)
   }
 
@@ -452,4 +449,36 @@ final class TabsSpacesUITests: SupatermUITestCase {
     XCTAssertTrue(didMoveAboveDock)
   }
 
+  @MainActor
+  private func tabRowsMatch(_ titles: [String]) -> Bool {
+    guard tabRows.count == titles.count else { return false }
+    return titles.indices.allSatisfy {
+      tabRows.element(boundBy: $0).label.contains(titles[$0])
+    }
+  }
+
+  @MainActor
+  private func dragTab(
+    source: XCUIElement,
+    destination: XCUIElement,
+    destinationY: CGFloat,
+    until condition: () -> Bool
+  ) async -> Bool {
+    for _ in 0..<2 {
+      guard source.exists, destination.exists else { return false }
+
+      source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+        forDuration: 0.5,
+        thenDragTo: destination.coordinate(
+          withNormalizedOffset: CGVector(dx: 0.5, dy: destinationY)
+        ),
+        withVelocity: .slow,
+        thenHoldForDuration: 0.5
+      )
+      if await wait(timeout: .seconds(10), until: condition) {
+        return true
+      }
+    }
+    return condition()
+  }
 }

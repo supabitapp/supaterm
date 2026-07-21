@@ -11,3 +11,7 @@
 	path = apps/mac/ThirdParty/zmx
 	url = git@github.com:supabitapp/zmx.git
 	pushurl = git@github.com:supabitapp/zmx.git
+[submodule "ThirdParty/coding-agents-session-picker"]
+	path = apps/mac/ThirdParty/coding-agents-session-picker
+	url = git@github.com:khoi/coding-agents-session-picker.git
+	pushurl = git@github.com:khoi/coding-agents-session-picker.git

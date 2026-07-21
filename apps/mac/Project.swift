@@ -9,6 +9,9 @@ let ghosttyCommandWrapperPatchPath: Path = "patches/ghostty-command-wrapper.patc
 let zmxBinaryPath: Path = ".build/zmx/bin/zmx"
 let zmxBuildScriptPath: Path = "scripts/build-zmx.sh"
 let zmxFingerprintPath: Path = ".build/zmx/fingerprint"
+let apBinaryPath: Path = ".build/ap/bin/ap"
+let apBuildScriptPath: Path = "scripts/build-ap.sh"
+let apFingerprintPath: Path = ".build/ap/fingerprint"
 
 let ghosttyFingerprintInputScript = """
 "${SRCROOT:-$PWD}/\(ghosttyBuildScriptPath.pathString)" --print-fingerprint
@@ -339,6 +342,13 @@ let project = Project(
           name: "Build zmx",
           basedOnDependencyAnalysis: false
         ),
+        .pre(
+          script: """
+            "${SRCROOT}/\(apBuildScriptPath.pathString)"
+            """,
+          name: "Build ap",
+          basedOnDependencyAnalysis: false
+        ),
         .post(
           script: """
             set -euo pipefail
@@ -426,6 +436,32 @@ let project = Project(
           ],
           outputPaths: [
             "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/sp",
+          ]
+        ),
+        .post(
+          script: """
+            set -euo pipefail
+
+            destination_dir="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/bin"
+            destination_path="${destination_dir}/ap"
+            source_path="${SRCROOT}/\(apBinaryPath.pathString)"
+
+            if [ ! -x "${source_path}" ]; then
+              echo "error: missing built ap executable" >&2
+              exit 1
+            fi
+
+            mkdir -p "${destination_dir}"
+            rm -f "${destination_path}"
+            /bin/cp -f "${source_path}" "${destination_path}"
+            """,
+          name: "Embed ap",
+          inputPaths: [
+            "$(SRCROOT)/\(apBinaryPath.pathString)",
+            "$(SRCROOT)/\(apFingerprintPath.pathString)",
+          ],
+          outputPaths: [
+            "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/bin/ap",
           ]
         ),
         .post(

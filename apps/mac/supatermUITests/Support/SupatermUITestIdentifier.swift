@@ -19,7 +19,6 @@ enum SupatermUITestIdentifier {
     static let searchMatchCount = "terminal.search.match-count"
     static let clipboardConfirm = "terminal.clipboard-confirmation.confirm"
     static let clipboardCancel = "terminal.clipboard-confirmation.cancel"
-    static let agentPanelCopySessionID = "agent-panel.copy-session-id"
   }
 
   enum Settings {

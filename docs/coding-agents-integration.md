@@ -13,7 +13,7 @@ Supaterm owns pane context, socket transport, tab state, and notifications. An a
   - `SUPATERM_STATE_HOME` when the app is launched with a state root
   - `SUPATERM_SURFACE_ID`
   - `SUPATERM_TAB_ID`
-- Supaterm prepends the bundled CLI directory to pane `PATH`.
+- Supaterm prepends the bundled CLI directory to pane `PATH`. The directory ships `sp` and `ap`, the coding-agents session picker built from the `ThirdParty/coding-agents-session-picker` submodule.
 - Structured agent events go through the `sp` CLI and then through the socket control boundary into the app process.
 - The app process is the only place that decides tab activity, pending input state, and desktop notification delivery.
 - Agent notifications are routed to the pane context first and then to the stored session surface when available.

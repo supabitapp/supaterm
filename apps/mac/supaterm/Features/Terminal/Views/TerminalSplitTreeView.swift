@@ -397,6 +397,7 @@ struct TerminalSplitTreeView: View {
     private func baseTerminal(in geometry: GeometryProxy) -> some View {
       GhosttyTerminalView(surfaceView: surfaceView)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityHidden(true)
         .overlay(alignment: .top) {
           GhosttySurfaceProgressOverlay(state: surfaceView.bridge.state)
         }
@@ -1415,18 +1416,9 @@ struct TerminalSplitTreeAXContainer: NSViewRepresentable {
       ),
       visibleNode: visibleNode,
       action: action,
-      agentPanelState: TerminalAgentPanelAXState(
-        presentations: agentPanelPresentations,
-        hiddenSurfaceIDs: hiddenAgentPanelSurfaceIDs
-      ),
       panes: visiblePanes
     )
   }
-}
-
-struct TerminalAgentPanelAXState {
-  let presentations: [UUID: PaneAgentPanelPresentation]
-  let hiddenSurfaceIDs: Set<UUID>
 }
 
 private final class TerminalSplitHostingView: NSHostingView<AnyView> {
@@ -1439,11 +1431,6 @@ final class TerminalSplitAXContainerView: NSView {
   private var hostingView: TerminalSplitHostingView?
   private var visibleNode: SplitTree<GhosttySurfaceView>.Node?
   private var panes: [GhosttySurfaceView] = []
-  private var agentPanelState = TerminalAgentPanelAXState(
-    presentations: [:],
-    hiddenSurfaceIDs: []
-  )
-  private var agentPanelElementsBySurfaceID: [UUID: TerminalAgentPanelAXElement] = [:]
   private var dividerElements: [TerminalSplitAXDividerElement] = []
   private var dividerElementsByPath: [TerminalSplitAXPath: TerminalSplitAXDividerElement] = [:]
   private var panesLabel: String = "Terminal split: 0 panes"
@@ -1457,7 +1444,6 @@ final class TerminalSplitAXContainerView: NSView {
     rootView: AnyView,
     visibleNode: SplitTree<GhosttySurfaceView>.Node?,
     action: @escaping (TerminalSplitTreeView.Operation) -> Void,
-    agentPanelState: TerminalAgentPanelAXState,
     panes: [GhosttySurfaceView]
   ) {
     if let hostingView {
@@ -1477,7 +1463,6 @@ final class TerminalSplitAXContainerView: NSView {
 
     self.visibleNode = visibleNode
     self.action = action
-    self.agentPanelState = agentPanelState
     let newPaneIDs = panes.map(\.id)
     self.panes = panes
     panesLabel = "Terminal split: \(panes.count) pane" + (panes.count == 1 ? "" : "s")
@@ -1488,53 +1473,13 @@ final class TerminalSplitAXContainerView: NSView {
       pane.setAccessibilityParent(self)
     }
 
-    refreshAccessibilityAgentPanels()
     refreshAccessibilityDividers(postLayoutChanged: newPaneIDs != lastPaneIDs)
     lastPaneIDs = newPaneIDs
   }
 
   override func layout() {
     super.layout()
-    refreshAccessibilityAgentPanels()
     refreshAccessibilityDividers(postLayoutChanged: false)
-  }
-
-  private func refreshAccessibilityAgentPanels() {
-    let surfaceIDs: [UUID] = panes.compactMap { pane -> UUID? in
-      guard
-        TerminalSplitTreeView.LeafView.agentPanelOverlayState(
-          presentation: agentPanelState.presentations[pane.id],
-          focusedSurfaceID: nil,
-          surfaceID: pane.id,
-          size: pane.bounds.size,
-          isCollapsed: agentPanelState.hiddenSurfaceIDs.contains(pane.id)
-        ) == .expandedPanel
-      else { return nil }
-      return pane.id
-    }
-    let previousSurfaceIDs = Set(agentPanelElementsBySurfaceID.keys)
-    var nextElementsBySurfaceID: [UUID: TerminalAgentPanelAXElement] = [:]
-    for surfaceID in surfaceIDs {
-      let element =
-        agentPanelElementsBySurfaceID[surfaceID]
-        ?? TerminalAgentPanelAXElement(container: self)
-      element.setAccessibilityIdentifier(AgentPanelView.accessibilityIdentifier)
-      nextElementsBySurfaceID[surfaceID] = element
-    }
-    agentPanelElementsBySurfaceID = nextElementsBySurfaceID
-    refreshAccessibilityAgentPanelFrames()
-
-    guard Set(surfaceIDs) != previousSurfaceIDs else { return }
-    NSAccessibility.post(element: self, notification: .layoutChanged)
-  }
-
-  private func refreshAccessibilityAgentPanelFrames() {
-    for pane in panes {
-      agentPanelElementsBySurfaceID[pane.id]?.frameInParentSpace = pane.convert(
-        pane.bounds,
-        to: self
-      )
-    }
   }
 
   func adjustDivider(
@@ -1611,7 +1556,9 @@ final class TerminalSplitAXContainerView: NSView {
 
   override func accessibilityChildren() -> [Any]? {
     var children: [Any] = panes
-    children.append(contentsOf: panes.compactMap { agentPanelElementsBySurfaceID[$0.id] })
+    if let hostingView {
+      children.append(hostingView)
+    }
     children.append(contentsOf: dividerElements)
     return children
   }
@@ -1627,32 +1574,6 @@ final class TerminalSplitAXContainerView: NSView {
         }
       }
     )
-  }
-}
-
-nonisolated final class TerminalAgentPanelAXElement: NSAccessibilityElement {
-  weak var container: TerminalSplitAXContainerView?
-  var frameInParentSpace: NSRect = .zero
-
-  init(container: TerminalSplitAXContainerView) {
-    self.container = container
-    super.init()
-  }
-
-  override func accessibilityParent() -> Any? {
-    container
-  }
-
-  override func accessibilityFrameInParentSpace() -> NSRect {
-    frameInParentSpace
-  }
-
-  override func accessibilityRole() -> NSAccessibility.Role? {
-    .group
-  }
-
-  override func accessibilityLabel() -> String? {
-    "Agent panel"
   }
 }
 

@@ -2,6 +2,7 @@
 hk = "1.45.0"
 pkl = "0.31.1"
 zig = "0.15.2"
+rust = "1.95.0"
 tuist = "4.192.3"
 swiftlint = "0.63.2"
 xcbeautify = "3.2.1"

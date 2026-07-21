@@ -78,7 +78,7 @@ jobs:
         with:
           submodules: recursive
       - uses: ./.github/actions/setup-macos
-      - run: make -C apps/mac build-ghostty build-zmx
+      - run: make -C apps/mac build-ghostty build-zmx build-ap
       - id: build
         run: mise exec -- tuist test supatermUITests --build-only --shard-total 4 --shard-granularity suite
         working-directory: apps/mac

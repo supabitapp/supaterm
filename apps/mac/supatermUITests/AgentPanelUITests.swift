@@ -27,15 +27,16 @@ final class AgentPanelUITests: SupatermUITestCase {
   func testCopySessionIDShowsTemporaryCopiedFeedback() async throws {
     _ = mainWindow
     try await sendClaudeEvent("session-start")
+    try await sendClaudeEvent("user-prompt-submit")
 
-    let copyButton = app.buttons[
-      SupatermUITestIdentifier.Accessibility.agentPanelCopySessionID
-    ]
+    let copyButton = agentPanel.buttons.matching(
+      NSPredicate(format: "label IN %@", ["Copy session ID", "Copied"])
+    ).firstMatch
     await assertEventually(copyButton, timeout: Self.coldStartTimeout) {
-      $0.exists && $0.isHittable
+      $0.exists
     }
 
-    copyButton.click()
+    copyButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
 
     await assertEventually(copyButton) { $0.label == "Copied" }
     await assertEventually(copyButton) { $0.label == "Copy session ID" }

@@ -61,3 +61,13 @@ runs:
       with:
         path: apps/mac/.build/zmx
         key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-zmx-v1-${{ env.ZMX_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-zmx.sh', 'mise.toml', '.gitmodules') }}
+    - name: Ap cache key
+      shell: bash
+      run: |
+        AP_SHA="$(git -C apps/mac/ThirdParty/coding-agents-session-picker rev-parse HEAD)"
+        printf '%s\n' "AP_SHA=$AP_SHA" >> "$GITHUB_ENV"
+    - name: Ap cache
+      uses: actions/cache@v5
+      with:
+        path: apps/mac/.build/ap
+        key: ${{ runner.os }}-${{ runner.arch }}-xcode-${{ env.XCODE_VERSION }}-ap-v1-${{ env.AP_SHA }}-${{ hashFiles('.github/actions/setup-macos/action.yml', 'apps/mac/Project.swift', 'apps/mac/scripts/build-ap.sh', 'mise.toml', '.gitmodules') }}
