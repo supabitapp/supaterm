@@ -128,6 +128,32 @@ struct TerminalSidebarLayoutPlanTests {
   }
 
   @Test
+  func compactGroupHeaderKeepsTargetsWithinItsFrame() throws {
+    let child = TerminalTabID()
+    let groupID = TerminalTabGroupID()
+    let outline = TerminalSidebarTestFixture.outline(
+      roots: [
+        TerminalSidebarOutline.Root(
+          content: .group(groupID, .blue, .automatic, [child]),
+          isPinned: false
+        )
+      ],
+      revision: 1
+    )
+    let plan = TerminalSidebarTestFixture.layoutPlan(
+      outline: outline,
+      preferredHeights: [.group(groupID): TerminalSidebarLayout.tabRowMinHeight]
+    )
+    let header = try #require(plan.items.first { $0.id == .group(groupID) }?.frame)
+    let childFrame = try #require(plan.items.first { $0.id == .tab(child) }?.frame)
+    let target = try #require(plan.semanticTargets.first { $0.path == .rootItem(index: 0) })
+
+    #expect(header.height == TerminalSidebarLayout.tabRowMinHeight)
+    #expect(childFrame.minY - header.maxY == TerminalSidebarLayout.tabRowSpacing)
+    #expect(target.frame.maxY <= header.maxY)
+  }
+
+  @Test
   func collapsedAndEmptyGroupsSplitOneHeaderIntoTopAndBottomTargets() {
     let collapsedChild = TerminalTabID()
     let source = TerminalTabID()

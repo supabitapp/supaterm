@@ -39,11 +39,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
   private static let groupSurfaceVerticalOverflow: CGFloat = 2
   static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
-  static let targetRowHeight: CGFloat = 37
-  static let expandedHeaderTargetHeight: CGFloat = 34
   static let rootBoundaryTargetHeight: CGFloat = 7
-  static let collapsedGroupTopTargetHeight: CGFloat = 19
-  static let collapsedGroupBottomTargetHeight: CGFloat = 18
   static let initialY: CGFloat = -3
   static let bottomPadding: CGFloat = 120
 
@@ -365,6 +361,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
     }
     let groupIsDragged = context.draggedIDs.contains(.group(groupID))
     if context.outline.collapsedGroupIDs.contains(groupID) || tabIDs.isEmpty {
+      let topTargetHeight = ceil(header.frame.height / 2)
       var targets: [TerminalSidebarSemanticTarget] = []
       if !groupIsDragged {
         targets = [
@@ -383,16 +380,16 @@ struct TerminalSidebarLayoutPlan: Equatable {
               x: 0,
               y: header.frame.minY,
               width: context.width + 26,
-              height: collapsedGroupTopTargetHeight
+              height: topTargetHeight
             )
           ),
           TerminalSidebarSemanticTarget(
             path: .rootBoundary(index: rootIndex, affinity: .after),
             frame: CGRect(
               x: 0,
-              y: header.frame.minY + collapsedGroupTopTargetHeight,
+              y: header.frame.minY + topTargetHeight,
               width: context.width + 26,
-              height: collapsedGroupBottomTargetHeight
+              height: header.frame.height - topTargetHeight
             )
           ),
         ]
@@ -428,7 +425,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
           x: 3,
           y: header.frame.minY,
           width: context.width,
-          height: expandedHeaderTargetHeight
+          height: max(0, header.frame.height - expandedGroupTrailingSpacing)
         )
       ),
     ]

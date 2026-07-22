@@ -990,7 +990,7 @@ final class TerminalSidebarListController: NSViewController, NSCollectionViewDel
     guard let presentation = rows[id], let context else {
       return TerminalSidebarLayout.tabRowMinHeight
     }
-    if case .group = presentation { return TerminalSidebarLayoutPlan.targetRowHeight }
+    if case .group = presentation { return TerminalSidebarLayout.tabRowMinHeight }
     if let measurement = measuredHeights[id], measurement.width == width,
       measurement.key == presentation.measurementKey
     {
