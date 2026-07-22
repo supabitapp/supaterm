@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct TerminalHostStateTabGroupTests {
   @Test
-  func newTabInheritsSelectedGroupedAnchorAndPinnedRootLane() throws {
+  func newTabCreatesRootUnlessGroupIsExplicit() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
     } operation: {
@@ -20,16 +20,23 @@ struct TerminalHostStateTabGroupTests {
         host.createGroup(title: "Group", color: .green, containing: [anchorTabID])
       ).groupID
 
-      let groupedTabID = try #require(host.createTab(focusing: false))
+      let rootTabID = try #require(host.createTab(focusing: false))
 
-      #expect(host.spaceManager.activeTabManager?.tabIDs(in: groupID) == [anchorTabID, groupedTabID])
+      #expect(host.spaceManager.activeTabManager?.tabIDs(in: groupID) == [anchorTabID])
+      #expect(host.spaceManager.activeTabManager?.rootItemID(containing: rootTabID) == .tab(rootTabID))
       #expect(!host.collapsedTabGroupIDs.contains(groupID))
 
-      let focusedGroupedTabID = try #require(host.createTab(focusing: true))
+      let groupedTabID = try #require(
+        host.createTab(
+          in: groupID,
+          focusing: true,
+          inheritingFromSurfaceID: host.selectedSurfaceView?.id
+        )
+      )
 
       #expect(
         host.spaceManager.activeTabManager?.tabIDs(in: groupID)
-          == [anchorTabID, groupedTabID, focusedGroupedTabID]
+          == [anchorTabID, groupedTabID]
       )
       #expect(!host.collapsedTabGroupIDs.contains(groupID))
 

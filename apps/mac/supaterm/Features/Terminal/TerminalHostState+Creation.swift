@@ -100,6 +100,27 @@ extension TerminalHostState {
     return tabID
   }
 
+  @discardableResult
+  func createTab(
+    in groupID: TerminalTabGroupID,
+    focusing: Bool = true,
+    inheritingFromSurfaceID: UUID? = nil
+  ) -> TerminalTabID? {
+    guard
+      let space = spaceManager.space(for: groupID),
+      let tabManager = spaceManager.tabManager(for: space.id),
+      let group = tabManager.group(for: groupID)
+    else {
+      return nil
+    }
+    return createTab(
+      in: space.id,
+      focusing: focusing,
+      inheritingFromSurfaceID: inheritingFromSurfaceID,
+      at: .group(groupID, index: group.tabs.count)
+    )
+  }
+
   func defaultTabPlacement(
     in tabManager: TerminalTabManager,
     inheritingFromSurfaceID: UUID?
@@ -107,9 +128,6 @@ extension TerminalHostState {
     if let inheritingFromSurfaceID,
       let anchorTabID = tabID(containing: inheritingFromSurfaceID)
     {
-      if let groupID = tabManager.groupID(containing: anchorTabID) {
-        return .group(groupID, index: tabManager.tabIDs(in: groupID).count)
-      }
       if let isPinned = tabManager.isPinned(anchorTabID) {
         return .root(
           TerminalRootPlacement(

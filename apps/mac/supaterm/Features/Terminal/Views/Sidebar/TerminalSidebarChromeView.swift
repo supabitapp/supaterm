@@ -194,15 +194,11 @@ struct TerminalSidebarChromeView: View {
   }
 
   private func createTab(in groupID: TerminalTabGroupID) {
-    guard
-      let group = terminal.rootItems.compactMap({ root -> TerminalTabGroupItem? in
-        guard case .group(let group) = root, group.id == groupID else { return nil }
-        return group
-      }).first
-    else { return }
-    _ = terminal.createTab(
-      inheritingFromSurfaceID: terminal.selectedSurfaceView?.id,
-      at: .group(groupID, index: group.tabs.count)
+    _ = store.send(
+      .newTabInGroupRequested(
+        groupID,
+        inheritingFromSurfaceID: terminal.selectedSurfaceView?.id
+      )
     )
   }
 

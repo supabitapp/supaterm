@@ -168,6 +168,7 @@ struct TerminalWindowFeature {
     case navigateSearchMenuItemSelected(GhosttySearchDirection)
     case createGroupRequested(title: String, color: TerminalTabGroupColor, tabIDs: [TerminalTabID])
     case newTabButtonTapped(inheritingFromSurfaceID: UUID?)
+    case newTabInGroupRequested(TerminalTabGroupID, inheritingFromSurfaceID: UUID?)
     case nextSpaceRequested
     case nextTabMenuItemSelected
     case moveCommitted(TerminalTabMoveRequest)
@@ -392,6 +393,12 @@ struct TerminalWindowFeature {
       case .newTabButtonTapped(let inheritingFromSurfaceID):
         analyticsClient.capture("terminal_tab_created")
         return sendCommand(.createTab(inheritingFromSurfaceID: inheritingFromSurfaceID))
+
+      case .newTabInGroupRequested(let groupID, let inheritingFromSurfaceID):
+        analyticsClient.capture("terminal_tab_created")
+        return sendCommand(
+          .createTabInGroup(groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
+        )
 
       case .nextSpaceRequested:
         return sendCommand(.nextSpace)

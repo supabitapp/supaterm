@@ -35,6 +35,7 @@ struct SupatermMenuControllerTests {
       matching: [
         "app.supabit.supaterm.file.newWindow",
         "app.supabit.supaterm.file.newTab",
+        "app.supabit.supaterm.file.newTabInGroup",
         "app.supabit.supaterm.file.splitRight",
         "app.supabit.supaterm.file.splitLeft",
         "app.supabit.supaterm.file.splitDown",
@@ -402,6 +403,68 @@ struct SupatermMenuControllerTests {
   }
 
   @Test
+  func newTabInGroupShortcutRequiresSelectedGroup() async throws {
+    try await withDependencies {
+      $0.defaultFileStorage = .inMemory
+    } operation: {
+      let app = NSApplication.shared
+      let previousMainMenu = app.mainMenu
+      let registry = TerminalWindowRegistry()
+      let recorder = TerminalCommandRecorder()
+      let host = TerminalHostState(managesTerminalSurfaces: false)
+      let store = Store(initialState: AppFeature.State()) {
+        AppFeature()
+      } withDependencies: {
+        $0.terminalClient.send = { recorder.record($0) }
+      }
+      let windowControllerID = UUID()
+      let tabManager = try #require(host.spaceManager.activeTabManager)
+      let tabID = tabManager.createTab(title: "Terminal 1")
+      tabManager.selectTab(tabID)
+      registry.register(
+        keyboardShortcutForAction: { _ in nil },
+        windowControllerID: windowControllerID,
+        store: store,
+        terminal: host,
+        requestConfirmedWindowClose: {}
+      )
+      registry.updateWindow(NSWindow(), for: windowControllerID)
+      let controller = SupatermMenuController(registry: registry)
+      defer {
+        app.mainMenu = previousMainMenu
+      }
+      controller.install()
+
+      let event = try #require(
+        NSEvent.keyEvent(
+          with: .keyDown,
+          location: .zero,
+          modifierFlags: [.command, .option],
+          timestamp: 0,
+          windowNumber: 0,
+          context: nil,
+          characters: "t",
+          charactersIgnoringModifiers: "t",
+          isARepeat: false,
+          keyCode: 17
+        )
+      )
+
+      #expect(!controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+      let groupID = try #require(
+        tabManager.createGroup(title: "Group", containing: [tabID])
+      ).groupID
+      #expect(controller.performGhosttyBindingMenuKeyEquivalent(with: event))
+      await flushEffects()
+
+      #expect(
+        recorder.commands
+          == [.createTabInGroup(groupID, inheritingFromSurfaceID: nil)]
+      )
+    }
+  }
+
+  @Test
   func refreshUsesGhosttyShortcutForCommandPalette() throws {
     try withDependencies {
       $0.defaultFileStorage = .inMemory
@@ -748,6 +811,7 @@ struct SupatermMenuControllerTests {
       fileMenu.items.map(\.title) == [
         "New Window",
         "New Tab",
+        "New Tab in Group",
         "Open Command Palette",
         "",
         "Split Right",
@@ -765,13 +829,16 @@ struct SupatermMenuControllerTests {
     #expect(fileMenu.items[0].keyEquivalent == "n")
     #expect(fileMenu.items[0].keyEquivalentModifierMask == [.command])
     #expect(fileMenu.items[0].image != nil)
-    #expect(fileMenu.items[2].keyEquivalent == "p")
-    #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command, .shift])
+    #expect(fileMenu.items[2].keyEquivalent == "t")
+    #expect(fileMenu.items[2].keyEquivalentModifierMask == [.command, .option])
     #expect(fileMenu.items[2].image != nil)
-    #expect(fileMenu.items[3].isSeparatorItem)
-    #expect(fileMenu.items[9].keyEquivalent == "w")
-    #expect(fileMenu.items[9].keyEquivalentModifierMask == [.command])
-    #expect(fileMenu.items[9].image != nil)
+    #expect(fileMenu.items[3].keyEquivalent == "p")
+    #expect(fileMenu.items[3].keyEquivalentModifierMask == [.command, .shift])
+    #expect(fileMenu.items[3].image != nil)
+    #expect(fileMenu.items[4].isSeparatorItem)
+    #expect(fileMenu.items[10].keyEquivalent == "w")
+    #expect(fileMenu.items[10].keyEquivalentModifierMask == [.command])
+    #expect(fileMenu.items[10].image != nil)
   }
 
   private func assertTabsMenu(_ menu: NSMenu?) throws {

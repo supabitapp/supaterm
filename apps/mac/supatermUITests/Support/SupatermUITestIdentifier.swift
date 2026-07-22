@@ -46,6 +46,7 @@ enum SupatermUITestIdentifier {
     case settings = "app.supabit.supaterm.app.settings"
     case newWindow = "app.supabit.supaterm.file.newWindow"
     case newTab = "app.supabit.supaterm.file.newTab"
+    case newTabInGroup = "app.supabit.supaterm.file.newTabInGroup"
     case splitRight = "app.supabit.supaterm.file.splitRight"
     case splitDown = "app.supabit.supaterm.file.splitDown"
     case closeSurface = "app.supabit.supaterm.file.close"

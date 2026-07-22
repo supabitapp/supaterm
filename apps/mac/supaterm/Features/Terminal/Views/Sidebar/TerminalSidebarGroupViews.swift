@@ -503,9 +503,10 @@ private struct TerminalSidebarGroupHeader: View {
       reduceMotion: reduceMotion
     )
     .contextMenu {
-      Button("New Tab", systemImage: "plus") {
+      Button("New Tab in Group", systemImage: "plus") {
         actions.createTabInGroup(presentation.id)
       }
+      .keyboardShortcut(TerminalTabGroupShortcut.newTab)
       Button("Rename Group", systemImage: "pencil") {
         renameState.begin(groupID: presentation.id, title: presentation.title)
       }

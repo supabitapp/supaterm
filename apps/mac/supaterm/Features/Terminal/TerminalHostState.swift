@@ -389,6 +389,7 @@ final class TerminalHostState {
       handleCloseCommand(command)
     case .createGroup,
       .createTab,
+      .createTabInGroup,
       .ensureInitialTab,
       .createSpace:
       handleCreationCommand(command)
@@ -455,6 +456,8 @@ final class TerminalHostState {
       _ = createGroup(title: title, color: color, containing: tabIDs)
     case .createTab(let inheritingFromSurfaceID):
       _ = createTab(inheritingFromSurfaceID: inheritingFromSurfaceID)
+    case .createTabInGroup(let groupID, let inheritingFromSurfaceID):
+      _ = createTab(in: groupID, inheritingFromSurfaceID: inheritingFromSurfaceID)
     case .ensureInitialTab(let focusing, let startupCommand, let workingDirectoryPath):
       ensureInitialTab(
         focusing: focusing,

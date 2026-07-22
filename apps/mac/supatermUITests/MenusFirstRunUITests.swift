@@ -17,6 +17,7 @@ final class MenusFirstRunUITests: SupatermUITestCase {
       exposes: [
         SupatermUITestIdentifier.MenuItemIdentifier.newWindow.rawValue,
         SupatermUITestIdentifier.MenuItemIdentifier.newTab.rawValue,
+        SupatermUITestIdentifier.MenuItemIdentifier.newTabInGroup.rawValue,
       ]
     )
     try assertMenu(

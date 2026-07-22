@@ -269,21 +269,9 @@ struct TerminalSidebarTabRow: View {
           switch item {
           case .newTab:
             Button {
-              if let groupID {
-                let index =
-                  terminal.rootItems.compactMap { root -> TerminalTabGroupItem? in
-                    guard case .group(let group) = root, group.id == groupID else { return nil }
-                    return group
-                  }.first?.tabs.count ?? 0
-                terminal.createTab(
-                  inheritingFromSurfaceID: contextSurfaceID,
-                  at: .group(groupID, index: index)
-                )
-              } else {
-                _ = store.send(
-                  .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
-                )
-              }
+              _ = store.send(
+                .newTabButtonTapped(inheritingFromSurfaceID: contextSurfaceID)
+              )
             } label: {
               Label("New Tab", systemImage: "plus")
             }

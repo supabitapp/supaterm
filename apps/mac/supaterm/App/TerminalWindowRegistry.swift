@@ -32,6 +32,7 @@ final class TerminalWindowRegistry {
     let availability: CommandAvailability
     let closesKeyWindowDirectly: Bool
     let hasSearch: Bool
+    let hasSelectedGroup: Bool
     let updateMenuItemText: String
     let visibleTabCount: Int
     let spaceCount: Int
@@ -150,6 +151,7 @@ final class TerminalWindowRegistry {
           hasWindow: false, hasTab: false, hasSurface: false, hasAnySurface: hasAnySurface),
         closesKeyWindowDirectly: closesKeyWindowDirectly,
         hasSearch: false,
+        hasSelectedGroup: false,
         updateMenuItemText: "Check for Updates...",
         visibleTabCount: 0,
         spaceCount: 0,
@@ -164,6 +166,7 @@ final class TerminalWindowRegistry {
       availability: commandAvailability(for: entry),
       closesKeyWindowDirectly: closesKeyWindowDirectly,
       hasSearch: entry.terminal.selectedSurfaceState?.searchNeedle != nil,
+      hasSelectedGroup: selectedGroupID(in: entry) != nil,
       updateMenuItemText: updateState.phase.menuItemTitle,
       visibleTabCount: entry.terminal.visibleTabs.count,
       spaceCount: entry.terminal.spaces.count,
@@ -180,6 +183,23 @@ final class TerminalWindowRegistry {
     entry.store.send(
       .terminal(
         .newTabButtonTapped(inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id)
+      )
+    )
+  }
+
+  func requestNewTabInSelectedGroupInKeyWindow() {
+    guard
+      let entry = preferredActiveEntry(),
+      let groupID = selectedGroupID(in: entry)
+    else {
+      return
+    }
+    entry.store.send(
+      .terminal(
+        .newTabInGroupRequested(
+          groupID,
+          inheritingFromSurfaceID: entry.terminal.selectedSurfaceView?.id
+        )
       )
     )
   }
@@ -505,6 +525,16 @@ final class TerminalWindowRegistry {
     guard let surfaceID = entry.terminal.selectedSurfaceView?.id else { return nil }
     guard let presentation = entry.terminal.agentPanelPresentation(for: surfaceID) else { return nil }
     return SelectedAgentPanel(surfaceID: surfaceID, session: presentation.session)
+  }
+
+  private func selectedGroupID(in entry: Entry) -> TerminalTabGroupID? {
+    guard
+      let tabID = entry.terminal.selectedTabID,
+      let tabManager = entry.terminal.spaceManager.activeTabManager
+    else {
+      return nil
+    }
+    return tabManager.groupID(containing: tabID)
   }
 
   private func commandAvailability(for entry: Entry) -> CommandAvailability {

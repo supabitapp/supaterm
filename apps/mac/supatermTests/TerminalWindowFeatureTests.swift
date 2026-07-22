@@ -184,6 +184,33 @@ struct TerminalWindowFeatureTests {
   }
 
   @Test
+  func newTabInGroupCaptureRecordsAnalyticsAndSendsCommand() async {
+    let analyticsRecorder = AnalyticsEventRecorder()
+    let recorder = TerminalCommandRecorder()
+    let groupID = TerminalTabGroupID()
+    let surfaceID = UUID()
+
+    let store = TestStore(initialState: TerminalWindowFeature.State()) {
+      TerminalWindowFeature()
+    } withDependencies: {
+      $0.analyticsClient.capture = { event in
+        analyticsRecorder.record(event)
+      }
+      $0.terminalClient.send = { recorder.record($0) }
+    }
+
+    await store.send(
+      .newTabInGroupRequested(groupID, inheritingFromSurfaceID: surfaceID)
+    )
+
+    #expect(analyticsRecorder.recorded() == ["terminal_tab_created"])
+    #expect(
+      recorder.commands
+        == [.createTabInGroup(groupID, inheritingFromSurfaceID: surfaceID)]
+    )
+  }
+
+  @Test
   func splitOperationCaptureRecordsAnalyticsAndSendsCommand() async {
     let analyticsRecorder = AnalyticsEventRecorder()
     let recorder = TerminalCommandRecorder()
