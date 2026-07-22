@@ -99,7 +99,7 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     try drag(
       sidebarStructuralTabRow(named: "Mover"),
       to: sidebarGroupHeader(named: "First"),
-      destinationOffset: CGVector(dx: 0.5, dy: 0.05)
+      destinationOffset: CGVector(dx: 0.5, dy: 0.95)
     )
 
     await requireSidebarStructure([
@@ -236,7 +236,7 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     try drag(
       sidebarStructuralTabRow(named: "Collapsed Join"),
       to: sidebarGroupHeader(named: "Target"),
-      destinationOffset: CGVector(dx: 0.5, dy: 0.2)
+      destinationOffset: CGVector(dx: 0.5, dy: 0.8)
     )
     let didAddToCollapsedGroup = await wait(for: sidebarGroupHeader(named: "Target")) {
       $0.label.contains("3 tabs")

@@ -40,7 +40,7 @@ final class TabsSpacesUITests: SupatermUITestCase {
     let didShowInitialTab = await waitForSidebarElementCount(tabRows, equals: 1, timeout: .seconds(30))
     XCTAssertTrue(didShowInitialTab)
 
-    let title = "Pinned UI Tab"
+    let title = "Lane UI Tab"
     try await renameSelectedTab(to: title)
 
     let didShowRegularTab = await wait(for: tabRow(named: title)) {

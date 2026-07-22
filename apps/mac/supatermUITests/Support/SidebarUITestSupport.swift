@@ -151,7 +151,7 @@ extension SupatermUITestCase {
     let foundElement = try require(element, timeout: timeout)
     foundElement.rightClick()
 
-    let itemCandidate = app.menuItems[title]
+    let itemCandidate = app.menuItems[title].firstMatch
     let item = try require(itemCandidate, timeout: timeout)
     item.click()
   }
@@ -168,7 +168,7 @@ extension SupatermUITestCase {
       forDuration: 0.5,
       thenDragTo: destination.coordinate(withNormalizedOffset: destinationOffset),
       withVelocity: .slow,
-      thenHoldForDuration: 0
+      thenHoldForDuration: 0.5
     )
   }
 
@@ -179,7 +179,7 @@ extension SupatermUITestCase {
       forDuration: 0.5,
       thenDragTo: destination,
       withVelocity: .slow,
-      thenHoldForDuration: 0
+      thenHoldForDuration: 0.5
     )
   }
 

@@ -11,7 +11,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
     let pinnedRow = tabRows.element(boundBy: 0)
     let regularRow = tabRows.element(boundBy: 1)
 
-    try clickContextMenuItem("Pin Tab", on: tabRows.firstMatch)
+    try clickSidebarContextMenuItem("Pin Tab", on: tabRows.firstMatch)
     let didPinInitialTab = await wait(for: pinnedRow, timeout: .seconds(30)) { row in
       row.exists && self.tabRows.count == 1
     }
@@ -30,19 +30,15 @@ final class SessionRestoreUITests: SupatermUITestCase {
 
     let didSavePinnedSelection = await waitForSessionCatalog(at: sessionFileURL) { catalog in
       guard
-        catalog["version"] as? Int == 6,
-        let windows = catalog["windows"] as? [[String: Any]],
-        windows.count == 1,
-        let spaces = windows[0]["spaces"] as? [[String: Any]],
-        spaces.count == 1,
-        let rootItems = spaces[0]["rootItems"] as? [[String: Any]],
-        rootItems.count == 2
+        catalog["version"] as? Int == 7,
+        let space = self.sessionSpace(in: catalog),
+        let topology = self.sessionTopology(in: space),
+        topology.orderedTabIDs.count == 2,
+        let selectedTabID = space["selectedTabID"] as? String
       else { return false }
-      return spaces[0]["selectedTabIndex"] as? Int == 0
-        && rootItems[0]["kind"] as? String == "tab"
-        && rootItems[0]["isPinned"] as? Bool == true
-        && rootItems[1]["kind"] as? String == "tab"
-        && rootItems[1]["isPinned"] as? Bool == false
+      return selectedTabID == topology.orderedTabIDs[0]
+        && topology.rootPinning[topology.orderedTabIDs[0]] == true
+        && topology.rootPinning[topology.orderedTabIDs[1]] == false
     }
     XCTAssertTrue(didSavePinnedSelection)
 
@@ -201,20 +197,6 @@ final class SessionRestoreUITests: SupatermUITestCase {
   }
 
   @MainActor
-  private func clickContextMenuItem(
-    _ title: String,
-    on element: XCUIElement,
-    timeout: TimeInterval = 10
-  ) throws {
-    let foundElement = try require(element, timeout: timeout)
-    foundElement.rightClick()
-
-    let itemCandidate = app.menuItems[title]
-    let item = try require(itemCandidate, timeout: timeout)
-    item.click()
-  }
-
-  @MainActor
   private func changeTitle(
     to title: String,
     with menuItem: SupatermUITestIdentifier.MenuItemIdentifier,
@@ -303,16 +285,26 @@ final class SessionRestoreUITests: SupatermUITestCase {
     guard
       let data = try? Data(contentsOf: url),
       let catalog = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let windows = catalog["windows"] as? [[String: Any]],
-      windows.count == 1,
-      let spaces = windows[0]["spaces"] as? [[String: Any]],
-      spaces.count == 1,
-      let rootItems = spaces[0]["rootItems"] as? [[String: Any]],
-      let tabs = sessionTabs(in: rootItems)
+      catalog["version"] as? Int == 7,
+      let space = sessionSpace(in: catalog),
+      let topology = sessionTopology(in: space),
+      let tabs = space["tabs"] as? [[String: Any]]
     else { return nil }
+    let tabsByID = tabs.reduce(into: [String: [String: Any]]()) { result, tab in
+      guard let id = tab["id"] as? String, result[id] == nil else { return }
+      result[id] = tab
+    }
+    guard
+      tabsByID.count == tabs.count,
+      topology.orderedTabIDs.allSatisfy({ tabsByID[$0] != nil })
+    else { return nil }
+    let selectedTabIndex = (space["selectedTabID"] as? String).flatMap {
+      topology.orderedTabIDs.firstIndex(of: $0)
+    }
     return SessionLayout(
-      selectedTabIndex: spaces[0]["selectedTabIndex"] as? Int,
-      tabs: tabs.compactMap { tab in
+      selectedTabIndex: selectedTabIndex,
+      tabs: topology.orderedTabIDs.compactMap { tabID in
+        guard let tab = tabsByID[tabID] else { return nil }
         guard let root = tab["root"] as? [String: Any] else { return nil }
         var leafIDs: [String] = []
         var splitDirections: [String] = []
@@ -322,21 +314,70 @@ final class SessionRestoreUITests: SupatermUITestCase {
     )
   }
 
-  private func sessionTabs(in rootItems: [[String: Any]]) -> [[String: Any]]? {
-    var tabs: [[String: Any]] = []
-    for rootItem in rootItems {
-      switch rootItem["kind"] as? String {
+  private func sessionSpace(in catalog: [String: Any]) -> [String: Any]? {
+    guard
+      let windows = catalog["windows"] as? [[String: Any]],
+      windows.count == 1,
+      let spaces = windows[0]["spaces"] as? [[String: Any]],
+      spaces.count == 1
+    else { return nil }
+    return spaces[0]
+  }
+
+  private func sessionTopology(in space: [String: Any]) -> SessionTopology? {
+    guard let nodes = space["nodes"] as? [[String: Any]] else { return nil }
+    let indexedRootNodes = nodes.enumerated().filter { _, node in
+      (node["parent"] as? [String: Any])?["kind"] as? String == "root"
+    }
+    let rootNodes = indexedRootNodes.sorted { lhs, rhs in
+      let lhsParent = lhs.element["parent"] as? [String: Any]
+      let rhsParent = rhs.element["parent"] as? [String: Any]
+      let lhsPinned = lhsParent?["isPinned"] as? Bool == true
+      let rhsPinned = rhsParent?["isPinned"] as? Bool == true
+      if lhsPinned != rhsPinned { return lhsPinned }
+      let lhsOrder = lhs.element["order"] as? Int ?? .max
+      let rhsOrder = rhs.element["order"] as? Int ?? .max
+      return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
+    }
+    var orderedTabIDs: [String] = []
+    var rootPinning: [String: Bool] = [:]
+    for (_, rootNode) in rootNodes {
+      guard
+        let item = rootNode["item"] as? [String: Any],
+        let kind = item["kind"] as? String,
+        let id = item["id"] as? String,
+        let parent = rootNode["parent"] as? [String: Any],
+        let isPinned = parent["isPinned"] as? Bool
+      else { return nil }
+      switch kind {
       case "tab":
-        guard let tab = rootItem["tab"] as? [String: Any] else { return nil }
-        tabs.append(tab)
+        orderedTabIDs.append(id)
+        rootPinning[id] = isPinned
       case "group":
-        guard let groupedTabs = rootItem["tabs"] as? [[String: Any]] else { return nil }
-        tabs.append(contentsOf: groupedTabs)
+        let childIDs = nodes.enumerated()
+          .filter { _, node in
+            guard
+              let childParent = node["parent"] as? [String: Any],
+              childParent["kind"] as? String == "group",
+              childParent["id"] as? String == id,
+              let childItem = node["item"] as? [String: Any]
+            else { return false }
+            return childItem["kind"] as? String == "tab"
+          }
+          .sorted { lhs, rhs in
+            let lhsOrder = lhs.element["order"] as? Int ?? .max
+            let rhsOrder = rhs.element["order"] as? Int ?? .max
+            return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
+          }
+          .compactMap { _, node in
+            (node["item"] as? [String: Any])?["id"] as? String
+          }
+        orderedTabIDs.append(contentsOf: childIDs)
       default:
         return nil
       }
     }
-    return tabs
+    return SessionTopology(orderedTabIDs: orderedTabIDs, rootPinning: rootPinning)
   }
 
   private func flatten(
@@ -366,4 +407,9 @@ private struct SessionLayout: Equatable {
 private struct SessionTabLayout: Equatable {
   let leafIDs: [String]
   let splitDirections: [String]
+}
+
+private struct SessionTopology {
+  let orderedTabIDs: [String]
+  let rootPinning: [String: Bool]
 }

@@ -27,6 +27,9 @@ class SupatermUITestCase: XCTestCase {
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: zmx, withIntermediateDirectories: true)
     try Data("0".utf8).write(to: stateHome.appendingPathComponent("launch-state.json"))
+    try Data(#"{"acknowledgedVersion":"999999999.0.0"}"#.utf8).write(
+      to: stateHome.appendingPathComponent("release-announcements.json")
+    )
 
     let app = await MainActor.run {
       let app = XCUIApplication()
