@@ -207,7 +207,8 @@ final class SearchClipboardUITests: SupatermUITestCase {
 
   @MainActor
   private func matchCount(from element: XCUIElement) -> MatchCount? {
-    let parts = element.label.split(separator: "/", omittingEmptySubsequences: false)
+    let text = element.value as? String ?? element.label
+    let parts = text.split(separator: "/", omittingEmptySubsequences: false)
     guard
       parts.count == 2,
       let total = Int(parts[1])
