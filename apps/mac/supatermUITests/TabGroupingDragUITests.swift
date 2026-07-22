@@ -23,12 +23,14 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     try await createNamedTabs(["Seed"])
     try await createGroup(named: "Toggle", containing: "Seed")
     let header = try require(sidebarGroupHeader(named: "Toggle"))
+    let row = try require(sidebarGroupHeaders.matching(identifier: header.identifier).firstMatch)
+    XCTAssertEqual(header.frame, row.frame)
 
-    header.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).click()
+    header.click()
     let didCollapse = await wait(for: sidebarStructuralTabRow(named: "Seed")) { !$0.exists }
     XCTAssertTrue(didCollapse)
 
-    header.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).click()
+    header.click()
     XCTAssertTrue(sidebarStructuralTabRow(named: "Seed").waitForExistence(timeout: 2))
   }
 
@@ -99,7 +101,7 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     try drag(
       sidebarStructuralTabRow(named: "Mover"),
       to: sidebarGroupHeader(named: "First"),
-      destinationOffset: CGVector(dx: 0.5, dy: 0.95)
+      destinationOffset: CGVector(dx: 0.5, dy: 0.2)
     )
 
     await requireSidebarStructure([
@@ -236,7 +238,7 @@ final class TabGroupingDragUITests: SupatermUITestCase {
     try drag(
       sidebarStructuralTabRow(named: "Collapsed Join"),
       to: sidebarGroupHeader(named: "Target"),
-      destinationOffset: CGVector(dx: 0.5, dy: 0.8)
+      destinationOffset: CGVector(dx: 0.5, dy: 0.35)
     )
     let didAddToCollapsedGroup = await wait(for: sidebarGroupHeader(named: "Target")) {
       $0.label.contains("3 tabs")

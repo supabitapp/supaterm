@@ -168,7 +168,7 @@ extension SupatermUITestCase {
       forDuration: 0.5,
       thenDragTo: destination.coordinate(withNormalizedOffset: destinationOffset),
       withVelocity: .slow,
-      thenHoldForDuration: 0.5
+      thenHoldForDuration: 0
     )
   }
 
@@ -179,7 +179,7 @@ extension SupatermUITestCase {
       forDuration: 0.5,
       thenDragTo: destination,
       withVelocity: .slow,
-      thenHoldForDuration: 0.5
+      thenHoldForDuration: 0
     )
   }
 
