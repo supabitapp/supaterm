@@ -34,7 +34,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
         let space = self.sessionSpace(in: catalog),
         let topology = self.sessionTopology(in: space),
         topology.orderedTabIDs.count == 2,
-        let selectedTabID = space["selectedTabID"] as? String
+        let selectedTabID = self.sessionTabID(space["selectedTabID"])
       else { return false }
       return selectedTabID == topology.orderedTabIDs[0]
         && topology.rootPinning[topology.orderedTabIDs[0]] == true
@@ -291,14 +291,14 @@ final class SessionRestoreUITests: SupatermUITestCase {
       let tabs = space["tabs"] as? [[String: Any]]
     else { return nil }
     let tabsByID = tabs.reduce(into: [String: [String: Any]]()) { result, tab in
-      guard let id = tab["id"] as? String, result[id] == nil else { return }
+      guard let id = sessionTabID(tab["id"]), result[id] == nil else { return }
       result[id] = tab
     }
     guard
       tabsByID.count == tabs.count,
       topology.orderedTabIDs.allSatisfy({ tabsByID[$0] != nil })
     else { return nil }
-    let selectedTabIndex = (space["selectedTabID"] as? String).flatMap {
+    let selectedTabIndex = sessionTabID(space["selectedTabID"]).flatMap {
       topology.orderedTabIDs.firstIndex(of: $0)
     }
     return SessionLayout(
@@ -345,15 +345,16 @@ final class SessionRestoreUITests: SupatermUITestCase {
       guard
         let item = rootNode["item"] as? [String: Any],
         let kind = item["kind"] as? String,
-        let id = item["id"] as? String,
         let parent = rootNode["parent"] as? [String: Any],
         let isPinned = parent["isPinned"] as? Bool
       else { return nil }
       switch kind {
       case "tab":
+        guard let id = sessionTabID(item["id"]) else { return nil }
         orderedTabIDs.append(id)
         rootPinning[id] = isPinned
       case "group":
+        guard let id = item["id"] as? String else { return nil }
         let childIDs = nodes.enumerated()
           .filter { _, node in
             guard
@@ -370,7 +371,7 @@ final class SessionRestoreUITests: SupatermUITestCase {
             return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
           }
           .compactMap { _, node in
-            (node["item"] as? [String: Any])?["id"] as? String
+            sessionTabID((node["item"] as? [String: Any])?["id"])
           }
         orderedTabIDs.append(contentsOf: childIDs)
       default:
@@ -378,6 +379,10 @@ final class SessionRestoreUITests: SupatermUITestCase {
       }
     }
     return SessionTopology(orderedTabIDs: orderedTabIDs, rootPinning: rootPinning)
+  }
+
+  private func sessionTabID(_ value: Any?) -> String? {
+    (value as? [String: Any])?["rawValue"] as? String
   }
 
   private func flatten(
