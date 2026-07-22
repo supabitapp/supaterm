@@ -33,6 +33,7 @@ struct TerminalSidebarLayoutPlan: Equatable {
 
   static let horizontalInset: CGFloat = 4
   static let childIndentation: CGFloat = 12
+  static let childTrailingInset: CGFloat = 6
   static let rootSpacing: CGFloat = 10
   static let expandedGroupTrailingSpacing: CGFloat = 3
   static let dividerHeight: CGFloat = 9
@@ -108,16 +109,16 @@ struct TerminalSidebarLayoutPlan: Equatable {
       if y > Self.initialY, !isDragged {
         y += Self.spacing(before: entry, previous: entries[safe: index - 1]) * visibility.height
       }
-      let indentation = Self.indentation(for: entry)
+      let insets = Self.horizontalInsets(for: entry)
       let preferredHeight = preferredHeights[entry.id] ?? Self.defaultHeight(for: entry)
       let height = isDragged ? 0 : preferredHeight * visibility.height
       items.append(
         Item(
           id: entry.id,
           frame: CGRect(
-            x: Self.horizontalInset + indentation,
+            x: Self.horizontalInset + insets.leading,
             y: y,
-            width: max(1, availableWidth - indentation * 2),
+            width: max(1, availableWidth - insets.leading - insets.trailing),
             height: height
           ),
           alpha: isDragged ? 0 : visibility.alpha
@@ -546,25 +547,27 @@ struct TerminalSidebarLayoutPlan: Equatable {
     width: CGFloat,
     destination: TerminalSidebarDropDestination?
   ) -> CGRect {
-    let indentation: CGFloat
+    let insets: (leading: CGFloat, trailing: CGFloat)
     switch destination {
     case .group:
-      indentation = childIndentation
+      insets = (childIndentation, childTrailingInset)
     case .root, nil:
-      indentation = 0
+      insets = (0, 0)
     }
     return CGRect(
-      x: horizontalInset + indentation,
+      x: horizontalInset + insets.leading,
       y: y,
-      width: max(1, width - indentation * 2),
+      width: max(1, width - insets.leading - insets.trailing),
       height: height
     )
   }
 
-  private static func indentation(for entry: TerminalSidebarEntry) -> CGFloat {
+  private static func horizontalInsets(
+    for entry: TerminalSidebarEntry
+  ) -> (leading: CGFloat, trailing: CGFloat) {
     switch entry.kind {
-    case .tab(_, .some, _): childIndentation
-    case .tab(_, nil, _), .group, .pinDivider, .newTab, .newGroup: 0
+    case .tab(_, .some, _): (childIndentation, childTrailingInset)
+    case .tab(_, nil, _), .group, .pinDivider, .newTab, .newGroup: (0, 0)
     }
   }
 
