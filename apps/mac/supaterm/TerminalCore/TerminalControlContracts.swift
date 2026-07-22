@@ -66,20 +66,17 @@ public struct TerminalNotifyRequest: Equatable, Sendable {
 
   public let allowDesktopNotificationWhenAgentActive: Bool
   public let body: String
-  public let subtitle: String
   public let target: Target
   public let title: String?
 
   public init(
     body: String,
-    subtitle: String,
     target: Target,
     title: String?,
     allowDesktopNotificationWhenAgentActive: Bool = false
   ) {
     self.allowDesktopNotificationWhenAgentActive = allowDesktopNotificationWhenAgentActive
     self.body = body
-    self.subtitle = subtitle
     self.target = target
     self.title = title
   }

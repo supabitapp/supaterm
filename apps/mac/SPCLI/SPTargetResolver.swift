@@ -4,8 +4,6 @@ import SupatermCLIShared
 
 struct SPGroupLocation: Equatable {
   let spaceID: UUID
-  let windowIndex: Int
-  let spaceIndex: Int
   let groupID: UUID
   let title: String
 }
@@ -96,8 +94,6 @@ private struct SPTreeIndex {
         for group in tabGroups(in: space) {
           let groupLocation = SPGroupLocation(
             spaceID: space.id,
-            windowIndex: window.index,
-            spaceIndex: space.index,
             groupID: group.id,
             title: group.title
           )
@@ -139,8 +135,7 @@ private struct SPTreeIndex {
               id: pane.id,
               windowIndex: window.index,
               spaceIndex: space.index,
-              tabIndex: tabIndex,
-              paneIndex: pane.index
+              tabIndex: tabIndex
             )
             panesByID[pane.id] = paneLocation
             firstPaneByTab[tabKey] = firstPaneByTab[tabKey] ?? paneLocation
@@ -861,5 +856,4 @@ private struct SPPaneLocation {
   let windowIndex: Int
   let spaceIndex: Int
   let tabIndex: Int
-  let paneIndex: Int
 }

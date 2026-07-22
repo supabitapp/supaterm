@@ -59,7 +59,6 @@ struct SocketControlFeatureNotificationsTests {
             request
               == TerminalNotifyRequest(
                 body: "Build finished",
-                subtitle: "CI",
                 target: .pane(requestPayload.paneID),
                 title: "Deploy complete"
               )
@@ -130,7 +129,6 @@ struct SocketControlFeatureNotificationsTests {
           request
             == TerminalNotifyRequest(
               body: "Build finished",
-              subtitle: "",
               target: .pane(expectedResult.paneID),
               title: "Deploy complete"
             )
@@ -248,7 +246,6 @@ struct SocketControlFeatureNotificationsTests {
             request
               == TerminalNotifyRequest(
                 body: "Build finished",
-                subtitle: "",
                 target: .pane(expectedResult.paneID),
                 title: nil
               )

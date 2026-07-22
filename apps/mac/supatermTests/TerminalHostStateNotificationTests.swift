@@ -275,7 +275,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notifyStructuredAgent(
       TerminalNotifyRequest(
         body: "Done.",
-        subtitle: "Turn complete",
         target: .pane(surface.id),
         title: "Codex",
         allowDesktopNotificationWhenAgentActive: true
@@ -305,7 +304,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notifyStructuredAgent(
       TerminalNotifyRequest(
         body: "Done.",
-        subtitle: "Turn complete",
         target: .pane(surface.id),
         title: "Codex",
         allowDesktopNotificationWhenAgentActive: true
@@ -333,7 +331,6 @@ struct TerminalHostStateNotificationTests {
     let result = try host.notify(
       TerminalNotifyRequest(
         body: "Build finished",
-        subtitle: "",
         target: .pane(surface.id),
         title: nil
       )
@@ -663,7 +660,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Build finished",
-        subtitle: "",
         target: .pane(surface.id),
         title: "Build"
       )
@@ -671,7 +667,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Deploy complete",
-        subtitle: "",
         target: .pane(surface.id),
         title: "Deploy"
       )
@@ -705,7 +700,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Build finished",
-        subtitle: "",
         target: .pane(firstSurface.id),
         title: "Build"
       )
@@ -713,7 +707,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Deploy complete",
-        subtitle: "",
         target: .pane(secondSurface.paneID),
         title: "Deploy"
       )
@@ -742,7 +735,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Input requested",
-        subtitle: "",
         target: .pane(surface.id),
         title: "Task"
       )
@@ -778,7 +770,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Claude needs your attention",
-        subtitle: "Needs input",
         target: .pane(secondSurface.paneID),
         title: "Claude Code"
       )
@@ -815,7 +806,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Claude needs your attention",
-        subtitle: "Needs input",
         target: .pane(surface.id),
         title: "Claude Code"
       )
@@ -844,7 +834,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Claude needs your attention",
-        subtitle: "Needs input",
         target: .pane(surface.id),
         title: "Claude Code"
       )
@@ -858,7 +847,6 @@ struct TerminalHostStateNotificationTests {
     _ = try host.notify(
       TerminalNotifyRequest(
         body: "Build finished",
-        subtitle: "",
         target: .pane(surface.id),
         title: "Build"
       )

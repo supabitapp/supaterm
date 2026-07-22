@@ -192,7 +192,6 @@ extension TerminalCommandExecutor {
         let result = try notifyStructuredAgent(
           TerminalNotifyRequest(
             body: notification.body,
-            subtitle: notification.subtitle,
             target: .pane(surfaceID),
             title: agent.notificationTitle,
             allowDesktopNotificationWhenAgentActive: true

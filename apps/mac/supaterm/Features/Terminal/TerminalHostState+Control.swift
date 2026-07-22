@@ -1103,7 +1103,6 @@ extension TerminalHostState {
       let result = try? notify(
         TerminalNotifyRequest(
           body: body,
-          subtitle: subtitle,
           target: .pane(surfaceID),
           title: Self.trimmedNonEmpty(title)
         ),

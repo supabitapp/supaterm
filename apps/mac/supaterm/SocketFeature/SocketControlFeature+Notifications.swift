@@ -57,7 +57,6 @@ extension SocketControlFeature {
   ) -> TerminalNotifyRequest {
     TerminalNotifyRequest(
       body: payload.body,
-      subtitle: payload.subtitle,
       target: .pane(payload.paneID),
       title: payload.title
     )

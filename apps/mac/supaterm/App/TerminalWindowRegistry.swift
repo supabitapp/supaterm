@@ -489,15 +489,6 @@ final class TerminalWindowRegistry {
     entries.filter { $0.windowReference.value != nil }
   }
 
-  func entry(for windowIndex: Int) throws -> Entry {
-    let activeEntries = activeEntries()
-    let offset = windowIndex - 1
-    guard activeEntries.indices.contains(offset) else {
-      throw TerminalCreatePaneError.windowNotFound(windowIndex)
-    }
-    return activeEntries[offset]
-  }
-
   func preferredActiveEntry() -> Entry? {
     if let keyWindow = NSApp.keyWindow, let entry = entry(for: keyWindow) {
       return entry
@@ -796,51 +787,6 @@ final class TerminalWindowRegistry {
       return .creationFailed
     case .spaceNotFound(_, let spaceIndex):
       return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
-    case .windowNotFound:
-      return .windowNotFound(windowIndex)
-    }
-  }
-
-  static func rewrite(
-    _ error: TerminalControlError,
-    windowIndex: Int
-  ) -> TerminalControlError {
-    switch error {
-    case .captureFailed:
-      return .captureFailed
-    case .contextPaneNotFound:
-      return .contextPaneNotFound
-    case .groupNotFound, .groupSpaceMismatch, .invalidGroupIndex, .invalidGroupTitle:
-      return error
-    case .invalidSpaceName:
-      return .invalidSpaceName
-    case .lastPaneNotFound:
-      return .lastPaneNotFound
-    case .lastSpaceNotFound:
-      return .lastSpaceNotFound
-    case .lastTabNotFound:
-      return .lastTabNotFound
-    case .onlyRemainingSpace:
-      return .onlyRemainingSpace
-    case .paneNotFound(_, let spaceIndex, let tabIndex, let paneIndex):
-      return .paneNotFound(
-        windowIndex: windowIndex,
-        spaceIndex: spaceIndex,
-        tabIndex: tabIndex,
-        paneIndex: paneIndex
-      )
-    case .resizeFailed:
-      return .resizeFailed
-    case .spaceNameUnavailable:
-      return .spaceNameUnavailable
-    case .spaceNotFound(_, let spaceIndex):
-      return .spaceNotFound(windowIndex: windowIndex, spaceIndex: spaceIndex)
-    case .tabNotFound(_, let spaceIndex, let tabIndex):
-      return .tabNotFound(
-        windowIndex: windowIndex,
-        spaceIndex: spaceIndex,
-        tabIndex: tabIndex
-      )
     case .windowNotFound:
       return .windowNotFound(windowIndex)
     }
