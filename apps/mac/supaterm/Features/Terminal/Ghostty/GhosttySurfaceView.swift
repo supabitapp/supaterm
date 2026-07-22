@@ -1270,7 +1270,8 @@ final class GhosttySurfaceView: NSView, Identifiable {
   static func moveFocus(
     to view: GhosttySurfaceView,
     from previous: GhosttySurfaceView? = nil,
-    delay: TimeInterval? = nil
+    delay: TimeInterval? = nil,
+    when shouldFocus: @escaping @MainActor () -> Bool = { true }
   ) {
     let maxDelay: TimeInterval = 0.5
     let currentDelay = delay ?? 0
@@ -1280,8 +1281,9 @@ final class GhosttySurfaceView: NSView, Identifiable {
       if let delay {
         try? await ContinuousClock().sleep(for: .seconds(delay))
       }
+      guard shouldFocus() else { return }
       guard let window = view.window else {
-        moveFocus(to: view, from: previous, delay: nextDelay)
+        moveFocus(to: view, from: previous, delay: nextDelay, when: shouldFocus)
         return
       }
       if let previous, previous !== view {

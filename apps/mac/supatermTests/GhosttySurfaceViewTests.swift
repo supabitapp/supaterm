@@ -260,6 +260,41 @@ struct GhosttySurfaceViewTests {
 
   @Test
   @MainActor
+  func newerFocusRequestSupersedesDeferredSurfaceFocus() async throws {
+    initializeGhosttyForTests()
+
+    let host = TerminalHostState(runtime: GhosttyRuntime(), zmxClient: .noop, zmxSessionsEnabled: false)
+    host.ensureInitialTab(focusing: false)
+    let tabID = try #require(host.selectedTabID)
+    let source = try #require(host.selectedSurfaceView)
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let container = NSView(frame: window.contentView?.bounds ?? .zero)
+    source.frame = container.bounds
+    window.contentView = container
+    container.addSubview(source)
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(source)
+
+    #expect(host.performSplitAction(.newSplit(direction: .right), for: source.id))
+    let split = try #require(host.selectedSurfaceView)
+    #expect(split !== source)
+
+    host.focusSurface(source, in: tabID)
+    split.frame = container.bounds
+    container.addSubview(split)
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(host.selectedSurfaceView === source)
+    #expect(window.firstResponder === source)
+  }
+
+  @Test
+  @MainActor
   func clickingUnfocusedSplitTransfersFocusWithoutDirectInteraction() throws {
     initializeGhosttyForTests()
 

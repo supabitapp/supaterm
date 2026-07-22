@@ -1100,7 +1100,10 @@ final class TerminalHostState {
     clearNotificationAttention(for: surface.id)
     guard tabID == spaceManager.selectedTabID else { return }
     let fromSurface = previousSurface === surface ? nil : previousSurface
-    GhosttySurfaceView.moveFocus(to: surface, from: fromSurface)
+    GhosttySurfaceView.moveFocus(to: surface, from: fromSurface) { [weak self, weak surface] in
+      guard let self, let surface else { return false }
+      return selectedSurfaceView === surface
+    }
     emitFocusChangedIfNeeded(surface.id)
   }
 
